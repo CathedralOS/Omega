@@ -11,6 +11,11 @@ This file is updated as entries are decided. Entries not listed in the table are
 | 3 | `candidates.rs:1834` | CLOSED | A reference the validator misses makes the candidate disagree with the only proposer, so nothing is deleted. |
 | 4 | `candidates.rs:4225` | UNDECIDED | The exact obligation is matched by id, not re-proved against the arithmetic. |
 | 5 | `candidates.rs:7315` | CLOSED | A structural case has no scalar payload operand; a leftover runtime index fails revalidation. |
+| 6 | `candidates.rs:9824` | CLOSED | The call stays; a returned value is constant only if every feasible path agreed. |
+| 7 | `candidates.rs:2274` | CLOSED | Skipping the store leaves the removed parameter in the use list, so revalidation rejects it. |
+| 8 | `candidates.rs:10686` | CLOSED | Those tables are not rewritten except the prune roster, which is validated. |
+| 9 | `current_ownership.rs:204` | UNDECIDED | A failed descriptor graph clears effects; not every failure is shown to be rejected later. |
+| 10 | `current_ownership.rs:553` | UNDECIDED | Prefix fallback cannot authorize an extension of the same path; canonical locations were not read. |
 
 ## 1. `candidates.rs:1581-1586`
 
@@ -64,21 +69,78 @@ Read in full: `rewrite_scalar_value_uses` (`candidates.rs:7293-7321`), `rebuild_
 
 A case payload binding stores the destination parameter id, a field id, and a scalar type. It has no value operand (`control_flow.rs:133-137`). The value ids a case can hold are `RuntimeIndex` indexes on the scrutinee path and on structural-binding paths (`operations.rs:1052-1058`, `types_and_values.rs:1548-1550`). `runtime_indices` collects those, and `operation_uses` appends them (`construction.rs:612-619`). `sweep_output_nodes` rebuilds `node.uses` from that list (`candidates.rs:10575`). `accept_region_rewrite` then revalidates (`:10680`). If an output rewrite deleted the value and the case still names it, `validate_node_uses` reports an undefined value (`unit_validation.rs:14344-14349`). If the definition was not deleted, the unre-written index still names the original value. The clone at `:4573` is not written back; a key that no longer matches returns `CandidatePatchMismatch` (`:4585`).
 
+## 6. `candidates.rs:9824-9851`
+
+**CLOSED.** The digest is wrong that the replay cannot catch a shared mistake. The validator recomputes the constant itself.
+
+Searches: `fn call_result_constant` — two definitions, `candidates.rs:9824` and `specialization.rs:478`. Callers: `candidates.rs:9744` (1) and `specialization.rs:410` (1). `plan_dispatch(` — definition `:9643`, caller `:10155`. `cyclic_machines(` — calls `:238`, `:3039`, `:10147`.
+
+Read in full: validator `call_result_constant` (`candidates.rs:9824-9851`), producer `call_result_constant` (`specialization.rs:478-509`), `cyclic_machines` and `has_cycle` (`candidates.rs:9584-9641`), state-specialization `validate` (`:10126-10188`). Read `plan_dispatch` from `:9643` through `:9759`, and `validator_scalar_constant_facts` from `:9223` through `:9428`. Did not read `delivered_argument` beyond the copy at `:9784-9821`, and did not read `fused_node` past the jump arm (`:9853-9927`).
+
+`validate` rejects a caller with a block cycle (`:10147`) and requires the candidate's edges to equal `plan_dispatch` (`:10160`). That plan calls `call_result_constant` only after local constant facts miss (`:9742-9744`). The helper keeps a callee only when it has exactly one `Return`, then asks the validator's own constant propagation for that returned value. Function parameters start overdefined (`:9257-9258`), and a value is reported only when every merge left it constant (`:9400-9402`). A result that depends on an argument or on a recursive input does not stay constant. The rewrite replaces the predecessor terminator (`:10173-10186`), not the call, so the callee's other effects still run. When the call does return, that unique return value is the call result.
+
+## 7. `candidates.rs:2274-2277`
+
+**CLOSED.** The digest is right that one rewriter skips the store. That skip does not accept the candidate.
+
+Searches: `rewrite_block_parameter_operation(` — definition `:2223`, calls `:2455` and `:7677`. `normalize_redundant_parameter_observation_operation` — definition `:2113`, call `:2098`. `WriteOnlyPrimitiveStore` in `construction.rs` — `direct_uses` arm `:689` and `operation_obligation` arm `:414`.
+
+Read in full: `rewrite_block_parameter_operation` (`candidates.rs:2223-2283`), `normalize_redundant_parameter_observation_operation` (`:2113-2187`), the redundant-parameter output loop and checks (`:2426-2488`), `primitive_local_triple_pattern` (`operations.rs:1490-1495`), the `direct_uses` arm that uses it (`construction.rs:689-691`), and the observation event that clones the whole operation (`observation.rs:345-373`). Read `rewrite_value_operands` far enough to see the same macro replaces `value.value` (`candidates.rs:10248-10249`). Did not read `rewrite_scalar_substitutions`'s caller at `:7670` beyond the call into `rewrite_block_parameter_operation`.
+
+The output rewriter leaves a store unchanged when `range_obligation` is `Some` (`candidates.rs:2274-2277`). The observation normalizer does not have that arm; its wildcard calls `rewrite_value_operands` (`:2181-2184`), which does replace the stored value. The stored value is a use (`construction.rs:689-691`). After the parameter is removed (`candidates.rs:2445`), revalidation (`:2463`) still sees that use and reports an undefined value (`unit_validation.rs:14344-14349`). The region observation also clones the operation (`observation.rs:347`), so the normalized input and the skipped output differ and fail the semantics compare (`candidates.rs:2478`) if revalidation did not already fail.
+
+## 8. `candidates.rs:10686-10692`
+
+**CLOSED.** The digest overstates what those lines do. The outside-function loop does not decide the tables.
+
+Searches: `accepted_obligation_facts` in `candidates.rs` — 4 matches (`:4905`, `:6028`, `:6387`, `:8524`), none of them an assignment. `pruned_machines` — extend at `:1799` and reads at `:1817` and `:1823`.
+
+Read in full: `accept_region_rewrite` (`candidates.rs:10662-10699`) and `revalidate_rewrite_output` (`unit_validation.rs:18213-18227`). Read the prune mutation (`candidates.rs:1796-1802`), the equality test before the scalar-identity edit (`:4904-4926`), and the equality test after `install_evaluated_constant` (`:6373-6388`). Did not read `install_evaluated_constant` itself.
+
+No callback in this file assigns `accepted_obligation_facts`. The only write of `pruned_machines` is the unreachable-machine replay, which then calls `validate_psi_optimization_unit` (`:1802`). `admit` has already validated the input tables (`:422`). A region rewrite clones the input and does not touch either vector, so revalidation sees the same tables. The identity recompute seals whatever is present; it is not the check. The roster checks that do reject a bad prune list are the ones at `unit_validation.rs:1114-1151`.
+
+## 9. `current_ownership.rs:204`
+
+**UNDECIDED.** The digest's failure mode is real if a unit can pass later checks while the graph is absent. I could not show that it can, or that it cannot.
+
+Searches: `origins_with_analysis(` — definition `:182`, callers `:173` and `:2883`. `validate_compatibility(` — definition `:711` only; the use sites are the re-exports at `:767`, `:1590`, and `:9965`. `validate_descriptor_compatibility(` — caller `unit_validation.rs:1250`. `fn adapt(` — `descriptor_results.rs:1215`.
+
+Read in full: `BorrowedRegions::origins` (`current_ownership.rs:151-180`), the start of `origins_with_analysis` through the empty maps and the `if let (Some(graph), Some(analysis))` (`:182-209`), `validate_compatibility` through the empty-requirement return (`:711-718`), `catalog_graph` (`descriptor_results.rs:1089-1141`), and `adapt`'s signature and place-declaration setup (`:1215-1292`). Did not read the rest of `adapt`, so I did not classify its `return None` sites (`:1299` onward).
+
+`CallAccesses::new` builds the view graph before per-function validation (`unit_validation.rs:1208`, `current_ownership.rs:2865`). If `adapt` returns `None`, `catalog_graph` returns `None` (`descriptor_results.rs:1123-1125`) and the `if let` at `current_ownership.rs:204` leaves sources and effects empty. Compatibility requirements are built from loans that need an incoming origin (`:1038`). With no origins, that list stays empty, and `validate_compatibility` returns `Ok` (`:716-717`). Duplicate machine ids cannot take this path: they are rejected at `unit_validation.rs:1114-1121` before `CallAccesses::new`.
+
+What would decide it: read every `return None` in `adapt` and see whether each one is also rejected by `validate_function` or by a check that runs before the empty graph is trusted. If one `None` is possible for a unit that otherwise validates, a call whose stored effect conflicts with a live loan is accepted.
+
+## 10. `current_ownership.rs:553-562`
+
+**UNDECIDED.** The prefix fallback does not, by itself, authorize a longer path. The canonical location stored for that prefix was not traced.
+
+Searches: `access_location(` — definition `:553`, callers `:116`, `:1184`, `:1279`. `fn contains` on `DescriptorLocation` — `descriptors.rs:569`. `fn location(` on the analysis — `descriptor_replay.rs:413`.
+
+Read in full: `access_location` (`current_ownership.rs:553-562`), `DescriptorLoan::authorizes` (`:1233-1249`), `conflicted_edge`'s use (`:1183-1224`), `DescriptorLocation::contains` (`descriptors.rs:562-571`), and `DescriptorAnalysis::location` (`descriptor_replay.rs:413-424`). Read the write-recording caller (`current_ownership.rs:104-127`) and the observation caller (`:1272-1281`) enough to see both store the returned location and later pass it to `authorizes` (`:1111-1116`). Read the insert of canonical locations (`:306-324`). Did not read `canonical_storage`.
+
+`contains` is "same root, and the other path starts with this path" (`descriptors.rs:569-570`). `authorizes` skips a conflict only when some authorized location contains the location it was given (`current_ownership.rs:1239-1244`). A recorded prefix is a prefix of the requested path. Any authorization that contains that prefix also contains the longer path. Falling back therefore cannot make `authorizes` true for a path it would have rejected. It can make `authorizes` false, which reports more conflicts.
+
+What would decide the remaining gap: `canonical_storage`, called by `analysis.location` (`descriptor_replay.rs:422-423`). The map stores that canonical value, not the path that was queried (`current_ownership.rs:321-324`). If a shorter path's canonical location is not a path-prefix of the full path's canonical location, the contains argument above does not apply.
+
 ## Counts so far
 
 | Verdict | Count |
 | --- | --- |
 | REACHABLE | 0 |
-| CLOSED | 4 |
-| UNDECIDED | 1 |
+| CLOSED | 7 |
+| UNDECIDED | 3 |
 
-Entries not reached: 6 through 120.
+Entries not reached: 11 through 120.
 
 ## What I did not read
 
 - The producer of `AcceptedObligationFact` and the bodies of `exact_add` / `saturating_add` / `wrapping_add` (entry 4).
-- The phi-translated CSE validator above the `rewrite_scalar_value_uses` call (entry 5).
-- Entries 6 through 120, including their functions and callers.
-- Subagent drafts, if any are running: nothing from them is copied here.
+- The phi-translated CSE validator above `:4564` (entry 5).
+- `install_evaluated_constant` (entry 8).
+- The rest of `adapt` after `descriptor_results.rs:1292`, including every `return None` (entry 9).
+- `canonical_storage` (entry 10).
+- Entries 11 through 120.
+- Subagent drafts: nothing from them is copied here.
 
-Commit: filled in when this file is last pushed.
+Pushed through entry 5 as `e8fa36c0590b974641d0be89f6a188a35a2e23a8`. The final SHA is written on the last push.
