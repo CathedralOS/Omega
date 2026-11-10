@@ -1,7 +1,6 @@
 // Different admitted import slots share one clock domain. Exercise Unit and
 // scalar poll results, both count widths, two read slots, and helper returns.
 // Native waits may overshoot: assert lower bounds, not exact host latency.
-use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
 public boundary trait ClockProbe {
@@ -12,31 +11,6 @@ public boundary trait ClockProbe {
     machine wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32 reaches;
 }
 data ClockImports { }
-
-macos_arm64 machine clock_binding() -> ForeignBinding<26, 22, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-        }
-    }
-}
-macos_arm64 machine wait_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
-        }
-    }
-}
-macos_arm64 machine ClockImports::read(selector: u32) -> u64
-    satisfies ClockProbe::read via clock_binding();
-macos_arm64 machine ClockImports::read_other(selector: u32) -> u64
-    satisfies ClockProbe::read_other via clock_binding();
-macos_arm64 machine ClockImports::wait_unit(pointer: u64, count: u64, milliseconds: i32)
-    satisfies ClockProbe::wait_unit via wait_binding();
-macos_arm64 machine ClockImports::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait_narrow via wait_binding();
-macos_arm64 machine ClockImports::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait_wide via wait_binding();
 
 machine helper_read() -> u64 { ClockProbe::read_other(8) }
 
@@ -73,14 +47,6 @@ boundary trait LinuxClockRead {
     machine read(selector: u32, instant: &mut LinuxInstant) -> i32 reaches;
 }
 
-linux_x86_64 machine linux_clock_binding() -> ForeignBinding<9, 13, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
-    } }
-}
-linux_x86_64 machine ClockImports::read_instant(selector: u32, instant: &mut LinuxInstant) -> i32
-    satisfies LinuxClockRead::read via linux_clock_binding();
-
 machine linux_clock_selector(selector: u32) -> u32 {
     transition selector == 0 { true -> 0u32 false -> 1u32 }
 }
@@ -107,18 +73,6 @@ linux_x86_64 machine ClockImports::read(selector: u32) -> u64
     satisfies ClockProbe::read { linux_clock_nanoseconds(selector) }
 linux_x86_64 machine ClockImports::read_other(selector: u32) -> u64
     satisfies ClockProbe::read_other { linux_clock_nanoseconds(selector) }
-
-linux_x86_64 machine linux_wait_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } }
-}
-linux_x86_64 machine ClockImports::wait_unit(pointer: u64, count: u64, milliseconds: i32)
-    satisfies ClockProbe::wait_unit via linux_wait_binding();
-linux_x86_64 machine ClockImports::wait_narrow(pointer: u64, count: u32, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait_narrow via linux_wait_binding();
-linux_x86_64 machine ClockImports::wait_wide(pointer: u64, count: u64, milliseconds: i32) -> i32
-    satisfies ClockProbe::wait_wide via linux_wait_binding();
 
 // Darwin nfds_t is 32-bit; Linux nfds_t is 64-bit. Both calls describe zero
 // descriptors, with Darwin additionally exercising truncation of the high word.
