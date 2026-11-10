@@ -297,21 +297,30 @@ mod attribution {
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
         let ordinals = build_ordinal_index(source);
-        for (index, row) in rows.iter().enumerate() {
+        let physical = PhysicalSpans::prepare(fragment);
+        let attributed = AttributionRows::new(rows);
+        let mut previous_ends = std::collections::BTreeMap::new();
+        for row in rows {
             if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
-                || rows[..index].iter().any(|previous| {
-                    previous.site == row.site
-                        && previous
-                            .code_offset
-                            .checked_add(previous.byte_count)
-                            .is_none_or(|end| end >= row.code_offset)
-                })
-                || !interval_is_exact(fragment, row)?
+                || previous_ends
+                    .get(&row.site)
+                    .is_some_and(|end| *end >= row.code_offset)
+                || !match &physical {
+                    Some(physical) => physical.interval_is_exact(row)?,
+                    None => interval_is_exact(fragment, row)?,
+                }
             {
                 return Err(Error::Mismatch(
                     "object semantic interval differs from its physical spans",
                 ));
             }
+            // Only accepted rows enter this prefix; their interval ends are finite.
+            previous_ends.insert(
+                row.site,
+                row.code_offset
+                    .checked_add(row.byte_count)
+                    .ok_or(Error::Overflow)?,
+            );
         }
         if !strictly_increasing(rows, |row| (row.operation_ordinal, row.code_offset)) {
             return Err(Error::Mismatch(
@@ -320,9 +329,8 @@ mod attribution {
         }
         for instruction in fragment.instructions() {
             let present = |site, offset, length| {
-                rows.iter().any(|row| {
-                    row.site == site
-                        && row.code_offset <= offset
+                attributed.at(site).iter().any(|row| {
+                    row.code_offset <= offset
                         && offset.checked_add(length).is_some_and(|end| {
                             row.code_offset
                                 .checked_add(row.byte_count)
@@ -425,9 +433,11 @@ mod attribution {
                 {
                     continue;
                 }
-                if !rows.iter().any(|row| {
-                    row.site == SemanticCodeSite::Edge(edge)
-                        && (supports(instruction, row.site, row.code_offset, row.byte_count)
+                if !attributed
+                    .at(SemanticCodeSite::Edge(edge))
+                    .iter()
+                    .any(|row| {
+                        supports(instruction, row.site, row.code_offset, row.byte_count)
                             || (supports(
                                 instruction,
                                 row.site,
@@ -437,13 +447,177 @@ mod attribution {
                                 && row
                                     .code_offset
                                     .checked_add(row.byte_count)
-                                    .is_some_and(|end| instruction_end <= end)))
-                }) {
+                                    .is_some_and(|end| instruction_end <= end))
+                    })
+                {
                     return Err(Error::Mismatch("object omits an attributed control edge"));
                 }
             }
         }
         Ok(())
+    }
+
+    struct AttributionRows<'inputs> {
+        rows: Vec<&'inputs SemanticCodeAttribution>,
+    }
+
+    impl<'inputs> AttributionRows<'inputs> {
+        fn new(rows: &'inputs [SemanticCodeAttribution]) -> Self {
+            let mut rows: Vec<_> = rows.iter().collect();
+            rows.sort_by_key(|row| row.site);
+            Self { rows }
+        }
+
+        fn at(&self, site: SemanticCodeSite) -> &[&'inputs SemanticCodeAttribution] {
+            let first = self.rows.partition_point(|row| row.site < site);
+            let count = self.rows[first..].partition_point(|row| row.site == site);
+            &self.rows[first..first + count]
+        }
+    }
+
+    struct PhysicalSpan<'inputs> {
+        instruction: &'inputs machine_code::FunctionFragmentInstructionSpan,
+        start: usize,
+        end: usize,
+    }
+
+    struct PhysicalSpans<'inputs> {
+        spans: Vec<PhysicalSpan<'inputs>>,
+        possible_sites: Vec<(SemanticCodeSite, usize)>,
+    }
+
+    // Canonical physical spans let interval checks visit only overlapping bytes.
+    // Other input shapes retain the original full scan and its error order.
+    impl<'inputs> PhysicalSpans<'inputs> {
+        fn prepare(fragment: &'inputs FunctionFragment) -> Option<Self> {
+            let mut spans = Vec::new();
+            let mut possible_sites = Vec::new();
+            let mut previous_end = 0;
+            for instruction in fragment.instructions() {
+                let start = host(instruction.offset).ok()?;
+                let end = start.checked_add(instruction.bytes.len())?;
+                if start < previous_end {
+                    return None;
+                }
+                previous_end = end;
+                let position = spans.len();
+                let mut record = |site| possible_sites.push((site, position));
+                for operation in &instruction.provenance.operations {
+                    record(SemanticCodeSite::Operation(*operation));
+                }
+                for edge in &instruction.provenance.edges {
+                    record(SemanticCodeSite::Edge(*edge));
+                }
+                match &instruction.control {
+                    Control::Crash { psi_edge, .. } => record(SemanticCodeSite::Edge(*psi_edge)),
+                    Control::HostedExitProcess { completion_edge } => {
+                        record(SemanticCodeSite::Edge(*completion_edge));
+                    }
+                    Control::Return { psi_return_edge } => {
+                        record(SemanticCodeSite::Edge(*psi_return_edge));
+                    }
+                    Control::Jump { successor } => {
+                        if let Some(edge) = successor.psi_edge {
+                            record(SemanticCodeSite::Edge(edge));
+                        }
+                    }
+                    Control::ConditionalBranch {
+                        when_taken,
+                        when_fallthrough,
+                        ..
+                    } => {
+                        for successor in [when_taken, when_fallthrough] {
+                            if let Some(edge) = successor.psi_edge {
+                                record(SemanticCodeSite::Edge(edge));
+                            }
+                        }
+                    }
+                    Control::InternalCall { owner, .. } => {
+                        if let Some(edge) = owner.edge() {
+                            record(SemanticCodeSite::Edge(edge));
+                        }
+                    }
+                    Control::NormalizedForeignCall {
+                        invocation_site, ..
+                    } => {
+                        if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
+                            invocation_site
+                        {
+                            record(SemanticCodeSite::Edge(*edge));
+                        }
+                    }
+                    Control::OperationTrap { .. } | Control::None => {}
+                }
+                spans.push(PhysicalSpan {
+                    instruction,
+                    start,
+                    end,
+                });
+            }
+            possible_sites.sort_by_key(|(site, _)| *site);
+            Some(Self {
+                spans,
+                possible_sites,
+            })
+        }
+
+        fn interval_is_exact(&self, row: &SemanticCodeAttribution) -> Result<bool, Error> {
+            if row.byte_count == 0 {
+                let first = self
+                    .possible_sites
+                    .partition_point(|(site, _)| *site < row.site);
+                return Ok(self.possible_sites[first..]
+                    .iter()
+                    .take_while(|(site, _)| *site == row.site)
+                    .any(|(_, position)| {
+                        supports(
+                            self.spans[*position].instruction,
+                            row.site,
+                            row.code_offset,
+                            0,
+                        )
+                    }));
+            }
+            let end = row
+                .code_offset
+                .checked_add(row.byte_count)
+                .ok_or(Error::Overflow)?;
+            let range = overlap_range(&self.spans, row.code_offset, end, |span| {
+                (span.start, span.end)
+            });
+            let mut minimum = usize::MAX;
+            let mut maximum = 0;
+            let mut covered = 0usize;
+            let mut found = false;
+            for span in &self.spans[range] {
+                if !supports(
+                    span.instruction,
+                    row.site,
+                    span.start,
+                    span.instruction.bytes.len(),
+                ) {
+                    return Ok(false);
+                }
+                found = true;
+                minimum = minimum.min(span.start);
+                maximum = maximum.max(span.end);
+                covered = covered
+                    .checked_add(span.instruction.bytes.len())
+                    .ok_or(Error::Overflow)?;
+            }
+            Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
+        }
+    }
+
+    fn overlap_range<T>(
+        spans: &[T],
+        start: usize,
+        end: usize,
+        bounds: impl Fn(&T) -> (usize, usize),
+    ) -> std::ops::Range<usize> {
+        let first = spans.partition_point(|span| bounds(span).1 <= start);
+        let last = spans.partition_point(|span| bounds(span).0 < end);
+        first..last
     }
 
     fn supports(
@@ -541,6 +715,42 @@ mod attribution {
             }
         }
         Ok(found && minimum == row.code_offset && maximum == end && covered == row.byte_count)
+    }
+
+    #[cfg(test)]
+    mod interval_ranges {
+        use super::overlap_range;
+
+        #[test]
+        fn ordered_interval_ranges_match_direct_membership() {
+            let spans = [
+                (0usize, 0usize),
+                (0, 2),
+                (2, 2),
+                (2, 2),
+                (4, 7),
+                (7, 7),
+                (9, 10),
+            ];
+            for start in 0..=11 {
+                for end in start + 1..=12 {
+                    let expected: Vec<_> = spans
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, (span_start, span_end))| {
+                            *span_end > start && *span_start < end
+                        })
+                        .map(|(position, _)| position)
+                        .collect();
+                    let actual: Vec<_> = overlap_range(&spans, start, end, |span| *span).collect();
+                    assert_eq!(actual, expected, "range {start}..{end}");
+                }
+            }
+            assert_eq!(
+                overlap_range(&[] as &[(usize, usize)], 1, 2, |span| *span),
+                0..0
+            );
+        }
     }
 
     #[cfg(test)]
