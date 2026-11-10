@@ -26083,7 +26083,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
-pass/layouts/extent_view_preserves_grant_exit checked 19864ms check-target:macos_arm64 @e9afae5fccb7
+pass/layouts/extent_view_preserves_grant_exit checked 7330ms check-target:macos_arm64 @b790c20c9878
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_alias_policy_exit checked 9415ms check-target:macos_arm64 @6d8ad13849e1
