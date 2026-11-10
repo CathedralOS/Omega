@@ -2485,8 +2485,8 @@ pub mod expression {
                 use crate::expression::{Expression, NamePath};
                 let owner = SymbolHandle::from_arena_index(7);
                 let name = |text: &str| Identifier::from(text);
-                let result = NamePath::unresolved(vec![name("result")])
-                    .denoting_reserved_result_of(owner);
+                let result =
+                    NamePath::unresolved(vec![name("result")]).denoting_reserved_result_of(owner);
                 let mut table = ExpressionTable::default();
                 let stored = table.insert_tree(&Expression::Name(result.clone()));
                 let ExpressionNode::Name(path) = table.expression(stored) else {
@@ -2495,9 +2495,9 @@ pub mod expression {
                 assert_eq!(path.reserved_result_of, owner);
                 assert!(!path.symbol.is_valid());
 
-                let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![
-                    name("result"),
-                ])));
+                let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![name(
+                    "result",
+                )])));
                 let ExpressionNode::Name(path) = table.expression(plain) else {
                     panic!("a name is stored as a name")
                 };
