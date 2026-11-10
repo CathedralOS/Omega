@@ -3515,8 +3515,10 @@ mod state_arguments {
         - a collection and index pair proved in range, and a receiver length,
           survive only if every edge carries them.
 
-        Edges into the entry state are dropped, since the entry can be called with
-        any argument its declaration permits. If the facts have not settled after
+        Edges into the family root's entry state are dropped, since that entry
+        can be called with any argument its declaration permits. A nested
+        machine's entry keeps every edge into it, its own recursive calls
+        included. If the facts have not settled after
         `MAX_PROPAGATION_PASSES` passes, no facts are published.
 
         `statements` implements the statement transfer's visitor hooks,
@@ -4460,29 +4462,33 @@ mod state_arguments {
     }
 
     /*
-        The state a transition enters when it stays inside the caller's machine
-        family: a later state of this machine, or the entry of a machine declared
-        inside the family. The caller's own entry stays an external head.
+        The state a call or transition enters when it stays inside the caller's
+        machine family: a state of this machine, including its own entry, or the
+        entry of a related machine in the family.
+
+        A machine re-entering itself is an edge like any other. Every arrival of
+        a nested machine comes from inside its family, so its entry facts are
+        the merge of all of them, its own recursive calls included; leaving the
+        self-call out let the parent's arguments stand for every invocation. The
+        family root's entry is an external head instead, and
+        `collect_state_argument_facts` drops every edge into it after recording.
     */
     pub(super) fn family_transition_state(
         program: &dyn ::validation::CheckingInput,
         caller: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Option<&State> {
-        if let Some(owner) = program.machine_by_symbol(caller) {
-            let states = program.machine_states(owner);
-            if let Some((entry, rest)) = states.split_first() {
-                if let Some(state) = rest.iter().find(|state| state.symbol == symbol) {
-                    return Some(state);
-                }
-                if entry.symbol == symbol {
-                    return None;
-                }
-            }
+        if let Some(owner) = program.machine_by_symbol(caller)
+            && let Some(state) = program
+                .machine_states(owner)
+                .iter()
+                .find(|state| state.symbol == symbol)
+        {
+            return Some(state);
         }
         let state = validation::call_target_state(program, symbol)?;
         let (destination, _) = validation::find_state(program, state.symbol)?;
-        (destination.symbol != caller && family_related(program, caller, destination.symbol))
+        (destination.symbol == caller || family_related(program, caller, destination.symbol))
             .then_some(state)
     }
 
