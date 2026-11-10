@@ -18781,6 +18781,8 @@ fail/traits/conformance_nested_signature_foreign_lifetime rejected 186ms expecte
 fail/traits/conformance_phantom_foreign_captured_operand rejected 1684ms expected @ccdb99ca2214
 	conformance `Mapped satisfies Reader` parameter `Value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	requirement `Reader::read` has no prepared contract for its exact trait application
+fail/traits/conformance_reference_row_retired rejected 11383ms expected @1c4b4e62a5be
+	closed conformance `CounterSink satisfies Sink` fills `Sink::put` more than once
 fail/traits/conformance_reference_wrong_applied_result rejected 2074ms expected @ccdb99ca2214
 	machine `Reader::read` state `read` does not satisfy trait `Value` machine `read`: expected return `T`, got `u64[in Wrapping]`
 fail/traits/conformance_unused_lifetime_foreign_scope rejected 468ms expected @ccdb99ca2214
