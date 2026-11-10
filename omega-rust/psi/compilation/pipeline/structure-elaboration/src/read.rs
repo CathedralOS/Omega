@@ -438,8 +438,15 @@ impl<'t> Program<'t> {
             | BinaryOperator::BitwiseXor => return unserved("arithmetic clause"),
             BinaryOperator::CaseMembership => return unserved("case membership"),
         };
-        let (left, left_type) = self.term(id, slots, binary.left)?;
-        let (right, right_type) = self.term(id, slots, binary.right)?;
+        // An anonymous literal lands in its partner's type.
+        let ((left, left_type), (right, right_type)) = if self.anonymous_literal(binary.left) {
+            let right = self.term(id, slots, binary.right, None)?;
+            (self.term(id, slots, binary.left, Some(right.1))?, right)
+        } else {
+            let left = self.term(id, slots, binary.left, None)?;
+            let right = self.term(id, slots, binary.right, Some(left.1))?;
+            (left, right)
+        };
         if left_type != right_type {
             return Err(refuse(id, Construct::Machine, Unserved::Typing("clause operand types differ")));
         }
@@ -466,7 +473,24 @@ impl<'t> Program<'t> {
         }
     }
 
-    fn term(&self, id: MachineId, slots: &[Slot], expression: ExpressionHandle) -> Checked<(ScalarTerm, ScalarType)> {
+    /// An integer literal that stage 04 left without a landed type: it lands
+    /// in the type its context expects (`wiki/spec/language/domains.md`,
+    /// "Literals and expected types").
+    fn anonymous_literal(&self, expression: ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                ExpressionNode::Integer(literal) if literal.landing().is_none()
+            )
+    }
+
+    fn term(
+        &self,
+        id: MachineId,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ScalarType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
@@ -487,42 +511,57 @@ impl<'t> Program<'t> {
                 ))
             }
             ExpressionNode::Integer(literal) => {
-                let (value, scalar_type) = self.literal(id, literal)?;
-                let ScalarType::Integer(integer) = scalar_type else {
-                    return unserved("literal type");
-                };
-                Ok((ScalarTerm::Integer { scalar_type: integer, value }, scalar_type))
+                let (value, integer) = self.literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value,
+                    },
+                    ScalarType::Integer(integer),
+                ))
             }
             ExpressionNode::Boolean(value) => Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean)),
             _ => unserved("term other than a formal or literal"),
         }
     }
 
-    fn literal(&self, id: MachineId, literal: &numerics::literals::IntegerLiteral) -> Checked<(IntegerValue, ScalarType)> {
+    /// An integer literal's value and type: the type stage 04 landed it in,
+    /// or else the type its context expects. Both, when present, must agree.
+    fn literal(
+        &self,
+        id: MachineId,
+        literal: &numerics::literals::IntegerLiteral,
+        expected: Option<ScalarType>,
+    ) -> Checked<(IntegerValue, IntegerType)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        let Some(landing) = literal.landing() else {
-            return unserved("integer literal without a landed type");
-        };
-        if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
-            return unserved("integer literal in a non-exact domain");
-        }
-        let scalar_type = landed_type(landing.landed_type, id)?;
-        let (low, high) = landing.landed_type.bounds();
-        let (value, magnitude) = if landing.landed_type.is_signed() {
-            let Some(value) = literal.value_i64() else {
-                return unserved("integer literal beyond 64 bits");
-            };
-            (IntegerValue::Signed(i128::from(value)), i128::from(value))
-        } else {
-            match (literal.is_negative(), literal.value_u64()) {
-                (false, Some(value)) => (IntegerValue::Unsigned(u128::from(value)), i128::from(value)),
-                _ => return unserved("negative or oversized unsigned literal"),
+        let landed = match literal.landing() {
+            Some(landing) => {
+                if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return unserved("integer literal in a non-exact domain");
+                }
+                Some(landed_type(landing.landed_type, id)?)
             }
+            None => None,
         };
-        if magnitude < low || magnitude > high {
-            return unserved("integer literal outside its landed type");
+        let scalar_type = match (landed, expected) {
+            (Some(landed), Some(expected)) if landed != expected => {
+                return Err(refuse(id, Construct::Machine, Unserved::Typing("literal landed type")));
+            }
+            (Some(scalar_type), _) | (None, Some(scalar_type)) => scalar_type,
+            (None, None) => return unserved("anonymous integer literal without an expected type"),
+        };
+        let ScalarType::Integer(integer) = scalar_type else {
+            return Err(refuse(id, Construct::Machine, Unserved::Typing("integer literal in a non-integer place")));
+        };
+        let value = match (integer.sign(), literal.is_negative()) {
+            (IntegerSign::Signed, _) => literal.value_i64().map(|value| IntegerValue::Signed(i128::from(value))),
+            (IntegerSign::Unsigned, false) => literal.value_u64().map(|value| IntegerValue::Unsigned(u128::from(value))),
+            (IntegerSign::Unsigned, true) => None,
+        };
+        match value {
+            Some(value) if integer.admits(value) => Ok((value, integer)),
+            Some(_) | None => unserved("integer literal outside its type"),
         }
-        Ok((value, scalar_type))
     }
 
     fn slot_of(&self, id: MachineId, slots: &[Slot], path: &TableNamePath) -> Checked<usize> {
@@ -582,7 +621,7 @@ impl<'t> Program<'t> {
                     if !slots[slot].assignable {
                         return Err(refuse(id, Construct::Machine, Unserved::Statement("assignment to an immutable binding")));
                     }
-                    let value = self.expression(id, &slots, assignment.value)?;
+                    let value = self.expression(id, &slots, assignment.value, Some(slots[slot].scalar_type))?;
                     if value.result != Some(slots[slot].scalar_type) {
                         return Err(refuse(id, Construct::Machine, Unserved::Typing("assigned value type")));
                     }
@@ -590,7 +629,8 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Call(call) => Statement::Evaluate(self.call_statement(id, &slots, call)?),
                 StatementNode::Expression(expression) => {
-                    let expression = self.expression(id, &slots, *expression)?;
+                    let expected = if last { signature.result } else { None };
+                    let expression = self.expression(id, &slots, *expression, expected)?;
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if expression.result != Some(result) {
@@ -630,7 +670,7 @@ impl<'t> Program<'t> {
                     let guard = match transition.guard {
                         TransitionGuardNode::Always => None,
                         TransitionGuardNode::When(guard) => {
-                            let guard = self.expression(id, &slots, guard)?;
+                            let guard = self.expression(id, &slots, guard, Some(ScalarType::Boolean))?;
                             if guard.result != Some(ScalarType::Boolean) {
                                 return Err(refuse(id, Construct::Machine, Unserved::Typing("guard is not bool")));
                             }
@@ -678,11 +718,18 @@ impl<'t> Program<'t> {
         if !local.initial_value.is_valid() {
             return unserved("uninitialized local");
         }
-        let value = self.expression(id, slots, local.initial_value)?;
+        // A declared type is the initializer's expected type; without one the
+        // local takes the initializer's type.
+        let declared = if local.type_reference.is_valid() {
+            Some(self.scalar_type(id, local.type_reference)?)
+        } else {
+            None
+        };
+        let value = self.expression(id, slots, local.initial_value, declared)?;
         let Some(value_type) = value.result else {
             return Err(refuse(id, Construct::Machine, Unserved::Typing("local bound to a Unit call")));
         };
-        if local.type_reference.is_valid() && self.scalar_type(id, local.type_reference)? != value_type {
+        if declared.is_some_and(|declared| declared != value_type) {
             return Err(refuse(id, Construct::Machine, Unserved::Typing("local initializer type")));
         }
         let slot = Slot {
@@ -711,7 +758,7 @@ impl<'t> Program<'t> {
                 }
                 return Ok(Target::Unit);
             }
-            TransitionTargetNode::Value(expression) => self.expression(id, slots, *expression)?,
+            TransitionTargetNode::Value(expression) => self.expression(id, slots, *expression, result)?,
             TransitionTargetNode::Named {
                 operational_acknowledgement,
                 path,
@@ -821,12 +868,20 @@ impl<'t> Program<'t> {
             let kind = symbol_kind(self.typed.symbols.get(target).kind);
             return Err(refuse(id, Construct::Machine, Unserved::Call(kind)));
         }
-        let mut read = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            read.push(self.expression(id, slots, *argument)?);
-        }
+        // The callee's formals are the arguments' expected types, so its
+        // signature is read first; reading order is not evaluation order.
         let callee = self.machine(target)?;
         self.calls.push((id, callee));
+        let formals = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?
+            .parameters
+            .clone();
+        if formals.len() != arguments.len() {
+            return Err(refuse(id, Construct::Machine, Unserved::Typing("argument count")));
+        }
+        let mut read = Vec::with_capacity(arguments.len());
+        for (argument, formal) in arguments.iter().zip(&formals) {
+            read.push(self.expression(id, slots, *argument, Some(*formal))?);
+        }
         let signature = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
         if signature.parameters.len() != read.len()
             || signature
@@ -847,15 +902,24 @@ impl<'t> Program<'t> {
         })
     }
 
-    fn expression(&mut self, id: MachineId, slots: &[Slot], handle: ExpressionHandle) -> Checked<Expression> {
+    /// Reads one expression. `expected` is the type its context expects; only
+    /// an anonymous integer literal uses it, and every other node's type is
+    /// checked against its context by the caller.
+    fn expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
         let source = SourceOrigin::of(typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
             ExpressionNode::Integer(literal) => {
-                let (value, scalar_type) = self.literal(id, literal)?;
-                (ExpressionKind::Integer(value), scalar_type)
+                let (value, integer) = self.literal(id, literal, expected)?;
+                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
             ExpressionNode::Boolean(value) => (ExpressionKind::Boolean(*value), ScalarType::Boolean),
             ExpressionNode::Name(path) => {
@@ -863,7 +927,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Slot(slot), slots[slot].scalar_type)
             }
             ExpressionNode::Unary(unary) => {
-                let operand = self.expression(id, slots, unary.operand)?;
+                let operand = self.expression(id, slots, unary.operand, expected)?;
                 match (unary.operator, operand.result) {
                     (UnaryOperator::LogicalNot, Some(ScalarType::Boolean)) => {
                         (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean)
@@ -875,8 +939,41 @@ impl<'t> Program<'t> {
                 }
             }
             ExpressionNode::Binary(binary) => {
-                let left = self.expression(id, slots, binary.left)?;
-                let right = self.expression(id, slots, binary.right)?;
+                // What an operand expects from outside: an arithmetic or shift
+                // result has its (value) operand's type, `&&`/`||` operands
+                // are Boolean, comparison operands expect nothing. An
+                // anonymous literal operand lands in its partner's type, so
+                // its partner is read first; reading order is not evaluation
+                // order, which lowering takes from the operand positions.
+                let hint = match binary.operator {
+                    BinaryOperator::And | BinaryOperator::Or => Some(ScalarType::Boolean),
+                    BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight => expected,
+                    BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::CaseMembership => None,
+                };
+                let (left, right) = if self.anonymous_literal(binary.left) {
+                    let right = self.expression(id, slots, binary.right, hint)?;
+                    let left = self.expression(id, slots, binary.left, hint.or(right.result))?;
+                    (left, right)
+                } else {
+                    let left = self.expression(id, slots, binary.left, hint)?;
+                    let right = self.expression(id, slots, binary.right, hint.or(left.result))?;
+                    (left, right)
+                };
                 return binary_expression(id, binary.operator, left, right, source);
             }
             ExpressionNode::Call(call) => return self.call_expression(id, slots, call, source),
@@ -1062,7 +1159,7 @@ mod tests {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
         let mut program = Program::new(&typed);
-        let refusal = program.expression(machine(), &[], handle).unwrap_err();
+        let refusal = program.expression(machine(), &[], handle, None).unwrap_err();
         assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::Unsupported);
         refusal.detail
     }
@@ -1100,7 +1197,7 @@ mod tests {
             (ExpressionNode::UndeterminedNaN(FloatFormat::F32), "expression undetermined NaN"),
             (
                 ExpressionNode::Integer(IntegerLiteral::from_value(3)),
-                "expression integer literal without a landed type",
+                "expression anonymous integer literal without an expected type",
             ),
             (ExpressionNode::Name(TableNamePath::default()), "spelling name without a symbol"),
         ];
