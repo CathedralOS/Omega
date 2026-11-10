@@ -383,8 +383,8 @@ pub(crate) mod control_flow {
                         .map(|position| (block, position))
                 })
                 .ok_or(crate::LegalizationError::custody())?;
-            let dominators = SourceDominators::new(caller);
-            let mut sources = available(&function.graph, caller, &dominators, call_block.block);
+            let inputs = SourceInputs::new(&function.graph, caller);
+            let mut sources = inputs.available(call_block.block);
             sources.extend(
                 call_block.operations[..call_position]
                     .iter()
@@ -405,45 +405,88 @@ pub(crate) mod control_flow {
                 .collect()
         }
 
-        pub(crate) fn available(
-            graph: &TargetControlGraph,
-            optimized: &PsiOptimizationFunction,
-            dominators: &SourceDominators,
+        struct SourceBlock {
             block: BlockId,
-        ) -> Vec<(ValueId, Source)> {
-            let mut result = optimized
-                .parameters
-                .iter()
-                .enumerate()
-                .map(|(index, parameter)| {
-                    (
-                        parameter.value,
-                        Source::Parameter {
-                            parameter_index: index as u32,
-                            source_value: parameter.value,
-                            scalar_type: parameter.scalar_type,
-                        },
-                    )
-                })
-                .collect::<Vec<_>>();
-            for candidate in &graph.blocks {
-                if dominators.dominates(candidate.block, block) {
-                    result.extend(candidate.parameters.iter().map(|parameter| {
+            parameters: Vec<(ValueId, Source)>,
+            definitions: Vec<(ValueId, Source)>,
+        }
+
+        // Retain the source rows once, in the order used by every availability
+        // query. Empty blocks contribute no rows; duplicate definitions still do.
+        pub(crate) struct SourceInputs {
+            parameters: Vec<(ValueId, Source)>,
+            blocks: Vec<SourceBlock>,
+            dominators: SourceDominators,
+        }
+
+        impl SourceInputs {
+            pub(crate) fn new(
+                graph: &TargetControlGraph,
+                optimized: &PsiOptimizationFunction,
+            ) -> Self {
+                let parameters = optimized
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(index, parameter)| {
                         (
                             parameter.value,
-                            Source::BlockParameter(target_operations::TargetScalarBlockValue {
-                                block: candidate.block,
-                                value: parameter.value,
+                            Source::Parameter {
+                                parameter_index: index as u32,
+                                source_value: parameter.value,
                                 scalar_type: parameter.scalar_type,
-                            }),
+                            },
                         )
-                    }));
-                    if candidate.block != block {
-                        result.extend(candidate.operations.iter().filter_map(definition));
-                    }
+                    })
+                    .collect();
+                let blocks = graph
+                    .blocks
+                    .iter()
+                    .filter_map(|candidate| {
+                        let parameters: Vec<_> = candidate
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                (
+                                    parameter.value,
+                                    Source::BlockParameter(
+                                        target_operations::TargetScalarBlockValue {
+                                            block: candidate.block,
+                                            value: parameter.value,
+                                            scalar_type: parameter.scalar_type,
+                                        },
+                                    ),
+                                )
+                            })
+                            .collect();
+                        let definitions: Vec<_> =
+                            candidate.operations.iter().filter_map(definition).collect();
+                        (!parameters.is_empty() || !definitions.is_empty()).then_some(SourceBlock {
+                            block: candidate.block,
+                            parameters,
+                            definitions,
+                        })
+                    })
+                    .collect();
+                Self {
+                    parameters,
+                    blocks,
+                    dominators: SourceDominators::new(optimized),
                 }
             }
-            result
+
+            pub(crate) fn available(&self, block: BlockId) -> Vec<(ValueId, Source)> {
+                let mut result = self.parameters.clone();
+                for candidate in &self.blocks {
+                    if self.dominators.dominates(candidate.block, block) {
+                        result.extend_from_slice(&candidate.parameters);
+                        if candidate.block != block {
+                            result.extend_from_slice(&candidate.definitions);
+                        }
+                    }
+                }
+                result
+            }
         }
 
         pub(crate) fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
@@ -558,7 +601,86 @@ pub(crate) mod control_flow {
 
         pub(crate) struct SourceDominators {
             order: std::collections::BTreeMap<BlockId, usize>,
-            immediate: Vec<usize>,
+            intervals: Vec<(usize, usize)>,
+        }
+
+        // The completed immediate-dominator tree has one parent for every
+        // reachable nonroot vertex. Number its subtrees once instead of walking
+        // the parent chain again for every candidate source.
+        fn tree_intervals(parents: &[usize]) -> Vec<(usize, usize)> {
+            let mut children = vec![Vec::new(); parents.len()];
+            for (position, parent) in parents.iter().enumerate().skip(1) {
+                children[*parent].push(position);
+            }
+            let mut intervals = vec![(0, 0); parents.len()];
+            let mut next = 0;
+            let mut stack = Vec::new();
+            if !parents.is_empty() {
+                stack.push((0, false));
+            }
+            while let Some((position, finished)) = stack.pop() {
+                if finished {
+                    intervals[position].1 = next;
+                } else {
+                    intervals[position].0 = next;
+                    next += 1;
+                    stack.push((position, true));
+                    stack.extend(children[position].iter().rev().map(|child| (*child, false)));
+                }
+            }
+            intervals
+        }
+
+        #[cfg(test)]
+        mod tree_tests {
+            use super::tree_intervals;
+
+            #[test]
+            fn subtree_intervals_match_parent_walk() {
+                assert!(tree_intervals(&[]).is_empty());
+                let mut trees = vec![vec![0]];
+                for count in 1..=8 {
+                    for parents in &trees {
+                        let intervals = tree_intervals(parents);
+                        for (candidate, &(start, end)) in intervals.iter().enumerate() {
+                            for (descendant, &(entry, _)) in intervals.iter().enumerate() {
+                                let mut position = descendant;
+                                let expected = loop {
+                                    if position == candidate {
+                                        break true;
+                                    }
+                                    if position == 0 {
+                                        break false;
+                                    }
+                                    position = parents[position];
+                                };
+                                assert_eq!(
+                                    start <= entry && entry < end,
+                                    expected,
+                                    "parents={parents:?}, candidate={candidate}, descendant={descendant}"
+                                );
+                            }
+                        }
+                    }
+                    trees = trees
+                        .into_iter()
+                        .flat_map(|parents| {
+                            (0..count).map(move |parent| {
+                                let mut next = parents.clone();
+                                next.push(parent);
+                                next
+                            })
+                        })
+                        .collect();
+                }
+                let parents: Vec<_> = (0_usize..8192)
+                    .map(|position| position.saturating_sub(1))
+                    .collect();
+                let intervals = tree_intervals(&parents);
+                for (position, interval) in intervals.iter().enumerate() {
+                    assert_eq!(*interval, (position, 8192));
+                }
+            }
         }
 
         impl SourceDominators {
@@ -641,26 +763,22 @@ pub(crate) mod control_flow {
                         }
                     }
                 }
-                Self { order, immediate }
+                let intervals = tree_intervals(&immediate);
+                Self { order, intervals }
             }
 
             pub(crate) fn dominates(&self, candidate: BlockId, block: BlockId) -> bool {
                 if candidate == block {
                     return true;
                 }
-                let Some(mut position) = self.order.get(&block).copied() else {
+                let Some(position) = self.order.get(&block).copied() else {
                     return true;
                 };
                 let Some(candidate) = self.order.get(&candidate).copied() else {
                     return false;
                 };
-                while position != 0 {
-                    position = self.immediate[position];
-                    if position == candidate {
-                        return true;
-                    }
-                }
-                candidate == 0
+                let (start, end) = self.intervals[candidate];
+                start <= self.intervals[position].0 && self.intervals[position].0 < end
             }
         }
     }
@@ -1036,7 +1154,7 @@ pub(crate) mod control_flow {
             _ => return Err(LegalizationError::custody()),
         }
         let block_entries = block_entry_states(optimized, native, plan, unit)?;
-        let dominators = sources::SourceDominators::new(optimized);
+        let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
             let body_len = block
                 .operations
@@ -1061,7 +1179,7 @@ pub(crate) mod control_flow {
                 return Err(LegalizationError::custody());
             }
             let source_nodes: Vec<_> = source.nodes.iter().collect();
-            let mut available = sources::available(graph, optimized, &dominators, block.block);
+            let mut available = source_inputs.available(block.block);
             let mut custody = block_entries
                 .get(&block.block)
                 .cloned()
