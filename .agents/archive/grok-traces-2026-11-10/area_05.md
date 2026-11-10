@@ -16,6 +16,11 @@ This file is updated as entries are decided. Entries not listed in the table are
 | 8 | `candidates.rs:10686` | CLOSED | Those tables are not rewritten except the prune roster, which is validated. |
 | 9 | `current_ownership.rs:204` | UNDECIDED | A failed descriptor graph clears effects; not every failure is shown to be rejected later. |
 | 10 | `current_ownership.rs:553` | UNDECIDED | Prefix fallback cannot authorize an extension of the same path; canonical locations were not read. |
+| 11 | `current_ownership.rs:1069` | CLOSED | Scalar returns never carry moved places, and a structural return is not in this pattern. |
+| 12 | `current_ownership.rs:1160` | CLOSED | Binding and parameter counts are required to be equal before this zip. |
+| 13 | `current_ownership.rs:1620` | CLOSED | A missing or empty target fails validation, so the dropped edge never accepts a unit. |
+| 14 | `current_ownership.rs:2207` | UNDECIDED | Non-owned sources skip owner liveness; the earlier transfer check was not finished. |
+| 15 | `current_ownership.rs:2202` | CLOSED | Same equal-length check as entry 12. |
 
 ## 1. `candidates.rs:1581-1586`
 
@@ -123,15 +128,65 @@ Read in full: `access_location` (`current_ownership.rs:553-562`), `DescriptorLoa
 
 What would decide the remaining gap: `canonical_storage`, called by `analysis.location` (`descriptor_replay.rs:422-423`). The map stores that canonical value, not the path that was queried (`current_ownership.rs:321-324`). If a shorter path's canonical location is not a path-prefix of the full path's canonical location, the contains argument above does not apply.
 
+## 11. `current_ownership.rs:1069-1073`
+
+**CLOSED.** The digest's return-that-moves-a-place does not go through this clear.
+
+Searches: `conflicted_operation(` — definitions `:669` and `:1059`; calls `:1000`, `:2154`, `:2176`. `check_operation(` — definition `:2145`, call `:7937`. `return_or_return_unit_pattern` — `operations.rs:1278`.
+
+Read in full: the descriptor `conflicted_operation` from `:1059` through the moved-list clear and the structural-result overlap (`:1059-1099`), `check_operation` (`:2145-2180`), the caller's structural-argument match and the `pins.check_operation` call (`:7831-7951`), and `return_or_return_unit_pattern` (`operations.rs:1278-1286`). Read the `ReturnStructural` arm (`current_ownership.rs:8579-8676`) and the `ReturnStructural` arm of `operation_place_accesses` (`unit_validation.rs:6867-6868`). Did not read `value_use.moving` past `:9542`.
+
+The pattern is only `Return` and `ReturnUnit`. For those, the only caller builds `consumed_places` from structural arguments, and both operations fall through to `&[]` (`current_ownership.rs:7831-7841`). The cleared list is already empty. `ReturnStructural` is not matched, so this clear does not apply to it. Its source is checked by `value_use.moving` (`:8585`) and is visible to the exclusive-pin scan because `operation_place_accesses` returns it (`unit_validation.rs:6867`).
+
+## 12. `current_ownership.rs:1160`
+
+**CLOSED.** The digest's second line, `:1276`, is not a zip. That line is inside `operation_observations` (`:1272-1281`).
+
+Searches: `.zip(` in `current_ownership.rs` — the binding/parameter zips are `:1160`, `:2202`, `:2276`, `:2467`, `:2556`, `:2589`. `structural_bindings.len()` — `unit_validation.rs:9045` and `:14287`.
+
+Read in full: the zip in `conflicted_edge` (`current_ownership.rs:1157-1182`) and `structural_transfers::validate`'s edge loop (`unit_validation.rs:9036-9047`). Read `validate_function`'s order (`:9593` then `:9660`). Did not read the rest of `conflicted_edge` past `:1228` for this entry; it was read for entry 10.
+
+`structural_transfers::validate` runs before ownership (`unit_validation.rs:9593`, `:9660`) and rejects an edge whose structural bindings and destination parameters differ in length (`:9045-9046`). `conflicted_edge` zips those same two slices (`current_ownership.rs:1157-1160`, destination from `:8717`). Equal length means the zip drops nothing.
+
+## 13. `current_ownership.rs:1620-1623`
+
+**CLOSED.** A dropped edge belongs to a unit that validation rejects.
+
+Searches: `RangeRelations::new(` — `current_ownership.rs:146` and `descriptor_results.rs:2669`. `nodes.is_empty()` — `unit_validation.rs:5680`. `captured_scalar_ordering(` — caller `legalization_reference_custody.rs:1082`.
+
+Read in full: the `edge` closure (`current_ownership.rs:1619-1641`) and the successor match through `StructuralCase` (`:1643-1668`), the empty-block rejection (`unit_validation.rs:5679-5685`), and `captured_scalar_ordering` (`descriptor_results.rs:2665-2672`). Read the `?` as a closure `Option`, not as a function error. Did not read `ScalarOrdering` or the pipeline caller past the call.
+
+`positions` contains `(block, 0)` only for a block with at least one node (`current_ownership.rs:1608-1610`). A missing block or a block with no node makes the closure return `None`, and that successor is left out of the ordering graph. Empty blocks are rejected (`unit_validation.rs:5680-5684`). A missing successor is rejected by `structural_transfers::validate` (`:9038-9044`). Both run inside `validate_function`, which is the same `index_and_validate_unit_catalogs` that built `CallAccesses` (`:1208`, `:1233`). If the edge was dropped, that function still returns the error. The pipeline caller at `legalization_reference_custody.rs:1082` runs on a unit that has already passed that validation, so the target is present and nonempty and the closure returns `Some`.
+
+## 14. `current_ownership.rs:2207-2211`
+
+**UNDECIDED.**
+
+Searches: the `continue` is in `check_edge` (`:2202-2211`). `exclusive_borrow_pair_pattern!` — no `macro_rules` under `abstract-operations/src`; the use at `unit_validation.rs:9182` is the related check. `structural_source_contract(` in `structural_transfers::validate` — `:9078` and `:9162`.
+
+Read: `check_edge` from `:2202` through `:2226`, and `structural_transfers::validate` from `:9045` through `:9207`. Did not read the rest of that validate function.
+
+The `continue` skips the owner-liveness tests when the argument has no source contract or the contract is not `Owned`. `structural_transfers::validate` runs first. Its exclusive-borrow arm (`:9182-9194`) allows a backing access that is not `Owned`. I stopped at `:9207`, before the expression is required to be true.
+
+What would decide it: finish `structural_transfers::validate` and see whether an exclusive-borrow parameter can arrive at `check_edge` with a missing or non-owned source. If it cannot, the `continue` is unreachable for a validated edge. If it can, the skipped tests are the ones at `:2212-2226`, and a non-owned source of an exclusive borrow is accepted without them.
+
+## 15. `current_ownership.rs:2202`
+
+**CLOSED.** Same length check as entry 12.
+
+Searches: the zip is the `for` at `:2202`. Caller of `check_edge(` — `:8711` only, besides the definition `:2183`.
+
+Read: `check_edge` (`:2183-2202`) and the call (`:8711-8718`). The destination is `blocks[&edge.target].structural_parameters`. `structural_transfers::validate` compares `edge.structural_bindings.len()` with that same parameter list (`unit_validation.rs:9045`) before ownership runs (`:9593`, `:9660`). The zip does not drop a binding.
+
 ## Counts so far
 
 | Verdict | Count |
 | --- | --- |
 | REACHABLE | 0 |
-| CLOSED | 7 |
-| UNDECIDED | 3 |
+| CLOSED | 11 |
+| UNDECIDED | 4 |
 
-Entries not reached: 11 through 120.
+Entries not reached: 16 through 120.
 
 ## What I did not read
 
@@ -140,7 +195,8 @@ Entries not reached: 11 through 120.
 - `install_evaluated_constant` (entry 8).
 - The rest of `adapt` after `descriptor_results.rs:1292`, including every `return None` (entry 9).
 - `canonical_storage` (entry 10).
-- Entries 11 through 120.
+- `structural_transfers::validate` after `unit_validation.rs:9207` (entry 14).
+- Entries 16 through 120.
 - Subagent drafts: nothing from them is copied here.
 
-Pushed through entry 5 as `e8fa36c0590b974641d0be89f6a188a35a2e23a8`. The final SHA is written on the last push.
+Pushed through entry 10 as `5093f5033b35c0ed02590d5762396026fa4ee63c`. The final SHA is written on the last push.
