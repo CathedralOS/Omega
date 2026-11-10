@@ -89,7 +89,7 @@ pub(crate) fn machine(
         current: None,
         point: None,
         slots: vec![None; body.slots.len()],
-        guarantees: None,
+        published: Vec::new(),
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let mut parameters = Vec::with_capacity(signature.parameters.len());
@@ -121,6 +121,17 @@ pub(crate) fn machine(
         }
     };
     lowering.enter(entry);
+    // One published identity per `ensures` clause, the one `ContractClause`
+    // carries; every normal exit's guarantee names it.
+    for clause in 0..signature.ensures.len() {
+        let clause = lowering.position(clause)?;
+        let published = lowering.obligation(
+            ObligationKind::PublishedGuarantee { clause },
+            ProgramPoint::BlockEntry(entry),
+            SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
+        );
+        lowering.published.push(published);
+    }
     for statement in &body.statements {
         lowering.statement(statement)?;
     }
@@ -153,10 +164,9 @@ struct Lowering<'a> {
     /// The program point after the last thing emitted in `current`.
     point: Option<ProgramPoint>,
     slots: Vec<Option<ValueId>>,
-    /// The `NormalGuarantee` obligations of the first normal exit, one per
-    /// `ensures` clause; Terminal Psi's `ContractClause` holds one per clause
-    /// (README, "Findings").
-    guarantees: Option<Vec<ObligationId>>,
+    /// The `PublishedGuarantee` of each `ensures` clause, by position: the
+    /// identity Terminal Psi's `ContractClause` holds.
+    published: Vec<ObligationId>,
 }
 
 #[derive(Default)]
@@ -367,17 +377,17 @@ impl Lowering<'_> {
 
     /// One `NormalGuarantee` per `ensures` clause on this normal exit.
     fn guarantee(&mut self, exit: EdgeId, source: SourceOrigin) -> Checked<()> {
-        let mut minted = Vec::with_capacity(self.signature.ensures.len());
-        for clause in 0..self.signature.ensures.len() {
-            let clause = self.position(clause)?;
-            minted.push(self.obligation(
-                ObligationKind::NormalGuarantee { exit, clause },
+        for (position, published) in self.published.clone().into_iter().enumerate() {
+            let clause = self.position(position)?;
+            self.obligation(
+                ObligationKind::NormalGuarantee {
+                    exit,
+                    clause,
+                    published,
+                },
                 ProgramPoint::Edge(exit),
                 source,
-            ));
-        }
-        if self.guarantees.is_none() {
-            self.guarantees = Some(minted);
+            );
         }
         Ok(())
     }
@@ -969,22 +979,16 @@ impl Lowering<'_> {
             None => TerminalMachineResult::Unit,
             Some(declaration) => TerminalMachineResult::Scalar(declaration),
         };
-        let ensures = match (&self.guarantees, self.signature.ensures.is_empty()) {
-            (_, true) => Vec::new(),
-            (Some(guarantees), false) => self
-                .signature
-                .ensures
-                .iter()
-                .zip(guarantees)
-                .map(|(proposition, obligation)| ContractClause {
-                    obligation: *obligation,
-                    proposition: proposition.clone(),
-                })
-                .collect(),
-            (None, false) => {
-                return Err(self.internal("ensures on a machine with no normal exit"));
-            }
-        };
+        let ensures = self
+            .signature
+            .ensures
+            .iter()
+            .zip(&self.published)
+            .map(|(proposition, obligation)| ContractClause {
+                obligation: *obligation,
+                proposition: proposition.clone(),
+            })
+            .collect();
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {

@@ -94,6 +94,8 @@ language-core = { path = "../../../psi/foundation/language-core" }
 # Route one corpus probe (examples/structure_elaboration_corpus.rs).
 structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
+# Route one side-by-side comparison (examples/route_one_comparison.rs).
+lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels

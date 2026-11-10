@@ -128,7 +128,8 @@ the place, root and write tables are empty because the form implies none.
 | --- | --- | --- |
 | `OperationSafety` | each `Exact` add, subtract, multiply, divide, remainder, shift (every primitive whose `integer_policy_bridge` has formation conditions) | the point before the operation |
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
-| `NormalGuarantee` | one per `ensures` clause per normal exit edge | that edge |
+| `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
+| `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
@@ -167,13 +168,14 @@ worked around by adding to `terminal-check-tables`.
    `tests/omega/pending/effects/private_crashes_none_body_crashes`.
 2. **Inferred routes are `Truth` per cause.** A narrower guard would be over
    body values, not formals, and stating it over formals is proof work.
-3. **One `ensures` obligation per clause in Terminal Psi, one per exit in the
-   tables.** `MachineContract::ensures` holds a `ContractClause` with one
-   `ObligationId` per clause (`terminal-psi/src/proof.rs`), while control flow
-   and `ObligationKind::NormalGuarantee` have one per (normal exit, clause).
-   The module's clauses carry the first exit's identities; the others exist
-   only in the tables. A machine with `ensures` and no normal exit has no
-   identity to give its clauses and is refused.
+3. **One `ensures` identity per clause, one obligation per exit.**
+   `MachineContract::ensures` holds a `ContractClause` with one `ObligationId`
+   per clause (`terminal-psi/src/proof.rs`), while control flow requires every
+   normal return to establish each guarantee. Lowering mints one
+   `PublishedGuarantee` per clause, which the `ContractClause` carries, and one
+   `NormalGuarantee` per (normal return edge, clause), which names it through
+   its `published` field. The published clause holds when every return
+   edge's guarantee holds.
 4. **No summaries.** `Summary::requires` and `result_relation` are
    `PropositionId`s into "the module's proposition table", but Terminal Psi
    keeps contract propositions inline in `MachineContract` and its only

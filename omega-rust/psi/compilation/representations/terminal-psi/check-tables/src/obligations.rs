@@ -95,8 +95,21 @@ pub enum ObligationKind {
     ArrivalInvariant { edge: EdgeId },
     /// One published guarantee, by position, on one normal exit edge.
     /// control_flow.md: "All normal returns, including returns after a cycle,
-    /// must establish the published guarantees."
-    NormalGuarantee { exit: EdgeId, clause: u32 },
+    /// must establish the published guarantees." The real obligation is per
+    /// return edge; `published` names the clause's `PublishedGuarantee`, the
+    /// identity the module's `ContractClause` carries.
+    NormalGuarantee {
+        exit: EdgeId,
+        clause: u32,
+        published: ObligationId,
+    },
+    /// One published `ensures` clause, by position: the per-clause identity
+    /// Terminal Psi's `ContractClause` holds. It holds exactly when every
+    /// normal return edge's `NormalGuarantee` for this clause holds, which is
+    /// vacuously so for a machine with no normal return (control_flow.md:
+    /// "All normal returns ... must establish the published guarantees").
+    /// It is discharged from those rows, never proved on its own.
+    PublishedGuarantee { clause: u32 },
     /// A crash site's guard and same-cause route coverage, one per site and
     /// cause. `wiki/spec/terminal-psi/calls_and_outcomes.md`: "The verifier
     /// proves every site guard from independent entry/CFG facts and checks
@@ -182,7 +195,8 @@ mod tests {
         assert!(
             !ObligationKind::NormalGuarantee {
                 exit: edge,
-                clause: 0
+                clause: 0,
+                published: ObligationId::new(1).unwrap(),
             }
             .is_conserved()
         );
