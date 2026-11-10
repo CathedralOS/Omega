@@ -55,12 +55,7 @@ pub fn dominators(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> DominatorSets {
     let blocks: Vec<_> = block_ids.collect::<BTreeSet<_>>().into_iter().collect();
-    let positions: BTreeMap<_, _> = blocks
-        .iter()
-        .enumerate()
-        .map(|(position, block)| (*block, position))
-        .collect();
-    let entry_position = positions.get(&entry).copied();
+    let entry_position = blocks.binary_search(&entry).ok();
     // The entry's incoming row and extra map rows were never consulted. Missing
     // nonentry rows or foreign predecessors retain the original invariant errors.
     let incoming: Vec<Vec<_>> = blocks
@@ -73,7 +68,11 @@ pub fn dominators(
                     .get(block)
                     .expect("all blocks indexed")
                     .iter()
-                    .map(|predecessor| positions[predecessor])
+                    .map(|predecessor| {
+                        blocks
+                            .binary_search(predecessor)
+                            .expect("predecessor block is declared")
+                    })
                     .collect()
             }
         })
