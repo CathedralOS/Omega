@@ -4794,7 +4794,7 @@ fail/domains/offset_borrow_return_unestablished_field rejected 1742ms expected @
 	cannot prove default-domain field requirement for return from pick, state entry, at statement 3: rows[1].labels[1].text requires [u8; N]::NoNul
 	cannot prove default-domain field requirement for return from pick at statement 3: bag.rows[2].labels[1].text requires [u8; N]::NoNul
 	cannot prove default-domain field requirement for return from pick at statement 4: bag.rows[2].labels[1].text requires [u8; N]::NoNul
-fail/domains/predicate_interval_guard_too_wide rejected 8442ms unexpected @8d52a8575c51
+fail/domains/predicate_interval_guard_too_wide rejected 2751ms expected @e9d6fffb32c9
 	cannot prove requires contract for call use_small from small: y in u64::Small in state `entry`
 fail/domains/predicate_interval_premise_too_wide rejected 1969ms expected @ccdb99ca2214
 	cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`
@@ -7307,7 +7307,7 @@ fail/facts/correlated_invariant_store_through_call_result_rejected rejected 1692
 	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/correlated_invariant_store_through_const_name_rejected rejected 16878ms expected @46cdd6b85b82+wt
 	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_field_rejected rejected 9882ms unexpected @8d52a8575c51
+fail/facts/correlated_invariant_store_through_field_rejected rejected 2579ms expected @e9d6fffb32c9
 	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/correlated_invariant_store_through_local_rejected rejected 16022ms expected @46cdd6b85b82+wt
 	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
