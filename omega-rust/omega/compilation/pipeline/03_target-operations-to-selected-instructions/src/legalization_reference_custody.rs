@@ -7064,7 +7064,9 @@ pub(crate) fn block_entry_states(
     function: &PsiOptimizationFunction,
     descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<BTreeMap<BlockId, Custody>, LegalizationError> {
+    let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
+    let unit = descriptor_inputs.unit();
     let types = &plan.structural_types[..];
     let blocks = &function.blocks;
     let positions: BTreeMap<BlockId, usize> = blocks

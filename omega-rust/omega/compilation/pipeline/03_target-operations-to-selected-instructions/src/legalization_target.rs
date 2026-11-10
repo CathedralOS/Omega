@@ -236,8 +236,7 @@ pub(crate) mod byte_view {
 pub(crate) mod control_flow {
     use super::{
         AbstractFunction, AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction,
-        PsiOptimizationUnit, TargetFunction, TargetOperationPlan, TargetScalarExpression,
-        TargetUnitOperation,
+        TargetFunction, TargetScalarExpression, TargetUnitOperation,
     };
     use crate::LegalizationError;
     use crate::legalization::scalar_graph_input::reference_custody::{
