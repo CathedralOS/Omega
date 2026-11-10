@@ -33,3 +33,12 @@ word values, both final contents, and the surrounding nonzero fields. The
 selection lends external bytes without replacing either descriptor or dropping
 its existing grant. The original single-descriptor and selected-view checks
 remain part of the exit-zero oracle.
+
+Preservation forwards an existing exact domain instance; it creates no grant or
+residency state. An opaque custody qualification is separate from observations
+of the bytes. Content-dependent facts, lifecycle changes, and loan/restoration
+obligations still use their existing checks. In particular, `Vacant` means no
+live resident object, not zero bytes. The retained 8192-slot customer reduction
+checks Granted/Vacant preservation; this runnable program observes the unchanged
+descriptor grants and external words. It does not establish paging backing or
+boot acceptance.
