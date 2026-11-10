@@ -802,6 +802,7 @@ impl<'t> Program<'t> {
     fn applies_nothing(
         &self,
         id: MachineId,
+        target: SymbolHandle,
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
         machine_arguments: &[typed_trees::expression::StaticMachineArgument],
     ) -> Checked<()> {
@@ -831,8 +832,22 @@ impl<'t> Program<'t> {
         if application.callable_contract_source.is_valid() {
             return unserved("static application contract source");
         }
-        if application.registration_operation.is_valid() {
-            return unserved("static application registration");
+        // The registered operation of an ordinary call is the callee: its
+        // machine symbol or its one state's symbol (stage 04 records the
+        // entry state). Any other declaration is a static or captured call.
+        let registration = application.registration_operation;
+        if registration.is_valid() && registration != target {
+            let state = self
+                .typed
+                .machine_by_symbol(target)
+                .and_then(|machine| self.typed.machine_states.span(machine.states))
+                .and_then(|states| match states {
+                    [state] => Some(state.symbol),
+                    _ => None,
+                });
+            if state != Some(registration) {
+                return unserved("static application registers another declaration");
+            }
         }
         Ok(())
     }
@@ -876,7 +891,7 @@ impl<'t> Program<'t> {
         {
             return unserved("interrupt, requirement dispatch or reflected call");
         }
-        self.applies_nothing(id, call.authored_machine_application, &call.machine_arguments)?;
+        self.applies_nothing(id, call.target_symbol, call.authored_machine_application, &call.machine_arguments)?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
         if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || !call.receiver.is_empty() {
             return unserved("receiver call");
@@ -896,7 +911,7 @@ impl<'t> Program<'t> {
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
         }
-        self.applies_nothing(id, call.authored_machine_application, &call.machine_arguments)?;
+        self.applies_nothing(id, call.target_symbol, call.authored_machine_application, &call.machine_arguments)?;
         if call.static_requirement_dispatch.is_some() {
             return unserved("static requirement dispatch");
         }
