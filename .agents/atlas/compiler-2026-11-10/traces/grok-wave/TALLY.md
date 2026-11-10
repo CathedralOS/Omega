@@ -22,7 +22,11 @@ This run's model is `grok-4.7-high-fast`. Slices slice_0001 through slice_0064 i
 Error: Sub-agent is currently running. You may send the follow-up message when it has completed.
 ```
 
-There is no cancel tool for a running background worker, so those 64 were not stopped and were not started a second time. Slices slice_0065 onward that were accepted already use `composer-2.5` with fast mode off.
+There is no cancel tool for a running background worker, so those 64 were not stopped while they were running. Their reports are not saved. Each one is started again on `composer-2.5` with fast mode off after it finishes.
+
+- slice_0001 fast worker `bc-f034c986-a460-5285-b52a-3dfc92c8c6be` finished. Report discarded. Composer-2.5 rerun: `bc-4f1621d5-1c6b-572b-bd87-519d6a6eefac`.
+
+Slices slice_0065 onward that were accepted already use `composer-2.5` with fast mode off.
 
 ## Workers left running
 
