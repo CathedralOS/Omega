@@ -256,17 +256,17 @@ impl<'t> Program<'t> {
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
         }
-        if !machine.lifetime_parameters.is_empty() || machine.type_parameters.len() != 0 {
+        if !machine.lifetime_parameters.is_empty() || !machine.type_parameters.is_empty() {
             return unserved("generic parameters");
         }
-        if machine.declared_type_equations.len() != 0
-            || machine.owned_data.len() != 0
-            || machine.satisfies.len() != 0
+        if !machine.declared_type_equations.is_empty()
+            || !machine.owned_data.is_empty()
+            || !machine.satisfies.is_empty()
             || !machine.conformance_bounds.is_empty()
         {
             return unserved("type equations, owned data or conformances");
         }
-        if machine.invokes.len() != 0 {
+        if !machine.invokes.is_empty() {
             return unserved("invokes");
         }
         Ok(())
@@ -276,7 +276,7 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         let (machine, state) = self.declaration(id, symbol)?;
         self.machine_shape(id, machine)?;
-        if state.contracts.len() != 0 {
+        if !state.contracts.is_empty() {
             return Err(refuse(id, Construct::Machine, Unserved::Contract("contracts on a state")));
         }
         let formals = span(&typed.state_parameters, state.parameters, id, "parameter span")?;
@@ -607,13 +607,13 @@ impl<'t> Program<'t> {
                     statement
                 }
                 StatementNode::Transition(transition) => {
-                    if self.typed.statement_table.transition_patterns(transition.patterns).len() != 0 {
+                    if !self.typed.statement_table.transition_patterns(transition.patterns).is_empty() {
                         return Err(refuse(id, Construct::Machine, Unserved::Transition("pattern")));
                     }
                     if transition.continuation.is_valid() {
                         return Err(refuse(id, Construct::Machine, Unserved::Transition("continuation")));
                     }
-                    if transition.proof_selectors.len() != 0 {
+                    if !transition.proof_selectors.is_empty() {
                         return Err(refuse(id, Construct::Machine, Unserved::Transition("proof selectors")));
                     }
                     match transition.exit {
@@ -753,7 +753,7 @@ impl<'t> Program<'t> {
         {
             return unserved("static, selected or reflected call");
         }
-        if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || call.receiver.len() != 0 {
+        if call.receiver_root_symbol.is_valid() || call.receiver_symbol.is_valid() || !call.receiver.is_empty() {
             return unserved("receiver call");
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
@@ -1146,8 +1146,10 @@ mod tests {
                 .into_iter()
                 .chain([(SymbolKind::Data, SymbolNameRef::Static("u32"))]),
         );
-        let mut typed = TypedTrees::default();
-        typed.symbols = builder.finish();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
         let u32_slot = children.handles().nth(7).unwrap();
         let impostor = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
         let named = |typed: &mut TypedTrees, symbol| {
