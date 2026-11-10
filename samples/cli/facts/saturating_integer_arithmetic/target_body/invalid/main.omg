@@ -1,44 +1,92 @@
 // Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 && clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.
 // Place: another target body (invalid twin). The ceiling bound is widened to clamped <= 101u64 in each body.
 
-linux_x86_64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 101u64
+machine clamp(val: u64) -> u64
+    ensures result >= 10u64 && result <= 100u64
 {
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
+    transition val < 10u64 {
+        true -> 10u64
+        _ -> check_high(val)
+    }
+    machine check_high(v: u64) -> u64
+        requires v >= 10u64
+    {
+        transition v > 100u64 {
+            true -> 100u64
+            _ -> v
+        }
+    }
 }
 
-linux_arm64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 101u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-macos_arm64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 101u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 101u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedCompute {
+    machine compute(clamped: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires clamped >= 10u64 && clamped <= 101u64;
+}
+
+X86Compute satisfies SelectedCompute {
+    machine compute(clamped: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires clamped >= 10u64 && clamped <= 101u64
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let headroom: u64 = 100u64 - clamped;
+        let above_floor: u64 = clamped - 10u64;
+        headroom + above_floor
+    }
+}
+
+ArmCompute satisfies SelectedCompute {
+    machine compute(clamped: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires clamped >= 10u64 && clamped <= 101u64
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let headroom: u64 = 100u64 - clamped;
+        let above_floor: u64 = clamped - 10u64;
+        headroom + above_floor
+    }
 }
 
 machine probe(val: u64) -> u64
     requires val >= 10u64 && val <= 101u64
 {
-    compute(val)
+    SelectedCompute::compute(val)
 }
 
-machine main() {
-    let total: u64 = probe(60u64);
+machine main() crashes Trap {
+    let raw: u64 = 60u64;
+    let clamped: u64 = clamp(raw);
+    let total: u64 = probe(clamped);
+    transition total == 90u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

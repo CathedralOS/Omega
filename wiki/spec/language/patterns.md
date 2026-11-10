@@ -100,6 +100,67 @@ component never reevaluates the expression that produced the outer value.
 
 This changes patterns, not case-literal construction or physical layout.
 
+### Case projection type
+
+Named decision: `case-projection-type`, settled 2026-11-09. Implementation is
+tracked by `CASE-TYPE`; the [design record](../../drafts/designs/case_projection_type.md)
+lists the questions left open.
+
+`Command::case` is a type expression naming the case component of the mixed
+data `Command`, and `Command<T>::case` names it for one application of generic
+data. It is the type of the component a `case as name` pattern already binds,
+so a machine can accept that component without receiving, or decomposing
+again, the complete value:
+
+```omega
+machine targets_one_user(operation: &Command::case) -> bool {
+    match operation {
+        Command::GetUser { user_id as _ } -> true
+        Command::CountUsers -> false
+    }
+}
+
+machine inspect(command: &Command) -> bool {
+    let Command { command_id as _, case as operation } = command;
+    targets_one_user(operation)
+}
+```
+
+Decomposing `&Command` binds `operation` at `&Command::case`, and decomposing
+`&mut Command` binds it at `&mut Command::case`. The type's identity is the
+data declaration, its static arguments and this projection. Two declarations
+with identical cases have distinct projection types. `case` is reserved, so the
+path cannot collide with a case or member name.
+
+Naming the projection adds nothing to the component. It introduces no case
+owner, tag, storage slot, allocation, copy or independently selected layout,
+and cases keep their original paths such as `Command::GetUser`. A projection
+type is written only as the referent of a reference. It has no literal, zero
+default or cast, and a value of it arises only by decomposition. A by-value
+`Command::case` annotation rejects; owned decomposition keeps its existing
+rules inside the machine that performs it. `Data::case` also rejects for data with no
+common fields, which is already case-only, and for a record with no cases.
+
+A reference to the projection is the view described above. It retains the
+original storage identity, lifetime, access mode and loans, cannot escape its
+backing lifetime or widen access, and reaches only the case component: no
+operation recovers the enclosing value or its common fields from it. The
+common fields remain disjoint sibling places under ordinary projected-place
+rules.
+
+A machine receiving the projection is checked independently against its own
+contract. The type guarantees each payload field's declared type under the
+selected case. A data `requires` clause belongs to the complete value and is
+not implied by the projection type. Facts the caller holds about the complete
+value or its common fields do not cross the call; a helper that needs one
+states it as its own requirement over the projection, and the caller proves it.
+
+Through `&mut Command::case` a helper may mutate the active payload or replace
+the case under ordinary rules. The lender keeps every obligation of the
+complete value under [contract-based repair](dependent_values.md#contract-based-repair):
+its default-domain and named-domain predicates must be provable again at
+handback from the helper's guarantees.
+
 Matching an established value combines its [default-domain predicates](data_and_literals.md#case-constraints)
 and any established named-domain predicates with the selected case fact, all
 substituted onto the exact subject and payload bindings. Case-conditional
@@ -141,7 +202,11 @@ access and custody obligations are discharged. They retain the same static
 arguments, domain facts and mutation-invalidation rules as dispatch bindings.
 
 Owned decomposition follows ordinary move/copy disposition and residual cleanup;
-it adds no implicit cloning or relaxed multiplicity. A field-value binding from
+it adds no implicit cloning or relaxed multiplicity. A complete consuming
+pattern on a subject with a selected nominal cleanup ends that wrapper without
+invoking the cleanup, and is accepted only in the carrier's owning package or
+its selected cleanup machine under
+[owned cleanup consumers](ownership.md#consumers-and-cleanup). A field-value binding from
 borrowed storage still needs ordinary copy eligibility. Non-copy fields require
 an otherwise-authorized explicit borrow or waiver, not an implicit field move.
 A case-view binding retains the source's borrow and backing lifetime rather than

@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "not provably within its data's `where` facts"
+    "this write left the `requires` facts of `counter` (data `Counter`) unproved"
   ]
 }

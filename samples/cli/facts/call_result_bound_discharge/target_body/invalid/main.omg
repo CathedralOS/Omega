@@ -1,4 +1,9 @@
+// Every target body discharges a callee `requires` on a closed call
 // A target body's `requires` stays refuted when the closed result is 9.
+// result. `take` is the target-scoped callee; `opaque()`'s result 4
+// proves `scale <= 5` in each body, which still discharges `echo`.
+//
+
 machine echo(scale: u64) -> u64
 requires scale <= 5
 {
@@ -7,37 +12,74 @@ requires scale <= 5
 
 machine nine() -> u64 { 9u64 }
 
-linux_x86_64 machine take(scale: u64) -> u64
-requires scale <= 5
-{
-    echo(scale)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine take(scale: u64) -> u64
-requires scale <= 5
-{
-    echo(scale)
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine take(scale: u64) -> u64
-requires scale <= 5
-{
-    echo(scale)
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine take(scale: u64) -> u64
-requires scale <= 5
-{
-    echo(scale)
+
+boundary trait SelectedTake {
+    machine take(scale: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires scale <= 5;
 }
+
+X86Take satisfies SelectedTake {
+    machine take(scale: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires scale <= 5
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        echo(scale)
+    }
+}
+
+ArmTake satisfies SelectedTake {
+    machine take(scale: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires scale <= 5
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        echo(scale)
+    }
+}
+
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) crashes Trap {
     main.hits = 0;
 
     let s: u64 = nine();
-    let r: u64 = take(s);
+    let r: u64 = SelectedTake::take(s);
     transition r == 4 {
         true -> pass(main)
         _ -> fail(main)
     }
     machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    entry_start();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    entry_start();
 }

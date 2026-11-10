@@ -134,6 +134,7 @@ instead decomposes the common fields and one case-only view: a named outer
 pattern can bind `RoomEvent { consumed, case as action }`, or a positional one
 can bind `(consumed, action)`. An inner match on action then handles Nothing or
 Treasure's gold. Case patterns bind payload fields only, never consumed again.
+A helper can accept that view by itself as `&RoomEvent::case`.
 See [data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
 
 In a case literal, `..` covers omitted common fields and active payload fields;
@@ -322,7 +323,7 @@ and backslashes use `\"` and `\\`. Raw newlines and codepoint escapes are not
 accepted inside quotes; encoders and normalizers are library operations.
 
 Establish a text domain explicitly when needed, for example
-`"hi" as [u8]::Utf8` under the imported domain's checked rules. Source UTF-8
+`"hi" as +Utf8` under the imported domain's checked rules. Source UTF-8
 framing alone does not establish that qualification.
 
 ## Parameters

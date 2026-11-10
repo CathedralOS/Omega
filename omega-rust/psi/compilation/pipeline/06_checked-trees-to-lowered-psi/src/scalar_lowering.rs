@@ -2683,6 +2683,7 @@ pub(crate) mod effects {
                 | LoweredScalarEffect::CompleteObservationReceiver { .. }
                 | LoweredScalarEffect::CompleteTemporaryOperands { .. } => {
                     let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
+                    let mut partition_refs = Vec::new();
                     let actions = match effect {
                         LoweredScalarEffect::CompleteObservationReceiver { actions } => {
                             value_facts(checked)
@@ -2706,6 +2707,9 @@ pub(crate) mod effects {
                                 .ok_or(LoweringError::Unsupported(
                                     "observation completion lost its checked disposition",
                                 ))?;
+                            partition_refs.extend(
+                                control.partition_refs.span_or_empty(completion.partitions),
+                            );
                             control
                                 .actions
                                 .span_or_empty(completion.actions)
@@ -2727,7 +2731,9 @@ pub(crate) mod effects {
                                     .ok_or(LoweringError::Unsupported(
                                         "call completion lost its checked action roster",
                                     ))?;
-                                if selected.is_empty() {
+                                partition_refs
+                                    .extend(control.partition_refs.span_or_empty(row.partitions));
+                                if selected.is_empty() && row.partitions.is_empty() {
                                     return unsupported(
                                         "call completion has no selected owner disposal",
                                     );
@@ -2746,6 +2752,7 @@ pub(crate) mod effects {
                         identities,
                         checked,
                         actions,
+                        &partition_refs,
                         &evaluation.structural_locals,
                         |place| {
                             let mut multiplicities = operations
@@ -2793,9 +2800,9 @@ pub(crate) mod effects {
                     .emit(
                         identities, &regions, values, next_value, next_block, next_edge, operations,
                     )?;
-                    for region in &regions {
-                        if region.action.path().is_empty() {
-                            evaluation.retire_structural_home(region.action.place());
+                    for action in regions.iter().filter_map(|region| region.action.physical()) {
+                        if action.path().is_empty() {
+                            evaluation.retire_structural_home(action.place());
                         }
                     }
                 }

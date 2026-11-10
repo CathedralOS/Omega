@@ -48,7 +48,10 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    cargo xtask claims claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
-   witness, observed failure, and next action. At initial dispatch, `--path`
+   witness, observed failure, and next action. Start it with the cluster line:
+   `Gate: <release-gate> | mechanism: <what fails> | rows sharing it: <N> of <total> | fix location: shared, or one-off because <reason>`.
+   Refine the mechanism after tracing; the count keeps the task from shrinking
+   to its witness. At initial dispatch, `--path`
    can name the witness/board paths or subsystem directory from the recorded
    diagnostic; workers refine paths if needed after tracing.
 
@@ -64,8 +67,15 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    language rule or a compiler precision/lowering gap, and check
    `git log <base>..origin/main -- <files>` so you do not duplicate an in-flight
    repair.
+4. **Budget verification:** Most agent time goes to waiting on builds and gates.
+   Finish reading and reasoning first, then build once per hypothesis. Do not
+   rebuild to learn what the source already says.
 
 ## Step 3: Implement Across the Full Path & Challenge Assumptions
+
+Before editing, apply the [stop rule](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
+if the fix would add another carrier, case or per-place branch for a mechanism
+that already has one, stop and write the cluster report instead.
 
 1. **Generalize the mechanism end to end:** Apply
    [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
@@ -117,7 +127,9 @@ that photograph: a different object, and a green check on it is not done.
 
 1. **Push HEAD to a remote `work/` ref and open a draft PR:**
    ```bash
+   # In a compiler lane, PR_BODY also carries the `Gate:` line from AGENTS.md.
    cargo xtask provenance  # append this model-audit line to the commit and PR_BODY
+   mbx clippy -p <crate> --all-targets -- -D warnings  # each Rust crate you touched
    git push origin HEAD:refs/heads/work/<lane>-<topic>
    cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
    gh pr create --draft --title "<title>" --body-file PR_BODY

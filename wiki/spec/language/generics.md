@@ -38,7 +38,8 @@ remove a binder kind that its checked implementation may use.
 boundary trait Sorting {
     machine sort<T, Order satisfies Ordering<T>>(
         items: &mut [T]
-    );
+    )
+        crashes none;
 }
 ```
 
@@ -527,7 +528,9 @@ the [scoped selection context](reflection.md#explicit-operation-selection),
 not ambient discovery or a new field-declaration binder. Policies may use
 generic type rules and member-specific exceptions. Reflection does not weaken
 types before generic binding, change exact `==` into assignability, or make
-selection records into general first-class conformance arguments.
+selection records into conformance arguments. Separately, compile-time code may
+compute and return an [operation record](conformances.md#implementations-are-operation-records)
+under ordinary typed reflection and access rules.
 
 ## Requirements and conformance evidence
 
@@ -548,6 +551,8 @@ authored [result relation](effects.md#callback-result-relations) claim.
 
 A required member operation belongs to a named trait and is supplied through an
 explicit conformance binder, for example `Order satisfies Ranked<Element>`.
+That binder is a static parameter of the trait's
+[operation-record schema](conformances.md#implementations-are-operation-records).
 There is no anonymous member requirement inferred or carried by a
 `requires machine T::member(...)` clause. A structural contract for an independently
 bound machine parameter is the distinct form below.

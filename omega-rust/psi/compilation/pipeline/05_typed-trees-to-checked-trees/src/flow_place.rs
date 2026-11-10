@@ -865,6 +865,114 @@ mod case_access {
                             }
                     })
             };
+            self.case_evidence_proves(case, required, has_case_evidence)
+        }
+
+        pub(crate) fn has_value_for_call_projection(
+            &self,
+            prefix: &CanonicalPlace,
+            projection: &crate::checks::current_scalar_values::CallArgumentProjection,
+            case: SymbolHandle,
+            required: bool,
+        ) -> bool {
+            if !stable_subject(
+                self.program,
+                self.machine,
+                self.state,
+                self.statement_index,
+                prefix,
+            ) {
+                if validation::trace_flags::check_sites() {
+                    eprintln!(
+                        "CHECKSITE call-case-match stage=unstable-prefix state={:?} statement={}",
+                        self.state.symbol, self.statement_index
+                    );
+                }
+                return false;
+            }
+            let prepared_values = self
+                .scalar_values
+                .is_none()
+                .then(|| {
+                    crate::checks::current_scalar_values::CurrentScalarValues::at(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        self.statement_index,
+                        typed_trees::statement::TransitionTargetHandle::invalid(),
+                        None,
+                    )
+                })
+                .flatten();
+            let Some(values) = self.scalar_values.as_ref().or(prepared_values.as_ref()) else {
+                if validation::trace_flags::check_sites() {
+                    eprintln!(
+                        "CHECKSITE call-case-match stage=scalar-inputs state={:?} statement={}",
+                        self.state.symbol, self.statement_index
+                    );
+                }
+                return false;
+            };
+            let mut root_rows = 0_u32;
+            let mut stable_rows = 0_u32;
+            let mut matched_rows = 0_u32;
+            let proven = self.case_evidence_proves(case, required, |case, required| {
+                self.observations.iter().any(|row| {
+                    row.place.root == prefix.root
+                        && {
+                            root_rows = root_rows.saturating_add(1);
+                            true
+                        }
+                        && (!observations::has_index(&row.place) || row.stable_index_subject)
+                        && {
+                            stable_rows = stable_rows.saturating_add(1);
+                            true
+                        }
+                        && values.matches_call_argument_projection(
+                            &row.place.segments,
+                            &prefix.segments,
+                            projection,
+                        )
+                        && {
+                            matched_rows = matched_rows.saturating_add(1);
+                            true
+                        }
+                        && self.program.symbols.get(row.variant).parent
+                            == self.program.symbols.get(case).parent
+                        && if row.selected {
+                            (row.variant == case) == required
+                        } else {
+                            row.variant == case && !required
+                        }
+                })
+            });
+            if !proven && validation::trace_flags::check_sites() {
+                eprintln!(
+                    "CHECKSITE call-case-match machine={:?} state={:?} statement={} root={:?} case={:?} root_rows={} stable_rows={} matched_rows={}",
+                    self.machine.symbol,
+                    self.state.symbol,
+                    self.statement_index,
+                    prefix.root,
+                    case,
+                    root_rows,
+                    stable_rows,
+                    matched_rows,
+                );
+            }
+            proven
+        }
+
+        fn case_evidence_proves(
+            &self,
+            case: SymbolHandle,
+            required: bool,
+            mut has_case_evidence: impl FnMut(SymbolHandle, bool) -> bool,
+        ) -> bool {
+            if !case.is_valid()
+                || self.program.symbols.get(case).kind != symbols::SymbolKind::Variant
+            {
+                return false;
+            }
             if has_case_evidence(case, required) {
                 return true;
             }
@@ -1127,6 +1235,7 @@ mod case_access {
         statement_index: usize,
         subject: &CanonicalPlace,
     ) -> bool {
+        let scalar_values = std::cell::OnceCell::new();
         let stable_root = match subject.root {
             PlaceRoot::Symbol(symbol) => symbol.is_valid(),
             PlaceRoot::Expression(expression) => expression.is_valid(),
@@ -1144,7 +1253,13 @@ mod case_access {
                     || matches!(segment, PlaceSegment::Index { expression }
                     if validation::place_has_immutable_denotation(
                         program, machine, state, statement_index, *expression,
-                    ))
+                    ) || scalar_values.get_or_init(|| {
+                        crate::checks::current_scalar_values::CurrentScalarValues::at(
+                            program, machine, state, statement_index, Default::default(), None,
+                        )
+                    }).as_ref().is_some_and(|values| {
+                        values.selector_has_immutable_denotation(*expression)
+                    }))
             })
     }
 }

@@ -965,7 +965,12 @@ pub mod compiler_operations {
                     .path
                     .first()
                     .filter(|_| argument.path.len() == 1)
-                    .filter(|_| typed_trees::product_operand::is_declaration_operand(argument))
+                    .filter(|_| {
+                        typed_trees::product_operand::is_declaration_operand(
+                            program.typed_program(),
+                            argument,
+                        )
+                    })
                     .and_then(|name| {
                         language_semantics::wire::WireCompatibilityFact::from_name(name.as_str())
                     })
@@ -2502,7 +2507,12 @@ pub mod compiler_operations {
             && call
                 .arguments(program.typed_program())
                 .iter()
-                .any(|argument| !typed_trees::product_operand::is_declaration_operand(argument))
+                .any(|argument| {
+                    !typed_trees::product_operand::is_declaration_operand(
+                        program.typed_program(),
+                        argument,
+                    )
+                })
         {
             return Err(diagnostics::Diagnostic::error(
                 "provider selection operands must name bare declarations, not applied types, conformance applications, values or projections",

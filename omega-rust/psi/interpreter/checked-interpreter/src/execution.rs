@@ -1700,6 +1700,8 @@ pub(crate) mod replacement_cleanup {
                         },
                     cleanup_actions,
                     selected_regions,
+                    // Partition completion guides compiler joins, not runtime hooks.
+                    partitions: _,
                 } = operation
                 else {
                     continue;

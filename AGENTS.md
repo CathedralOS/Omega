@@ -60,6 +60,16 @@ merges preserve the PR body on `main`, so this line records the exact model,
 reasoning effort, token cost, step count, active duration, and human steers for
 every landed commit. `cargo xtask check-rules --body-file` checks it on every PR.
 
+A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
+`packages`, `library`) also carries one line naming the release gate it serves
+and its net change in red corpus rows:
+`Gate: <release-gate> | red rows: <change>`, where the name comes from the release
+matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+A negative number means rows turned green. `check-rules` compares the number
+with the ledger diff, so a row counts only once it is recorded. Work that turns
+no row green is allowed but must say what it unlocks:
+`Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
+
 ## Law of completion
 
 We are capable of taking an uncompilable sample through every necessary compiler
@@ -71,7 +81,8 @@ Follow the river to its end: carry the capability through every necessary
 compiler, library, and prerequisite repair in your isolated worktree. Do not
 divide work into stage-only tasks or wait for another session to finish missing
 functionality. Checkpoints, archives, or JSON reports preserve evidence; none
-completes the work.
+completes the work. The one exception is a cluster report under framing rule 6
+below: declining the wrong repair is a finished result, not abandonment.
 
 Ownership of open PRs survives session changes. At startup or resumption, check
 PRs you opened in earlier sessions against retained worktree and claim records;
@@ -86,7 +97,8 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
    pinned regressions in `tests/omega/corpus_outcomes.txt`
    (`cargo xtask corpus --list-pinned-regressions`) and failing
    programs in `samples/` (`cargo xtask sample-gate`) that share
-   that root cause in the same PR.
+   that root cause in the same PR. Choose work by the rows it can move, and
+   start from the cluster: one failing program is its witness, not the task.
 2. **Fail-closed semantics over permissive fallbacks:** Never make a positive
    program pass by weakening a proof obligation, returning `true` when a
    lookup/rebase returns `None`, or silently erasing an unresolved construct.
@@ -110,6 +122,12 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
    `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
    never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
    or a `fail/` row as `unexpected`.
+6. **Stop rule: decline the patch that would add another carrier.** If your fix
+   would add another carrier, case or per-place branch for a mechanism that
+   already has one, stop. Write a cluster report in the claim note and your
+   final message: the rows that share the cause, the mechanism, and the general
+   fix you propose. That report is a complete result. You do not need permission
+   to decline a patch, and a correct patch in the wrong place is not progress.
 
 ## The sample loop
 
@@ -204,14 +222,25 @@ mbx xtask corpus --record --filter <fixtures> < /dev/null
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, and boundary gates:
+# Run repository rules, formatting, lint, and boundary gates. CI fails a landing on
+# any Clippy warning, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
 mbx xtask fmt --check
+mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
 Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
 200-fixture local selection budget).
+
+Builds, corpus runs and compiled programs from every local agent share one
+machine. Before the first build on a host you share with its owner or with
+other agents, apply the [host build budget](tools/build_slot.md): cap the total
+load of all agents so the machine never reaches 100%, run at the lowest
+operating-system priority on a workstation its owner is using, and write the
+budget into every worker prompt. On the test VMs, run one heavy job per machine
+and never change the settings of a job that is already running; the remote shim
+refuses a second build or corpus run while one is active.
 
 ## The Psi/Omega firewall
 

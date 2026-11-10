@@ -10,8 +10,8 @@ Multiplicity, content, carry, and provider evidence keep their own judgments.
 
 Qualification never selects or changes storage representation, capacity, live
 length, layout, or collection kind. In particular, `[u8; N] in D` is the same
-exact `N`-byte fixed-array carrier as `[u8; N]`; its `.len` is `N`, and erasing a
-predicate-only `D` changes no bits or geometry. A variable-fill owner must name
+exact `N`-byte fixed-array carrier as `[u8; N]`; its `.len` is `N`, and removing
+`D` with a cast changes no bits or geometry. A variable-fill owner must name
 an explicit variable-length carrier such as `FixedVec<u8, N> in D` or
 `Vec<u8> in D`. Ordinary accessor machines may lend that owner's live prefix as
 a qualified `&[u8] in D` view.
@@ -97,9 +97,11 @@ machine-parameter obligations in `requires`, and result obligations in
 checked qualification. A call's checked postconditions apply to its exact result
 even when the receiving local is declared with the bare carrier.
 
-Domain qualification remains a distinct facility. `value: T in D` requires the
-exact named domain `D` and is equivalent to an implicit `requires value in D`
-for call admission; it is appropriate when that nominal domain identity,
+Domain qualification remains a distinct facility. A parameter `value: T in D`
+accepts only an argument whose static type carries the exact named domain `D`,
+and gives the body the fact `value in D`. A caller holding only a proof of
+membership adds the domain with a [domain cast](#domain-casts), as in
+`value as +D`. Qualification is appropriate when that nominal domain identity,
 semantic contribution, or establishment route is intentional. Do not generate
 a domain merely to replace an anonymous interval. Equal predicates do not merge
 domain identities.
@@ -113,9 +115,9 @@ domain u64::AlignmentSize
 ```
 
 A result may be declared `u64 in AlignmentSize` when callers need that exact
-domain. Otherwise return plain `u64` with
-`ensures result >= 1 && result <= 8`; the receiving local needs no qualification
-to use those established facts.
+domain; the body then ends in a cast such as `size as +AlignmentSize`. Otherwise
+return plain `u64` with `ensures result >= 1 && result <= 8`; the receiving
+local needs no qualification to use those established facts.
 
 Data `requires` couplings, including case-conditional predicates, remain ordinary
 [default-domain obligations](dependent_values.md#default-domains-and-zero-initialization).
@@ -154,7 +156,7 @@ A routed domain additionally needs exact authorized provenance, even when all
 its predicates are proved. A predicate-free domain with establishment routes
 still requires that provenance. A declaration with neither predicates nor
 establishment routes adds no predicate or issuer obligation: a valid bare `i32`
-may be explicitly qualified as `Km` without an owner grant. Predicate-free does
+may be qualified with `as +Km` without an owner grant. Predicate-free does
 not mean uninhabited.
 
 The same policy adds independent reader/writer obligations under
@@ -164,7 +166,7 @@ absence of an issuer restriction does not waive those obligations.
 This rule also applies to affine and linear carriers
 (`linear-carrier-vacuous-qualification`). Multiplicity governs use of the carrier,
 not authority to introduce a qualification. A predicate-free, route-free tag on
-a linear value may be introduced by `as`; the same value is transferred, not
+a linear value may be introduced by an `as +D` cast; the same value is transferred, not
 copied, and its ownership obligations remain. Carrier validity and inherited
 domain obligations still apply. Omitting an establishment restriction imposes no issuer
 restriction; it does not mean that nobody can establish membership.
@@ -191,8 +193,8 @@ consumer selection authority. Public wrappers may return qualified values while
 issuance stays private. This [limited visibility exception](../resources/authority.md#private-issuer-routes)
 does not expose private carriers or relax public predicate/signature visibility.
 
-Assignment, move, and permitted copy transport existing qualification; rebuilding
-equal carrier fields does not. Mutation invalidates subject-bound facts unless
+Assignment, move, and permitted copy transport existing qualification between
+places of the same declared type; rebuilding equal carrier fields does not. Mutation invalidates subject-bound facts unless
 preserved or re-established. Declared default-domain obligations are enforced
 at [consumption points](dependent_values.md#invariant-windows), not replaced by
 an assumption that old flow facts survived a write.
@@ -339,8 +341,8 @@ waive an installed field policy.
 
 Reading a copyable primitive through a readable reference uses ordinary
 [copy rules](ownership.md); it needs no separate reference-to-value cast.
-Copyability does not grant read authority or implicitly erase qualification.
-Qualification forgetting remains subject to [exact coercion and erasure](#exact-coercion-and-erasure),
+Copyability does not grant read authority or remove qualification.
+Removing a domain remains subject to [domain casts](#domain-casts),
 and authorized publication remains subject to the result contract below.
 
 Callers may forward a restricted value or reference to an authorized operation
@@ -372,15 +374,15 @@ reference annotation nor a cast mints that evidence.
 While the qualified loan or any descendant remains live, the applicable access
 policy must be respected. Copies of the view, aliases, reborrows, returned
 references and same-carrier casts retain the loan relationship and its
-restrictions. Explicit
-erasure of a non-owning qualification may forget its displayed meaning, but does
+restrictions. A cast
+that removes a non-owning qualification forgets its displayed meaning, but does
 not end the loan or authorize broader access to still-governed backing. A bare
 returned view therefore cannot launder the restriction beyond the issuing call.
 
 After the complete qualified loan cohort and its descendants end, ordinary
 [loan restoration](../terminal-psi/loans.md#reborrow-lineage-and-access) restores
 the lender's prior access, subject to its remaining custody and invariant
-obligations. This is retirement of the temporary view, not qualification erasure.
+obligations. This is retirement of the temporary view, not removal of a domain.
 Returning from a function alone is insufficient if a derived view survives it.
 
 Policies already belonging to the owner, a declared field or another surviving
@@ -389,7 +391,7 @@ independently governed value's policy, mint membership or discharge a resource
 claim. Intact-value transport and observed-result contracts retain their separate
 obligations.
 
-### Composition and erasure
+### Composition and removal
 
 Every applicable atom must authorize the requested access. Alternatives within
 one list are disjunctive; independent domains and inherited policies compose
@@ -398,13 +400,13 @@ domain cannot widen a parent's access. Normalization retains the separate exact
 read and write route sets, subject, and substituted indices in semantic interface
 identity. Changing a route set is an interface change, not a private-body detail.
 
-Forgetting a displayed qualification never increases access. A bare or recast
+Removing a displayed qualification never increases access. A bare or recast
 view must retain the governed storage's access restrictions; if the target/use
 requires broader authority, it rejects. This applies equally to by-value
 transport, intermediate byte views, atomic-to-atomic recasts, and structural
-projection. Explicit `as` cannot discharge the policy merely because a domain is
-non-owning or has no predicates. Ordinary predicate/unit erasure remains available
-when it does not evade an access or custody obligation. See
+projection. A `-D` entry cannot discharge the policy merely because a domain is
+non-owning or has no predicates. Removing a predicate or unit domain remains
+available when it does not evade an access or custody obligation. See
 [recast authority](../layouts/recasts.md#access-authority-and-concurrent-observation).
 
 These policies add no runtime permission bits, storage wrapper, alias/newtype
@@ -436,7 +438,7 @@ data Guard<T> dropped by release_guard<T> {
 ```
 
 These separate examples show selection, not a complete resource implementation.
-The selected machine has an explicit mutable reference parameter for the carrier
+The selected machine takes the carrier by value as its one parameter
 and must meet the [cleanup contract](ownership.md#consumers-and-cleanup).
 Name resolution is exact: no overload guessing, trait/satisfier discovery, or
 lookup by the name `drop`. This clause introduces no `Drop` trait or boundary
@@ -461,8 +463,8 @@ selection is the explicit authorization of that cleanup plan; a linear terminal
 disposition still must account for every obligation under the ownership rules.
 
 Moves and intact transport preserve the selection and its obligations. Alias
-expansion, predicate weakening and explicit qualification erasure cannot remove
-cleanup debt or evade a selection conflict. Borrowing does not authorize disposal
+expansion and domain removal cannot remove cleanup debt or evade a selection
+conflict. Borrowing does not authorize disposal
 of the referent. Cleanup selection belongs to the owned qualified subject, not
 to an ambient collection of predicates the compiler happens to prove. Normalized
 machine identity and substituted arguments are part of the domain's semantic
@@ -520,12 +522,15 @@ include the parent's requirements. Multiple-parent predicate reuse is explicit,
 as `requires value in X & Y`. Names do not create a separate classifier declaration.
 Establishing the child also requires the parent's routed provenance when present;
 nesting a name cannot turn a routed parent into predicate-only membership.
+A type carrying the child carries every ancestor, and a
+[domain cast](#domain-only-casts) names each of them.
 Pure total helper machines may supply denotational Boolean terms in predicates,
 but do not replace general mathematical predicates with executable deciders.
 
 `x in A | B` states union membership; `x in A & B` states both facts. An ordinary
 value match is ordered, so overlapping domain patterns are permitted and the
-first matching arm wins. Each selected arm imports the domain facts, and each
+first matching arm wins. Each selected arm imports the domain facts, not a
+changed declared type for the matched value, and each
 transition proves its destination's requirements. A match without a wildcard
 over a known domain union must be exhaustive. Unordered domain-union reasoning
 requires mutually exclusive alternatives; a child and its parent are not such
@@ -537,21 +542,168 @@ opaque proof calls, and nonexecutable facts do not become runtime tests. A test
 that cannot establish membership rejects; no hidden runtime domain tag is added.
 For routed membership, predicate tests still require the retained authorized
 provenance. Neither a successful Boolean test nor inherited predicate knowledge
-can mint it. Runtime testing refines proof knowledge, not operator selection.
+can mint it. Runtime testing refines proof knowledge. It changes neither the
+tested value's declared type nor operator selection; a cast adds the domain.
 
-## Exact coercion and erasure
+<a id="exact-coercion-and-erasure"></a>
+## Domain casts
 
-`as` does not silently change denotation. A qualified target preserves the
-denoted value or referent; an explicitly bare target visibly erases non-owning
-semantic meaning. Representation may change only through a unique exact
-compiler-derived carrier transformation. All predicates and representability
-obligations must be discharged before lowering.
+Named decision: `named-domain-casts`, settled 2026-11-09. Compiler, library and
+source migration are tracked by `NAMED-DOMAIN-CASTS`. The
+[design record](../../drafts/designs/named_domain_casts.md) lists the questions
+left open.
 
-There is no hidden rounding, saturation, trapping, allocation, service reach,
-suspension, fallible conversion, or arbitrary user code in `as`. Exact widening
-and proved representable narrowing are carrier coercions. Domain-specific scale
-changes and other policy-bearing conversions are ordinary named machines or
-explicitly selected operators, never ambient conversion discovery.
+A declared type gains or loses a domain only through a cast that names that
+domain. No proof, expected type, literal, call boundary or join attaches or
+drops one. The rule is uniform: a predicate-only domain is named in the same
+way as a unit, an arithmetic policy or a routed domain.
+
+```omega
+domain i32::Km;
+domain i32::Positive
+    requires self > 0;
+
+machine previous(distance: i32 in Km & Positive) -> i32 in Km {
+    let plain: i32 = distance as -Km -Positive;
+    (plain - 1) as +Km
+}
+```
+
+`distance` enters carrying both domains. The first cast removes both and names
+each. The subtraction then takes plain `i32` operands, and `plain > 0` is still
+known, so the Exact subtraction cannot overflow. The second cast adds `Km` to
+the result.
+
+Facts and attached domains are separate. A `requires x in Positive`, a guard or
+a call guarantee proves a fact about `x`. The fact supports later proofs and
+leaves the declared type of `x` unchanged. Only a cast changes the set of
+domains a type carries, and operator and overload selection read only declared
+types and written casts.
+
+`as` never calls user code, rounds, saturates, traps, allocates, reaches a
+service, suspends or fails at runtime. All predicates and representability
+obligations are discharged before lowering. Scale changes between units and
+other policy-bearing conversions are ordinary named machines or explicitly
+selected operators, never conversions the cast discovers.
+
+### Domain-only casts
+
+A cast with no carrier, `value as =A -B +C`, keeps the carrier and states what
+happens to every domain:
+
+| Entry | The operand's type | The result's type |
+| --- | --- | --- |
+| `=D` | carries `D` | carries `D` |
+| `-D` | carries `D` | does not carry `D` |
+| `+D` | does not carry `D` | carries `D` |
+
+The entries are one simultaneous accounting, not a sequence, and their order
+has no meaning. Every domain attached to the operand's type appears exactly
+once, as `=` or `-`. That includes each inherited parent, each constituent of
+an alias and each compiler-owned domain. Every `+` entry names a domain the
+operand lacks. The result carries exactly the `=` and `+` domains.
+
+A missing entry, a repeated domain, `=D` or `-D` for a domain the operand lacks,
+and `+D` for a domain it already carries each reject, and the diagnostic names
+the domain. A reader therefore sees the complete before and after of every
+cast, and adding a domain to a declaration surfaces every cast that must now
+decide what to do with it.
+
+```omega
+let both: i32 in Km & Positive = 5 as +Km +Positive;
+
+let km: i32 in Km = both as =Km -Positive;
+let plain: i32 = both as -Km -Positive;
+
+// Rejected: `Positive` is attached and not accounted for.
+let lost: i32 in Km = both as =Km;
+
+// Rejected: `Km` is already attached.
+let again: i32 in Km & Positive = both as +Km =Positive;
+```
+
+"Carries" means attached to the static type, not merely provable. A plain `x`
+with a proved `x in Positive` lacks the domain and may write `x as +Positive`;
+it may not write `x as =Positive`.
+
+`+D` obeys the establishment rules of `D`:
+
+| Domain | Obligation of `+D` |
+| --- | --- |
+| Has predicates | Prove them for this value. |
+| Has neither predicates nor establishment routes | None beyond carrier validity; ordinary ownership rules still apply. |
+| Has establishment routes | Retain exact existing or authorized evidence; a cast cannot mint it. |
+
+`-D` discards no fact: after `both as =Km -Positive`, the value is still known
+to exceed zero. Removal also never increases authority. Owned claims must be
+consumed or transferred, not cast away. A cleanup selection survives. Access
+policies survive whenever they are needed to prevent authority amplification,
+and a view that cannot retain them rejects. Carry demands survive until the
+underlying claim is discharged. [Content custody](../resources/content_custody.md)
+governs resource decomposition; multiplicity alone does not imply divisibility
+or create a content projection.
+
+No cast infers a relation between domains. `distance as -Km +Degrees` is
+accepted because both are predicate-free and route-free: it visibly drops one
+meaning and introduces another, and converts nothing. Unit conversion remains
+a library operation. Changing arithmetic policy likewise changes future
+operations, not the interpretation of earlier work or the stored payload.
+
+A child domain travels with its ancestors, and a cast names each one. The
+result must be ancestor-complete:
+
+```omega
+domain i32::Positive::Small
+    requires self < 100;
+
+let small: i32 in Positive::Small = 7 as +Positive +Positive::Small;
+let positive: i32 in Positive = small as =Positive -Positive::Small;
+
+// Rejected: the result would carry the child without its parent.
+let orphan = small as -Positive =Positive::Small;
+
+// Rejected: `Positive` is not attached and not added.
+let short = 7 as +Positive::Small;
+```
+
+Naming an alias names its expansion: for `Socket::Usable` below, `-Usable`
+removes `Connected` and `Authenticated`, and the same cast may not also name
+either constituent.
+
+A data declaration's default domain is never removed. It belongs to the
+carrier: no cast names it, and no type spells the value without it, so every
+machine that receives a value of a data type receives it in that domain. A
+property that a helper must be able to receive false belongs in a named
+domain, which a [mutable view](#mutable-views) can remove and owe back.
+
+### Carrier casts
+
+`value as T` changes the carrier through a unique exact compiler-derived
+transformation: exact widening, or narrowing with representability proved. The
+denoted value does not change.
+
+The operand of a carrier cast must carry no domain. The cast may add domains to
+the result, so `plain as i64 +Km` abbreviates `(plain as i64) as +Km`, and it
+accepts no `=` or `-` entry. Casts chain left to right, so moving a qualified
+value to another carrier reads as three visible steps:
+
+```omega
+domain<T> T::Metres;
+
+let near: i32 in Metres = 5 as +Metres;
+let far: i64 in Metres = near as -Metres as i64 +Metres;
+
+// Rejected: each of these changes the carrier of a qualified value.
+let a = near as i64;
+let b = near as i64 =Metres;
+let c = near as i64 -Metres +Metres;
+```
+
+Membership is [carrier-exact](#carrier-exact-membership), so a domain in the
+new carrier is a different application whose obligations are established
+there. Writing the removal and the addition makes both visible. A domain with
+establishment routes cannot be re-added without its route, which effectively
+pins the carrier of such a value.
 
 For an anonymous expression, `as` to an integer destination explicitly lands
 the complete operand under the [numeric landing rules](numeric_values.md#fractional-intermediate-diagnostics).
@@ -560,42 +712,132 @@ final value and all target obligations. For example, `((5 / 2) * 2) as u32`
 is `5`, while `(5 / 2) as u32` rejects. This does not change the rules for
 already-typed carrier coercions or floating landing.
 
-| Use | Obligation |
+The whole-type cast targets `value as T in D` and `value as T::D` are retired,
+not alternative spellings. They restated the complete result and showed neither
+what was added nor what was dropped.
+
+### Literals and expected types
+
+An expected type selects the carrier in which an anonymous literal lands. It
+never inserts a domain cast. A literal therefore receives a domain the way any
+other value does:
+
+```omega
+let distance: i32 in Km = 5 as +Km;
+```
+
+An annotated `let` is no exception, and the same rule governs arguments, field
+initializers, returns and arm results: the supplied expression's static type
+must carry exactly the domains the destination declares. Arms and joins that
+produce one result agree on that exact set; a join neither intersects the
+arms' domains nor weakens to their common part.
+
+[Result-domain overloads](#result-domain-overloads) are unchanged. There the
+expected type selects among declared machines, each of which returns its own
+declared type. It inserts no cast.
+
+### Operands
+
+Builtin operators and comparisons, including the suffixed
+[policy operators](numeric_values.md#policy-operators), accept unqualified
+operands only. The rule is the same in executable code, `requires` and
+`ensures`. A qualified operand either has a declared operator for its exact
+type under [semantic roles and operators](#semantic-roles-and-operators) or is
+cast first:
+
+```omega
+machine farther(left: i32 in Km, right: i32 in Km) -> bool {
+    (left as -Km) > (right as -Km)
+}
+```
+
+In a domain's own `requires`, `self` is the value in the underlying carrier
+without the domain being defined, so `self > 0` in `Positive` is a builtin
+comparison on `i32`. Indexing follows the same rule through its operator
+declarations: `[]` applies when one declaration's parameter types equal the
+collection and index types, so a qualified collection or index has such a
+declaration or is cast. Field projection and pattern matching are not
+operators and keep their own rules. A named call admits an argument only at
+its parameter's exact declared domain set.
+
+Explicit [zero defaults](dependent_values.md#default-domains-and-zero-initialization)
+are not literals. An omitted field is established at its declared type under
+the existing rules.
+
+### Mutable views
+
+A cast applies to a reference by accounting for the domains displayed on its
+referent, with the same syntax: `&value as =Km -Positive`. A borrow groups
+before `as`, so no parentheses are needed. The cast preserves the referent,
+lifetime and access mode, and it changes neither the stored owner's declared
+type nor the carrier's default domain. Adding a domain to a view follows
+[temporary qualified views](#temporary-qualified-views). Through a shared
+reference any removal a by-value cast permits is accepted and nothing is owed,
+because nothing can be written.
+
+Named decision: `mutable-view-reestablishment`, settled 2026-11-09. Through a
+mutable reference, `-D` is accepted exactly when the lender could write
+`as +D` on that place itself when the loan ends. The end of the loan is that
+`+D`: it is not written, and it is checked by the same
+[establishment rules](#domain-only-casts) for whatever the place then holds.
+
+```omega
+machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+machine scribble(n: &mut i32) { n = 0; }
+
+let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
+
+reset(&mut trip as -Km -Positive);
+// `Km` returns with nothing to prove. `Positive` is proved by `n == 1`.
+
+scribble(&mut trip as -Km -Positive);
+measure(trip);
+// Rejected: `Positive` is not re-established for `trip` after `scribble`.
+```
+
+The rule has no cases of its own; each row follows from what `+D` requires:
+
+| `D` | Re-establishment when the loan ends |
 | --- | --- |
-| Predicate qualification | Prove the target predicates. |
-| Predicate-free, route-free qualification | None beyond carrier compatibility; ordinary validity and ownership rules still apply. |
-| Routed qualification | Retain exact existing or authorized evidence; `as` cannot mint it. |
-| Exact carrier conversion | Prove representability and unchanged denotation. |
-| Explicit semantic erasure | Name a target omitting the non-owning meaning. |
+| Has neither predicates nor establishment routes | Nothing to prove. |
+| Has predicates | Prove them for the current contents. |
+| Has establishment routes | Accepted only where `+D` is accepted, which is inside its authorized routes. Elsewhere the removal rejects. |
 
-Unit conversion remains a library operation. `5 as i32::Km` can introduce the
-predicate-free semantic tag, but `distance as i32::Degrees` cannot infer a relation
-from kilometres to degrees. `distance as i32 as i32::Degrees` visibly erases
-and then introduces meaning. Changing arithmetic policy similarly changes future
-operations, not the interpretation of earlier work or the stored payload.
+A removal that a by-value cast would reject stays rejected: owned claims,
+cleanup selections and access policies are not removed through a reference
+either. A domain kept with `=D` is part of the callee's parameter type, so the
+callee maintains it on every write and the lender owes nothing for it.
 
-Weakening is per normalized atom:
+Each removed domain is a debt on the lender's place under
+[invariant windows](dependent_values.md#invariant-windows) and
+[contract-based repair](dependent_values.md#contract-based-repair). The place
+may be invalid for that domain after the loan. Until the debt closes it cannot
+be used under the domain, passed where the domain is required or handed back
+to its own owner. A callee guarantee or the lender's own later writes may
+supply the proof. An open debt at the lender's completion or handback rejects,
+and the diagnostic names the domain, the place and the cast that removed it.
+A callee that removes further domains and lends again owes only what it
+removed.
 
-- Predicate-only atoms with no access or cleanup policy may disappear implicitly.
-- Semantic atoms and non-owning routed provenance require explicit `as` erasure.
-- An atom containing both predicates and a route follows the routed rule.
-- Owned claims cannot be cast away; they must be consumed or transferred.
-- Access policies survive qualification forgetting whenever needed to prevent
-  authority amplification; a view that cannot retain them rejects. Neither
-  non-owning provenance nor explicit erasure waives the domain's access policy.
+The owner's declared type is unchanged for the whole loan, and exclusivity
+means nothing else observes the place while a debt may be open. Earlier facts
+about the contents do not return; only fresh proof about the current contents
+does. An exact carrier conversion applies to values and never through a
+reference; [representation recasts](../layouts/recasts.md) are a separate
+facility with their own footprint and access rules.
 
-Predicate-only weakening also applies to an otherwise compatible borrowed view:
-an input displayed as `&mut T in D` may supply `&mut T` without a redundant
-`as` when the omitted atoms meet the rule above. The adaptation preserves the
-referent, lifetime, access mode and original lender's restoration obligations;
-it changes neither the stored owner's declared qualification nor `T`'s default
-domain. See [contract-based repair](dependent_values.md#contract-based-repair).
+### Grouping
 
-Thus `i32::Km & Positive` may flow to `i32::Km`, but not implicitly to bare
-`i32`. Carry demands survive qualification forgetting until the underlying
-claim is discharged. [Content custody](../resources/content_custody.md) governs
-resource decomposition; multiplicity alone does not imply divisibility or
-create a content projection.
+After `as` comes an optional carrier type and then the longest run of entries,
+each a `=`, `+` or `-` followed by a domain path. At least one of the two is
+present. Parsing never consults name lookup: a `+` or `-` after a cast always
+begins an entry and never an addition or subtraction, whether the cast names a
+carrier or not. Arithmetic on a cast result therefore takes parentheses, as in
+`(distance as -Km) + adjustment` and `(byte as u32) + 1`. Other operators keep
+their existing grouping around `as`.
+
+A cast produces a result expression. Ordinary copy, move and borrow rules
+decide whether the source remains usable afterward.
 
 ## Semantic roles and operators
 
@@ -608,13 +850,46 @@ these roles, not new roles by declaration:
 | Denotation/dimension | Unit or other semantic interpretation. |
 | Arithmetic policy | Exact, wrapping, saturating, or trapping behavior. |
 
-Compatible contributions in different roles may compose only when their
-contracts determine one checked operator meaning. Competing contributions to
-one role reject: `Km & Wrapping` has different roles; `Wrapping & Trapping`
-has conflicting arithmetic policies. Composition is not sequential execution
-of unrelated operator implementations.
+A type may carry contributions in different roles, such as `Km & Wrapping`.
+Competing contributions to one role reject: `Wrapping & Trapping` has
+conflicting arithmetic policies.
 
-Resolution reads static binding qualifications, never incidental flow facts.
+An operator applies only when the instantiated parameter types of one
+declaration equal the operands' complete static qualified types, after alias
+expansion, normalization and generic substitution. Nothing composes
+automatically. `Km & Wrapping` has no `+` because `Km` declares one and
+`Wrapping` declares one; it has a `+` only when a declaration names that exact
+set, and that declaration states the combined meaning in its own body:
+
+```omega
+machine + Km::add_wrapping(
+    left: i32 in Km & Wrapping, right: i32 in Km & Wrapping
+) -> i32 in Km & Wrapping {
+    ((left as -Km -Wrapping) +% (right as -Km -Wrapping)) as +Km +Wrapping
+}
+```
+
+No matching declaration is a missing operator and several are an ambiguity;
+neither selects a nearest candidate, drops a domain to find one or runs
+unrelated implementations in sequence. Operand types may differ, so a domain
+may declare an operator against a plain operand:
+
+```omega
+machine > Positive::greater(left: i32 in Positive, right: i32) -> bool
+ensures result == ((left as -Positive) > right)
+{
+    (left as -Positive) > right
+}
+```
+
+`Wrapping`, `Saturating` and `Trapping` are the `omega::core` contributions to
+the arithmetic-policy role. Their unsuffixed integer operators are defined by
+the [policy operators](numeric_values.md#policy-domains): the domain selects
+which suffixed operation `+` means for its operands. A policy operator written
+directly reads no qualification and contributes to no role.
+
+Resolution reads declared types and written casts, never flow facts: a proved
+`x in D` or a `requires x in D` on a plain `x` selects nothing.
 The selected operation is unambiguous and retained in the checked artifact;
 an unrelated import cannot inject a competing meaning. Predicates do not
 synthesize operators. An operator must publish and prove its relational
@@ -626,8 +901,9 @@ does not make them globally equal.
 Standing ranges must remain valid at their consumption points under the chosen
 operations; optional flow refinements may be invalidated and re-proved. Policy
 qualification itself does no runtime work, although later arithmetic may check
-or trap. Explicit erasure to a bare numeric carrier selects Exact arithmetic,
-with all subsequent safety obligations intact. Numeric operation behavior is
+or trap. Removing the policy domain with a cast leaves a bare numeric carrier,
+whose unsuffixed operators are Exact, with all subsequent safety obligations
+intact. Numeric operation behavior is
 defined by [numeric values](numeric_values.md) and total proof formation by
 [proof contracts](../proofs/contracts.md#mathematical-values-and-quantification).
 
@@ -645,6 +921,12 @@ Equal projections on the same path and parameter signature are declaration-site
 duplicates, even if written results differ by predicate refinement. Fixed
 operator spellings retain operand-directed selection, not this result rule.
 
+The expected type only selects among declared machines. The selected machine
+returns its own declared type, and that type must equal the destination's
+exactly: because predicate-only domains contribute no key, a destination that
+differs from the selected result by one still needs a written
+[domain cast](#literals-and-expected-types).
+
 ## Aliases and identity
 
 ```omega
@@ -660,8 +942,9 @@ atoms, including the positive carry permissions, may participate in aliases.
 Alias expansion is acyclic. Every constituent of a public alias must be legal
 to publish for its subject. Adding or removing conjuncts changes the normalized
 requirements and guarantees; compatibility checks attribute the consequences to
-affected callers, implementations, and consumers. Weakening the expanded atoms
-still follows their individual predicate, semantic, or custody rules.
+affected callers, implementations, and consumers. A
+[domain cast](#domain-only-casts) that names the alias accounts for every
+expanded atom, each under its own predicate, route or custody rules.
 
 The deterministic normalizer owns domain identity, semantic interface identity,
 and specialization keys: exact carrier, normalized atoms/roles, establishment
@@ -677,9 +960,11 @@ domain<T, const U: Unit> T::Quantity<U>;
 
 The family explicitly binds its carrier and canonical proof-static index. It
 imposes no carrier-wide arithmetic requirement and contributes no layout.
-Ordinary operator conformances require only the carrier operations they use;
-they do not enumerate combinations of unit, policy, and predicate refinements.
-Their guarantees establish surviving predicate facts.
+Ordinary operator conformances require only the carrier operations they use.
+Each applies to the exact domain set its parameters declare under
+[semantic roles and operators](#semantic-roles-and-operators); an operand that
+also carries a policy or predicate domain is cast to that set first or has its
+own declaration. Their guarantees establish surviving predicate facts.
 
 Families may bind a generic carrier or a fixed carrier with invariant indices:
 `domain<Frame> Point::Coordinates<Frame>;` keeps `Point` as its exact runtime carrier.
@@ -742,7 +1027,7 @@ the encoding, while a slice preserving UTF-8 must prove codepoint-boundary
 endpoints. Mutation must preserve or re-establish the facts on affected places.
 For [declared local and field qualifications](dependent_values.md#lent-storage-retains-its-declared-domains),
 this includes loan handback after a call, even when the callee receives a view
-with the encoding qualification erased. An additional entry-only fact over
+from which a cast removed the encoding qualification. An additional entry-only fact over
 otherwise unqualified storage remains distinct from a declared storage obligation.
 An abstract codepoint-text quotient is distinct from any chosen byte encoding;
 its observers obey [quotient contracts](../proofs/quotients.md).

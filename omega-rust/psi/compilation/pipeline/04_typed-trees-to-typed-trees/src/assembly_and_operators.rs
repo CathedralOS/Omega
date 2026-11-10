@@ -1709,8 +1709,14 @@ pub(crate) mod operators {
                 } else {
                     ExpressionHandle::invalid()
                 };
+                let lexical_owner = target.lexical_owner;
                 *expressions_of_mut(program).expression_mut(expression) =
                     ExpressionNode::Call(synthesized_operator_call(receiver, target, arguments));
+                if let Err(diagnostic) =
+                    retain_operator_call_application(program, expression, lexical_owner)
+                {
+                    diagnostics.push(diagnostic);
+                }
             }
             if diagnostics.is_empty() {
                 Ok(bound_count)
@@ -1827,9 +1833,11 @@ pub(crate) mod operators {
                 } else {
                     ExpressionHandle::invalid()
                 };
+                let lexical_owner = target.lexical_owner;
                 let call = expressions_of_mut(program).insert(ExpressionNode::Call(
                     synthesized_operator_call(receiver, target, arguments),
                 ));
+                retain_operator_call_application(program, call, lexical_owner)?;
                 let truth = expressions_of_mut(program).insert(ExpressionNode::Boolean(true));
                 let arms = expressions_of_mut(program).insert_match_arms([
                     TableMatchArm {
@@ -1864,9 +1872,30 @@ pub(crate) mod operators {
             Ok(value_count)
         }
 
+        /// Records the source application of an operator call as it is
+        /// created, as the program-wide pass does for a call written by
+        /// hand. That pass has already run, and a call without the record
+        /// loses its result contract once it goes through an implementation.
+        fn retain_operator_call_application(
+            program: &mut TypedTrees,
+            call: ExpressionHandle,
+            lexical_owner: SymbolHandle,
+        ) -> Result<(), Diagnostic> {
+            if !lexical_owner.is_valid() {
+                return Err(Diagnostic::error(
+                    "selected operator call lost the machine that spells it",
+                ));
+            }
+            program
+                .retain_call_static_argument_context(call, lexical_owner)
+                .map_err(Diagnostic::error)
+        }
+
         struct SelectedOperatorCall {
             entry: SymbolHandle,
             name: Identifier,
+            /// The machine whose body spells the operator.
+            lexical_owner: SymbolHandle,
             binder: SymbolHandle,
             collection_parameter: TypeReferenceHandle,
             start_parameter: TypeReferenceHandle,
@@ -1978,6 +2007,7 @@ pub(crate) mod operators {
                     return Ok(Some(SelectedOperatorCall {
                         entry,
                         name: meaning.requirement.name.clone(),
+                        lexical_owner: machine,
                         binder: meaning.bound.binder,
                         collection_parameter,
                         start_parameter,
@@ -2003,6 +2033,7 @@ pub(crate) mod operators {
                     return Ok(Some(SelectedOperatorCall {
                         entry: entry.symbol,
                         name: entry.name.clone(),
+                        lexical_owner: machine,
                         binder: SymbolHandle::invalid(),
                         collection_parameter,
                         start_parameter,
@@ -2046,6 +2077,9 @@ pub(crate) mod operators {
             Ok(Some(SelectedOperatorCall {
                 entry: entry.symbol,
                 name: entry.name.clone(),
+                lexical_owner: origin
+                    .machine_symbol()
+                    .unwrap_or_else(SymbolHandle::invalid),
                 binder: SymbolHandle::invalid(),
                 collection_parameter,
                 start_parameter,

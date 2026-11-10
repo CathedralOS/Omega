@@ -12,7 +12,8 @@ Suppose a game exposes a boundary-trait requirement:
 ```omega
 public boundary trait Game {
     machine set_health(player: u64, health: u32)
-        reaches Game;
+        reaches Game
+        crashes none;
 }
 
 public trait ScriptCalls<Context> {

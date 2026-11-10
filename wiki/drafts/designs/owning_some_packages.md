@@ -56,11 +56,14 @@ the execution.
 10. Pending or failure outcomes return the remaining ownership as a package
     exposing only the operations still valid in that state. A half-closed
     reader comes back as a pending-settlement package, not a reusable reader.
-11. Automatic cleanup is a separated follow-on. The `dropped by` hook receives
-    and must return a whole valid value, so moving the hidden state out inside
-    it is illegal. The eventual design retains a field-disposition plan at
-    packing and checks it against the package's published cleanup row; storing
-    a consuming operation admits no disposal by itself.
+11. Automatic cleanup needs no mechanism of its own. Under
+    [owned cleanup consumers](owned_cleanup.md) the package's owner
+    selects an ordinary `dropped by` machine that takes the package by value,
+    takes it apart with a consuming pattern and calls a stored consuming
+    operation on the hidden owner.
+    Eligibility is checked from that operation's callable contract. Storing a
+    consuming operation admits no disposal by itself, and the package stays
+    `[linear]`.
 
 Specify before the queue, supervisor and callback library surfaces settle.
 Implement alongside or after `RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY`,
@@ -81,8 +84,12 @@ never ahead of the borrowed machinery it builds on.
 ```omega
 data Job<P, R, some S> [linear] {
     state: Extent in Granted & Resident<P, S>;
-    run: machine(state: Extent in Granted & Resident<P, S>) -> R;
-    cancel: machine(state: Extent in Granted & Resident<P, S>);
+    run: machine(state: Extent in Granted & Resident<P, S>) -> R
+        reaches none
+        crashes none;
+    cancel: machine(state: Extent in Granted & Resident<P, S>)
+        reaches none
+        crashes none;
 }
 ```
 

@@ -487,6 +487,8 @@ pub(crate) fn audit_target_operation_plan(
 ) -> Result<(), LegalizationError> {
     source::validate_source_custody(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
+    let descriptor_inputs =
+        crate::legalization_descriptor_inputs::DescriptorInputs::new(target, abstract_plan, unit);
     for function in &target.functions {
         let mut abstracted = abstract_plan
             .functions
@@ -508,9 +510,7 @@ pub(crate) fn audit_target_operation_plan(
             function,
             abstracted_function,
             optimized_function,
-            target,
-            abstract_plan,
-            unit,
+            &descriptor_inputs,
         )
         .map_err(|error| error.attributed(function.machine, None))?;
     }

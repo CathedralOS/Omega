@@ -14,14 +14,64 @@ data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
     mutex: &Mutex<T>;
 }
 
-machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>) {
+machine cleanup_mutex_guard<T>(guard: MutexGuard<T>) {
     unlock_raw(guard.mutex);
+    let MutexGuard { mutex as _ } = move guard;
 }
 ```
 
-The compiler borrows the whole valid guard for the hook, then cleans up its
-remaining fields. The hook runs as part of consuming the owner. Use a consuming
-operation for early disposal rather than calling the hook directly.
+The cleanup machine takes the guard by value: cleanup ends the value, so the
+machine doing it owns it. The `let` pattern on the last line is what ends the
+guard. It takes the wrapper apart, and each component is then an ordinary
+owned value with its own cleanup; here the only component is a reference,
+which needs none.
+
+Until that pattern, the guard is an ordinary `MutexGuard<T>`. If a cleanup
+machine let it reach the end of the body whole, that would be cleanup calling
+itself, and the termination check rejects it.
+
+Owning the value is what lets cleanup hand a component to an operation that
+consumes it:
+
+```omega
+data Lease [linear] dropped by end_lease {
+    pool: PoolHandle;
+    slot: SlotClaim;
+}
+
+machine end_lease(value: Lease) {
+    let Lease { pool, slot } = move value;
+    PoolHandle::give_back(move pool, move slot);
+}
+```
+
+A cleanup machine is an ordinary machine, so calling `end_lease(move lease)`
+yourself disposes of the lease early.
+
+### Take a value apart without cleaning it up
+
+The same pattern lets the type's own package offer operations that end the
+value another way, such as handing its parts to the caller:
+
+```omega
+public machine into_parts(value: Lease) -> LeaseParts {
+    let Lease { pool, slot } = move value;
+    LeaseParts { pool: move pool, slot: move slot }
+}
+```
+
+Only machines declared in the package that declares `Lease`, and its selected
+cleanup machine, may write that pattern. Everyone else calls what the package
+makes public. Nothing is skipped by accident: inside the package too, a `Lease`
+that is moved, passed along or left to fall out of scope gets its normal
+cleanup, and only the explicit pattern ends it differently.
+
+The pattern ends the wrapper only. The parts keep their own cleanup and their
+own obligations, and the checker accounts for each. What it cannot check is
+work that exists only as a line in your cleanup machine. If a step must never
+be skipped, hold it as an owned component, for example a linear `Registration`
+that only `unregister` can consume; then every machine that takes the value
+apart has to deal with it.
 
 Automatic cleanup must return normally, without failure, suspension, blocking,
 trapping, aborting or process exit. It can use only authority and facts available
@@ -98,8 +148,9 @@ protocol. See [ownership joins](../spec/language/ownership.md).
 
 ## Cleanup order
 
-Cleanup follows reverse declaration order. A whole-value hook runs first,
-then remaining fields are cleaned in reverse declaration order. Arrays clean
+Cleanup follows reverse declaration order. A selected cleanup machine runs
+first; components its pattern did not bind are cleaned in reverse declaration
+order. Arrays clean
 remaining elements from highest index to lowest; sums clean their active
 payload. Locals precede by-value parameters declared before them.
 
@@ -134,9 +185,9 @@ The moved field's recipient owns its cleanup. A second move of that same field
 rejects. Arrays follow the same rule for identified elements, cleaning the
 remaining indices in descending order.
 
-A whole-value cleanup hook is entitled to receive the complete valid value.
-Such a type must provide an explicit consuming decomposition operation if users
-need to extract its fields. A dynamic index also needs enough evidence to
+A type with a selected cleanup machine cannot have a single field moved out
+this way. Its package provides a consuming operation that takes the whole
+value apart, as `into_parts` does above, if users need its fields. A dynamic index also needs enough evidence to
 identify the unique owned element being removed.
 
 ## Prove cleanup is legal where it runs

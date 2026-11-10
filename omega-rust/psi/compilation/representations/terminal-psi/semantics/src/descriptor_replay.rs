@@ -2140,6 +2140,7 @@ pub(crate) mod contents_queries {
     use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
+    use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
     impl Replay<'_> {
         pub(crate) fn read_contents(
@@ -2244,7 +2245,7 @@ pub(crate) mod contents_queries {
                 return None;
             }
             query.validate(self.types, *machine.place_types.get(&query.root)?)?;
-            if state.contents_address_invalidated(query) {
+            if self.contents_address_hidden(machine, state, query) {
                 return None;
             }
             self.contents_targets_at(
@@ -2254,6 +2255,94 @@ pub(crate) mod contents_queries {
                 &query.steps,
                 depth,
             )
+        }
+
+        /// Whether an unknown value on the way to `query`'s leaf leaves the
+        /// leaf's own storage undetermined, so a store to it cannot be placed.
+        ///
+        /// Only a reference or view decides where the storage behind it is.
+        /// An unknown strict ancestor therefore hides the leaf when the path
+        /// crosses one at or below that ancestor: past it the leaf could be
+        /// anywhere. A record, case payload or fixed array lays its parts out
+        /// inside itself, so losing its value (a field moved out to be
+        /// replaced, for example) leaves every part where it was and a store
+        /// can still refill it. The leaf's own value never decides where the
+        /// leaf is. Reads do not use this: they stay unknown below any unknown
+        /// ancestor through `contents_path_invalidated`.
+        pub(crate) fn contents_address_hidden(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            query: &DescriptorContentsQuery,
+        ) -> bool {
+            if state.leaf_known(query) {
+                return false;
+            }
+            let mut unknown = state
+                .unknown_prefixes(query, query.steps.len().saturating_sub(1))
+                .peekable();
+            if unknown.peek().is_none() {
+                return false;
+            }
+            let Some(inline) = self.inline_steps(machine, query) else {
+                return true;
+            };
+            unknown.any(|ancestor| {
+                // An entry ending in `Referent` stands for the reference
+                // crossed there, so its target is what is unknown.
+                ancestor.path.last() == Some(&DescriptorPathSegment::Referent)
+                    || inline[ancestor.path.len()..].contains(&false)
+            })
+        }
+
+        /// For each step of `query`, whether it selects storage laid out
+        /// inside the value it is applied to. Access views and accessors are
+        /// records that stand for storage elsewhere, like references, so their
+        /// fields do not count.
+        fn inline_steps(
+            &self,
+            machine: &DescriptorMachine,
+            query: &DescriptorContentsQuery,
+        ) -> Option<Vec<bool>> {
+            let mut base = *machine.place_types.get(&query.root)?;
+            let mut path = Vec::new();
+            let mut inline = Vec::with_capacity(query.steps.len());
+            for step in &query.steps {
+                let container = || {
+                    let container = descriptor_location_type(self.types, base, &path)?;
+                    Some(&find_structural_type(self.types, container)?.shape)
+                };
+                inline.push(match step {
+                    DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => false,
+                    DescriptorContentsStep::Address(DescriptorPathSegment::Case(_)) => true,
+                    DescriptorContentsStep::Address(DescriptorPathSegment::Field(_)) => {
+                        matches!(path.last(), Some(DescriptorPathSegment::Case(_)))
+                            || container().is_some_and(|shape| match shape {
+                                StructuralTypeShape::Record { storage, .. } => !matches!(
+                                    storage,
+                                    terminal_psi::StructuralRecordStorage::AccessView(_)
+                                        | terminal_psi::StructuralRecordStorage::Accessor(_)
+                                ),
+                                StructuralTypeShape::Mixed { .. } => true,
+                                _ => false,
+                            })
+                    }
+                    DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_))
+                    | DescriptorContentsStep::AnyElement { .. } => {
+                        container().is_some_and(|shape| {
+                            matches!(shape, StructuralTypeShape::FixedArray { .. })
+                        })
+                    }
+                });
+                match step {
+                    DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
+                    DescriptorContentsStep::AnyElement { element } => {
+                        base = *element;
+                        path.clear();
+                    }
+                }
+            }
+            Some(inline)
         }
 
         fn contents_targets_at(
@@ -4409,27 +4498,31 @@ pub(crate) mod engine {
     }
 
     impl State {
+        /// Whether a read of `query` must be unknown: the leaf has no known
+        /// value and the leaf or one of its ancestors is recorded as unknown.
         pub(crate) fn contents_path_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
-            self.contents_invalidated_within(query, query.steps.len())
+            !self.leaf_known(query)
+                && self
+                    .unknown_prefixes(query, query.steps.len())
+                    .next()
+                    .is_some()
         }
 
-        pub(crate) fn contents_address_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
-            self.contents_invalidated_within(query, query.steps.len().saturating_sub(1))
-        }
-
-        fn contents_invalidated_within(
-            &self,
-            query: &DescriptorContentsQuery,
-            depth: usize,
-        ) -> bool {
-            if query
+        pub(crate) fn leaf_known(&self, query: &DescriptorContentsQuery) -> bool {
+            query
                 .exact_location()
                 .is_some_and(|location| self.slots.get(&location).is_some_and(Option::is_some))
-            {
-                return false;
-            }
-            self.slots.iter().any(|(prefix, value)| {
-                value.is_none()
+        }
+
+        /// Locations at most `depth` steps along `query` whose value is
+        /// recorded as unknown.
+        pub(crate) fn unknown_prefixes<'state>(
+            &'state self,
+            query: &'state DescriptorContentsQuery,
+            depth: usize,
+        ) -> impl Iterator<Item = &'state DescriptorLocation> {
+            self.slots.iter().filter_map(move |(prefix, value)| {
+                (value.is_none()
                     && prefix.root == query.root
                     && !prefix.path.is_empty()
                     && prefix.path.len() <= depth
@@ -4442,7 +4535,8 @@ pub(crate) mod engine {
                                     DescriptorContentsStep::AnyElement { .. }
                                 )
                             )
-                    })
+                    }))
+                .then_some(prefix)
             })
         }
 
@@ -4571,7 +4665,18 @@ pub(crate) mod engine {
                 },
                 ..reference.clone()
             };
-            let types = vec![referent, reference, array, pointer];
+            let rows = StructuralTypeId::new(5).unwrap();
+            let holder = location(3);
+            let nested = StructuralTypeDeclaration {
+                id: rows,
+                identity: TerminalIdentityIndex(5),
+                shape: StructuralTypeShape::FixedArray {
+                    element: collection,
+                    length: terminal_psi::ArrayExtent::Literal(1),
+                },
+                ..reference.clone()
+            };
+            let types = vec![referent, reference, array, pointer, nested];
             let mut flow = BTreeMap::new();
             for (index, position) in positions.iter().copied().enumerate() {
                 let mut step = DescriptorFlowStep::default();
@@ -4607,10 +4712,19 @@ pub(crate) mod engine {
                             structural_type: carrier,
                         },
                     },
+                    DescriptorPlace {
+                        place: holder.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 2,
+                            access: StructuralAccess::Owned,
+                            structural_type: rows,
+                        },
+                    },
                 ],
                 place_types: BTreeMap::from([
                     (parameter.root, carrier),
                     (replacement_parameter.root, carrier),
+                    (holder.root, rows),
                 ]),
                 entry: positions[0],
                 flow,
@@ -4688,7 +4802,7 @@ pub(crate) mod engine {
             let mut vacant = completed[&positions[0]].clone();
             vacant.slots_mut().insert(leaf.clone(), None);
             assert!(vacant.contents_path_invalidated(&query));
-            assert!(!vacant.contents_address_invalidated(&query));
+            assert!(!replay.contents_address_hidden(&graph[0], &vacant, &query));
             assert!(
                 replay
                     .contents_targets(&graph[0], &vacant, &query)
@@ -4717,10 +4831,33 @@ pub(crate) mod engine {
                 None,
             );
             assert!(hidden.contents_path_invalidated(&below));
-            assert!(hidden.contents_address_invalidated(&below));
+            assert!(replay.contents_address_hidden(&graph[0], &hidden, &below));
             assert!(
                 replay
                     .contents_targets(&graph[0], &hidden, &below)
+                    .is_none()
+            );
+
+            // A moved-out aggregate keeps its parts in place: the row is
+            // unknown, yet a store still finds the cell inside it, while a
+            // read of that cell stays unknown.
+            let mut row = holder.clone();
+            row.path.push(DescriptorPathSegment::FixedIndex(0));
+            let mut cell = row.clone();
+            cell.path.push(DescriptorPathSegment::FixedIndex(0));
+            let cell_query = DescriptorContentsQuery::from_location(&cell);
+            let mut moved = completed[&positions[0]].clone();
+            moved.slots_mut().insert(row, None);
+            moved.slots_mut().insert(cell.clone(), None);
+            assert!(moved.contents_path_invalidated(&cell_query));
+            assert!(!replay.contents_address_hidden(&graph[0], &moved, &cell_query));
+            assert_eq!(
+                replay.contents_targets(&graph[0], &moved, &cell_query),
+                Some(BTreeSet::from([DescriptorPayloadTarget::Storage(cell)]))
+            );
+            assert!(
+                replay
+                    .read_contents(&graph[0], &moved, &cell_query)
                     .is_none()
             );
             drop(replay);

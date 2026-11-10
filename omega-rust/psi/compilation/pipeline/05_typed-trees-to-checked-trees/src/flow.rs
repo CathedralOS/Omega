@@ -8256,7 +8256,11 @@ mod value_origins {
         ) -> bool {
             place.root == write.root
                 && match self {
-                    Self::Contents => overlaps(program, place, write),
+                    Self::Contents => {
+                        ::validation::storage_path_relations::canonical_places_may_overlap(
+                            program, place, write,
+                        )
+                    }
                     Self::Binding => binding_overwrite(program, place, &write.segments),
                 }
         }
@@ -8825,15 +8829,6 @@ mod value_origins {
     ) -> Option<&'place [PlaceSegment]> {
         (place.root == prefix.root && place.segments.starts_with(&prefix.segments))
             .then(|| &place.segments[prefix.segments.len()..])
-    }
-
-    fn overlaps(
-        program: &dyn ::validation::CheckingInput,
-        left: &CanonicalPlace,
-        right: &CanonicalPlace,
-    ) -> bool {
-        left.root == right.root
-            && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
     }
 
     /*

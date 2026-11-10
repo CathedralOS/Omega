@@ -317,7 +317,17 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
             "omitted unused captured application",
             "no retained application",
         )?;
+        // The proof scope retains its own copy of each emitted declaration and
+        // ingress refuses any disagreement between the two. Drop the capture
+        // from both copies so this control reaches the check it names: a
+        // retained capture prefix that no checked declaration supplies.
         let mut bad = module.clone();
+        let machine = bad.machines[position].id;
+        let retained = module
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(terminal_psi::TargetMachineCallable::Machine(machine))
+            .ok_or("capture control needs the proof scope's copy of its declaration")?;
         bad.machines[position]
             .declaration
             .as_mut()
@@ -326,6 +336,22 @@ pub(super) fn inspect_captures(artifact: &CanonicalTerminalArtifact) -> Result<(
             .as_mut()
             .unwrap()
             .capture = None;
+        let mut mirrored = 0;
+        bad.scalar_applications
+            .proof_scope
+            .declarations
+            .for_each_mut(|handle, row| {
+                if handle.arena_index() == retained.0
+                    && let terminal_psi::ProofScopeDeclaration::Callable(declaration) = row
+                    && let Some(specialization) = declaration.specialization.as_mut()
+                {
+                    specialization.capture = None;
+                    mirrored += 1;
+                }
+            });
+        if mirrored != 1 {
+            return Err("capture control found no retained specialized declaration".to_owned());
+        }
         super::reject_module_at_ingress(
             &bad,
             "missing independent capture declaration",

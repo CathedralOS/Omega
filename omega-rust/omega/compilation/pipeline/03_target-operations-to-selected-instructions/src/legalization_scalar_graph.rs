@@ -50,12 +50,27 @@ pub(crate) mod address_joins {
         place: PlaceId,
         plan: &AbstractOperationPlan,
     ) -> Option<(BlockId, &'a StructuralParameterDeclaration)> {
-        let mut matching = super::structural_case::arrivals(function, place);
+        parameter_from_rows(
+            function.entry,
+            place,
+            plan,
+            super::structural_case::arrivals(function, place),
+            function.structural_places.iter(),
+        )
+    }
+
+    pub(crate) fn parameter_from_rows<'function>(
+        entry: BlockId,
+        place: PlaceId,
+        plan: &AbstractOperationPlan,
+        mut matching: impl Iterator<Item = (BlockId, &'function StructuralParameterDeclaration)>,
+        mut declarations: impl Iterator<Item = &'function terminal_psi::StructuralPlaceDeclaration>,
+    ) -> Option<(BlockId, &'function StructuralParameterDeclaration)> {
         let (block, parameter) = matching.next()?;
         (matching.next().is_none()
-            && block != function.entry
+            && block != entry
             && is_address_join_in(parameter, &plan.structural_types)
-            && function.structural_places.iter().any(|declaration| {
+            && declarations.any(|declaration| {
                 declaration.id == place
                     && declaration.kind
                         == (StructuralPlaceKind::BlockParameter {
@@ -388,18 +403,29 @@ pub(crate) mod aggregate_results {
                 call,
                 native,
                 plan,
+                || {
+                    crate::legalization::scalar_graph_input::address_joins::parameter(
+                        caller,
+                        argument.place,
+                        plan,
+                    )
+                },
             )
         }
 
-        pub(crate) fn reconstruct_at_owner(
+        pub(crate) fn reconstruct_at_owner<'caller>(
             argument: &terminal_psi::StructuralArgument,
             position: usize,
             owner: target_operations::CallSiteOwner,
-            caller: &PsiOptimizationFunction,
+            caller: &'caller PsiOptimizationFunction,
             callee: abstract_operations::AbstractCallSignature<'_>,
             call: &CallPlan,
             native: &TargetOperationPlan,
             plan: &AbstractOperationPlan,
+            address_join: impl FnOnce() -> Option<(
+                semantic_vocabulary::BlockId,
+                &'caller terminal_psi::StructuralParameterDeclaration,
+            )>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
             if matches!(owner, target_operations::CallSiteOwner::Installation { .. }) {
                 return Err(LegalizationError::custody());
@@ -421,13 +447,7 @@ pub(crate) mod aggregate_results {
             {
                 return Err(LegalizationError::custody());
             }
-            if crate::legalization::scalar_graph_input::address_joins::parameter(
-                caller,
-                argument.place,
-                plan,
-            )
-            .is_some()
-            {
+            if address_join().is_some() {
                 return crate::legalization::scalar_graph_input::address_joins::call_argument(
                     argument,
                     destination,
@@ -890,25 +910,37 @@ pub(crate) mod aggregate_results {
                     .nodes
                     .iter()
                     .enumerate()
-                    .filter_map(move |(position, node)| match &node.operation {
-                        AbstractOperation::EstablishTrivialAffineLocal {
-                            psi_operation,
-                            place: declaration,
-                            structural_type,
-                        } if declaration.id == place
-                            && matches!(declaration.kind,
-                                StructuralPlaceKind::TrivialAffineLocal {
-                                    structural_type: declared, construction: None, ..
-                                } if declared == structural_type.id)
-                            && matches!(&structural_type.shape,
-                                terminal_psi::StructuralTypeShape::Record { fields, .. } if fields.is_empty()) => {
-                            Some((*psi_operation, structural_type.id, (block.id, position)))
-                        }
-                        _ => None,
+                    .filter_map(move |(position, node)| {
+                        trivial_affine_candidate(block.id, position, &node.operation, place)
                     })
             });
             let establishment = establishments.next()?;
             establishments.next().is_none().then_some(establishment)
+        }
+
+        pub(crate) fn trivial_affine_candidate(
+            block: semantic_vocabulary::BlockId,
+            position: usize,
+            operation: &AbstractOperation,
+            place: semantic_vocabulary::PlaceId,
+        ) -> Option<(
+            semantic_vocabulary::OperationId,
+            semantic_vocabulary::StructuralTypeId,
+            (semantic_vocabulary::BlockId, usize),
+        )> {
+            match operation {
+                AbstractOperation::EstablishTrivialAffineLocal {
+                    psi_operation,
+                    place: declaration,
+                    structural_type,
+                } if declaration.id == place
+                    && matches!(declaration.kind, StructuralPlaceKind::TrivialAffineLocal { structural_type: declared, construction: None, .. } if declared == structural_type.id)
+                    && matches!(&structural_type.shape, terminal_psi::StructuralTypeShape::Record { fields, .. } if fields.is_empty()) =>
+                {
+                    Some((*psi_operation, structural_type.id, (block, position)))
+                }
+                _ => None,
+            }
         }
     }
     pub(crate) use owned_arguments::{node_site, precedes};
@@ -1016,17 +1048,15 @@ pub(crate) mod aggregate_results {
     }
 
     pub(crate) fn cleanup(
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         actions: &[terminal_psi::TerminalAffineCleanupAction],
         structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> bool {
         let owner = |place: semantic_vocabulary::PlaceId| {
-            if let Some((_, structural_type, _)) =
-                owned_arguments::trivial_affine_local(function, place)
-            {
+            if let Some((_, structural_type, _)) = function_inputs.trivial_affine_local(place) {
                 return Some((structural_type, StructuralMultiplicity::Affine));
             }
-            if let Some(parameter) = function.arrival_parameter(place) {
+            if let Some(parameter) = function_inputs.arrival_parameter(place) {
                 return (parameter.access == terminal_psi::StructuralAccess::Owned
                     || (parameter.is_unqualified_root()
                         && terminal_semantics::view_descriptor_parameter(
@@ -1035,7 +1065,7 @@ pub(crate) mod aggregate_results {
                         )))
                 .then_some((parameter.structural_type, parameter.multiplicity));
             }
-            let (_, result) = super::structural_case::source_result(function, place).ok()?;
+            let (_, result) = function_inputs.source_result(place).ok()?;
             Some((result.structural_type, result.multiplicity))
         };
         let discardable = |place| {
@@ -2885,17 +2915,18 @@ pub(crate) mod cleanup_calls {
     use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use optimization_unit::PsiOptimizationUnit;
     use target_operations::{CallSiteOwner, TargetOperationPlan, TargetUnitOperation};
     use terminal_psi::{StructuralArgument, TerminalAffineCleanupAction};
 
     pub(crate) fn expected(
         operation: &AbstractOperation,
-        caller: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<Vec<(CallSiteOwner, LegalizedScalarCall)>, LegalizationError> {
+        let caller = function_inputs.function();
         let mut calls = Vec::new();
         for (edge, actions) in operation.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
@@ -2957,6 +2988,7 @@ pub(crate) mod cleanup_calls {
                             &call_plan,
                             native,
                             plan,
+                            || function_inputs.address_join_parameter(semantic.place, plan),
                         )?;
                     let indices = crate::legalization::runtime_indices::projection(
                         caller,
@@ -2999,12 +3031,12 @@ pub(crate) mod cleanup_calls {
     pub(crate) fn validate_target(
         rows: &[TargetUnitOperation],
         operation: &AbstractOperation,
-        caller: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
     ) -> Result<(), LegalizationError> {
-        let expected = expected(operation, caller, native, plan, unit)?;
+        let expected = expected(operation, function_inputs, native, plan, unit)?;
         if rows.len() != expected.len() {
             return Err(LegalizationError::custody());
         }
@@ -3039,24 +3071,23 @@ pub(crate) mod cleanup_calls {
 }
 pub(crate) mod control {
     use super::{
-        AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiOptimizationFunction,
-        PsiProvenance, ScalarType,
+        AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiProvenance, ScalarType,
     };
     use crate::LegalizationError;
-    use crate::legalization::scalar_graph_input::value_type;
     use terminal_semantics::descriptor_results::is_descriptor;
     pub(crate) fn validate(
         node: &OptimizationNode,
         _body: &[OptimizationNode],
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), LegalizationError> {
+        let function = function_inputs.function();
         match (&node.operation, &function.result) {
             (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
             | (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
             | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
             (AbstractOperation::StructuralCase { .. }, _) => {
-                super::structural_case::validate(node, function, structural_types)
+                super::structural_case::validate(node, function_inputs, structural_types)
             }
             (
                 AbstractOperation::ReturnStructural {
@@ -3073,7 +3104,7 @@ pub(crate) mod control {
                         || !returned_claims.is_empty()
                         || !trivial_affine_locals.is_empty()
                         || !super::aggregate_results::cleanup(
-                            function,
+                            function_inputs,
                             cleanup_actions,
                             structural_types,
                         )
@@ -3110,7 +3141,7 @@ pub(crate) mod control {
                     || multiplicity != declared.multiplicity
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(
-                        function,
+                        function_inputs,
                         cleanup_actions,
                         structural_types,
                     )
@@ -3127,7 +3158,7 @@ pub(crate) mod control {
                 AbstractFunctionResult::Unit,
             ) if cleanup_actions.is_empty()
                 || (super::aggregate_results::cleanup(
-                    function,
+                    function_inputs,
                     cleanup_actions,
                     structural_types,
                 ) && node.ownership
@@ -3153,10 +3184,10 @@ pub(crate) mod control {
                 AbstractFunctionResult::Scalar(declared),
             ) if *result == declared.value
                 && *scalar_type == declared.scalar_type
-                && value_type(function, *value) == Some(*scalar_type)
+                && function_inputs.value_type(*value) == Some(*scalar_type)
                 && (cleanup_actions.is_empty()
                     || (super::aggregate_results::cleanup(
-                        function,
+                        function_inputs,
                         cleanup_actions,
                         structural_types,
                     ) && node.ownership
@@ -3187,7 +3218,7 @@ pub(crate) mod control {
                 {
                     return Err(LegalizationError::custody());
                 }
-                branch_edges(node, function, structural_types)
+                branch_edges(node, function_inputs, structural_types)
             }
             (
                 AbstractOperation::Conditional {
@@ -3197,7 +3228,7 @@ pub(crate) mod control {
                 },
                 _,
             ) => {
-                if value_type(function, *condition) != Some(ScalarType::Boolean) {
+                if function_inputs.value_type(*condition) != Some(ScalarType::Boolean) {
                     return Err(LegalizationError::custody());
                 }
                 if node.successors.len() != 2 {
@@ -3213,7 +3244,7 @@ pub(crate) mod control {
                         return Err(LegalizationError::custody());
                     }
                 }
-                branch_edges(node, function, structural_types)
+                branch_edges(node, function_inputs, structural_types)
             }
             _ => Err(LegalizationError::custody()),
         }
@@ -3237,14 +3268,14 @@ pub(crate) mod control {
     }
     fn branch_edges(
         node: &OptimizationNode,
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), LegalizationError> {
         if !node.provenance.is_empty()
             || !node.work.is_empty()
             || node.successors.iter().any(|edge| {
                 !super::aggregate_results::cleanup(
-                    function,
+                    function_inputs,
                     &edge.cleanup_actions,
                     structural_types,
                 ) || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
@@ -3626,7 +3657,7 @@ pub(crate) mod ieee_float_arithmetic {
         native: ::target::NativeTarget,
         plan: &AbstractOperationPlan,
         unit: &PsiOptimizationUnit,
-        sources: &mut Vec<(ValueId, TargetUnitScalarArgumentSource)>,
+        sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         if let (
             TargetUnitOperation::IeeeFloatClassify {
@@ -3684,7 +3715,7 @@ pub(crate) mod ieee_float_arithmetic {
                 || arguments.as_slice() != [argument.source_value()]
                 || argument.scalar_type() != operand
                 || !sources
-                    .iter()
+                    .matching(argument.source_value())
                     .filter(|(value, _)| *value == argument.source_value())
                     .map(|(_, available)| available)
                     .eq(std::iter::once(argument))
@@ -3737,7 +3768,7 @@ pub(crate) mod ieee_float_arithmetic {
         let exactly_available = |value: &ValueId, source: &TargetUnitScalarArgumentSource| {
             source.source_value() == *value
                 && sources
-                    .iter()
+                    .matching(*value)
                     .filter(|(identity, _)| identity == value)
                     .map(|(_, available)| available)
                     .eq(std::iter::once(source))
@@ -5038,8 +5069,9 @@ pub(crate) mod structural_case {
     fn source_identity(
         function: &PsiOptimizationFunction,
         source: PlaceId,
+        result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
     ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-        if let Ok((_, result)) = source_result(function, source) {
+        if let Ok((_, result)) = result {
             return Ok(result.structural_type);
         }
         if let Some((_, identity)) = super::literals::declaration_producer(function, source) {
@@ -5072,7 +5104,7 @@ pub(crate) mod structural_case {
         ),
         LegalizationError,
     > {
-        let root = source_identity(function, source)?;
+        let root = source_identity(function, source, source_result(function, source))?;
         let geometry = reference_source_geometry(root, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
         if !geometry.elements.is_empty()
@@ -5106,8 +5138,9 @@ pub(crate) mod structural_case {
         path: &[terminal_psi::StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         plan: &AbstractOperationPlan,
+        result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
-        let identity = source_identity(function, source)?;
+        let identity = source_identity(function, source, result)?;
         let geometry = reference_source_geometry(identity, path, &plan.structural_types)
             .ok_or(LegalizationError::custody())?;
         if !geometry.readable
@@ -5150,7 +5183,7 @@ pub(crate) mod structural_case {
         plan: &AbstractOperationPlan,
     ) -> Result<(u32, calling_conventions::ValueShape, Vec<RuntimeElement>), LegalizationError>
     {
-        let identity = source_identity(function, source)?;
+        let identity = source_identity(function, source, source_result(function, source))?;
         if !result.qualification_establishments.is_empty() {
             return Err(LegalizationError::custody());
         }
@@ -5293,9 +5326,10 @@ pub(crate) mod structural_case {
 
     pub(crate) fn validate(
         node: &OptimizationNode,
-        function: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         structural_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), LegalizationError> {
+        let function = function_inputs.function();
         let AbstractOperation::StructuralCase { source, cases, .. } = &node.operation else {
             return Err(LegalizationError::custody());
         };
@@ -5322,8 +5356,11 @@ pub(crate) mod structural_case {
             {
                 return Err(LegalizationError::custody());
             }
-            if !super::aggregate_results::cleanup(function, &case.cleanup_actions, structural_types)
-            {
+            if !super::aggregate_results::cleanup(
+                function_inputs,
+                &case.cleanup_actions,
+                structural_types,
+            ) {
                 return Err(LegalizationError::custody());
             }
         }
@@ -7380,7 +7417,6 @@ pub(crate) mod nodes {
     use crate::legalization::scalar_graph_input::integer_type;
     use crate::legalization::scalar_graph_input::u8_type;
     use crate::legalization::scalar_graph_input::u64_type;
-    use crate::legalization::scalar_graph_input::value_type;
     use crate::legalization::scalar_graph_input::{
         saturating_carrier, supports_wrapping_division, trapping_form, trapping_operands_rejoin,
     };
@@ -7726,11 +7762,12 @@ pub(crate) mod nodes {
     }
     pub(crate) fn validate(
         block: &OptimizationBlock,
-        optimized: &PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         types: &[terminal_psi::StructuralTypeDeclaration],
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<(), LegalizationError> {
+        let optimized = function_inputs.function();
         let (terminator, body) = block
             .nodes
             .split_last()
@@ -7758,7 +7795,7 @@ pub(crate) mod nodes {
                 .runtime_indices()
                 .into_iter()
                 .all(|(index, _)| {
-                    matches!(value_type(optimized, index), Some(ScalarType::Integer(integer))
+                    matches!(function_inputs.value_type(index), Some(ScalarType::Integer(integer))
                     if integer.bits() <= 64)
                 })
             {
@@ -7806,7 +7843,7 @@ pub(crate) mod nodes {
                     || !output.projected_qualifications.is_empty()
                     || !output.qualification_establishments.is_empty()
                     || [left, right].iter().any(|operand| {
-                        value_type(optimized, operand.length())
+                        function_inputs.value_type(operand.length())
                             != Some(ScalarType::Integer(u64_type()))
                     })
                     || !optimized.structural_places.iter().any(|place| {
@@ -7849,7 +7886,7 @@ pub(crate) mod nodes {
                     || !node.definitions.is_empty()
                     || !subslice_geometry(optimized, source, types, family)
                     || [start, end, length].iter().any(|value| {
-                        value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
+                        function_inputs.value_type(**value) != Some(ScalarType::Integer(u64_type()))
                     })
                 {
                     return Err(LegalizationError::custody());
@@ -7884,7 +7921,7 @@ pub(crate) mod nodes {
             {
                 if result.is_some()
                     || !node.definitions.is_empty()
-                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*length) != Some(ScalarType::Integer(u64_type()))
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -7905,9 +7942,9 @@ pub(crate) mod nodes {
             {
                 if result.is_some()
                     || !node.definitions.is_empty()
-                    || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
-                    || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
+                    || function_inputs.value_type(*index) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*length) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*value) != Some(ScalarType::Integer(u8_type()))
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -7924,9 +7961,9 @@ pub(crate) mod nodes {
                 if result.is_some()
                     || !node.definitions.is_empty()
                     || !super::byte_views::writable_bytes(optimized, *destination, types)
-                    || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
-                    || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
+                    || function_inputs.value_type(*index) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*length) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*value) != Some(ScalarType::Integer(u8_type()))
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -7960,12 +7997,13 @@ pub(crate) mod nodes {
                 if result.is_some()
                     || !node.definitions.is_empty()
                     || !mutable_view
-                    || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*index) != Some(ScalarType::Integer(u64_type()))
+                    || function_inputs.value_type(*length) != Some(ScalarType::Integer(u64_type()))
                     || element.and_then(|element| {
                         terminal_semantics::element_view_leaf_scalar(types, element, path)
-                    }) != value_type(optimized, *value)
-                    || value_type(optimized, *value)
+                    }) != function_inputs.value_type(*value)
+                    || function_inputs
+                        .value_type(*value)
                         .and_then(scalar_shape)
                         .is_none()
                 {
@@ -8074,7 +8112,7 @@ pub(crate) mod nodes {
                     Some("scalar store destination does not rejoin its declaration")
                 } else if !preserved {
                     Some("scalar store does not preserve destination memberships or content")
-                } else if value_type(optimized, value.value) != Some(value.scalar_type) {
+                } else if function_inputs.value_type(value.value) != Some(value.scalar_type) {
                     Some("scalar store value disagrees with its declared type")
                 } else if scalar_shape(value.scalar_type).is_none() {
                     Some("scalar store value has no native carrier")
@@ -8155,7 +8193,7 @@ pub(crate) mod nodes {
             {
                 if arguments
                     .iter()
-                    .any(|value| value_type(optimized, *value).is_none())
+                    .any(|value| function_inputs.value_type(*value).is_none())
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -8231,7 +8269,7 @@ pub(crate) mod nodes {
                     result, selector, ..
                 } => {
                     if result.scalar_type != ScalarType::Integer(u8_type())
-                        || value_type(optimized, *selector)
+                        || function_inputs.value_type(*selector)
                             != Some(ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 16).expect("U16"),
                             ))
@@ -8260,7 +8298,8 @@ pub(crate) mod nodes {
                 }
                 AbstractOperation::FloatResultPolicy { format, policy, .. } => {
                     let scalar_type = ScalarType::IeeeFloat(*format);
-                    if !policy.accepts_operand_types(*format, |value| value_type(optimized, value))
+                    if !policy
+                        .accepts_operand_types(*format, |value| function_inputs.value_type(value))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8272,8 +8311,9 @@ pub(crate) mod nodes {
                     right,
                     ..
                 } => {
-                    if value_type(optimized, *left) != Some(ScalarType::IeeeFloat(*format))
-                        || value_type(optimized, *right) != Some(ScalarType::IeeeFloat(*format))
+                    if function_inputs.value_type(*left) != Some(ScalarType::IeeeFloat(*format))
+                        || function_inputs.value_type(*right)
+                            != Some(ScalarType::IeeeFloat(*format))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8302,8 +8342,10 @@ pub(crate) mod nodes {
                     ..
                 } => {
                     if !super::byte_views::contains_readable_bytes(optimized, *source, types)
-                        || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                        || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                        || function_inputs.value_type(*index)
+                            != Some(ScalarType::Integer(u64_type()))
+                        || function_inputs.value_type(*length)
+                            != Some(ScalarType::Integer(u64_type()))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8320,8 +8362,9 @@ pub(crate) mod nodes {
                     ScalarType::Integer(u64_type())
                 }
                 AbstractOperation::StructuralByteSequenceFieldRead { index, length, .. } => {
-                    if value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                        || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                    if function_inputs.value_type(*index) != Some(ScalarType::Integer(u64_type()))
+                        || function_inputs.value_type(*length)
+                            != Some(ScalarType::Integer(u64_type()))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8335,8 +8378,10 @@ pub(crate) mod nodes {
                     ..
                 } => {
                     if !super::byte_views::contains_view(optimized, *source, types)
-                        || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
-                        || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                        || function_inputs.value_type(*index)
+                            != Some(ScalarType::Integer(u64_type()))
+                        || function_inputs.value_type(*length)
+                            != Some(ScalarType::Integer(u64_type()))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8349,7 +8394,7 @@ pub(crate) mod nodes {
                     ScalarType::Integer(u64_type())
                 }
                 AbstractOperation::ByteSequencePredicate { operand, .. } => {
-                    if value_type(optimized, operand.length())
+                    if function_inputs.value_type(operand.length())
                         != Some(ScalarType::Integer(u64_type()))
                     {
                         return Err(LegalizationError::custody());
@@ -8358,7 +8403,7 @@ pub(crate) mod nodes {
                 }
                 AbstractOperation::ByteSequenceEqual { left, right, .. } => {
                     for operand in [left, right] {
-                        if value_type(optimized, operand.length())
+                        if function_inputs.value_type(operand.length())
                             != Some(ScalarType::Integer(u64_type()))
                         {
                             return Err(LegalizationError::custody());
@@ -8376,8 +8421,9 @@ pub(crate) mod nodes {
                 }
                 | abstract_operations::bitwise_or_xor_pair_pattern!(scalar_type, left, right, ..) =>
                 {
-                    if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
-                        || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                    if function_inputs.value_type(*left) != Some(ScalarType::Integer(*scalar_type))
+                        || function_inputs.value_type(*right)
+                            != Some(ScalarType::Integer(*scalar_type))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8388,7 +8434,9 @@ pub(crate) mod nodes {
                     operand,
                     ..
                 } => {
-                    if value_type(optimized, *operand) != Some(ScalarType::Integer(*scalar_type)) {
+                    if function_inputs.value_type(*operand)
+                        != Some(ScalarType::Integer(*scalar_type))
+                    {
                         return Err(LegalizationError::custody());
                     }
                     ScalarType::Integer(*scalar_type)
@@ -8402,9 +8450,9 @@ pub(crate) mod nodes {
                 } => {
                     if arithmetic.policy() != IntegerOverflowPolicy::Exact
                         && (!integer_arithmetic_admitted(*arithmetic, *scalar_type)
-                            || value_type(optimized, *left)
+                            || function_inputs.value_type(*left)
                                 != Some(ScalarType::Integer(*scalar_type))
-                            || value_type(optimized, *right)
+                            || function_inputs.value_type(*right)
                                 != Some(ScalarType::Integer(*scalar_type)))
                     {
                         return Err(LegalizationError::custody());
@@ -8438,9 +8486,10 @@ pub(crate) mod nodes {
                 } => {
                     if scalar_shape(ScalarType::Integer(*shift_value_type)).is_none()
                         || scalar_shape(ScalarType::Integer(*count_type)).is_none()
-                        || value_type(optimized, *value)
+                        || function_inputs.value_type(*value)
                             != Some(ScalarType::Integer(*shift_value_type))
-                        || value_type(optimized, *count) != Some(ScalarType::Integer(*count_type))
+                        || function_inputs.value_type(*count)
+                            != Some(ScalarType::Integer(*count_type))
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8449,7 +8498,8 @@ pub(crate) mod nodes {
                 abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
                 | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
                     for operand in [*left, *right] {
-                        let Some(ScalarType::Integer(carrier)) = value_type(optimized, operand)
+                        let Some(ScalarType::Integer(carrier)) =
+                            function_inputs.value_type(operand)
                         else {
                             return Err(LegalizationError::custody());
                         };
@@ -8460,15 +8510,15 @@ pub(crate) mod nodes {
                     ScalarType::Boolean
                 }
                 AbstractOperation::BooleanEqual { left, right, .. } => {
-                    if value_type(optimized, *left) != Some(ScalarType::Boolean)
-                        || value_type(optimized, *right) != Some(ScalarType::Boolean)
+                    if function_inputs.value_type(*left) != Some(ScalarType::Boolean)
+                        || function_inputs.value_type(*right) != Some(ScalarType::Boolean)
                     {
                         return Err(LegalizationError::custody());
                     }
                     ScalarType::Boolean
                 }
                 AbstractOperation::BooleanNot { operand, .. } => {
-                    if value_type(optimized, *operand) != Some(ScalarType::Boolean) {
+                    if function_inputs.value_type(*operand) != Some(ScalarType::Boolean) {
                         return Err(LegalizationError::custody());
                     }
                     ScalarType::Boolean
@@ -8483,7 +8533,7 @@ pub(crate) mod nodes {
                         || target_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
                         || !matches!(target_type.bits(), 16 | 32 | 64)
                         || !source_type.can_widen_to(*target_type)
-                        || value_type(optimized, *operand)
+                        || function_inputs.value_type(*operand)
                             != Some(ScalarType::Integer(*source_type))
                     {
                         return Err(LegalizationError::custody());
@@ -8501,7 +8551,7 @@ pub(crate) mod nodes {
                         *target_type,
                     )
                     .is_none()
-                        || value_type(optimized, *operand) != Some(*source_type)
+                        || function_inputs.value_type(*operand) != Some(*source_type)
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -8514,7 +8564,7 @@ pub(crate) mod nodes {
                     ..
                 } => {
                     if !exact_cast_has_native_carriers(*source_type, *target_type)
-                        || value_type(optimized, *operand)
+                        || function_inputs.value_type(*operand)
                             != Some(ScalarType::Integer(*source_type))
                     {
                         return Err(LegalizationError::custody());
@@ -8532,7 +8582,7 @@ pub(crate) mod nodes {
                 return Err(LegalizationError::custody());
             }
         }
-        super::control::validate(terminator, body, optimized, types)
+        super::control::validate(terminator, body, function_inputs, types)
     }
 }
 pub(crate) use crate::legalization_target as target;
@@ -8639,10 +8689,11 @@ pub(crate) fn match_input(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<(), LegalizationError> {
+    let native = descriptor_inputs.native();
+    let plan = descriptor_inputs.plan();
+    let unit = descriptor_inputs.unit();
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -8658,6 +8709,7 @@ pub(crate) fn match_input(
     {
         return Err(LegalizationError::custody());
     }
+    let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
     for (position, (entry, block)) in abstracted
         .block_entries
         .iter()
@@ -8692,7 +8744,7 @@ pub(crate) fn match_input(
         }
         nodes::validate(
             block,
-            optimized,
+            &function_inputs,
             &plan.structural_types,
             &unit.structural_domains,
             &unit.identities,
@@ -8883,7 +8935,7 @@ pub(crate) fn match_input(
                 || called.structural_parameter_count() != structural_arguments.len()
                 || arguments.iter().enumerate().zip(&call.parameters).any(
                     |((position, value), placement)| {
-                        value_type(optimized, *value) != called.scalar_parameter(position)
+                        function_inputs.value_type(*value) != called.scalar_parameter(position)
                             || called.scalar_parameter(position).and_then(scalar_shape)
                                 != Some(placement.shape)
                             || !(scalar_register(placement) || scalar_stack(placement))
@@ -8914,7 +8966,7 @@ pub(crate) fn match_input(
             }
         }
     }
-    validate_target(target, abstracted, optimized, native, plan, unit).map(|_| ())
+    validate_target(target, abstracted, &function_inputs, descriptor_inputs).map(|_| ())
 }
 pub(crate) fn callee_plan(
     callee: impl Into<abstract_operations::AbstractCallTarget>,

@@ -37,8 +37,16 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Inductive uniformity over fields and stored-callable parameters/results; opened witnesses as construction witnesses; linear packages with by-value consuming operations; one owner family in `alloc` as the first customer.
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
+- **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
+  - Static callable-selection atom, selection rows, structural identity, open/closed field contracts, one schema for static and runtime use.
+  Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
+
+- **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
+  - Foundation and core generator, then suspension leases and pause-protocol/per-step progress contracts; rebuild tasks on it.
+  Acceptance: a copying generator and a scheduler run as libraries over stepping under `--both`.
+
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
-  - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
+  - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
@@ -75,6 +83,19 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
 
 ## Lowering, checker, and data-flow
+
+- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
+  Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
+
+- **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
+
+- **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
+
+- **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+
+- **OWNED-CLEANUP.** Implement [by-value cleanup](wiki/drafts/designs/owned_cleanup.md).
+
+- **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.
 
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.

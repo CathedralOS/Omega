@@ -242,6 +242,7 @@ mod captured_boolean {
         call: &FlowCallFact,
         contexts: &[facts::FactContextHandle],
         requirement: &Fact,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> Option<bool> {
@@ -283,6 +284,7 @@ mod captured_boolean {
                     reference.fact,
                     contract_call.target_state_symbol,
                     expression,
+                    incoming_guards,
                     frames,
                     whole_contract_cache,
                 ) {
@@ -386,6 +388,7 @@ mod captured_boolean {
         contract_handle: arena::Handle<checked_trees::ContractProofFact>,
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
     ) -> bool {
@@ -425,7 +428,17 @@ mod captured_boolean {
             }
         }
         captured_expression_proven(
-            program, facts, state, call, contexts, contract, target, expression, frames,
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            incoming_guards,
+            frames,
+            guarantees.completed_calls(),
         )
     }
 
@@ -443,7 +456,59 @@ mod captured_boolean {
         contract: &checked_trees::ContractProofFact,
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+    ) -> bool {
+        // One clause may need its saved value while another can safely read an
+        // unchanged scalar. Check source identity separately for each clause;
+        // success here is never stored as a whole-contract answer.
+        captured_value_expression_proven(
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            contract,
+            target,
+            expression,
+            incoming_guards,
+            frames,
+            &mut *completed,
+        ) || (expression_substitution_preserves_captures(
+            program,
+            facts,
+            state,
+            call,
+            expression,
+            contract.fact,
+        ) == Some(true)
+            && super::boolean_requirements::proves(
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                expression,
+                incoming_guards,
+                frames,
+                completed,
+            ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn captured_value_expression_proven(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        contexts: &[facts::FactContextHandle],
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
         if call_values::proves_captured_arithmetic_requirement(
             program, facts, state, call, expression,
@@ -481,9 +546,19 @@ mod captured_boolean {
         }
         if let Some(binary) = program.expression_table.binary_node(expression) {
             use typed_trees::expression::BinaryOperator;
-            let child = |expression| {
+            let mut child = |expression| {
                 captured_expression_proven(
-                    program, facts, state, call, contexts, contract, target, expression, frames,
+                    program,
+                    facts,
+                    state,
+                    call,
+                    contexts,
+                    contract,
+                    target,
+                    expression,
+                    incoming_guards,
+                    frames,
+                    &mut *completed,
                 )
             };
             match binary.operator {
@@ -559,7 +634,28 @@ mod captured_boolean {
                             if !predicate
                                 .proven_for_capture(program, facts, state, call, &contexts, &value)
                             {
-                                return None;
+                                let projection = call_case_projection(
+                                    program,
+                                    facts,
+                                    state,
+                                    call,
+                                    contract,
+                                    target,
+                                    &declared.segments,
+                                    frames,
+                                )?;
+                                if !predicate.proven_for_call_projection(
+                                    program,
+                                    facts,
+                                    state,
+                                    call,
+                                    &contexts,
+                                    &value,
+                                    &declared.segments,
+                                    &projection,
+                                ) {
+                                    return None;
+                                }
                             }
                         }
                         return Some(true);
@@ -598,6 +694,41 @@ mod captured_boolean {
         target: symbols::SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<BoundPredicate> {
+        let (owner, declared, parameters) = contract_parameters(program, facts, contract, target)?;
+        let predicate = lower_parameter_boolean_expression(
+            program,
+            &facts.operators,
+            owner,
+            &parameters,
+            expression,
+            &facts.operators.exact_integer_casts,
+        )
+        .or_else(|| {
+            let mut remaining = 256;
+            lower_callable_scalar_contract_predicate(
+                program,
+                &facts.operators,
+                owner,
+                &parameters,
+                typed_trees::types::TypeReferenceHandle::invalid(),
+                expression,
+                false,
+                &mut remaining,
+            )
+        })?;
+        bind_parameters(program, owner, declared, &parameters, None, predicate)
+    }
+
+    fn contract_parameters(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+    ) -> Option<(
+        symbols::SymbolHandle,
+        symbols::SymbolHandle,
+        Vec<typed_trees::signature::StateParameter>,
+    )> {
         use checked_trees::ContractProofFactOwner;
         let (owner, declared) = if let Some(scope) = contract.inherited_scope {
             let scope = facts.proof.inherited_contract_scopes.get(scope);
@@ -645,28 +776,173 @@ mod captured_boolean {
                 Some(parameter)
             })
             .collect::<Option<Vec<_>>>()?;
-        let predicate = lower_parameter_boolean_expression(
-            program,
-            &facts.operators,
-            owner,
-            &parameters,
-            expression,
-            &facts.operators.exact_integer_casts,
-        )
-        .or_else(|| {
-            let mut remaining = 256;
-            lower_callable_scalar_contract_predicate(
+        Some((owner, declared, parameters))
+    }
+
+    // Keep the saved collection's identity and observation point. Check the
+    // reads used by each index expression before replacing the callee's
+    // parameters with the captured caller arguments.
+    fn call_case_projection(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        contract: &checked_trees::ContractProofFact,
+        target: symbols::SymbolHandle,
+        path: &[facts::PlaceSegment],
+        frames: Option<&validation::CallFrameResolver<'_>>,
+    ) -> Option<crate::checks::current_scalar_values::CallArgumentProjection> {
+        // Report the first unavailable input without repeating a proof query.
+        macro_rules! projection_input {
+            ($stage:literal, $value:expr) => {
+                match $value {
+                    Some(value) => value,
+                    None => {
+                        if validation::trace_flags::check_sites() {
+                            eprintln!(
+                                "CHECKSITE call-case-projection stage={} machine={:?} state={:?} statement={} call={} target={:?}",
+                                $stage, state.machine_symbol, state.state_symbol,
+                                call.statement_index, call.call_ordinal, target,
+                            );
+                        }
+                        return None;
+                    }
+                }
+            };
+        }
+        let (_, _, parameters) = projection_input!(
+            "contract-telescope",
+            contract_parameters(program, facts, contract, target)
+        );
+        let actuals = projection_input!(
+            "argument-roster",
+            call_values::captured_argument_expressions(program, facts, state, call)
+        );
+        let invocation = projection_input!(
+            "invocation-operand",
+            facts
+                .flow
+                .control
+                .operands
+                .span(call.operands)
+                .and_then(|rows| rows.last())
+        );
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for parameter in &parameters {
+            let position = projection_input!(
+                "formal-position",
+                contract_parameter_position(
+                    program,
+                    &facts.proof,
+                    contract,
+                    target,
+                    parameter.symbol,
+                )
+                .ok()
+                .flatten()
+            );
+            arguments.push(*projection_input!("actual-position", actuals.get(position)));
+        }
+        let mut reads = Vec::new();
+        for segment in path {
+            if let facts::PlaceSegment::Index { expression } = segment {
+                append_expression_occurrences(program, *expression, &mut reads);
+            }
+        }
+        for read in reads {
+            let declared = projection_input!(
+                "selector-read-place",
+                validation::canonical_place_from_expression(program, read)
+            );
+            let symbol = projection_input!("selector-read-root", declared.root.as_symbol());
+            let Some(position) = projection_input!(
+                "selector-formal-position",
+                contract_parameter_position(program, &facts.proof, contract, target, symbol).ok()
+            ) else {
+                continue;
+            };
+            let actual = projection_input!(
+                "selector-actual",
+                call_values::actual_at(program, state, call, position, declared.segments)
+            );
+            let captures = projection_input!(
+                "selector-captures",
+                call_values::captured_values(program, facts, state, call, &actual)
+            );
+            projection_input!(
+                "nonempty-selector-captures",
+                (!captures.is_empty()).then_some(())
+            );
+            for capture in captures {
+                projection_input!(
+                    "selector-source-preservation",
+                    (capture_preserves_source(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        capture.observation.row(),
+                        capture.observation_type,
+                        &capture.observation_projection.remaining,
+                        invocation,
+                    ) == Some(true))
+                    .then_some(())
+                );
+            }
+        }
+        let (machine, caller) = projection_input!(
+            "caller-point",
+            program.state_flow_site(state.machine_symbol, state.state_symbol)
+        );
+        let site = projection_input!(
+            "call-site",
+            validation::find_call_site(
                 program,
-                &facts.operators,
-                owner,
-                &parameters,
-                typed_trees::types::TypeReferenceHandle::invalid(),
-                expression,
-                false,
-                &mut remaining,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
             )
-        })?;
-        bind_parameters(program, owner, declared, &parameters, None, predicate)
+        );
+        let transition = validation::transition_call_target(
+            program,
+            machine,
+            caller,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        .filter(|target| target.is_valid() && site.completes_transition(program, *target))
+        .unwrap_or_else(typed_trees::statement::TransitionTargetHandle::invalid);
+        let mut values = projection_input!(
+            "caller-scalar-inputs",
+            crate::checks::current_scalar_values::CurrentScalarValues::at(
+                program,
+                machine,
+                caller,
+                call.statement_index,
+                transition,
+                frames,
+            )
+        );
+        let snapshot = program.storage_graph().and_then(|graph| {
+            validation::completed_storage::versions::invocation_snapshot(
+                program,
+                graph,
+                caller.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+        });
+        values.retire_unpreserved(snapshot);
+        let (callee, entry) = projection_input!(
+            "callee-point",
+            validation::find_state(program, target)
+                .or_else(|| validation::find_machine_head(program, target))
+        );
+        Some(projection_input!(
+            "bound-index-recipe",
+            values.call_argument_projection(path, callee, entry, &parameters, &arguments)
+        ))
     }
 
     fn source_substitution_preserves_captures(
@@ -684,6 +960,24 @@ mod captured_boolean {
         else {
             return None;
         };
+        expression_substitution_preserves_captures(
+            program,
+            facts,
+            state,
+            call,
+            expression,
+            source_fact,
+        )
+    }
+
+    fn expression_substitution_preserves_captures(
+        program: &dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        expression: typed_trees::expression::ExpressionHandle,
+        source_fact: arena::Handle<typed_trees::domain::ProofFact>,
+    ) -> Option<bool> {
         let contract_call = facts.proof.contract_call_at(&(
             state.machine_symbol,
             state.state_symbol,
@@ -2969,6 +3263,7 @@ pub(super) fn check_call_requires(
                     call_flow,
                     requirement_contexts,
                     fact,
+                    incoming_guards,
                     call_frames,
                     &mut whole_contract_caches[cache_index].answers,
                 );

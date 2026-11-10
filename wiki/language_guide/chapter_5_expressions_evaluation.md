@@ -184,7 +184,7 @@ existing byte carrier rather than introducing a separate text owner hierarchy:
 ```omega
 let fixed: [Item; 4];
 let view: &[Item] = ArrayAccess::as_slice(&fixed);
-let text: [u8; 5] in Utf8 = "hello";
+let text: [u8; 5] in Utf8 = "hello" as +Utf8;
 let text_view: &[u8] in Utf8 = text;
 ```
 
@@ -308,16 +308,39 @@ does not excuse an overflowing intermediate. There is no implicit widening;
 `u8 + u8` requires a `u8` result unless an explicit conversion chooses a wider
 operation.
 
-For intentionally different overflow behavior, choose one policy:
+For intentionally different overflow behavior, name a policy at the operation
+with a suffix on the operator:
 
-- `Wrapping` reduces overflow modulo the carrier width.
-- `Saturating` clamps overflow to the carrier bounds.
-- `Trapping` checks at runtime and traps at the primitive's failure edge.
+```omega
+let next: u64 = cursor +! width;   // traps on overflow
+let mixed: u32 = hash *% 31;       // wraps modulo 2^32
+let raised: u8 = level +| step;    // clamps to 0..=255
+```
+
+- `%` (Wrapping) reduces overflow modulo the carrier width.
+- `|` (Saturating) clamps overflow to the carrier bounds.
+- `!` (Trapping) checks at runtime and traps at the primitive's failure edge.
+  After it returns, the result is the exact value and the checker knows it.
+
+The suffixes apply to `+`, `-`, `*`, `/`, `%`, `<<` and `>>`. Operands and
+results stay plain integers, so the next operation is Exact again unless it
+names a policy too. A `!` operation is a crash site: its machine's crash
+contract must admit `Trap` unless facts already rule the failure out.
+
+When every operation on a value should use one policy, qualify the value
+instead: `u32 in Wrapping`, `u8 in Saturating` or `u64 in Trapping`. These core
+domains make the unsuffixed operators mean the suffixed ones, and the result
+keeps the qualification. They suit values that are modular or clamped by
+nature, such as a hash state or a sequence number. For one checked addition the
+operator says the same thing without marking the value.
 
 These policies do not all repair invalid operands: wrapping and saturation
-never license integer division by zero. Policies compose with independent
-meaning, such as `Km & Wrapping`, but not with another arithmetic policy.
-Qualification changes future operations, not the existing payload.
+never license integer division by zero. A value may carry a policy alongside
+an independent meaning, such as `Km & Wrapping`, but not another arithmetic
+policy; that pair has operators only where one is declared for exactly it.
+A policy is added and removed with a cast, `as +Wrapping` and `as -Wrapping`,
+like every other domain. Qualification changes future operations, not the
+existing payload.
 
 Bitwise operations preserve their integer carrier; Boolean `!` is distinct from
 integer `~`. Exact shifts prove a nonnegative count below the value width.
@@ -351,8 +374,9 @@ answer. See [integer equality and order](../spec/language/numeric_values.md#inte
 This is not implicit arithmetic widening: `left + right` still needs an
 applicable arithmetic operation and its representability proof or chosen policy.
 Anonymous literals also keep their ordinary landing rules; a comparison does
-not make an out-of-range literal inhabit an unsigned type. Domain qualifications
-and selected operator meanings remain in force.
+not make an out-of-range literal inhabit an unsigned type. The builtin
+comparisons take plain operands: a qualified operand uses a comparison its
+domain declares or is cast first, as [Chapter 8](chapter_8_domains.md) shows.
 
 For indexing, `cursor < length` is only half the obligation when the cursor is
 signed: negative cursors satisfy it too. Establish `0 <= cursor` before access.
@@ -392,7 +416,7 @@ rounding then converting is not interchangeable if it causes double rounding.
 `as` never calls arbitrary user code, rounds, allocates, or silently chooses a
 policy. Unit-scale conversion is an ordinary domain-library operation. See
 [destination-owned conversion](../spec/language/numeric_values.md#destination-owned-conversion)
-and [exact coercion](../spec/language/domains.md#exact-coercion-and-erasure).
+and [domain casts](../spec/language/domains.md#domain-casts).
 
 ### Where the wrap applies: at each node, at the declared width
 
@@ -402,7 +426,7 @@ wrapped 32-bit value, not an unbounded subtraction or a wider register image:
 ```omega
 let shifted: u32 in Wrapping = a >> 1; // 0x7FFF_FFFF
 let divided: u32 in Wrapping = a / 3; // 1431655764
-let exact: u32 = divided as u32;       // explicit policy erasure
+let exact: u32 = divided as -Wrapping; // removes the policy; later math is Exact
 ```
 
 Saturating and Trapping likewise act at each already-landed operation before
@@ -529,9 +553,9 @@ such as `0.0f64 / 0.0`. Wrapping has no float candidate.
 Finite inputs alone therefore do not justify this result:
 
 ```omega
-// Rejected: the result could be infinite or NaN.
+// Rejected: the quotient could be infinite or NaN, so `+Finite` is unproved.
 machine divide(a: f32 in Finite, b: f32 in Finite) -> f32 in Finite {
-    a / b
+    ((a as -Finite) / (b as -Finite)) as +Finite
 }
 ```
 

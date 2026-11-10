@@ -6377,6 +6377,47 @@ pub mod partial_affine_residuals {
         pub conditions: Vec<CleanupCaseCondition>,
     }
 
+    /// Keeps the checked cleanup walk beside its ordered action leaves. A scope
+    /// closes only after its own children, reachable cases and common tail.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct CaseSelectedCleanupPartition {
+        pub regions: Vec<CaseSelectedCleanupRegion>,
+        pub nodes: Vec<CleanupPartitionNode>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum CleanupPartitionNode {
+        Scope {
+            path: Vec<CheckedUnitStructuralPathSegment>,
+            type_identity: TypeIdentityId,
+            conditions: Vec<CleanupCaseCondition>,
+            steps: Vec<usize>,
+        },
+        Leaf {
+            region_ordinal: usize,
+        },
+        Cases {
+            path: Vec<CheckedUnitStructuralPathSegment>,
+            type_identity: TypeIdentityId,
+            arms: Vec<CleanupPartitionArm>,
+            common: Vec<usize>,
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct CleanupPartitionArm {
+        pub case_identity: CheckedMemberIdentity,
+        pub reachability: CleanupCaseReachability,
+        pub steps: Vec<usize>,
+    }
+
+    #[derive(Clone, Copy)]
+    enum PartitionDestination {
+        Scope(usize),
+        Arm { node: usize, arm: usize },
+        Common(usize),
+    }
+
     pub(crate) struct ResidualTraversal<'selection> {
         select_case: &'selection dyn Fn(
             &[CheckedUnitStructuralPathSegment],
@@ -6386,18 +6427,64 @@ pub mod partial_affine_residuals {
         partition_paths: &'selection [Vec<CheckedUnitStructuralPathSegment>],
         conditions: Vec<CleanupCaseCondition>,
         regions: Vec<CaseSelectedCleanupRegion>,
+        nodes: Vec<CleanupPartitionNode>,
+        destinations: Vec<PartitionDestination>,
+        retain_partition: bool,
+        max_partition_nodes: usize,
         active_types: Vec<TypeIdentityId>,
     }
 
     impl ResidualTraversal<'_> {
+        fn append_node(&mut self, node: CleanupPartitionNode) -> Option<usize> {
+            if self.nodes.len() == self.max_partition_nodes {
+                return None;
+            }
+            let position = self.nodes.len();
+            self.nodes.push(node);
+            if let Some(destination) = self.destinations.last().copied() {
+                match destination {
+                    PartitionDestination::Scope(owner) => {
+                        let CleanupPartitionNode::Scope { steps, .. } =
+                            self.nodes.get_mut(owner)?
+                        else {
+                            return None;
+                        };
+                        steps.push(position);
+                    }
+                    PartitionDestination::Arm { node, arm } => {
+                        let CleanupPartitionNode::Cases { arms, .. } = self.nodes.get_mut(node)?
+                        else {
+                            return None;
+                        };
+                        arms.get_mut(arm)?.steps.push(position);
+                    }
+                    PartitionDestination::Common(owner) => {
+                        let CleanupPartitionNode::Cases { common, .. } =
+                            self.nodes.get_mut(owner)?
+                        else {
+                            return None;
+                        };
+                        common.push(position);
+                    }
+                }
+            }
+            Some(position)
+        }
+
         fn emit(
             &mut self,
             source: &CheckedUnitStructuralArgumentSourcePlan,
             path: &[CheckedUnitStructuralPathSegment],
             type_identity: TypeIdentityId,
-        ) {
+        ) -> Option<()> {
+            if self.retain_partition {
+                self.append_node(CleanupPartitionNode::Leaf {
+                    region_ordinal: self.regions.len(),
+                })?;
+            }
             self.regions.push(CaseSelectedCleanupRegion {
                 disposition: CheckedUnitPartialAffineDiscardPlan {
+                    partition_leaf: Default::default(),
                     source: source.clone(),
                     path: path.to_vec(),
                     type_identity,
@@ -6405,6 +6492,7 @@ pub mod partial_affine_residuals {
                 },
                 conditions: self.conditions.clone(),
             });
+            Some(())
         }
     }
 
@@ -6551,6 +6639,17 @@ pub mod partial_affine_residuals {
             return None;
         }
         traversal.active_types.push(current_type);
+        if emit && traversal.retain_partition {
+            let scope = traversal.append_node(CleanupPartitionNode::Scope {
+                path: prefix.clone(),
+                type_identity: current_type,
+                conditions: traversal.conditions.clone(),
+                steps: Vec::new(),
+            })?;
+            traversal
+                .destinations
+                .push(PartitionDestination::Scope(scope));
+        }
         let result = visit_region(
             types,
             source,
@@ -6562,6 +6661,9 @@ pub mod partial_affine_residuals {
             emit,
         );
         traversal.active_types.pop();
+        if emit && traversal.retain_partition {
+            traversal.destinations.pop();
+        }
         result
     }
 
@@ -6584,7 +6686,7 @@ pub mod partial_affine_residuals {
             && validate_type(types, current_type, &mut Vec::new(), &mut Vec::new()).is_some()
         {
             if emit {
-                traversal.emit(source, prefix, current_type);
+                traversal.emit(source, prefix, current_type)?;
             }
             return Some(1);
         }
@@ -6598,7 +6700,7 @@ pub mod partial_affine_residuals {
             return None;
         }
         if nominal_boundary && emit {
-            traversal.emit(source, prefix, current_type);
+            traversal.emit(source, prefix, current_type)?;
         }
         let declaration = *types.get(&current_type)?;
         let mut count = usize::from(nominal_boundary);
@@ -6747,11 +6849,39 @@ pub mod partial_affine_residuals {
                     .collect::<Vec<_>>();
                 let mut reachable_cases = 0_usize;
                 let mut established_cases = 0_usize;
+                let case_node = if emit && traversal.retain_partition {
+                    Some(traversal.append_node(CleanupPartitionNode::Cases {
+                        path: prefix.clone(),
+                        type_identity: current_type,
+                        arms: Vec::new(),
+                        common: Vec::new(),
+                    })?)
+                } else {
+                    None
+                };
                 for case in cases {
                     let reachability =
                         (traversal.select_case)(prefix, current_type, &case.identity)?;
+                    let arm = if let Some(node) = case_node {
+                        let CleanupPartitionNode::Cases { arms, .. } = &mut traversal.nodes[node]
+                        else {
+                            return None;
+                        };
+                        let ordinal = arms.len();
+                        arms.push(CleanupPartitionArm {
+                            case_identity: case.identity.clone(),
+                            reachability,
+                            steps: Vec::new(),
+                        });
+                        Some(PartitionDestination::Arm { node, arm: ordinal })
+                    } else {
+                        None
+                    };
                     if reachability == CleanupCaseReachability::Inactive {
                         continue;
+                    }
+                    if let Some(arm) = arm {
+                        traversal.destinations.push(arm);
                     }
                     reachable_cases = reachable_cases.checked_add(1)?;
                     if reachability == CleanupCaseReachability::Selected {
@@ -6782,7 +6912,7 @@ pub mod partial_affine_residuals {
                             .is_some()
                     {
                         if emit {
-                            traversal.emit(source, prefix, current_type);
+                            traversal.emit(source, prefix, current_type)?;
                         }
                         count = count.checked_add(1)?;
                     } else {
@@ -6802,9 +6932,17 @@ pub mod partial_affine_residuals {
                         prefix.pop();
                     }
                     traversal.conditions.truncate(condition_depth);
+                    if arm.is_some() {
+                        traversal.destinations.pop();
+                    }
                 }
                 if established_cases > 0 && reachable_cases != 1 {
                     return None;
+                }
+                if let Some(node) = case_node {
+                    traversal
+                        .destinations
+                        .push(PartitionDestination::Common(node));
                 }
                 count = count.checked_add(visit_fields(
                     types,
@@ -6816,6 +6954,9 @@ pub mod partial_affine_residuals {
                     traversal,
                     emit,
                 )?)?;
+                if case_node.is_some() {
+                    traversal.destinations.pop();
+                }
             }
             _ => return None,
         }
@@ -6956,6 +7097,62 @@ pub mod partial_affine_residuals {
             &CheckedMemberIdentity,
         ) -> Option<CleanupCaseReachability>,
     ) -> Option<Vec<CaseSelectedCleanupRegion>> {
+        reconstruct_selected_cleanup(
+            types,
+            source,
+            root_type,
+            moved_paths,
+            boundaries,
+            partition_paths,
+            max_residuals,
+            select_case,
+            false,
+        )
+        .map(|partition| partition.regions)
+    }
+
+    pub fn reconstruct_case_selected_cleanup_partition(
+        types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
+        source: &CheckedUnitStructuralArgumentSourcePlan,
+        root_type: TypeIdentityId,
+        moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+        boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+        partition_paths: &[Vec<CheckedUnitStructuralPathSegment>],
+        max_residuals: usize,
+        select_case: &dyn Fn(
+            &[CheckedUnitStructuralPathSegment],
+            TypeIdentityId,
+            &CheckedMemberIdentity,
+        ) -> Option<CleanupCaseReachability>,
+    ) -> Option<CaseSelectedCleanupPartition> {
+        reconstruct_selected_cleanup(
+            types,
+            source,
+            root_type,
+            moved_paths,
+            boundaries,
+            partition_paths,
+            max_residuals,
+            select_case,
+            true,
+        )
+    }
+
+    fn reconstruct_selected_cleanup(
+        types: &BTreeMap<TypeIdentityId, &CheckedUnitStructuralTypePlan>,
+        source: &CheckedUnitStructuralArgumentSourcePlan,
+        root_type: TypeIdentityId,
+        moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+        boundaries: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],
+        partition_paths: &[Vec<CheckedUnitStructuralPathSegment>],
+        max_residuals: usize,
+        select_case: &dyn Fn(
+            &[CheckedUnitStructuralPathSegment],
+            TypeIdentityId,
+            &CheckedMemberIdentity,
+        ) -> Option<CleanupCaseReachability>,
+        retain_partition: bool,
+    ) -> Option<CaseSelectedCleanupPartition> {
         if boundaries.iter().enumerate().any(|(position, (path, _))| {
             boundaries[..position]
                 .iter()
@@ -6979,6 +7176,10 @@ pub mod partial_affine_residuals {
             partition_paths,
             conditions: Vec::new(),
             regions: Vec::new(),
+            nodes: Vec::new(),
+            destinations: Vec::new(),
+            retain_partition,
+            max_partition_nodes: max_residuals,
             active_types: Vec::new(),
         };
         let count = visit(
@@ -7005,7 +7206,11 @@ pub mod partial_affine_residuals {
             &mut traversal,
             true,
         )?;
-        (emitted == count && traversal.regions.len() == count).then_some(traversal.regions)
+        (emitted == count && traversal.regions.len() == count && traversal.destinations.is_empty())
+            .then_some(CaseSelectedCleanupPartition {
+                regions: traversal.regions,
+                nodes: traversal.nodes,
+            })
     }
 }
 

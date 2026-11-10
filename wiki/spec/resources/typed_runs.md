@@ -142,9 +142,12 @@ with an unaccounted hole. Dense `remove`/`swap_remove` repair the live prefix an
 reduce its count. Persistent holes require an explicit representation such as
 `Optional<T>`, not hidden run liveness flags.
 
-Predicate-only qualification erasure permits reading `&[f32 in Km]` as `&[f32]`
-under the existing recast rules. A mutable view must preserve or restore the
-original domain predicates before its loan ends. Nominal units with no value
+A shared view `&[f32 in Km]` may be read as `&[f32]` under the existing recast
+rules. The removal is written, not implied; its spelling for a domain on the
+element type is [left open](../../drafts/designs/named_domain_casts.md#left-open).
+A mutable view may omit only element domains the lender could add again under
+[mutable views](../language/domains.md#mutable-views), and must preserve
+or restore the original domain predicates before its loan ends. Nominal units with no value
 predicate need no extra value test; arbitrary predicate domains do. Access,
 carry and authority restrictions cannot be cast away, even inside a window.
 

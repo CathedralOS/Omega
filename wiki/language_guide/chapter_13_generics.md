@@ -83,7 +83,8 @@ an implementation parameter supplied by the caller:
 boundary trait Sorting {
     machine sort<T, Order satisfies Ordering<T>>(
         items: &mut [T]
-    );
+    )
+        crashes none;
 }
 ```
 
@@ -555,7 +556,7 @@ trait Additive<T> {
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
     reaches none
-    ensures core::Identity<u8 in Wrapping>(zero(), 0);
+    ensures core::Identity<u8 in Wrapping>(zero(), 0 as +Wrapping);
 }
 
 domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;

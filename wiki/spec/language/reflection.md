@@ -204,10 +204,10 @@ recursive traversal. Retention needs a valid declared relationship; ordinary
 escape rejection does not require general outlives-bound syntax.
 
 Field type binding preserves all qualifications. Exact type equality is distinct
-from argument compatibility. A selected adapter may use ordinary per-atom
-weakening or explicit `as` erasure where allowed; the visitor never discards
-qualifications to find a callback. Predicate knowledge may be forgotten under
-ordinary rules, semantic/routed meaning needs the applicable explicit erasure,
+from argument compatibility. A selected adapter may write a
+[domain cast](domains.md#domain-casts) where one is allowed; the visitor never
+discards qualifications to find a callback. Every removed domain is named in
+that cast, whether it is predicate knowledge or semantic/routed meaning,
 and owned claims require disposition or transfer. A descriptive encoder may
 borrow an owned claim without consuming it; encoding its bits does not transfer
 custody or enable reconstruction of its authority.

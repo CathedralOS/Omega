@@ -353,6 +353,14 @@ pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<Stri
     Ok(names)
 }
 
+/// The runner ignores a shard it cannot use and runs the whole selection, so
+/// `--shard 40/40` would be the entire corpus, not the last of forty slices.
+fn valid_shard(text: &str) -> bool {
+    text.trim().split_once('/').is_some_and(|(k, n)| {
+        matches!((k.trim().parse::<u64>(), n.trim().parse::<u64>()), (Ok(k), Ok(n)) if k < n)
+    })
+}
+
 fn selected_fixture_count(
     root: &Path,
     filter_text: &str,
@@ -598,6 +606,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
+    if !shard.trim().is_empty() && !valid_shard(&shard) {
+        eprintln!(
+            "corpus: --shard takes k/N with k from 0 to N-1; `{shard}` would run every fixture"
+        );
+        return Err(2);
+    }
+
     let target = native_target.as_deref().unwrap_or_else(|| host_target());
     let golden_path = golden.unwrap_or_else(|| {
         let tests_omega = root.join("tests/omega");
@@ -636,13 +651,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("corpus: {e}");
         2u8
     })?;
+    // The harness refuses an empty filter, so a whole sweep names the three
+    // tiers every fixture name starts with. Listing each fixture instead made
+    // one environment string of about a megabyte, which Linux will not pass
+    // to a child process (its limit is 128 KiB per string).
     if filter.trim().is_empty() && sweep {
-        filter = selected_fixture_names(&root, "")
-            .map_err(|e| {
-                eprintln!("corpus: {e}");
-                2u8
-            })?
-            .join(",");
+        filter = "pass/,fail/,run/".to_owned();
     }
     if selected > SELECTION_BUDGET && !sweep {
         eprintln!(
@@ -789,6 +803,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shards_count_from_zero_and_stop_before_the_total() {
+        assert!(valid_shard("0/40"));
+        assert!(valid_shard(" 39/40 "));
+        assert!(!valid_shard("40/40"));
+        assert!(!valid_shard("3"));
+        assert!(!valid_shard("a/40"));
+    }
 
     #[test]
     fn header_only_and_trap_oracles_guard_recording_without_changing_raw_rows() {

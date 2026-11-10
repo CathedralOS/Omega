@@ -3082,9 +3082,11 @@ mod dependencies {
                     source,
                     &mut reads,
                 )
-                && !reads
-                    .iter()
-                    .any(|read| places_overlap(program, read, &place)))
+                && !reads.iter().any(|read| {
+                    ::validation::storage_path_relations::canonical_places_may_overlap(
+                        program, read, &place,
+                    )
+                }))
             .then_some(CapturedScalarValue {
                 expression: source,
                 reads,
@@ -3230,10 +3232,11 @@ mod dependencies {
                 !writes.is_none_or(|writes| {
                     writes.iter().any(|write| {
                         write_covers_place(program, write, &length.descriptor)
-                            || length
-                                .selectors
-                                .iter()
-                                .any(|read| places_overlap(program, read, write))
+                            || length.selectors.iter().any(|read| {
+                                ::validation::storage_path_relations::canonical_places_may_overlap(
+                                    program, read, write,
+                                )
+                            })
                     })
                 })
             });
@@ -3241,11 +3244,13 @@ mod dependencies {
                 if row.value.as_ref().is_some_and(|value| {
                     writes.is_none_or(|writes| {
                         writes.iter().any(|write| {
-                            places_overlap(program, &row.place, write)
-                                || value
-                                    .reads
-                                    .iter()
-                                    .any(|read| places_overlap(program, read, write))
+                            ::validation::storage_path_relations::canonical_places_may_overlap(
+                                program, &row.place, write,
+                            ) || value.reads.iter().any(|read| {
+                                ::validation::storage_path_relations::canonical_places_may_overlap(
+                                    program, read, write,
+                                )
+                            })
                         })
                     })
                 }) {
@@ -3256,12 +3261,14 @@ mod dependencies {
                 };
                 if writes.is_none_or(|writes| {
                     writes.iter().any(|write| {
-                        places_overlap(program, &row.place, write)
-                            || write_covers_place(program, write, &length.descriptor)
-                            || length
-                                .selectors
-                                .iter()
-                                .any(|read| places_overlap(program, read, write))
+                        ::validation::storage_path_relations::canonical_places_may_overlap(
+                            program, &row.place, write,
+                        ) || write_covers_place(program, write, &length.descriptor)
+                            || length.selectors.iter().any(|read| {
+                                ::validation::storage_path_relations::canonical_places_may_overlap(
+                                    program, read, write,
+                                )
+                            })
                     })
                 }) {
                     row.length = None;
@@ -3562,7 +3569,7 @@ mod dependencies {
                                 }) {
                                     !write_covers_place(program, write, read)
                                 } else {
-                                    !places_overlap(program, read, write)
+                                    !::validation::storage_path_relations::canonical_places_may_overlap(program, read, write)
                                 }
                             })
                         })
@@ -3579,9 +3586,11 @@ mod dependencies {
             for row in &self.scalar_binding_dependencies {
                 if row.machine != machine.symbol
                     || row.state != state.symbol
-                    || writes
-                        .iter()
-                        .any(|write| places_overlap(program, &row.place, write))
+                    || writes.iter().any(|write| {
+                        ::validation::storage_path_relations::canonical_places_may_overlap(
+                            program, &row.place, write,
+                        )
+                    })
                     || collisions.binding_labels.contains(row.label.as_str())
                 {
                     continue;
@@ -3666,15 +3675,6 @@ mod dependencies {
             self.preserved_expression_labels(program, machine, state, writes)
                 .contains(&program.expression_table.display_name(expression))
         }
-    }
-
-    fn places_overlap(
-        program: &dyn ::validation::CheckingInput,
-        left: &CanonicalPlace,
-        right: &CanonicalPlace,
-    ) -> bool {
-        (left.root) == (right.root)
-            && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
     }
 
     fn same_reads(

@@ -290,7 +290,7 @@ impl ObservedFieldKind {
 
 pub struct FunctionAnalysis {
     pub definitions: BTreeMap<ValueId, ValueDefinition>,
-    pub dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+    pub dominators: super::DominatorSets,
 }
 
 pub fn function_analysis(function: &PsiOptimizationFunction) -> FunctionAnalysis {
@@ -572,42 +572,31 @@ pub fn dominators(
     entry: BlockId,
     block_ids: impl Iterator<Item = BlockId>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
-    let all = block_ids.collect::<BTreeSet<_>>();
-    let mut result = all
+) -> super::DominatorSets {
+    let blocks: Vec<_> = block_ids.collect::<BTreeSet<_>>().into_iter().collect();
+    let entry_position = blocks.binary_search(&entry).ok();
+    // The entry's incoming row and extra map rows were never consulted. Missing
+    // nonentry rows or foreign predecessors retain the original invariant errors.
+    let incoming: Vec<Vec<_>> = blocks
         .iter()
-        .copied()
         .map(|block| {
-            let initial = if block == entry {
-                [entry].into_iter().collect()
+            if *block == entry {
+                Vec::new()
             } else {
-                all.clone()
-            };
-            (block, initial)
+                predecessors
+                    .get(block)
+                    .expect("all blocks indexed")
+                    .iter()
+                    .map(|predecessor| {
+                        blocks
+                            .binary_search(predecessor)
+                            .expect("predecessor block is declared")
+                    })
+                    .collect()
+            }
         })
-        .collect::<BTreeMap<_, _>>();
-    loop {
-        let mut changed = false;
-        for block in all.iter().copied().filter(|block| *block != entry) {
-            let incoming = predecessors.get(&block).expect("all blocks indexed");
-            let mut next = if let Some(first) = incoming.first() {
-                result[first].clone()
-            } else {
-                BTreeSet::new()
-            };
-            for predecessor in incoming.iter().skip(1) {
-                next = next.intersection(&result[predecessor]).copied().collect();
-            }
-            next.insert(block);
-            if result[&block] != next {
-                result.insert(block, next);
-                changed = true;
-            }
-        }
-        if !changed {
-            return result;
-        }
-    }
+        .collect();
+    super::dominance::solve(blocks, entry_position, incoming)
 }
 
 pub(crate) fn descended_type(

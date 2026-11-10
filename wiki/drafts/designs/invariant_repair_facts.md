@@ -8,7 +8,7 @@ usable facts. It introduces no repair syntax or runtime repair operation.
 
 The normative rules are [contract-based repair](../../spec/language/dependent_values.md#contract-based-repair),
 [completion contracts](../../spec/language/state_contracts.md), and
-[qualification weakening](../../spec/language/domains.md#exact-coercion-and-erasure).
+[casts on mutable views](../../spec/language/domains.md#mutable-views).
 Implementation work belongs to **DOMAIN-ACCESS-AUTHORITY** in
 [TASKS.md](../../../TASKS.md).
 

@@ -78,6 +78,11 @@ syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
    same host/source/profile and comparable cache state. Record wall/CPU, peak RAM,
    queue delay, disk/cache growth and required behavior. Adopt only a real gain
    in useful outcome throughput without unacceptable E2E latency or pressure.
+5. On a workstation its owner is using, set the
+   [host build budget](../../../../tools/build_slot.md#on-a-workstation-someone-is-using)
+   before the first build and put it in every worker prompt. Agent width may
+   stay wide there; build load may not. A limit the owner states replaces any
+   default.
    Stop the experiment once the adequate envelope is established.
 5. Keep worktree paths stable during an ongoing outcome. Reuse a completed slot
    only after preserving its branch/artifacts and verifying completion or that
@@ -116,9 +121,9 @@ for its first gate run, producing median 17-minute and worst 75-minute pool
 waits with 25-45 waiters. Batch them instead:
 
 1. Pick the sub-batch base revision G and create the sub-batch worktrees **at G**.
-2. Build ONE pair at G — the `omega` binary plus the corpus test runner — through
-   the existing pool as a single hold (`tools/build_slot.py --slots 2 --
-   <build both>`), then publish both outside any worktree (for example
+2. Build ONE pair at G — the `omega` binary plus the corpus test runner — as one
+   build under the [host build budget](../../../../tools/build_slot.md), then
+   publish both outside any worktree (for example
    `build/swarm/<wave>/producers/gen-<rev11>/`) with a `GENERATION` file (exact
    revision + sha256 of each artifact) and a `READY` marker. With a warm MBX
    action cache the pair compiles in ~1-2 minutes; the pool queue dominates the
@@ -143,51 +148,37 @@ compiled in 42-81 seconds warm, and a 32-wide dispatch sat at load ~45-50 with
 The next ceiling is not builds: it is golden-record memory floors (~1.2 GB free)
 and landing rebase+verify traffic.
 
-## Take the pool once for the whole chain
+## Run the chain as one sequential unit
 
-The pool is a race among pollers, not a queue, and its wait outlasts a
-per-step pattern: on 2026-10-23, amid a fifty-lane LOC wave, a lane's single
-chain acquisition waited 3,039 to 5,282 seconds (up to 88 minutes) for one of
-two slots, and the wave's live logs recorded 1,594 `waiting for one of 2
-slot(s)` announcements. A chain that re-queued for each check, test run and
-landing re-verify would pay that wait several times and would not fit its own
-`--timeout`.
+The slot pool this section used to describe (`tools/build_slot.py`) was removed
+in #2080. Its lesson stands. On 2026-10-23, amid a fifty-lane LOC wave, a
+lane's single acquisition waited 3,039 to 5,282 seconds (up to 88 minutes) for
+one of two slots, so a chain that re-queued for each check, test run and
+landing re-verify paid that wait several times.
 
-Wrap the chain instead — one acquisition, strictly sequential steps:
-
-    python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
-
-`hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and
-nested pool users — a nested `build_slot.py` and `corpus_gate.py`'s runner build —
-inherit it and short-circuit. Local check → crate tests → scoped corpus gate
-costs one acquisition. Release the hold before submitting or waiting for
-GitHub's merge queue; integration builds run on GitHub
-([build slots](../../../../tools/build_slot.md#one-hold-for-a-whole-chain)).
+Run a lane's local check, crate tests and scoped corpus gate as strictly
+sequential steps in one shell under one
+[host build budget](../../../../tools/build_slot.md#one-hold-for-a-whole-chain).
+Finish before submitting or waiting for GitHub's merge queue; integration
+builds run on GitHub.
 
 Two habits keep a killed lane cheap to resume, learned across two host
 restarts in one day:
 
 - Commit as soon as the change is coherent, and amend or squash before
   publishing; a committed mechanism survives a session that does not.
-- `claims.py note` at every milestone, not only before publish; the note is
-  what a successor agent reads to continue without re-deriving the work.
+- `cargo xtask claims note` at every milestone, not only before publish; the
+  note is what a successor agent reads to continue without re-deriving the work.
 
-This play is per machine. Worktrees of one checkout share its pool and its MBX
-action cache; separate computers — cloud executors, another host — have their
-own pools and cannot lend, batch or upload builds to each other, so each
-session takes its own machine's pool once for its own chain. Cross-machine
-coordination is the claims registry and the serialized landing queue; the
-build pool is not a cross-machine resource.
+This is per machine. Worktrees of one checkout share its MBX action cache and
+scheduler pool; separate computers — cloud executors, another host — have their
+own and cannot lend, batch or upload builds to each other. Cross-machine
+coordination is the claims registry and the serialized landing queue.
 
 The fix loop is not the chain. Repairing a compile error or a red test is a
-minutes-scale check-edit-check loop; running each iteration as its own chain
-attempt pays the multi-hour wait for a one-line fix. Do the loop inside the
-ONE chain hold when you have it (acquire once, iterate until green, then
-continue through the local gates, then release before PR submission),
-and run quick single-crate checks in the separate diag pool
-([build slots](../../../../tools/build_slot.md#diagnostics-dont-queue-with-chains))
-when you need one before a chain, so diag work never contends with the two
-chain slots.
+minutes-scale check-edit-check loop: iterate with single-crate checks until
+green, then run the chain once
+([diagnostics](../../../../tools/build_slot.md#diagnostics-dont-queue-with-chains)).
 
 ## Submit once to the merge queue
 
