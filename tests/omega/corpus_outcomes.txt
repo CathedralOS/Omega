@@ -27890,10 +27890,10 @@ pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 16036ms check-t
 pass/time/runtime_clock_shared_import_slots_exit checked 22098ms check-target:macos_arm64 @a562d4060f10+wt
 pass/time/runtime_duration_core_exit checked 49541ms check-target:macos_arm64 @ccdb99ca2214
 pass/time/runtime_duration_units_and_scaling_exit checked 50624ms check-target:macos_arm64 @ccdb99ca2214
-pass/time/runtime_fs_mtime_system_time_interop_exit timeout 1200000ms regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
+pass/time/runtime_fs_mtime_system_time_interop_exit checked 46059ms check-target:macos_arm64 @1ff9f0cd20bd
 pass/time/runtime_kernel_clock_wait_loans_exit checked 13533ms check-target:linux_x86_64 @2be83686053c
 pass/time/runtime_std_time_host_binding_exit checked 32450ms check-target:macos_arm64 @5b3c6034e84f
-pass/time/runtime_time_elapsed_since_exit timeout 1200000ms regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
+pass/time/runtime_time_elapsed_since_exit checked 19620ms check-target:macos_arm64 @1ff9f0cd20bd
 pass/time/runtime_time_host_native_darwin_exit checked 32180ms check-target:macos_arm64 @5b3c6034e84f
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 19924ms check-target:macos_x86_64 @ccdb99ca2214
 pass/time/runtime_time_host_native_windows_exit checked 18645ms check-target:windows_x86_64 @ccdb99ca2214
