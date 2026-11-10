@@ -222,9 +222,11 @@ mbx xtask corpus --record --filter <fixtures> < /dev/null
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null
 
-# Run repository rules, formatting, and boundary gates:
+# Run repository rules, formatting, lint, and boundary gates. CI fails a landing on
+# any Clippy warning, so lint every crate you touched before you push:
 mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
 mbx xtask fmt --check
+mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
