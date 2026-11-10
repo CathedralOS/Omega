@@ -11,8 +11,15 @@ Paths below are under `omega-rust/`. `comp/` is `omega/compilation/compiler/src/
 | 3 | comp/checked/checking/source_checking.rs:202-207, :251 | UNDECIDED | Reusable layout scopes carry no entry list. Whether a machine outside the product-selected seed can hide a layout error was not settled. |
 | 4 | tgt/target_profile.rs:250, :430 | CLOSED | The only caller of the address-model pass then rejects a profile with no layout facts. The host arm is an explicit realization of two named profiles. |
 | 5 | bs/host/bindings.rs:290-291 | CLOSED | `Ok(true)` only means the effect is not a pending query. The commit that follows rejects a call that is not in the host's call list. |
+| 6 | bs/admission/checking.rs:118, :161 | CLOSED | A missing profile is filled with the host before this function, or `TargetProfile::host` panics. The substitution does not accept a program. |
+| 7 | bs/admission/selected_constants.rs:80-84, :96-113 | UNDECIDED | A use with no plan, or a plan that is neither a provider body nor a float operator, is not recorded. Whether that use is later rejected was not settled. |
+| 8 | orch/project/build_directory.rs:254, :271-273, :217 | REACHABLE | An owner file with no `root ` line is treated as unowned, so another project root is admitted into that build directory. |
+| 9 | orch/package/package_review.rs:205-207 | CLOSED | `Ok(None)` means the required component is the package being reviewed. A missing candidate is an error. |
+| 10 | ba/lib.rs:201-203 | CLOSED | The only producer copies the plan digest into the occurrence immediately before this check. A mismatched digest is not supplied. |
 
-Entries 6 onward are not written yet.
+`orch/` is `omega/build-system/orchestration/src/`. `ba/` is `omega/compilation/backend/artifacts/boundary-applications/src/`.
+
+Entries 11 onward are not written yet.
 
 ## 1. `comp/product_execution.rs:473-491`
 
@@ -89,3 +96,68 @@ The trait default (`psi/interpreter/terminal-interpreter/src/boundary_effects.rs
 Digest: right about the `Ok(true)` arm. The following commit rejects an unregistered effect.
 
 Not read: `poll_query` and `commit_native`.
+
+## 6. `bs/admission/checking.rs:118` and `:161`
+
+`prepare_checked_build` (`checking.rs:43-198`, read through the host substitutions and the candidate error). Search `prepare_checked_build\(`: 2 hits. The caller is `prepare_build_evaluation` (`build_evaluation.rs:280`, and the profile destructure at `:226-227`, read). Search `prepare_build_evaluation\(`: 3 hits. Callers are `build_continuation.rs:147` (read `:116-170`) and the example `restricted_consent.rs:102` (read `:116-117`).
+
+Both compiler entry points fill the profile first. `begin_package_build_worker` (`comp/checked/checking.rs:348-351`, read) and `begin_source_compilation` (`comp/checked/compilation_session.rs:91-94`, read) call `resolve_compilation_defaults` (`omega/packages/package-compilation/src/build_execution/execution_inputs.rs:36-45`, read). That sets `profile` to `host_if_supported()` when it was `None`. The field comment at `:20` says compilation requests default to the host. The example passes `Some(host)`.
+
+`unwrap_or_else(TargetProfile::host)` at `:118` and `:161` therefore runs only when the profile is still `None`, which is an unsupported host. `TargetProfile::host` (`tgt/target_profile.rs:300-301`, read) panics with "unsupported host profile for Omega native planning". It does not accept the build. When candidates exist and a profile is present, planning uses that profile. The error at `checking.rs:143-147` (read) is the nonempty-candidate case with a missing profile; on a supported host the profile is already `Some`, so that error is not the path that accepts.
+
+Orchestration also fills a profile or errors before evaluation (`orch/compile/build_execution/source_resolution.rs:162-169`, read), and `source_build_request` forces `Some` (`omega/packages/package-manager/src/build_session.rs:165-173`, read).
+
+Digest: right that these two lines substitute the host. Wrong about the outcome for a program: the substitution is not reached on a supported host, and it panics on an unsupported one.
+
+Not read: `settle_provider_defaults`. It is not needed. The branch that would call it with a substituted host does not accept.
+
+## 7. `bs/admission/selected_constants.rs:80-84` and `:96-113`
+
+`SelectedConstantEvaluation::prepare` (`selected_constants.rs:61-119`, read in full). Search `SelectedConstantEvaluation::prepare\(`: 1 hit, `checking.rs:159`. It runs only when `had_pending` (`checking.rs:156-166`, read).
+
+For each resolved operator use, `selected_requirement_plan` returning `None` continues (`:80-83`). A plan that yields no provider body and no primitive float execution is not pushed (`:85-113`). There is no `else`. `validate_selected_operators` and `validate_selected_provider_bodies` then run on the recorded lists only (`:115-117`).
+
+`evaluate` (`psi/compilation/build-time-evaluation/src/const_evaluation.rs:5151-5178`, read) folds layout queries and calls `evaluate_selected_operators` with those recorded lists. `prepare_selected_execution` (`machine_execution.rs:5444-5461`, read) returns `Ok(None)` when both lists are empty, and otherwise rewrites only the expressions that are in the lists (`:5464-5514`, read).
+
+A constant binary with no builtin meaning is rejected (`const_generic_expressions.rs:4461-4466`, read). `has_builtin` (`:2644-2657`, read) is true for a closed context, and otherwise calls `has_builtin_binary_expression_meaning`. That check is not "was this use recorded in `SelectedConstantEvaluation`". I did not read `has_builtin_binary_expression_meaning`, and I did not read the path that executes a use whose selected plan was skipped.
+
+Verdict UNDECIDED. What would decide it: whether a pending continuation whose requirement had a selected plan, and whose plan was neither a provider body nor a float operator, fails inside `evaluate_selected_operators` or is folded without that plan.
+
+Digest: right about the skip and the missing `else`.
+
+Not read: `derive_selected_primitive_float_binary_execution` and `has_builtin_binary_expression_meaning`.
+
+## 8. `orch/project/build_directory.rs:254`, `:271-273`, `:217`
+
+`check_owner` (`build_directory.rs:231-262`, read in full). Search `check_owner\(`: 3 hits, all in this file: the definition, the call from `acquire` (`:173`), and the recursive call after `AlreadyExists` (`:246`).
+
+A missing owner file is created with a `root ` line (`:238-243`). A read error other than not-found is `occupied_io` (`:251`). A recorded root that differs is `AliasedRoot` (`:255-260`). A file that exists and has no line starting with `root ` makes `recorded` `None`, and that arm returns `Ok(())` (`:253-254`). `acquire` (`:167-189`, read) then creates the occupant and returns the directory. A second project's build is admitted into a directory whose owner file has no root line.
+
+`canonicalize_or_literal` (`:271-273`, read) uses the spelled path when `canonicalize` fails. `directory_object` (`:216-218`, read) turns an identity-lookup error into `None`, so `DirectoryIdentity` equality (`:220-228`, read) compares paths only when both lookups fail. I did not find a later check that restores the object identity. Those two accepts are real. The owner-file arm is the one that admits a different project.
+
+Digest: right about all three.
+
+Not read: `filesystem_object_identity`. The `.ok()` at `:217` is what drops its error.
+
+## 9. `orch/package/package_review.rs:205-207`
+
+`component_descriptions` (`package_review.rs:185-216`, read). The header (`:9-30`, read) says a cached dependency that lacks its description returns `ComponentDescriptionNotRetained`. The `?` on `round.component` propagates that error. The `continue` is only the `Ok(None)` arm.
+
+`PackageReviewRound::component` (`omega/packages/package-manager/src/review/candidate/passes/occurrences.rs:620-655`, read in full). `Ok(None)` is returned only when `component == occurrence.key.identity()` (`:627-628`), the package currently being reviewed. A live or cached candidate returns `Some`. No candidate returns `Err` "which this closure never compiled" (`:647-653`).
+
+`with_independent_component_descriptions` (`omega/packages/package-compilation/src/package_compilation.rs:443-478`, read) checks the descriptions it is given. It does not look for missing required components. It does not need to: a foreign required component with no candidate already failed in `component`. The self-package skip matches `required_components`, which also skips `component == inputs.root()` (`orch/compile/build_execution.rs:410-412`, read).
+
+Digest: wrong. The skipped case is not "no candidate description". No candidate is an error. The skip is the package itself.
+
+Not read: other functions named `component` in unrelated files. The call here is this method.
+
+## 10. `ba/lib.rs:201-203`
+
+`TerminalIeeeFloatComparisonOccurrenceProposal::validate_roster` (`lib.rs:171-251`, read). It checks that the plan index is in range (`:201-203`) and does not compare `provider_plan_commitment`. The integer roster does (`:301-306`, read).
+
+Search `TerminalIeeeFloatComparisonOccurrenceProposal {`: 3 hits. Two are the struct and its impl (`lib.rs:138`, `:147`). The only construction is `settlement.rs:186-201` (read `:140-238`). That function sets `provider_plan_commitment` from `plans[provider_plan_index].identity_digest()` (`:154`) and then calls `validate_roster` (`:226-238`). The index was just taken from that same `plans` slice (`:141-153`). A digest that disagrees with the plan cannot be passed in by this caller, and there is no other caller.
+
+Digest: right that this roster does not compare the commitment. The commitment cannot disagree on the only path that reaches the check.
+
+Not read: later consumers of the stored commitment field. They receive a value copied from the plan this function just checked by index.
+
