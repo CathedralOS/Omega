@@ -5473,8 +5473,8 @@ mod statements {
     use validation::find_state_in_machine;
 
     use crate::flow::{
-        StateMutationSummaryCache, StateReceiverReadCache, call_write_accesses,
-        statement_mutated_place,
+        StateMutationSummaryCache, StateReceiverReadCache, assignment_requires_exclusive_access,
+        call_write_accesses, statement_mutated_place,
     };
     use crate::published::labels::symbol_name;
 
@@ -6011,8 +6011,15 @@ mod statements {
                 continue;
             };
 
-            let Some(_) = statement_node.as_assignment() else {
+            let Some(assignment) = statement_node.as_assignment() else {
                 continue;
+            };
+            let access = if assignment_requires_exclusive_access(
+                program, machine, state, assignment,
+            ) {
+                checked_trees::BorrowAccessKind::Mutable
+            } else {
+                checked_trees::BorrowAccessKind::Read
             };
             let mut owned_frames = None;
             let frames = shared_call_frames_or(call_frames, program, &mut owned_frames);
@@ -6102,7 +6109,7 @@ mod statements {
                     facts,
                     loan_occurrences,
                     &destinations,
-                    &checked_trees::BorrowAccessKind::Mutable,
+                    &access,
                     loan_handle,
                     stated_premises,
                     bound_lookup,
