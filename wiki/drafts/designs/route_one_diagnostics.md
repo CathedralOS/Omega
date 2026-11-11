@@ -37,7 +37,8 @@ route does not judge. Of the other 4, two are wrong programs the route
 accepts with a changed meaning: `7/2` and `4097/2` in an `i32` machine
 are lowered as integer division
 ([list](#programs-the-route-accepts-with-every-closure-judged)). So the
-route must not decide a program alone yet.
+route must not decide a program alone yet. Both holes are fixed by `#2441`,
+merged after `7f1316ed6`.
 
 The first, partial measurement at `c7371d3dc` found 63 of 117 rejections on
 a correct helper, because the prover could not prove trivially true
@@ -122,6 +123,10 @@ but the route accepts without it.
   integer and cannot land in `i32`.
 - `arithmetic/fractional_integer_operand`: anonymous operand `4097/2`
   cannot land exactly in `i32`.
+
+Both are fixed on a later `main` by `#2441`, which lowers wholly anonymous
+arithmetic exactly and refuses it when the landing rule does not allow it.
+It also refuses `7 % 2` and `(n / 2) * 2` below.
 
 **Body rules another stage owns, 2.** The lowered program has the meaning
 the author intended; the language rejects the form.
