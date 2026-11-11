@@ -7367,6 +7367,8 @@ run/arithmetic/fixed_integer_operand_join built 6303ms exit:70 stdout:match inte
 run/arithmetic/float_structural_initializer_selection built 11795ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/arithmetic/pinned_dividend_across_console_calls built 7878ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 run/arithmetic/policy_operator_division_matches_policy_domains built 160659ms exit:70 interpreter-exit:70 interpreter:agrees @279079cabde3
+run/arithmetic/policy_operator_shift_count_traps built 118756ms exit:-1073741795 interpreter:trapped @f68e4a615c25
+run/arithmetic/policy_operator_target_body built 93188ms exit:70 interpreter-exit:70 interpreter:agrees @f68e4a615c25
 run/arithmetic/policy_operators_match_policy_domains built 84264ms exit:70 interpreter-exit:70 interpreter:agrees @a7dc8e823f6e
 run/borrows/affine_produced_membership_move built 3298ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/borrows/call_result_mutable_window_field_exit rejected 10509ms interpreter:unchecked @5f668826adf3+wt
