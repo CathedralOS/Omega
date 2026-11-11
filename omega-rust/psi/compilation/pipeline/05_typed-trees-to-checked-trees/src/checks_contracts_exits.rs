@@ -4466,7 +4466,8 @@ mod result_domains {
                 else {
                     continue;
                 };
-                let carrier_rows = validation::field_domains::declared_type_domain_rows(program, carrier);
+                let carrier_rows =
+                    validation::field_domains::declared_type_domain_rows(program, carrier);
                 let mut rows: Vec<_> = carrier_rows
                     .iter()
                     .filter(|row| !row.transfer && !row.path.is_empty())
