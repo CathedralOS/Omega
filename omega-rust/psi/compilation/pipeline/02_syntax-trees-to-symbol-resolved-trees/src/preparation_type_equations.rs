@@ -1710,7 +1710,7 @@ pub(crate) fn type_reference_parameter_mentions(
 }
 
 /*
-    One declaration-level `where` fact that states a type equation, by its offset in
+    One declaration-level `requires` fact that states a type equation, by its offset in
     the template's fact span. Instances never carry it: applying the template
     decides it against the complete argument tuple.
 */
@@ -1885,7 +1885,7 @@ pub(crate) fn template_type_equation_offsets(
     for equation in classify_type_equations(
         syntax,
         syntax.items.type_parameters(definition.type_parameters),
-        syntax.items.proof_facts(definition.where_facts),
+        syntax.items.proof_facts(definition.requires_facts),
     ) {
         match equation.shape {
             EquationShape::Boolean { ref operands, .. } => {
@@ -2096,7 +2096,7 @@ fn binder_index<'parameters>(
 }
 
 /*
-    Classify every declaration-level `where` fact that equates a type binder or a
+    Classify every declaration-level `requires` fact that equates a type binder or a
     type constructor. Facts over const binders and values alone (`Capacity > 0`)
     stay ordinary instantiation obligations for the const evaluator.
     A machine's structural equations among its `requires` facts; see
@@ -2123,9 +2123,9 @@ pub(crate) fn classify_machine_equations(
 pub(crate) fn classify_type_equations(
     syntax: &SyntaxTrees,
     parameters: &[TypeParameter],
-    where_facts: &[ProofFact],
+    requires_facts: &[ProofFact],
 ) -> Vec<TypeEquation> {
-    where_facts
+    requires_facts
         .iter()
         .enumerate()
         .filter_map(|(fact_offset, fact)| {

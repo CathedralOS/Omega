@@ -34,7 +34,7 @@ pub struct CorpusRecord {
 }
 
 /// Parse `tests/omega/corpus_outcomes.txt` and return all pinned regressions:
-/// - `pass/` or `run/` rows whose status is not `checked`/`built` or that carry `regressed-from:*`
+/// - `pass/` or `run/` rows that neither check/build nor match a pinned native rejection, or that carry `regressed-from:*`
 /// - `fail/` rows whose status is not `rejected` or that carry `unexpected`
 pub fn list_pinned_regressions_from_text(text: &str) -> Vec<PinnedRegression> {
     let mut regressions = Vec::new();
@@ -276,14 +276,32 @@ pub fn splice_records(text: &str, records: &[CorpusRecord]) -> String {
     out
 }
 
+/// A positive row succeeds when it checks or builds, or when its fixture pins a
+/// native rejection and the observed refusal matched it. `check-rules` and
+/// `--list-pinned-regressions` read the same rows as green, so the recorder must
+/// mark the loss of either kind with `regressed-from:`; otherwise a matched
+/// native rejection that stops matching lands as an unmarked red row.
+fn is_recorded_success(record: &CorpusRecord) -> bool {
+    matches!(record.status.as_str(), "built" | "checked")
+        || (matches!(record.tier.as_str(), "pass" | "run")
+            && record.status == "rejected"
+            && record.expected_satisfied == Some(true)
+            && record
+                .facts
+                .iter()
+                .any(|(key, value)| key == "native-rejection" && value == "match"))
+}
+
 fn carried_regression(prior: Option<&CorpusRecord>, observed: &CorpusRecord) -> Option<String> {
-    let is_success = matches!(observed.status.as_str(), "built" | "checked");
-    if is_success {
+    if is_recorded_success(observed) {
         return None;
     }
     let prior = prior?;
-    if matches!(prior.status.as_str(), "built" | "checked") {
+    if is_recorded_success(prior) {
         let mut token = prior.status.clone();
+        if prior.expected_satisfied == Some(true) {
+            token.push_str("+expected");
+        }
         for (k, v) in &prior.facts {
             token.push_str(&format!("+{k}:{v}"));
         }
@@ -803,6 +821,23 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn losing_a_matched_native_rejection_carries_a_regression_token() {
+        let row = |text: &str| parse_records(text).unwrap().remove(0);
+        let prior = row(
+            "pass/host/scalar rejected 3ms expected check-target:linux_x86_64 native-rejection:match @aaaaaaaaaaaa",
+        );
+        let lost = row("pass/host/scalar rejected 9ms check-target:linux_x86_64 @bbbbbbbbbbbb");
+        assert_eq!(
+            carried_regression(Some(&prior), &lost).as_deref(),
+            Some("rejected+expected+check-target:linux_x86_64+native-rejection:match")
+        );
+        assert_eq!(carried_regression(Some(&prior), &prior), None);
+        let fail =
+            row("fail/host/refusal rejected 3ms expected native-rejection:match @aaaaaaaaaaaa");
+        assert!(!is_recorded_success(&fail));
+    }
 
     #[test]
     fn shards_count_from_zero_and_stop_before_the_total() {

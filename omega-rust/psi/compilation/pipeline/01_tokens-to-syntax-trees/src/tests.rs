@@ -2505,34 +2505,74 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
-    fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+    fn record_pattern_marker_carries_its_field_roster() {
         let source = r#"
-        data Pair { left__value: i32; right: i32; }
+        data Pair { left__value: i32; right: i32; other: i32; }
         machine inspect(pair: Pair) {
-            let { left__value, right as _ } = pair;
+            let { left__value, right as _, other as renamed } = pair;
         }
     "#;
         let parsed = super::parse_source(source, "destructure should parse");
         let machine = super::root_machine(&parsed, "machine root item");
         let state = super::entry_state(&parsed, machine);
-        let marker = parsed
+        let locals = parsed
             .items
             .statements(state.statements)
             .iter()
-            .find_map(|handle| match parsed.statements.statement(*handle) {
-                StatementNode::LocalData(local)
-                    if local.name.as_str(&parsed).starts_with("__destructure#") =>
-                {
-                    Some(local)
-                }
+            .filter_map(|handle| match parsed.statements.statement(*handle) {
+                StatementNode::LocalData(local) => Some(local),
                 _ => None,
             })
-            .expect("destructure marker local");
+            .collect::<Vec<_>>();
+        let [marker, bound @ ..] = locals.as_slice() else {
+            panic!("the pattern leaves a marker local");
+        };
 
+        assert_eq!(marker.role, language_core::LocalBindingRole::RecordPattern);
         assert_eq!(
             marker.name.as_str(&parsed),
-            "__destructure#left__value#right",
-            "the internal delimiter must not split repeated underscores"
+            "__destructure",
+            "the marker's name encodes nothing"
+        );
+        let roster = parsed
+            .expressions
+            .match_fields(marker.pattern_fields)
+            .iter()
+            .map(|field| {
+                (
+                    field.member.as_str(&parsed),
+                    match &field.action {
+                        syntax_trees::expression::MatchFieldAction::Bind(binding) => {
+                            Some(binding.as_str(&parsed))
+                        }
+                        syntax_trees::expression::MatchFieldAction::Waive => None,
+                        syntax_trees::expression::MatchFieldAction::Equal(_) => {
+                            panic!("a let pattern compares nothing")
+                        }
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            roster,
+            [
+                ("left__value", Some("left__value")),
+                ("right", None),
+                ("other", Some("renamed")),
+            ],
+            "every named field is kept in authored order, waived ones included"
+        );
+        assert_eq!(
+            bound
+                .iter()
+                .map(|local| local.name.as_str(&parsed))
+                .collect::<Vec<_>>(),
+            ["left__value", "renamed"],
+            "only bound fields become value locals"
+        );
+        assert!(
+            bound.iter().all(|local| local.pattern_fields.is_empty()),
+            "only the marker carries a roster"
         );
     }
 
@@ -3124,7 +3164,7 @@ pub(crate) mod domains_and_transitions {
         let parsed = super::parse_source(source, "parse should succeed");
         let data = super::root_data(&parsed, "data root item");
 
-        assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
+        assert_eq!(parsed.items.proof_facts(data.requires_facts).len(), 2);
         assert_eq!(parsed.items.data_members(data.members).len(), 3);
     }
 
@@ -3148,13 +3188,15 @@ pub(crate) mod domains_and_transitions {
             .data_members(data.members)
             .iter()
             .map(|member| match member {
-                DataMember::Variant(variant) => parsed.items.proof_facts(variant.where_facts).len(),
+                DataMember::Variant(variant) => {
+                    parsed.items.proof_facts(variant.requires_facts).len()
+                }
                 _ => panic!("expected only variant members"),
             });
         assert_eq!(
             fact_counts.next(),
             Some(0),
-            "payload-less case without `where`"
+            "payload-less case without facts"
         );
         assert_eq!(fact_counts.next(), Some(0), "no case-local predicate copy");
         assert!(fact_counts.next().is_none());
@@ -4676,7 +4718,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_exact_asm_where_clobber_contracts() {
+    fn parses_exact_asm_clobber_contracts() {
         for block in [
             "asm clobbers none { hlt }",
             "asm clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
@@ -4695,7 +4737,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_asm_where_facts_at_entry_and_exit() {
+    fn parses_asm_requires_facts_at_entry_and_exit() {
         let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
         machine Main::main(main: &mut Main) {
@@ -7907,7 +7949,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("expected one equation");
                 };
@@ -7999,7 +8041,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("equation");
                 };

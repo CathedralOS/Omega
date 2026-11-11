@@ -37,6 +37,13 @@ impl ProductTerminalPublication {
         }
     }
 
+    // The same portable productions published for a different root
+    // selection. Roots decide which machines the Terminal program retains, so
+    // a separately selected test root never reuses the application's program.
+    pub fn for_other_roots(&self) -> Self {
+        Self::new(self.optimizations.clone(), Arc::clone(&self.productions))
+    }
+
     pub fn productions(&self) -> &psi_compiler::PortableProductions {
         &self.productions
     }

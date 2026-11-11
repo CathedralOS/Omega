@@ -19,9 +19,9 @@ platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../../compilation/backend/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 
 [dev-dependencies]
 sha2 = "0.10.9"
-terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_terminal-psi-to-abstract-operations" }

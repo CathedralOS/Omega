@@ -12533,7 +12533,7 @@ pub(crate) mod zero_predicates {
         program: &dyn crate::CheckingInput,
         definition: &DataDefinition,
     ) -> bool {
-        if !definition.type_parameters.is_empty() || definition.where_facts.is_empty() {
+        if !definition.type_parameters.is_empty() || definition.requires_facts.is_empty() {
             return false;
         }
         let mut parameters = Vec::new();
@@ -12581,7 +12581,7 @@ pub(crate) mod zero_predicates {
             false,
         );
         program
-        .conjunctive_proof_facts(definition.where_facts)
+        .conjunctive_proof_facts(definition.requires_facts)
         .all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;
@@ -21319,7 +21319,7 @@ pub(crate) mod call_handbacks {
                             .any(|field| field.symbol == symbol)
                             .then_some(variant)
                     });
-                    if crate::declarations::data_queries::data_field_is_where_independent(
+                    if crate::declarations::data_queries::data_field_is_requires_independent(
                         program, definition, field,
                     ) || judged_parents
                         .contains(&(parent.clone(), variant.map(|variant| variant.symbol)))
@@ -21353,12 +21353,12 @@ pub(crate) mod call_handbacks {
                         || receiver.is_some_and(|receiver| {
                             program
                                 .proof_facts
-                                .span_or_empty(definition.where_facts)
+                                .span_or_empty(definition.requires_facts)
                                 .iter()
                                 .chain(variant.into_iter().flat_map(|variant| {
                                     program
                                         .proof_facts
-                                        .span_or_empty(variant.where_facts)
+                                        .span_or_empty(variant.requires_facts)
                                         .iter()
                                 }))
                                 .all(|fact| {
@@ -40759,7 +40759,7 @@ pub(crate) mod specification_calls {
             if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
                 && crate::field_domains::readable_nominal_definition(program, required_type)
                     .is_some_and(|required| {
-                        required.symbol == pending.symbol && !required.where_facts.is_empty()
+                        required.symbol == pending.symbol && !required.requires_facts.is_empty()
                     })
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -41043,7 +41043,7 @@ pub(crate) mod specification_calls {
         mut expression: ExpressionHandle,
     ) -> Option<&typed_trees::data::DataDefinition> {
         let definition = program.data_definition_by_symbol(owner)?;
-        if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        if !definition.predicate_subject_symbol.is_valid() || definition.requires_facts.is_empty() {
             return None;
         }
         let mut visited = Vec::new();
@@ -50287,7 +50287,7 @@ pub(crate) mod structural_judgment {
                         definition.name, variant.name, admitted, subject_type, admitted_subject
                     );
                 }
-                if !definition.where_facts.is_empty() && admitted {
+                if !definition.requires_facts.is_empty() && admitted {
                     let mut complete = true;
                     let mut projections = Vec::new();
                     for field in program
@@ -50343,7 +50343,7 @@ pub(crate) mod structural_judgment {
                             });
                             bindings.push((name, admitted_subject.clone()));
                         }
-                        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                        for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                             if let ProofFact::Expression(expression) = fact {
                                 self.intake_instantiated_predicate(
                                     definition.symbol,
@@ -50356,7 +50356,7 @@ pub(crate) mod structural_judgment {
                         }
                     }
                 }
-                for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51159,7 +51159,7 @@ pub(crate) mod structural_judgment {
                     bindings.push((field.name.to_string(), projected.clone()));
                     self.intake_admitted_data_predicates(projected_type, projected, active);
                 }
-                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51193,7 +51193,7 @@ pub(crate) mod structural_judgment {
                 }
                 if !program
                     .proof_facts
-                    .span_or_empty(definition.where_facts)
+                    .span_or_empty(definition.requires_facts)
                     .is_empty()
                     || !program.data_application_value_fields(reference).is_empty()
                 {
@@ -77247,7 +77247,7 @@ pub(crate) mod structural_judgment {
             let Some((low, high)) = stored_integer_domain(stored) else {
                 return false;
             };
-            let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+            let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
                 return false;
             };
             let mut named = false;
@@ -85880,7 +85880,7 @@ pub(crate) mod type_consequences {
                         let Some(binary) = program.expression_table.binary_node(expression) else {
                             continue;
                         };
-                        let relevant = !definition.where_facts.is_empty()
+                        let relevant = !definition.requires_facts.is_empty()
                             || crate::expression_result_type_reference(
                                 program,
                                 machine,
@@ -86452,7 +86452,7 @@ pub(crate) mod type_consequences {
             })
             || crate::field_domains::readable_nominal_definition(program, reference).is_some_and(
                 |definition| {
-                    relevant(definition.where_facts)
+                    relevant(definition.requires_facts)
                         || definition
                             .generic_instance
                             .and_then(|application| {
@@ -86463,7 +86463,7 @@ pub(crate) mod type_consequences {
                                 };
                                 program.unique_data_definition_by_symbol(*base_symbol)
                             })
-                            .is_some_and(|template| relevant(template.where_facts))
+                            .is_some_and(|template| relevant(template.requires_facts))
                         || program
                             .data_members(definition)
                             .iter()
@@ -86476,7 +86476,7 @@ pub(crate) mod type_consequences {
                                     )
                                 }
                                 typed_trees::data::DataMember::Variant(variant) => {
-                                    !variant.where_facts.is_empty()
+                                    !variant.requires_facts.is_empty()
                                         || program.data_payload_fields(variant).iter().any(
                                             |field| {
                                                 type_carries_predicate_context(

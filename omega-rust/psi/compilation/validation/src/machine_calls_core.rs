@@ -994,6 +994,7 @@ pub mod compiler_operations {
                 ) => ProductOperandKind::BoundarySubject,
                 (BuildOperation::ProviderSelection, 1) => ProductOperandKind::Provider,
                 (BuildOperation::AssumedBindingContract, 0 | 1) => ProductOperandKind::Requirement,
+                (BuildOperation::TestGroupRegistration, 0) => ProductOperandKind::TestRequirement,
                 (BuildOperation::WireCompatibilityRequest, 0..=3)
                 | (BuildOperation::RepresentationSelection, 0) => ProductOperandKind::Data,
                 (BuildOperation::RepresentationSelection, 1) => ProductOperandKind::Representation,
@@ -2480,6 +2481,7 @@ pub mod compiler_operations {
                 | Intrinsic::BuildRepresentationSelection
                 | Intrinsic::BuildServiceExclusion
                 | Intrinsic::BuildServiceAudit
+                | Intrinsic::BuildTestGroupRegistration
                 | Intrinsic::BuildAssumedBindingContract,
             ) => StaticArgumentRole::DeclarationDescription,
             _ => StaticArgumentRole::ValueDependency,
@@ -2614,6 +2616,7 @@ pub mod compiler_operations {
             | BuildOperation::RepresentationSelection
             | BuildOperation::BoundaryAcceptance
             | BuildOperation::WireCompatibilityRequest
+            | BuildOperation::TestGroupRegistration
             | BuildOperation::AssumedBindingContract),
         ) = BuildOperation::from_call_target(call.target.as_str())
             && build_declarations::has_explicit_build_argument(program, call)
@@ -7863,6 +7866,7 @@ pub mod result_overloads {
                     is_operand_capture: false,
                     relevance: language_core::BindingRelevance::Relevant,
                     reflected_query_origin: None,
+                    ..Default::default()
                 });
         }
         changed_owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
