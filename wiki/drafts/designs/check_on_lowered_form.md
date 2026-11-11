@@ -337,7 +337,28 @@ that cannot fail cannot hold work back, and work went ahead
    carried certificates against them without a new search; and the resulting
    program passes `omega run --both` with exit 0. Its negative twin, which
    differs only in the generic's own contract or argument, is rejected.
-   The re-check mechanism (`reverify`) is in open `#2309` and is not on `main`.
+   The re-check mechanism (`reverify`) landed with the first result below.
+
+   <a id="condition-3-first-result"></a>
+   **First result, 2026-11-11.** One generic machine,
+   `advance<Selected satisfies Step>`, is lowered once with `Selected` left
+   abstract and proved against `Step::apply`'s contract. Its certificates are
+   then decided again by `proof/admission` in each of two generated
+   specializations, against goals and hypotheses the specialization computes
+   from its own lowered module, with no search
+   (`lowered_discharge::reverify_specialization`). The program,
+   `run/generics/implementation_parameter_contract`, passes
+   `omega run --both` with exit 0, and its fail twin, which differs only in
+   the bound `advance` promises, is rejected. What this does not yet show:
+   - The parameter is an implementation parameter. A type or value parameter
+     is not served, and the check tables have no row for a value of an
+     abstract type
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)).
+   - The route is not the compile path. `omega run --both` runs the program
+     through the current pipeline; the generic check and the carried
+     certificates run in the `generic_certificate_carry` example on the same
+     typed trees.
+   - Whether this meets the condition is the owner's reading.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
@@ -676,7 +697,9 @@ overwrites; a rank premise across a pause.
   declared requirements and never encoded to `PSITERM\0` bytes, while concrete
   specializations emit concrete modules; keeping a tree-level check is the
   fallback only if that fails. Condition 3 of [the gate](#the-gate) runs this
-  test on one body before the lane exists.
+  test on one body before the lane exists, and
+  [its first result](#condition-3-first-result) is for an implementation
+  parameter only.
 - **Evidence coverage.** Validation's automation "does not emit kernel
   evidence for every accepted obligation". How much of it can emit evidence
   the admission kernel accepts is not measured across the full language yet;
@@ -720,8 +743,10 @@ overwrites; a rank premise across a pause.
   [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
   ("No result is reused: a consumer checks every dependency declaration it
   needs afresh") is about checking. `lowered_discharge::reverify` is the
-  tested mechanism; substituting a concrete type for a type parameter in a
-  certificate is not built yet.
+  tested mechanism, and `reverify_specialization` carries a generic body's
+  certificates into a specialization that selects an implementation;
+  substituting a concrete type for a type parameter in a certificate is not
+  built yet.
 
 ## Corrections to fact transport
 

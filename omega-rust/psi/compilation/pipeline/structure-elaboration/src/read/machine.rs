@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
-use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
@@ -44,6 +44,60 @@ impl<'t> Program<'t> {
         let signature = self.signature(id, symbol)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
+        Ok(id)
+    }
+
+    /// The first machine of a conformance witness: the requirement's
+    /// signature and contract, on a body the caller supplies.
+    pub fn witnessed(
+        &mut self,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        let typed = self.typed;
+        let declared = typed
+            .trait_definition_by_symbol(declaring_trait)
+            .and_then(|declaration| {
+                typed
+                    .trait_machine_signatures(declaration)
+                    .iter()
+                    .find(|signature| signature.symbol == requirement)
+            })
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("requirement that its trait does not declare"),
+                )
+            })?;
+        let signature = self.requirement_signature(id, declared)?;
+        self.symbols.push(requirement);
+        self.signatures.push(signature);
+        Ok(id)
+    }
+
+    /// Records that the witness `caller` calls `callee`.
+    pub fn forwards(&mut self, caller: MachineId, callee: MachineId) {
+        self.calls.push((caller, callee));
+    }
+
+    /// The `MachineId` that stands for a trait requirement in a generic
+    /// check form: its signature and contract, read as any machine's, and
+    /// no body.
+    pub(super) fn requirement(&mut self, declared: &'t StateSignature) -> Checked<MachineId> {
+        let symbol = declared.symbol;
+        for position in 1..=self.symbols.len() as u64 {
+            let id = MachineId::new(position).expect("positions start at 1");
+            if self.symbols.get(id) == Some(&symbol) {
+                return Ok(id);
+            }
+        }
+        let id = self.next_identity()?;
+        let signature = self.requirement_signature(id, declared)?;
+        self.symbols.push(symbol);
+        self.signatures.push(signature);
+        self.requirements.push(id);
         Ok(id)
     }
 
@@ -118,6 +172,9 @@ impl<'t> Program<'t> {
 
     fn machine_shape(&self, id: MachineId, machine: &Machine) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        // The entry of a generic check form keeps its implementation
+        // parameters, each rigid; every other machine is closed.
+        let generic_entry = self.rigid && self.symbols.is_empty();
         if machine.lexical_region_origin.is_some() {
             return unserved("lexical region origin");
         }
@@ -165,13 +222,26 @@ impl<'t> Program<'t> {
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
         }
-        if !machine.lifetime_parameters.is_empty() || !machine.type_parameters.is_empty() {
+        if !machine.lifetime_parameters.is_empty() {
+            return unserved("generic parameters");
+        }
+        // An implementation parameter binds no type and no value: the body
+        // only calls through it. Every other binder kind would put a rigid
+        // type or value into the lowered form, which has no row for one.
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty() != machine.type_parameters.is_empty() {
+            return unserved("type parameter span");
+        }
+        let implementations_only = parameters.iter().all(|parameter| {
+            parameter.kind == typed_trees::data::TypeParameterKind::Implementation
+        });
+        if !parameters.is_empty() && !(generic_entry && implementations_only) {
             return unserved("generic parameters");
         }
         if !machine.declared_type_equations.is_empty()
             || !machine.owned_data.is_empty()
             || !machine.satisfies.is_empty()
-            || !machine.conformance_bounds.is_empty()
+            || (!machine.conformance_bounds.is_empty() && !generic_entry)
         {
             return unserved("type equations, owned data or conformances");
         }
@@ -182,7 +252,6 @@ impl<'t> Program<'t> {
     }
 
     fn signature(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<Signature> {
-        let typed = self.typed;
         let (machine, state) = self.declaration(id, symbol)?;
         self.machine_shape(id, machine)?;
         if !state.contracts.is_empty() {
@@ -192,12 +261,75 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        let formals = span(
-            &typed.state_parameters,
-            state.parameters,
+        self.contract(
             id,
-            "parameter span",
-        )?;
+            state.symbol,
+            state.parameters,
+            state.return_type,
+            machine.contracts,
+            Some((machine.declares_no_crash_route, machine.is_public)),
+        )
+    }
+
+    /// A trait requirement's signature and contract. The typed trees hold a
+    /// requirement as a bare signature, not as a machine.
+    fn requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+    ) -> Checked<Signature> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        if requirement.spelling.is_some() {
+            return unserved("operator spelling");
+        }
+        if !requirement.lifetime_parameters.is_empty()
+            || !requirement.type_parameters.is_empty()
+            || !requirement.conformance_bounds.is_empty()
+        {
+            return unserved("generic parameters");
+        }
+        if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
+            return unserved("default or native-callback requirement");
+        }
+        if !requirement.invokes.is_empty() {
+            return unserved("invokes");
+        }
+        if !matches!(
+            requirement.service_reach_row,
+            language_semantics::ServiceReachRowId::NULL
+                | language_semantics::ServiceReachRowTable::EMPTY_ROW
+        ) || requirement.service_reach_is_installation_bound
+        {
+            return unserved("service reach");
+        }
+        if requirement.suspends || requirement.blocks {
+            return unserved("suspends or blocks");
+        }
+        self.contract(
+            id,
+            requirement.symbol,
+            requirement.parameters,
+            requirement.return_type,
+            requirement.contracts,
+            None,
+        )
+    }
+
+    /// The formals, result and clauses of one callable. `owner` is the
+    /// symbol its reserved `result` is recorded against. `declared` is a
+    /// machine's `crashes none` and visibility; a requirement has neither
+    /// in the typed trees (README, "Findings").
+    fn contract(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        formals: arena::HandleSpan<StateParameter>,
+        return_type: typed_trees::types::TypeReferenceHandle,
+        contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
+        declared: Option<(bool, bool)>,
+    ) -> Checked<Signature> {
+        let typed = self.typed;
+        let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut slots = Vec::with_capacity(formals.len());
         for formal in formals {
@@ -210,7 +342,7 @@ impl<'t> Program<'t> {
                 homed: false,
             });
         }
-        let result = self.result_type(id, state.return_type)?;
+        let result = self.result_type(id, return_type)?;
         // The result pseudo-value is the value right after the scalar
         // formals (`Signature::result`), owned by the machine's one state:
         // stage 02 records the entry state as the owner of a machine
@@ -228,7 +360,7 @@ impl<'t> Program<'t> {
         })?;
         let entry = ClauseScope {
             slots: &slots,
-            owner: state.symbol,
+            owner,
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
@@ -255,12 +387,7 @@ impl<'t> Program<'t> {
         let mut ensures = Vec::new();
         let mut routes = Vec::new();
         let mut crash_clauses = false;
-        for contract in span(
-            &typed.signature_contracts,
-            machine.contracts,
-            id,
-            "contract span",
-        )? {
+        for contract in span(&typed.signature_contracts, contracts, id, "contract span")? {
             if contract.binding.is_some() {
                 return Err(refuse(
                     id,
@@ -314,25 +441,27 @@ impl<'t> Program<'t> {
         // `crashes none` leaves no contract row; the typed trees record it
         // as `declares_no_crash_route`, so it is told from an omission by
         // that fact and never by the missing rows.
-        let crashes = match (
-            machine.declares_no_crash_route,
-            crash_clauses,
-            machine.is_public,
-        ) {
-            (true, false, _) => CrashCeiling::DeclaredNone,
+        let crashes = match (declared, crash_clauses) {
+            (Some((true, _)), false) => CrashCeiling::DeclaredNone,
             // Stage 01 rejects this header; refused here too rather than
             // trusted to have been.
-            (true, true, _) => {
+            (Some((true, _)), true) => {
                 return Err(refuse(
                     id,
                     Construct::Machine,
                     Unserved::Contract("`crashes none` beside a `crashes Cause` clause"),
                 ));
             }
-            (false, true, _) | (false, false, true) => {
+            (_, true) | (Some((false, true)), false) => {
                 CrashCeiling::Authored(canonical::routes(routes))
             }
-            (false, false, false) => CrashCeiling::Inferred,
+            (Some((false, false)), false) => CrashCeiling::Inferred,
+            // generics.md, "Requirements and conformance evidence": on a
+            // bodyless requirement "omitted `crashes` defers to its published
+            // routes", the selected member's. An authored `crashes none`
+            // leaves no row either and the typed trees do not record it on a
+            // requirement, so both read as the deferral, which claims less.
+            (None, false) => CrashCeiling::Inferred,
         };
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         Ok(Signature {
@@ -381,6 +510,13 @@ impl<'t> Program<'t> {
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let signature =
             terminal_check_tables::row(&self.signatures, id, id, Construct::Machine)?.clone();
+        // A requirement has no statement to read: its formals and nothing.
+        if self.requirements.contains(&id) {
+            return Ok(Body {
+                slots: signature.parameters,
+                statements: Vec::new(),
+            });
+        }
         let (_, state) = self.declaration(id, symbol)?;
         let formals = span(
             &typed.state_parameters,

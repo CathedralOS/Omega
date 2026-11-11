@@ -23,7 +23,7 @@ it; [prove.rs](src/prove.rs) is the one prover.
 | --- | --- | --- |
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
-| `NormalGuarantee` | this machine's `ensures` clause at that position | the same, on the exit edge |
+| `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)) | the same, before the operation |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
@@ -48,7 +48,11 @@ holds one value on every path to it (`OperationSemantics` of the read; see
 below), per `requires` clause of a data type that a read of established
 storage can state on its own value (`OperationSemantics` of the read; see
 [What a read learns from its type](#what-a-read-learns-from-its-type)), per
-callee `ensures` clause (`CalleeGuarantee`, after the call),
+callee `ensures` clause (`CalleeGuarantee`, after the call, with the
+callee's `result` replaced by the value the call defines;
+[calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts):
+"Normal guarantees refer to the actual result and appropriate parameter
+versions."),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
@@ -624,3 +628,136 @@ obligation and one per unestablished use of storage; a program with such a
 use is `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
+
+## Reusing a saved proof (experiment)
+
+[reuse.rs](src/reuse.rs) is an experiment the owner asked to see before
+anything is built on it; no production path calls it. `reverify` takes a saved
+certificate for one obligation and has the kernel decide it for the goal and
+hypotheses the consumer computes from its own lowered program, through the same
+`verify` as `discharge`. It runs no search and cannot reach the prover. A stale
+proof, a missing assumption, or a proof attached to another obligation or
+machine fails because the kernel checks the certificate's conclusion against
+the consumer's goal and each citation against the consumer's own hypotheses.
+`reverify_at_call` moves a guarantee proved over a callee's formals to one
+call by substituting the actuals into the guarantee, the `requires` and the
+certificate; the call's own requirements must already be discharged there.
+That is substitution of actuals for formals, not type-parameter
+instantiation. Certificates have no byte form yet, so a saved proof lives in
+memory.
+
+## Generic bodies (experiment)
+
+A generic machine is proved once, against the contracts its parameters
+require, and each specialization of it re-checks those proofs instead of
+searching again. This section covers one kind of parameter, an
+implementation parameter such as `Selected satisfies Step`, whose body calls
+`Selected::apply(..)`. No production path calls any of it. Type and value
+parameters are not served; [what is missing](#what-the-lowered-form-does-not-carry)
+says why.
+
+The example the tests and the corpus fixture use:
+
+```omega
+trait Step {
+    machine apply(value: u32) -> u32 requires value <= 10 ensures result <= 20;
+}
+machine advance<Selected satisfies Step>(start: u32) -> u32
+requires start <= 10
+ensures result <= 21
+{ Selected::apply(start) + 1 }
+```
+
+`Double::apply` publishes the requirement's own contract and returns
+`value + value`. `Shift::apply` asks less and promises more
+(`requires value <= 12 ensures result <= 17`) and returns `value + 5`.
+
+**The generic check form.** Elaboration lowers `advance` once with
+`Selected` rigid ([structure-elaboration](../structure-elaboration/README.md#generic-machines)):
+the requirement `Step::apply` is a machine of the module that has its
+formals, result and contract and no block, and the call through the
+parameter is an ordinary direct call of it. Nothing else is new. The call's
+`CallRequirement` obligations are the requirement's `requires`, and the
+knowledge after the call is the requirement's `ensures`, by the same rows as
+for any callee. `discharge` skips the requirement itself: its guarantees are
+each implementation's to prove, and their verdict is `Unsupported`, so `judge`
+never accepts a generic form as a program.
+
+**Refinement.** That an implementation may stand for the requirement is a
+proof too. Its statement is a conformance witness: a machine with the
+requirement's contract whose body is one call of the implementation. Its call
+requirements say the requirement's `requires` imply the implementation's; its
+guarantees say the implementation's `ensures` imply the requirement's.
+`discharge` proves it like any machine, once per implementation.
+
+**Carrying.** `reverify_specialization` takes the generic body's verdicts,
+one witness per selected implementation, and the concrete module in which the
+specialization calls the implementation directly. For each obligation of the
+specialization it computes the goal and the hypotheses from that module, as
+`reverify` does, and offers the kernel a proof assembled from the saved ones:
+
+- a value keeps its identity, because selecting an implementation changes
+  only which machine a call names (the function checks that the two
+  machines have the same values and calls, and refuses otherwise);
+- a hypothesis the generic proof cites becomes the specialization's row with
+  the same justification;
+- where the generic proof cites the requirement's guarantee after a call, the
+  specialization does not assume that: it assumes the implementation's
+  published guarantee. The citation is replaced by the witness's proof of the
+  requirement's clause, with the witness's formals renamed to the call's
+  actuals and its result to the call's result;
+- where the witness's proof cites the requirement's `requires`, the generic
+  body proved that at the call, and that proof is carried in its place;
+- the specialization's own call requirement is the implementation's
+  `requires`, and its proof is the witness's, moved the same way.
+
+The kernel decides the assembled proof through `verify`, the one acceptance
+path. Nothing about it is trusted, and nothing searches: `reuse.rs` cannot
+reach the prover, and the tests count prover starts.
+
+**What the tests show** (`tests.rs`, `generic_bodies`):
+
+| Test | Shows |
+| --- | --- |
+| `the_generic_body_is_checked_against_the_requirement_alone` | three certificates for `advance` from `Step::apply`'s contract; the requirement has no block; `judge` falls back on a generic form |
+| `its_certificates_reverify_in_two_different_implementations` | the same three proofs accepted in `advance<Double>` and `advance<Shift>`, no prover started, although the two specializations assume different things after the call |
+| `a_body_that_only_holds_for_the_implementation_in_use_is_rejected` | `advance` promising `result <= 18` is proved for `advance<Shift>` alone and refused as a generic body; the specialization then has nothing to carry and is refused without a search |
+| `an_implementation_that_does_not_refine_the_requirement_is_refused` | `Wide` (`ensures result <= 25`) has no refinement proof, so the proofs that rest on the guarantee are refused |
+| `a_refinement_proof_for_another_implementation_is_refused_by_the_kernel` | `Shift`'s witness offered for a specialization that calls `Wide` is refused by the kernel, three times |
+
+`compiler`'s example `generic_certificate_carry` runs the same three steps
+from source, on the typed trees of
+`tests/omega/run/generics/implementation_parameter_contract` and its fail
+twin.
+
+### What the lowered form does not carry
+
+Read from the types, not built:
+
+- **A value of a rigid type.** A value row has a `ScalarType`, which is
+  `Boolean`, `Integer(sign, width)` or `IeeeFloat(format)`, and a place has a
+  declared `StructuralTypeId`. There is no row for a value whose type is a
+  parameter, so a body over `T` cannot be lowered once.
+- **An operation on it.** Terminal operations are selected per type
+  (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
+  comes from that type's range. One generic body has no single operation.
+- **A certificate that holds for every type.** `PropositionContext` takes a
+  concrete type per value, terms and rules name `ScalarType`, and the
+  integer rules depend on the width. Moving a certificate to another type
+  would have to rebuild it, and the correspondence of values and calls this
+  experiment relies on would no longer hold.
+- **A rigid value parameter** (`const N: u64`) has the same shape as a
+  formal with no argument; it was not tried.
+
+Limits of what was built:
+
+- Refinement is proved for `requires` and `ensures` only. A requirement that
+  leaves `crashes` to its member publishes no route in the generic form, so
+  the generic check decides nothing about crashes through that call; each
+  specialization's concrete module still reads the member's own routes.
+- The witness must be one call that passes its formals on, and its proofs may
+  cite only the two contracts.
+- Carrying is per machine. The route cannot yet judge the whole closure of
+  the fixture (its `main` ends in terminal calls), and `judge` does not use
+  carried proofs.
+- No timing was taken.

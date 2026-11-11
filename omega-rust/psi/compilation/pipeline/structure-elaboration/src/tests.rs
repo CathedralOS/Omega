@@ -154,7 +154,7 @@ fn lower_records(
     bodies.push(body);
     let declared = crate::lower::places::declare(id(1), records, &bodies)?;
     let body = bodies.get(id(1)).unwrap();
-    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records)
+    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records, false)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -1048,7 +1048,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 ..signature(Vec::new(), None)
             });
         }
-        let table = outcomes(&bodies, &signatures).unwrap();
+        let table = outcomes(&bodies, &signatures, &[]).unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
     };
     let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
@@ -1091,7 +1091,7 @@ fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
                 ..signature(Vec::new(), None)
             });
         }
-        outcomes(&bodies, &signatures).map(|table| table.get(id(1)).unwrap().clone())
+        outcomes(&bodies, &signatures, &[]).map(|table| table.get(id(1)).unwrap().clone())
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
@@ -1148,7 +1148,7 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
         crashes: CrashCeiling::Inferred,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
-    let table = outcomes(&bodies, &signatures).unwrap();
+    let table = outcomes(&bodies, &signatures, &[]).unwrap();
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
@@ -1168,7 +1168,7 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
         signatures.push(signature(Vec::new(), None));
     }
     assert_eq!(
-        outcomes(&bodies, &signatures).unwrap_err().detail,
+        outcomes(&bodies, &signatures, &[]).unwrap_err().detail,
         "call recursion"
     );
 }
