@@ -55,7 +55,8 @@ jobs:
             echo "BUILD_DIR=/home/user/Omega" >> "$GITHUB_ENV"
           fi
       - name: Set up the host as a session does
-        run: bash /home/user/Omega/tools/agent_setup.sh
+        # From the checkout, so rustup resolves the pinned toolchain for every step.
+        run: cd /home/user/Omega && bash tools/agent_setup.sh
       - name: Build the compiler
         run: |
           cd "$BUILD_DIR"
