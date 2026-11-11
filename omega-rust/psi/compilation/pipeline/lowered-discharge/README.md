@@ -31,7 +31,7 @@ Any other kind is refused as `Unsupported`; elaboration mints none yet.
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
 (`MachineDischarge::uses`). Initialization: a use that some path reaches
-with nothing stored is refused. Payload access: a case payload named where
+with nothing established is refused. Payload access: a case payload named where
 its case is not established on every path is refused, and so is a dispatch
 with no edge for a declared case. All three are refused with reason
 `Unestablished`, a compile error of the program like `Unproved`, not a
@@ -151,20 +151,22 @@ value a leaf held before the store stays known.
 
 ### Initialization
 
-[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
-"An unestablished local cannot be read: a whole read of the home, a loan of
-it to an ordinary or boundary call, and its forwarding on a state edge each
-require a whole store into it on every path reaching that use."
-
 Every operation and terminator that reads storage is one use: a field read,
 a read of a scalar home, a whole copy, a record operand, a record stored
 into a field, a call's record arguments, a record return. Each scalar leaf
-at or beneath the place it reads must be supplied on every path: by a store
-into the leaf, by a whole write to a place above it, or by a formal's entry
-content. If some path supplies nothing, the use's verdict is a refusal with
-reason `Unestablished`, concerning that operation or edge. A record is
-therefore established by a whole write or by a store into every leaf, and
-not by fewer.
+at or beneath the place it reads must be supplied with an established value
+on every path: by a store into the leaf, by a whole write to a place above
+it, by a formal's entry content, or by the zero its declaration established.
+If some path supplies nothing, the use's verdict is a refusal with reason
+`Unestablished`, concerning that operation or edge.
+
+A local declared without an initializer is zero-constructed
+(`local-without-initializer`), so in an elaborated program the path that
+supplies nothing is the zeroed storage of a gated type, described next. The
+sentence "An unestablished local cannot be read"
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
+governs declared shared view locals, which the references lane owns and this
+route refuses; it does not govern a plain scalar or data local.
 
 <a id="zero-establishment"></a>
 A data local declared without an initializer is zero-established: its
@@ -182,8 +184,15 @@ independently of establishing a value.": the clause's verdict is
 `Discharged::Gated`, which rejects nothing by itself, and the walk answers
 `Unestablished` for whatever that declaration's rows supply, so every read,
 copy, argument and return they reach is refused. A store into a leaf
-supplies that leaf again. A scalar local is unchanged: it holds nothing
-until a store.
+supplies that leaf again.
+
+A scalar local declared without an initializer is zero-constructed by the
+same rule: elaboration logs the zero constant on its home at
+`EstablishPrimitiveLocal`, so `let mut x: u32; f(x)` reads a value that is
+provably zero, as the current checker accepts. Every scalar type this route
+serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
+type is refused by the reader as `type constrained`, so a scalar home owes
+no domain clause and no gated scalar occurs in this subset.
 
 It is a structural judgment over the write log and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
@@ -465,12 +474,13 @@ subset needs, so the prover emits them directly.
    (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
    value of `StoreStructuralField`). An `Overwritten` row at any other
    operation keeps its own meaning: contents with no value identity.
-8. **A scalar local with no initializer is unestablished here and zero in
-   the current checker.** `let mut x: u32; f(x)` is accepted today with
-   `x == 0` known; this route rejects the read. The question is in
-   `OWNER_QUESTIONS.md` (`local-without-initializer`). If the answer is
-   zero, elaboration logs the zero at the reserving operation, as it does
-   for a data local, and nothing here changes.
+8. **A scalar local with no initializer holds zero, here as in the current
+   checker.** `let mut x: u32; f(x)` is accepted with `x == 0` known
+   (`local-without-initializer`). Elaboration logs the zero at the
+   establishing operation, as it does for a data local, and the walk needed
+   no change: the row is one more write that supplies the home. A scalar
+   type that zero does not satisfy would be gated like a data type, but
+   none is served: the reader refuses a constrained scalar type.
 
 9. **A case fact is not knowledge.** The lane plan asks for "the
    membership value on each `StructuralCase` edge, as the existing

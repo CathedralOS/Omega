@@ -2058,20 +2058,21 @@ fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
 /// checker. The rejection names the use and where it arises.
 #[test]
 fn the_verdict_rejects_a_program_with_an_unestablished_use() {
-    // f() -> u32 { let mut x: u32; x }
-    let elaboration = elaborate_places(vec![Shaped {
-        parameters: Vec::new(),
-        locals: vec![u32_type().into()],
-        result: u32_type().into(),
-        requires: Vec::new(),
-        statements: vec![declare(0, u32_type().into()), returns(slot(0, u32_type()))],
-    }]);
-    let read = elaboration.module.machines[0].blocks[0]
-        .operations
-        .iter()
-        .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
-        .unwrap()
-        .id;
+    // f() -> u32 { let g: Gated; g.v }, with `Gated requires 1 <= v`: zero
+    // does not satisfy the clause, so the zeroed storage the read observes
+    // is not an established value.
+    let elaboration = elaborate_over(
+        vec![closed(
+            vec![data(GATED)],
+            u32_type().into(),
+            vec![
+                declare(0, data(GATED)),
+                returns(read(place(0, data(GATED)), 0)),
+            ],
+        )],
+        &constrained(),
+    );
+    let read = field_reads(&elaboration)[0].0;
     let RouteVerdict::Rejected {
         unproved,
         unestablished,
@@ -2117,18 +2118,14 @@ fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
 }
 
 #[test]
-fn a_read_of_a_local_nothing_was_stored_into_is_unestablished() {
-    // f() -> u32 { let mut x: u32; x }
-    let unwritten = |statements| Shaped {
-        parameters: Vec::new(),
-        locals: vec![u32_type().into()],
-        result: u32_type().into(),
-        requires: Vec::new(),
-        statements,
-    };
-    let (elaboration, result) = run_places(vec![unwritten(vec![
-        declare(0, u32_type().into()),
-        returns(slot(0, u32_type())),
+fn a_read_of_a_gated_local_nothing_was_stored_into_is_unestablished() {
+    // f() -> u32 { let g: Gated; g.v }, with `Gated requires 1 <= v`. A
+    // local declared without an initializer is zero-constructed, and zero
+    // does not satisfy the clause: nothing established the storage read.
+    let unwritten = |statements| closed(vec![data(GATED)], u32_type().into(), statements);
+    let (elaboration, result) = run_constrained(vec![unwritten(vec![
+        declare(0, data(GATED)),
+        returns(read(place(0, data(GATED)), 0)),
     ])]);
     assert_eq!(uses(&result), [Err(RefusalReason::Unestablished)]);
     let refusal = result
@@ -2138,23 +2135,66 @@ fn a_read_of_a_local_nothing_was_stored_into_is_unestablished() {
         .unestablished()
         .next()
         .unwrap();
-    // The refusal concerns the read itself, and the zero the module stores
-    // so that it runs gives the read no equation.
-    let read = elaboration.module.machines[0].blocks[0]
-        .operations
-        .iter()
-        .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
-        .unwrap();
+    // The refusal concerns the read itself.
     assert_eq!(
         refusal.concerns,
-        terminal_check_tables::Construct::Operation(read.id)
+        terminal_check_tables::Construct::Operation(field_reads(&elaboration)[0].0)
     );
+    // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
+    // it, and the read equals the stored value.
+    let (elaboration, result) = run_constrained(vec![unwritten(vec![
+        declare(0, data(GATED)),
+        store(0, &[0], unsigned(3)),
+        returns(read(place(0, data(GATED)), 0)),
+    ])]);
+    assert_eq!(uses(&result), [Ok(())]);
+    let three = constants(&elaboration)[1];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     assert_eq!(
-        read_equals(tables, (read.id, read.result.scalar_ref().unwrap().id)),
-        None
+        read_equals(tables, field_reads(&elaboration)[0]),
+        Some(three)
     );
-    // f() -> u32 { let mut x: u32; x = 3; x }: the store establishes it,
+}
+
+/// The read of machine 1's one scalar home, as the operation and its result.
+fn home_read(elaboration: &structure_elaboration::Elaboration) -> (OperationId, ValueId) {
+    let read = elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
+        .unwrap();
+    (read.id, read.result.scalar_ref().unwrap().id)
+}
+
+#[test]
+fn a_scalar_local_without_an_initializer_is_established_as_zero() {
+    // f() -> u32 { let mut x: u32; zero(x) }, with `zero requires v == 0`.
+    // The local is zero-constructed and `u32` admits zero, so the read is
+    // established, it equals the zero constant the module holds, and
+    // `zero`'s requirement follows from that equation.
+    let unwritten = |statements| Shaped {
+        parameters: Vec::new(),
+        locals: vec![u32_type().into()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements,
+    };
+    let (elaboration, result) = run_places(vec![
+        unwritten(vec![
+            declare(0, u32_type().into()),
+            returns(call(2, vec![slot(0, u32_type())])),
+        ]),
+        zero_only(),
+    ]);
+    assert_eq!(uses(&result), [Ok(())]);
+    let zero = constants(&elaboration)[0];
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(read_equals(tables, home_read(&elaboration)), Some(zero));
+    let required = verdicts_of(&elaboration, &result);
+    assert_eq!(required.len(), 1);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+    // f() -> u32 { let mut x: u32; x = 3; x }: the store replaces the zero,
     // and the read equals the stored value.
     let (elaboration, result) = run_places(vec![unwritten(vec![
         declare(0, u32_type().into()),
@@ -2162,17 +2202,9 @@ fn a_read_of_a_local_nothing_was_stored_into_is_unestablished() {
         returns(slot(0, u32_type())),
     ])]);
     assert_eq!(uses(&result), [Ok(())]);
-    let read = elaboration.module.machines[0].blocks[0]
-        .operations
-        .iter()
-        .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
-        .unwrap();
     let three = constants(&elaboration)[1];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
-    assert_eq!(
-        read_equals(tables, (read.id, read.result.scalar_ref().unwrap().id)),
-        Some(three)
-    );
+    assert_eq!(read_equals(tables, home_read(&elaboration)), Some(three));
 }
 
 #[test]
@@ -2243,18 +2275,19 @@ fn a_record_local_without_an_initializer_holds_the_zero_value() {
 #[test]
 fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // f(a: bool, b: bool) -> u32 {
-    //     let mut x: u32;
+    //     let mut g: Gated;      // `Gated requires 1 <= v`: zero is not a value
     //     let c = a && !b;       // the `!b` block is one of two ways to the join
-    //     x
+    //     g.v
     // }
-    // Every arm of this subset completes the machine, so "assigned on one
+    // A gated local is the storage a declaration leaves unestablished; a
+    // scalar local is established as zero. Every arm of this subset completes the machine, so "assigned on one
     // arm, read after the transition" cannot be written; the short-circuit
     // join is the one place two paths meet. The store on its `!b` path is
     // added to the log by hand.
     let program = |stored_before: bool| {
-        let mut statements = vec![declare(2, u32_type().into())];
+        let mut statements = vec![declare(2, data(GATED))];
         if stored_before {
-            statements.push(store(2, &[], unsigned(4)));
+            statements.push(store(2, &[0], unsigned(4)));
         }
         statements.push(bind(
             3,
@@ -2270,14 +2303,17 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
                 Some(ScalarType::Boolean),
             ),
         ));
-        statements.push(returns(slot(2, u32_type())));
-        elaborate_places(vec![Shaped {
-            parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
-            locals: vec![u32_type().into(), ScalarType::Boolean.into()],
-            result: u32_type().into(),
-            requires: Vec::new(),
-            statements,
-        }])
+        statements.push(returns(read(place(2, data(GATED)), 0)));
+        elaborate_over(
+            vec![Shaped {
+                parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
+                locals: vec![data(GATED), ScalarType::Boolean.into()],
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements,
+            }],
+            &constrained(),
+        )
     };
     let judged = |stored_before: bool, on_one_way: Option<Content>| {
         let mut elaboration = program(stored_before);
@@ -2288,7 +2324,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             .find(|operation| {
                 matches!(
                     operation.kind,
-                    OperationKind::EstablishPrimitiveLocal { .. }
+                    OperationKind::EstablishZeroedStructural { .. }
                 )
             })
             .unwrap()
@@ -2303,22 +2339,10 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             .find(|operation| matches!(operation.kind, OperationKind::BooleanNot { .. }))
             .unwrap();
         let negation = negation.id;
-        let read = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
-            .unwrap();
-        let read = (read.id, read.result.scalar_ref().unwrap().id);
+        let read = field_reads(&elaboration)[0];
         if let Some(content) = on_one_way {
-            let place = *elaboration
-                .tables
-                .machines
-                .get(id(1))
-                .unwrap()
-                .roots
-                .get(home)
-                .unwrap();
+            // `g.v`, the one leaf of the local (field identity 7).
+            let place = projected(elaboration.tables.machines.get(id(1)).unwrap(), home, &[7]);
             log_by_hand(&mut elaboration, place, negation, content);
         }
         let result = discharge(&mut elaboration).unwrap();
@@ -2326,12 +2350,13 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
         (uses(&result), read_equals(tables, read))
     };
     // Some u32 value for the hand-written row to store: the zero constant
-    // the home was reserved with, the first constant of either program.
+    // the declaration logged, the first constant of either program.
     let some_value = Content::Value(constants(&program(false))[0]);
-    // Nothing stored anywhere: unestablished.
+    // Nothing stored anywhere: only the gated zero reaches the read, so it
+    // is unestablished.
     assert_eq!(judged(false, None).0, [Err(RefusalReason::Unestablished)]);
     // Stored on one of the two ways to the join only: still unestablished,
-    // because the other way supplies nothing.
+    // because the other way supplies nothing established.
     assert_eq!(
         judged(false, Some(some_value)).0,
         [Err(RefusalReason::Unestablished)]
@@ -2355,11 +2380,26 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
 #[test]
 fn every_use_of_storage_has_exactly_one_verdict() {
     // One closure with every kind of use: field reads of a formal, of a
-    // literal and of an unwritten local, whole copies, a record operand, a
-    // record stored into a field, record arguments and a record return.
+    // literal and of locals declared without an initializer (a scalar and a
+    // record, which hold zero, and one of gated type, whose zero is not an
+    // established value), whole copies, a record operand, a record stored
+    // into a field, record arguments and a record return.
     // Every operation and terminator that reads storage must be judged once:
     // established, which means a write or entry content reaches each leaf it
     // reads on every path, or refused as unestablished. None may be skipped.
+    // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
+    let mut types = records();
+    types.push(RecordType {
+        identity: String::from("Gated"),
+        fields: vec![RecordField {
+            id: id(5),
+            identity: String::from("v"),
+            value_type: ValueType::Scalar(u32_type()),
+        }],
+        cases: Vec::new(),
+        requires: vec![Proposition::LessOrEqual(number(1), field_of_self(5))],
+    });
+    let gated = ValueType::Record(id(3));
     let taker = Shaped {
         parameters: vec![point()],
         locals: Vec::new(),
@@ -2369,7 +2409,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     };
     let caller = Shaped {
         parameters: vec![point(), ScalarType::Boolean.into()],
-        locals: vec![point(), line(), point(), u32_type().into()],
+        locals: vec![point(), line(), point(), u32_type().into(), gated],
         result: u32_type().into(),
         requires: Vec::new(),
         statements: vec![
@@ -2378,6 +2418,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
             store(3, &[0], place(2, point())),
             declare(4, point()),
             declare(5, u32_type().into()),
+            declare(6, gated),
             guarded(
                 slot(1, ScalarType::Boolean),
                 read(
@@ -2401,10 +2442,14 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                     point(),
                 ),
             ),
-            returns(and(read(place(4, point()), 1), slot(5, u32_type()))),
+            returns(and(
+                and(read(place(4, point()), 1), slot(5, u32_type())),
+                read(place(6, gated), 0),
+            )),
         ],
     };
-    let (elaboration, result) = run_places(vec![caller, taker]);
+    let mut elaboration = elaborate_over(vec![caller, taker], &types);
+    let result = discharge(&mut elaboration).unwrap();
     let mut established = 0;
     let mut unestablished = 0;
     for (machine, lowered) in elaboration.module.machines.iter().enumerate() {
@@ -2449,7 +2494,9 @@ fn every_use_of_storage_has_exactly_one_verdict() {
             }
         }
     }
-    assert!(established > 0 && unestablished > 0);
+    // Only the read of the gated local is unestablished.
+    assert!(established > 0);
+    assert_eq!(unestablished, 1);
     // The obligations are judged apart from the uses and still have exactly
     // one verdict each.
     for (machine, tables) in elaboration.tables.machines.iter() {

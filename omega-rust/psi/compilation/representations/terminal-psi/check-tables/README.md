@@ -93,9 +93,12 @@ refused as `Unsupported`, never accepted by default.
 Three reasons are verdicts about the program and the rest are about the
 checker. `Unproved` means an obligation's evidence did not check.
 `Unestablished` means a place is read, copied, passed or returned on a path
-on which nothing was stored into it
-([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
-"An unestablished local cannot be read"); it is a structural judgment over the
+on which nothing established it. A local declared without an initializer is
+zero-constructed (`local-without-initializer`), so for plain storage that is
+the zeroed storage of a gated type
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"Otherwise the type is gated: construction or checked qualification must
+establish the domain before observation."); it is a structural judgment over the
 write log and the graph, with no obligation row and no certificate, and the
 places foundation lane added it as a reason, not as a table. The lane's two
 structural judgments over a sum report through the same reason: a case

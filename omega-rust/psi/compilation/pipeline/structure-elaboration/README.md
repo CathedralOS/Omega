@@ -133,7 +133,7 @@ serves:
   replacement of a record field by a record, `l.from = p`;
 - whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
 - a local declared without an initializer: `let mut r: R;` holds the zero
-  value of `R`, and `let mut x: u32;` holds nothing until it is stored into;
+  value of `R`, and `let mut x: u32;` holds zero;
 - a `requires` on the declaration, over `self` and its fields
   ([Data `requires`](#data-requires)).
 
@@ -436,14 +436,23 @@ value, and the checker decides from them whether the storage is an
 established value or the type is gated
 ([lowered-discharge](../lowered-discharge/README.md#zero-establishment)).
 
-A scalar local logs no row: its storage is reserved and the checker treats a
-use that no store reaches on every path as unestablished
-([state contracts](../../../../../wiki/spec/language/state_contracts.md):
-"Uninitialized storage has no assumed zero."). The current checker instead
-treats it as holding zero; which reading the language means for a scalar is
-`OWNER_QUESTIONS.md`, `local-without-initializer`. Such a scalar local is a
-storage home, written by `WriteOnlyPrimitiveStore` and read by
-`PrimitiveScalarRead`; every other scalar local stays an SSA value.
+A scalar local is zero-constructed by the same rule
+(`local-without-initializer`): `let mut x: u32; f(x)` reads zero, as the
+current checker accepts. Lowering logs `Content::Value(zero)` on the scalar
+home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
+before it
+([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"If zero satisfies the default domain, the value is zero-constructible.
+Otherwise the type is gated: construction or checked qualification must
+establish the domain before observation."). Every scalar type the reader
+accepts (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
+type is refused as `type constrained`, so a scalar home owes no domain
+clause and no gated scalar occurs in this subset. The sentence "An
+unestablished local cannot be read"
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md))
+governs declared shared view locals, which this route does not serve. Such a
+scalar local is a storage home, written by `WriteOnlyPrimitiveStore` and read
+by `PrimitiveScalarRead`; every other scalar local stays an SSA value.
 
 <a id="data-requires"></a>
 **Data `requires`.** A declaration's `requires` is the type's default domain

@@ -22,9 +22,10 @@ one that reaches along it. Three things can supply a path:
   ordinary storage place at entry may supply its exact reaching value
   version", fact_validity.md), and by nothing otherwise.
 
-A data local declared without an initializer is one more supplier: its zero
-establishment logs a zero constant on each scalar leaf of the zero value,
-and the first declared case of each sum is read from the operation.
+A local declared without an initializer is one more supplier: a data
+local's zero establishment logs a zero constant on each scalar leaf of the
+zero value, and the first declared case of each sum is read from the
+operation; a scalar local's establishment logs its zero constant on its home.
 
 Two judgments read the answer, and so do the goal of a data type's
 `requires` clause (`Storage::domain_goal`: what each field the clause names
@@ -40,15 +41,19 @@ or contents with no value identity, give no equation: the read is still well
 formed, it just says nothing. control_flow.md: "A fact from one arm does not
 survive the join."
 
-Initialization (`Storage::uses`). structural_access.md: "An unestablished
-local cannot be read: a whole read of the home, a loan of it to an ordinary
-or boundary call, and its forwarding on a state edge each require a whole
-store into it on every path reaching that use." Every operation and
-terminator that reads storage (a field read, a whole copy, a record operand,
-a call argument, a return) gets one verdict: each scalar leaf at or beneath
-the place it uses must be supplied on every path. A path that supplies
-nothing is a refusal with reason `Unestablished`. This is a structural
-judgment, not a proposition: it has no obligation row and no certificate.
+Initialization (`Storage::uses`). Every operation and terminator that reads
+storage (a field read, a whole copy, a record operand, a call argument, a
+return) gets one verdict: each scalar leaf at or beneath the place it uses
+must be supplied with an established value on every path. A path that
+supplies nothing is a refusal with reason `Unestablished`. A local declared
+without an initializer is zero-constructed (`local-without-initializer`), so
+in an elaborated program the path that supplies nothing is the zeroed
+storage of a gated type. dependent_values.md: "If zero satisfies the default
+domain, the value is zero-constructible. Otherwise the type is gated:
+construction or checked qualification must establish the domain before
+observation." A scalar local's zero is always established: every scalar type
+served here admits zero. This is a structural judgment, not a proposition:
+it has no obligation row and no certificate.
 
 Knowledge names values only. No row here states a proposition about a place,
 and `semantic_vocabulary::Proposition`'s structural variants are not used.

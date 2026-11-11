@@ -24,8 +24,9 @@ Per machine it does five things:
   and each callee `ensures` clause, under the call's actuals, after the call.
   Nothing comes from source shapes, names or any Psi 05 or validation fact.
 - Judges initialization: every operation and terminator that reads storage
-  gets one verdict, `Unestablished` when some path to it stores nothing into
-  a scalar leaf it reads (`places`). It is a structural judgment over the
+  gets one verdict, `Unestablished` when some path to it supplies no
+  established value for a scalar leaf it reads: today the zeroed storage of
+  a gated type (`places`). It is a structural judgment over the
   write log and the graph, not an obligation, so it has no certificate.
 - States each obligation's goal over Terminal values: an operation's safety
   goal is Terminal semantics' own canonical goal, a call requirement is the
@@ -135,8 +136,9 @@ impl Discharged {
 pub struct StorageUse {
     /// The operation, or for a terminator its edge.
     pub at: Construct,
-    /// `Err` with reason `Unestablished` when some path to the use stores
-    /// nothing into a scalar leaf it reads: a compile error of the program.
+    /// `Err` with reason `Unestablished` when some path to the use supplies
+    /// no established value for a scalar leaf it reads: a compile error of
+    /// the program.
     pub verdict: Checked<()>,
 }
 

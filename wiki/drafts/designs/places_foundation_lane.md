@@ -51,7 +51,7 @@ emits, and the sentence it implements. Quotations are verbatim.
 | Record pattern `let R { a, b } = r;`, arm payload bindings | Field reads of the subject; each binding is the read's value | [patterns](../../spec/language/patterns.md#irrefutable-data-bindings): "A pattern that can fail rejects; a binding introduces no hidden branch, trap, fallback or runtime assertion." |
 | Data `requires` (default domain) on construction and on writes | Obligation `DataDomain` (below) at `EstablishRecord`, `Establish*Case`, field store and whole store | [data and literals](../../spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." [Structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "Record and case construction and scalar-field replacement use the same declaration-owned requirement. The obligation binds the initializer or replacement SSA value, never the old field contents." |
 | Field-domain premises at a read | Knowledge row on the read's value | [structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "A validated field read or selected-case payload copy instantiates that invariant on its fresh scalar snapshot; other fields and unselected cases provide no premise. The snapshot survives later writes". |
-| A primitive local declared without an initializer, assigned later | A root with no content until its first write | [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary): "An unestablished local cannot be read: a whole read of the home, a loan of it to an ordinary or boundary call, and its forwarding on a state edge each require a whole store into it on every path reaching that use." [State contracts](../../spec/language/state_contracts.md): "Uninitialized storage has no assumed zero." |
+| A primitive local declared without an initializer, assigned later | A root zero-constructed at `EstablishPrimitiveLocal`: its home holds the zero constant, an established value because every builtin scalar admits zero (`local-without-initializer`). A scalar type that zero does not satisfy would be gated, but a constrained scalar type is outside this subset | [dependent values](../../spec/language/dependent_values.md#default-domains-and-zero-initialization): "If zero satisfies the default domain, the value is zero-constructible. Otherwise the type is gated: construction or checked qualification must establish the domain before observation." The sentence "An unestablished local cannot be read" in [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary) governs declared shared view locals, which stay refused here (references lane), not a plain scalar. |
 | A `data` local declared without an initializer (`let v: Stored;`) | `EstablishZeroedStructural`, then a `DataDomain` obligation on the zero value before first use | [dependent values](../../spec/language/dependent_values.md#default-domains-and-zero-initialization): "A zeroed storage representation can be accessed as an established value only after its default-domain obligations hold." [Data and literals](../../spec/language/data_and_literals.md): "The ordinary case-bearing zero representation selects the first declared case and recursively zeroed common fields/payload." `pass/data/prefix_case_pure_sum_retirement` reads such a local and expects its zero. The lane confirms against `state_contracts.md` that the two rows do not conflict, and asks in `OWNER_QUESTIONS.md` if they do. |
 | Named `const` of scalar, record or copy-eligible case type | The constant's `materialized_initializer` elaborated in place, at each use, as literal operands and construction | [constants](../../spec/language/constants.md): "`const` names an immutable compile-time value, not runtime storage." and "A constant has no stable address and grants no authority." |
 | `requires` / `ensures` clauses that project a formal or `result` (`p.first == 7`, `result in S::C`) | Clause terms over the entry content of the formal's place, or over the result root | [fact validity](../../spec/terminal-psi/fact_validity.md#restored-scalar-values): "a valid initialized ordinary storage place at entry may supply its exact reaching value version; it need not have a store inside the current body." |
@@ -154,9 +154,14 @@ needs no step: facts are already over values, never over the place.
 
 ### Initialization
 
-A root declared without an initializer has no content until a write. Each
-read, whole copy, call argument or return of it must be dominated, on every
-path, by a whole write to the place, or to every leaf beneath it. This is a
+A root declared without an initializer is zero-constructed
+(`local-without-initializer`): it holds an established value when zero
+satisfies its type's default domain, which every builtin scalar's does, and
+is gated when it does not. The unestablished root is therefore one of gated
+type, or a view local, which this lane does not serve, and not a plain
+scalar. Each read, whole copy, call argument or return of such a root must be
+dominated, on every path, by a whole write to the place, or to every leaf
+beneath it. This is a
 structural judgment over the write log and the dominance graph
 (`lowered-discharge/src/graph.rs`). It is not a proposition, so it makes no
 certificate. A failure is a refusal with a new closed reason,
@@ -363,8 +368,9 @@ own them:
   (the owned twin of `nested_payload_read_after_case_replacement`);
 - a field store that breaks the data `requires` (`r.count = 9` with
   `requires count <= 5`), then returns `r`;
-- a read of a local declared without an initializer that is assigned on only
-  one arm of a `transition`;
+- a read of a local of gated type (or a view local) declared without an
+  initializer that is assigned on only one arm of a `transition`; a plain
+  scalar local is zero-constructed and its read is accepted;
 - a data `requires` that relates two fields (`low <= high`), broken by a
   store to one field, where the other field's value comes only from the
   write log.
