@@ -1275,6 +1275,10 @@ pub mod calls {
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,
             pub termination_guarantee: language_semantics::TerminationGuarantee,
+            /// The requirement wrote `crashes none`. It publishes no contract
+            /// row, so this is what tells it from an omitted clause, which
+            /// defers to the selected member's routes (generics.md).
+            pub declares_no_crash_route: bool,
         }
 
         impl Default for StateSignature {
@@ -1299,6 +1303,7 @@ pub mod calls {
                     blocks: false,
                     contracts: HandleSpan::empty(),
                     termination_guarantee: language_semantics::TerminationGuarantee::NoGuarantee,
+                    declares_no_crash_route: false,
                 }
             }
         }

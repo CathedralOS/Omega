@@ -71,6 +71,7 @@ pub(crate) mod body_copies {
                 contracts: $self.copy_capability_contract_span($other, $signature.contracts),
                 default_body: $self.copy_statement_handle_span($other, $signature.default_body),
                 terminates_guarantee: $signature.terminates_guarantee,
+                declares_no_crash_route: $signature.declares_no_crash_route,
             }
         }};
     }

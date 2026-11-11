@@ -760,17 +760,21 @@ worked around by adding to `terminal-check-tables`.
     clause trees. The reader accepts each where the symbol is the callee's
     `generated_from` and refuses any other mismatch. Nothing is matched by
     name.
-30. **A trait requirement is a bare signature, and its `crashes none` is
-    lost.** The typed trees hold a requirement as a `StateSignature`, not as
-    a machine, so the reader has a second entry to the one contract reader.
-    `declares_no_crash_route` exists on `Machine` only: a requirement that
-    wrote `crashes none` and one that wrote nothing are the same rows.
+30. **A trait requirement is a bare signature.** The typed trees hold a
+    requirement as a `StateSignature`, not as a machine, so the reader has a
+    second entry to the one contract reader. An authored `crashes none`
+    leaves no contract row on either; stages 01 to 03 record it as
+    `StateSignature::declares_no_crash_route`, as they do on `Machine`, and
+    the reader takes it as `DeclaredNone`.
     [Generics](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
-    gives them different meanings ("omitted `crashes` defers to its published
-    routes"; "`crashes none` admitting only crash-free members"). The reader
-    takes both as the deferral, which claims less, and the generic form then
-    decides nothing about crashes through that call. Repair belongs to the
-    stages that drop the flag (Psi 01 has it on the header), not here.
+    gives the two spellings different meanings ("omitted `crashes` defers to
+    its published routes"; "`crashes none` admitting only crash-free
+    members"). Both publish no route in the generic form, so the generic
+    check decides nothing about crashes through the call either way. The
+    current checker refuses a member that is not crash-free where it
+    satisfies a `crashes none` requirement; the deferral is not yet carried
+    to generic callers
+    (`tests/omega/pending/traits/omitted_requirement_crashes_reach_generic_caller`).
 31. **The declared machine's call through a parameter names a child of the
     parameter.** In the generic declaration `Selected::apply(x)` targets a
     state symbol under the parameter's symbol, with no requirement recorded

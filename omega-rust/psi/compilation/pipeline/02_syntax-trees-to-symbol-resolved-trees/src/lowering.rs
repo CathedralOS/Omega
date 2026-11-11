@@ -353,6 +353,7 @@ suspends: contract.suspends,
 blocks: contract.blocks,
 contracts: contract.contracts,
 terminates_guarantee: contract.terminates_guarantee,
+declares_no_crash_route: contract.declares_no_crash_route,
 })?;
                         (
                             TypeParameterKind::Machine {
@@ -3307,6 +3308,7 @@ pub(crate) mod state {
                 blocks: signature.blocks,
                 contracts: signature.contracts,
                 terminates_guarantee: signature.terminates_guarantee,
+                declares_no_crash_route: signature.declares_no_crash_route,
             },
         )
     }
@@ -3336,6 +3338,7 @@ pub(crate) mod state {
         pub(crate) blocks: bool,
         pub(crate) contracts: HandleSpan<CapabilityContract>,
         pub(crate) terminates_guarantee: bool,
+        pub(crate) declares_no_crash_route: bool,
     }
 
     pub(crate) fn lower_state_signature_parts(
@@ -3363,6 +3366,7 @@ pub(crate) mod state {
             blocks,
             contracts,
             terminates_guarantee,
+            declares_no_crash_route,
         } = inputs;
         let type_parameters =
             crate::lowering::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
@@ -3412,6 +3416,7 @@ pub(crate) mod state {
                     blocks,
                     contracts,
                     terminates_guarantee,
+                    declares_no_crash_route,
                 },
             },
             service_reach_keyword_source_spans: service_reach_keyword_source_spans.to_vec(),
@@ -3917,6 +3922,7 @@ pub(crate) mod trait_definition {
                     blocks: clause_signature.blocks,
                     contracts: clause_signature.contracts,
                     terminates_guarantee: clause_signature.terminates_guarantee,
+                    declares_no_crash_route: clause_signature.declares_no_crash_route,
                 },
             )?;
             refinement_clauses.push(TraitRefinementClause {

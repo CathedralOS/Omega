@@ -52,6 +52,9 @@ pub mod calls {
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,
             pub terminates_guarantee: bool,
+            /// The signature wrote `crashes none`, which publishes no contract
+            /// row; an omitted clause on a requirement defers instead.
+            pub declares_no_crash_route: bool,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

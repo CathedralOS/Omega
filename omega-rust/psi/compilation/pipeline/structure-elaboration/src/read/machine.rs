@@ -267,7 +267,10 @@ impl<'t> Program<'t> {
             state.parameters,
             state.return_type,
             machine.contracts,
-            Some((machine.declares_no_crash_route, machine.is_public)),
+            Declarer::Machine {
+                declares_no_crash_route: machine.declares_no_crash_route,
+                is_public: machine.is_public,
+            },
         )
     }
 
@@ -311,14 +314,15 @@ impl<'t> Program<'t> {
             requirement.parameters,
             requirement.return_type,
             requirement.contracts,
-            None,
+            Declarer::Requirement {
+                declares_no_crash_route: requirement.declares_no_crash_route,
+            },
         )
     }
 
     /// The formals, result and clauses of one callable. `owner` is the
-    /// symbol its reserved `result` is recorded against. `declared` is a
-    /// machine's `crashes none` and visibility; a requirement has neither
-    /// in the typed trees (README, "Findings").
+    /// symbol its reserved `result` is recorded against. `declared` says
+    /// whose clauses they are, for what an absent `crashes` row means.
     fn contract(
         &mut self,
         id: MachineId,
@@ -326,7 +330,7 @@ impl<'t> Program<'t> {
         formals: arena::HandleSpan<StateParameter>,
         return_type: typed_trees::types::TypeReferenceHandle,
         contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
-        declared: Option<(bool, bool)>,
+        declared: Declarer,
     ) -> Checked<Signature> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
@@ -441,27 +445,39 @@ impl<'t> Program<'t> {
         // `crashes none` leaves no contract row; the typed trees record it
         // as `declares_no_crash_route`, so it is told from an omission by
         // that fact and never by the missing rows.
+        let declares_none = match declared {
+            Declarer::Machine {
+                declares_no_crash_route,
+                ..
+            }
+            | Declarer::Requirement {
+                declares_no_crash_route,
+            } => declares_no_crash_route,
+        };
         let crashes = match (declared, crash_clauses) {
-            (Some((true, _)), false) => CrashCeiling::DeclaredNone,
+            _ if declares_none && !crash_clauses => CrashCeiling::DeclaredNone,
             // Stage 01 rejects this header; refused here too rather than
             // trusted to have been.
-            (Some((true, _)), true) => {
+            _ if declares_none => {
                 return Err(refuse(
                     id,
                     Construct::Machine,
                     Unserved::Contract("`crashes none` beside a `crashes Cause` clause"),
                 ));
             }
-            (_, true) | (Some((false, true)), false) => {
-                CrashCeiling::Authored(canonical::routes(routes))
-            }
-            (Some((false, false)), false) => CrashCeiling::Inferred,
+            (_, true)
+            | (
+                Declarer::Machine {
+                    is_public: true, ..
+                },
+                false,
+            ) => CrashCeiling::Authored(canonical::routes(routes)),
+            (Declarer::Machine { .. }, false) => CrashCeiling::Inferred,
             // generics.md, "Requirements and conformance evidence": on a
             // bodyless requirement "omitted `crashes` defers to its published
-            // routes", the selected member's. An authored `crashes none`
-            // leaves no row either and the typed trees do not record it on a
-            // requirement, so both read as the deferral, which claims less.
-            (None, false) => CrashCeiling::Inferred,
+            // routes", the selected member's, while `crashes none` admits
+            // only crash-free members.
+            (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
         };
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         Ok(Signature {
@@ -632,4 +648,19 @@ impl<'t> Program<'t> {
             statements: body,
         })
     }
+}
+
+/// Whose clauses a contract read is reading, for what an absent `crashes` row
+/// means: on a machine, inference when private and no route when public; on
+/// a requirement, deferral to the selected member. An authored `crashes
+/// none` leaves no row on either, so it is carried beside them.
+#[derive(Clone, Copy)]
+enum Declarer {
+    Machine {
+        declares_no_crash_route: bool,
+        is_public: bool,
+    },
+    Requirement {
+        declares_no_crash_route: bool,
+    },
 }

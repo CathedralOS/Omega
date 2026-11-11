@@ -1267,6 +1267,7 @@ pub(crate) mod tests {
             contracts: HandleSpan::empty(),
             default_body: HandleSpan::empty(),
             terminates_guarantee: false,
+            declares_no_crash_route: false,
         });
 
         let mut copied_trees = SyntaxTrees::new(Default::default());
