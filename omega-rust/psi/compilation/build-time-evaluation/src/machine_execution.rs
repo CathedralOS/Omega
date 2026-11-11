@@ -1830,6 +1830,129 @@ pub(crate) mod admission {
             })
         }
 
+        /// Give a Terminal-read result the source names `check_value` and every
+        /// build-time consumer compare against. The Terminal artifact labels a
+        /// record with its canonical type identity and may qualify a case with
+        /// its type; the machine's declared return type names the data
+        /// definition, its fields and its cases. A shape that does not follow the
+        /// declaration is left unchanged so `check_value` reports it.
+        pub(crate) fn relabel_result(
+            program: &TypedTrees,
+            machine: &Machine,
+            value: BuildTimeValue,
+        ) -> BuildTimeValue {
+            match entry_state(program, machine) {
+                Some(state) => relabel_value(program, state.return_type, value),
+                None => value,
+            }
+        }
+
+        fn relabel_value(
+            program: &TypedTrees,
+            type_reference: TypeReferenceHandle,
+            value: BuildTimeValue,
+        ) -> BuildTimeValue {
+            if !type_reference.is_valid() {
+                return value;
+            }
+            match (
+                program.type_reference_table.type_reference(type_reference),
+                value,
+            ) {
+                (TypeReferenceNode::Constrained { base_type, .. }, value) => {
+                    relabel_value(program, *base_type, value)
+                }
+                (
+                    TypeReferenceNode::FixedArray { element_type, .. },
+                    BuildTimeValue::Array(elements),
+                ) => BuildTimeValue::Array(
+                    elements
+                        .into_iter()
+                        .map(|element| relabel_value(program, *element_type, element))
+                        .collect(),
+                ),
+                (
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
+                    value @ (BuildTimeValue::Struct { .. } | BuildTimeValue::Case { .. }),
+                ) => {
+                    let Some(definition) = program.closed_data_definition(type_reference) else {
+                        return value;
+                    };
+                    match value {
+                        BuildTimeValue::Struct { type_name, fields } => {
+                            let declared = program
+                                .data_members(definition)
+                                .iter()
+                                .filter_map(|member| match member {
+                                    DataMember::Field(field) => Some(field),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
+                            let _ = type_name;
+                            BuildTimeValue::Struct {
+                                type_name: definition.name.as_str().to_owned(),
+                                fields: fields
+                                    .into_iter()
+                                    .map(|(name, field_value)| {
+                                        let field_type = declared
+                                            .iter()
+                                            .find(|field| field.name.as_str() == name)
+                                            .map(|field| field.type_reference);
+                                        let field_value = match field_type {
+                                            Some(field_type) => {
+                                                relabel_value(program, field_type, field_value)
+                                            }
+                                            None => field_value,
+                                        };
+                                        (name, field_value)
+                                    })
+                                    .collect(),
+                            }
+                        }
+                        BuildTimeValue::Case { variant, payload } => {
+                            let leaf = variant.rsplit("::").next().unwrap_or(&variant).to_owned();
+                            let selected =
+                                program.data_members(definition).iter().find_map(|member| {
+                                    match member {
+                                        DataMember::Variant(candidate)
+                                            if candidate.name.as_str() == leaf =>
+                                        {
+                                            Some(candidate)
+                                        }
+                                        _ => None,
+                                    }
+                                });
+                            let Some(selected) = selected else {
+                                return BuildTimeValue::Case { variant, payload };
+                            };
+                            let declared = program.data_payload_fields(selected);
+                            BuildTimeValue::Case {
+                                variant: leaf,
+                                payload: payload
+                                    .into_iter()
+                                    .map(|(name, field_value)| {
+                                        let field_type = declared
+                                            .iter()
+                                            .find(|field| field.name.as_str() == name)
+                                            .map(|field| field.type_reference);
+                                        let field_value = match field_type {
+                                            Some(field_type) => {
+                                                relabel_value(program, field_type, field_value)
+                                            }
+                                            None => field_value,
+                                        };
+                                        (name, field_value)
+                                    })
+                                    .collect(),
+                            }
+                        }
+                        value => value,
+                    }
+                }
+                (_, value) => value,
+            }
+        }
+
         fn entry_state<'program>(
             program: &'program TypedTrees,
             machine: &Machine,
@@ -3240,7 +3363,7 @@ pub(crate) mod admission {
     }
 
     use closure_validation::checked_closure_violation;
-    use const_evaluable::require_const_evaluable_result;
+    use const_evaluable::{relabel_result, require_const_evaluable_result};
     use selection_authority::selection_authority_violation;
     pub(crate) use selection_authority::{
         expression_children, require_call_expression_selection, require_closed_expression_custody,
@@ -4052,8 +4175,10 @@ pub(crate) mod admission {
                         ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                     },
                 )
-                .map(BuildTimeOperationEvaluation::into_measured)
                 .map_err(String::from)
+                .and_then(|evaluation| {
+                    crate::MeasuredEvaluation::from_checked(evaluation.into_measured())
+                })
         }
 
         pub fn admitted_program_machine_closure_symbols(
@@ -4212,6 +4337,7 @@ pub(crate) mod admission {
                 arguments,
                 custody,
                 true,
+                None,
             )
             .map(crate::MeasuredEvaluation::into_value)
         }
@@ -4229,15 +4355,19 @@ pub(crate) mod admission {
                 arguments,
                 custody,
                 false,
+                None,
             )
         }
 
+        /// `target` names the deployment target whose family members the
+        /// invocation may run; `None` refuses target-selected entries.
         pub fn evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
             &self,
             input: BuildTimeProgram<'_>,
             machine_symbol: SymbolHandle,
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
+            target: Option<&str>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             match input {
                 BuildTimeProgram::Typed(program) => self
@@ -4247,6 +4377,7 @@ pub(crate) mod admission {
                         arguments,
                         custody,
                         false,
+                        target,
                     ),
                 BuildTimeProgram::Checked(checked) => {
                     let program = checked.typed.as_ref();
@@ -4281,16 +4412,18 @@ pub(crate) mod admission {
                         &mut arguments,
                         Some(custody),
                     )?;
-                    let measured = self
-                        .accounting
-                        .evaluate(
+                    let measured =
+                        crate::machine_execution::build_machines::evaluate_checked_invocation(
                             checked_interpreter::BuildMachineProgram::Checked(checked),
-                            BuildMachineEvaluationRequest {
-                                operators: &self.selected_operators,
-                                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                            },
-                        )
-                        .map(BuildTimeOperationEvaluation::into_measured)?;
+                            checked,
+                            machine_symbol,
+                            arguments,
+                            &self.selected_operators,
+                            target,
+                            &self.accounting,
+                        )?;
+                    let measured =
+                        measured.map_value(|value| relabel_result(program, machine, value));
                     require_const_evaluable_result(program, machine, measured.value())?;
                     Ok(measured)
                 }
@@ -4304,6 +4437,7 @@ pub(crate) mod admission {
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
             discharge_authored_requires: bool,
+            target: Option<&str>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             let matching: Vec<_> = program
                 .machines()
@@ -4339,16 +4473,16 @@ pub(crate) mod admission {
                 &mut arguments,
                 Some(custody),
             )?;
-            let measured = self
-                .accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Checked(checked),
-                    BuildMachineEvaluationRequest {
-                        operators: &admission.selected_operators,
-                        ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                    },
-                )
-                .map(BuildTimeOperationEvaluation::into_measured)?;
+            let measured = crate::machine_execution::build_machines::evaluate_checked_invocation(
+                checked_interpreter::BuildMachineProgram::Checked(checked),
+                checked,
+                machine_symbol,
+                arguments,
+                &admission.selected_operators,
+                target,
+                &self.accounting,
+            )?;
+            let measured = measured.map_value(|value| relabel_result(execution, machine, value));
             require_const_evaluable_result(execution, machine, measured.value())?;
             Ok(measured)
         }
@@ -4837,6 +4971,200 @@ pub(crate) mod build_machines {
         FilesystemSponsorLimits as BuildMachineFilesystemSponsorLimits,
         FsGrants as BuildMachineFilesystemGrants,
     };
+
+    /// Evaluate one admitted invocation of a checked machine on Terminal Psi.
+    ///
+    /// We produce the invocation artifact for exactly `symbol`, bind each
+    /// compiler-materialized argument to the entry's scalar or structural
+    /// parameter list in source order (the artifact splits one source list into
+    /// those two ordered lists), run the instance under the pure work budget,
+    /// and read the returned value back through the shared value bridge. A
+    /// value the bridge cannot represent refuses the invocation; no other
+    /// engine is tried.
+    pub(crate) fn evaluate_checked_invocation(
+        program: BuildMachineProgram<'_>,
+        checked: &checked_trees::CheckedTrees,
+        symbol: SymbolHandle,
+        arguments: Vec<crate::BuildTimeValue>,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
+        target: Option<&str>,
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
+    ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
+        use crate::terminal_values::{
+            input_contents, result_value, scalar_argument, scalar_result,
+        };
+        use terminal_interpreter::{
+            TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralInputs,
+            TerminalStructuralValue,
+        };
+        super::selected_operators::validate_selected_operators(&checked.typed, operators)?;
+        accounting.evaluate_terminal_invocation(
+            program,
+            symbol,
+            &arguments,
+            operators,
+            |meter, retained_artifact| {
+                let toolchain_sources = source::source_identity::toolchain_source_identities(
+                    checked.symbols.source_files(),
+                )?;
+                let mut production = psi_terminal_production::TerminalProductionRequest::new(
+                    checked,
+                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
+                    &toolchain_sources,
+                );
+                production.publication = terminal_codec::TerminalPublication::Invocation;
+                let produced = production
+                    .produce(
+                        Default::default(),
+                        &mut psi_terminal_production::UnmeasuredProduction,
+                    )
+                    .map_err(|error| error.to_string())?;
+                *retained_artifact = Some(Arc::new(produced));
+                let artifact = retained_artifact
+                    .as_ref()
+                    .ok_or("invocation Terminal production lost its exact artifact")?;
+                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
+                // A target-family member runs only under its target's selection.
+                // Without a named target the entry stays unselected and refuses.
+                let selected = target.map(|target| {
+                    terminal_installation::admit_target_machine_selections(artifact.view(), target)
+                });
+                let installation = selected
+                    .as_ref()
+                    .map(|selected| {
+                        program.admit_runtime_supplies(
+                            terminal_interpreter::TerminalRuntimeSupplyRequest {
+                                native_code_layouts: None,
+                                x86_flags: None,
+                                memory_ordering: None,
+                                installation: None,
+                                host_imports: &[],
+                                entry: None,
+                                target_machines: Some(selected),
+                                target_layouts: None,
+                            },
+                        )
+                    })
+                    .transpose()
+                    .map_err(|error| format!("invocation Terminal target selection: {error:?}"))?;
+                let entry = match &installation {
+                    Some(installation) => program.entry_installed(installation),
+                    None => program.entry(),
+                }
+                .map_err(|error| format!("invocation Terminal entry: {error:?}"))?;
+                if entry.scalar_parameters.len() + entry.structural_parameters.len()
+                    != arguments.len()
+                {
+                    return Err(format!(
+                        "invocation supplies {} argument(s) to a Terminal entry with {} parameter(s)",
+                        arguments.len(),
+                        entry.scalar_parameters.len() + entry.structural_parameters.len(),
+                    ));
+                }
+                let mut scalars = Vec::with_capacity(entry.scalar_parameters.len());
+                let mut contents = Vec::with_capacity(entry.structural_parameters.len());
+                let mut structural = Vec::with_capacity(entry.structural_parameters.len());
+                for argument in &arguments {
+                    let scalar_shaped = matches!(
+                        argument,
+                        crate::BuildTimeValue::Int(_) | crate::BuildTimeValue::Bool(_)
+                    );
+                    if scalar_shaped && scalars.len() < entry.scalar_parameters.len() {
+                        let parameter = entry.scalar_parameters[scalars.len()];
+                        scalars.push(scalar_argument(parameter.scalar_type, argument)?);
+                        continue;
+                    }
+                    let index = structural.len();
+                    let parameter = entry.structural_parameters.get(index).ok_or(
+                        "invocation argument has no matching Terminal parameter",
+                    )?;
+                    let ordinal =
+                        u32::try_from(index).map_err(|_| "too many structural arguments")?;
+                    contents.push(input_contents(
+                        &program,
+                        ordinal,
+                        parameter.structural_type,
+                        argument,
+                    )?);
+                    structural.push(TerminalStructuralValue::minted(
+                        u64::from(ordinal) + 1,
+                        parameter.structural_type,
+                        Vec::new(),
+                    ));
+                }
+                if scalars.len() != entry.scalar_parameters.len() {
+                    return Err("invocation arguments differ from the Terminal entry's scalar parameters".into());
+                }
+                let result_type = entry
+                    .result
+                    .structural()
+                    .map(|result| result.structural_type);
+                let account = meter.invocation_account().cloned();
+                let mut instance = program
+                    .instantiate(terminal_interpreter::TerminalInstantiation {
+                        scalar_arguments: &scalars,
+                        structural_inputs: TerminalStructuralInputs {
+                            arguments: &structural,
+                            contents: &contents,
+                            ..Default::default()
+                        },
+                        installation: installation.as_ref(),
+                        account: account.as_ref(),
+                        ..Default::default()
+                    })
+                    .map_err(|error| format!("invocation Terminal arguments: {error:?}"))?;
+                numeric_imports::install(&program, &mut instance, &checked.typed, operators)?;
+                let status = instance
+                    .invoke(meter)
+                    .map_err(|error| format!("invocation Terminal execution failed: {error:?}"))?;
+                let value = match status {
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                        crate::BuildTimeValue::Unit
+                    }
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
+                        scalar_result(value)?
+                    }
+                    TerminalExecutionStatus::Complete(
+                        TerminalExecutionResult::Structural(_)
+                        | TerminalExecutionResult::ScalarCase(_)
+                        | TerminalExecutionResult::ScalarArray(_),
+                    ) => result_value(
+                        &instance,
+                        result_type.ok_or("invocation result has no structural declaration")?,
+                    )?,
+                    TerminalExecutionStatus::SponsorExhausted(_) => {
+                        return Err(format!(
+                            "invocation Terminal execution exhausted its work budget after {} units",
+                            meter.usage().total_units(),
+                        ));
+                    }
+                    TerminalExecutionStatus::Crashed(crash) => {
+                        return Err(format!("invocation Terminal execution crashed: {crash:?}"));
+                    }
+                    other => {
+                        return Err(format!(
+                            "invocation Terminal execution did not complete as a pure value: {other:?}"
+                        ));
+                    }
+                };
+                let cells = value
+                    .retained_cell_count()
+                    .ok_or("invocation result cell count overflowed")?;
+                let bytes = value
+                    .retained_text_byte_count()
+                    .ok_or("invocation result payload count overflowed")?;
+                if let Some(account) = &account {
+                    account
+                        .charge_result_custody(cells, bytes)
+                        .map_err(|error| format!("invocation result custody: {error}"))?;
+                }
+                instance
+                    .close()
+                    .map_err(|error| format!("invocation Terminal close: {error:?}"))?;
+                Ok(value)
+            },
+        )
+    }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum BuildMachineExecutionMode {

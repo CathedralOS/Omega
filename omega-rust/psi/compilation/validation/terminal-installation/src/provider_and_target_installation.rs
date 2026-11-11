@@ -1134,10 +1134,13 @@ pub(crate) mod target_families {
 
     impl std::error::Error for TargetMachineSelectionError {}
 
-    pub fn admit_target_machine_selections(
-        artifact: TerminalArtifactView<'_>,
+    // Selection reads only the module's target families and its identity, so
+    // portable artifacts and invocation-published code select the same way.
+    pub fn admit_target_machine_selections<'code>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
         target: &str,
     ) -> AdmittedTargetMachineSelections {
+        let artifact = artifact.into();
         let selections = artifact
             .module()
             .target_machine_families
