@@ -89,11 +89,9 @@ pub(super) fn admit(
     let Some(contract) = contracts::select(program, declaration, binding, layouts)? else {
         return Ok(None);
     };
-    let namespace = if context.supplied {
-        context.admit_services(program, declaration)
-    } else {
-        Err("no explicit host filesystem namespace was supplied")
-    };
+    let namespace = context
+        .process_namespace()
+        .and_then(|()| context.admit_services(program, declaration));
     Ok(Some(Call {
         context: context.clone(),
         effect: contract.effect,

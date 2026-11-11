@@ -31,11 +31,17 @@ pub enum TerminalDomainExitDelegation {
     IsolatedContainingDomain,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub enum TerminalFilesystemDelegation {
     #[default]
     Unprovided,
+    /// The host namespace as this process sees it, working directory included.
     HostNamespace,
+    /// The host namespace with relative paths resolved beneath this directory
+    /// rather than the process's working directory, so a harness can give each
+    /// execution its own scratch directory. Only the Linux kernel supply can
+    /// root its namespace; other hosts refuse this delegation.
+    HostDirectory(std::path::PathBuf),
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
