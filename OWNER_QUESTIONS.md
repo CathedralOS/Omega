@@ -67,43 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
-
-Decision name: `unproved-goal-form-publication`.
-
-A correct program can state an obligation in a form the prover has no rule
-for. The author then needs to be told that the compiler could not finish, not
-that the program is wrong, or they will rewrite valid code to work around a
-compiler gap. The outcome itself is ruled (Jarod, 2026-11-11): such a goal is
-`Incomplete`; `Reject` stays for a goal whose form the prover has rules for
-but cannot establish from what the program states. What is not settled is how
-that `Incomplete` is published.
-
-- [compiler_request.md](wiki/spec/build/compiler_request.md#outcomes) defines
-  `Incomplete` as "a named resource/search limit or unsupported valid case" and
-  says the outcomes "do not invent new wire tags or host exit codes".
-- Its scalar-resource table assigns one `Incomplete` code per named provision
-  and is closed at codes 1–35. Codes 27–35 are proof-search bounds, each with
-  a nonzero limit; none names a goal form. Codes 15–25 are coverage provisions
-  with limit 0 for source forms a stage does not yet cover, each with a source
-  coordinate.
-- [review.md](wiki/spec/packages/review.md) says "Unproved source contracts
-  reject in Psi checking", which reads the other way for the same case unless
-  it is limited to goals the prover has rules for.
-
-The questions:
-
-- **(a)** Does this case get a new row in that table (a coverage provision
-  with limit 0 whose coordinate is the identity of the obligation left
-  unproved), or does it publish under an existing code?
-- **(b)** Should the sentence in review.md be narrowed to match the ruling?
-
-Until answered, the lowered-form route computes the `Incomplete` verdict but
-has no diagnostic that publishes it. The route is not in the default compile,
-so no program is affected yet; a router that publishes this verdict needs the
-answer first.
-
-### Q2 - May a Build program select a provider for a requirement it declares itself?
+### Q1 - May a Build program select a provider for a requirement it declares itself?
 
 Decision name: `build-declared-requirement-provider`.
 
@@ -137,7 +101,7 @@ The question:
 
 Until answered the fixture stays red and the compiler selects nothing.
 
-### Q3 - Who approves a new rule in the proof kernel?
+### Q2 - Who approves a new rule in the proof kernel?
 
 Decision name: `kernel-rule-admission`.
 
@@ -175,7 +139,7 @@ The question:
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
 
-### Q4 - May a caller rely on what a callee's body returns beyond its `ensures`?
+### Q3 - May a caller rely on what a callee's body returns beyond its `ensures`?
 
 Decision name: `callee-result-body-summary`.
 
@@ -259,7 +223,7 @@ false`, from both arms returning `false`) reach its callers when the callee's
 Under (c) the current checker's acceptance of this fixture is an error, and
 the fixture moves to `fail/` or gains `ensures result == false`.
 
-### Q5 - What source form binds a boundary requirement to a field of a foreign function table?
+### Q4 - What source form binds a boundary requirement to a field of a foreign function table?
 
 Decision name: `native-table-field-binding`.
 
@@ -307,7 +271,7 @@ field of a foreign table?
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
 
-### Q6 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q5 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -359,7 +323,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q7 - May a nested helper's body rely on facts its caller holds at the call?
+### Q6 - May a nested helper's body rely on facts its caller holds at the call?
 
 Decision name: `nested-helper-caller-facts`.
 
@@ -411,7 +375,7 @@ not use.
 
 Until answered the row is left as recorded and the checker is unchanged.
 
-### Q8 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q7 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -450,7 +414,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q9 - May a guard on one copy bound a place restored from another copy of the same version?
+### Q8 - May a guard on one copy bound a place restored from another copy of the same version?
 
 Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
 
@@ -497,7 +461,7 @@ on a second copy of the same version.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q10 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q9 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -554,7 +518,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q11 - Which in-memory filesystem does a test group select, and what does it implement?
+### Q10 - Which in-memory filesystem does a test group select, and what does it implement?
 
 Decision name: `test-group-virtual-filesystem`.
 
@@ -600,7 +564,7 @@ select.
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
 
-### Q12 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
+### Q11 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
 
 Decision name: `immutable-binding-exclusive-loan`.
 
@@ -662,7 +626,7 @@ governs exclusive lending:
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q13 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
+### Q12 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
 
 Decision name: `unselected-synchronous-invocation-cycle`.
 
@@ -705,7 +669,7 @@ Build realizes no provider.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q14 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
+### Q13 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
 
 Decision name: `terminal-call-carried-loan-lifetime`.
 
