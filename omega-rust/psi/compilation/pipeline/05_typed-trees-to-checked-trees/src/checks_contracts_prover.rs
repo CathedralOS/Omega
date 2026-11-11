@@ -5122,7 +5122,7 @@ mod current_boolean {
     use crate::published::facts::contract_occurrences::append_expression_occurrences;
     use crate::published::places::place_at;
     use crate::published::semantic::places::call_contract_argument_projection;
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::OnceCell;
     use validation::CanonicalPlace;
 
     use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
@@ -5131,7 +5131,8 @@ mod current_boolean {
         Check several Boolean fields without rebuilding the same conditions for each.
         Prepare those conditions only when a recorded value cannot answer a query.
         All queries borrow one unchanged set of facts at the same program point;
-        each field still receives its own freshness and inference checks.
+        each field still receives its own freshness and inference checks. A
+        query takes `&mut self` because it fills the batch's assignment cache.
     */
     pub(crate) struct BooleanValueQueries<'scope> {
         program: &'scope dyn validation::CheckingInput,
@@ -5144,7 +5145,7 @@ mod current_boolean {
             Each root's assignments in these contexts, read once for every query.
             The borrowed plan cannot change while this batch exists.
         */
-        assignments: RefCell<crate::values::RootAssignmentObservations<'scope>>,
+        assignments: crate::values::RootAssignmentObservations<'scope>,
         /*
             The Boolean facts of these contexts with their reconstructed places, in
             context order. Every query used to re-scan all facts and rebuild every
@@ -5168,28 +5169,39 @@ mod current_boolean {
                 contexts,
                 point,
                 predicates: OnceCell::new(),
-                assignments: RefCell::new(crate::values::RootAssignmentObservations::new(
+                assignments: crate::values::RootAssignmentObservations::new(
                     program, semantic, contexts,
-                )),
+                ),
                 boolean_facts: OnceCell::new(),
             }
         }
 
-        /* The recorded or proved Boolean at `actual`, from this batch's prepared inputs. */
-        fn ordinary_at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
-            let scalar = self.assignments.borrow_mut().scalar_value(actual);
-            let facts = self.boolean_facts.get_or_init(|| {
-                boolean_facts(self.program, self.semantic, self.contexts).collect()
-            });
+        /*
+            The recorded or proved Boolean at `actual`, from this batch's prepared
+            inputs. It borrows only the assignment cache and the Boolean facts, so
+            the predicate inference in `at_place` can call it while it holds the
+            prepared predicates.
+        */
+        fn ordinary_at_place(
+            program: &'scope dyn validation::CheckingInput,
+            semantic: &'scope FactPlan,
+            contexts: &'scope [facts::FactContextHandle],
+            assignments: &mut crate::values::RootAssignmentObservations<'scope>,
+            boolean_facts: &OnceCell<Vec<(Option<CanonicalPlace>, &'scope facts::Fact)>>,
+            actual: &CanonicalPlace,
+        ) -> Option<bool> {
+            let scalar = assignments.scalar_value(actual);
+            let facts = boolean_facts
+                .get_or_init(|| boolean_facts_of(program, semantic, contexts).collect());
             ordinary_boolean_value_from(
-                self.program,
+                program,
                 scalar,
                 facts.iter().map(|(place, fact)| (place.as_ref(), *fact)),
                 actual,
             )
         }
 
-        pub(crate) fn at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
+        pub(crate) fn at_place(&mut self, actual: &CanonicalPlace) -> Option<bool> {
             let program = self.program;
             let semantic = self.semantic;
             let contexts = self.contexts;
@@ -5241,22 +5253,39 @@ mod current_boolean {
             {
                 return None;
             }
-            if let Some(value) = self.ordinary_at_place(actual) {
+            let Self {
+                operators,
+                predicates,
+                assignments,
+                boolean_facts,
+                ..
+            } = self;
+            if let Some(value) = Self::ordinary_at_place(
+                program,
+                semantic,
+                contexts,
+                assignments,
+                boolean_facts,
+                actual,
+            ) {
                 return Some(value);
             }
-            let predicates = self.predicates.get_or_init(|| {
+            let predicates = predicates.get_or_init(|| {
                 crate::published::facts::boolean_predicates::retained(
-                    program,
-                    self.operators,
-                    semantic,
-                    contexts,
-                    point,
+                    program, operators, semantic, contexts, point,
                 )
             });
             inferred_boolean_at_place(predicates, actual, |place| {
-                self.ordinary_at_place(place)
-                    .map(ScalarValue::Boolean)
-                    .or_else(|| self.assignments.borrow_mut().scalar_value(place))
+                Self::ordinary_at_place(
+                    program,
+                    semantic,
+                    contexts,
+                    assignments,
+                    boolean_facts,
+                    place,
+                )
+                .map(ScalarValue::Boolean)
+                .or_else(|| assignments.scalar_value(place))
             })
         }
     }
@@ -5278,7 +5307,7 @@ mod current_boolean {
         are left out; a place that does not reconstruct stays `None` and matches
         nothing.
     */
-    fn boolean_facts<'plan>(
+    fn boolean_facts_of<'plan>(
         program: &'plan dyn ::validation::CheckingInput,
         semantic: &'plan FactPlan,
         contexts: &'plan [facts::FactContextHandle],

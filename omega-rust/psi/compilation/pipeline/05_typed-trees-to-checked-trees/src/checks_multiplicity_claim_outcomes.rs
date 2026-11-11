@@ -650,7 +650,7 @@ mod joins {
                                 &entry.source,
                                 &ownership.segments,
                                 events,
-                                maps,
+                                &mut super::ClaimOutcomeMapLookup::unrecorded(maps),
                             ) else {
                                 diagnostics.record(
                                     edge,
@@ -1263,11 +1263,16 @@ mod joins {
             else {
                 continue;
             };
-            if super::call_result_origin_rewrite(program, &ownership.segments, event, events, &maps)
-                .is_some_and(|(_, _, provenance, identity)| {
-                    event.provenance == provenance && event.claim_identity == identity
-                })
-            {
+            if super::call_result_origin_rewrite(
+                program,
+                &ownership.segments,
+                event,
+                events,
+                &mut super::ClaimOutcomeMapLookup::unrecorded(&maps),
+            )
+            .is_some_and(|(_, _, provenance, identity)| {
+                event.provenance == provenance && event.claim_identity == identity
+            }) {
                 continue;
             }
             let Some(state) = program.state_by_symbol(event.state_symbol) else {
@@ -2461,9 +2466,14 @@ use typed_trees::statement::StatementNode;
 */
 #[derive(Clone, Default)]
 pub(crate) struct ClaimOutcomePreparation {
-    /* Any new read of these maps on the walk's path must call `note_map_read`. */
+    /* The walk reads these only through `ClaimOutcomeMapLookup`. */
     maps: Vec<CheckedClaimOutcomeMap>,
     dependencies: Vec<SymbolHandle>,
+    /*
+        Every map the current state's walk looked up, directly or beneath
+        `call_result_origin_rewrite`, in first-read order.
+    */
+    map_reads: Vec<SymbolHandle>,
     joins: joins::CallJoinPreparation,
     revisions: usize,
     revision_limit: usize,
@@ -2472,6 +2482,7 @@ pub(crate) struct ClaimOutcomePreparation {
 impl ClaimOutcomePreparation {
     pub(crate) fn begin(&mut self) {
         self.dependencies.clear();
+        self.map_reads.clear();
         self.joins.begin();
     }
 
@@ -2484,6 +2495,7 @@ impl ClaimOutcomePreparation {
         Self {
             maps: self.maps.clone(),
             dependencies: Vec::new(),
+            map_reads: Vec::new(),
             joins: self.joins.fork_for_walk(),
             revisions: self.revisions,
             revision_limit: self.revision_limit,
@@ -2498,6 +2510,7 @@ impl ClaimOutcomePreparation {
         Self {
             maps: Vec::new(),
             dependencies: std::mem::take(&mut self.dependencies),
+            map_reads: std::mem::take(&mut self.map_reads),
             joins: self.joins.take_consulted(),
             revisions: self.revisions,
             revision_limit: self.revision_limit,
@@ -2506,17 +2519,12 @@ impl ClaimOutcomePreparation {
 
     /*
         Whether every summary one state's walk read under `previous` reads
-        the same here: each claim-outcome map in `map_reads` (see
-        `record_map_reads`), and the join binding of each receiver in
-        `consulted`. A missing map or binding compares like any other value.
+        the same here: each claim-outcome map and the join binding of each
+        receiver in `consulted` (what `take_consulted` handed over after that
+        walk). A missing map or binding compares like any other value.
     */
-    pub(crate) fn reads_unchanged(
-        &self,
-        previous: &Self,
-        map_reads: &[SymbolHandle],
-        consulted: &Self,
-    ) -> bool {
-        map_reads.iter().all(|state| {
+    pub(crate) fn reads_unchanged(&self, previous: &Self, consulted: &Self) -> bool {
+        consulted.map_reads.iter().all(|state| {
             self.maps.iter().find(|map| map.state_symbol == *state)
                 == previous.maps.iter().find(|map| map.state_symbol == *state)
         }) && self
@@ -2532,6 +2540,7 @@ impl ClaimOutcomePreparation {
         let Self {
             maps: _,
             dependencies,
+            map_reads: _,
             joins,
             revisions: _,
             revision_limit: _,
@@ -2584,11 +2593,8 @@ impl ClaimOutcomePreparation {
             return;
         };
         push_unique(&mut self.dependencies, target.symbol);
-        note_map_read(target.symbol);
-        if let Some(map) = self
-            .maps
-            .iter()
-            .find(|map| map.state_symbol == target.symbol)
+        let mut maps = ClaimOutcomeMapLookup::recorded(&self.maps, &mut self.map_reads);
+        if let Some(map) = maps.find(target.symbol)
             && !map.entries.iter().any(|entry| entry.output_path == path)
         {
             event.obligation_live = false;
@@ -2597,7 +2603,7 @@ impl ClaimOutcomePreparation {
         }
         let permission_events = PermissionEvents::recorded(permission_events);
         if let Some((_, _, provenance, identity)) =
-            call_result_origin_rewrite(program, segments, event, &permission_events, &self.maps)
+            call_result_origin_rewrite(program, segments, event, &permission_events, &mut maps)
         {
             event.provenance = provenance;
             event.claim_identity = identity;
@@ -2608,41 +2614,40 @@ impl ClaimOutcomePreparation {
 }
 
 /*
-    Every claim-outcome map one state's permission walk looks up, by target
-    state, while `record_map_reads` runs that walk on this thread. Lookups
-    outside it (deriving the maps themselves) record nothing.
-
-    `resolve` records the target it consults directly, but the source
-    resolution beneath it also looks up maps of other calls in the same
-    state. A state may skip its next walk only if none of the maps it read
-    changed, so every lookup on its path notes here. The walk of one state
-    runs on one thread from start to finish, and nothing on this path
-    spawns work, so a thread-local sees exactly that state's lookups.
+    The claim-outcome maps one lookup path may read, and where it notes each
+    map it reads. `ClaimOutcomePreparation::resolve` notes into the walking
+    worker's own preparation: a state may skip its next walk only if none of
+    the maps it read changed, and the source resolution beneath `resolve` also
+    looks up maps of other calls in the same state. Deriving the maps
+    themselves reads them unrecorded. Every lookup goes through `find`, so no
+    read on a recorded path goes unnoted.
 */
-std::thread_local! {
-    static MAP_READS: std::cell::RefCell<Option<Vec<SymbolHandle>>> =
-        const { std::cell::RefCell::new(None) };
+pub(crate) struct ClaimOutcomeMapLookup<'maps, 'reads> {
+    maps: &'maps [CheckedClaimOutcomeMap],
+    reads: Option<&'reads mut Vec<SymbolHandle>>,
 }
 
-fn note_map_read(state: SymbolHandle) {
-    MAP_READS.with(|reads| {
-        if let Some(reads) = reads.borrow_mut().as_mut() {
+impl<'maps, 'reads> ClaimOutcomeMapLookup<'maps, 'reads> {
+    pub(crate) fn unrecorded(maps: &'maps [CheckedClaimOutcomeMap]) -> Self {
+        Self { maps, reads: None }
+    }
+
+    fn recorded(
+        maps: &'maps [CheckedClaimOutcomeMap],
+        reads: &'reads mut Vec<SymbolHandle>,
+    ) -> Self {
+        Self {
+            maps,
+            reads: Some(reads),
+        }
+    }
+
+    fn find(&mut self, state: SymbolHandle) -> Option<&'maps CheckedClaimOutcomeMap> {
+        if let Some(reads) = self.reads.as_deref_mut() {
             push_unique(reads, state);
         }
-    });
-}
-
-/*
-    Run `walk` and return what it produced together with every claim-outcome
-    map it looked up on this thread, in first-read order.
-*/
-pub(crate) fn record_map_reads<R>(walk: impl FnOnce() -> R) -> (R, Vec<SymbolHandle>) {
-    let outer = MAP_READS.with(|reads| reads.replace(Some(Vec::new())));
-    let result = walk();
-    let recorded = MAP_READS
-        .with(|reads| reads.replace(outer))
-        .unwrap_or_default();
-    (result, recorded)
+        self.maps.iter().find(|map| map.state_symbol == state)
+    }
 }
 
 pub(crate) fn derive_checked_claim_outcome_maps(
@@ -3206,7 +3211,7 @@ fn claim_outcomes_for_named_transition(
                 &entry.source,
                 segments,
                 permission_events,
-                known_maps,
+                &mut ClaimOutcomeMapLookup::unrecorded(known_maps),
             )?;
             Some(CheckedClaimOutcomeEntry {
                 output_path: entry.output_path.clone(),
@@ -3278,7 +3283,7 @@ fn claim_outcomes_for_expression(
                         ),
                         segments,
                         permission_events,
-                        known_maps,
+                        &mut ClaimOutcomeMapLookup::unrecorded(known_maps),
                     )?,
                 })
             })
@@ -3402,7 +3407,7 @@ fn claim_outcomes_for_expression(
                         &entry.source,
                         segments,
                         permission_events,
-                        known_maps,
+                        &mut ClaimOutcomeMapLookup::unrecorded(known_maps),
                     )?;
                     let mut output_path = output_prefix.to_vec();
                     output_path.extend_from_slice(&entry.output_path);
@@ -3647,7 +3652,7 @@ fn bind_claim_outcome_source_at_call(
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &PermissionEvents<'_>,
-    maps: &[CheckedClaimOutcomeMap],
+    maps: &mut ClaimOutcomeMapLookup<'_, '_>,
 ) -> Option<CheckedClaimOutcomeSource> {
     bind_claim_outcome_source_at_arguments(
         program,
@@ -3672,7 +3677,7 @@ fn bind_claim_outcome_source_at_arguments(
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &PermissionEvents<'_>,
-    maps: &[CheckedClaimOutcomeMap],
+    maps: &mut ClaimOutcomeMapLookup<'_, '_>,
 ) -> Option<CheckedClaimOutcomeSource> {
     let source = bind_claim_outcome_source_at_arguments_raw(
         program,
@@ -3706,7 +3711,7 @@ fn resolve_claim_outcome_source(
     mut source: CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     events: &PermissionEvents<'_>,
-    maps: &[CheckedClaimOutcomeMap],
+    maps: &mut ClaimOutcomeMapLookup<'_, '_>,
 ) -> Option<CheckedClaimOutcomeSource> {
     let mut visited = Vec::new();
     loop {
@@ -3743,8 +3748,7 @@ fn resolve_claim_outcome_source(
             let Some(target) = validation::call_target_state(program, call.target_symbol) else {
                 continue;
             };
-            note_map_read(target.symbol);
-            let Some(map) = maps.iter().find(|map| map.state_symbol == target.symbol) else {
+            let Some(map) = maps.find(target.symbol) else {
                 continue;
             };
             for entry in map.entries.iter().filter(|entry| {
@@ -3885,7 +3889,13 @@ pub(crate) fn call_result_origin_rewrites(
     permission_events
         .iter()
         .filter_map(|event| {
-            call_result_origin_rewrite(program, segments, event, permission_events, maps)
+            call_result_origin_rewrite(
+                program,
+                segments,
+                event,
+                permission_events,
+                &mut ClaimOutcomeMapLookup::unrecorded(maps),
+            )
         })
         .collect()
 }
@@ -3895,7 +3905,7 @@ fn call_result_origin_rewrite(
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     event: &FlowPermissionEventFact,
     permission_events: &PermissionEvents<'_>,
-    maps: &[CheckedClaimOutcomeMap],
+    maps: &mut ClaimOutcomeMapLookup<'_, '_>,
 ) -> Option<(
     PermissionProvenance,
     PermissionClaimIdentity,
@@ -3924,10 +3934,7 @@ fn call_result_origin_rewrite(
         return None;
     };
     let target_state = validation::call_target_state(program, call.target_symbol)?;
-    note_map_read(target_state.symbol);
-    let map = maps
-        .iter()
-        .find(|map| map.state_symbol == target_state.symbol)?;
+    let map = maps.find(target_state.symbol)?;
     let matching = unique_in_order(
         map.entries
             .iter()

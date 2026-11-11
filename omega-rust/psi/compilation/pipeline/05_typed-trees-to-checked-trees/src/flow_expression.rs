@@ -5392,7 +5392,7 @@ mod value_observations {
                 && let Some(source) = self.completed_value_place(evaluated.capture.expression)
             {
                 let mut case_evidence: Option<Option<crate::flow::CaseEvidence<'_>>> = None;
-                let boolean_values = crate::checks::contracts::BooleanValueQueries::new(
+                let mut boolean_values = crate::checks::contracts::BooleanValueQueries::new(
                     self.program,
                     self.context.operators,
                     self.semantic,
