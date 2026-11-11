@@ -40,6 +40,10 @@ pub(crate) fn check_product_source(
         root_package: package_inputs.map(PackageCompilationInputs::root),
     };
     let mut demanded = external_roots.clone();
+    // The target realization table supplies canonical float operations, so,
+    // as for the Build activation, the sealed catalog map and its public
+    // requirements stay whether or not the program names them.
+    demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
     for selection in layout_scopes
         .iter()
         .flat_map(|scope| &scope.provider_declarations)
