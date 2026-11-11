@@ -1123,6 +1123,71 @@ carries no diagnostic.
 python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 ```
 
+### Who may record a regression
+
+A pull request that changes only corpus ledgers and Markdown may record a row
+as red; a pull request that changes anything else may not. Before this rule
+`cargo xtask check-rules` refused every red row in
+`tests/omega/corpus_outcomes.txt`, whoever wrote it, so the ledger could only
+move toward green. When the compiler regressed, the row kept its old good line
+because nothing was allowed to replace it. A full sweep at `759c80404428`
+found 1,296 rows worse than recorded, 34 of them `fail/` programs the compiler
+accepted, and the ledger said none of it.
+
+The refusal existed for a good reason, and that reason is narrower than the
+rule was. A pull request that edits a fixture must re-record its row, and a
+worker whose change broke the fixture could satisfy that by recording the
+breakage: a `pass/` row as `rejected`, a `fail/` row as `unexpected`. The row
+then reads as a baseline and the regression lands as if it were the expected
+result. What must be prevented is a pull request writing down a failure *it
+could have caused*.
+
+`check-rules` cannot run the compiler at the base to learn who caused a row,
+but it can read the diff. If every changed path is a `tests/omega/corpus_*.txt`
+ledger or a Markdown file outside `tests/` and `samples/`, the pull request
+changes no compiler, library, tool or fixture source, so the compiler and
+fixtures it measured are exactly those of its base. Whatever it records was
+already true there. That one condition is the whole change:
+
+| The pull request changes | Red row in `corpus_outcomes.txt` |
+| --- | --- |
+| only ledgers and Markdown | recorded |
+| anything else | refused, as before: repair the compiler or fixture first |
+
+Three things stay as they were, and they are the guard.
+
+- **A pull request cannot hide its own regression.** One that touches source
+  still cannot write a red row, and one that touches a fixture still has to
+  re-record it, so its only way through is green. Splitting the work does not
+  help: the recording pull request shows the loss on `main` under its own
+  title instead of inside a repair.
+- **A red row is never progress.** The `Gate:` line's `red rows:` number is
+  still computed from the ledger diff by the same definition
+  `--list-pinned-regressions` uses. Recording a regression raises it, and the
+  repair's `-1` only cancels the `+1` the recording put on `main`, so a break
+  followed by a repair sums to zero. Under the old rule the break was never
+  counted, which made the unrecorded ledger look better than the compiler.
+- **A loss stays distinguishable from a fixture that never worked.** When a
+  `pass/` or `run/` row replaces a recorded success with anything else,
+  `check-rules` requires the `regressed-from:` token that `--record` derives
+  (see [above](#recording-a-regression-without-pinning-it)). A hand-edited row
+  that drops it is refused. A `fail/` row needs no token: `checked` or
+  `unexpected` on a `fail/` fixture already says the rejection was lost.
+
+Dirty `+wt` stamps are refused in every pull request. A recorded regression is
+still a measurement: run `cargo xtask corpus --record --filter <fixtures>` on a
+clean checkout of the base, and attribute each row first
+([Attributing a move](#attributing-a-move)) so a host-only or flaky result is
+not written down as the compiler's.
+
+Alternatives considered and not taken: letting any pull request record a red
+row that carries `regressed-from:` (the recorder writes that token for the
+author's own breakage too, so it proves nothing about cause); a declaration in
+the pull request body (a claim, where the changed-path list is a fact); and
+checking that each row's stamp is an ancestor of the base (squash merges and a
+second recording commit both break it, and the path condition already implies
+the measured source is the base's).
+
 `python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
 "authored" means executed with a matching `expected_native_exit.txt`
