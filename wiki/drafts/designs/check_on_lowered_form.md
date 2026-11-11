@@ -353,7 +353,8 @@ that cannot fail cannot hold work back, and work went ahead
    - The parameter is an implementation parameter. A type or value parameter
      is not served, and the check tables have no row for a value of an
      abstract type
-     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)).
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
+     could be.
    - The route is not the compile path. `omega run --both` runs the program
      through the current pipeline; the generic check and the carried
      certificates run in the `generic_certificate_carry` example on the same
