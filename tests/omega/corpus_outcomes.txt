@@ -826,6 +826,10 @@ fail/borrow/affine_array_move_under_live_view rejected 1562ms expected @ccdb99ca
 	cannot use `main.entries[0]` while `main.entries` is absent from borrowed storage: the value moved out at statement 2 must be restored first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 3)
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 2): `main.entries` must hold a value again before this state's exits consume the borrow
+fail/borrow/aggregate_field_loan_requires_handback rejected 5416ms expected @9a47b54c8a46
+	machine `poke` cannot lend restricted field `cells` to `entry`: the selected referent's normal-return guarantees do not preserve the field's standing predicate
+	machine `poke` cannot lend restricted field `cells` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+	machine `poke` cannot lend restricted field `inner` to `entry`: the selected referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/borrow_carrying_field_reassignment_invalidated rejected 2075ms expected @ccdb99ca2214
 	state `write` receives `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
@@ -19912,6 +19916,7 @@ pass/atomics/selected_reference_atomic_provider checked 3875ms check-target:linu
 pass/atomics/shared_receiver_atomic_store checked 16167ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/blocking_executor_custody_claims_compile checked 4916ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/runtime_selected_worker_body_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrow/aggregate_field_loan_restored_handback_exit checked 8390ms check-target:macos_arm64 @9a47b54c8a46
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 2923ms @ccdb99ca2214
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 2920ms @ccdb99ca2214
 pass/borrow/mutable_selector_literal_replacement_exit checked 4469ms check-target:macos_arm64 @1ac79518de3d
