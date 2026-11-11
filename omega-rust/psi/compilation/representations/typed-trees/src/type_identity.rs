@@ -3846,6 +3846,7 @@ pub(crate) mod package_policy_reading_tests {
                 right: ExpressionHandle,
             ) -> ExpressionHandle {
                 self.expression(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left,
                     operator,
                     right,

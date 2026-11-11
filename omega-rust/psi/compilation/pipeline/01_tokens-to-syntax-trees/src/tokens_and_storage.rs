@@ -422,6 +422,10 @@ pub(crate) mod tokens {
             source_owner: Handle<syntax_trees::RetainedSource>,
             depth: u16,
             pending_greater: bool,
+            /// Set while parsing a constant initializer or a constant integer
+            /// expression. Those are folded before any operand is typed, so
+            /// a suffixed policy operator rejects there at its own token.
+            constant_position: bool,
         }
 
         impl<'tokens, 'source> Input<'tokens, 'source> {
@@ -446,6 +450,7 @@ pub(crate) mod tokens {
                     tokens: skip_non_semantic_tokens(stream.as_slice()),
                     depth: 0,
                     pending_greater: false,
+                    constant_position: false,
                 }
             }
 
@@ -457,6 +462,7 @@ pub(crate) mod tokens {
                     tokens: skip_non_semantic_tokens(tokens),
                     depth: self.depth,
                     pending_greater: self.pending_greater,
+                    constant_position: self.constant_position,
                 }
             }
 
@@ -498,6 +504,17 @@ pub(crate) mod tokens {
 
             pub(crate) fn with_depth(self, depth: u16) -> Self {
                 Self { depth, ..self }
+            }
+
+            pub(crate) fn constant_position(&self) -> bool {
+                self.constant_position
+            }
+
+            pub(crate) fn with_constant_position(self, constant_position: bool) -> Self {
+                Self {
+                    constant_position,
+                    ..self
+                }
             }
 
             pub(crate) fn source_span(&self, token: &Token) -> SourceSpan {
@@ -775,7 +792,7 @@ pub(crate) mod tokens {
             }
 
             pub(crate) fn at_contract_continuation_keyword(&self) -> bool {
-                self.at_contextual("terminates")
+                (self.at_contextual("terminates")
                     || self.at_contextual("decreases")
                     || self.at_contextual("reaches")
                     || self.at_contextual("effects")
@@ -783,7 +800,50 @@ pub(crate) mod tokens {
                     || self.at_contextual("suspends")
                     || self.at_contextual("blocks")
                     || self.at_contextual("crashes")
-                    || self.at_contextual("boundary")
+                    || self.at_contextual("boundary"))
+                    && !self.clause_word_is_an_operand()
+            }
+
+            /// These clause words are not reserved, so a parameter may carry
+            /// one of them and appear as the subject of a proposition:
+            /// `requires boundary <= 4`. No clause is followed by an infix or
+            /// projection operator, so that next token tells the two apart.
+            /// The one clause that is, the installation bound
+            /// `reaches <= Bound`, keeps its clause reading.
+            pub(crate) fn clause_word_is_an_operand(&self) -> bool {
+                let Some(next) = self.peek(1) else {
+                    return false;
+                };
+                if next.kind == TokenKind::Keyword(KeywordKind::As)
+                    || (next.kind == TokenKind::Identifier && self.text(next).as_str() == "in")
+                {
+                    return true;
+                }
+                let Some(punctuation) = next.punctuation() else {
+                    return false;
+                };
+                if punctuation == PunctuationKind::LessEqual && self.at_contextual("reaches") {
+                    return false;
+                }
+                matches!(
+                    punctuation,
+                    PunctuationKind::Dot
+                        | PunctuationKind::LeftBracket
+                        | PunctuationKind::Comma
+                        | PunctuationKind::EqualEqual
+                        | PunctuationKind::ExclamationEqual
+                        | PunctuationKind::Less
+                        | PunctuationKind::LessEqual
+                        | PunctuationKind::Greater
+                        | PunctuationKind::GreaterEqual
+                        | PunctuationKind::Plus
+                        | PunctuationKind::Minus
+                        | PunctuationKind::Asterisk
+                        | PunctuationKind::Slash
+                        | PunctuationKind::Percent
+                        | PunctuationKind::AndAnd
+                        | PunctuationKind::PipePipe
+                )
             }
 
             pub(crate) fn take_reference_access(

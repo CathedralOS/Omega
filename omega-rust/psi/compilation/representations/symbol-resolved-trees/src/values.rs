@@ -182,9 +182,10 @@ pub mod expression {
         impl TableBinaryExpression {
             pub fn display_name(&self, table: &ExpressionTable) -> String {
                 format!(
-                    "{} {} {}",
+                    "{} {}{} {}",
                     table.display_name(self.left),
                     self.operator.display_name(),
+                    self.policy.operator_suffix(),
                     table.display_name(self.right)
                 )
             }
@@ -964,6 +965,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: original,
                             symbol: original,
+                            reserved_result_of: SymbolHandle::invalid(),
                         }));
                 let arguments = program
                     .declarations_mut()
@@ -1293,6 +1295,7 @@ pub mod expression {
                         let left = self.copy_graph(source, binary.left, copies);
                         let right = self.copy_graph(source, binary.right, copies);
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: binary.policy,
                             left,
                             operator: binary.operator,
                             right,
@@ -1392,6 +1395,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol,
                             symbol: path.symbol,
+                            reserved_result_of: path.reserved_result_of,
                         }))
                     }
                     ExpressionNode::Range(range) => {
@@ -1757,6 +1761,7 @@ pub mod expression {
                 member_symbols: room_member_symbols,
                 head_symbol: room_symbol,
                 symbol: room_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
 
             let field_members = source.reserve_name_path_members(2);
@@ -1778,10 +1783,12 @@ pub mod expression {
                 member_symbols: field_member_symbols,
                 head_symbol: room_symbol,
                 symbol: field_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
 
             let hall = source.insert(ExpressionNode::String((&b"Hall"[..]).into()));
             let open = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: room,
                 operator: BinaryOperator::Equal,
                 right: field,
@@ -2093,6 +2100,7 @@ pub mod expression {
                 member_symbols: symbol_span,
                 head_symbol: member_symbols.first().copied().unwrap_or_default(),
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }))
         }
 
@@ -2179,6 +2187,7 @@ pub mod expression {
             let eleven = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(11)));
             let thirteen = table.insert(ExpressionNode::Integer(IntegerLiteral::from_value(13)));
             let proof = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: eleven,
                 operator: BinaryOperator::Add,
                 right: thirteen,
@@ -2311,7 +2320,7 @@ expression #37 = Range(TableRangeExpression { start: #36, end: #0@0, end_inclusi
 expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #39 = Integer(IntegerLiteral { text: "11", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #40 = Integer(IntegerLiteral { text: "13", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40, policy: Exact }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -3077,6 +3086,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub left: ExpressionHandle,
         pub operator: BinaryOperator,
         pub right: ExpressionHandle,
+        /// The policy an operator suffix chose for this one operation
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator.
+        pub policy: numerics::arithmetic::ArithmeticDomain,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -3171,6 +3183,15 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub member_symbols: HandleSpan<SymbolHandle>,
         pub head_symbol: SymbolHandle,
         pub symbol: SymbolHandle,
+        /// The callable whose reserved `result` this name denotes, or invalid
+        /// when it denotes no result. Stage 02 sets it once, where it decides a
+        /// contract name is the reserved result occurrence
+        /// (`wiki/spec/terminal-psi/calls_and_outcomes.md`: "The reserved
+        /// result occurrence belongs to its contract owner, not any local or
+        /// parameter spelled `result`"), so a later reader takes the result
+        /// by this identity instead of comparing the spelling. `symbol` stays
+        /// invalid, as before, so readers of the spelling route are unchanged.
+        pub reserved_result_of: SymbolHandle,
     }
 
     impl TableNamePath {
@@ -3185,6 +3206,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 member_symbols,
                 head_symbol,
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }
         }
     }

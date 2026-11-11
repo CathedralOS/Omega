@@ -51,8 +51,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
-  - Declare per-target realization entries (catalog intrinsic, checked machine, unsupported) and bind the public float operators to them; delete `configure_float_defaults`/`configure_directed_fma_defaults` and the `NativeFloats` selection route while keeping differential-evidence identities and the checked-software route; profile remaining `select_provider` cost inside this item.
-  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions; an unsupported operation rejects naming operation and target; core's build program makes no float selections.
+  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
+  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
   - Resolve product requirements, infer `ForeignBinding` const lengths, migrate all `via` sites, and delete `via` parsing.
@@ -62,7 +62,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [landing](wiki/drafts/designs/explicit_integer_landing.md).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q3](OWNER_QUESTIONS.md#q3---does-explicit-landing-apply-at-a-proof-level-int-peer)).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
@@ -89,9 +89,19 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
-- **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
+- **REQUIRED-AUTOMATIC-DISCHARGE.** Meet the [proof floor](wiki/drafts/designs/required_automatic_discharge.md) in both checkers; add `--floor-only`.
 
-- **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+- **PUBLISHED-WRITE-FRAMES.** Publish inferred [write frames](wiki/drafts/designs/published_write_frames.md) in interface identity.
+
+- **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate `Token`, samples and tests.
+
+- **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
+
+- **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+
+- **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
+
+- **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).
 
 - **OWNED-CLEANUP.** Implement [by-value cleanup](wiki/drafts/designs/owned_cleanup.md).
 
@@ -133,9 +143,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representations](wiki/spec/layouts/plans.md#representation-applications), [aliases](wiki/spec/language/generics.md#transparent-type-aliases), [conversions](wiki/spec/layouts/codecs.md#representation-conversions), and [home layouts](wiki/drafts/designs/home_layout_optimization.md).
   Acceptance: 9-place alias, `FixedLayout<T>` ([region](samples/cli/facts/fixed_region_byte_roundtrip/README.md), [readback](samples/cli/facts/fixed_layout_reference_readback/README.md), [forwarding](samples/cli/facts/implementation_region_forwarding/README.md)), [agreement](samples/cli/facts/representation_agreement/README.md), niche/repair/recast controls pass `--both`.
-
-- **DATA-DECOMPOSITION.** Implement [separate data and case decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition) (`case as binding`, `let Pattern = expr;`) and retire flattened case patterns.
-  Acceptance: named and positional decomposition pass `omega run --both` across 9-place rows and reject twins with flattened patterns deleted.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** (covers **REFERENCE-LOCAL-BINDING-ROUTES**, **BORROWED-STORAGE-RESTORATION**, **MATCH-SELECTIVE-LOWERING**) Complete expression, reference-local, [borrowed window](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows) (`borrowed_windows.rs`), and [match](wiki/spec/language/patterns.md) (`match_dispatch.rs`, `address_joins.rs`) lowering.
   Acceptance: `scalar_tag_field_loan`, `recoverable_replacement_window`, `runtime_dutch_flag_partition_exit`, and `borrowed,window,carried_loan` pass `--both`.

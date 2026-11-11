@@ -30,6 +30,9 @@ Aliases preserve this distinction rather than introducing another binder.
 Ordinary lifetime elision remains available where already permitted; packaging
 does not invent a lifetime bound. Multiple `some` binders choose separate
 witnesses, with any relationships stated and checked in the declaration.
+A [nested data declaration](data_and_literals.md#records-sums-and-nested-declarations)
+does not inherit a `some` binder; a field passes the witness to a parameter the
+nested type declares.
 
 An ordinary record literal constructs the package:
 

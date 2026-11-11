@@ -6932,7 +6932,40 @@ pub(crate) mod attached_unit {
                                 operation,
                                 self.structural_type,
                             ));
-                            finish!(place)
+                            let domains = self.checked_membership_domains(
+                                node.qualification_decisions,
+                                self.structural_type,
+                            )?;
+                            if crate::unit::attached_unit::scalar_arrays::replayed_at_construction(
+                                self.domain_declarations,
+                                &domains,
+                            ) {
+                                finish!(place)
+                            } else {
+                                // The construction states no membership a
+                                // receiver cannot replay from its operands;
+                                // the checked ones arrive by a qualifying copy.
+                                let first_operation = self.operations.operations.len();
+                                let qualified = crate::unit::attached_unit::scalar_arrays::qualify(
+                                    place,
+                                    self.structural_type,
+                                    self.multiplicity,
+                                    domains,
+                                    self.environment.next_place,
+                                    self.operations,
+                                )?;
+                                let place = qualified.id;
+                                self.environment.private_places.push(qualified);
+                                self.operations.register_structural_materialization(
+                                    place,
+                                    self.state,
+                                    self.statement,
+                                )?;
+                                self.evaluation.current_claims.publish_operations(
+                                    &self.operations.operations[first_operation..],
+                                )?;
+                                self.completed(identities, place, completion, continuation)
+                            }
                         }
                         CheckedStructuralValueKind::ByteLiteralView { bytes } => {
                             let qualifications = self.checked_membership_domains(

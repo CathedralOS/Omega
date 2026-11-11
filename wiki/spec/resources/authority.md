@@ -75,9 +75,10 @@ transfer needs another owner decision.
 from supply and use, not the keyword. None is a substitute for claim evidence.
 
 A domain's `requires` clauses state predicate obligations; its `access` policy
-uses `AccessPlan::establish` with exact `reflect::callable` descriptors of trait
-requirements or machine declarations authorized to establish provenance.
-An absent route restriction permits qualification wherever
+states [`Issuance::Only`](access.md#plans-and-admitted-supply) with exact
+`reflect::callable` descriptors of trait requirements or machine declarations
+authorized to establish provenance.
+A domain with no policy, or `Issuance::Unrestricted`, permits qualification wherever
 the predicates and ordinary carrier obligations hold, including on a linear
 carrier. It is not a private or empty issuer catalog. A protected library claim
 must declare its authorized routes; neither linearity nor a domain's name gives
@@ -99,13 +100,17 @@ The route retains a closed target kind and exact declaration identity:
 
 | Target | Authorized origin |
 | --- | --- |
-| Trait requirement | An exact invocation through that requirement and a valid selected conformance. |
-| Concrete machine declaration | That exact machine's invocation, not other conformers of a requirement it happens to satisfy. |
+| Trait requirement | An exact invocation through that requirement and a valid selected conformance. This includes a call by name to a machine that declares that edge, and a call through a selection explicitly bound to it. |
+| Plain machine declaration | That exact machine's direct invocation. |
 
 A public ordinary requirement deliberately permits valid downstream checked
 conformers. A public boundary-trait requirement additionally requires provider
 selection and admission. An exact-machine route may name a free or attached
-machine; its visibility controls who can select it. Naming a machine is neither
+machine that declares no requirement edge; its visibility controls who can
+select it. A [declared conformer](../language/conformances.md#binding-a-machine-to-a-requirement)
+invokes only through its requirement, so a policy names that requirement and
+naming the conformer as an exact-machine route rejects. No machine holds two
+route authorities. Naming a machine is neither
 trait sealing nor an implicit grant to other machines in its package.
 
 The authorization is for the named requirement, not every member of its trait.
@@ -138,10 +143,13 @@ that consumed a live owned claim of the same family transfers it rather than
 minting fresh supply.
 
 An exact-machine route does not bypass a boundary declaration's ordinary supply,
-provider, or admission obligations. Merely implementing a requirement does not
-authorize an unrelated direct call. A separately authorized exact checked machine
-can establish its own declared result provenance, but cannot borrow the admitted
-authority of a requirement it satisfies.
+provider, or admission obligations. A plain machine gains no requirement
+authority from a selection row or binding expression that attaches a route to
+it: its body was checked without that authority, and a machine that relies on
+it rejects at its own declaration. A separately authorized exact checked machine
+can establish its own declared result provenance. A checked conformer issues
+with a written cast in a declared conformer's body; binding attaches no domain
+to a result.
 
 ### Private issuer routes
 

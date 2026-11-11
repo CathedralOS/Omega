@@ -480,7 +480,7 @@ arguments and results to the base through proved compatibility with no
 conversion:
 
 ```omega
-Reindexed<const A: u64, const B: u64, Base satisfies Ranked<Buffer<A>>>
+Reindexed<const A: u64, const B: u64, const Base: Ranked<Buffer<A>>>
 satisfies Ranked<Buffer<B>>
 requires A == B;
 {
@@ -636,6 +636,91 @@ normalization licenses, derivation/checker version, and trust/deferral closure.
 Deterministic normalization owns identity; stronger proof search may establish
 more claims but cannot rename them. Terminal obligations follow the
 [fact-validity rules](../terminal-psi/fact_validity.md).
+
+## Required automatic discharge
+
+Named decision: `required-automatic-discharge`, settled 2026-11-10;
+[the design draft](../../drafts/designs/required_automatic_discharge.md)
+records the conformance work. An unproved obligation rejects, so what a
+checker proves unaided decides which programs it accepts. Every conforming
+checker therefore discharges one stated set of obligations, the floor, with no
+cited lemma and no hint. A checker may discharge more; it may not discharge
+less.
+
+```omega
+machine get(items: &[u8], i: u64, n: u64) -> u8
+requires i < n
+requires n <= items.len
+{
+    items[i]             // floor: i < items.len by order reasoning
+}
+
+machine area(count: u32, size: u32) -> u32
+requires count <= 1000
+requires size <= 1000
+{
+    count * size         // floor: the product is at most 1,000,000
+}
+```
+
+The floor is defined by what is derivable, not by a search algorithm.
+
+**Premises.** The facts valid at the obligation's program point under
+[fact validity](../terminal-psi/fact_validity.md): the enclosing machine's
+entry requirements, the default- and named-domain predicates of established
+subjects, branch and pattern facts on the path, the guarantees of completed
+calls, the exact definitions of locals, and each integer subject's carrier
+bounds.
+
+**Order reasoning.** An order atom compares two integer terms with `<`, `<=`
+or `==`, where each term is a literal, a subject, or a subject plus or minus a
+literal, read as mathematical integers. A subject is an exact value or place,
+including a projection such as `items.len`. A goal that is an order atom, or
+an inequality `!=` implied by a strict one, is in the floor when it follows in
+integer arithmetic from the order atoms among the premises. The checker is
+complete for this class: transitivity through any number of atoms, equality
+substitution, adding one literal to both sides, the step between `a < b` and
+`a + 1 <= b`, and contradiction of an unreachable path.
+
+**Range propagation.** Each integer value defined by add, subtract, multiply,
+divide, remainder, shift or cast receives bounds from its operands' bounds,
+once, in definition order, by the arithmetic of
+[`IntegerAffineBound`](../terminal-psi/integer_certificates.md#integeraffinebound).
+An operand's bounds are the tightest literal bounds order reasoning gives it.
+The resulting bounds are premises for order reasoning. A
+[canonical scalar goal](../terminal-psi/integer_certificates.md#canonical-scalar-goals),
+such as an exact operation's representability or a nonzero divisor, is in the
+floor when these bounds establish it.
+
+**Case splits.** A disjunctive premise whose atoms share a subject with the
+goal is split, and the goal is in the floor when it is in the floor in every
+arm, for up to 64 arm combinations per obligation.
+
+**Outcomes.**
+
+| Obligation | Result |
+| --- | --- |
+| In the floor | Accepted by every conforming checker under every proof-work policy. Failing to accept it is a checker defect, not a resource diagnostic. |
+| An order goal that does not follow from the order atoms in scope | Rejected as "does not follow from the premises in scope", with a satisfying assignment of the premises that violates the goal. That is a statement about the premises, not about the program. |
+| Anything else not established | Reported as not established. The author adds a premise, branches, cites a lemma, or relies on automation beyond the floor. Exhausted search is reported as a resource diagnostic. |
+
+**Cost.** Order reasoning and range propagation are polynomial in the size of
+the machine body, so the floor has no search allowance and is not governed by
+the [proof-work policy](../build/configuration.md#proof-work-policy). Its work
+is still charged as compiler work.
+
+**Evidence.** A floor discharge produces the same kernel-checked certificates
+as any other proof, from the
+[elementary rules](../terminal-psi/integer_certificates.md#elementary-certificate-rules).
+The floor fixes what must be found, not how it is represented.
+
+**Beyond the floor.** General linear combinations, nonlinear facts other than
+propagated ranges, and quantified or window facts are outside it. A checker
+may still prove them, under the proof-work policy. Source that relies on that
+is accepted only by checkers that find the proof, so a checker can be asked to
+restrict automatic discharge to the floor with
+[`--floor-only`](../build/command_line.md#checker-conformance), which reports
+every obligation that needed more.
 
 ## Certified elaboration and review
 

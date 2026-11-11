@@ -8970,6 +8970,7 @@ pub(crate) mod inner {
                 ));
                 let root = program.expression_table.insert(ExpressionNode::Binary(
                     TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: leaf,
                         operator: BinaryOperator::Add,
                         right: leaf,
@@ -15897,12 +15898,66 @@ pub(crate) mod inner {
         use crate::emission::operation_emission::place_declarations::operation_result_place;
         use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
+        /// Whether a receiver can replay every one of these memberships from
+        /// the literal operands of an array construction.
+        ///
+        /// Construction itself establishes no qualification evidence. The only
+        /// memberships it may state are byte predicates, which a receiver
+        /// re-evaluates over the literal octets. Any other checked membership,
+        /// such as a predicate over `u16` elements, is added by `qualify`.
+        pub(crate) fn replayed_at_construction(
+            domains: &[terminal_psi::StructuralDomainDeclaration],
+            qualifications: &[semantic_vocabulary::StructuralDomainId],
+        ) -> bool {
+            qualifications.iter().all(|identity| {
+                domains
+                    .iter()
+                    .any(|domain| domain.id == *identity && domain.byte_predicate.is_some())
+            })
+        }
+
+        /// Adds checked memberships to a completed array by a whole-value
+        /// copy, the same transfer that qualifies a local built by stores.
+        pub(crate) fn qualify(
+            constructed: semantic_vocabulary::PlaceId,
+            structural_type: StructuralTypeId,
+            multiplicity: StructuralMultiplicity,
+            mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+            next_place: &mut u64,
+            operations: &mut OperationBuffer,
+        ) -> Result<StructuralPlaceDeclaration, LoweringError> {
+            qualifications.sort();
+            qualifications.dedup();
+            let copy = operations.allocate();
+            let qualified = place_id(allocate_dense(next_place)?);
+            let mut result =
+                structural_result_declaration(qualified, structural_type, multiplicity);
+            if let terminal_psi::OperationResult::Structural(result) = &mut result {
+                result.qualifications = qualifications;
+            }
+            operations.push(Operation::unsuspended(
+                copy,
+                result,
+                OperationKind::StructuralLeafCopy {
+                    source: constructed,
+                    path: Vec::new(),
+                },
+            ));
+            Ok(operation_result_place(qualified, copy, structural_type))
+        }
+
+        /// Emits one array construction and returns the place that holds the
+        /// checked value. `private_places` receives the construction place
+        /// when a qualifying copy follows it.
+        #[allow(clippy::too_many_arguments)]
         pub(crate) fn emit(
             result: &CheckedUnitStructuralResultBindingPlan,
             mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+            domains: &[terminal_psi::StructuralDomainDeclaration],
             elements: &[ValueDeclaration],
             types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
             next_place: &mut u64,
+            private_places: &mut Vec<StructuralPlaceDeclaration>,
             operations: &mut OperationBuffer,
         ) -> Result<StructuralPlaceDeclaration, LoweringError> {
             let structural_type = lookup_type_id(types, &result.type_identity)?;
@@ -15910,22 +15965,37 @@ pub(crate) mod inner {
             let place = place_id(allocate_dense(next_place)?);
             qualifications.sort();
             qualifications.dedup();
-            let mut result = structural_result_declaration(
+            let replayed = replayed_at_construction(domains, &qualifications);
+            let mut constructed = structural_result_declaration(
                 place,
                 structural_type,
                 StructuralMultiplicity::Unrestricted,
             );
-            if let terminal_psi::OperationResult::Structural(result) = &mut result {
-                result.qualifications = qualifications;
+            if replayed
+                && let terminal_psi::OperationResult::Structural(constructed) = &mut constructed
+            {
+                constructed.qualifications = qualifications.clone();
             }
             operations.push(Operation::unsuspended(
                 id,
-                result,
+                constructed,
                 OperationKind::EstablishScalarArray {
                     elements: elements.iter().map(|element| element.id).collect(),
                 },
             ));
-            Ok(operation_result_place(place, id, structural_type))
+            let construction = operation_result_place(place, id, structural_type);
+            if replayed {
+                return Ok(construction);
+            }
+            private_places.push(construction);
+            qualify(
+                place,
+                structural_type,
+                StructuralMultiplicity::Unrestricted,
+                qualifications,
+                next_place,
+                operations,
+            )
         }
     }
     pub(crate) mod view_ranges {

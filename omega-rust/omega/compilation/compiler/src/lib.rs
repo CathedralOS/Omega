@@ -43,13 +43,14 @@ pub mod checked;
 
 pub use crate::checked::{
     BuildAdvance, CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
-    IndependentComponentDiscovery, IndependentComponentSelection, OptimizationRollback,
-    OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
+    CurrentCheckerVerdict, IndependentComponentDiscovery, IndependentComponentSelection,
+    OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
     PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct,
-    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation,
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, TypedFrontier,
+    TypedFrontierCheck, TypedFrontierRequest, checked_compilation_call_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;

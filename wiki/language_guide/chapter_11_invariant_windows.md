@@ -1,7 +1,7 @@
 # Chapter 11: Invariant windows
 
-Moving a span forward changes both ends. After the first write, its start may
-temporarily exceed its end:
+Some updates take more than one write, and the data is invalid in between.
+Omega allows that, as long as nothing can see the invalid state.
 
 ```omega
 data Span
@@ -15,24 +15,17 @@ machine shift(span: &mut Span, delta: u32)
 requires span.end <= 1000
 requires delta <= 1000
 {
-    span.start = span.start + delta;
-    span.end = span.end + delta;
+    span.start = span.start + delta;     // start may now exceed end
+    span.end = span.end + delta;         // valid again
 }
 ```
 
-For `Span { start: 2, end: 5 }` and `delta = 10`, the intermediate contents are
-`{ start: 12, end: 5 }`. The second write produces `{ start: 12, end: 15 }`,
-which satisfies the invariant again. The preconditions keep both additions
-within `u32` range.
+With `{ start: 2, end: 5 }` and `delta = 10`, the span is briefly
+`{ start: 12, end: 5 }`. That gap is an invariant window. It is permitted
+because `shift` holds the span exclusively, and it must be closed before
+anyone else relies on the span.
 
-The interval between those writes is an **invariant window**. Exclusive access
-lets you perform the update while the checker tracks the actual contents and
-requires restoration before a use that relies on the invariant.
-
-## Finish the update before handing it off
-
-A machine receiving `&Span` may assume `start <= end`. Calling it halfway
-through the update therefore fails:
+## Close the window before handing the value on
 
 ```omega
 machine width(span: &Span) -> u32 {
@@ -44,36 +37,45 @@ requires span.end <= 1000
 requires delta <= 1000
 {
     span.start = span.start + delta;
-    let width_now: u32 = width(span); // Rejected: the span may be invalid here.
+    let width_now: u32 = width(span);    // Rejected: the span may be invalid here.
     span.end = span.end + delta;
 }
 ```
 
-Move the call below the second assignment to make it valid. Returning, handing
-back a loan, or transferring the span to another machine also requires a valid
-span. A diagnostic points to the write that opened the window and the use that
-needs it closed.
+`width` is entitled to a valid `Span`, so the call has to move below the
+second write. Returning, including returning an error, also requires the
+window to be closed.
 
-Each write must still satisfy its own type, arithmetic and ownership rules.
-An invariant window permits a temporary break in the relationship between
-fields; it cannot justify an overflowing addition or a dangling reference.
+A window only excuses the relationship between fields. Each write still has
+to be a valid write: no overflow, no out-of-bounds index.
+
+## Or build a new value
+
+```omega
+machine shifted(span: &Span, delta: u32) -> Span
+requires span.end <= 1000
+requires delta <= 1000
+{
+    Span {
+        start: span.start + delta,
+        end: span.end + delta,
+    }
+}
+```
+
+Nothing is ever invalid this way. Repair in place when the value is large or
+must stay where it is.
 
 ## Split a repair across helpers
 
-A data type's default domain is never left. No cast removes it and no
-parameter type asks for the value without it, so every machine that receives a
-`Pair` receives a valid one, and a promise to fix it later does not change
-that. Where a property lives is therefore a rule, not a preference:
+A type's own `requires` always holds when another machine receives the value.
+There is no way to pass a `Span` with `start > end` to a helper, even one that
+is about to fix it. So decide where a property lives when you declare the
+type:
 
-- It belongs in the default domain only if it holds whenever another machine
-  can see the value.
-- If a helper must be able to receive the value with the property false,
-  because that helper is doing the repair, it belongs in a named domain.
-
-Decide this when you declare the type, since moving a property out of the
-default domain afterwards changes public signatures. Here `Pair` is
-valid with any two `u32` fields, while `Pair::Ordered` adds a relationship
-between them:
+- In the type's `requires` if it holds whenever anyone else can see the value.
+- In a named [domain](chapter_8_domains.md) if a helper needs to receive the
+  value while the property is false.
 
 ```omega
 data Pair {
@@ -100,89 +102,34 @@ ensures pair in Pair::Ordered
 }
 ```
 
-`reset` establishes `finish`'s precondition with its first write. `finish`
-makes the fields equal and proves `Ordered`; its postcondition fulfills
-`reset`'s promise. This remains an in-place update of the same pair.
+`finish` receives a plain `Pair`, which any two numbers satisfy, and
+establishes `Ordered`. A caller that stores a `Pair in Pair::Ordered` lends it
+out as `&mut pair as -Pair::Ordered` and gets it back ordered.
 
-If the lender stores `Pair in Pair::Ordered`, the loan must return ordered.
-Passing a weaker view, written `&mut pair as -Pair::Ordered`, lets helpers perform
-the repair, but retains that handback obligation: when the loan ends `Ordered`
-is established again for whatever the pair then holds. If `Ordered` were instead part of `Pair`'s default
-domain, `finish` would need it on entry as well. Its future postcondition
-cannot justify receiving an invalid value.
-
-Choose where a guarantee belongs according to when users may rely on it:
-
-| Guarantee | When it must hold |
+| Guarantee | Must hold |
 | --- | --- |
-| Data's default domain | Whenever another machine receives a valid value of that type. |
-| Stored named domain | When qualified storage is used under that domain or returned to its owner. |
-| `requires` | On entry to that operation. |
-| `ensures` | On the operation's matching completed outcome. |
+| The type's `requires` | Whenever another machine receives the value. |
+| A named domain on stored data | When the data is used under that domain or returned to its owner. |
+| A machine's `requires` | On entry. |
+| A machine's `ensures` | On return. |
 
-An entry-only fact may expire after mutation. A promised result needs fresh
-evidence about the current contents. For a larger repair, helper postconditions
-provide that evidence one step at a time.
+## Calling other code inside a window
 
-## Prefer a complete replacement when it is simple
+A call is allowed while a window is open only if the callee provably cannot
+see or disturb the broken data. A helper that takes an unrelated counter is
+fine. A helper that takes the half-updated value is not, even if it promises
+not to write to it.
 
-You can also build the new value before assigning it:
+## Failure
 
-```omega
-machine shifted(span: &Span, delta: u32) -> Span
-requires span.end <= 1000
-requires delta <= 1000
-{
-    Span {
-        start: span.start + delta,
-        end: span.end + delta,
-    }
-}
-```
+An error return hands the value back to the caller, so restore the invariant
+on that path too. The simplest way is to do everything that can fail before
+the first of the coupled writes. See
+[Chapter 16](chapter_16_errors_traps_failure.md).
 
-This keeps every observable `Span` valid throughout. In-place repair is useful
-for large values, stable locations, or updates that cannot cheaply replace
-the whole value.
+## Where next
 
-## Borrowing and unrelated work
-
-Exclusive access prevents another observer from relying on the broken coupling.
-A live borrow may also pin a field that determines another field's validity;
-changing that witness while the borrow exists is a borrow error.
-
-A helper can run during a window when its full contract proves it cannot
-observe, expose or interfere with the affected state. A helper taking an
-unrelated counter is a possible example. A helper that merely promises to
-write nothing is insufficient: it might still read the broken value.
-
-Write-only access must restore validity using supplied values and facts,
-because it cannot inspect the old contents. Coupled fields may need to be
-replaced together. See [borrowing](chapter_2_ownership_borrowing_moves.md).
-
-## Handle failure before leaving
-
-Returning an error still hands control and borrowed storage back to the caller.
-Restore the invariant on that path too. Often the simplest approach is to
-validate inputs and acquire resources before starting the coupled writes.
-
-Crashing follows different rules: it abandons the activation without proving
-its surviving resources safe. Recovery requires a separate isolation or
-owner-death protocol. See [failure and recovery](chapter_16_errors_traps_failure.md).
-
-## Initialize constrained storage
-
-If zero fails a type's default domain, its zeroed storage has no usable value
-yet. Construction must establish the invariant before handing out the value.
-An unfinished whole cannot be passed to a successor expecting that type.
-Carry the independent inputs or storage instead, then finish construction.
-
-An exclusive storage cast can similarly begin initialization of a stricter
-shape. Alignment, extent, write permission and exclusive access must already
-hold; fill or validate the contents before reading it as the target type.
-See the [byte-backed header example](chapter_20_memory_layout_abi.md#initializing-a-stricter-shape-in-byte-backing).
-
-Failed construction cleans up any resource-bearing fields already established.
-Repairing an existing value also owes that value's original cleanup and
-handback obligations. The [invariant-window reference](../spec/language/dependent_values.md#invariant-windows)
-and [contract-based repair rules](../spec/language/dependent_values.md#contract-based-repair)
-give the details.
+[Chapter 12](chapter_12_dependent_types.md) covers fields whose validity
+depends on other fields. The complete rules are in
+[invariant windows](../spec/language/dependent_values.md#invariant-windows)
+and [contract-based repair](../spec/language/dependent_values.md#contract-based-repair).

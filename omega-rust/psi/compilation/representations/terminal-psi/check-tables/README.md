@@ -18,6 +18,7 @@ lookup is one index.
 | --- | --- | --- |
 | `values` | `ValueId` | One evaluated scalar: its type, its single origin, and for a callable selector the machines it may select. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
+| `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
 | `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
@@ -25,14 +26,16 @@ lookup is one index.
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
-| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: requires, result relation, reach, invokes, suspension, blocking, crash routes, termination. |
+| `summaries` (module) | `MachineId` | A callee's published contract, one term per axis: reach, invokes, suspension, blocking, crash routes, termination. Its `requires` and `ensures` are the callee's `MachineContract` in the lowered module, by clause position. |
 
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
 emitted product name the same things. `ExactPlaceId`, `KnowledgeId`,
 `WriteId`, `ReferentSetId`, `SelectionSetId` and `InvocationId` belong to this
 crate because the lowered form has no identity for those concepts (its
-`PlaceId` names roots only).
+`PlaceId` names roots only). `PropositionId` is reused from the vocabulary, but
+here it is machine-local and indexes `MachineTables::propositions`, not the
+module's named proposition declarations.
 
 References and callables are keyed differently because the lowered form holds
 them differently. A reference is a structural place, so the places it may
@@ -92,8 +95,9 @@ refused as `Unsupported`, never accepted by default.
 | `CallRequirement` | question | [fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md): "one exact obligation for every callee `requires` clause" |
 | `OperationSafety` | question | [control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
 | `ArrivalInvariant` | question | control flow: "one obligation for every actual incoming edge" |
-| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." |
-| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage" |
+| `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." One per (normal return edge, clause); names its `PublishedGuarantee`. |
+| `PublishedGuarantee` | question | the same sentence: the per-clause identity in `ContractClause`, holding when every return edge's `NormalGuarantee` for the clause holds (vacuously with no return). |
+| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
 | `WellFoundedness` | question | control flow: "a shared well-foundedness question" |
 | `RankComparison` | question | control flow: "comparison obligations for every internal edge" |
 
@@ -115,21 +119,33 @@ refused as `Unsupported`, never accepted by default.
 
 ## Open
 
-- **Text inside propositions.** A knowledge row points at the module's
-  proposition table (`PropositionId`). `semantic_vocabulary::Proposition` is
+- **Text inside propositions.** A knowledge row points at its machine's
+  `propositions` table (`PropositionId`). `semantic_vocabulary::Proposition` is
   reused unchanged, and its `ContentConservation` variant still reaches text
   keys: `ContentAlgebra::parameter`, `ContentPlaceSegment::{Case, Field}` and
   `ContentProjectionScalar` hold `String`s. Route one (scalars) uses none of
   them. The lane that adds content knowledge replaces them with typed
   identities first; this crate does not wrap or copy them.
-- **A second place form inside propositions.** `Proposition`'s structural
-  variants (`StructuralIdentity`, `StructuralCaseMembership`, IEEE and
-  byte-sequence fields) name storage as `PlaceId` plus
-  `Vec<CanonicalStructuralPathSegment>`, beside this crate's `ExactPlaceId`.
-  Knowledge here is over values, and a storage observation enters as the value
-  a read produced, so route one needs neither. The records-and-fields lane
-  must choose one form before it adds knowledge about places; it must not keep
-  both.
+- **A second place form inside propositions: decided, values only.**
+  `Proposition`'s structural variants (`StructuralIdentity`,
+  `StructuralCaseMembership`, IEEE and byte-sequence fields) name storage as
+  `PlaceId` plus `Vec<CanonicalStructuralPathSegment>`, beside this crate's
+  `ExactPlaceId`. The places foundation lane chose one form
+  (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
+  carrier"): knowledge never names a place. A storage observation enters as the value its
+  read produced, and what the read equals is one more equation between values,
+  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  a structural `Proposition` variant in a knowledge row; a contract clause
+  that could only be stated as one is refused.
+- **Contract propositions have no table.** Terminal Psi keeps a machine's
+  `requires` and `ensures` inline in its `MachineContract`; its only
+  `PropositionId` table is named proposition declarations. `Summary`
+  therefore names no proposition: a callee clause is its machine and
+  position. Knowledge rows index this crate's own machine-local
+  `propositions` table. `CrashRoute::guards` still assumes a module
+  proposition table.
+  A body-derived result relation has no `MachineContract` slot; the lane
+  that publishes `SummaryBasis::BodyDerived` decides where it lives.
 - **No carry term in `Summary`.** The design record lists carry as a summary
   axis, but the specification defines carry on values, claims and suspension
   crossings, not as a callee's published term. The sentences found:

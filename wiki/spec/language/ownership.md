@@ -149,7 +149,16 @@ and opaque-provider non-observation contract.
 Reborrowing retains exact immediate parent lineage. Shared children freeze the
 parent's mutation; exclusive children suspend the corresponding parent branch.
 Restoration needs the complete child/cohort closure, not merely expiration of
-a convenient alias name. Access attenuation does not change the parent's original
+a convenient alias name. A loan held by a local closes after the last use of
+that local and of every loan derived from it, not at the end of the enclosing
+block:
+
+```omega
+let first: &mut u8 = &mut items[0];
+first = 0;
+items[0] = 1;        // accepted: `first` is not used again
+```
+ Access attenuation does not change the parent's original
 authority. [Loan compatibility](../terminal-psi/loans.md) owns captured places,
 formation proofs, lifetimes, closure order, and restored-use evidence.
 

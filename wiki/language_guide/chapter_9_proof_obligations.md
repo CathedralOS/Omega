@@ -1,15 +1,11 @@
 # Chapter 9: Proof obligations
 
-An operation needs facts before it is safe to use. Checking establishes those
-facts from types, live program state, contracts, and explicit proofs. It does
-not normally insert a runtime check when proof search fails.
+Every operation that could go wrong, such as an addition that could overflow,
+an index that could be out of range or a call with a precondition, creates an
+obligation. The compiler must be able to discharge it from what is known at
+that point. This chapter shows what that looks like in practice.
 
-[Chapter 7](chapter_7_types_constraints_invariants.md) introduces contracts;
-[Chapter 8](chapter_8_domains.md) introduces qualification. This chapter connects
-them to the compiler's obligations. The reference is
-[proof contracts](../spec/proofs/contracts.md).
-
-## Prove an operation is valid
+## An obligation and its proof
 
 ```omega
 machine increment(value: u32) -> u32
@@ -20,32 +16,66 @@ ensures result <= 100
 }
 ```
 
-The caller establishes `value < 100`. The body then proves both the Exact
-addition's range and the result guarantee. The caller receives that guarantee
-only for the successful returned value.
+`value + 1` must fit in a `u32`, and `result <= 100` must hold. Both follow
+from `value < 100`. Remove the `requires` and the machine is rejected.
 
-An annotation is a demand, not evidence. Giving an empty body the same
-postcondition would not establish it. Stronger theorems can be supplied by
-checked machines when automatic reasoning is insufficient; their exact premises
-still need to hold at each use.
+Writing a contract does not make it true. An `ensures` on an empty body is an
+error, not an assumption.
 
-## Impossible paths
+## What is always proved for you
 
-If a machine requires `count >= 10`, a branch that requires `count < 5` cannot
-execute for that same value. The checker can prove the conditions contradict
-each other and close that path's obligations. It cannot declare a path impossible
-just because some other proof failed, or export facts from the impossible path
-to a reachable one. The source must still be well-formed.
+Every Omega compiler proves two kinds of fact without help: chains of
+comparisons, and arithmetic that fits because its operands are bounded.
 
-Such a source-level contradiction produces an unreachable-branch warning by
-default, explaining the conflicting conditions. An alternative removed only by
-generic specialization or compile-time selection normally does not warn. Neither
-the warning nor removal of the dead instructions is needed for the proof to be
-valid. See [unreachable branches](../spec/language/state_contracts.md#unreachable-branches).
+```omega
+machine get(items: &[u8], i: u64, n: u64) -> u8
+requires i < n
+requires n <= items.len
+{
+    items[i]             // i < n <= items.len
+}
 
-## Restore a saved value
+machine area(count: u32, size: u32) -> u32
+requires count <= 1000
+requires size <= 1000
+{
+    count * size         // at most 1,000,000
+}
+```
 
-A copied value can supply a fact after a write:
+Code that needs only these compiles everywhere. See
+[required automatic discharge](../spec/proofs/contracts.md#required-automatic-discharge).
+
+## When the compiler cannot see it
+
+If a fact is true but the compiler cannot work it out, you have four choices:
+
+1. **Branch on it.** Test the condition and handle both outcomes.
+2. **Require it.** Move the obligation to the caller with `requires`.
+3. **Prove it.** Call a theorem machine that establishes it
+   ([Chapter 10](chapter_10_compile_time_proofs.md)).
+4. **Change the operation.** Use `+!` to trap, `+|` to clamp, and so on
+   ([Chapter 5](chapter_5_expressions_evaluation.md#integer-arithmetic)).
+
+Failing to prove something is never treated as proving its opposite.
+
+## Impossible branches
+
+```omega
+machine clamp_small(count: u32) -> u32
+requires count >= 10
+{
+    transition count < 5 {
+        true -> 0            // cannot happen; the compiler warns
+        false -> count
+    }
+}
+```
+
+When a branch contradicts what is already known, the compiler closes it and
+warns that it is unreachable.
+
+## Values you saved
 
 ```omega
 machine restore(items: &mut [u8]) -> u8
@@ -60,45 +90,10 @@ ensures result == 42
 }
 ```
 
-The final assignment restores the saved value to the same slot. For a variable
-index, checking must also establish that the index still selects that slot.
+`saved` is a copy, so it still equals 42 after the slot is overwritten, and
+writing it back restores the fact about `items[0]`.
 
-## Termination claims
-
-Termination is separate from a postcondition. `ensures` describes a reached
-return, not whether a return is eventually reached.
-
-```omega
-boundary trait FiniteReader {
-    machine read_all(out: &mut Vec<u8>) -> ReadResult
-        terminates
-        crashes none;
-}
-```
-
-A checked cycle can prove termination by decreasing a nonnegative counter:
-
-```omega
-machine countdown(remaining: u32)
-terminates by remaining
-{
-    transition remaining == 0 {
-        true -> {}
-        false -> countdown(remaining - 1)
-    }
-}
-```
-
-The false arm proves the subtraction is valid. Each transfer decreases the
-counter, so the cycle eventually reaches zero. More complex algorithms can
-choose a ranking view, such as a slice's remaining length. See
-[termination and progress](../spec/language/termination.md).
-
-A server's event loop may intentionally run indefinitely. Leave off its
-termination promise. A finite task can still need separate response-time or
-work bounds; termination alone gives neither a deadline nor a fixed cost.
-
-## Preserve a value constraint
+## Keeping an invariant
 
 ```omega
 data Player
@@ -115,22 +110,34 @@ requires damage <= player.health
 }
 ```
 
-At entry, health is established in range and the explicit mutable parameter
-supplies exclusive access. A caller writes `take_damage(&mut player, damage)`;
-the qualified name supplies no argument. The two requirements establish that
-subtraction neither overflows nor takes health below zero. Assignment preserves
-the field's domain.
+On entry `health` is in range. The two requirements show the subtraction
+neither overflows nor goes below zero, so the invariant still holds on return.
+When an update needs several writes and the invariant is broken in between,
+see [Chapter 11](chapter_11_invariant_windows.md).
 
-If a multi-write update temporarily breaks a cross-field invariant, an
-[invariant window](chapter_11_invariant_windows.md) may defer that invariant's
-restoration until the next required consumption point. It cannot defer an
-invalid arithmetic operation, out-of-bounds access, or missing loan authority.
+## Termination
 
-Failure to prove a condition is neither its negation nor permission to assume
-it. Supply a proof, establish it with an explicit checked branch/validator, use
-a deliberately different valid operation contract, or reject the use. A debug
-check is not the language's safety proof.
+`ensures` describes the result if the machine returns. `terminates` promises
+that it does:
 
-The same discipline applies to floats: proving `Finite` does not authorize
-reassociation, signed-zero erasure, or approximate rewrites. Optimization needs
-its own observation-preservation proof.
+```omega
+machine countdown(remaining: u32)
+terminates by remaining
+{
+    transition remaining == 0 {
+        true -> {}
+        false -> countdown(remaining - 1)
+    }
+}
+```
+
+`terminates by remaining` names the quantity that shrinks on every round. A
+server loop that is meant to run forever simply leaves the promise off.
+Termination says nothing about how long something takes.
+
+## Where next
+
+[Chapter 10](chapter_10_compile_time_proofs.md) covers writing proofs
+yourself. The complete rules are in
+[proof contracts](../spec/proofs/contracts.md) and
+[termination](../spec/language/termination.md).

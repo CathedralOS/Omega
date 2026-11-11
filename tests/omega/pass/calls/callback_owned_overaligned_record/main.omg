@@ -1,6 +1,5 @@
 use omega_language_std::calling;
 use omega_language_std::console;
-use omega::language::core::external_binding;
 use omega::language::core::layout;
 
 public data Policies { }
@@ -75,6 +74,8 @@ satisfies CallingPolicy::plan
     plan.call.has_result = true;
     plan.call.result = Policies::record(8);
     let mut callback: BoundaryEntryPlan = Policies::finish(plan);
+    callback.state.permitted_transitive_use.instruction_pointer = true;
+    callback.state.permitted_transitive_use.stack_pointer = true;
     // Remove X9 and V16 from the ordinary clobbers without changing placement.
     // The ordinary helper still uses the complete internal clobber bank.
     callback.call.ordinary_clobbers.registers[9] = callback.call.ordinary_clobbers.registers[40];
@@ -158,7 +159,6 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     plan
 }
 
-
 public Aligned satisfies FixedLayout<OwnedRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
     let mut entries: [FieldEntry; 64];
@@ -219,34 +219,6 @@ satisfies Transform::transform
     transformed(pair)
 }
 
-macos_arm64 machine prepare_binding() -> ForeignBinding<21, 13, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_prep_cif",
-        },
-    }
-}
-macos_arm64 machine prepare_leaf(
-    interface: &mut ForeignInterface, abi: u32, count: u32,
-    result_type: &PairType, argument_types: &ArgumentTypes
-) -> u32
-satisfies Prepare::prepare
-via prepare_binding();
-
-macos_arm64 machine invoke_binding() -> ForeignBinding<21, 9, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libffi.dylib", symbol: "_ffi_call",
-        },
-    }
-}
-macos_arm64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
-)
-requires machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via invoke_binding();
-
 data Main {
     interface: ForeignInterface;
     input: LayoutStorage<OwnedRecord, Aligned>; result: LayoutStorage<OwnedRecord, Aligned>;
@@ -279,7 +251,6 @@ invokes Console
     machine done() { Console::exit_process(0); }
     machine failed() { Console::exit_process(71); }
 }
-
 
 machine Policies::result_word(bytes: u64) -> ValuePlacement {
     Policies::word(bytes, 0)
@@ -341,7 +312,6 @@ machine LinuxPolicies::result_word(bytes: u64) -> ValuePlacement {
 }
 
 data LinuxPolicies {}
-
 
 linux_x86_64 machine Policies::prepare(signature: BoundarySignature) -> BoundaryPlanResult
 {
@@ -424,37 +394,6 @@ machine LinuxPolicies::returned() -> ValuePlacement {
     };
     placement
 }
-
-linux_x86_64 machine linux_prepare_binding() -> ForeignBinding<11, 12, 15> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libffi.so.8", symbol: "ffi_prep_cif", version: "LIBFFI_BASE_8.0",
-        },
-    }
-}
-
-linux_x86_64 machine prepare_leaf(
-    interface: &mut ForeignInterface, abi: u32, count: u32,
-    result_type: &PairType, argument_types: &ArgumentTypes
-) -> u32
-satisfies Prepare::prepare
-via linux_prepare_binding();
-
-
-linux_x86_64 machine linux_invoke_binding() -> ForeignBinding<11, 8, 15> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libffi.so.8", symbol: "ffi_call", version: "LIBFFI_BASE_8.0",
-        },
-    }
-}
-
-linux_x86_64 machine invoke_leaf<machine Selected>(
-    interface: &PreparedInterface, result: &mut LayoutStorage<OwnedRecord, Aligned>, arguments: &ArgumentValues
-)
-requires machine Selected satisfies Transform::transform;
-satisfies Invoke::invoke
-via linux_invoke_binding();
 
 // libffi target ABI discriminants from the platform ffi headers.
 macos_arm64 machine ffi_abi() -> u32 { 1 }

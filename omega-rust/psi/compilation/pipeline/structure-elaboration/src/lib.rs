@@ -3,15 +3,19 @@
 /*
 Structure-only elaboration: frozen typed trees (Psi 04 output) become an
 unsealed Terminal Psi module and the check tables that describe it, for route
-one's scalar subset (`wiki/drafts/designs/check_on_lowered_form.md`). It proves
-nothing and reads no checker fact. Every obligation the lowered form implies is
+one's scalar subset and plain records by structure
+(`wiki/drafts/designs/check_on_lowered_form.md`,
+`wiki/drafts/designs/places_foundation_lane.md`). It proves nothing and reads
+no checker fact. Every obligation the lowered form implies is
 minted with its identity and left open; a later checker discharges it.
 
 It runs in two steps, each one route per construct:
 
-- `read` resolves a machine's typed-tree nodes into a closed scalar body
-  (`body`): every name becomes a parameter or local slot by its symbol, every
-  type a `ScalarType` by its builtin symbol slot, every callee a `MachineId`.
+- `read` resolves a machine's typed-tree nodes into a closed body (`body`):
+  every name becomes a parameter or local slot by its symbol, every type a
+  `ScalarType` by its builtin symbol slot or a record type by its data
+  declaration, every field a position in that declaration, every callee a
+  `MachineId`.
   Its matches over typed-tree node kinds are exhaustive and every kind outside
   the subset is refused as `Unsupported`, naming the kind. Nothing is keyed on
   a spelling: where the typed trees offer only a spelling, the reader refuses.
@@ -21,21 +25,36 @@ It runs in two steps, each one route per construct:
 
 Scalar locals are SSA values: a binding or an assignment names the value it
 holds from then on, and a write never changes a value. In this subset every
-transition arm completes the machine, so the only joins are the short-circuit
-operators, whose join block takes the result as a block parameter. The lowered
-form therefore has no structural places, and the place and write tables stay
-empty: that is what the lowered form implies, not an omission.
+transition arm completes the machine or leaves it with no successor (a crash,
+or a call of a machine with no normal completion), so the only joins are the
+short-circuit operators, whose join block takes the result as a block
+parameter.
+
+A record value is storage. A record formal, and every operation that
+produces a record (a literal, a whole copy, a call), is a root place; a
+member path is a projection of one, interned on first use; and every
+establishment is logged leaf by leaf in the forward write log
+(`lower/places.rs`). A machine with no record has no structural place, and
+its place, root and write tables stay empty.
 
 Gaps found against the contract are listed in the crate README, "Findings".
 */
 
 mod body;
+mod canonical;
 mod lower;
+mod outcome;
 mod read;
 
-pub use body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
+pub use body::{
+    Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement,
+    Strict, Target, ValueType,
+};
+pub use outcome::Outcome;
 
-use semantic_vocabulary::{BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, StructuralTypeId,
+};
 use symbols::SymbolHandle;
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalModule;
@@ -66,6 +85,9 @@ pub enum Unpositioned {
     DispatchContinuation,
     /// The Unit completion after a unit machine's last statement.
     ImplicitReturn,
+    /// The block a call continues in after the edge that retires the homes
+    /// of the record arguments it consumed.
+    ArgumentRetirement,
 }
 
 impl SourceOrigin {
@@ -91,7 +113,8 @@ pub struct MachineSources {
 /// The result of elaborating one entry machine and every machine it calls.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
-    /// Unsealed: no proof fields, no evidence, no identity declarations.
+    /// Unsealed: no proof fields and no evidence. Its only declarations are
+    /// the record types its machines name.
     pub module: TerminalModule,
     /// One `MachineTables` per machine. `summaries` stays empty; see the
     /// README, "Findings".
@@ -109,7 +132,7 @@ pub enum Unserved {
     /// attached data, a missing body, several states, ...).
     Machine(&'static str),
     Parameter(&'static str),
-    /// A type that is not a builtin integer or `bool`.
+    /// A type that is not a builtin integer, `bool` or a plain record.
     Type(&'static str),
     Contract(&'static str),
     Statement(&'static str),
@@ -192,7 +215,36 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
         bodies.push(body);
     }
     program.refuse_recursion()?;
+    let mut elaboration = lower_bodies(entry, &bodies, &program.signatures, &program.records)?;
+    elaboration.machines = program.symbols;
+    Ok(elaboration)
+}
+
+/// Lowers closed bodies that were already read; `entry` is machine 1.
+/// `elaborate` reads typed trees and then calls this; a checker's tests call
+/// it directly to state programs. `records` holds every record type the
+/// bodies and signatures name, a nested record before its owner; a scalar
+/// program passes an empty table. The reader refuses recursion first; a
+/// cycle passed here directly is refused by the outcome pass, which walks
+/// callees first. `machines` is left empty: these bodies have no typed-tree
+/// machine.
+pub fn lower_bodies(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+) -> Checked<Elaboration> {
+    let outcomes = outcome::outcomes(bodies, signatures)?;
     let mut module = TerminalModule::for_entry(entry);
+    // Terminal Psi declares each record type once for the module, with the
+    // interned identity its declaration form requires. A module with no
+    // record declares none and keeps the empty identity table.
+    let declared = lower::places::declare(entry, records)?;
+    if !records.is_empty() {
+        module.identities = declared.identities;
+        module.structural_types = declared.structural_types;
+        module.native_layouts = declared.native_layouts;
+    }
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
     for position in 1..=bodies.len() as u64 {
@@ -203,8 +255,8 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let body = terminal_check_tables::row(&bodies, id, id, Construct::Machine)?;
-        let lowered = lower::machine(id, body, &program.signatures)?;
+        let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+        let lowered = lower::machine(id, body, signatures, &outcomes, &declared.records)?;
         module.machines.push(lowered.machine);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
@@ -213,7 +265,7 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
         module,
         tables,
         sources,
-        machines: program.symbols,
+        machines: IdTable::default(),
     })
 }
 

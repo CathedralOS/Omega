@@ -2839,6 +2839,7 @@ pub(crate) mod dispatch_environments {
         match selection.condition {
             DispatchCondition::Equality { subject, pattern } => {
                 let comparison = TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: subject,
                     operator: BinaryOperator::Equal,
                     right: pattern,
@@ -5603,6 +5604,18 @@ pub(crate) mod expression_analysis {
             diagnostics: &mut Vec<Diagnostic>,
             decisions: &mut super::ArithmeticDecisions,
         ) -> Analysis {
+            // Preparation rewrites every suffixed policy operator onto
+            // policy-qualified operands. One that still carries its suffix
+            // here was never typed, and analyzing it as written would give
+            // it the bare Exact meaning, so it rejects instead.
+            if binary.policy != ArithmeticDomain::Exact {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the policy operator `{}{}` in {} was not typed against its operand carrier; a suffixed operator is supported only in executable machine code",
+                    arithmetic_operator_spelling(binary.operator),
+                    binary.policy.operator_suffix(),
+                    walk.owner,
+                )));
+            }
             let mut operation =
                 Operation::analyze_operands(walk, expression, binary, diagnostics, decisions);
             if !walk.builtin_binary(expression) {
@@ -5810,8 +5823,20 @@ pub(crate) mod expression_analysis {
             trap_predicates: &[IntegerTrapPredicate],
             primitive: PrimitiveType,
         ) -> String {
+            // An unsigned carrier has no negative one, so its quotient is
+            // always representable and only the zero divisor can trap.
+            let signed = primitive
+                .integer_bounds()
+                .is_some_and(|(minimum, _)| minimum < 0);
             trap_predicates
                 .iter()
+                .filter(|predicate| {
+                    signed
+                        || !matches!(
+                            predicate,
+                            IntegerTrapPredicate::SignedMinimumDividedByNegativeOne
+                        )
+                })
                 .map(|predicate| match predicate {
                     IntegerTrapPredicate::ResultOutsideCarrier => {
                         format!("its result lies outside `{}`", primitive_name(primitive))

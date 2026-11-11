@@ -331,6 +331,7 @@ mod indexed_read_hoisting {
                     lowerer,
                     expression,
                     ExpressionNode::Binary(TableBinaryExpression {
+                        policy: binary.policy,
                         left,
                         operator: binary.operator,
                         right,
@@ -720,6 +721,7 @@ mod match_subject_hoisting {
             lowerer,
             guard_expression,
             ExpressionNode::Binary(TableBinaryExpression {
+                policy: outer.policy,
                 left: name_reference,
                 operator: outer.operator,
                 right: outer.right,
@@ -1822,6 +1824,7 @@ mod value_call_hoisting {
             |_, _| call_side,
         );
         let rewritten = TableBinaryExpression {
+            policy: binary.policy,
             left: if call_is_left {
                 name_reference
             } else {

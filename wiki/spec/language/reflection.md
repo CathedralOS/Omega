@@ -68,7 +68,11 @@ machine or an exact trait machine requirement and returns `CallableInfo`.
 These compiler-known core queries add no keyword and follow ordinary lexical
 resolution, dependency and visibility rules. They do not evaluate an instance,
 take a borrow, invoke a machine or acquire authority. A symbolic declaration
-operand is not an otherwise first-class executable value.
+operand is not an otherwise first-class executable value. The operand is a
+declaration path the author can select: a parameter, a field or any other
+value holding a selection rejects, so a handed selection cannot be described
+as a declaration its holder could not otherwise name. Describing a declared
+conformer describes that conformer and exposes no direct entry.
 
 ```omega
 reflect::field(Controller::status)
@@ -87,9 +91,11 @@ not just the terminal field declaration shared by several containing instances.
 `CallableInfo` is one ordinary descriptive carrier with distinct concrete-machine
 and trait-requirement alternatives. It retains exact declaration/application and
 contract identity; it is not a function pointer, callable value, selected provider
-or conformance witness. A requirement descriptor authorizes only invocation
+or conformance witness. It is the type of an identity-only
+[static parameter](generics.md#declaration-identity) and a canonical static
+argument. A requirement descriptor authorizes only invocation
 through that requirement and its selected implementation when used in a domain
-policy. It does not authorize unrelated direct calls to a satisfying machine.
+policy. It cannot be turned back into a callable or recover a binding.
 A bare trait does not mean all of its current or future requirements.
 
 Mixed arrays of these callable descriptors are homogeneous. `FieldInfo` cannot

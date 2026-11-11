@@ -87,7 +87,9 @@ endpoint certificates can then prove a one-step increment or decrement safe.
 ## Elementary certificate rules
 
 Every child proof is checked independently. Typed identities and unchanged
-endpoints below are exact, not matched by spelling.
+endpoints below are exact, not matched by spelling. The
+[required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+names the goals every checker must find such proofs for.
 
 | Rule | Permitted conclusion |
 | --- | --- |

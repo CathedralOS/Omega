@@ -508,6 +508,7 @@ dependencies = [
  "layout",
  "layout-plans",
  "libc",
+ "lowered-discharge",
  "lowered-psi",
  "machine-code",
  "machine-emission",
@@ -1167,6 +1168,20 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+
+[[package]]
+name = "lowered-discharge"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "proof-admission",
+ "semantic-vocabulary",
+ "structure-elaboration",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
 
 [[package]]
 name = "lowered-psi"
@@ -2704,6 +2719,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
+ "lowered-discharge",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2716,6 +2732,7 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",

@@ -90,7 +90,7 @@ That proposal neither permits concrete cross-carrier membership nor admits
 arbitrary integer widths into the language.
 
 Scalar interval relationships use ordinary propositions, not a bracketed type
-suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
+suffix (`scalar-range-contract-spelling`). Put field relationships in the
 data declaration's `requires`, including guarded case-payload relationships,
 machine-parameter obligations in `requires`, and result obligations in
 `ensures`. Locals receive facts from their initializer, guards, calls, and
@@ -133,9 +133,10 @@ public domain Reservation::Issued
 
 ReservationAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(Issues::issue)]);
-        plan
+        AccessPlan::new(
+            &schema,
+            Issuance::Only { routes: [reflect::callable(Issues::issue)] }
+        )
     }
 }
 
@@ -246,8 +247,10 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(Cell::create)]);
+        let mut plan: AccessPlan = AccessPlan::new(
+            &schema,
+            Issuance::Only { routes: [reflect::callable(Cell::create)] }
+        );
         AccessPlan::allow_readers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
         );
@@ -268,10 +271,12 @@ parallel ways of configuring the policy. `access` belongs to the domain, not a
 field-private modifier. Fields may use qualified types; a whole-value domain's
 policy may also name individual fields with `reflect::field(Type::field)`.
 
-`AccessPlan::new(&schema)` imposes no additional caller restrictions. Explicit
-establishment, reader and writer lists are independent ceilings: omission leaves
-that axis unrestricted by this policy, an empty list permits nobody, and a
-nonempty list contains alternative exact callable identities. Authorizing writers
+Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
+`AccessPlan::new(&schema, issuance)` takes `Issuance::Only` with the exact
+routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
+Reader and writer lists are independent ceilings: omission leaves that axis
+unrestricted by this policy, an empty list permits nobody, and a nonempty list
+contains alternative exact callable identities. Authorizing writers
 does not authorize readers or issuers. Whole-subject, field, inherited and repeated
 restrictions intersect without order-dependent overrides. A field rule alone
 does not require a whole-object rule. Backing/loan authority still limits every
