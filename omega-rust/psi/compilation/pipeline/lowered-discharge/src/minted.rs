@@ -45,10 +45,14 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
-use terminal_psi::{ModuleInvocationInputs, TerminalMachine, Terminator};
+use terminal_psi::{
+    BoundaryParameterKind, ModuleInvocationInputs, TerminalMachine, TerminalMachineResult,
+    Terminator, ValueDeclaration,
+};
 
 use crate::{refusal, semantics_refusal, terminal_machine};
 
@@ -224,6 +228,7 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<()> {
+    values_are_declared(id, lowered, tables)?;
     let mut minted = Minted {
         machine: id,
         machines,
@@ -376,6 +381,105 @@ pub(crate) fn follow_the_lowered_form(
                 "an invocation row restates no call of this machine",
             ),
         });
+    }
+    Ok(())
+}
+
+/// Refuses a value table that is not the values the lowered form declares:
+/// each formal, the scalar result, each block parameter and each scalar
+/// operation result, under its own identity, with its declared type and the
+/// origin of what declares it.
+///
+/// The type of a value is what Terminal semantics states an operation's goal
+/// over and what the kernel bounds the value by, and its origin is what the
+/// payload judgment reads to learn which test a condition is the result of.
+/// The one kind of row the lowered form does not declare is the content a
+/// formal's leaf held at entry, which no operation produces; `places` checks
+/// those against the formal's type. A declared value restated as one would
+/// make a read of that leaf equal to it.
+fn values_are_declared(
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> Checked<()> {
+    let foreign = |value: ValueId, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Value(value),
+            detail,
+        )
+    };
+    let mut declared: Vec<Option<(ScalarType, ValueOrigin)>> = vec![None; tables.values.len()];
+    let mut declare = |value: ValueDeclaration, origin: ValueOrigin| -> Checked<()> {
+        let slot = declared
+            .get_mut(index(value.id.get()))
+            .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
+        if slot.replace((value.scalar_type, origin)).is_some() {
+            return Err(foreign(value.id, "the lowered form declares one value twice"));
+        }
+        Ok(())
+    };
+    // A scalar formal's position is its place among all the formals.
+    let mut scalars = lowered.parameters.iter();
+    for (position, kind) in lowered.parameter_order.iter().enumerate() {
+        if !matches!(kind, BoundaryParameterKind::Scalar) {
+            continue;
+        }
+        let Some(formal) = scalars.next() else {
+            break;
+        };
+        declare(
+            *formal,
+            ValueOrigin::MachineParameter {
+                position: crate::position(position, id)?,
+            },
+        )?;
+    }
+    if let Some(formal) = scalars.next() {
+        return Err(foreign(
+            formal.id,
+            "a scalar formal has no position among the formals",
+        ));
+    }
+    if let TerminalMachineResult::Scalar(result) = &lowered.result {
+        declare(*result, ValueOrigin::MachineResult)?;
+    }
+    for block in &lowered.blocks {
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            declare(
+                *parameter,
+                ValueOrigin::BlockParameter {
+                    block: block.id,
+                    position: crate::position(position, id)?,
+                },
+            )?;
+        }
+        for operation in &block.operations {
+            if let Some(result) = operation.result.as_scalar() {
+                declare(result, ValueOrigin::Operation(operation.id))?;
+            }
+        }
+    }
+    for ((value, row), declared) in tables.values.iter().zip(&declared) {
+        match declared {
+            Some((scalar_type, origin)) => {
+                if row.scalar_type != *scalar_type || row.origin != *origin {
+                    return Err(foreign(
+                        value,
+                        "a value row is not the value the lowered form declares under its identity",
+                    ));
+                }
+            }
+            None => {
+                if !matches!(row.origin, ValueOrigin::EntryContent { .. }) {
+                    return Err(foreign(
+                        value,
+                        "a value row that nothing in the lowered form declares",
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }

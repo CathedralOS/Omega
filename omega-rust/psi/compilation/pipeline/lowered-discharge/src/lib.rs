@@ -330,7 +330,15 @@ fn machine(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
     let graph = Graph::new(id, lowered, tables)?;
-    let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
+    let mut storage = places::Storage::new(
+        id,
+        lowered,
+        structural_types,
+        domains,
+        &graph,
+        tables,
+        &types,
+    )?;
     storage.owed_are_minted(tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field

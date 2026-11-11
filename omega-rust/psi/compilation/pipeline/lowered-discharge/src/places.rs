@@ -1,30 +1,33 @@
 /*
 What a place holds when an operation uses it, answered once for reads, copies
-and the initialization judgment by one walk over three things the tables and
-the lowered form already hold: the forward write log, the one overlap
-relation over parent links (`overlap`), and the lowered graph.
+and the initialization judgment by one walk over three things: the stores the
+lowered operations make (`log`), the one overlap relation over the segments of
+two places (`overlap`), and the lowered graph.
+
+The stores are derived here from the operations and not read from
+elaboration's write log, because every goal over a field is stated over the
+value its leaf holds: a log that names another value would prove another
+goal. The tables' own log, place table and entry content values are checked
+against the lowered form before anything is asked of them (`log`).
 
 The walk (`Storage::reaching`). From the point before a use of one scalar
-leaf, go back over the graph. The last overlapping write met on a path is the
+leaf, go back over the graph. The last overlapping store met on a path is the
 one that reaches along it. Three things can supply a path:
 
-- a row `Content::Value(v)` on exactly the leaf supplies `v`;
-- a row `Content::Overwritten` on the leaf or a place above it supplies new
-  contents with no value identity, unless the operation at the row's point is
-  one that moves storage whole (a whole copy, a record operand of a literal,
-  a record stored into a field). Then the leaf holds what the matching leaf
-  of the operation's source held just before it, and the walk continues from
-  there. The row cannot say this itself: `Content` has no variant for "what
-  that other place held", so the source is read from the operation, whose
-  storage path the lowered form resolves (`runtime_structural_field`);
-- a path that meets no write before the machine's entry is supplied by the
+- a store of the value `v` into exactly the leaf supplies `v`;
+- a store into the leaf or a place above it that moves storage whole (a whole
+  copy, a record operand of a literal, a record stored into a field) supplies
+  what the matching leaf of its source held just before it, and the walk
+  continues from there. A call's record result supplies contents with no
+  value identity, and so does any other store that overlaps the leaf;
+- a path that meets no store before the machine's entry is supplied by the
   place's entry content when its root is a formal ("a valid initialized
   ordinary storage place at entry may supply its exact reaching value
   version", fact_validity.md), and by nothing otherwise.
 
 A data local declared without an initializer is one more supplier: its zero
-establishment logs a zero constant on each scalar leaf of the zero value,
-and the first declared case of each sum is read from the operation.
+establishment stores a zero constant into each scalar leaf of the zero value
+and establishes the first declared case of each sum.
 
 Two judgments read the answer, and so do the goal of a data type's
 `requires` clause (`Storage::domain_goal`: what each field the clause names
@@ -55,11 +58,11 @@ and `semantic_vocabulary::Proposition`'s structural variants are not used.
 */
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, OperationId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, OperationId,
     PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
-use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment};
+use terminal_check_tables::bindings::{PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::edges::Actual;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
@@ -67,7 +70,7 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, IdTable, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{
-    Block, Operation, OperationKind, RecordFieldValue, StructuralArgument,
+    Block, Operation, OperationKind, StructuralArgument,
     StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, Terminator,
@@ -75,6 +78,10 @@ use terminal_psi::{
 
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
+
+mod log;
+
+use log::{Logged, Stored};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -176,7 +183,7 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
         })?;
         if slot.replace(value).is_some() {
             return Err(refusal(
-                RefusalReason::Unsupported,
+                RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
                 "a place has two entry content values",
@@ -184,22 +191,6 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
         }
     }
     Ok(contents)
-}
-
-/// One row of the write log, located in the graph.
-struct Logged {
-    lineage: Lineage,
-    block: BlockId,
-    /// Its position in the block, as `Graph::locate` orders points.
-    position: usize,
-    content: Content,
-    /// The operation whose normal continuation the row is stated at.
-    operation: Option<OperationId>,
-    /// A row on an edge reaches only that edge's destination; this walk
-    /// moves between blocks, not edges, and elaboration logs no edge write
-    /// yet. One that overlaps a use is refused rather than given to every
-    /// successor.
-    on_edge: bool,
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -222,7 +213,7 @@ enum Reached {
 
 /// What a place is, by the lowered form's own declarations.
 enum Shape<'a> {
-    Scalar,
+    Scalar(ScalarType),
     Typed(StructuralTypeId),
     /// The payload namespace of one case of a sum: a `Case` segment, which
     /// holds no storage of its own and is followed by a payload field.
@@ -252,10 +243,11 @@ impl Asked<'_> {
     }
 }
 
-/// One machine's storage as the checker reads it: the write log located in
-/// the graph, the entry contents, and the lowered declarations that say
-/// what lies beneath a place. Derived once per machine; the tables do not
-/// change beneath it, because discharge only appends knowledge.
+/// One machine's storage as the checker reads it: the stores its operations
+/// make, located in the graph, the entry contents, and the lowered
+/// declarations that say what lies beneath a place. Derived once per
+/// machine; the tables do not change beneath it, because discharge only
+/// appends knowledge.
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
@@ -280,34 +272,25 @@ impl<'a> Storage<'a> {
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
+        value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Self> {
-        let mut log = Vec::with_capacity(tables.writes.len());
-        for (_, write) in tables.writes.iter() {
-            let (block, position) = graph.locate(write.at)?;
-            let (operation, on_edge) = match write.at {
-                ProgramPoint::AfterOperation(operation) => (Some(operation), false),
-                ProgramPoint::BlockEntry(_) => (None, false),
-                ProgramPoint::Edge(_) => (None, true),
-            };
-            log.push(Logged {
-                lineage: lineage(machine, &tables.places, write.place)?,
-                block,
-                position,
-                content: write.content,
-                operation,
-                on_edge,
-            });
-        }
-        Ok(Self {
+        // First, because every lineage below is read through the place
+        // table's parent links.
+        log::places_are_interned(machine, tables)?;
+        let mut storage = Self {
             machine,
             lowered,
             types,
             graph,
             entry_contents: entry_contents(machine, tables)?,
-            log,
+            log: Vec::new(),
             domains,
             gated: Vec::new(),
-        })
+        };
+        storage.entry_contents_are_of_formals(tables)?;
+        storage.log = storage.stores(value_types)?;
+        storage.log_is_stated(tables)?;
+        Ok(storage)
     }
 
     /// Marks the zero establishments whose contents are not an established
@@ -497,7 +480,7 @@ impl<'a> Storage<'a> {
                 // A case's payload namespace is no value of its own; the
                 // sum above it is.
                 Shape::Payload(_) => {}
-                Shape::Scalar => {
+                Shape::Scalar(_) => {
                     return Err(self.foreign(concerns, "a store path crosses a scalar field"));
                 }
             }
@@ -605,7 +588,7 @@ impl<'a> Storage<'a> {
     /// The goal of one `DataDomain` obligation: the clause with `self`
     /// replaced by what the place holds once the operation completes.
     ///
-    /// Each field the clause names becomes the one value the write log says
+    /// Each field the clause names becomes the one value the stores say
     /// that leaf holds at the operation's normal continuation: the operand
     /// of a construction, the stored value for the written field, and for
     /// every other field the value that reached the store. Each case test
@@ -716,7 +699,7 @@ impl<'a> Storage<'a> {
             .find(|declared| declared.id == field)
             .ok_or_else(|| self.foreign(concerns, "a field is not of the type it projects"))?;
         match declared.field_type {
-            StructuralFieldType::Scalar(_) => Ok(Shape::Scalar),
+            StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
             _ => Err(self.unsupported(concerns, "a field type outside plain data")),
         }
@@ -729,7 +712,7 @@ impl<'a> Storage<'a> {
         let mut at = Shape::Typed(self.root_type(place.root, concerns)?);
         for segment in &place.segments {
             at = match (at, segment) {
-                (Shape::Scalar, _) => {
+                (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
                 }
                 (Shape::Typed(owner), Segment::Field(field)) => {
@@ -780,7 +763,7 @@ impl<'a> Storage<'a> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar => found.push(at),
+            Shape::Scalar(_) => found.push(at),
             Shape::Typed(structural_type) => {
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
             }
@@ -924,7 +907,7 @@ impl<'a> Storage<'a> {
                     root: *source,
                     segments,
                 };
-                if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar) {
+                if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar(_)) {
                     return Err(
                         self.foreign(concerns, "a scalar read of storage that is no scalar")
                     );
@@ -971,77 +954,6 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "an operation is not where the graph places it"))
     }
 
-    /// The place whose contents an operation moved, whole, into the place
-    /// `written` that a row at its normal continuation names; `None` when
-    /// the operation stores nothing this route can trace to a place, which
-    /// leaves the row's own meaning: new contents with no value identity.
-    fn moved_from(
-        &self,
-        operation: &Operation,
-        written: &Lineage,
-        concerns: Construct,
-    ) -> Checked<Option<Lineage>> {
-        let produced = operation.result.as_structural().map(|result| result.place);
-        match &operation.kind {
-            OperationKind::StructuralLeafCopy { source, path }
-                if produced == Some(written.root) && written.segments.is_empty() =>
-            {
-                self.stored_at(*source, path, concerns).map(Some)
-            }
-            OperationKind::EstablishRecord { fields } if produced == Some(written.root) => {
-                let [Segment::Field(field)] = written.segments.as_slice() else {
-                    return Ok(None);
-                };
-                match fields.iter().find(|operand| operand.field == *field) {
-                    Some(operand) => match &operand.value {
-                        RecordFieldValue::Structural(argument) => {
-                            self.argument(argument, concerns).map(Some)
-                        }
-                        RecordFieldValue::Scalar { .. } => Ok(None),
-                    },
-                    None => Ok(None),
-                }
-            }
-            OperationKind::EstablishStructuralCase {
-                result_case,
-                fields,
-            } if produced == Some(written.root) => {
-                let [Segment::Case(case), Segment::Field(field)] = written.segments.as_slice()
-                else {
-                    return Ok(None);
-                };
-                if case != result_case {
-                    return Ok(None);
-                }
-                match fields.iter().find(|operand| operand.field == *field) {
-                    Some(operand) => match &operand.value {
-                        RecordFieldValue::Structural(argument) => {
-                            self.argument(argument, concerns).map(Some)
-                        }
-                        RecordFieldValue::Scalar { .. } => Ok(None),
-                    },
-                    None => Ok(None),
-                }
-            }
-            OperationKind::StoreStructuralField {
-                destination,
-                path,
-                field: Some(field),
-                value,
-                ..
-            } => {
-                let mut stored = self.stored_at(*destination, path, concerns)?;
-                stored.segments.push(Segment::Field(*field));
-                if stored == *written {
-                    self.argument(value, concerns).map(Some)
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => Ok(None),
-        }
-    }
-
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
         self.lowered
             .blocks
@@ -1050,7 +962,7 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(Construct::Block(id), "a block is not at its position"))
     }
 
-    /// What one reaching row supplies to the place asked about.
+    /// What one reaching store supplies to the place asked about.
     fn supplied(
         &self,
         tables: &MachineTables,
@@ -1059,94 +971,47 @@ impl<'a> Storage<'a> {
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
-        if row.on_edge {
-            return Err(self.unsupported(concerns, "a write on an edge overlaps a use"));
-        }
         // Zeroed storage of a gated type is not an established value.
-        if row
-            .operation
-            .is_some_and(|operation| self.gated.contains(&operation))
-        {
+        if self.gated.contains(&row.operation) {
             return Ok(Reached::Unestablished);
         }
         let place = match asked {
             Asked::Contents(place) | Asked::Case(place) => place,
         };
-        match row.content {
-            Content::Value(value)
-                if row.lineage == *place && matches!(asked, Asked::Contents(_)) =>
-            {
-                Ok(Reached::Value(value))
+        // Only a store into the place or above it replaces it whole; one
+        // beneath it or beside it leaves contents this route cannot name.
+        let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
+            return Ok(Reached::Unknown);
+        };
+        Ok(match (&row.stored, asked) {
+            (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
+                Reached::Value(*value)
             }
-            // A value stored to another overlapping place, or a reference:
-            // the place has contents this route cannot name.
-            Content::Value(_) | Content::Reference(_) => Ok(Reached::Unknown),
-            Content::Vacated => Err(self.unsupported(concerns, "a hole overlaps a use")),
-            Content::Overwritten => {
-                // Only a row on the place or above it replaces it whole.
-                let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice())
-                else {
-                    return Ok(Reached::Unknown);
-                };
-                let Some(operation) = row.operation else {
-                    return Ok(Reached::Unknown);
-                };
-                let operation = self.operation(operation, concerns)?;
-                // The row cannot say which case a construction established:
-                // the operation at the row does.
-                if let (Asked::Case(_), [], Some(case)) =
-                    (asked, beneath, self.established_as(operation, &row.lineage))
-                {
-                    return Ok(Reached::Case(case));
-                }
-                // A zero establishment holds the first declared case of
-                // every sum of the zero value.
-                if let Asked::Case(_) = asked
-                    && matches!(operation.kind, OperationKind::EstablishZeroedStructural {})
-                    && row.lineage.segments.is_empty()
-                    && let Some(case) = self.zero_case(row.lineage.root, beneath, concerns)?
-                {
-                    return Ok(Reached::Case(case));
-                }
-                let Some(mut source) = self.moved_from(operation, &row.lineage, concerns)? else {
-                    // ponytail: one scan of the invocation table per row
-                    // reached; an operation column if machines grow.
-                    let returned = tables.invocations.values().any(|invocation| {
-                        invocation.site == InvocationSite::Operation(operation.id)
-                    });
-                    return Ok(match (returned, asked) {
-                        (true, Asked::Contents(_)) => Reached::Returned,
-                        (true, Asked::Case(_)) | (false, _) => Reached::Unknown,
-                    });
-                };
+            (Stored::Value(_), _) => Reached::Unknown,
+            (Stored::Case(case), Asked::Case(_)) if beneath.is_empty() => Reached::Case(*case),
+            // The payload leaves of a construction have stores of their
+            // own, which come after this one; what is left is the sum's
+            // discriminator, or a payload of another case.
+            (Stored::Case(_), _) => Reached::Unknown,
+            // A zero establishment holds the first declared case of every
+            // sum of the zero value.
+            (Stored::Zeroed, Asked::Case(_)) => self
+                .zero_case(row.lineage.root, beneath, concerns)?
+                .map_or(Reached::Unknown, Reached::Case),
+            (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+            (Stored::Returned, Asked::Contents(_)) => Reached::Returned,
+            (Stored::Returned, Asked::Case(_)) => Reached::Unknown,
+            (Stored::Moved(source), _) => {
+                let mut source = source.clone();
                 source.segments.extend_from_slice(beneath);
-                let (block, after) = self
-                    .graph
-                    .locate(ProgramPoint::AfterOperation(operation.id))?;
-                let before = after
-                    .checked_sub(1)
-                    .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
                 let asked = match asked {
                     Asked::Contents(_) => Asked::Contents(&source),
                     Asked::Case(_) => Asked::Case(&source),
                 };
-                self.reaching(tables, asked, block, before, budget, concerns)
+                // The source as it was just before the store.
+                return self.reaching(tables, asked, row.block, row.position - 1, budget, concerns);
             }
-        }
-    }
-
-    /// The case a construction established the root `written` as, when the
-    /// operation is one and `written` is its whole result.
-    fn established_as(&self, operation: &Operation, written: &Lineage) -> Option<StructuralCaseId> {
-        let produced = operation.result.as_structural().map(|result| result.place);
-        if produced != Some(written.root) || !written.segments.is_empty() {
-            return None;
-        }
-        match &operation.kind {
-            OperationKind::EstablishScalarCase { result_case, .. }
-            | OperationKind::EstablishStructuralCase { result_case, .. } => Some(*result_case),
-            _ => None,
-        }
+        })
     }
 
     /// What taking an edge from `from` into `into` establishes about the
@@ -1469,15 +1334,15 @@ impl<'a> Storage<'a> {
             concerns,
         )? {
             Reached::Returned => match self.root_kind(leaf.root, concerns)? {
-                // The root is a call's result and nothing but that call
-                // ever wrote the leaf or a place around it, so the leaf
-                // still lies in the value the callee established.
+                // Every path supplies what a call returned, and nothing but
+                // the operation that produced the root ever stored into the
+                // leaf or a place around it: the root is that call's result
+                // and the leaf still lies in the value the callee
+                // established.
                 StructuralPlaceKind::OperationResult { producer, .. }
-                    if tables.invocations.values().any(|invocation| {
-                        invocation.site == InvocationSite::Operation(producer)
-                    }) && self.log.iter().all(|row| {
+                    if self.log.iter().all(|row| {
                         !overlap(&row.lineage, &leaf)
-                            || (row.lineage.segments.is_empty() && row.operation == Some(producer))
+                            || (row.lineage.segments.is_empty() && row.operation == producer)
                     }) =>
                 {
                     Some(leaf.clone())
@@ -2027,7 +1892,7 @@ impl crate::Bindings for AtEntry<'_, '_> {
             storage
                 .shape(&leaf, concerns)
                 .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar
+            Shape::Scalar(_)
         ) {
             return Err(crate::Unbound::Unsupported(
                 "an entry clause names storage that is no scalar field",
@@ -2111,7 +1976,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             storage
                 .shape(&leaf, self.concerns)
                 .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar
+            Shape::Scalar(_)
         ) {
             return Err(crate::Unbound::Unsupported(
                 "clause names storage that is no scalar field of the actual",
