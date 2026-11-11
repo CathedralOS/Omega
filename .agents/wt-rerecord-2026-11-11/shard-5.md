@@ -1,0 +1,254 @@
+# wt re-record shard 5 (slice `/tmp/shard4`, 185 rows)
+
+Pinned base: `3bbe5c131a15666f68a700f499783f04910e8143`  
+Branch: `work/wt-rerecord-shard-5`
+
+## Host and jobs
+
+- Host: `cursor`, linux x86_64, 4 logical CPUs (`mbx xtask doctor`)
+- `OMEGA_CORPUS_JOBS=4`, `nice -n 19` on corpus invocations
+- One corpus run at a time (single batch; no overlap with other slots)
+
+## Slice assignment
+
+Shard count 6 via contiguous line split (`split -n l/6 -d -a1 /tmp/all.txt /tmp/shard`).
+
+Fixture-name extraction: first whitespace field of matching `corpus_outcomes.txt` lines (`pass|fail|run/...`), same as brief `cut -d' ' -f1`.
+
+## Commands
+
+```bash
+git checkout -f 3bbe5c131a15666f68a700f499783f04910e8143 && git clean -fdx
+bash tools/agent_setup.sh && mbx xtask doctor < /dev/null
+
+grep -E '^(pass|fail|run)/.*@[0-9a-f]{12}\+wt' tests/omega/corpus_outcomes.txt \
+  | cut -d' ' -f1 | LC_ALL=C sort -u > /tmp/all.txt
+split -n l/6 -d -a1 /tmp/all.txt /tmp/shard
+
+FILTER=$(paste -sd, /tmp/shard4)
+export OMEGA_CORPUS_JOBS=4
+nice -n 19 mbx xtask corpus --record --filter "$FILTER" < /dev/null
+
+# millis restored on 184 semantically unchanged rows (testing.md § Attributing a move)
+# attribution re-run for the one moved row:
+nice -n 19 mbx xtask corpus --filter pass/facts/indexed_crash_guard_through_target_body_exit < /dev/null
+
+mbx xtask check-rules --base 3bbe5c131a15666f68a700f499783f04910e8143 --title "tests: re-record wt shard 5" < /dev/null
+```
+
+Log: `/tmp/shard5-record.log` (record wall time ~738s).
+
+## Exact row list (185)
+
+```
+pass/facts/dyn_returned_view_membership_through_call_result_exit
+pass/facts/dyn_returned_view_membership_through_const_name_exit
+pass/facts/dyn_returned_view_membership_through_field_exit
+pass/facts/dyn_returned_view_membership_through_local_exit
+pass/facts/dyn_returned_view_membership_through_match_join_exit
+pass/facts/dyn_returned_view_membership_through_other_machine_exit
+pass/facts/dyn_returned_view_membership_through_other_state_exit
+pass/facts/dyn_returned_view_membership_through_parameter_exit
+pass/facts/dyn_returned_view_membership_through_target_body_exit
+pass/facts/dynamic_selected_reach_through_call_result_exit
+pass/facts/dynamic_selected_reach_through_const_name_exit
+pass/facts/dynamic_selected_reach_through_field_exit
+pass/facts/dynamic_selected_reach_through_local_exit
+pass/facts/dynamic_selected_reach_through_match_join_exit
+pass/facts/dynamic_selected_reach_through_other_machine_exit
+pass/facts/dynamic_selected_reach_through_other_state_exit
+pass/facts/dynamic_selected_reach_through_parameter_exit
+pass/facts/dynamic_selected_reach_through_target_body_exit
+pass/facts/fixed_layout_bit_observation_through_call_result_exit
+pass/facts/fixed_layout_bit_observation_through_const_name_exit
+pass/facts/fixed_layout_bit_observation_through_field_exit
+pass/facts/fixed_layout_bit_observation_through_local_exit
+pass/facts/fixed_layout_bit_observation_through_match_join_exit
+pass/facts/fixed_layout_bit_observation_through_other_machine_exit
+pass/facts/fixed_layout_bit_observation_through_other_state_exit
+pass/facts/fixed_layout_bit_observation_through_parameter_exit
+pass/facts/fixed_layout_bit_observation_through_target_body_exit
+pass/facts/fixed_region_byte_roundtrip_through_const_name_exit
+pass/facts/fixed_region_byte_roundtrip_through_match_join_exit
+pass/facts/fixed_region_byte_roundtrip_through_other_machine_exit
+pass/facts/fixed_region_byte_roundtrip_through_other_state_exit
+pass/facts/fixed_region_byte_roundtrip_through_target_body_exit
+pass/facts/foreign_byte_array_element_backing_through_call_result_exit
+pass/facts/foreign_byte_array_element_backing_through_const_name_exit
+pass/facts/foreign_byte_array_element_backing_through_field_exit
+pass/facts/foreign_byte_array_element_backing_through_local_exit
+pass/facts/foreign_byte_array_element_backing_through_match_join_exit
+pass/facts/foreign_byte_array_element_backing_through_other_machine_exit
+pass/facts/foreign_byte_array_element_backing_through_other_state_exit
+pass/facts/foreign_byte_array_element_backing_through_parameter_exit
+pass/facts/foreign_byte_array_element_backing_through_target_body_exit
+pass/facts/four_variant_enum_payload_bound_through_call_result_exit
+pass/facts/four_variant_enum_payload_bound_through_const_name_exit
+pass/facts/four_variant_enum_payload_bound_through_field_exit
+pass/facts/four_variant_enum_payload_bound_through_local_exit
+pass/facts/four_variant_enum_payload_bound_through_match_join_exit
+pass/facts/four_variant_enum_payload_bound_through_other_machine_exit
+pass/facts/four_variant_enum_payload_bound_through_other_state_exit
+pass/facts/four_variant_enum_payload_bound_through_parameter_exit
+pass/facts/four_variant_enum_payload_bound_through_target_body_exit
+pass/facts/in_place_view_argument_through_call_result_exit
+pass/facts/in_place_view_argument_through_const_name_exit
+pass/facts/in_place_view_argument_through_field_exit
+pass/facts/in_place_view_argument_through_local_exit
+pass/facts/in_place_view_argument_through_match_join_exit
+pass/facts/in_place_view_argument_through_other_machine_exit
+pass/facts/in_place_view_argument_through_other_state_exit
+pass/facts/in_place_view_argument_through_parameter_exit
+pass/facts/in_place_view_argument_through_target_body_exit
+pass/facts/independent_call_result_bound_applied_requirement_exit
+pass/facts/independent_call_result_bound_through_call_result_exit
+pass/facts/independent_call_result_bound_through_const_name_exit
+pass/facts/independent_call_result_bound_through_field_exit
+pass/facts/independent_call_result_bound_through_local_exit
+pass/facts/independent_call_result_bound_through_match_join_exit
+pass/facts/independent_call_result_bound_through_other_machine_exit
+pass/facts/independent_call_result_bound_through_other_state_exit
+pass/facts/independent_call_result_bound_through_parameter_exit
+pass/facts/independent_call_result_bound_through_target_body_exit
+pass/facts/indexed_crash_guard_through_target_body_exit
+pass/facts/induction_call_guarantee_through_call_result_exit
+pass/facts/induction_call_guarantee_through_const_name_exit
+pass/facts/induction_call_guarantee_through_field_exit
+pass/facts/induction_call_guarantee_through_local_exit
+pass/facts/induction_call_guarantee_through_match_join_exit
+pass/facts/induction_call_guarantee_through_other_machine_exit
+pass/facts/induction_call_guarantee_through_other_state_exit
+pass/facts/induction_call_guarantee_through_parameter_exit
+pass/facts/induction_call_guarantee_through_target_body_exit
+pass/facts/inferred_record_equation_call/call_result
+pass/facts/inferred_record_equation_call/const_name
+pass/facts/inferred_record_equation_call/field
+pass/facts/inferred_record_equation_call/local
+pass/facts/inferred_record_equation_call/match_join
+pass/facts/inferred_record_equation_call/other_machine
+pass/facts/inferred_record_equation_call/other_state
+pass/facts/inferred_record_equation_call/parameter
+pass/facts/inferred_record_equation_call/root
+pass/facts/inferred_record_equation_call/target_body
+pass/facts/machine_tuple_dispatch_through_call_result_exit
+pass/facts/machine_tuple_dispatch_through_const_name_exit
+pass/facts/machine_tuple_dispatch_through_field_exit
+pass/facts/machine_tuple_dispatch_through_local_exit
+pass/facts/machine_tuple_dispatch_through_match_join_exit
+pass/facts/machine_tuple_dispatch_through_other_machine_exit
+pass/facts/machine_tuple_dispatch_through_other_state_exit
+pass/facts/machine_tuple_dispatch_through_parameter_exit
+pass/facts/machine_tuple_dispatch_through_target_body_exit
+pass/facts/match_join_multi_variant_bound_through_other_state_exit
+pass/facts/match_runtime_view_extent_through_call_result_exit
+pass/facts/match_runtime_view_extent_through_const_name_exit
+pass/facts/match_runtime_view_extent_through_field_exit
+pass/facts/match_runtime_view_extent_through_local_exit
+pass/facts/match_runtime_view_extent_through_match_join_exit
+pass/facts/match_runtime_view_extent_through_other_machine_exit
+pass/facts/match_runtime_view_extent_through_other_state_exit
+pass/facts/match_runtime_view_extent_through_parameter_exit
+pass/facts/match_runtime_view_extent_through_target_body_exit
+pass/facts/method_array_operand_inference_through_call_result_exit
+pass/facts/method_array_operand_inference_through_const_name_exit
+pass/facts/method_array_operand_inference_through_field_exit
+pass/facts/method_array_operand_inference_through_local_exit
+pass/facts/method_array_operand_inference_through_match_join_exit
+pass/facts/method_array_operand_inference_through_other_machine_exit
+pass/facts/method_array_operand_inference_through_other_state_exit
+pass/facts/method_array_operand_inference_through_parameter_exit
+pass/facts/method_array_operand_inference_through_target_body_exit
+pass/facts/named_conformance_dispatch_through_target_body_exit
+pass/facts/narrowed_integer_write_through_target_body_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_call_result_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_const_name_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_field_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_local_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_match_join_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_other_state_exit
+pass/facts/nested_machine_joint_rank_bounded_computed_length_target_body_exit
+pass/facts/nested_record_field_borrow_bound_through_call_result_exit
+pass/facts/nested_record_field_borrow_bound_through_const_name_exit
+pass/facts/nested_record_field_borrow_bound_through_field_exit
+pass/facts/nested_record_field_borrow_bound_through_local_exit
+pass/facts/nested_record_field_borrow_bound_through_match_join_exit
+pass/facts/nested_record_field_borrow_bound_through_other_machine_exit
+pass/facts/nested_record_field_borrow_bound_through_other_state_exit
+pass/facts/nested_record_field_borrow_bound_through_parameter_exit
+pass/facts/nested_record_field_borrow_bound_through_target_body_exit
+pass/facts/open_index_distributivity_commutative_semiring_exit
+pass/facts/open_index_distributivity_through_call_result_exit
+pass/facts/open_index_distributivity_through_const_name_exit
+pass/facts/open_index_distributivity_through_field_exit
+pass/facts/open_index_distributivity_through_local_exit
+pass/facts/open_index_distributivity_through_match_join_exit
+pass/facts/open_index_distributivity_through_other_machine_exit
+pass/facts/open_index_distributivity_through_other_state_exit
+pass/facts/open_index_distributivity_through_parameter_exit
+pass/facts/open_index_distributivity_through_target_body_exit
+pass/facts/predicate_type_formation_through_call_result_exit
+pass/facts/predicate_type_formation_through_const_name_exit
+pass/facts/predicate_type_formation_through_field_exit
+pass/facts/predicate_type_formation_through_local_exit
+pass/facts/predicate_type_formation_through_match_join_exit
+pass/facts/predicate_type_formation_through_other_machine_exit
+pass/facts/predicate_type_formation_through_other_state_exit
+pass/facts/predicate_type_formation_through_parameter_exit
+pass/facts/predicate_type_formation_through_target_body_exit
+pass/facts/projection_receiver_call_through_call_result_exit
+pass/facts/projection_receiver_call_through_const_name_exit
+pass/facts/projection_receiver_call_through_field_exit
+pass/facts/projection_receiver_call_through_local_exit
+pass/facts/projection_receiver_call_through_match_join_exit
+pass/facts/projection_receiver_call_through_other_machine_exit
+pass/facts/projection_receiver_call_through_other_state_exit
+pass/facts/projection_receiver_call_through_parameter_exit
+pass/facts/projection_receiver_call_through_target_body_exit
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract
+pass/facts/provider_contract_endpoint_guarded_crash_runtime_zero_divisor_traps
+pass/facts/provider_contract_endpoint_guarded_crash_through_call_result_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_const_name_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_field_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_local_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_match_join_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_other_machine_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_other_state_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_parameter_exit
+pass/facts/provider_contract_endpoint_guarded_crash_through_target_body_exit
+pass/facts/provider_contract_endpoint_pending_call_through_local_exit
+pass/facts/runtime_index_application_call_index_through_call_result_exit
+pass/facts/runtime_index_application_call_index_through_const_name_exit
+pass/facts/runtime_index_application_call_index_through_field_exit
+pass/facts/runtime_index_application_call_index_through_local_exit
+pass/facts/runtime_index_application_call_index_through_match_join_exit
+pass/facts/runtime_index_application_call_index_through_other_machine_exit
+pass/facts/runtime_index_application_call_index_through_other_state_exit
+pass/facts/runtime_index_application_call_index_through_parameter_exit
+pass/facts/runtime_index_application_call_index_through_target_body_exit
+```
+
+## Outcomes
+
+| Category | Count |
+| --- | ---: |
+| Re-recorded | 185 |
+| Semantically unchanged (stamp `+wt` cleared; millis restored) | 184 |
+| Outcome changed | 1 |
+| Timeouts recorded | 0 |
+| Unsettled (not committed as compiler truth) | 0 |
+| `+wt` remaining on shard rows | 0 |
+
+### Changed rows and attribution
+
+**Stale ledger vs compiler at base `3bbe5c131a15` (1 row)**
+
+- `pass/facts/indexed_crash_guard_through_target_body_exit`
+  - Before: `checked` with dirty stamp `@b9580c0cab21+wt`
+  - After: `rejected` with `regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15`
+  - Diagnostic: `authored Operator declaration selection occurrence 573 (`==` in …/target_body_exit/main.omg) remained unresolved after successful checking (CheckedOperator)`
+  - Attribution: not host-only or flaky; immediate re-verify `mbx xtask corpus --filter …` reported `clean — 1 fixture(s) verified`. Loss was already true on the pinned base; the `+wt` row overstated green.
+
+### Unsettled
+
+None.
