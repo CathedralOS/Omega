@@ -1943,6 +1943,7 @@ pub fn prepare_typed_trees(
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
+    crate::policy_operators::elaborate(&mut program)?;
     crate::assembly_control::validate_primitive_meanings(&program)?;
     for machine in program.machines() {
         if machine.body_status == typed_trees::machine::MachineBodyStatus::Deferred {
@@ -2075,6 +2076,7 @@ pub(crate) fn normalize_open_index_identities(
 
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
+    crate::policy_operators::elaborate(program)?;
     program
         .retain_static_argument_contexts()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -2103,6 +2105,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
 
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
+    crate::policy_operators::elaborate(&mut program)?;
     value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
     crate::rebound_parameter_homes::materialize(&mut program);

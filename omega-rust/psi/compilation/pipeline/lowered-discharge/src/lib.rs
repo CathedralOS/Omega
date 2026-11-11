@@ -49,6 +49,7 @@ use terminal_check_tables::values::{Justification, KnowledgeRow};
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
+use terminal_codec::ObligationEvidenceSeal;
 use terminal_psi::TerminalMachine;
 
 use graph::Graph;
@@ -84,6 +85,77 @@ pub struct MachineDischarge {
 #[derive(Debug, Clone)]
 pub struct Discharge {
     pub machines: IdTable<MachineId, MachineDischarge>,
+}
+
+impl Discharge {
+    /// One seal per discharged `OperationSafety` obligation, the only kind
+    /// Omega 00 turns into an accepted fact. The seals travel beside the
+    /// module in memory and are lost on a byte round trip
+    /// (`ObligationEvidenceSeal`).
+    pub fn operation_seals(
+        &self,
+        elaboration: &Elaboration,
+    ) -> Checked<Vec<ObligationEvidenceSeal>> {
+        let mut seals = Vec::new();
+        for (machine, result) in self.machines.iter() {
+            let tables = terminal_check_tables::row(
+                &elaboration.tables.machines,
+                machine,
+                machine,
+                Construct::Machine,
+            )?;
+            for (obligation, verdict) in result.verdicts.iter() {
+                let Ok(evidence) = verdict else {
+                    continue;
+                };
+                let row = terminal_check_tables::row(
+                    &tables.obligations,
+                    obligation,
+                    machine,
+                    Construct::Obligation(obligation),
+                )?;
+                if !matches!(row.kind, ObligationKind::OperationSafety { .. }) {
+                    continue;
+                }
+                let resolve = |rows: &[KnowledgeId]| {
+                    rows.iter()
+                        .map(|row| {
+                            result.proposition(*row).cloned().ok_or_else(|| {
+                                refusal(
+                                    RefusalReason::ForeignIdentity,
+                                    machine,
+                                    Construct::Obligation(obligation),
+                                    "evidence cites a knowledge row with no proposition",
+                                )
+                            })
+                        })
+                        .collect::<Checked<Vec<_>>>()
+                };
+                let seal = ObligationEvidenceSeal::seal(
+                    machine,
+                    obligation,
+                    evidence.goal.clone(),
+                    resolve(&evidence.assumptions)?,
+                    resolve(&evidence.axioms)?,
+                    evidence.certificate.clone(),
+                )
+                .map_err(|error| Refusal {
+                    reason: RefusalReason::Unsupported,
+                    machine,
+                    concerns: Construct::Obligation(obligation),
+                    detail: format!("evidence encoding {error:?}"),
+                })?;
+                seals.push(seal);
+            }
+        }
+        Ok(seals)
+    }
+}
+
+impl MachineDischarge {
+    fn proposition(&self, row: KnowledgeId) -> Option<&Proposition> {
+        PropositionId::new(row.get()).and_then(|id| self.propositions.get(id))
+    }
 }
 
 /// Decides every obligation of every machine and fills each machine's

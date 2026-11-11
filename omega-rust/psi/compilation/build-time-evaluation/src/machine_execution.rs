@@ -5556,6 +5556,7 @@ pub(crate) mod selected_operators {
         for row in operators {
             *program.expression_table.expression_mut(row.expression) =
                 ExpressionNode::Binary(typed_trees::expression::TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: row.operands[0],
                     operator: row.operation,
                     right: row.operands[1],

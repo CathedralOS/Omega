@@ -9,7 +9,7 @@ the portable module.
 ## Authorship and evaluation
 
 `Calling<Policy>` takes an explicit named implementation parameter declared
-`Policy satisfies CallingPolicy`. There is no convention data subject. Its
+`const Policy: CallingPolicy`. There is no convention data subject. Its
 compile-time `plan` machine
 receives a normalized `BoundarySignature` and returns
 `Accepted(BoundaryEntryPlan)` or `Rejected(CallingPolicyRejection)`.

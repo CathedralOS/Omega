@@ -841,6 +841,15 @@ impl RetainedCheck {
     }
 
     /*
+        The frozen typed trees this judgment accepted. A request that takes
+        this judgment runs no preparation of its own, so a caller comparing
+        another checker on the same input reads the trees here.
+    */
+    pub fn judged_typed_trees(&self) -> &typed_trees::FrozenTypedTrees {
+        &self.checked.typed
+    }
+
+    /*
         Whether this judgment was computed for the complete source request.
         Preparation depends on the program and its admission; checking also
         depends on which entries can be invoked independently. Only an equal

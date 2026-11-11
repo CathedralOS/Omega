@@ -31,7 +31,6 @@ it does not introduce an opaque aggregate term or license a user-written body.
 | Truly zero-member record | Boolean truth. An all-erased record is not this case. |
 | Payload-less sum | Canonical conjunction of both case-membership implications for each declared case. |
 | Payload-bearing sum | One case-ordered disjunction: both roots select the same case and all selected payload leaves compare equal. |
-| Common fields plus cases | Common-field equalities in declaration order followed by the case disjunction. |
 
 Nested records/sums preserve every enclosing field, case, and payload segment.
 Aggregate inequality negates the complete equality predicate; it does not invent

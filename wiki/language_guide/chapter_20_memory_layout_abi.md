@@ -41,8 +41,8 @@ zero into a different meaning or an invalid representation.
 
 A field constrained to `1..=100` illustrates the establishment gate. Zero remains
 safe storage, but code cannot observe that field as an established value until
-construction proves the constraint. The gate propagates through common fields
-and the active first-case payload, not inactive later cases. See
+construction proves the constraint. The gate propagates through a record's
+fields and a sum's active first-case payload, not inactive later cases. See
 [default domains and zero initialization](../spec/language/dependent_values.md#default-domains-and-zero-initialization).
 
 Fields have no declaration-site default initializers. Nonzero or computed

@@ -88,7 +88,7 @@ requires player.health >= amount
 Publishing `Player` exposes its fields and shape. Publishing `take_damage` is
 a separate choice. Its preconditions keep the subtraction valid.
 
-Fields, cases and trait requirements follow their containing declaration's
+Fields, cases, nested data declarations and trait requirements follow their containing declaration's
 visibility. Nested machines have lexical scope inside their enclosing machine;
 exporting the outer machine does not expose its helpers.
 

@@ -1,0 +1,1 @@
+`+%` takes unqualified integer operands, but its left operand has type `u32 in Wrapping`

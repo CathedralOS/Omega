@@ -38,7 +38,12 @@ One goal-directed prover serves all three kinds. It carries interval bounds as
 proof: each integer value gets a best upper and lower literal bound, each with
 a node the kernel checks, from the carrier bound of its type, a hypothesis
 bounding it or relating it to another value, or, for an exact add or subtract
-result, its operands' bounds through `IntegerExactAddDefinitionBound`. A
+result, its operands' bounds through `IntegerExactAddDefinitionBound`. An exact
+multiply result has no definition rule and needs none: the prover bounds the
+mathematical product with `IntegerAffineBound` (the least or greatest of the
+four corner products of the operands' bounds), carries that bound through the
+result equation with `ValueEqualityTransport`, and restates it in the carrier
+with `IntegerOrderSubstitution`. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
 image of the operands' bounds the kernel itself computes.
@@ -79,5 +84,26 @@ subset needs, so the prover emits them directly.
 4. **Shift-left representability is not built.** The kernel has a direct
    shift route (`map_direct_shift_left_bound`); this prover does not build
    its evidence, so an exact `<<` whose count is not a literal zero is
-   `Unproved`. No multiply result bound is built either: the kernel has no
-   multiply definition rule.
+   `Unproved`.
+
+## Evidence seals
+
+`Discharge::operation_seals` turns each discharged `OperationSafety`
+obligation into a `terminal_codec::ObligationEvidenceSeal`: the obligation's
+machine and identity, its goal, the hypotheses and the certificate, and a
+SHA-256 fingerprint over their canonical encoding. Only that kind becomes an
+accepted fact in Omega 00. The caller hands the seals to Omega 00 with
+`lower_module_with_evidence`, the only way to attach them.
+
+Omega 00 checks each seal before it fills the fact's
+`proof_bundle_fingerprint`: the fingerprint matches the seal's parts, the
+operation is in the module and owns the obligation, and the goal Terminal
+semantics states for that operation equals the sealed goal. A seal that fails
+a check, or names no accepted fact, refuses the unit. Omega 00 does not re-run
+the kernel: that the kernel accepted the certificate under those hypotheses,
+and that the hypotheses held where the obligation sits, it takes on faith.
+
+Seals are in memory only. Terminal Psi's layout has no place for them yet, so
+they are lost on a byte round trip and do not survive a stored artifact: a
+module lowered from bytes, including one a cache rebuilt, arrives with
+`ObligationEvidence::ReadFromBytes` and zero fingerprints.

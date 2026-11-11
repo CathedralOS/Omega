@@ -131,9 +131,19 @@ impl TargetProviderPreparationRequest<'_> {
                 .into_iter()
                 .map(|symbol| self.declaration_identity(symbol))
                 .collect::<Result<Vec<_>, _>>()?;
-            let explicitly_selected = explicit_choices
-                .iter()
-                .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
+            let canonical_float_map =
+                crate::provider_planning::selection_declarations::canonical_float_map(
+                    self.context.typed,
+                    &candidate.provenance,
+                );
+            // A target-realized float plan is demanded like an authored
+            // selection: a body kept for another target may still name the
+            // operation, and the target's table, not reachability, decides
+            // whether the slot is realized.
+            let explicitly_selected = canonical_float_map
+                || explicit_choices
+                    .iter()
+                    .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
             let closed_declarations = crate::provider_declarations::close_provider_declarations(
                 self.context,
                 self.exact_toolchain_sources,
@@ -159,6 +169,7 @@ impl TargetProviderPreparationRequest<'_> {
                         .row_realizations
                         .iter()
                         .all(|row| row.native().is_some()),
+                    canonical_float_map,
                     owner: closed_declarations.map(|closed| {
                         provider_selection::PreparedProviderRealizations {
                             provider_declaration: closed.provider_declaration,

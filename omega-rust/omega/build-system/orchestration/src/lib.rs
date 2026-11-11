@@ -68,7 +68,9 @@ mod package;
 mod project;
 pub use compile::build_execution::execute_build as execute_build_activation;
 pub use compile::native_completion::complete_product;
-pub use compile::source_compilation::{check_source, compile_sources, produce_source};
+pub use compile::source_compilation::{
+    check_source, check_source_keeping_typed_frontier, compile_sources, produce_source,
+};
 pub use project::publication;
 
 #[cfg(test)]

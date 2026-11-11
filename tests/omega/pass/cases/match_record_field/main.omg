@@ -15,10 +15,10 @@ machine record(code: u64) -> Record {
 }
 
 machine composed(flag: bool) -> u64 {
-    (match flag {
+    ((match flag {
         true -> 18446744073709551616 / 18446744073709551616
         false -> 7 / 2 * 2
-    }) | (8u64 | 16u64)
+    }) as u64) | (8u64 | 16u64)
 }
 
 data Main {}

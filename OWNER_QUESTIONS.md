@@ -203,3 +203,75 @@ One reading the implementer applies meanwhile, stated so it can be corrected:
 structural identity unifies two all-row `satisfies` blocks with the same
 selections, and does not unify a block with an inline member body with any
 other, because *"An inline body still declares a new machine"*.
+
+### Q3 - Does explicit landing apply at a proof-level Int peer?
+
+Decision name: `explicit-landing-proof-int-peer`.
+
+An anonymous calculation whose exact history holds a fractional intermediate,
+used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
+in an `ensures` clause), lands as a mathematical integer. Should it reject like
+a fixed-integer destination, and if so how does an author acknowledge it?
+
+- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+  makes implicit integer landing an error and names `as T` with an integer
+  destination `T` as the acknowledgement; it does not say whether the
+  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
+- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
+  lists "proof integer peers" in its sweep and also says "proof-level
+  mathematical operations retain their rules".
+- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
+  program: the contract prover then cannot show the divisor nonzero
+  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
+
+Until answered, the compiler rejects every fixed-integer implicit landing and
+keeps the proof-`Int` peer as a warning.
+
+### Q4 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
+
+Decision name: `implementation-telescope-identity`.
+
+**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md)
+(human-set priority) requires structural identity: *"Two names for the same
+selections are one implementation"*. Selection rows landed in `#2315`; the next
+step unifies implementations by their selections. Library and corpus code
+relies today on implementations that select nothing: 283 `.omg` files declare an
+empty `Name satisfies Trait {}` block as a marker, and
+`tests/omega/fail/traits/implementation_value_own_const_mismatch` pins that
+`Holder<Choice<ZERO>>` is not `Holder<Choice<EIGHT>>` for
+`Choice<const Value: u64> satisfies Tag {}`. The product requirement is a
+marker or phantom-indexed implementation that keeps two uses apart at compile
+time, which those sources already express.
+
+**Gap.** Two ratified passages of
+[conformances](wiki/spec/language/conformances.md) give different answers and
+neither names this case:
+
+- Before the operation-record section: *"The telescope participates in every
+  concrete application's identity. Adding, removing, or reordering type, const,
+  or static-machine binders breaks existing applications"*. Read alone,
+  `Choice<ZERO>` and `Choice<EIGHT>` differ.
+- [Implementations are operation records](wiki/spec/language/conformances.md#implementations-are-operation-records):
+  *"Identity is the schema application plus its canonical relevant field
+  values. A name creates no identity and grants no authority: two names for
+  one value are one implementation"*. The schema application of both is `Tag`
+  and neither has a field, so read alone they are one value, and so are any
+  two empty implementations of one trait.
+
+The same section says *"a deliberately distinct policy carries an explicit
+brand"*, whose spelling is the subject of `operation-record-source-forms`
+above, so the marker implementations cannot be migrated to brands yet.
+
+**Questions for Zac.**
+
+- **(a)** Is an implementation's own telescope application part of its identity
+  under the operation-record rule even when no selected field mentions the
+  binder, so `Choice<ZERO>` and `Choice<EIGHT>` stay distinct?
+- **(b)** Are two differently named, non-generic, empty implementations of one
+  trait one value, or does an implementation with no selections keep the
+  identity of its declaration until brands exist?
+
+Reading applied meanwhile, stated so it can be corrected: structural identity
+unifies only non-generic implementations that have at least one row and whose
+rows are all selection rows. Empty and generic implementations keep their
+current declaration-and-argument identity.

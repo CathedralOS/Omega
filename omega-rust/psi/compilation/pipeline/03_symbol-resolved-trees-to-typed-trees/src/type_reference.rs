@@ -1099,6 +1099,7 @@ pub(crate) mod const_arguments {
                         ));
                         program.expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left,
                                 operator: BinaryOperator::Add,
                                 right: value,

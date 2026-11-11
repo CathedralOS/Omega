@@ -32,16 +32,13 @@ inference and specialization rules; an entry predicate does not make an unknown
 value static. Repeated predicate clauses in one scope conjoin their obligations.
 `ensures` remains the distinct normal-completion guarantee and proof obligation.
 
-`requires machine Step(...)` declares a structural callable requirement;
-`requires machine Handler satisfies Trait::requirement` declares a nominal one.
-They declare originating contracts. A wrapper with an explicitly kinded machine
-binder may instead [infer the exact requirements it forwards](generics.md#forwarded-callback-requirements);
-direct invocation shape does not invent a contract. A nested callable's own
-`requires`, `ensures` and operational clauses belong to that callable. Its declaration-ending semicolon closes that
-complete contract before subsequent clauses resume the enclosing declaration.
-There are no clause-ending semicolons; see
-[header delimiters](#machine-header-delimiters). Nested premises are not flattened
-into the enclosing machine's entry requirements.
+A static callable parameter states its contract as its type:
+`const Step: machine(...)` is structural and
+`const Handler: Trait::requirement` is nominal under
+[typed static parameters](generics.md#typed-static-parameters). Both are
+originating contracts. A `const Step: machine` parameter may instead
+[have its exact type inferred](generics.md#inferred-callable-parameter-types);
+neither form guesses a contract from an invocation's shape.
 
 Assembly removes the grouping word rather than replacing it with another
 `requires`: `asm requires ready ...` has one entry requirement, and
@@ -65,33 +62,36 @@ then resume the same declaration.
 
 A bodyless machine declaration or requirement ends with one semicolon after its
 complete header. That terminator belongs to the declaration, not whichever
-clause happens to come last. A nested `requires machine` is such a declaration:
-its semicolon closes the nested contract and subsequent clauses belong to the
-enclosing declaration.
+clause happens to come last.
+
+A callable parameter's clauses sit inside its type, so an executable machine
+header has no nested declaration to terminate:
 
 ```omega
-machine invoke<machine Step>() -> u64
-requires machine Step() -> u64
-    terminates;
+machine invoke<const Step: machine() -> u64 terminates>() -> u64
 crashes Trap
 {
     Step()
 }
 ```
 
-Here `terminates` belongs to `Step`, and `crashes Trap` belongs to `invoke`.
-To put a crash ceiling on `Step`, put that clause before its declaration
-terminator. A callback with several operational axes writes them together:
+Here `terminates` belongs to the type of `Step`, and `crashes Trap` belongs to
+`invoke`. To put a crash ceiling on `Step`, write that clause in its type. A
+callable type with several operational axes writes them together:
 
 ```omega
-requires machine Target() -> u64
+const Target: machine() -> u64
     suspends
     blocks
-    terminates;
+    terminates
 ```
 
-No extra semicolon is needed after a termination clause to end that callable.
-An additional same-level terminator rejects; it is not a compatibility spelling.
+A machine-shaped `requires machine` hypothesis in a
+[mathematical declaration](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+is a nested bodyless declaration: its semicolon closes the nested contract and
+subsequent clauses belong to the enclosing declaration. No extra semicolon is
+needed after its last clause, and an additional same-level terminator rejects;
+it is not a compatibility spelling.
 [Nested callable families](generics.md#nested-contracts-and-proof-families) still
 have one terminator per bodyless declaration: closing an inner requirement and
 then its enclosing bodyless requirement legitimately needs two declaration

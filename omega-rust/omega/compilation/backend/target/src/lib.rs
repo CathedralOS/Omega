@@ -33,6 +33,7 @@ pub mod compatibility_fingerprint;
 mod component_locator;
 mod elf_loader;
 mod explicit_target_set;
+mod float_realization;
 mod foreign_locator;
 mod target_profile;
 mod target_semantics;
@@ -47,6 +48,10 @@ pub use elf_loader::{
     declared_elf_interpreter_default, normalize_elf_interpreter_plan,
 };
 pub use explicit_target_set::ExplicitTargetSet;
+pub use float_realization::{
+    CANONICAL_FLOAT_OPERATIONS, CanonicalFloatRealization, FloatControlObligation,
+    FloatIsaAdmission, canonical_float_operation_name,
+};
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,

@@ -108,41 +108,57 @@ data Command {
 }
 ```
 
-A value inhabits one case. Its active payload belongs to the value. Common
-fields can accompany the cases:
+A value inhabits one case. Its active payload belongs to the value.
+
+A `data` declaration is a record or a sum, never both. To put common fields
+beside alternatives, hold the sum in a record's field:
 
 ```omega
 data RoomEvent {
     consumed: bool;
-    case Nothing;
-    case Treasure(gold: u32);
+    found: Found;
+
+    data Found {
+        case Nothing;
+        case Treasure(gold: u32);
+    }
 }
 
-let event: RoomEvent = RoomEvent::Treasure { consumed: true, gold: 5 };
-let unconsumed: RoomEvent = RoomEvent::Treasure { gold: 5, .. };
-let empty: RoomEvent = RoomEvent::Nothing { .. };
+let event: RoomEvent = RoomEvent {
+    consumed: true,
+    found: RoomEvent::Found::Treasure { gold: 5 },
+};
+let empty: RoomEvent = RoomEvent { found: RoomEvent::Found::Nothing, .. };
 ```
 
-This mixed shape has `consumed` in every case, with a case-specific payload.
-Common fields can be accessed without a case test; payload fields need the
-matching case. Case-bearing types use case construction, not a record literal
-that omits the case.
+`event.consumed` needs no case test; `gold` needs the `Treasure` case of
+`event.found`. `RoomEvent::Found` is an ordinary sum: build one before there is
+an event, pass `&event.found` to a helper, move it out, or store it elsewhere.
 
-Common fields come first; all inline cases follow them as a consecutive tail.
-Construction may supply common and payload fields together, as above. Matching
-instead decomposes the common fields and one case-only view: a named outer
-pattern can bind `RoomEvent { consumed, case as action }`, or a positional one
-can bind `(consumed, action)`. An inner match on action then handles Nothing or
-Treasure's gold. Case patterns bind payload fields only, never consumed again.
-A helper can accept that view by itself as `&RoomEvent::case`.
-See [data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
+Nesting the declaration only scopes its name. A nested `data` adds no field by
+itself, inherits its owner's visibility and generic parameters, and can be
+declared together with its field:
 
-In a case literal, `..` covers omitted common fields and active payload fields;
-the case itself is still selected explicitly. A bare payload-free case cannot
-silently omit runtime common fields: RoomEvent::Nothing needs the literal above.
-Omitted fields still need valid zero values. Separately, zeroed storage selects
-the first case, but observation requires its common fields and active payload
-to be established. Zero does not prove an authority qualification or mean “empty.”
+```omega
+data RoomEvent {
+    consumed: bool;
+
+    found: data Found {
+        case Nothing;
+        case Treasure(gold: u32);
+    };
+}
+```
+
+Both spellings mean the same thing. A sum that several records hold is declared
+at module scope and held in a field the same way. See
+[data and case patterns](chapter_6_pattern_matching_dispatch.md#data-and-case-patterns).
+
+In a case literal, `..` covers omitted fields of the active payload; the case
+itself is still selected explicitly. Omitted fields still need valid zero
+values. Separately, zeroed storage selects a sum's first case, but observation
+requires the record's fields and the active payload to be established. Zero
+does not prove an authority qualification or mean “empty.”
 [Chapter 20](chapter_20_memory_layout_abi.md#zeroed-storage-and-establishment)
 explains that distinction.
 
@@ -158,15 +174,17 @@ data Reading {
     #1 sensor_id: u32;
     #2 recorded_at_ms: u64;
     #3 sequence: u32;
+    #4 state: State;
 
-    #10 case WarmingUp;
-    #11 case Sample(#1 temperature_celsius: i32);
-    #12 case Fault(#1 code: u32);
+    data State {
+        #1 case WarmingUp;
+        #2 case Sample(#1 temperature_celsius: i32);
+        #3 case Fault(#1 code: u32);
+    }
 }
 ```
 
-The common fields are present in every case. Each payload has its own
-field-number scope. Use these numbers for stable schema identity, as described
+Each declaration and each payload has its own number scope. Use these numbers for stable schema identity, as described
 in [Chapter 20](chapter_20_memory_layout_abi.md#relationship-to-serialized-bytes).
 
 ## Constraints on individual cases
@@ -200,7 +218,8 @@ The Range case shows the same mechanism for ordinary values. Constructing it
 must prove `lo <= hi`; matching it supplies that fact. The case test on the left
 of `&&` justifies reading the payload on its right. Reading an inactive payload
 is invalid, even inside a predicate. The data clause may use generic parameters,
-common fields and guarded projections of `self`. It runs no implicit validator.
+fields and guarded projections of `self`. A record tests a sum it holds through
+the field, as in `self.found in RoomEvent::Found::Treasure`. It runs no implicit validator.
 Changes must re-establish the invariant before observation.
 
 Type-wide constraints still apply. Zeroed `Value<bool>` does not skip Integer to

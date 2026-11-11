@@ -143,8 +143,7 @@ explains declarations and permissions for resource authors.
 One helper can retain a resource while calling synchronous or suspending code:
 
 ```omega
-public machine around<T, machine F>(held: T) -> T
-requires machine F() suspends;
+public machine around<T, const F: machine() suspends>(held: T) -> T
 suspends
 {
     suspend F();
