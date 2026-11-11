@@ -3966,6 +3966,32 @@ pub mod queries {
                 }
             }
 
+            /*
+                The argument bound to `symbol` in `scope` or an enclosing scope, with
+                the scope its own names resolve in. `None` when the symbol is unbound,
+                as a parameter of the declaration being checked is.
+            */
+            pub fn bound_argument(
+                &self,
+                symbol: SymbolHandle,
+                mut scope: usize,
+            ) -> Option<(TypeReferenceHandle, usize)> {
+                loop {
+                    let environment = &self.scopes[scope];
+                    let start = environment.starts.last().copied()?;
+                    if let Some((_, actual)) = environment.bindings[start..]
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return Some((*actual, environment.parent));
+                    }
+                    if scope == environment.parent {
+                        return None;
+                    }
+                    scope = environment.parent;
+                }
+            }
+
             pub fn type_identity(
                 &self,
                 program: &dyn crate::CheckingInput,
@@ -4065,9 +4091,17 @@ pub mod queries {
                 let parameters = program.data_type_parameters(definition);
                 if parameters.len() != arguments.len()
                     || lifetime_arguments.len() != definition.lifetime_parameters.len()
+                    // A const parameter binds like a type parameter: its argument is
+                    // the type reference that names its value, and identities
+                    // already resolve a `[T; N]` length through these bindings, so
+                    // `Owner<_, 1>` and `Owner<_, 2>` stay distinct. Implementation
+                    // and value parameters have no such binding here and refuse.
                     || parameters.iter().any(|parameter| {
                         !parameter.symbol.is_valid()
-                            || !matches!(parameter.kind, TypeParameterKind::Type)
+                            || !matches!(
+                                parameter.kind,
+                                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                            )
                     })
                     || arguments.iter().any(|argument| {
                         !program
