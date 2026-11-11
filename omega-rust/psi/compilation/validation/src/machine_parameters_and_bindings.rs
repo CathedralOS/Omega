@@ -6533,6 +6533,7 @@ pub mod static_arguments {
         if let Some((name, parameters)) = telescope
             && !parameters.is_empty()
         {
+            let parameters = lane_ordered_parameters(program, &parameters, arguments);
             let state = call_state(call, context, expression_states);
             if let Err(error) = validate_arguments(
                 program,
@@ -6568,6 +6569,43 @@ pub mod static_arguments {
             diagnostics,
             formation_obligations,
         );
+    }
+
+    /// Pairs each authored argument with the binder Psi 04 binds it to.
+    ///
+    /// A machine declaration keeps its evidence binders apart from its
+    /// ordinary binders, so its telescope lists them last even when the source
+    /// interleaves them (`<Operations satisfies Marker, machine Step>`).
+    /// Binding fills evidence slots from implementation operands and ordinary
+    /// slots from every other operand, each lane in source order. Positional
+    /// checks therefore read the telescope in that same lane order. When one
+    /// lane runs out, the argument takes the other lane's next binder, so a
+    /// kind mismatch still reaches its binder-kind diagnostic.
+    fn lane_ordered_parameters(
+        program: &dyn CheckingInput,
+        parameters: &[typed_trees::data::TypeParameter],
+        arguments: &[StaticMachineArgument],
+    ) -> Vec<typed_trees::data::TypeParameter> {
+        let (evidence, ordinary): (Vec<_>, Vec<_>) = parameters
+            .iter()
+            .partition(|parameter| parameter.kind == TypeParameterKind::Implementation);
+        let mut evidence = evidence.into_iter();
+        let mut ordinary = ordinary.into_iter();
+        let mut ordered = Vec::with_capacity(parameters.len());
+        for argument in arguments {
+            let (lane, other) = if argument.names_implementation(&program.symbols) {
+                (&mut evidence, &mut ordinary)
+            } else {
+                (&mut ordinary, &mut evidence)
+            };
+            match lane.next().or_else(|| other.next()) {
+                Some(parameter) => ordered.push(parameter.clone()),
+                None => break,
+            }
+        }
+        ordered.extend(ordinary.cloned());
+        ordered.extend(evidence.cloned());
+        ordered
     }
 
     fn validate_types(
