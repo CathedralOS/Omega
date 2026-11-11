@@ -148,6 +148,9 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Published write frames](designs/published_write_frames.md): the set of
+  places a checked body may write is inferred and published as part of its
+  contract, with no new syntax; delete when the board item lands.
 - [Record or sum data](designs/record_or_sum_data.md): a `data` declaration
   holds fields or cases, never both; common fields beside alternatives are a
   record holding a sum, and `data` declarations nest; delete when the board
