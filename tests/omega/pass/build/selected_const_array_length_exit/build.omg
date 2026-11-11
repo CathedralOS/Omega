@@ -12,7 +12,7 @@ machine inspect_build(subject: &Optional<BuildToken>) -> u64 {
 }
 
 boundary trait CheckedMath {
-    machine offset_zero(value: i32) -> i32 reaches;
+    machine offset_zero(value: i32) -> i32 reaches terminates;
 }
 
 data CheckedMathProvider {}

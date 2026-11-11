@@ -1392,7 +1392,7 @@ pub(crate) mod installed_interrupts {
 
     fn emitted_control_service(
         checked: &CheckedTrees,
-        identities: &terminal_psi::TerminalIdentityTableBuilder,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         module: &terminal_psi::TerminalModule,
         selected: language_semantics::ServiceReachId,
     ) -> Result<semantic_vocabulary::ServiceId, String> {
@@ -1403,6 +1403,7 @@ pub(crate) mod installed_interrupts {
             .definition(selected)
             .ok_or("interrupt installation lost its checked control service")?;
         let identity = crate::shared::terminal_identities::service_declaration_identity(
+            identities,
             checked,
             definition.symbol,
         )
@@ -1410,7 +1411,7 @@ pub(crate) mod installed_interrupts {
         let mut emitted = module
             .services
             .iter()
-            .filter(|service| identities.text(service.identity) == Some(identity.as_str()));
+            .filter(|service| service.identity == identity);
         match (emitted.next(), emitted.next()) {
             (Some(service), None) => Ok(service.id),
             _ => {
