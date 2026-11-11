@@ -11588,10 +11588,26 @@ pub(crate) mod write_frames {
                     }
                 }
             }
-            for root in super::demand::statement_value_expression_roots(program, statement) {
-                for path in
-                    temporary_cleanup_writes(program, machine, state, root, symbols, inference)?
-                {
+            for (role, root) in program.tables.expression_roots(statement) {
+                use typed_trees::statement::StatementRootRole as Role;
+                let root_is_homed = matches!(
+                    role,
+                    Role::AssignmentValue
+                        | Role::CallArgument
+                        | Role::Expression
+                        | Role::LocalInitializer
+                        | Role::TransitionArgument
+                        | Role::TransitionValue
+                );
+                for path in temporary_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    root,
+                    root_is_homed,
+                    symbols,
+                    inference,
+                )? {
                     if !dying.contains(&path) {
                         dying.push(path);
                     }
@@ -11600,75 +11616,81 @@ pub(crate) mod write_frames {
             Some(dying)
         }
 
-        /// The cleanup paths of unnamed values built inside `root` that the
-        /// statement only borrows, projects, indexes or matches on, such as
-        /// `&Pair { .. }.second`, `make(..)[0]` and `match make(..) { .. }`.
-        /// Nothing receives such a value, so it dies when the statement ends.
-        /// Its storage has no name to re-root a hook summary at, so each
-        /// exclusive reference it holds is charged with its whole origin.
+        /// The cleanup paths of the unnamed values that `root` builds and no
+        /// place receives, such as `&Pair { .. }.second`, `make(..)[0]`, a
+        /// `match` subject or an operand of an operator. Such a value dies when
+        /// the statement ends.
+        ///
+        /// Validation does not know where lowering places a death, so the rule
+        /// runs the other way: a freshly built value is charged unless its
+        /// position is one that gives it a home. The homes are a declared
+        /// local, an assignment destination, a callee parameter, a transition
+        /// target, the returned value, and a field or element of a value that
+        /// is itself homed or charged. A position this walk does not recognize
+        /// is charged, so an unforeseen expression form loses precision, not
+        /// soundness.
+        ///
+        /// The value's storage has no name to re-root a hook summary at, so
+        /// each exclusive reference it holds is charged with its whole origin.
         fn temporary_cleanup_writes(
             program: &dyn crate::CheckingInput,
             machine: &Machine,
             state: &State,
             root: ExpressionHandle,
+            root_is_homed: bool,
             symbols: &TopLevelSymbols<'_>,
             inference: &mut FrameInference,
         ) -> Option<Vec<String>> {
             let mut written = Vec::new();
-            let mut pending = vec![root];
-            while let Some(expression) = pending.pop() {
+            let mut pending = vec![(root, root_is_homed)];
+            while let Some((expression, homed)) = pending.pop() {
                 if !expression.is_valid() {
                     continue;
                 }
                 let node = program.expression_table.expression(expression);
-                // A borrow, a field or element projection and a `match` subject
-                // all read a value without giving it a home.
-                let observed = match node {
-                    ExpressionNode::Borrow(borrow) => Some(borrow.target),
-                    ExpressionNode::Member(member) => Some(member.receiver),
-                    ExpressionNode::Indexed(indexed) => Some(indexed.collection),
-                    ExpressionNode::Match(dispatch) => Some(dispatch.subject),
-                    _ => None,
-                };
-                if let Some(mut base) = observed {
-                    loop {
-                        base = match program.expression_table.expression(base) {
-                            ExpressionNode::Member(member) => member.receiver,
-                            ExpressionNode::Indexed(indexed) => indexed.collection,
-                            _ => break,
-                        };
-                    }
-                    if matches!(
-                        program.expression_table.expression(base),
-                        ExpressionNode::StructLiteral(_) | ExpressionNode::Call(_)
-                    ) {
-                        let reference =
-                            crate::value_custody::expression_types::expression_result_type_reference(
-                                program, machine, state, base,
-                            )?;
-                        if crate::reference_shell(program, reference).is_none()
-                            && type_may_carry_write_in(program, reference, &[])
-                            && (crate::type_graph_requires_nominal_drop(
-                                program,
-                                reference,
-                                &[],
-                                &mut Default::default(),
-                            ) || mentions_open_parameter(program, reference, &[], 0))
-                        {
-                            for path in
-                                super::path_instantiation::aggregate_arguments::written_paths(
-                                    program, machine, base, reference, "", symbols, inference,
-                                )?
-                            {
-                                if !written.contains(&path) {
-                                    written.push(path);
-                                }
+                let builds_value = matches!(
+                    node,
+                    ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Call(_)
+                        | ExpressionNode::ArrayLiteral(_)
+                );
+                if builds_value && !homed {
+                    let reference =
+                        crate::value_custody::expression_types::expression_result_type_reference(
+                            program, machine, state, expression,
+                        )?;
+                    if crate::reference_shell(program, reference).is_none()
+                        && type_may_carry_write_in(program, reference, &[])
+                        && (crate::type_graph_requires_nominal_drop(
+                            program,
+                            reference,
+                            &[],
+                            &mut Default::default(),
+                        ) || mentions_open_parameter(program, reference, &[], 0))
+                    {
+                        for path in super::path_instantiation::aggregate_arguments::written_paths(
+                            program, machine, expression, reference, "", symbols, inference,
+                        )? {
+                            if !written.contains(&path) {
+                                written.push(path);
                             }
                         }
                     }
                 }
                 crate::queries::expression_traversal::executable_children(program, node, |child| {
-                    pending.push(child)
+                    let child_is_homed = match node {
+                        // Operands live in the built value or move into the
+                        // callee, whose own summary charges its parameters.
+                        ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Call(_)
+                        | ExpressionNode::ArrayLiteral(_) => true,
+                        // An arm value goes wherever the `match` goes; the
+                        // subject is only inspected.
+                        ExpressionNode::Match(dispatch) => homed && child != dispatch.subject,
+                        ExpressionNode::Cast(_) => homed,
+                        _ => false,
+                    };
+                    pending.push((child, child_is_homed));
                 });
             }
             Some(written)
