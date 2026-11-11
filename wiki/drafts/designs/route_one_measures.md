@@ -30,6 +30,15 @@ the route need not wait for "the library enters the subset"
 "One route per obligation kind" is also
 [restated](check_on_lowered_form.md#one-meaning-per-obligation).
 
+Amended 2026-11-11, after this record: the lowering scope error is closed.
+`structure_elaboration::elaborate` now takes the check's entries, the
+declarations its Build selected and its subject package, and lowers every
+declaration that check claims, used or not, as
+[validation subjects](../../spec/build/validation_subjects.md) requires; a
+subject declaration it cannot lower makes the whole compilation fall back.
+The rows below that state the error keep their measured numbers and say
+where they are superseded. No other number here was re-measured.
+
 The verdict, the evidence and its limits come first. How each number was
 taken comes after, with exact commits, hosts and commands. Estimates are
 labelled. Numbers quoted from another PR are attributed to it and were not
@@ -45,7 +54,7 @@ this record is withdrawn in favor of migrating in place."
 | Clause | Today | Evidence |
 | --- | --- | --- |
 | Clearly smaller than what it replaces | **Not decidable yet; leans against** | The route is 11,461 lines (7,141 production code) at `#2317`'s head. It replaces 792,766 lines in name (`main`). For the programs it handles it can replace almost none, because those programs need most of the old code to check the library ([measure 1](#1-lines-against-the-code-it-would-retire)). Construct rows so far added 8 to 858 production code lines each ([measure 4](#4-lines-added-per-construct-row)). |
-| Reach agreement on the widened subset | **Fails today; causes are classified** | On the 121 programs the unscreened sweep lowers, run at `#2317`'s head: 101 agree and 20 disagree. 12 are prover gaps, 6 are current-checker errors and 2 wait on owner question Q6. `#2317`'s own two-way probe (quoted) has 135 of 223 agreeing and 13 `fail/` programs wrongly accepted through one scope error. No disagreement needs a second route. Agreement needs those prover rules, a ruling on Q6, and elaborating every checked machine, not only the entry's closure. |
+| Reach agreement on the widened subset | **Fails today; causes are classified** | On the 121 programs the unscreened sweep lowers, run at `#2317`'s head: 101 agree and 20 disagree. 12 are prover gaps, 6 are current-checker errors and 2 wait on owner question Q6. `#2317`'s own two-way probe (quoted) has 135 of 223 agreeing and 13 `fail/` programs wrongly accepted through one scope error. No disagreement needs a second route. Agreement needs those prover rules and a ruling on Q6. It also needed every checked machine elaborated, not only the entry's closure; that is done since ([measure 7](#7-steps-that-drop-without-a-refusal)). |
 | Prove two-value relations through one certificate route | **Passes** | `i < len`-style order steps, the correlated unsigned subtract and branch facts all reach the kernel as one certificate form. On the unscreened subset, 1 obligation at the `#2305` measurement head and 3 of the 121 programs' obligations at `#2317`'s head needed a relation, and each was kernel-checked. A relation through a multiply (`value * value >= value`) is still unproved ([measure 2](#2-verdict-agreement)). |
 
 The four targets the record set beside the stop rule:
@@ -54,7 +63,7 @@ The four targets the record set beside the stop rule:
 | --- | --- |
 | All of the subset's obligations discharged with kernel-checked evidence | Not met. On the unscreened subset: 16 of 20 certificate obligations at the `#2305` measurement head, and 308 of 333 at `#2317`'s head. `#2317`'s own probe (quoted): 1,589 of 1,721. Every discharged obligation carries kernel-checked evidence. |
 | No decisions keyed on text | Met. 0 in the three route crates at `#2317`'s head. |
-| No step drops without a refusal | Not met. At the obligation level, every obligation gets one verdict. At the module level, `structure_elaboration::elaborate` lowers only the entry's call closure, so obligations in machines the entry never calls are never minted and never refused. `#2317` found 13 `fail/` programs accepted through it. |
+| No step drops without a refusal | Not met. At the obligation level, every obligation gets one verdict. At the module level, `structure_elaboration::elaborate` lowers only the entry's call closure, so obligations in machines the entry never calls are never minted and never refused. `#2317` found 13 `fail/` programs accepted through it. Closed since this record: every declaration the check claims is a root, and `lowered_route_subjects` pins that none of those programs is accepted ([measure 7](#7-steps-that-drop-without-a-refusal)). |
 | One route per obligation kind | Met. One prover for every certificate kind; the old checker tries 27 named routes for a call's `requires`. |
 
 ## 1. Lines against the code it would retire
@@ -204,6 +213,19 @@ The 13 are the lowering scope error in the targets table. Until every
 checked machine is elaborated, the route must not govern a program on its
 own verdict.
 
+Closed since this record, and wider than 13. `#2317` did not record which
+programs it counted, so they were re-derived by a sweep on `main` at
+`2df885a2a` with the fix applied, and the verdicts were run again by the test
+on `e265ffe73`. Of 238 `fail/` fixtures whose entry is
+`machine main() {}` (every such fixture of `arithmetic`, `calls`,
+`contracts`, `proofs`, `ranges` and `termination`, and the screened ones
+elsewhere), 49 bind an entry and reach the checker; the other 189 bind no
+entry or stop before Psi 04. The entry-only scope accepted all 49. With
+every subject declaration a root, the route rejects 5 and hands 44 back to
+the current checker, and accepts none. The four programs `#2317` names are
+among them. The other 567 `fail/` fixtures with an empty entry were not
+swept.
+
 ## 3. Check time per program
 
 Wall clock, by `std::time::Instant` around each route's own calls in the
@@ -324,6 +346,21 @@ split also fails, `prove.rs:407` reports the direct search's cause and drops
 the split's. And whole machines drop, as the targets table says: only the
 entry's call closure is elaborated. That is not one of the sites above. It
 is why the target is not met.
+
+That drop is closed since this record. `elaborate` takes a `Compilation`
+(the Build's entries, what its selections name and the subject package of
+the request). A selected machine or data type is a root, and a selection of
+anything else refuses the compilation. Every declaration of the subject is a
+root too: a machine is lowered and judged whether or
+not anything calls it, a `data` declaration is resolved as a record, and any
+other kind of declaration refuses the compilation as `Unsupported`, as does
+one with no source file. The 93 sites above were not searched again, so the
+target as a whole is not re-measured. Two parts of the closure are still
+outside the route and are stated, not dropped: the Build program in
+`build.omg`, which the Build activation checks with the current checker, and
+the bound target's entry-contract source, which the current checker keeps as
+a subject. [The gate](check_on_lowered_form.md#the-gate), condition 1, holds
+the open question.
 
 ## 8. Proof routes per obligation kind
 

@@ -58,7 +58,8 @@ pub use body::{
 pub use outcome::Outcome;
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, StructuralTypeId,
+    BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PackageKeyIdentity,
+    StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
@@ -117,17 +118,38 @@ pub struct MachineSources {
     pub obligations: IdTable<ObligationId, SourceOrigin>,
 }
 
-/// The result of elaborating one entry machine and every machine it calls.
+/// What one compilation asks to have judged. This is request information: the
+/// typed trees also hold declarations of other packages and do not say which
+/// package the request checks (`wiki/spec/build/validation_subjects.md`: "The subject
+/// set is decided by the request, not by where source lives").
+#[derive(Debug, Clone, Copy)]
+pub struct Compilation<'a> {
+    /// The Build's bound program entries. The first is the module's entry.
+    pub entries: &'a [SymbolHandle],
+    /// The package the request checks. `None` for a source that belongs to
+    /// no admitted package; such a source is its own subject.
+    pub subject: Option<PackageKeyIdentity>,
+    /// The declarations the Build's selections name (selected providers and
+    /// what each provides, layout-scope entries, chosen representations),
+    /// whichever package declares them. The check claims each with its
+    /// closure: "the obligations of the Build's selections".
+    pub selected: &'a [SymbolHandle],
+}
+
+/// The result of elaborating everything one compilation is responsible for:
+/// its entries, what its Build selected, every declaration of its subject,
+/// and every machine those call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
     /// Unsealed: no proof fields and no evidence. Its only declarations are
-    /// the record types its machines name.
+    /// the record types its machines name and the subject declares.
     pub module: TerminalModule,
     /// One `MachineTables` per machine. `summaries` stays empty; see the
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
-    /// The typed-tree machine each `MachineId` elaborates. The entry is 1.
+    /// The typed-tree machine each `MachineId` elaborates. The first entry
+    /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
@@ -160,6 +182,10 @@ pub enum Unserved {
     /// A completion rule of the machine body (a value machine that can fall
     /// off its last statement, a statement after an unconditional arm).
     Completion(&'static str),
+    /// A declaration the check claims and the route does not judge: a
+    /// subject declaration or a Build selection of any kind other than a
+    /// machine or a plain data type, or one it cannot place in a package.
+    Declaration(&'static str),
 }
 
 impl Unserved {
@@ -176,6 +202,7 @@ impl Unserved {
             Self::Typing(_) => "typing",
             Self::Spelling(_) => "spelling",
             Self::Completion(_) => "completion",
+            Self::Declaration(_) => "declaration",
         }
     }
 
@@ -191,7 +218,8 @@ impl Unserved {
             | Self::Transition(name)
             | Self::Typing(name)
             | Self::Spelling(name)
-            | Self::Completion(name) => name,
+            | Self::Completion(name)
+            | Self::Declaration(name) => name,
         }
     }
 }
@@ -208,12 +236,31 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
     }
 }
 
-/// Elaborates `entry` and the closure of machines it calls, in discovery
-/// order: the entry is `MachineId` 1. Any refusal refuses the whole closure,
-/// because a module missing a callee would be a silent drop.
-pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
+/// Elaborates everything `compilation` is responsible for: its entries, what
+/// the Build's selections name, every declaration of its subject whether or
+/// not anything uses it, and the machines those call. The first entry is
+/// `MachineId` 1; the other entries, the selected machines, the subject's
+/// machines in declaration order and then callees follow in discovery order.
+/// Any refusal refuses the whole compilation, because a module missing a
+/// machine the check claims would be a silent drop.
+pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed);
-    let entry = program.machine(entry)?;
+    let first = MachineId::new(1).expect("1 is nonzero");
+    let Some((entry, others)) = compilation.entries.split_first() else {
+        // A Terminal module names one entry machine, so a compilation that
+        // binds none has no module to elaborate into.
+        return Err(refuse(
+            first,
+            Construct::Machine,
+            Unserved::Machine("no bound entry"),
+        ));
+    };
+    let entry = program.machine(*entry)?;
+    for other in others {
+        program.machine(*other)?;
+    }
+    program.selected_declarations(entry, compilation.selected)?;
+    program.subject_declarations(entry, compilation.subject)?;
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.

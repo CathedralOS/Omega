@@ -29,6 +29,7 @@ mod expressions;
 mod machine;
 mod places;
 mod statements;
+mod subjects;
 mod transitions;
 mod types;
 
