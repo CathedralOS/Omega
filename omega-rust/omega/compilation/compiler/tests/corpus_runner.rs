@@ -559,6 +559,67 @@ fn rollback_pair_facts(
     (facts, Ok(()))
 }
 
+/// A fixture declaring `expected_application_baseline.txt` names a sibling
+/// fixture (a path relative to this fixture's directory) whose application is
+/// the same program without this fixture's test-group registration. Both are
+/// compiled to their Terminal products for this fixture's first bound target
+/// and their semantic modules compared: `application-baseline:same` shows the
+/// registered test roots stayed out of the application's published code
+/// (wiki/spec/build/testing.md#products-reuse-and-native-harnesses), and
+/// `application-baseline:differs` that this application retains code its
+/// baseline lacks. Names are not compared because Terminal machines carry none.
+fn application_baseline_facts(
+    root_path: &Path,
+    fixture_dir: &Path,
+    sequence: usize,
+) -> Option<Vec<String>> {
+    let declared = fs::read_to_string(fixture_dir.join("expected_application_baseline.txt")).ok()?;
+    let unavailable = |reason: String| {
+        Some(vec![
+            "application-baseline:unavailable".to_owned(),
+            format!("application-baseline-reason:{}", space_free(&reason)),
+        ])
+    };
+    let baseline_dir = fixture_dir.join(declared.trim());
+    let corpus = fixture_dir.parent().and_then(Path::parent).and_then(Path::parent);
+    let contained = match (baseline_dir.canonicalize(), corpus.map(Path::canonicalize)) {
+        (Ok(baseline), Some(Ok(corpus))) => baseline.starts_with(corpus),
+        _ => false,
+    };
+    if declared.trim().is_empty() || !contained {
+        return unavailable(format!(
+            "baseline `{}` is not a corpus fixture",
+            declared.trim()
+        ));
+    }
+    let build_dir = unique_build_dir(sequence).join("application-baseline");
+    let discovered = match discover_fixture(root_path) {
+        Ok(discovered) => discovered,
+        Err(errors) => return unavailable(errors.iter().map(|e| e.message.clone()).collect()),
+    };
+    let target = discovered.targets.first().cloned();
+    let application =
+        produce_terminal_semantic(discovered, build_dir.join("application"), target.clone(), None);
+    let baseline = discover_fixture(&baseline_dir.join("main.omg")).and_then(|discovered| {
+        produce_terminal_semantic(discovered, build_dir.join("baseline"), target, None)
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    match (application, baseline) {
+        (Ok(application), Ok(baseline)) => Some(vec![
+            if application.artifact.artifact().semantic_bytes()
+                == baseline.artifact.artifact().semantic_bytes()
+            {
+                "application-baseline:same".to_owned()
+            } else {
+                "application-baseline:differs".to_owned()
+            },
+        ]),
+        (Err(errors), _) | (_, Err(errors)) => {
+            unavailable(errors.iter().map(|e| e.message.clone()).collect())
+        }
+    }
+}
+
 /// The files a fixture's `expected_published.txt` promises, or `None` when it
 /// declares no publication oracle.
 fn declared_publication(fixture_dir: &Path) -> Option<Vec<String>> {
@@ -1739,6 +1800,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                     &rel,
                     check_target.as_deref().unwrap_or("terminal"),
                 );
+                if let Some(baseline) = application_baseline_facts(main, &fixture_dir, sequence) {
+                    facts.extend(baseline);
+                }
                 let check_outcome = match (&capture, &declared_rollback, &check_target) {
                     (Err(message), _, _) => {
                         Err(vec![diagnostics::Diagnostic::error(message.clone())])

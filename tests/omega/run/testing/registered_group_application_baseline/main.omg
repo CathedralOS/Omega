@@ -1,0 +1,43 @@
+// Expected exit: 0.
+// The application of run/testing/registered_group_runs_on_both_engines
+// without its test-group registration. That fixture names this one in
+// expected_application_baseline.txt: registering a group must leave the
+// application's Terminal program unchanged.
+trait Tests {
+    machine arithmetic()
+        crashes Trap;
+}
+
+machine addition_is_correct()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 2u32 + 3u32 != 5u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine subtraction_is_correct()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 5u32 - 3u32 != 2u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine main() { }

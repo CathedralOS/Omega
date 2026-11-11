@@ -53,6 +53,14 @@ or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
 fixtures must bind the running host; missing execution fails the oracle.
+`expected_application_baseline.txt` names a sibling fixture, relative to the
+fixture's directory, whose application is the same program without this
+fixture's test-group registration. The runner compiles both to Terminal products
+for the fixture's first bound target and compares their semantic modules:
+`application-baseline:same` shows registered test roots stayed out of the
+application, and `:differs` that the application retains code its baseline lacks.
+Terminal machines carry no source names, so this compares whole modules.
+
 `expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
 and independently constrain each engine's captured stream. Matching exits cannot
 excuse missing/different output, and `--record` cannot bless that result. Captures
