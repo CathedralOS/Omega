@@ -18974,6 +18974,8 @@ fail/traits/float_contract_refinement_strict_endpoint rejected 3116ms expected @
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result < 0.5`; callers of the requirement assume it
 fail/traits/float_contract_refinement_wrong_subject rejected 3044ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
+fail/traits/forwarded_implementation_argument_other_map rejected 33287ms expected @3d461306e4ec
+	selected map disagrees with its supplying evidence bound
 fail/traits/generic_dyn_contract_wrong_context rejected 1051ms expected @ccdb99ca2214
 	argument `context` for state `read` expects `&Context`, got `named value`
 	argument `context` for conformance requirement `Reader::read` does not match the binder's trait arguments
@@ -27962,6 +27964,7 @@ pass/traits/finite_family_case_view_result_exit checked 8006ms check-target:maco
 pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/finite_family_uncalled_target checked 2779ms check-target:macos_arm64 @64d08af188aa
 pass/traits/float_contract_refinement_boundaries_exit checked 24656ms check-target:macos_arm64 @6b1c338126fa
+pass/traits/forwarded_implementation_argument_member_call_exit checked 29364ms check-target:macos_arm64 @3d461306e4ec
 pass/traits/generic_dyn_contract_inventory_exit checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_applied_contract_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_captured_constant_local checked 2472ms @ccdb99ca2214
