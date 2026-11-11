@@ -16557,6 +16557,9 @@ fail/parser/nesting_exceeds_max_depth rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
 fail/parser/trailing_boundary_clause_after_requires rejected 13780ms expected @ca5ba0d1d711
 	tests/omega/fail/parser/trailing_boundary_clause_after_requires/main.omg:4:28: trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`
+fail/places/requires_relation_field_store rejected 6193ms expected @ceef6376eacf
+	machine `main` state `entry` statement 2: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Span`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 3 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Span`) unproved; restore them first
 fail/ports/asm_port_in_missing_reach rejected 9548ms expected @8e3c139d8359
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/proofs/accepted_axiom_engine_veto rejected 7934ms expected @ccdb99ca2214
@@ -26746,6 +26749,7 @@ pass/parser/deep_nesting_within_limit checked 2816ms @ccdb99ca2214
 pass/parser/invariant_is_an_identifier checked 2769ms @ccdb99ca2214
 pass/parser/move_named_state_transition_exit checked 11035ms check-target:macos_arm64 @ccdb99ca2214
 pass/patterns/named_value_before_negative_integer_pattern_exit checked 3256ms check-target:macos_arm64 @ccdb99ca2214
+pass/places/requires_relation_field_store checked 8354ms check-target:macos_arm64 @ceef6376eacf
 pass/ports/asm_port_in_immediate checked 12467ms check-target:linux_x86_64 @8e3c139d8359
 pass/progress/provider_receiver_progress_installation checked 2860ms check-target:linux_x86_64 @ccdb99ca2214
 pass/proofs/accepted_axiom_cited_exit rejected 12195ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
