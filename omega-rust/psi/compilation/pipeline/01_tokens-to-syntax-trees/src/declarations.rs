@@ -2854,6 +2854,7 @@ pub(crate) mod trait_definition {
             signature.blocks = clauses.blocks;
             signature.contracts = clauses.contracts;
             signature.terminates_guarantee = clauses.terminates_guarantee;
+            signature.declares_no_crash_route = clauses.declares_no_crash_route;
             let (default_body, next) = if is_default {
                 parse_trait_default_machine_body(syntax_trees, rest)?
             } else {

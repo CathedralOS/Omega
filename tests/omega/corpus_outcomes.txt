@@ -19257,6 +19257,8 @@ fail/traits/contract_proposition_distinct_declarations rejected 1823ms expected 
 	machine `Restricted::accept` realizes `Accept::accept` but requires `second::valid`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/contract_static_binder_not_shadowing_local rejected 838ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `demand` violates required fact `below<2>(value)`: the instantiated fact is structurally false
+fail/traits/crashes_none_requirement_member_crashes rejected 5538ms expected @a69c99f44f09
+	machine `Trapping::apply` satisfies `Step::apply`, which declares `crashes none`, but it publishes a crash route; a member of a `crashes none` requirement must be crash-free
 fail/traits/data_in_implementation_argument rejected 328ms expected @ccdb99ca2214
 	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument
 fail/traits/data_subject_implementation_retired rejected 2ms expected @ccdb99ca2214
@@ -28449,6 +28451,7 @@ pass/traits/conformance_unused_lifetime_scope_exit checked 3746ms check-target:m
 pass/traits/contract_call_captured_trait_static_argument_exit checked 4208ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_forwarded_static_arguments_exit checked 3312ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_proposition_alias_correspondence checked 2379ms @ccdb99ca2214
+pass/traits/crashes_none_requirement_member_exit checked 6953ms check-target:macos_arm64 @a69c99f44f09
 pass/traits/default_member_shadowing_exit checked 13711ms check-target:macos_arm64 @4815ea579d91
 pass/traits/default_row_captured_invocation_regions_exit checked 3251ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/default_row_domain_region_scopes checked 2185ms @ccdb99ca2214
