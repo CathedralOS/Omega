@@ -18244,6 +18244,14 @@ fail/recast/non_owning_erasure_preserves_scalar_field rejected 238ms expected @1
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/recast/non_owning_erasure_preserves_stored_alias rejected 235ms expected @1f01fe627c9b
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
+fail/recast/owner_state_beside_inline_mutable_slice_view rejected 3462ms expected @234eb285cc68
+	state `write_tail` receives `main.tail_bytes` as mutable while its mutable receiver writes `main.tail_bytes[7]`
+fail/recast/owner_state_beside_inline_shared_record_view rejected 2606ms expected @234eb285cc68
+	state `read_pairs` receives `main.pair_bytes[4..12]` as read-only while its mutable receiver writes `main.pair_bytes[4]`
+fail/recast/owner_state_beside_local_mutable_record_view rejected 2722ms expected @234eb285cc68
+	statement 2 mutates `main.pair_bytes[4]` while local borrow `pairs` is still active (borrowed at statement 0; its last use is at statement 2)
+fail/recast/owner_state_beside_local_shared_aggregate_view rejected 3253ms expected @234eb285cc68
+	statement 4 mutates `main.source[0].signed_value` while local borrow `read` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/recast/partial_ascii_recast_does_not_restore_field rejected 7434ms expected @62c64cd54815
 	cannot prove default-domain field requirement for return from corrupt at statement 4: packet.bytes requires [u8; N]::Ascii
 fail/recast/pending_layout_view_call_requires_establishment rejected 7652ms expected @c1e13a12056a
@@ -27878,14 +27886,14 @@ pass/recast/runtime_encoded_record_view_loan_exit checked 11265ms check-target:m
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 76361ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_guarded_offset_recast_exit checked 27816ms check-target:macos_arm64 @6bfec7307ed0
-pass/recast/runtime_inline_shared_slice_record_read_exit checked 86632ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_inline_shared_slice_record_read_exit checked 31229ms check-target:macos_arm64 @234eb285cc68
 pass/recast/runtime_inline_slice_recast_call_exit checked 75518ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_scalar_machine_exit checked 65921ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_shared_parameter_exit checked 48400ms check-target:macos_arm64 @4815ea579d91
-pass/recast/runtime_inline_slice_view_mutable_write_exit checked 65734ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_inline_slice_view_mutable_write_exit checked 31276ms check-target:macos_arm64 @234eb285cc68
 pass/recast/runtime_integer_bit_view_recast_exit checked 19144ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 64728ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_interior_slice_view_mutable_write_exit checked 59499ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_interior_slice_view_mutable_write_exit checked 30226ms check-target:macos_arm64 @234eb285cc68
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 12865ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 54747ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 53268ms check-target:macos_arm64 @911f6617ba9e
