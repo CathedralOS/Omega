@@ -15997,9 +15997,10 @@ fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 2402ms expected 
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 3098ms expected @ccdb99ca2214
 	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 	IntegerAt call in change requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
-fail/layouts/extent_descriptor_write_retires_grant rejected 3493ms expected @54cd60288b4c
+fail/layouts/extent_descriptor_write_retires_grant rejected 2217ms expected @cdc45d068976
+	cannot prove default-domain field requirement for return from change_descriptor at statement 1: storage requires Extent::Granted
 	cannot prove default-domain field requirement for call change_descriptor from keep::entry: parameter storage requires Extent::Granted
-	cannot prove default-domain field requirement for return from keep, state entry, at statement 2: storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from keep at statement 2: storage requires Extent::Granted
 fail/layouts/extent_descriptor_write_retires_mathematical_qualification rejected 1828ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from preserve at statement 2: storage in Extent::Granted
 fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430ms expected @ccdb99ca2214
@@ -18228,11 +18229,13 @@ fail/recast/non_owning_erasure_false_reestablishment rejected 1761ms expected @1
 fail/recast/non_owning_erasure_joined_shared_store rejected 245ms expected @1f01fe627c9b
 	cannot establish assignment invariants: performed write has unknown destination origins in machine `corrupt` state `entry` at statement 1
 	machine `corrupt` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/recast/non_owning_erasure_mixed_write_presentations rejected 1819ms expected @1f01fe627c9b
+fail/recast/non_owning_erasure_mixed_write_presentations rejected 2211ms expected @cdc45d068976
+	cannot prove default-domain field requirement for return from overwrite at statement 3: storage requires Storage::Issued
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.slot requires Storage::Issued
 fail/recast/non_owning_erasure_preserves_array_element rejected 235ms expected @1f01fe627c9b
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the recast has no complete exact lender origins
-fail/recast/non_owning_erasure_preserves_helper_field rejected 1762ms expected regressed-from:checked @1f01fe627c9b
+fail/recast/non_owning_erasure_preserves_helper_field rejected 2180ms expected @cdc45d068976
+	cannot prove default-domain field requirement for return from overwrite at statement 2: storage requires Storage::Issued
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.slot requires Storage::Issued
 fail/recast/non_owning_erasure_preserves_owned_field rejected 233ms expected @1f01fe627c9b
 	machine `main` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
