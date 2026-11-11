@@ -121,7 +121,7 @@ mod placement {
             let (inbound_boundary, inbound) =
                 inbound_application(module, targets, calling, application)?;
             let registrar_boundary =
-                crate::optimization::selected_calling_boundary(module, targets, boundary)?;
+                ::provider_admission::selected_calling_boundary(module, targets, boundary)?;
             let registrar_abi = module.calling_abi_identity(registrar_boundary)?;
             let selected_calling = selected_plan
                 .schema
@@ -158,7 +158,7 @@ mod placement {
         let boundary = application
             .boundary
             .ok_or("admitted callback lost its exact inbound declaration")?;
-        let boundary = crate::optimization::selected_calling_boundary(module, targets, boundary)?;
+        let boundary = ::provider_admission::selected_calling_boundary(module, targets, boundary)?;
         let inbound = calling_application(
             calling,
             &module.calling_abi_identity(boundary)?,
@@ -393,7 +393,7 @@ mod installed_placement {
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let mut placements = Vec::new();
         for registration in &module.installed_interrupt_registrations {
-            let registrar_boundary = crate::optimization::selected_calling_boundary(
+            let registrar_boundary = ::provider_admission::selected_calling_boundary(
                 module,
                 targets,
                 registration.registrar_boundary,
@@ -552,7 +552,7 @@ mod registrar_imports {
                 "callback registrar import closure names an absent Terminal boundary".to_owned()
             })?;
             let selected_requirement = selected.selected_requirement_identity(requirement);
-            let calling_boundary = crate::optimization::selected_calling_boundary(
+            let calling_boundary = ::provider_admission::selected_calling_boundary(
                 terminal_module,
                 targets,
                 *boundary,

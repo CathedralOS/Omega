@@ -583,9 +583,9 @@ code and are not yet confirmed by a run:
   (`flow_expression.rs` `invoke`).
 - Index segments compare by expression structure, so a fact on `a[i]` can
   outlive a change to `i` (`validation/src/places.rs`).
-- Omega 00 turns every operation obligation reference in a unit into an
+- Omega 01 turns every operation obligation reference in a unit into an
   accepted fact, with no evidence attached
-  (`00_terminal-psi-to-abstract-operations/src/optimization.rs`
+  (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`
   `source_checked_obligation_facts`); the interpreter still checks. A wrongly
   kept fact therefore makes native code and the interpreter disagree. An
   earlier wording said the back end read a list of source-checked obligations
