@@ -11,10 +11,11 @@ obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_tr
 rule 2 lets remove a runtime check. It is not wired into the default compile;
 [the route's verdict](#the-routes-verdict) is what a router will take from it.
 
-Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
-dominance between program points; [places.rs](src/places.rs) says what a
-place holds when a field read observes it; [prove.rs](src/prove.rs) is the
-one prover.
+Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
+checks that the rows to decide are the ones the lowered form owes;
+[graph.rs](src/graph.rs) answers dominance between program points;
+[places.rs](src/places.rs) says what a place holds when a field read observes
+it; [prove.rs](src/prove.rs) is the one prover.
 
 ## What it decides
 
@@ -55,6 +56,42 @@ value its payload leaf holds, when there is one). Each row's proposition is in `
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## The rows are checked against the lowered form
+
+A certificate for every row proves nothing about a row that is missing, that
+names the wrong subject or that sits at the wrong point. So before anything
+is decided, `follow_the_lowered_form` ([minted.rs](src/minted.rs)) recomputes
+what each machine owes from the lowered form alone and refuses tables that
+differ. Nothing is taken from elaboration's word, because the lowered form
+already carries every identity:
+
+| Row | What the lowered form says | Must be created at |
+| --- | --- | --- |
+| `OperationSafety` | each operation Terminal semantics gives a safety goal names its obligation | the point before the operation |
+| `CallRequirement` | each call lists one obligation per `requires` clause of its callee, in clause order; the callee's contract gives the count | the point before the call |
+| `PublishedGuarantee` | each `ensures` clause of the contract names its published identity | the entry block |
+| `NormalGuarantee` | every return terminator owes one per `ensures` clause, naming its own edge and the clause's published identity | that return edge |
+| `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
+
+A row of the first four kinds that nothing owes is refused as well, and so is
+a row owed twice. The point matters as much as the kind: it selects the
+knowledge a proof may use, so a row moved past a guard, or past its own call
+where the callee's `ensures` is already known, would be proved from facts
+that do not hold where the obligation sits.
+
+Two more tables feed the proofs and are checked the same way. An invocation
+row must restate one call of the machine: its callee, its scalar actuals in
+order and its record actuals as the roots the call passes. It is what a call
+requirement and a callee guarantee are stated over, so a row for a call the
+machine does not make would be a premise nothing established. An edge row
+must have the source and destination of its terminator's edge, since
+dominance is computed from the edge table.
+
+A disagreement is a defect of the route, not of the program: the refusal has
+reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
+accepted on it. The write log and the place table are not checked this way
+yet (finding 17).
 
 ## What a place holds
 
@@ -446,6 +483,19 @@ subset needs, so the prover emits them directly.
     clause `low <= high` is unproved: `high` has no value there. Stating a
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
+
+17. **The write log is still taken on elaboration's word.** A read
+    equation, a `DataDomain` goal and a requirement over a field of a record
+    actual all name the value a `WriteRow` says a leaf holds. Rewriting one
+    row's `Content::Value` to another value of the machine turns a rejected
+    construction into an accepted one: in `make(v) -> Paired { neighbor: 17,
+    value: v }` with `1 <= value` unproved, logging `17` for `value` proves
+    the clause over `17`. The lowered operations state the same stores
+    (an operand of a construction, the value of a field store), so the log
+    can be derived here instead of read, which would also retire finding 7.
+    Value rows are in the same position; the one case tried, a formal typed
+    narrower than its declaration, was refused by Terminal semantics as
+    `Unsupported`.
 
 ## Evidence seals
 

@@ -9,8 +9,12 @@ is no interval verdict, no admitted route and no assumption.
 (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one";
 `wiki/drafts/designs/stage_trust.md`, rule 2.)
 
-Per machine it does four things:
+Per machine it does five things:
 
+- Checks that the rows it is about to decide are the ones the lowered form
+  owes, each at the point of what owes it (`minted`). The lowered form names
+  every obligation itself, so a table with a row missing, restated over
+  another subject or moved to another point is refused before any proof.
 - Fills the `knowledge` table from the lowered form alone: each entry
   `requires` clause at the entry block, each operation's result equation on
   its normal successor (Terminal semantics states it), each field read's
@@ -41,6 +45,7 @@ yet.
 */
 
 mod graph;
+mod minted;
 mod places;
 mod prove;
 mod verdict;
@@ -321,6 +326,9 @@ fn machine(
         ));
     }
     let types = tables.values.map(|_, row| row.scalar_type);
+    // Before anything is decided: the rows must be the ones the lowered form
+    // owes, at its points, or deciding every row proves nothing (`minted`).
+    minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
     let graph = Graph::new(id, lowered, tables)?;
     let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
     storage.owed_are_minted(tables)?;
@@ -951,14 +959,8 @@ fn goal(
                         "operation has no safety goal",
                     )
                 })?;
-            if semantics.obligation() != obligation {
-                return Err(refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    concerns,
-                    "operation names another obligation",
-                ));
-            }
+            // That this row is the one the operation names is `minted`'s
+            // check, made before any goal is stated.
             semantics
                 .canonical_goal()
                 .kernel_proposition()
