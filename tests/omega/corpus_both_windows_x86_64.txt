@@ -7438,7 +7438,7 @@ run/calls/scalar_guard_after_borrow_parameters_exit built 12643ms exit:0 interpr
 run/calls/selected_provider_range_arguments rejected 18906ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:failed @5f668826adf3+wt
 	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("checked boundary declaration differs from its exact declaration owner")
 run/calls/static_boundary_terminal_arguments built 3592ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-run/calls/table_report_call_survival built 17493ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
+run/calls/table_report_call_survival built 62168ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @92e9c0cfab0b
 run/contained_health_loop_command_branch built 17538ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 run/contracts/captured_bound_unused_mutation built 6299ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/contracts/qualified_result_forwarding_exit built 14052ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -7450,7 +7450,7 @@ run/domains/checked_provider_issued_field built 4860ms exit:0 interpreter-exit:0
 run/domains/checked_provider_issued_root built 4510ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/completed_membership_after_earlier_guarantee built 4336ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/current_record_predicate_captures built 2735ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-run/domains/domain_cast_accounting_exit built 13158ms exit:0 interpreter-exit:0 interpreter:agrees @2c1d6e77dc92
+run/domains/domain_cast_accounting_exit built 23402ms exit:0 interpreter-exit:0 interpreter:agrees @92e9c0cfab0b
 run/domains/fixed_byte_array_content_observations_exit rejected 1974ms interpreter:unchecked @5f668826adf3+wt
 	cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 7
 run/domains/fixed_byte_array_empty_observations_exit rejected 2003ms interpreter:unchecked @5f668826adf3+wt

@@ -4687,11 +4687,13 @@ fail/domains/domain_alias_reports_atomic_requirement rejected 2329ms expected @c
 	cannot prove requires contract for call consume from Main::main: main.socket in Socket::Authenticated in state `main`
 fail/domains/domain_carrier_mismatch rejected 699ms expected @ccdb99ca2214
 	data `Main` field `value` uses `in Scanned`, but no `domain` named `Scanned` is declared for `i32` (domains are bound to their storage type)
-fail/domains/domain_cast_adds_present_domain rejected 25524ms expected @22bc78f48dca
+fail/domains/domain_cast_adds_present_domain rejected 15536ms expected @92e9c0cfab0b
 	cast entry `+Km` adds domain `Km`, but the operand's type `i32[in Km, in Positive]` already carries `Km`; write `=Km` to keep it
-fail/domains/domain_cast_removes_absent_domain rejected 11515ms expected @22bc78f48dca
-	cast entry `-Km` names domain `Km`, but the operand's type `i32` does not carry `Km`; only `+Km` can name a domain the operand lacks
-fail/domains/domain_cast_unlisted_domain rejected 10610ms expected @22bc78f48dca
+fail/domains/domain_cast_adds_unproven_predicate rejected 17424ms expected @92e9c0cfab0b
+	`as ... in Positive` cannot mint: a `Positive` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/domain_cast_removes_absent_domain rejected 14222ms expected @92e9c0cfab0b
+	cast entry `=Km` names domain `Km`, but the operand's type `i32` does not carry `Km`; only `+Km` can name a domain the operand lacks
+fail/domains/domain_cast_unlisted_domain rejected 13641ms expected @92e9c0cfab0b
 	domain cast leaves attached domain `Positive` unaccounted for: the operand's type `i32[in Km, in Positive]` carries `Positive`, so the cast names it as `=Positive` to keep it or `-Positive` to remove it
 fail/domains/domain_operator_competing_spelling_meanings rejected 2598ms expected @ccdb99ca2214
 	ambiguous operator spelling `+` has 2 viable candidates: `Quantity::Linear::add` owned by domain `Quantity::Linear`, `Quantity::Cyclic::add` owned by domain `Quantity::Cyclic`. The static operand-domain tuple does not uniquely select one -- narrow the binding's semantic qualification or choose a clearer operation.
@@ -28223,7 +28225,7 @@ run/calls/scalar_contract_route_exit checked 2744ms check-target:macos_arm64 @d2
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/calls/static_boundary_terminal_arguments checked 37830ms check-target:macos_arm64 @c3cb68d51f3f
-run/calls/table_report_call_survival checked 75810ms check-target:macos_arm64 @71d7a6330d0b
+run/calls/table_report_call_survival checked 63899ms check-target:macos_arm64 @92e9c0cfab0b
 run/contained_health_loop_command_branch checked 150212ms check-target:macos_arm64 @c3cb68d51f3f
 run/contracts/captured_bound_unused_mutation checked 2645ms check-target:macos_arm64 @ccdb99ca2214
 run/contracts/cyclic_mixed_conjunction checked 2775ms check-target:macos_arm64 @82dfb1c33a86
@@ -28241,7 +28243,7 @@ run/domains/checked_provider_issued_root checked 37617ms check-target:macos_arm6
 run/domains/completed_membership_after_earlier_guarantee rejected 2419ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`
 run/domains/current_record_predicate_captures checked 3127ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/domain_cast_accounting_exit checked 26023ms check-target:macos_arm64 @22bc78f48dca
+run/domains/domain_cast_accounting_exit checked 23359ms check-target:macos_arm64 @92e9c0cfab0b
 run/domains/fixed_byte_array_content_observations_exit checked 4855ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_empty_observations_exit checked 3327ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_runtime_predicate_exit checked 2454ms check-target:macos_arm64 @ccdb99ca2214
