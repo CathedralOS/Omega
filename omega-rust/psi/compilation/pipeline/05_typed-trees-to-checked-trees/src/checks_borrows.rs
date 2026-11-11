@@ -5772,9 +5772,16 @@ mod statements {
                     }
                     if ::validation::trace_flags::struct_trace() {
                         eprintln!(
-                            "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?}",
+                            "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?} suppliers={:?}",
                             facts.borrow.loan_segments(loan),
-                            facts.borrow.loan_segments(active_loan)
+                            facts.borrow.loan_segments(active_loan),
+                            facts
+                                .borrow
+                                .loan_suppliers
+                                .span_or_empty(loan.supplying_loans)
+                                .iter()
+                                .map(|supplier| (*supplier, facts.borrow.loans.get(*supplier)))
+                                .collect::<Vec<_>>()
                         );
                     }
                     diagnostics.push(Diagnostic::error(format!(
@@ -8002,6 +8009,26 @@ mod aliases {
             Formation,
         }
 
+        /*
+            A call whose body is not checked here returns a result that owes its
+            declared input lifetimes and nothing else, so the result's own row has
+            no supplier to authenticate. That row is where a saved copy's debt
+            starts: a local that stores the result names it as supplier, and so
+            does everything later derived from that local. Only this completed
+            result, still held by its call expression, ends a chain this way.
+        */
+        fn completed_result_debt(borrow: &BorrowFacts, loan: &BorrowLoanFact) -> bool {
+            loan.lineage == BorrowLoanLineage::LifetimeDependency
+                && !loan.source_owner_symbol.is_valid()
+                && borrow.calls.is_valid(loan.established_by_call)
+                && loan.formation_expression.is_valid()
+                && loan.storage_owner == facts::PlaceRoot::Expression(loan.formation_expression)
+                && borrow
+                    .loan_suppliers
+                    .span(loan.supplying_loans)
+                    .is_some_and(<[_]>::is_empty)
+        }
+
         fn descriptor_lineage(
             facts: checked_trees::CheckFactsRef<'_>,
             loan_occurrences: &LoanOccurrences<'_>,
@@ -8010,6 +8037,7 @@ mod aliases {
             purpose: LineagePurpose,
         ) -> Option<Vec<Handle<BorrowLoanFact>>> {
             let borrow = &facts.borrow;
+            let formed = handle;
             let mut completed: Vec<(Handle<BorrowLoanFact>, Vec<Handle<BorrowLoanFact>>)> =
                 Vec::new();
             let mut active = Vec::new();
@@ -8134,6 +8162,11 @@ mod aliases {
                         if purpose == LineagePurpose::Formation =>
                     {
                         let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+                        // The loan being formed must name what it retains; only an
+                        // ancestor may be the completed result its chain starts at.
+                        if handle != formed && completed_result_debt(borrow, loan) {
+                            continue;
+                        }
                         if suppliers.is_empty() || !loan.source_owner_symbol.is_valid() {
                             return None;
                         }
