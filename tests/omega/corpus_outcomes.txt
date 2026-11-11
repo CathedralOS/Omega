@@ -214,6 +214,15 @@ fail/arithmetic/implicit_call_result_policy_change_rejected rejected 829ms expec
 	store in machine `main` state `entry` local `saturating` implicitly converts `u32` to `u32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Saturating`)
 	store in machine `main` state `entry` local `trapping` implicitly converts `u32` to `u32 in Trapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Trapping`)
 	store in machine `main` state `entry` local `guaranteed` implicitly converts `u32` to `u32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32 in Wrapping`)
+fail/arithmetic/implicit_fractional_const_landing rejected 4006ms expected @98e7c79bee30
+	anonymous arithmetic with the exact fractional intermediate `7/2` cannot land implicitly as integer `7` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+fail/arithmetic/implicit_fractional_integer_landing rejected 4057ms expected @98e7c79bee30
+	anonymous arithmetic with the exact fractional intermediate `7/2` cannot land implicitly as integer `7` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+	anonymous arithmetic with the exact fractional intermediate `9/4` cannot land implicitly as integer `9` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+	anonymous arithmetic with the exact fractional intermediate `5/2` cannot land implicitly as integer `5` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+	anonymous arithmetic with the exact fractional intermediate `11/2` cannot land implicitly as integer `11` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+	anonymous arithmetic with the exact fractional intermediate `13/2` cannot land implicitly as integer `13` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
+	anonymous arithmetic with the exact fractional intermediate `1/2` cannot land implicitly as integer `2048` in `u64`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended
 fail/arithmetic/implicit_integer_policy_erasure_rejected rejected 1231ms expected @ccdb99ca2214
 	store in construction of `Values` field `number` implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 	store in machine `erase` state `entry` terminal expression implicitly converts `u32 in Wrapping` to `u32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -19267,8 +19276,8 @@ fail/wire/wire_policy_plan_disagrees rejected 21064ms expected @6fd07112da3c
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
-pass/arithmetic/anonymous_rational_arguments checked 2836ms @ccdb99ca2214
-pass/arithmetic/anonymous_rational_integer_landing checked 2687ms @ccdb99ca2214
+pass/arithmetic/anonymous_rational_arguments checked 10989ms @98e7c79bee30
+pass/arithmetic/anonymous_rational_integer_landing checked 12030ms @98e7c79bee30
 pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit checked 4270ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/arithmetic/bounded_assignment checked 2443ms @ccdb99ca2214
 pass/arithmetic/call_argument_snapshot_survives_write_exit checked 4159ms check-target:macos_arm64 @f78c2623a68c
@@ -19289,6 +19298,7 @@ pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 18919ms che
 pass/arithmetic/disjunctive_requires_exact_slot checked 6259ms @ccdb99ca2214
 pass/arithmetic/every_width_index checked 3657ms @ccdb99ca2214
 pass/arithmetic/exact_integer_cast_proven checked 2011ms @ccdb99ca2214
+pass/arithmetic/explicit_integer_landing_exit checked 34336ms check-target:macos_arm64 @98e7c79bee30
 pass/arithmetic/fixed_array_length_checks_indexed_receiver checked 2298ms @ccdb99ca2214
 pass/arithmetic/fixed_array_live_length_compound_guard checked 2762ms @ccdb99ca2214
 pass/arithmetic/fixed_division_values_survive_calls_exit checked 17265ms check-target:macos_arm64 @ccdb99ca2214
@@ -19316,7 +19326,7 @@ pass/arithmetic/reused_fixed_integer_operands_exit rejected 16483ms check-target
 pass/arithmetic/reused_masked_shift_count_exit rejected 12741ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	Exact integer cast in machine `Main::main` state `main` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `Main::main` state `main` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 20224ms check-target:macos_arm64 @ccdb99ca2214
+pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 33509ms check-target:macos_arm64 @98e7c79bee30
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 17205ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_boolean_alias_shift_count_exit rejected 1394ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
@@ -20542,7 +20552,7 @@ pass/cases/field_subject_arm_chain checked 3450ms @ccdb99ca2214
 pass/cases/later_arm_requires checked 3834ms @ccdb99ca2214
 pass/cases/match_call_patterns checked 5639ms @ccdb99ca2214
 pass/cases/match_guard_slice_index checked 3285ms @ccdb99ca2214
-pass/cases/match_record_field checked 3214ms @ccdb99ca2214
+pass/cases/match_record_field checked 11425ms @98e7c79bee30
 pass/cases/match_reference_local checked 4167ms @ccdb99ca2214
 pass/cases/mid_arm_value_return checked 3543ms @ccdb99ca2214
 pass/cases/mixed_record_cases checked 7948ms @9af3eb514e16
@@ -21687,7 +21697,7 @@ pass/expressions/entry_mut_scalar_param checked 3591ms @ccdb99ca2214
 pass/expressions/explicit_scalar_tag_erasure checked 2233ms @ccdb99ca2214
 pass/expressions/giant_literal_subject checked 3326ms @ccdb99ca2214
 pass/expressions/indexed_qualified_call_argument checked 2530ms @ccdb99ca2214
-pass/expressions/match_anonymous_result_landing checked 13427ms check-target:macos_arm64 @ccdb99ca2214
+pass/expressions/match_anonymous_result_landing checked 32276ms check-target:macos_arm64 @98e7c79bee30
 pass/expressions/match_domain_results checked 2393ms @ccdb99ca2214
 pass/expressions/match_float_interpretation checked 5114ms @ccdb99ca2214
 pass/expressions/match_float_patterns checked 18515ms check-target:macos_arm64 @ccdb99ca2214
@@ -21717,7 +21727,7 @@ pass/expressions/match_owned_same_root_projections checked 12321ms check-target:
 pass/expressions/mixed_integer_comparison_places checked 13463ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/mixed_integer_comparison_widths checked 11562ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/mixed_integer_guard_comparison checked 16794ms check-target:macos_arm64 @ccdb99ca2214
-pass/expressions/numeric_operand_destinations checked 12146ms check-target:macos_arm64 @ccdb99ca2214
+pass/expressions/numeric_operand_destinations checked 23057ms check-target:macos_arm64 @98e7c79bee30
 pass/expressions/owned_match_authored_state checked 2469ms @ccdb99ca2214
 pass/expressions/owned_match_call_values checked 2427ms @ccdb99ca2214
 pass/expressions/owned_match_interleaved_values checked 2857ms @ccdb99ca2214
@@ -25637,7 +25647,7 @@ pass/float/float_selected_comparison_authority checked 18057ms check-target:maco
 pass/float/float_to_int_trapping_nan_traps checked 398223ms check-target:macos_arm64 @61d32e24eb90
 pass/float/float_trapping_overflow_traps checked 15775ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_trapping_propagated_nan_traps checked 15483ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/foreign_control_state_restore checked 134247ms check-target:macos_arm64 @e8e0e531e729
+pass/float/foreign_control_state_restore checked 27843ms check-target:macos_arm64 @98e7c79bee30
 pass/float/format_conversion_proved_finite_return_exit checked 163693ms check-target:macos_arm64 @66107356a089
 pass/float/fused_multiply_add_single_rounding_exit checked 7164ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/guarded_exact_float_conversion checked 15098ms @6fbf73342bf2
@@ -25953,7 +25963,7 @@ pass/generics/runtime_generic_multiple_specializations_exit checked 13322ms chec
 pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 19688ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_generic_selected_extent_fields_exit checked 9923ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 7096ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 6965ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 11299ms check-target:macos_arm64 @98e7c79bee30
 pass/generics/runtime_incoming_index_saved_before_mutation_exit checked 3456ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_index_application_root_exit checked 7852ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit checked 8461ms check-target:macos_arm64 @911f6617ba9e
@@ -26373,8 +26383,8 @@ pass/modules/compound_constant_indices rejected 75ms regressed-from:checked @ccd
 pass/modules/computed_array_extent_composition_exit checked 3520ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/computed_array_extent_module_owner_exit checked 3495ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/computed_array_extent_qualified_element_exit checked 6701ms check-target:macos_arm64 @911f6617ba9e
-pass/modules/computed_constant_initializers checked 2373ms @ccdb99ca2214
-pass/modules/computed_nominal_constants checked 2435ms @ccdb99ca2214
+pass/modules/computed_constant_initializers checked 11728ms @98e7c79bee30
+pass/modules/computed_nominal_constants checked 12998ms @98e7c79bee30
 pass/modules/conformance_reference_scope checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/constant_argument_projected_record_dependency checked 2657ms @ccdb99ca2214
 pass/modules/continued_domain_membership checked 3250ms check-target:macos_arm64 @ccdb99ca2214
@@ -27917,7 +27927,7 @@ pass/traits/applied_nominal_callback_proposition_contract checked 3031ms @ccdb99
 pass/traits/applied_nominal_callback_scopes_exit checked 4132ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_qualified_signature_region_scope_exit checked 4383ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/boundary_trait_effects_host_call checked 3731ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/computed_static_arguments_exit checked 14622ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/traits/computed_static_arguments_exit checked 14377ms check-target:macos_arm64 @98e7c79bee30
 pass/traits/conformance_unused_lifetime_scope_exit checked 3746ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_captured_trait_static_argument_exit checked 4208ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_forwarded_static_arguments_exit checked 3312ms check-target:macos_arm64 @ccdb99ca2214
