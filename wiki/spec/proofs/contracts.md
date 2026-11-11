@@ -98,6 +98,14 @@ automatically executable call. The same checked contract may serve
 runtime, compile-time, or proof use when its types and reach permit it. A fact-only
 invocation emits no runtime call or work.
 
+Law, lemma and theorem describe uses of ordinary declarations, not separate
+source declaration kinds. In a trait schema, a requirement declared with
+`machine` always contributes a selected callable field, including a resultless
+requirement with `ensures`. To carry mathematical evidence instead, declare an
+ordinary field of that evidence type or state a schema validity constraint.
+Its identity follows the declared type, not the initializer's spelling or
+runtime erasure; see [record elaboration](../language/conformances.md#implementations-are-operation-records).
+
 Traits bundle mathematical operations, witnesses, and checked laws. A named
 conformance supplies the complete bundle. Its name, expected shape, or nearby
 facts cannot supply a missing law or select an implementation. Preserve the
