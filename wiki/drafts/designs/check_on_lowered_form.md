@@ -240,7 +240,8 @@ before variants are added. Route one is:
   obligations discharged with kernel-checked evidence (all of the subset's);
   decisions keyed on text (none); steps that drop without a refusal (none);
   routes that can prove one kind of obligation (one; a call's `requires` has
-  about twenty today, tried in order).
+  about twenty today, tried in order). [Route one measures](route_one_measures.md)
+  records all eight and the verdict against the stop rule.
 - **Stop rule.** If the route is not clearly smaller than what it replaces,
   cannot reach agreement on the widened subset, or cannot prove two-value
   relations through its single certificate route, the replacement stops and

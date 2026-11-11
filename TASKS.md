@@ -97,7 +97,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
 
-- **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+- **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture.
+
+- **INVOKES-ENTRY-CEILING.** Implement the [entry ceiling](wiki/drafts/designs/invokes_entry_ceiling.md); then strip plumbing rows.
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 

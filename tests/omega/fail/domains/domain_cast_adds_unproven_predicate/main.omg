@@ -1,0 +1,23 @@
+// Rejected: `+Positive` must prove `self > 0`, and `start` is 0.
+// Twin of run/domains/domain_cast_accounting_exit: only the value of `start` differs.
+domain i32::Km;
+
+domain i32::Positive requires self > 0;
+
+machine plain_of(distance: i32 in Km) -> i32 { distance as -Km }
+
+machine sum_of(distance: i32 in Km & Positive) -> i32 { distance as -Km -Positive }
+
+machine main() crashes Trap {
+    let start: i32 = 0;
+    let both: i32 in Km & Positive = start as +Km +Positive;
+    let same: i32 in Km & Positive = both as =Km =Positive;
+    let km: i32 in Km = both as =Km -Positive;
+    let plain: i32 = both as -Km -Positive;
+    transition plain == 5 && plain_of(km) == 5 && sum_of(same) == 5 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

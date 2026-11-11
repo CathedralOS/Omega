@@ -235,6 +235,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // rejection of the program, not a construct outside the subset.
     let mut uses = 0_usize;
     let mut unestablished = 0_usize;
+    let mut gated = 0_usize;
     for (machine, result) in discharged.machines.iter() {
         uses += result.uses.len();
         for refusal in result.unestablished() {
@@ -260,6 +261,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 Some(ObligationKind::CallRequirement { .. }) => "requirement",
                 Some(ObligationKind::NormalGuarantee { .. }) => "guarantee",
                 Some(ObligationKind::PublishedGuarantee { .. }) => "published",
+                Some(ObligationKind::DataDomain { .. }) => "domain",
                 Some(_) => "other",
                 None => "missing",
             };
@@ -300,6 +302,12 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         Some(evidence.goal.clone()),
                         "-".to_owned(),
                     )
+                }
+                // A zero establishment of a gated type: nothing is owed
+                // there, and each use its contents reach is unestablished.
+                Ok(lowered_discharge::Discharged::Gated(why)) => {
+                    gated += 1;
+                    ("gated".to_owned(), None, one_line(&why.detail))
                 }
                 Err(refusal) => {
                     let outcome = match refusal.reason {
@@ -371,7 +379,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}",
+        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

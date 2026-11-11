@@ -185,6 +185,9 @@ fn describe_kind(kind: ObligationKind) -> String {
         ObligationKind::PublishedGuarantee { clause } => {
             format!("ensures clause {}", u64::from(clause) + 1)
         }
+        ObligationKind::DataDomain { clause, .. } => {
+            format!("requires clause {} of a data type", u64::from(clause) + 1)
+        }
         ObligationKind::ArrivalInvariant { .. } => String::from("block invariant"),
         ObligationKind::CrashCoverage { .. } => String::from("crash coverage"),
         ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. } => {

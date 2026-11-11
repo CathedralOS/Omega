@@ -17,7 +17,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine parse(main: &mut Main, input: &[u8; 8], count: u64) {
         transition count == 2 && input[0] >= 48 && input[0] <= 55 && input[1] == 10 {
-            true -> selected(main, input[0] as i32 - 48)
+            true -> selected(main, (input[0] as i32) - 48)
             _ -> bad_input(main)
         }
     }

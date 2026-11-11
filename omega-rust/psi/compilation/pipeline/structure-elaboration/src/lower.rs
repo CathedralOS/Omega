@@ -129,6 +129,11 @@ pub(crate) fn machine(
                 let lane = lowering.position(formals.records.len())?;
                 let (place, _) =
                     lowering.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
+                // Clause terms name the `k`-th record formal as place
+                // `k + 1` (`Signature::requires`).
+                if place.get() != formals.records.len() as u64 + 1 {
+                    return Err(lowering.internal("record formals are not the first places"));
+                }
                 formals.records.push(StructuralParameterDeclaration {
                     place,
                     position: lane,

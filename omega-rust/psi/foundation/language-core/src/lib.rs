@@ -67,6 +67,38 @@ pub mod cast_form {
         #[default]
         Value, // Value conversion (`x as T`).
         Recast(crate::ReferenceAccess), // Re-view the same backing with the stated reference access.
+        /*
+            One `=D`, `-D` or `+D` entry of a domain cast (domains.md, "Domain
+            casts"). The parser writes one node per entry because each entry
+            names one domain; typing accounts for the whole run at once and
+            then leaves ordinary `Value` casts behind, so no later stage sees
+            this form.
+        */
+        Entry(CastEntry),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CastEntryKind {
+        Keep,   // `=D`: the operand carries `D` and so does the result.
+        Remove, // `-D`: the operand carries `D` and the result does not.
+        Add,    // `+D`: the operand lacks `D` and the result carries it.
+    }
+
+    impl CastEntryKind {
+        pub const fn sign(self) -> &'static str {
+            match self {
+                Self::Keep => "=",
+                Self::Remove => "-",
+                Self::Add => "+",
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CastEntry {
+        pub kind: CastEntryKind,
+        pub first: bool, // The innermost entry: its operand is the value the whole cast accounts for.
+        pub after_carrier: bool, // The run follows `as T`, which may only add.
     }
 
     impl CastForm {
@@ -76,8 +108,15 @@ pub mod cast_form {
 
         pub const fn recast_access(self) -> Option<crate::ReferenceAccess> {
             match self {
-                Self::Value => None,
+                Self::Value | Self::Entry(_) => None,
                 Self::Recast(access) => Some(access),
+            }
+        }
+
+        pub const fn entry(self) -> Option<CastEntry> {
+            match self {
+                Self::Entry(entry) => Some(entry),
+                Self::Value | Self::Recast(_) => None,
             }
         }
     }

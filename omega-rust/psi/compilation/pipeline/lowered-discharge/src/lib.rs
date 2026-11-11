@@ -15,7 +15,8 @@ Per machine it does four things:
   `requires` clause at the entry block, each operation's result equation on
   its normal successor (Terminal semantics states it), each field read's
   equation with the one value its place holds on every path to it (`places`,
-  the same walk a copy's leaves are resolved by),
+  the same walk a copy's leaves are resolved by), each `requires` clause of
+  a data type that a read of established storage can state on its value,
   and each callee `ensures` clause, under the call's actuals, after the call.
   Nothing comes from source shapes, names or any Psi 05 or validation fact.
 - Judges initialization: every operation and terminator that reads storage
@@ -26,12 +27,17 @@ Per machine it does four things:
   goal is Terminal semantics' own canonical goal, a call requirement is the
   callee's `requires` clause under the call's actuals, a normal guarantee is
   this machine's `ensures` clause.
+  A data type's `requires` clause is stated over the values its place holds
+  once the owing operation completes (`places`, `Storage::domain_goal`).
+  Every clause, whoever owns it, is stated over this machine's values by the
+  one substitution (`substitute`).
 - Passes the knowledge whose program point dominates the obligation's to one
   prover (`prove`), which emits a certificate, and asks the kernel to decide
   it.
 
-Kinds outside `OperationSafety`, `CallRequirement` and `NormalGuarantee` are
-refused as `Unsupported`; elaboration mints none of them yet.
+Kinds outside `OperationSafety`, `CallRequirement`, `NormalGuarantee` and
+`DataDomain` are refused as `Unsupported`; elaboration mints none of them
+yet.
 */
 
 mod graph;
@@ -52,8 +58,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    EvidenceIdentity, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
-    PropositionContext, ScalarTerm, ScalarType, ValueId,
+    CanonicalStructuralPathSegment, EvidenceIdentity, IdTable, InvocationSite, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -94,13 +101,24 @@ pub enum Discharged {
     /// they. Empty when the machine has no normal return, where the clause
     /// holds vacuously.
     EveryExit(Vec<ObligationId>),
+    /// A `DataDomain` clause of a zero establishment (`let x: T;`) that the
+    /// zero value was not proved to satisfy, with why. It is not a refusal,
+    /// because nothing is owed where storage is only zeroed
+    /// (`wiki/spec/language/dependent_values.md`: "Zeroing storage is
+    /// permitted independently of establishing a value."). It is not a
+    /// discharge either: the type is gated ("If zero satisfies the default
+    /// domain, the value is zero-constructible. Otherwise the type is gated:
+    /// construction or checked qualification must establish the domain
+    /// before observation."), so the zeroed contents are not an established
+    /// value and every use they reach is `Unestablished` (`StorageUse`).
+    Gated(Box<Refusal>),
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) => None,
+            Self::EveryExit(_) | Self::Gated(_) => None,
         }
     }
 }
@@ -243,6 +261,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
         machines.push(machine(
             &module.machines,
             &module.structural_types,
+            &elaboration.domains,
             id,
             tables,
             knowledge,
@@ -287,6 +306,7 @@ fn terminal_machine(
 fn machine(
     machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
@@ -302,11 +322,20 @@ fn machine(
     }
     let types = tables.values.map(|_, row| row.scalar_type);
     let graph = Graph::new(id, lowered, tables)?;
-    let storage = places::Storage::new(id, lowered, structural_types, &graph, tables)?;
+    let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
+    storage.owed_are_minted(tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
+        // A clause over a field of a record formal is about what that field
+        // held at entry, which is a value when some operation names the
+        // field. One that names no such value states nothing here.
+        let stated = match substitute(proposition, &mut storage.at_entry(tables)) {
+            Ok(stated) => stated,
+            Err(Unbound::Unproved(_)) => continue,
+            Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
+        };
         push_knowledge(
             tables,
-            proposition.clone(),
+            stated,
             ProgramPoint::BlockEntry(lowered.entry),
             Justification::EntryRequirement {
                 clause: position(clause, id)?,
@@ -329,6 +358,15 @@ fn machine(
                 push_knowledge(
                     tables,
                     equation,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+            // And what the type of the storage it reads says of that value.
+            for premise in storage.read_premises(tables, operation)? {
+                push_knowledge(
+                    tables,
+                    premise,
                     ProgramPoint::AfterOperation(operation.id),
                     Justification::OperationSemantics(operation.id),
                 );
@@ -390,15 +428,14 @@ fn machine(
         let actuals = scalar_actuals(&row.actuals);
         let contract = &terminal_machine(machines, callee, id)?.contract;
         for (clause, ensures) in contract.ensures.iter().enumerate() {
-            let proposition =
-                substitute(&ensures.proposition, &actuals, tables).map_err(|detail| {
-                    refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        Construct::Invocation(invocation),
-                        detail,
-                    )
-                })?;
+            let proposition = substitute(
+                &ensures.proposition,
+                &mut ScalarActuals {
+                    actuals: &actuals,
+                    tables,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
             push_knowledge(
                 tables,
                 proposition,
@@ -432,20 +469,22 @@ fn machine(
             decided.push(None);
             continue;
         }
-        let verdict =
-            goal(machines, lowered, id, obligation, &row.kind, tables, &types).and_then(|goal| {
-                decide(
-                    &context,
-                    &graph,
-                    tables,
-                    id,
-                    obligation,
-                    row.created_at,
-                    goal,
-                    knowledge != Knowledge::LiteralIntervals,
-                )
-                .map(Discharged::Certificate)
-            });
+        let verdict = goal(
+            machines, lowered, &storage, id, obligation, &row.kind, tables, &types,
+        )
+        .and_then(|goal| {
+            decide(
+                &context,
+                &graph,
+                tables,
+                id,
+                obligation,
+                row.created_at,
+                goal,
+                knowledge != Knowledge::LiteralIntervals,
+            )
+            .map(Discharged::Certificate)
+        });
         decided.push(Some(verdict));
     }
     let mut verdicts = IdTable::default();
@@ -463,8 +502,57 @@ fn machine(
             )),
         });
     }
+    // A zero establishment whose zero value does not satisfy a clause it
+    // owes: the type is gated. Nothing is owed where storage is only zeroed
+    // (dependent_values.md: "Zeroing storage is permitted independently of
+    // establishing a value."), so the clause's verdict is not a refusal; the
+    // zeroed contents are not an established value, and the initialization
+    // judgment below refuses every use they reach.
+    let mut gated: Vec<OperationId> = Vec::new();
+    let mut settled = IdTable::default();
+    let decided: &IdTable<ObligationId, Checked<Discharged>> = &verdicts;
+    for ((_, row), (_, verdict)) in tables.obligations.iter().zip(decided.iter()) {
+        settled.push(match (row.kind, verdict) {
+            (ObligationKind::DataDomain { operation, .. }, Err(unproved))
+                if matches!(unproved.reason, RefusalReason::Unproved(_))
+                    && storage.zero_establishment(operation)? =>
+            {
+                if !gated.contains(&operation) {
+                    gated.push(operation);
+                }
+                Ok(Discharged::Gated(Box::new(unproved.clone())))
+            }
+            // A store whose written value is not known to keep a clause does
+            // not break the program: dependent_values.md, "Invariant windows":
+            // "A write known to preserve the default domain keeps it
+            // established. Otherwise the write opens a window on the place
+            // ... The domain must be proved again at the next consumption
+            // point". This route has no windows yet, so it cannot judge the
+            // closure whole and hands it back; it never rejects a store for
+            // a clause the specification lets a later store restore.
+            (ObligationKind::DataDomain { operation, .. }, Err(unproved))
+                if matches!(unproved.reason, RefusalReason::Unproved(_))
+                    && storage.store(operation)? =>
+            {
+                Err(Refusal {
+                    reason: RefusalReason::Unsupported,
+                    machine: id,
+                    concerns: unproved.concerns,
+                    detail: format!(
+                        "a store that would open an invariant window: {}",
+                        unproved.detail
+                    ),
+                })
+            }
+            (_, verdict) => verdict.clone(),
+        });
+    }
+    storage.gate(gated);
     let uses = storage.uses(tables)?;
-    Ok(MachineDischarge { verdicts, uses })
+    Ok(MachineDischarge {
+        verdicts: settled,
+        uses,
+    })
 }
 
 /// A published `ensures` clause holds when every `Destination::Return` edge
@@ -600,9 +688,9 @@ fn callee(
 /// Elaboration numbers a machine's scalar formals apart from its record
 /// formals (the `k`-th scalar formal is its value `k + 1`), so a clause term
 /// is replaced by position in this lane. A record actual is a place and has
-/// no value identity; no clause term can name it, because elaboration refuses
-/// a clause that names or projects a record formal.
-fn scalar_actuals(actuals: &[Actual]) -> Vec<ValueId> {
+/// no value identity: a clause names a field of it, which stands for what
+/// that field of the actual holds at the call (`places`, `AtCall`).
+pub(crate) fn scalar_actuals(actuals: &[Actual]) -> Vec<ValueId> {
     let mut scalars = Vec::with_capacity(actuals.len());
     for actual in actuals {
         match actual {
@@ -613,56 +701,224 @@ fn scalar_actuals(actuals: &[Actual]) -> Vec<ValueId> {
     scalars
 }
 
-/// Replaces the callee's `k`-th scalar formal (callee value `k + 1`) by the
-/// caller's `k`-th scalar actual, in the clause forms elaboration produces. Any other form is refused:
-/// substituting under a construct this function does not know would be a
-/// silent change of meaning.
-fn substitute(
-    proposition: &Proposition,
+/// Why a clause could not be stated over this machine's values.
+pub(crate) enum Unbound {
+    /// The clause has a form or names something this route does not serve.
+    Unsupported(&'static str),
+    /// A name of the clause stands for nothing with a value identity where
+    /// the clause is used, so the clause cannot be proved there.
+    Unproved(&'static str),
+    /// Resolving a name refused.
+    Refused(Refusal),
+}
+
+impl Unbound {
+    fn refusal(self, machine: MachineId, concerns: Construct) -> Refusal {
+        match self {
+            Self::Unsupported(detail) => {
+                refusal(RefusalReason::Unsupported, machine, concerns, detail)
+            }
+            // The clause cannot be stated over values here, so no derivation
+            // of it exists from what this point knows.
+            Self::Unproved(detail) => refusal(
+                RefusalReason::Unproved(UnprovedCause::NoDerivation),
+                machine,
+                concerns,
+                detail,
+            ),
+            Self::Refused(refusal) => refusal,
+        }
+    }
+}
+
+/// What each name of a clause stands for where the clause is used. A clause
+/// is written over its owner's names: a callee's formals, or the fields of
+/// the value a data type's `requires` is about.
+pub(crate) trait Bindings {
+    /// The term a value of the clause's owner stands for.
+    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound>;
+    /// The value the scalar field at `path` beneath `root` holds.
+    fn field(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound>;
+    /// Whether the sum at `path` beneath `root` is `case`, by structure.
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Unbound>;
+}
+
+/// A call's actuals standing for the callee's formals: the callee's `k`-th
+/// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
+/// actual.
+struct ScalarActuals<'a> {
+    actuals: &'a [ValueId],
+    tables: &'a MachineTables,
+}
+
+/// The caller's scalar actual a callee's scalar formal stands for.
+pub(crate) fn scalar_actual(
     actuals: &[ValueId],
     tables: &MachineTables,
-) -> Result<Proposition, &'static str> {
-    let term = |term: &ScalarTerm| -> Result<ScalarTerm, &'static str> {
-        match term {
-            ScalarTerm::Value { id, scalar_type } => {
-                let actual = usize::try_from(id.get() - 1)
-                    .ok()
-                    .and_then(|position| actuals.get(position))
-                    .ok_or("clause names a value that is not a formal")?;
-                let row = tables
-                    .values
-                    .get(*actual)
-                    .ok_or("actual is past the end of the caller's values")?;
-                if row.scalar_type != *scalar_type {
-                    return Err("actual type differs from the formal's");
-                }
-                Ok(ScalarTerm::value(*actual, *scalar_type))
-            }
-            ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
-            _ => Err("clause term outside the scalar subset"),
-        }
-    };
+    id: ValueId,
+    scalar_type: ScalarType,
+) -> Result<ScalarTerm, Unbound> {
+    let actual = usize::try_from(id.get() - 1)
+        .ok()
+        .and_then(|position| actuals.get(position))
+        .ok_or(Unbound::Unsupported(
+            "clause names a value that is not a formal",
+        ))?;
+    let row = tables.values.get(*actual).ok_or(Unbound::Unsupported(
+        "actual is past the end of the caller's values",
+    ))?;
+    if row.scalar_type != scalar_type {
+        return Err(Unbound::Unsupported(
+            "actual type differs from the formal's",
+        ));
+    }
+    Ok(ScalarTerm::value(*actual, scalar_type))
+}
+
+impl Bindings for ScalarActuals<'_> {
+    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        scalar_actual(self.actuals, self.tables, id, scalar_type)
+    }
+
+    fn field(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        Err(Unbound::Unsupported(
+            "clause term outside the scalar subset",
+        ))
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        Err(Unbound::Unsupported(
+            "clause form outside the scalar subset",
+        ))
+    }
+}
+
+/// The one substitution: states a clause over this machine's values by
+/// replacing each of its names with what `bindings` says it stands for. The
+/// result names values and literals only; a place never survives it.
+///
+/// A case test is not a value: where the clause is used the case is known by
+/// structure or not at all, so the test becomes `Truth` or `Falsehood` and
+/// the connective around it is simplified. A conjunction with a false
+/// conjunct is false and a disjunction with a true disjunct is true whatever
+/// their other parts are, which is what lets a clause project a payload
+/// under the test of its case (data_and_literals.md: "inactive payloads
+/// cannot be projected"): the projection is only resolved when the test did
+/// not already decide its connective.
+///
+/// Any other form is refused: substituting under a construct this function
+/// does not know would be a silent change of meaning.
+pub(crate) fn substitute(
+    proposition: &Proposition,
+    bindings: &mut dyn Bindings,
+) -> Result<Proposition, Unbound> {
     Ok(match proposition {
         Proposition::Truth => Proposition::Truth,
-        Proposition::Equal(left, right) => Proposition::Equal(term(left)?, term(right)?),
-        Proposition::LessThan(left, right) => Proposition::LessThan(term(left)?, term(right)?),
-        Proposition::LessOrEqual(left, right) => {
-            Proposition::LessOrEqual(term(left)?, term(right)?)
+        Proposition::Equal(left, right) => {
+            Proposition::Equal(bound(left, bindings)?, bound(right, bindings)?)
         }
-        Proposition::Conjunction(parts) => Proposition::Conjunction(
-            parts
-                .iter()
-                .map(|part| substitute(part, actuals, tables))
-                .collect::<Result<_, _>>()?,
-        ),
-        _ => return Err("clause form outside the scalar subset"),
+        Proposition::LessThan(left, right) => {
+            Proposition::LessThan(bound(left, bindings)?, bound(right, bindings)?)
+        }
+        Proposition::LessOrEqual(left, right) => {
+            Proposition::LessOrEqual(bound(left, bindings)?, bound(right, bindings)?)
+        }
+        Proposition::StructuralCaseMembership { subject, case } => {
+            if bindings.case(subject.root(), subject.path(), *case)? {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            }
+        }
+        Proposition::Conjunction(parts) => connective(parts, bindings, true)?,
+        Proposition::Disjunction(parts) => connective(parts, bindings, false)?,
+        _ => {
+            return Err(Unbound::Unsupported(
+                "clause form outside the scalar subset",
+            ));
+        }
+    })
+}
+
+/// One term of a clause under substitution.
+fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, Unbound> {
+    match term {
+        ScalarTerm::Value { id, scalar_type } => bindings.value(*id, *scalar_type),
+        ScalarTerm::IntegerField {
+            root,
+            path,
+            scalar_type,
+        } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
+        ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
+        ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
+        _ => Err(Unbound::Unsupported(
+            "clause term outside the scalar subset",
+        )),
+    }
+}
+
+/// A conjunction (`conjunction`) or disjunction under substitution. The
+/// deciding constant is `Falsehood` for a conjunction and `Truth` for a
+/// disjunction: one part equal to it decides the whole, and then a part
+/// that could not be stated does not matter. The other constant is the
+/// connective's unit and is dropped.
+fn connective(
+    parts: &[Proposition],
+    bindings: &mut dyn Bindings,
+    conjunction: bool,
+) -> Result<Proposition, Unbound> {
+    let (deciding, unit) = if conjunction {
+        (Proposition::Falsehood, Proposition::Truth)
+    } else {
+        (Proposition::Truth, Proposition::Falsehood)
+    };
+    let mut kept = Vec::with_capacity(parts.len());
+    let mut unstated = None;
+    for part in parts {
+        match substitute(part, bindings) {
+            Ok(part) if part == deciding => return Ok(deciding),
+            Ok(part) if part == unit => {}
+            Ok(part) => kept.push(part),
+            Err(unbound) => unstated = unstated.or(Some(unbound)),
+        }
+    }
+    if let Some(unbound) = unstated {
+        return Err(unbound);
+    }
+    Ok(match kept.len() {
+        0 => unit,
+        1 => kept.remove(0),
+        _ if conjunction => Proposition::Conjunction(kept),
+        _ => Proposition::Disjunction(kept),
     })
 }
 
 /// The goal of one obligation, over this machine's values.
+#[allow(clippy::too_many_arguments)]
 fn goal(
     machines: &[TerminalMachine],
     lowered: &TerminalMachine,
+    storage: &places::Storage<'_>,
     id: MachineId,
     obligation: ObligationId,
     kind: &ObligationKind,
@@ -715,12 +971,18 @@ fn goal(
                 id,
                 Construct::Invocation(invocation),
             )?;
-            let callee = callee(id, invocation, &row.callee)?;
-            let actuals = scalar_actuals(&row.actuals);
-            let contract = &terminal_machine(machines, callee, id)?.contract;
+            let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
+            let InvocationSite::Operation(site) = row.site else {
+                return Err(refusal(
+                    RefusalReason::Unsupported,
+                    id,
+                    Construct::Invocation(invocation),
+                    "invocation outside an operation",
+                ));
+            };
             let clause = usize::try_from(clause)
                 .ok()
-                .and_then(|clause| contract.requires.get(clause))
+                .and_then(|clause| callee.contract.requires.get(clause))
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -729,8 +991,17 @@ fn goal(
                         "callee has no such requires clause",
                     )
                 })?;
-            substitute(clause, &actuals, tables)
-                .map_err(|detail| refusal(RefusalReason::Unsupported, id, concerns, detail))
+            // A scalar formal is the scalar actual in its lane; a field of a
+            // record formal is what that field of the record actual holds
+            // when the call is made.
+            substitute(
+                clause,
+                &mut storage.at_call(tables, &row.actuals, callee, site, concerns)?,
+            )
+            .map_err(|unbound| unbound.refusal(id, concerns))
+        }
+        ObligationKind::DataDomain { operation, clause } => {
+            storage.domain_goal(tables, operation, clause, concerns)
         }
         ObligationKind::NormalGuarantee { clause, .. } => usize::try_from(clause)
             .ok()
