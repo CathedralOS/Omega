@@ -295,22 +295,6 @@ pub fn prepare(
         &json!({"host": host_target(), "environment": environment,
         "forced_profile": {"dev": "1", "test": "1"}, "freshness": "checksum/content"}),
     )?;
-    if need_runner {
-        build(
-            root,
-            directory,
-            "harness-preflight",
-            &[
-                "check",
-                "--locked",
-                "-p",
-                "compiler",
-                "--test",
-                "corpus_runner",
-                "--message-format=json",
-            ],
-        )?;
-    }
     let mut producer = Producer {
         runner: None,
         cli: None,

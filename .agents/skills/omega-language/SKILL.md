@@ -37,8 +37,9 @@ plainly. Do not invent a middle spelling.
 
 ## Which source wins
 
-1. **What the language is:** `wiki/language_guide/` and `wiki/spec/`. Start at
-   `wiki/README.md`.
+1. **What the language is:** `wiki/spec/`. `wiki/language_guide/` is a short
+   tutorial that shows the common forms and links to the rules; where it is
+   silent, the specification decides. Start at `wiki/README.md`.
 2. **What works today:** the compiler built from current `main`.
 3. **Evidence, not authority:** `tests/omega/`, `samples/`, `source/library/`.
    These lag the wiki during migrations. Before copying a spelling, check

@@ -27,7 +27,7 @@ rename; old acceptance does not authorize the new identity. Hyphenated package
 declarations are not accepted through an implicit spelling conversion.
 
 Product dependencies and build helpers are declared separately. `use` selects
-names from an admitted dependency. [Chapter 15](chapter_15_modules_imports_visibility.md#run-a-build-helper)
+names from an admitted dependency. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
 
 ## Install and update

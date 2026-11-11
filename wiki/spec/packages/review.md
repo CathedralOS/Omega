@@ -31,6 +31,15 @@ supplies, accepted assumptions, and relevant build/generated-source facts.
 An unused dangerous public API remains reviewable independently of actual
 selected-program reach.
 
+The report lists each reviewed domain's effective issuance, with aliases and
+inherited restrictions expanded, and where the domain is used: parameter
+types, results, fields and predicates. It highlights unrestricted issuance on
+a domain used at a boundary or service interface, and any change from
+restricted to unrestricted. Unrestricted issuance is a finding to read, not an
+error: a classification such as a unit or a proved range is meant to be open,
+and the report cannot tell that from a credential whose restriction was left
+off.
+
 [Assumed binding contracts](../build/assumed_binding_contracts.md) retain their
 **Extremely high risk - assumed binding contract** classification transitively.
 Show the exact contracts and selected implementation, the assumed entry/exit
