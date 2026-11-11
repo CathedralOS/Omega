@@ -11,7 +11,7 @@ in [values](../resources/authority.md); implementation trust is recorded by
 | --- | --- |
 | `reaches A + B` | Bounds service reach by the named boundary services and their boundary parents. |
 | `reaches none` | Explicitly bounds service reach by the empty set. |
-| `invokes handler` | May synchronously enter that binding before returning. |
+| `invokes handler` | May synchronously enter that callback or inbound entry before returning. |
 | `suspends` | May park the current activation. |
 | `blocks` | May occupy its worker while waiting. |
 | `crashes Cause` with route guards | May leave without a successor or cleanup under a covered guard. |
@@ -125,6 +125,7 @@ meaning wherever it is written:
 | `reaches` | Open. No service bound is authored; the selected operation's published reach is retained as a dependency. |
 | `crashes` | Open. No crash bound is authored; the selected operation's published guarded crash routes are retained. |
 | `suspends`, `blocks` | Does not suspend; does not block. |
+| `invokes` | Enters no callback or inbound [entry](#direct-synchronous-invocation). |
 | `terminates` | No termination promise. |
 
 A contract that omits `reaches` or `crashes` is open. An open contract admits
@@ -677,12 +678,83 @@ callback requirement.
 
 ## Direct synchronous invocation
 
-`invokes` retains direct edges that transitive reach intentionally forgets.
-Parameter paths distinguish separate bindings satisfying the same trait. A trait
-identity may name an internally selected binding when no parameter path exists.
-Bodyful machines infer these edges, including forwarding through local helpers;
-exported implementations check them against their published ceiling. Bodyless
-omission permits no synchronous entry.
+Named decision: `invokes-entry-ceiling`, ratified 2026-11-10.
+
+`invokes` bounds synchronous entry: before the machine returns, control may
+arrive at the named callback or inbound entry, through any number of
+intermediate calls. It retains the edges that transitive reach intentionally
+forgets. It does not list the services a provider calls to do its work.
+
+```omega
+public boundary trait Registrar {
+    machine execute<const Callback: Handler::read>() -> u64
+        reaches none
+        crashes none
+        invokes Handler;                  // may run Callback before returning
+
+    machine register<const Callback: Handler::read>()
+        reaches none
+        crashes none;                     // keeps it; enters nothing
+}
+
+public boundary trait FilesystemService {
+    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+        blocks
+        reaches FilesystemContentRead
+        crashes none;                     // host calls are the provider's business
+}
+```
+
+| Edge | Counted by `invokes` |
+| --- | --- |
+| Call of a callable argument or a statically bound callback | Yes. |
+| Call of a stored callable | Yes, on the operation that calls it. |
+| Arrival at a binding to an `EnvironmentToProgram` [slot](../build/entry_roots.md#slots), build-bound or runtime-installed | Yes. |
+| Call to a `ProgramToProvider` slot, whoever authored its provider | No. It is part of the provider's realization inventory. |
+| Storing a callable, or registering a future root | No. Storage is storage; registration creates a root. |
+| Scheduled delivery, an interrupt, a new activation | No. It is not synchronous. |
+
+A call to a `ProgramToProvider` slot is not itself an entry. Entry demands
+reached through it still propagate: the callee's published `invokes` joins the
+caller's, as its reach does. Application code that supplies an ordinary slot is
+a service dependency; authorship adds no entry.
+
+A row names a parameter path or a requirement identity. Parameter paths
+distinguish separate bindings satisfying the same trait. A requirement
+identity names a callback binding that has no parameter path, such as a
+previously registered handler. Route and direction decide what a row may name,
+not declaration kind.
+
+| Context | Omitted `invokes` | Authored clause |
+| --- | --- | --- |
+| Checked body, including public APIs | Infer and publish its entries, including forwarding through local helpers. | Bound the derived entries. |
+| Bodyless requirement, boundary or not | No synchronous entry. | Bound the entries of every admitted implementation. |
+| Runtime callable type | The callable enters nothing further. | Bound the entries the callable may make. |
+
+Omission on a callable type describes the callable, not its holder: a machine
+that calls its callable argument has an `invokes` demand on that argument. A
+row that no selected provider uses is a broader ceiling, not an error.
+
+A provider's possible calls to `ProgramToProvider` slots are its realization
+inventory. A checked body derives it; a native leaf has none. It is retained
+with the component's
+[outgoing requirements](../build/component_publication.md#selection-and-component-closure)
+and is outside the satisfied requirement's interface identity, so a provider
+that calls a different host slot changes no portable contract. It remains an
+input to artifact dependencies, admission, stack planning and the replacement
+envelope.
+
+Composition makes two checks, and neither replaces the other. Every entry
+reachable through the selected providers' possible edges fits the calling
+requirement's `invokes`. The complete realized graph of possible edges,
+inventory included, is acyclic under the rule below. Both rerun when a provider
+is replaced. For a native binding the clause, or its omission, is the claim
+that [foreign admission](../build/foreign_bindings.md#operational-coherence)
+accepts for that exact binding; unknown native behavior is not an empty claim.
+
+No `invokes` clause, present or absent, establishes that an unfinished
+invariant is safe to expose. Access, observation and custody checks apply to
+every downstream call, entry or not.
 
 An invoked handler retains its exact identity in the synchronous call graph and
 contributes its explicit reach and selected concrete operational envelope to the
