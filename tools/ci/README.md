@@ -117,8 +117,9 @@ The runner selects by substring, so a chosen `pass/a/x` also runs `pass/a/x_l`;
 the plan names those rows and judges them too.
 
 **How much.** Rows are packed into at most 8 shards by recorded time, 2200
-recorded seconds each, which is about 11 minutes of fixtures on a 4-CPU runner
-at 4 jobs. A compiler change gets about 1,500 rows, roughly 9% of the corpus.
+recorded seconds each, which took 6 to 10 minutes of fixtures at 4 jobs on a
+4-CPU host in the replays of #2370 and #2461. A compiler change got 1,550 to
+2,130 rows there, 9 to 12% of the corpus.
 The broad sample skips fixtures recorded above 40 seconds; touched and mapped
 fixtures do not.
 
