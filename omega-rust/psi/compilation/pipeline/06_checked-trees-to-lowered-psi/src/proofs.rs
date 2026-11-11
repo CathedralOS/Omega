@@ -3287,23 +3287,15 @@ pub(crate) mod crash_routes {
         */
         pub(crate) fn lower_structural_local_member_term(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            home: Option<(PlaceId, StructuralTypeId, terminal_psi::StructuralAccess)>,
+            (place, structural_type, access): (
+                PlaceId,
+                StructuralTypeId,
+                terminal_psi::StructuralAccess,
+            ),
             path: &[checked_trees::CheckedStructuralPredicatePathSegment],
             expected: ScalarType,
             structural_types: &[StructuralTypeDeclaration],
         ) -> Result<ScalarTerm, LoweringError> {
-            let Some((place, structural_type, access)) = home else {
-                // A local with no place has no formal to observe either; the
-                // formal lookup reports that one missing root.
-                return lower_structural_member_term(
-                    identities,
-                    u32::MAX,
-                    path,
-                    expected,
-                    &[],
-                    structural_types,
-                );
-            };
             lower_observation_term(
                 identities,
                 place,

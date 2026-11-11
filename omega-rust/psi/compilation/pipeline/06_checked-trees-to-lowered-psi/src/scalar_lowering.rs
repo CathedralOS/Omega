@@ -1599,11 +1599,11 @@ pub(crate) mod contracts {
                     primitive_type,
                     ..
                 } => {
-                    // Psi 05 names only a local of the calling state; its
-                    // place is resolved when the term is lowered.
-                    let _ = symbol;
+                    // Source checking admits this term only for a local of
+                    // the calling state, so a namespace without that local's
+                    // place is a broken Psi 05 plan, not an unsupported shape.
                     crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
-                    Ok(())
+                    namespace.views.local(*symbol).map(|_| ())
                 }
             }
         }
@@ -1755,6 +1755,22 @@ pub(crate) mod contracts {
         pub place: semantic_vocabulary::PlaceId,
         pub structural_type: semantic_vocabulary::StructuralTypeId,
         pub access: terminal_psi::StructuralAccess,
+    }
+
+    impl ContractViewNamespace<'_> {
+        /// The place of the caller local an erased actual observes.
+        pub(crate) fn local(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Result<&ContractLocalObservation, LoweringError> {
+            self.locals
+                .iter()
+                .find(|local| local.symbol == symbol)
+                .ok_or(LoweringError::MissingDependencyRosterEntry {
+                    identity_kind: "structural local place",
+                    role: "erased call actual observation",
+                })
+        }
     }
 
     impl ContractViewNamespace<'static> {
@@ -2477,15 +2493,10 @@ pub(crate) mod contracts {
                 primitive_type,
             } = expression
             {
-                let home = self
-                    .views
-                    .locals
-                    .iter()
-                    .find(|local| local.symbol == *symbol)
-                    .map(|local| (local.place, local.structural_type, local.access));
+                let local = self.views.local(*symbol)?;
                 return crate::proofs::crash_routes::lower_structural_local_member_term(
                     identities,
-                    home,
+                    (local.place, local.structural_type, local.access),
                     path,
                     crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                     self.views.structural_types,

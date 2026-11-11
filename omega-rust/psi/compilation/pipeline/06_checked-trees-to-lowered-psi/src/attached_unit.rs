@@ -9099,8 +9099,8 @@ pub(crate) mod inner {
         use super::claims::{LoweredUnitClaims, lower_unit_entry_claims};
         use super::ordinary_calls;
         use super::parameters::{
-            lower_unit_erased_scalar_lane_types, lower_unit_parameters,
-            lower_unit_scalar_parameter_declarations,
+            lower_unit_parameters, lower_unit_scalar_parameter_declarations,
+            lower_unit_scalar_parameter_types,
         };
         use crate::expression_preparation::qualifications::PreparedScalarQualifications;
         use crate::shared::lowering_error::LoweringError;
@@ -9205,7 +9205,7 @@ pub(crate) mod inner {
                     next_value,
                 )?;
                 let erased_scalar_parameters =
-                    lower_unit_erased_scalar_lane_types(plan.erased_scalar_parameters)?
+                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters, true)?
                         .into_iter()
                         .map(|scalar_type| {
                             Ok(ValueDeclaration {
@@ -13888,7 +13888,7 @@ pub(crate) mod inner {
             qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
             next_value: &mut u64,
         ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-            let carriers = lower_unit_scalar_parameter_types(parameters)?;
+            let carriers = lower_unit_scalar_parameter_types(parameters, false)?;
             let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
             let authored = checked.state_parameters(declaration);
             parameters
@@ -13937,30 +13937,23 @@ pub(crate) mod inner {
             Ok(declared)
         }
 
+        /*
+            Scalar parameters and erased scalar lanes both arrive in source
+            order. Runtime scalar parameters each own their authored position.
+            An erased record formal owns one lane per scalar leaf, so its
+            consecutive lanes share a position (`leaves_share_position`).
+        */
         pub(crate) fn lower_unit_scalar_parameter_types(
             parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+            leaves_share_position: bool,
         ) -> Result<Vec<ScalarType>, LoweringError> {
-            if parameters
-                .windows(2)
-                .any(|pair| pair[0].source_position >= pair[1].source_position)
-            {
+            if parameters.windows(2).any(|pair| {
+                pair[0].source_position > pair[1].source_position
+                    || (!leaves_share_position
+                        && pair[0].source_position == pair[1].source_position)
+            }) {
                 return unsupported("Unit scalar parameters are not in strict source order");
             }
-            parameters
-                .iter()
-                .map(|parameter| terminal_scalar_type(parameter.primitive_type))
-                .collect()
-        }
-
-        /*
-            Erased scalar lanes arrive in the order Psi 05 planned them. An
-            erased record formal owns one lane per scalar leaf, so consecutive
-            lanes may share their authored position, which the strict order
-            required of runtime scalar parameters would refuse.
-        */
-        pub(crate) fn lower_unit_erased_scalar_lane_types(
-            parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-        ) -> Result<Vec<ScalarType>, LoweringError> {
             parameters
                 .iter()
                 .map(|parameter| terminal_scalar_type(parameter.primitive_type))

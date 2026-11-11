@@ -1243,7 +1243,11 @@ pub(crate) mod prepare_expression {
                                 local.argument.access,
                                 local.structural_type,
                             )
-                        });
+                        })
+                        .ok_or(LoweringError::MissingDependencyRosterEntry {
+                            identity_kind: "structural local place",
+                            role: "erased call actual observation",
+                        })?;
                     crate::expression_preparation::bindings::structural_fields::resolve_local(
                         identities,
                         self.structural_fields,

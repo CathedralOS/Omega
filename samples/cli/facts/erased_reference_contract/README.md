@@ -29,7 +29,8 @@ which precondition must be proved.
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | a Build-selected implementation | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
-The root [`main.omg`](main.omg) repeats the local witness. Positives retain
+The root [`main.omg`](main.omg) calls `keep` as a statement with an erased-only
+parameter list: no runtime argument and no result. Positives retain
 `ProgramEntry` bindings for all four hosted targets. The selected-body place
 also checks distinct x86-64 and ARM64 tags to detect a wrong Build selection.
 
