@@ -18857,8 +18857,8 @@ fail/termination/joint_machine_call_cycle_stalled rejected 1990ms expected @ccdb
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/joint_rankless_finish_reenters_component rejected 2051ms unexpected @ccdb99ca2214
 	machine call cycle: `left`, `finish`, `right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/lexicographic_component_zero_step_rejected rejected 2176ms expected @ccdb99ca2214
-	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/lexicographic_component_zero_step_rejected rejected 6432ms unexpected @583d51f8f4a3
+	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/measure_field_arrival_contract rejected 4978ms expected @8ff88b9df484
 	cannot prove requires contract for call walk from walk: constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.remaining <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare && constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.limit (needs fact `countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/measure_field_computed_limit_overflow rejected 4360ms expected @911f6617ba9e
@@ -18888,11 +18888,11 @@ fail/termination/nested_helper_record_measure_rank_not_decreasing rejected 4835m
 fail/termination/nested_helper_record_measure_result_equation_missing rejected 5645ms expected @a3ee79b58ff4
 	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/nested_helper_record_measure_result_equation_not_decreasing rejected 4158ms expected @a3ee79b58ff4
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/nested_helper_record_measure_result_equation_not_decreasing rejected 7298ms unexpected @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/nested_helper_record_measure_result_equation_wrong_subject rejected 4382ms expected @a3ee79b58ff4
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/nested_helper_record_measure_result_equation_wrong_subject rejected 5610ms unexpected @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_indexed_upper_rejected rejected 4231ms expected @6c0b29931314
 	machine call cycle: `count`, `forward`, `reduce` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -18919,8 +18919,7 @@ fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_alias_reset_after_descent rejected 751ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/private_stored_reference_rank_no_ambient_helper_bound rejected 344ms expected @5c5c178f82c7
-	exact arithmetic in machine `forward` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/termination/private_stored_reference_rank_no_ambient_helper_bound checked 11343ms @583d51f8f4a3
 fail/termination/private_stored_reference_rank_reset_after_descent rejected 742ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_write_only rejected 350ms expected @5c5c178f82c7
@@ -19000,8 +18999,8 @@ fail/termination/rank_arrival_opaque_child_does_not_prove_subject_absent rejecte
 fail/termination/rank_arrival_opaque_operand_does_not_prove_subject_absent rejected 3512ms expected regressed-from:checked @d352d5e8e77e
 	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/rank_arrival_public_result_wrong_subject rejected 3235ms expected regressed-from:checked @d352d5e8e77e
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/rank_arrival_public_result_wrong_subject rejected 5298ms unexpected regressed-from:checked @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/rank_arrival_sibling_does_not_replace_subject rejected 3193ms unexpected regressed-from:checked @d352d5e8e77e
 	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -19049,8 +19048,8 @@ fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca221
 	machine call cycle: `greatest_common_divisor` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/requirement_witness_rejected rejected 10060ms expected @ccdb99ca2214
 	tests/omega/fail/termination/requirement_witness_rejected/main.omg:7:59: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
-fail/termination/retired_block_form rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
+fail/termination/retired_block_form rejected 3456ms unexpected @583d51f8f4a3
+	tests/omega/fail/termination/retired_block_form/main.omg:5:15: expected `;`, found identifier `remaining`
 fail/termination/retired_standalone_decreases rejected 7ms expected @ccdb99ca2214
 	tests/omega/fail/termination/retired_standalone_decreases/main.omg:4:1: a standalone `decreases` clause is retired (decision 23): attach the ranking witness to the guarantee as `terminates by <subjects> [-> View] [in <range>];`
 fail/termination/runtime_non_tail_call_cycle rejected 3102ms expected @ccdb99ca2214
@@ -20970,7 +20969,9 @@ pass/capabilities/derives_through_helper checked 3716ms check-target:macos_arm64
 pass/capabilities/external_leaf_binding_forms checked 3581ms check-target:macos_arm64 @ccdb99ca2214
 pass/capabilities/recursive_synchronous_invocations checked 16691ms check-target:macos_arm64 @4815ea579d91
 pass/capabilities/runtime_qualified_record_return_exit checked 4065ms check-target:macos_arm64 @ccdb99ca2214
-pass/capabilities/selected_applied_synchronous_chain_exit checked 5671ms check-target:macos_arm64 declared-invocation-controls:match terminal-inspections:match @de604282e098
+pass/capabilities/selected_applied_synchronous_chain_exit rejected 18896ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+declared-invocation-controls:match+terminal-inspections:match @583d51f8f4a3
+	machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+	inspection Main::main admission: [Diagnostic { severity: Error, message: "machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/capabilities/selected_synchronous_chain_exit checked 14585ms check-target:macos_arm64 @4815ea579d91
 pass/capabilities/selected_synchronous_helper_ceiling_exit checked 5570ms check-target:macos_arm64 declared-invocation-controls:match terminal-inspections:match @de604282e098
 pass/capabilities/sysv_small_aggregate_import_compile checked 52474ms check-target:linux_x86_64 @e8e0e531e729
@@ -26613,7 +26614,9 @@ pass/host/runtime_macos_image_snapshot_exit checked 179455ms check-target:macos_
 pass/host/runtime_native_scalar_reference_ingress_exit checked 4001ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 64423ms check-target:macos_arm64 @e8e0e531e729
 pass/host/runtime_scalar_reference_backing_export_exit checked 70716ms check-target:linux_x86_64 @e8e0e531e729
-pass/host/runtime_semantic_gui_reach_exit checked 26552ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_semantic_gui_reach_exit rejected 27595ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @583d51f8f4a3
+	a value call to generic machine `macos_window_create` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+	argument `title` for state `macos_window_create` expects `&[u8; Count]`, got `indexed value`; expected carrier `ref(array(named(name(u8)),const-parameter(nominal\\(package-owner\\(32:3416f1fa8976bb34522dcbc03dc068368a50882e8bee6dd9dac36beef5116ce6\\)\\,path\\(macos_window_create::Count\\)\\))))`, declared place carrier `named(name(u8))`
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 22295ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 18172ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_windows_gui_argument_failures_exit checked 15063ms check-target:windows_x86_64 @ccdb99ca2214
