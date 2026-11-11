@@ -2601,14 +2601,12 @@ pub(crate) mod domain_cast_accounting {
             .filter_map(|constraint| match constraint {
                 TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => None,
                 TypeConstraintNode::ArithmeticDomain(policy) => Some(policy.name().to_owned()),
-                TypeConstraintNode::Domain(domain) => Some(
-                    program
-                        .domain_definition(domain.symbol)
-                        .map_or_else(
-                            || domain.name.as_str().to_owned(),
-                            |definition| domain_label(program, definition),
-                        ),
-                ),
+                TypeConstraintNode::Domain(domain) => {
+                    Some(program.domain_definition(domain.symbol).map_or_else(
+                        || domain.name.as_str().to_owned(),
+                        |definition| domain_label(program, definition),
+                    ))
+                }
                 TypeConstraintNode::Named(name) => Some(name.as_str().to_owned()),
             })
             .collect::<Vec<_>>();
