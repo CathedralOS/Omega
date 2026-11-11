@@ -8576,63 +8576,63 @@ fail/facts/finite_family_const_roster/parameter rejected 310ms expected @64d08af
 	callable expression argument does not name a const or value declaration
 fail/facts/finite_family_const_roster/target_body rejected 334ms expected @64d08af188aa
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_exclusive_result/call_result rejected 3582ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/call_result rejected 9655ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/const_name rejected 3430ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/const_name rejected 9875ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/field rejected 4021ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/field rejected 10183ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/local rejected 3729ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/local rejected 9489ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/match_join rejected 3632ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/match_join rejected 10671ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/other_machine rejected 4153ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/other_machine rejected 10736ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/other_state rejected 3426ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/other_state rejected 11009ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/parameter rejected 3786ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/parameter rejected 10638ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_exclusive_result/target_body rejected 3309ms expected @9df129e92410
+fail/facts/finite_family_exclusive_result/target_body rejected 9180ms expected @5310cdb20eac
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -9074,26 +9074,31 @@ fail/facts/foreign_indirect_float_record_result_through_parameter_rejected rejec
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_indirect_float_record_result_through_target_body_rejected rejected 2223ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_nested_record_backing_call_result rejected 9236ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_call_result rejected 11020ms expected @5310cdb20eac
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_nested_record_backing_const_name rejected 9192ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_const_name rejected 11285ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_nested_record_backing_field rejected 9469ms expected @ee4dbb4b2d56
 	statement 6 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_nested_record_backing_local rejected 9429ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_local rejected 9749ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_nested_record_backing_match_join rejected 12790ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_match_join rejected 10885ms expected @5310cdb20eac
+	statement 7 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 9)
 	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
 	statement 7 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
-fail/facts/foreign_nested_record_backing_other_machine rejected 12403ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_other_machine rejected 10483ms expected @5310cdb20eac
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_nested_record_backing_other_state rejected 15897ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_other_state rejected 11032ms expected @5310cdb20eac
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_nested_record_backing_parameter rejected 8911ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_parameter rejected 10996ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_nested_record_backing_repeated_child_type_live rejected 13930ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_repeated_child_type_live rejected 11411ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_nested_record_backing_target_body rejected 19908ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_target_body rejected 11274ms expected @5310cdb20eac
+	statement 5 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_package_service_reach_through_call_result_rejected rejected 29835ms expected @c03602bad609
 	machine `lettered` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
@@ -9137,66 +9142,91 @@ fail/facts/foreign_reference_result_through_parameter_rejected rejected 17500ms 
 fail/facts/foreign_reference_result_through_target_body_rejected rejected 16746ms expected @9e24c7342c2a
 	state `apply` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_retained_mutable_borrow_call_result rejected 8935ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_call_result rejected 10237ms expected @5310cdb20eac
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_retained_mutable_borrow_const_name rejected 10416ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_const_name rejected 11838ms expected @5310cdb20eac
 	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_retained_mutable_borrow_field rejected 8638ms expected @ee4dbb4b2d56
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_retained_mutable_borrow_local rejected 14741ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_local rejected 10538ms expected @5310cdb20eac
 	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_mutable_borrow_match_join rejected 14051ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_match_join rejected 11613ms expected @5310cdb20eac
+	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 11058ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 12176ms expected @5310cdb20eac
+	statement 11 creates local borrow `mutable_envelope` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
+	statement 12 creates local borrow `mutable_routed` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
+	statement 12 creates local borrow `mutable_routed` while local borrow `mutable_forwarded` is still active (borrowed at statement 10; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_forwarded` is still active (borrowed at statement 10; its last use is at statement 17)
+	statement 13 reads `mutable_buffer.value` while local borrow `mutable_envelope` is still active (borrowed at statement 11; its last use is at statement 17)
 	statement 13 reads `mutable_buffer.value` while local borrow `mutable_routed` is still active (borrowed at statement 12; its last use is at statement 17)
-fail/facts/foreign_retained_mutable_borrow_other_machine rejected 9554ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_other_machine rejected 11783ms expected @5310cdb20eac
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_retained_mutable_borrow_other_registration_live rejected 14514ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_other_registration_live rejected 10628ms expected @5310cdb20eac
+	statement 13 reads `first.value` while local borrow `first_pending` is still active (borrowed at statement 5; its last use is at statement 14)
 	statement 13 reads `first.value` while local borrow `routed_first` is still active (borrowed at statement 7; its last use is at statement 14)
-fail/facts/foreign_retained_mutable_borrow_other_state rejected 14580ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_other_state rejected 11293ms expected @5310cdb20eac
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_retained_mutable_borrow_overlapping_registration rejected 9972ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_overlapping_registration rejected 11230ms expected @5310cdb20eac
+	state `register` receives `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
 	state `register` receives `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 creates local borrow `main` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 creates local borrow `main` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 creates local borrow `forbidden` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
 	statement 6 creates local borrow `forbidden` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 6 borrows `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8) in machine `Main::main`, state `main`, statement 6
 	statement 6 borrows `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8) in machine `Main::main`, state `main`, statement 6
+	statement 6 mutates `buffer` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
 	statement 6 mutates `buffer` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
-fail/facts/foreign_retained_mutable_borrow_parameter rejected 10931ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_parameter rejected 11562ms expected @5310cdb20eac
 	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_mutable_borrow_stale_completion_fact rejected 10928ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_stale_completion_fact rejected 11282ms expected @5310cdb20eac
 	cannot prove requires contract for call require41 from Main::main: value == 41 (needs fact `value == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/facts/foreign_retained_mutable_borrow_target_body rejected 15234ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_target_body rejected 8206ms expected @5310cdb20eac
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 14649ms expected @ee4dbb4b2d56
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
-fail/facts/foreign_retained_shared_borrow_call_result rejected 10233ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_call_result rejected 10810ms expected @5310cdb20eac
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_shared_borrow_const_name rejected 12238ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_const_name rejected 10857ms expected @5310cdb20eac
 	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/foreign_retained_shared_borrow_field rejected 11139ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_field rejected 11224ms expected @5310cdb20eac
+	statement 5 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 7)
+	statement 5 mutates `buffer.value` while local borrow `envelope` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_retained_shared_borrow_local rejected 11014ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_local rejected 10967ms expected @5310cdb20eac
 	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/foreign_retained_shared_borrow_match_join rejected 10744ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_match_join rejected 11068ms expected @5310cdb20eac
+	statement 6 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 6 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 8)
-fail/facts/foreign_retained_shared_borrow_other_machine rejected 10962ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_other_machine rejected 10877ms expected @5310cdb20eac
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_shared_borrow_other_state rejected 9427ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_other_state rejected 11069ms expected @5310cdb20eac
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_shared_borrow_parameter rejected 12693ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_parameter rejected 10913ms expected @5310cdb20eac
 	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 14375ms expected @ee4dbb4b2d56
 	statement 9 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 10)
 fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 17362ms expected @ee4dbb4b2d56
 	statement 9 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 10)
-fail/facts/foreign_retained_shared_borrow_retained_escape rejected 12009ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_retained_escape rejected 10795ms expected @5310cdb20eac
 	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 12991ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 10661ms expected @5310cdb20eac
 	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
-fail/facts/foreign_retained_shared_borrow_target_body rejected 12773ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_target_body rejected 11010ms expected @5310cdb20eac
+	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_shared_borrow_wrapper_redemption rejected 11249ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_shared_borrow_wrapper_redemption rejected 10433ms expected @5310cdb20eac
 	callable `Reader::redeem_wrapper` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending` through a structural field; retained-after-return authority requires a consumed owned input
 fail/facts/foreign_scalar_backing_through_call_result_rejected rejected 1492ms expected @9964870962c4
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -21628,7 +21658,7 @@ pass/core/content_transform_ended_parent_loan checked 13693ms @089c0a150e63
 pass/core/content_transform_inactive_payload checked 12821ms @089c0a150e63
 pass/core/content_transform_predicate_array checked 13464ms @089c0a150e63
 pass/core/extent_core_surface checked 2323ms @ccdb99ca2214
-pass/core/extent_root_provider_adapter checked 4561ms check-target:macos_arm64 @ccdb99ca2214
+pass/core/extent_root_provider_adapter checked 9719ms check-target:macos_arm64 @5310cdb20eac
 pass/core/generic_content_distinct_applications checked 13756ms check-target:macos_arm64 @089c0a150e63
 pass/core/generic_content_static_callback checked 15821ms check-target:macos_arm64 @666ee6b726c4
 pass/core/guaranteed_return_bound_actuals_exit checked 17096ms check-target:macos_arm64 @ccdb99ca2214
@@ -23443,15 +23473,15 @@ pass/facts/finite_family_const_roster/other_machine checked 2474ms check-target:
 pass/facts/finite_family_const_roster/other_state checked 2454ms check-target:macos_arm64 @64d08af188aa
 pass/facts/finite_family_const_roster/parameter checked 2441ms check-target:macos_arm64 @64d08af188aa
 pass/facts/finite_family_const_roster/target_body checked 2554ms check-target:macos_arm64 @64d08af188aa
-pass/facts/finite_family_exclusive_result/call_result checked 4350ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/const_name checked 4949ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/field checked 4425ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/local checked 6032ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/match_join checked 5412ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/other_machine checked 4961ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/other_state checked 5336ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/parameter checked 5528ms check-target:macos_arm64 @9df129e92410
-pass/facts/finite_family_exclusive_result/target_body checked 4887ms check-target:macos_arm64 @9df129e92410
+pass/facts/finite_family_exclusive_result/call_result checked 14444ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/const_name checked 14441ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/field checked 13466ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/local checked 13454ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/match_join checked 13069ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/other_machine checked 12627ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/other_state checked 12852ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/parameter checked 12998ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/finite_family_exclusive_result/target_body checked 13954ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/finite_family_input_index/call_result checked 15566ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/const_name checked 17162ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_input_index/field checked 15732ms check-target:macos_arm64 @4148c7ab0c1e
@@ -23644,16 +23674,16 @@ pass/facts/foreign_indirect_float_record_result_through_other_machine_exit check
 pass/facts/foreign_indirect_float_record_result_through_other_state_exit checked 4966ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 4927ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 5021ms check-target:macos_arm64 @fc2e109d93cc
-pass/facts/foreign_nested_record_backing_call_result checked 17422ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_const_name checked 14713ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_nested_record_backing_call_result checked 14903ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_const_name checked 14969ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_nested_record_backing_field checked 16294ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_local checked 14767ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_match_join checked 12249ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_other_machine checked 15735ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_other_state checked 15664ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_parameter checked 15943ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_repeated_child_type checked 19985ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_nested_record_backing_target_body checked 14622ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_nested_record_backing_local checked 13220ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_match_join checked 14532ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_other_machine checked 14673ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_other_state checked 13306ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_parameter checked 13656ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_repeated_child_type checked 13439ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_nested_record_backing_target_body checked 13128ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_package_service_reach_through_call_result_exit checked 38180ms check-target:macos_arm64 @c03602bad609
 pass/facts/foreign_package_service_reach_through_const_name_exit checked 30588ms check-target:macos_arm64 @c03602bad609
 pass/facts/foreign_package_service_reach_through_field_exit checked 32241ms check-target:macos_arm64 @c03602bad609
@@ -23672,34 +23702,34 @@ pass/facts/foreign_reference_result_through_other_machine_exit checked 21694ms c
 pass/facts/foreign_reference_result_through_other_state_exit checked 21189ms check-target:macos_arm64 @9e24c7342c2a
 pass/facts/foreign_reference_result_through_parameter_exit checked 21129ms check-target:macos_arm64 @9e24c7342c2a
 pass/facts/foreign_reference_result_through_target_body_exit checked 62316ms check-target:macos_arm64 @9e24c7342c2a
-pass/facts/foreign_retained_mutable_borrow_call_result checked 14285ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_const_name checked 13688ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_mutable_borrow_call_result checked 14729ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_const_name checked 14498ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_field checked 12925ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_local checked 16665ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_match_join checked 16502ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_mutable_borrow_local checked 14373ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_match_join checked 13028ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 18306ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_other_machine checked 15917ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_other_state checked 23313ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_parameter checked 19089ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 18946ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_mutable_borrow_target_body checked 19092ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_mutable_borrow_other_machine checked 13144ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_other_state checked 13090ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_parameter checked 12618ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 13020ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_mutable_borrow_target_body checked 13373ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap checked 17089ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_call_result checked 13780ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_const_name checked 16409ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_enclosing_allocation checked 15865ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_field checked 17339ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_local checked 14505ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_match_join checked 12805ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_other_machine checked 14240ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_other_state checked 12091ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_parameter checked 16399ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_shared_borrow_call_result checked 18919ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_const_name checked 18293ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_enclosing_allocation checked 15174ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_field checked 14295ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_local checked 15263ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_match_join checked 14083ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_other_machine checked 13705ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_other_state checked 14440ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_parameter checked 13655ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_persistent_restore checked 13754ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/foreign_retained_shared_borrow_persistent_retention checked 19040ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 20675ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 18545ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 22499ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_shared_aliases checked 17544ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_target_body checked 16998ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 12383ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 14447ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 13825ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_shared_aliases checked 14224ms check-target:macos_arm64 @5310cdb20eac
+pass/facts/foreign_retained_shared_borrow_target_body checked 14120ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_scalar_backing_through_call_result_exit checked 2549ms check-target:macos_arm64 @9964870962c4
 pass/facts/foreign_scalar_backing_through_const_name_exit checked 2511ms check-target:macos_arm64 @9964870962c4
 pass/facts/foreign_scalar_backing_through_field_exit checked 2654ms check-target:macos_arm64 @9964870962c4

@@ -5718,6 +5718,13 @@ mod statements {
                         bound_lookup,
                     );
                     if retained_debt == Some(true)
+                        || super::aliases::exclusive_carrier_cases(
+                            program,
+                            &facts.borrow,
+                            borrow_state,
+                            loan_handle,
+                            active_loan_handle,
+                        )
                         || (retained_debt.is_none()
                             && (compatibility.non_interfering
                                 || supplier_preserves_loan(
@@ -8406,7 +8413,13 @@ mod aliases {
         })
     }
 
-    fn exclusive_carrier_cases(
+    /*
+        Two loans saved in one carrier generation at payloads of different
+        cases of the same sum cannot be held together: the carrier holds one
+        case. The carrier is a named local or parameter, or the temporary home
+        of the expression that formed it, such as a call result.
+    */
+    pub(in crate::checks::borrows) fn exclusive_carrier_cases(
         program: &dyn validation::CheckingInput,
         borrow: &BorrowFacts,
         state: &StateBorrowFact,
@@ -8422,23 +8435,29 @@ mod aliases {
             if !same_carrier_generation(left, right) {
                 return None;
             }
-            let owner = left.storage_owner.as_symbol()?;
             let state = program.state_by_symbol(state.state_symbol)?;
-            let reference = validation::state_root_type(program, state, owner)?;
-            let left = crate::borrow::named_carrier_path(
-                program,
-                state,
-                owner,
-                reference,
-                borrow.owner_segments.span(left.owner_path)?,
-            )?;
-            let right = crate::borrow::named_carrier_path(
-                program,
-                state,
-                owner,
-                reference,
-                borrow.owner_segments.span(right.owner_path)?,
-            )?;
+            let carrier_path = |loan: &BorrowLoanFact| match loan.storage_owner {
+                facts::PlaceRoot::Symbol(owner) => crate::borrow::named_carrier_path(
+                    program,
+                    state,
+                    owner,
+                    validation::state_root_type(program, state, owner)?,
+                    borrow.owner_segments.span(loan.owner_path)?,
+                ),
+                facts::PlaceRoot::Expression(expression) => crate::borrow::carrier_path(
+                    program,
+                    validation::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        loan.statement_index,
+                        expression,
+                    )?,
+                    borrow.owner_segments.span(loan.owner_path)?,
+                ),
+                _ => None,
+            };
+            let left = carrier_path(left)?;
+            let right = carrier_path(right)?;
             for (left, right) in left.iter().zip(&right) {
                 if left != right {
                     return Some(matches!(
