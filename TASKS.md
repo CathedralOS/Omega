@@ -59,7 +59,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
-  - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
+  - Interpret `realpath`/stdin closure (`native_canonicalize`, `runtime_portable_{copy_errors,zero_descriptor}_exit`); run `runtime_{gui,windows}_*`, `window_demo` on Windows
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q2](OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer)).
