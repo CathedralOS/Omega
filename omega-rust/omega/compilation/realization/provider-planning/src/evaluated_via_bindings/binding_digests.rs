@@ -4,13 +4,14 @@
 // runtime payload, leaving bit requirements to the materialization judgment.
 
 use crate::evaluated_via_bindings::MATERIALIZER_SCHEMA_VERSION;
-use build_time_evaluation::{BuildTimeValue, CURRENT_EVALUATION_SEMANTICS, EvaluationUsage};
+use build_time_evaluation::{BuildTimeValue, CURRENT_EVALUATION_SEMANTICS};
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
     EvaluatedBindingProducerClosureDigest,
 };
+use evaluation_accounting::BuildEvaluationUsage;
 use source::{SourceFile, SourceOrigin, SourceSpan};
 use std::path::Path;
 use symbols::SymbolHandle;
@@ -116,11 +117,13 @@ fn stable_source_digest(source: &SourceFile) -> Result<[u8; 32], String> {
 pub(crate) fn evaluation_digest(
     target: TargetProfile,
     closure: EvaluatedBindingProducerClosureDigest,
-    usage: EvaluationUsage,
+    usage: BuildEvaluationUsage,
     value: &BuildTimeValue,
 ) -> EvaluatedBindingEvaluationDigest {
+    // v2: usage now comes from the engine-tagged record, so producers measured on
+    // Terminal Psi (usage schema 8) never share a digest with checked-tree rows.
     let mut hash = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.evaluated-binding-evaluation.sha256.v1\0",
+        b"omega.evaluated-binding-evaluation.sha256.v2\0",
     );
     hash.bytes(target.identity().as_str().as_bytes());
     hash_field(&mut hash, &closure.as_bytes());
@@ -153,18 +156,21 @@ pub(crate) fn materialization_digest(
         .expect("domain-separated SHA-256 is nonzero")
 }
 
-fn encode_usage(hash: &mut crate::digest_encoder::DomainDigestEncoder, usage: EvaluationUsage) {
+fn encode_usage(
+    hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    usage: BuildEvaluationUsage,
+) {
     for value in [
-        u64::from(usage.schema().schema_version()),
-        u64::from(usage.schedule().marker()),
-        usage.work_units(),
-        usage.work_budget(),
-        usage.build_log_bytes(),
-        usage.filesystem_operation_attempts(),
-        usage.peak_live_cells(),
-        usage.peak_live_text_bytes(),
-        usage.result_cells(),
-        usage.result_text_bytes(),
+        u64::from(usage.usage_schema_version),
+        u64::from(usage.step_schedule_marker),
+        usage.work_units,
+        usage.invocation_work_budget,
+        usage.build_log_bytes,
+        usage.filesystem_operation_attempts,
+        usage.peak_live_storage_cells,
+        usage.peak_live_payload_bytes,
+        usage.result_storage_cells,
+        usage.result_payload_bytes,
     ] {
         hash_u64(hash, value);
     }

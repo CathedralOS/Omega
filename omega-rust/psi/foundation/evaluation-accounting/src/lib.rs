@@ -583,7 +583,7 @@ impl Drop for BuildEvaluationLiveFilesystemHandleLease {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct BuildEvaluationUsage {
     pub measurement: EvaluationMeasurementIdentity,
     pub usage_schema_version: u32,
