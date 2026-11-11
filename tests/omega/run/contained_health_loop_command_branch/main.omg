@@ -23,7 +23,7 @@ crashes Trap
     machine completed(buffer: &[u8; 16], count: u64) -> LineBuffer {
         transition count > 0 && count <= 16 {
             true -> trim(buffer, count)
-            _ -> LineBuffer::snapshot("quit")
+            _ -> line_buffer_snapshot("quit")
         }
     }
     machine trim(buffer: &[u8; 16], count: u64) -> LineBuffer
@@ -46,7 +46,7 @@ crashes Trap
     machine snapshot(prefix: &[u8] in LineUtf8) -> LineBuffer
     requires prefix.len <= 16
     {
-        LineBuffer::snapshot(prefix)
+        line_buffer_snapshot(prefix)
     }
     machine invalid() -> LineBuffer { crash Trap; }
 }
@@ -76,7 +76,7 @@ data Game {
     health: i32;
 }
 
-machine Game::run(game: &mut Game) reaches Console
+machine run(game: &mut Game) reaches Console
 blocks
 crashes Trap
 {
@@ -93,7 +93,7 @@ crashes Trap
 
     machine read_command(game: &mut Game) {
         game.line = block read_command_line();
-        let line: &[u8] in LineUtf8 = LineBuffer::view(&game.line);
+        let line: &[u8] in LineUtf8 = view(&game.line);
         game.command = resolve(line);
 
         transition game.command {
@@ -126,7 +126,7 @@ data Main {
     game: Game;
 }
 
-machine Main::main(main: &mut Main) reaches Console
+machine main(main: &mut Main) reaches Console
 blocks
 crashes Trap
 {
@@ -134,7 +134,7 @@ crashes Trap
 
 
     machine running(main: &mut Main) {
-        block Game::run(&mut main.game);
+        block run(&mut main.game);
         transition { _ -> shutdown() }
     }
 
@@ -145,7 +145,7 @@ crashes Trap
 
 // Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
 data LineBuffer [copy] requires used <= 16 { storage: [u8; 16]; used: u64; }
-machine LineBuffer::view(buffer: &LineBuffer) -> &[u8] in LineUtf8 crashes Trap {
+machine view(buffer: &LineBuffer) -> &[u8] in LineUtf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {
         true -> checked(bytes)
@@ -154,12 +154,12 @@ machine LineBuffer::view(buffer: &LineBuffer) -> &[u8] in LineUtf8 crashes Trap 
     machine checked(bytes: &[u8] in LineUtf8) -> &[u8] in LineUtf8 { bytes }
     machine bad() -> &[u8] in LineUtf8 { crash Trap; }
 }
-machine LineBuffer::equal(buffer: &LineBuffer, expected: &[u8]) -> bool crashes Trap {
-    let bytes: &[u8] in LineUtf8 = LineBuffer::view(buffer);
+machine equal(buffer: &LineBuffer, expected: &[u8]) -> bool crashes Trap {
+    let bytes: &[u8] in LineUtf8 = view(buffer);
     bytes == expected
 }
 
-machine LineBuffer::copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
+machine copy(storage: &mut [u8; 16], bytes: &[u8], start: u64)
 requires start <= 16, bytes.len <= 16 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
     machine copying(storage: &mut [u8; 16], bytes: &[u8], start: u64, index: u64)
@@ -176,7 +176,7 @@ requires start <= 16, bytes.len <= 16 - start {
     }
     machine done() {}
 }
-machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
+machine join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
     transition left.len <= 16 && right.len <= 16 - left.len {
         true -> joining(left, right)
         _ -> bad()
@@ -184,8 +184,8 @@ machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
     machine joining(left: &[u8], right: &[u8]) -> LineBuffer
     requires left.len <= 16, right.len <= 16 - left.len {
     let mut result: LineBuffer;
-    LineBuffer::copy(&mut result.storage, left, 0);
-    LineBuffer::copy(&mut result.storage, right, left.len);
+    copy(&mut result.storage, left, 0);
+    copy(&mut result.storage, right, left.len);
     let total: u64 = left.len + right.len;
     transition total <= 16 {
         true -> checked(result, total)
@@ -201,9 +201,9 @@ machine LineBuffer::join(left: &[u8], right: &[u8]) -> LineBuffer crashes Trap {
     machine bad() -> LineBuffer { crash Trap; }
 }
 
-machine LineBuffer::snapshot(text: &[u8] in LineUtf8) -> LineBuffer
+machine line_buffer_snapshot(text: &[u8] in LineUtf8) -> LineBuffer
 crashes Trap
-requires text.len <= 16 { LineBuffer::join("", text) }
+requires text.len <= 16 { join("", text) }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console
@@ -211,5 +211,5 @@ blocks
 crashes Trap
 {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

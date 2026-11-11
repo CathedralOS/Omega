@@ -66,12 +66,19 @@ value row.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places:
+A construct-family lane changes this crate in exactly two places (a closed
+`RefusalReason` variant, cited the same way, is the one further addition a
+lane has made):
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
 - **A summary term:** a field of `edges::Summary`, cited the same way.
+
+A justification (`values::Justification`) is neither. A lane does not add or
+reuse one for a second meaning: a new reason a knowledge row can hold is a
+change to this contract, made in a pull request of its own whose variant
+quotes the specification sentence it stands for, as the existing ones do.
 
 A lane never adds a table, a second identity for an existing concept, a map
 keyed by an identity, or a field holding a name, a printed expression, a path
@@ -82,6 +89,43 @@ Every checking step returns `Checked<T>`: a row, or a `Refusal` carrying a
 closed `RefusalReason`, the machine and the lowered `Construct` it concerns.
 There is no way to return "nothing". A construct the lane does not serve is
 refused as `Unsupported`, never accepted by default.
+
+Three reasons are verdicts about the program and the rest are about the
+checker. `Unproved` means an obligation's evidence did not check.
+`Unestablished` means a place is read, copied, passed or returned on a path
+on which nothing was stored into it
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"An unestablished local cannot be read"); it is a structural judgment over the
+write log and the graph, with no obligation row and no certificate, and the
+places foundation lane added it as a reason, not as a table. The lane's two
+structural judgments over a sum report through the same reason: a case
+payload named where its case is not established on every path
+(structural_access.md: "Each `Case` step requires source admission to
+establish the selected case for the same root and prefix at the read's
+observation epoch"), and a dispatch that has no edge for a declared case
+([patterns](../../../../../../wiki/spec/language/patterns.md): "Missing
+runtime coverage is a compile error, not an implicit trap or fallthrough").
+`Unsupported`
+means the checker does not serve the construct and says nothing about the
+program.
+
+## What the tables cannot say yet
+
+Each was met by a lane, reported, and read from the lowered form instead of
+being added here.
+
+- **Where a copy's contents came from.** `Content` has no "what that other
+  place held". A whole copy logs `Overwritten` and the checker reads the
+  source from the operation at the row.
+- **Which case a construction established.** No `Content` form names a
+  case, so a case literal logs `Overwritten` on its root and the checker
+  reads `result_case` from the establishing operation at the row.
+- **That a sum holds a case on an edge.** A `StructuralCase` terminator has
+  no Boolean value, and knowledge names values only, so the case selected on
+  one of its edges is not a knowledge row. It lives in the structural payload
+  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  (each payload parameter equals the value its payload leaf holds) and is a
+  knowledge row justified as `Justification::DispatchBinding`.
 
 ## Obligation kinds
 
@@ -126,14 +170,17 @@ refused as `Unsupported`, never accepted by default.
   `ContentProjectionScalar` hold `String`s. Route one (scalars) uses none of
   them. The lane that adds content knowledge replaces them with typed
   identities first; this crate does not wrap or copy them.
-- **A second place form inside propositions.** `Proposition`'s structural
-  variants (`StructuralIdentity`, `StructuralCaseMembership`, IEEE and
-  byte-sequence fields) name storage as `PlaceId` plus
-  `Vec<CanonicalStructuralPathSegment>`, beside this crate's `ExactPlaceId`.
-  Knowledge here is over values, and a storage observation enters as the value
-  a read produced, so route one needs neither. The records-and-fields lane
-  must choose one form before it adds knowledge about places; it must not keep
-  both.
+- **A second place form inside propositions: decided, values only.**
+  `Proposition`'s structural variants (`StructuralIdentity`,
+  `StructuralCaseMembership`, IEEE and byte-sequence fields) name storage as
+  `PlaceId` plus `Vec<CanonicalStructuralPathSegment>`, beside this crate's
+  `ExactPlaceId`. The places foundation lane chose one form
+  (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
+  carrier"): knowledge never names a place. A storage observation enters as the value its
+  read produced, and what the read equals is one more equation between values,
+  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  a structural `Proposition` variant in a knowledge row; a contract clause
+  that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
   `PropositionId` table is named proposition declarations. `Summary`

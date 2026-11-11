@@ -1,0 +1,1 @@
+machine `encode_positive` realizes `LawCodec::positive` but does not guarantee its `ensures encode(value) > 0`

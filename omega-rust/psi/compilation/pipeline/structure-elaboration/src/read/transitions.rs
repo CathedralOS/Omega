@@ -1,18 +1,19 @@
 /*
 The transition family of the reader: an arm's guard and value pattern, its
-target (a value, a terminal call or Unit) and the crash exit.
+target (a value, a terminal call or Unit) and the crash exit; and dispatch
+over a sum, which stage 01 writes as one guarded transition per case arm.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{
-    TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-use super::expressions::same_computation;
+use super::expressions::{case_condition, case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::body::{Expression, Target};
+use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -23,7 +24,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         transition: &TableTransition,
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
     ) -> Checked<(Option<Expression>, Target)> {
         if transition.continuation.is_valid() {
             return Err(refuse(
@@ -77,7 +78,7 @@ impl Program<'_> {
             None => None,
             Some(guard) => {
                 let guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
-                if guard.result != Some(ScalarType::Boolean) {
+                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean)) {
                     return Err(refuse(
                         id,
                         Construct::Machine,
@@ -98,6 +99,128 @@ impl Program<'_> {
             }
         };
         Ok((guard, target))
+    }
+
+    /// Whether a transition is a case arm: its one pattern has a head.
+    /// Stage 01 gives a value arm no head and an unguarded arm no pattern.
+    pub(super) fn case_arm(&self, transition: &TableTransition) -> bool {
+        matches!(
+            self.typed
+                .statement_table
+                .transition_patterns(transition.patterns),
+            [pattern] if pattern.pattern.head.is_valid()
+        )
+    }
+
+    /// `transition subject { S::A { .. } -> x  S::B -> y  _ -> z }` over a
+    /// sum. Stage 01 writes it as a local holding the subject followed by
+    /// one transition per arm, each guarded by `subject in case`, and
+    /// replaces every use of a payload binding by the payload member of the
+    /// subject it names. `statements` starts at the first case arm; the
+    /// arms read are the run of case arms over that same subject and, when
+    /// one follows, the unguarded arm that is the dispatch's `_`. Returns
+    /// the dispatch and how many statements it took.
+    ///
+    /// Every arm completes the machine, so the dispatch does. An arm with a
+    /// guard of its own, a pattern that tests a field, a second arm for one
+    /// case and a `crash` arm are each refused by name. Coverage is decided
+    /// where lowering builds the terminator from the declaration's cases.
+    pub(super) fn dispatch(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        statements: &[StatementNode],
+        result: Option<ValueType>,
+    ) -> Checked<(Statement, usize)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
+        let mut subject: Option<Expression> = None;
+        let mut arms: Vec<(usize, Target, SourceOrigin)> = Vec::new();
+        let mut default = None;
+        let mut taken = 0;
+        let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        for statement in statements {
+            let StatementNode::Transition(transition) = statement else {
+                break;
+            };
+            let patterns = self
+                .typed
+                .statement_table
+                .transition_patterns(transition.patterns);
+            let case = match (transition.guard, patterns, &subject) {
+                (TransitionGuardNode::When(guard), [pattern], _)
+                    if pattern.pattern.head.is_valid() =>
+                {
+                    let read = self.expression(id, slots, pattern.subject, None)?;
+                    let (ExpressionKind::Slot(_), Some(ValueType::Record(record))) =
+                        (&read.kind, read.result)
+                    else {
+                        return Err(unserved("case arm whose subject is not a data local"));
+                    };
+                    match &subject {
+                        Some(known) if !same_computation(known, &read) => break,
+                        Some(_) => {}
+                        None => {
+                            source = SourceOrigin::of(transition.source_span);
+                            subject = Some(read.clone());
+                        }
+                    }
+                    let case = self.case_pattern(id, record, &pattern.pattern)?;
+                    // The arm's test is stored twice, as the transition
+                    // guard and as the pattern's condition `test && true`.
+                    // Both must read to this arm's own case test.
+                    let guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
+                    let condition = self.expression(
+                        id,
+                        slots,
+                        pattern.pattern.condition,
+                        Some(ScalarType::Boolean),
+                    )?;
+                    if !same_computation(&guard, &case_test_of(&read, case))
+                        || !same_computation(&condition, &case_condition(&read, case))
+                    {
+                        return Err(unserved("case arm with a guard"));
+                    }
+                    if arms.iter().any(|(earlier, _, _)| *earlier == case) {
+                        return Err(unserved("case arm for a case an earlier arm selects"));
+                    }
+                    Some(case)
+                }
+                (TransitionGuardNode::Always, [], Some(_)) => None,
+                (TransitionGuardNode::Always | TransitionGuardNode::When(_), _, _) => break,
+            };
+            if transition.continuation.is_valid() {
+                return Err(unserved("continuation"));
+            }
+            if !transition.proof_selectors.is_empty() {
+                return Err(unserved("proof selectors"));
+            }
+            // A crash site's guard is the exact conjunction of the branch
+            // decisions before it, over values. Which case a dispatch
+            // selected is not a value, so the guard could not state it.
+            let target = match transition.exit {
+                TransitionExit::Ordinary => self.target(id, slots, transition.target, result)?,
+                TransitionExit::Crash(_) => return Err(unserved("crash in a case arm")),
+            };
+            taken += 1;
+            let arm_source = SourceOrigin::of(transition.source_span);
+            match case {
+                Some(case) => arms.push((case, target, arm_source)),
+                None => {
+                    default = Some((target, arm_source));
+                    break;
+                }
+            }
+        }
+        let subject = subject.ok_or_else(|| unserved("dispatch without a case arm"))?;
+        Ok((
+            Statement::Dispatch {
+                subject,
+                arms,
+                default,
+                source,
+            },
+            taken,
+        ))
     }
 
     /// A value pattern on a scalar subject is its condition. Stage 01 gives a
@@ -141,7 +264,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         handle: typed_trees::statement::TransitionTargetHandle,
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
     ) -> Checked<Target> {
         let typed = self.typed;
         if !handle.is_valid() {
@@ -163,7 +286,7 @@ impl Program<'_> {
                 return Ok(Target::Unit);
             }
             TransitionTargetNode::Value(expression) => {
-                self.expression(id, slots, *expression, result)?
+                self.expression(id, slots, *expression, result.and_then(ValueType::scalar))?
             }
             TransitionTargetNode::Named {
                 operational_acknowledgement,

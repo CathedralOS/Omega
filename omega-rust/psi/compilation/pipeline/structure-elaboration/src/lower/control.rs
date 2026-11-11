@@ -1,10 +1,13 @@
 /*
 The control family of lowering: blocks and the open block, edges and
 terminators, transition arms, short-circuit joins, crashes and returns.
+A record value returns through `ReturnStructural`, naming the root that
+holds it.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, EdgeId, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, CrashCause, EdgeId, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    ValueId,
 };
 use terminal_check_tables::edges::{Destination, Disposition, EdgeRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -12,8 +15,9 @@ use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalReason};
 use terminal_psi::{CrashPredicateTerm, Terminator};
 
+use super::places::Bound;
 use super::{Draft, Lowering, Value, declaration, successor};
-use crate::body::{Expression, Statement, Target};
+use crate::body::{Expression, Statement, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -54,7 +58,11 @@ impl Lowering<'_> {
         })
     }
 
-    fn edge(&mut self, destination: Destination, source: SourceOrigin) -> Checked<EdgeId> {
+    pub(super) fn edge(
+        &mut self,
+        destination: Destination,
+        source: SourceOrigin,
+    ) -> Checked<EdgeId> {
         let edge = self.tables.edges.push(EdgeRow {
             source: self.current()?,
             destination,
@@ -136,6 +144,21 @@ impl Lowering<'_> {
         self.guarantee(edge, source)
     }
 
+    /// A record result returns the root that holds it.
+    /// `wiki/spec/terminal-psi/calls_and_outcomes.md`, "Normal results":
+    /// a structural result is one place, apart from the scalar lane. The
+    /// plain record holds no claim, so none is returned.
+    fn return_record(&mut self, source_root: PlaceId, source: SourceOrigin) -> Checked<()> {
+        let edge = self.edge(Destination::Return, source)?;
+        self.terminate(Terminator::ReturnStructural {
+            edge,
+            source: source_root,
+            returned_claims: Vec::new(),
+            cleanup_actions: Vec::new(),
+        })?;
+        self.guarantee(edge, source)
+    }
+
     pub(super) fn return_unit(&mut self, source: SourceOrigin) -> Checked<()> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::ReturnUnit {
@@ -153,8 +176,40 @@ impl Lowering<'_> {
         }
         match statement {
             Statement::Bind { slot, value } => {
-                let value = self.scalar(value)?;
-                *self.slot_mut(*slot)? = Some(value);
+                let bound = match value.result {
+                    Some(ValueType::Record(_)) => Bound::Record(self.record(value)?),
+                    Some(ValueType::Scalar(_)) | None => Bound::Scalar(self.scalar(value)?),
+                };
+                *self.slot_mut(*slot)? = Some(bound);
+                Ok(())
+            }
+            Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
+            Statement::Store {
+                slot,
+                path,
+                value,
+                source,
+            } => self.store(*slot, path, value, *source),
+            Statement::Dispatch {
+                subject,
+                arms,
+                default,
+                source,
+            } => {
+                let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
+                let (blocks, rest) = self.select(subject, &cases, default.is_some(), *source)?;
+                for ((_, target, source), (block, chosen)) in arms.iter().zip(blocks) {
+                    self.enter(block);
+                    self.selected.push(chosen);
+                    self.complete(target, *source)?;
+                    self.selected.pop();
+                }
+                if let (Some((target, source)), Some((block, chosen))) = (default, rest) {
+                    self.enter(block);
+                    self.selected.push(chosen);
+                    self.complete(target, *source)?;
+                    self.selected.pop();
+                }
                 Ok(())
             }
             Statement::Evaluate(expression) => match self.no_normal(expression)? {
@@ -207,6 +262,7 @@ impl Lowering<'_> {
                 }
                 None => match self.expression(expression)? {
                     Value::Scalar(value) => self.return_value(value, expression.source),
+                    Value::Record(root) => self.return_record(root, expression.source),
                     Value::Unit => self.return_unit(expression.source),
                 },
             },
@@ -268,6 +324,17 @@ impl Lowering<'_> {
     /// cause, then the no-successor terminator. Its frontier lower bound is
     /// empty because the subset holds no claims.
     fn crash(&mut self, cause: CrashCause, source: SourceOrigin) -> Checked<()> {
+        // The site guard is the conjunction of the branch decisions before
+        // the crash, each a value equal to a Boolean. Which case a dispatch
+        // selected is not a value, so inside an arm the guard cannot be
+        // exact and the crash is refused rather than given a wider guard.
+        if !self.selected.is_empty() {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Transition("crash in a case arm"),
+            ));
+        }
         let site = self.current()?;
         let before = self.here()?;
         let site_guard =
@@ -292,6 +359,72 @@ impl Lowering<'_> {
         })
     }
 
+    /// Value-position `match` over a sum: the dispatch, each arm's value in
+    /// its own block, and a join whose one parameter is the result.
+    /// control_flow.md: "Scalar arguments match the complete target
+    /// telescope; their values may differ across arrivals." An arm is an
+    /// expression, so it rebinds no slot and stores nothing: the result is
+    /// the only thing that differs across the arrivals.
+    pub(super) fn match_value(
+        &mut self,
+        subject: &Expression,
+        arms: &[(usize, Expression)],
+        default: Option<&Expression>,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let cases: Vec<usize> = arms.iter().map(|(case, _)| *case).collect();
+        let (blocks, rest) = self.select(subject, &cases, default.is_some(), source)?;
+        let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
+        let result = self.value(
+            scalar_type,
+            ValueOrigin::BlockParameter {
+                block: join,
+                position: 0,
+            },
+        );
+        self.parameter(join, result, scalar_type)?;
+        let bodies = arms
+            .iter()
+            .map(|(_, value)| value)
+            .zip(blocks)
+            .chain(default.zip(rest));
+        for (value, (block, chosen)) in bodies {
+            self.enter(block);
+            self.selected.push(chosen);
+            let value = self.scalar(value)?;
+            self.selected.pop();
+            self.jump(
+                join,
+                vec![value],
+                SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+            )?;
+        }
+        self.enter(join);
+        Ok(Value::Scalar(result))
+    }
+
+    /// Declares `value` as the next scalar parameter of `block`.
+    pub(super) fn parameter(
+        &mut self,
+        block: BlockId,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Checked<()> {
+        let id = self.id;
+        self.blocks
+            .get_mut(block)
+            .ok_or(Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: id,
+                concerns: Construct::Block(block),
+                detail: String::from("block is past the end of this machine"),
+            })?
+            .parameters
+            .push(declaration(value, scalar_type));
+        Ok(())
+    }
+
     /// `left && right` / `left || right`: the left value decides on one edge
     /// and is itself the result there; the other edge evaluates the right
     /// operand in its own block. Both meet at a join block whose one Boolean
@@ -313,17 +446,7 @@ impl Lowering<'_> {
                 position: 0,
             },
         );
-        let id = self.id;
-        self.blocks
-            .get_mut(join)
-            .ok_or(Refusal {
-                reason: RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Block(join),
-                detail: String::from("join block is past the end of this machine"),
-            })?
-            .parameters
-            .push(declaration(result, ScalarType::Boolean));
+        self.parameter(join, result, ScalarType::Boolean)?;
         let (when_true, when_false) = if conjunction {
             ((evaluate_right, Vec::new()), (join, vec![decided]))
         } else {
