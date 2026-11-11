@@ -1,8 +1,8 @@
 // Expected exit: 0.
-// The application of run/testing/registered_group_runs_on_both_engines
-// without its test-group registration. That fixture names this one in
-// expected_application_baseline.txt: registering a group must leave the
-// application's Terminal program unchanged.
+// A test group is an ordinary trait requirement. Both satisfiers are found by
+// their checked `satisfies` edge, run as separate test roots on the Psi
+// interpreter and natively, and pass by returning. The application entry is
+// a different root: neither test becomes part of the published program.
 trait Tests {
     machine arithmetic()
         crashes Trap;

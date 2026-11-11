@@ -605,15 +605,77 @@ fn application_baseline_facts(
     });
     let _ = fs::remove_dir_all(&build_dir);
     match (application, baseline) {
-        (Ok(application), Ok(baseline)) => Some(vec![
-            if application.artifact.artifact().semantic_bytes()
-                == baseline.artifact.artifact().semantic_bytes()
-            {
-                "application-baseline:same".to_owned()
+        (Ok(application), Ok(baseline)) => {
+            let application = application.artifact.artifact().view().module();
+            let baseline = baseline.artifact.artifact().view().module();
+            let sections = [
+            ("scalar_applications", application.scalar_applications != baseline.scalar_applications),
+            ("folded_constants", application.folded_constants != baseline.folded_constants),
+            ("indexed_theorems", application.indexed_theorems != baseline.indexed_theorems),
+            ("mathematical_carriers", application.mathematical_carriers != baseline.mathematical_carriers),
+            ("identity_formations", application.identity_formations != baseline.identity_formations),
+            ("quotients", application.quotients != baseline.quotients),
+            ("vocabulary_marker", application.vocabulary_marker != baseline.vocabulary_marker),
+            ("identities", application.identities != baseline.identities),
+            ("entry", application.entry != baseline.entry),
+            ("scalar_qualifications", application.scalar_qualifications != baseline.scalar_qualifications),
+            ("structural_types", application.structural_types != baseline.structural_types),
+            ("structural_referents", application.structural_referents != baseline.structural_referents),
+            ("structural_domains", application.structural_domains != baseline.structural_domains),
+            ("services", application.services != baseline.services),
+            ("root_service_reach", application.root_service_reach != baseline.root_service_reach),
+            ("access_view_inputs", application.access_view_inputs != baseline.access_view_inputs),
+            ("access_view_plans", application.access_view_plans != baseline.access_view_plans),
+            ("access_lifecycle_plans", application.access_lifecycle_plans != baseline.access_lifecycle_plans),
+            ("reborrow_restored_call_uses", application.reborrow_restored_call_uses != baseline.reborrow_restored_call_uses),
+            ("boundary_machines", application.boundary_machines != baseline.boundary_machines),
+            ("calling_signatures", application.calling_signatures != baseline.calling_signatures),
+            ("calling_abi_signatures", application.calling_abi_signatures != baseline.calling_abi_signatures),
+            ("calling_policy_requests", application.calling_policy_requests != baseline.calling_policy_requests),
+            ("opaque_representations", application.opaque_representations != baseline.opaque_representations),
+            ("unoptimized_behavior", application.unoptimized_behavior != baseline.unoptimized_behavior),
+            ("external_providers", application.external_providers != baseline.external_providers),
+            ("provider_candidates", application.provider_candidates != baseline.provider_candidates),
+            ("provider_instance_requirements", application.provider_instance_requirements != baseline.provider_instance_requirements),
+            ("boundary_application_candidates", application.boundary_application_candidates != baseline.boundary_application_candidates),
+            ("callback_applications", application.callback_applications != baseline.callback_applications),
+            ("installed_interrupt_registrations", application.installed_interrupt_registrations != baseline.installed_interrupt_registrations),
+            ("dynamic_dispatch", application.dynamic_dispatch != baseline.dynamic_dispatch),
+            ("float_meaning_projections", application.float_meaning_projections != baseline.float_meaning_projections),
+            ("float_meaning_equalities", application.float_meaning_equalities != baseline.float_meaning_equalities),
+            ("proposition_declarations", application.proposition_declarations != baseline.proposition_declarations),
+            ("proposition_applications", application.proposition_applications != baseline.proposition_applications),
+            ("evidence_terms", application.evidence_terms != baseline.evidence_terms),
+            ("evidence_contract_lanes", application.evidence_contract_lanes != baseline.evidence_contract_lanes),
+            ("proof_output_calls", application.proof_output_calls != baseline.proof_output_calls),
+            ("proof_recursive_components", application.proof_recursive_components != baseline.proof_recursive_components),
+            ("scalar_block_invariants", application.scalar_block_invariants != baseline.scalar_block_invariants),
+            ("operation_crash_contracts", application.operation_crash_contracts != baseline.operation_crash_contracts),
+            ("closed_conformance_applications", application.closed_conformance_applications != baseline.closed_conformance_applications),
+            ("suspension_call_plan_count", application.suspension_call_plan_count != baseline.suspension_call_plan_count),
+            ("suspension_call_sites", application.suspension_call_sites != baseline.suspension_call_sites),
+            ("suspension_call_plans", application.suspension_call_plans != baseline.suspension_call_plans),
+            ("machines", application.machines != baseline.machines),
+            ("target_machine_families", application.target_machine_families != baseline.target_machine_families),
+            ("target_layout_applications", application.target_layout_applications != baseline.target_layout_applications),
+            ("native_layouts", application.native_layouts != baseline.native_layouts),
+            ("boundary_application_demands", application.boundary_application_demands != baseline.boundary_application_demands),
+            ("task_activation_demands", application.task_activation_demands != baseline.task_activation_demands),
+            ];
+            let differing: Vec<&str> = sections
+                .iter()
+                .filter(|(_, differs)| *differs)
+                .map(|(name, _)| *name)
+                .collect();
+            Some(if differing.is_empty() {
+                vec!["application-baseline:same".to_owned()]
             } else {
-                "application-baseline:differs".to_owned()
-            },
-        ]),
+                vec![
+                    "application-baseline:differs".to_owned(),
+                    format!("application-baseline-sections:{}", differing.join(",")),
+                ]
+            })
+        }
         (Err(errors), _) | (_, Err(errors)) => {
             unavailable(errors.iter().map(|e| e.message.clone()).collect())
         }

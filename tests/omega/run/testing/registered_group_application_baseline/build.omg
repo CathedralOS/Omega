@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "registered_group_application_baseline");
+    Build::application(builder, "registered_group_runs_on_both_engines");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
