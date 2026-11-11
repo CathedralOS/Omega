@@ -1,3 +1,7 @@
+// An erased-only parameter list: keep takes no runtime argument and returns nothing, and the caller still proves both value-7 requirements.
 // Expected exit: 0
-machine keep(witness [erased]: &i32) requires witness == 7 {}
-machine main() { let value: i32 = 7; keep(&value); }
+data Witness { value: i32; }
+machine keep(witness [erased]: &i32, record [erased]: &Witness)
+requires witness == 7
+requires record.value == 7 {}
+machine main() { let value: i32 = 7; let record: Witness = Witness { value: 7 }; keep(&value, &record); }

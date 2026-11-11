@@ -8,7 +8,8 @@ the third piece of
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
 obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_trust.md)
-rule 2 lets remove a runtime check. It is not wired into the default compile.
+rule 2 lets remove a runtime check. It is not wired into the default compile;
+[the route's verdict](#the-routes-verdict) is what a router will take from it.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
 dominance between program points; [places.rs](src/places.rs) says what a
@@ -49,7 +50,7 @@ storage can state on its own value (`OperationSemantics` of the read; see
 callee `ensures` clause (`CalleeGuarantee`, after the call),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
-edge binds (`BranchCondition` of that edge: the parameter equals the one
+edge binds (`DispatchBinding` of that edge: the parameter equals the one
 value its payload leaf holds, when there is one). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
@@ -190,8 +191,11 @@ returned, a join of two different stores) or a case no structure decides
 leaves the clause unstated: the obligation is `Unproved`, with a detail that
 says which, never dropped and never assumed.
 
-Every store owes its clauses; there is no window. A store that breaks a
-clause is unproved even when a later store would restore it (finding 12).
+A store whose written value is shown to keep its clauses discharges them
+there. One that is not shown to keep a clause would open an invariant window,
+which this route does not have yet: its verdict is `Unsupported`, so the
+whole closure goes back to the current checker and is never rejected for it
+(finding 12).
 
 ### What a read learns from its type
 
@@ -277,7 +281,7 @@ parameters of its arm's block
 cleanup."). Each parameter gets the row a payload read would get: it equals
 the one value its payload leaf holds on every path to the dispatch, when
 there is one. The row is available on that edge and justified as its
-`BranchCondition`. A payload of a case other than the one the sum was
+`DispatchBinding`. A payload of a case other than the one the sum was
 constructed as resolves to no value, because the last write to storage it
 overlays was another case's.
 
@@ -300,7 +304,12 @@ One goal-directed prover serves all three kinds. It carries interval bounds as
 proof: each integer value gets a best upper and lower literal bound, each with
 a node the kernel checks, from the carrier bound of its type, a hypothesis
 bounding it or relating it to another value, or, for an exact add or subtract
-result, its operands' bounds through `IntegerExactAddDefinitionBound`. A
+result, its operands' bounds through `IntegerExactAddDefinitionBound`. An exact
+multiply result has no definition rule and needs none: the prover bounds the
+mathematical product with `IntegerAffineBound` (the least or greatest of the
+four corner products of the operands' bounds), carries that bound through the
+result equation with `ValueEqualityTransport`, and restates it in the carrier
+with `IntegerOrderSubstitution`. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
 image of the operands' bounds the kernel itself computes.
@@ -356,8 +365,7 @@ subset needs, so the prover emits them directly.
 4. **Shift-left representability is not built.** The kernel has a direct
    shift route (`map_direct_shift_left_bound`); this prover does not build
    its evidence, so an exact `<<` whose count is not a literal zero is
-   `Unproved`. No multiply result bound is built either: the kernel has no
-   multiply definition rule.
+   `Unproved`.
 5. **The read equation needs no kernel rule.** `read == v` is passed to the
    kernel as a semantic axiom, like every operation equation, and the
    existing equality steps carry it: a bound on `v` bounds the read, and two
@@ -386,8 +394,7 @@ subset needs, so the prover emits them directly.
    (`Proposition::StructuralCaseMembership`) names a place, which this
    route's knowledge never does. The case selected on an edge is therefore
    held by the payload judgment alone. What an edge binds is over values and
-   is a row; it reuses `Justification::BranchCondition`, because the tables
-   have no justification for an edge binding and the lane adds no variant.
+   is a row, justified as `Justification::DispatchBinding`.
 10. **A payload judgment that source programs do not reach yet.** Stage 02
     leaves a directly authored payload member (`s.at`) with no field symbol,
     so elaboration refuses it as a spelling, and the payload members it does
@@ -405,13 +412,17 @@ subset needs, so the prover emits them directly.
     type, the leaf no store reached is still supplied by the gated
     declaration, so a use of `g` is `Unestablished` even when the clauses
     hold of `(3, 0)`.
-12. **No invariant window.** The current checker lets a store break a
-    clause and a later store restore it before the value is consumed
-    (dependent_values.md, "Otherwise the write opens a window on the
-    place"). This route owes the clauses at every store, as Terminal Psi
-    states them ("Terminal Psi opens no invariant window on a field"), so
-    such a program is `Unproved` at the first store. The conserved
-    `DomainDebt` obligation is where a window would live.
+12. **Invariant windows are not built yet.** A store may break a clause
+    and a later store restore it before the value is consumed
+    (dependent_values.md, "A write known to preserve the default domain
+    keeps it established. Otherwise the write opens a window on the place
+    ... The domain must be proved again at the next consumption point").
+    This route proves a store's clauses where it can and refuses the
+    closure as `Unsupported` where it cannot, so such a program is judged
+    by the current checker. The sentence "Terminal Psi opens no invariant
+    window on a field" in structural_access.md is about predicate-bearing
+    byte-view fields and does not govern data `requires`. The conserved
+    `DomainDebt` obligation is where a window will live.
 13. **A payload parameter carries no clause of its type.** A dispatch edge
     binds a payload as a block parameter with no read operation, and the
     tables have no justification for "the type of the storage an edge bound
@@ -457,6 +468,55 @@ Seals are in memory only. Terminal Psi's layout has no place for them yet, so
 they are lost on a byte round trip and do not survive a stored artifact: a
 module lowered from bytes, including one a cache rebuilt, arrives with
 `ObligationEvidence::ReadFromBytes` and zero fingerprints.
+
+## The route's verdict
+
+An obligation the prover cannot discharge is a compile error for the program,
+never a slower guarded form
+([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
+`judge` ([verdict.rs](src/verdict.rs)) is the one function a router takes the
+route's decision from. It discharges an elaborated closure and returns:
+
+- `Accepted`: every obligation of every machine was discharged by a
+  certificate the kernel accepted and every use of storage is established,
+  with the operation seals for Omega 00.
+- `Rejected`, for a use of storage: one `UnestablishedUse` per operation or
+  edge that some path reaches with nothing stored into what it reads, with
+  its source site. `reject_diagnostic()` gives `unestablished storage:
+  <detail>`. One such use rejects the program even when every unproved
+  obligation would only be `Incomplete`.
+- `Rejected`: one `UnprovedObligation` per obligation that was not, each with
+  its kind, its source site from elaboration's correspondence, and its cause
+  (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
+  `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
+  no artifact. It says what was not proved and never that the obligation is
+  false: "Failure to find a proof is not proof of falsehood"
+  ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  and "Unproved source contracts reject in Psi checking"
+  ([review.md](../../../../../wiki/spec/packages/review.md)). A published
+  clause that fails only because a return's guarantee failed is reported
+  once, at that return.
+- `Incomplete`: every unproved obligation's goal has a form the prover has no
+  rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
+  shift-left bound, a proposition form it does not reason about). The program
+  may be valid and the route cannot judge it, so this is the outcome table's
+  "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
+  artifact and no fallback either. `Reject` wins when both kinds occur. The
+  closed `Incomplete` resource table has no provision for a proof goal form
+  yet, so this variant has no `Diagnostic` constructor: a plain error would
+  publish it as `Reject`. The prover has no search bound, so no obligation is
+  `Incomplete` for exhaustion.
+- `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
+  Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
+
+There is no variant for a partly proved closure. Omega 00 accepts every
+obligation of the module it is given and fills evidence only where a seal
+arrives, so a module with an undischarged obligation must never reach it. Any
+other refusal is a defect of the route and comes back as `Err`.
+
+No router calls `judge` in the default compile yet: the comparison harness
+below is its only caller outside tests, and prints each unproved
+obligation's message with its outcome.
 
 ## Measuring against the current checker
 

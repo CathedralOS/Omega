@@ -142,7 +142,7 @@ machine region_sum(seed: u64 in Trapping, first: bool) -> u64 in Trapping {
         doubled1 + doubled2 + doubled3 + doubled4 + doubled5 + doubled6 + doubled7 + doubled8 + doubled9 + doubled10 + doubled11 + doubled12 + doubled13 + doubled14 + doubled15 + doubled16 + doubled17 + doubled18 + doubled19 + doubled20 + doubled21 + doubled22 + doubled23 + doubled24 + doubled25 + doubled26 + doubled27 + doubled28 + doubled29 + doubled30 + doubled31 + doubled32
     }
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     let lower: u64 in Trapping = region_sum(1, true);
     let upper: u64 in Trapping = region_sum(2, false);
     transition lower == 1120 && upper == 3232 {
@@ -156,5 +156,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

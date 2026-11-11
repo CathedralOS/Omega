@@ -115,6 +115,49 @@ fn collect_files_with_ext(dir: &Path, root: &Path, ext: &str, out: &mut Vec<Path
     }
 }
 
+/*
+    Checking reads frozen typed tables and publishes facts it owns; it holds no
+    hidden mutable state. The stage-05 lib test `checking_does_not_reopen_typed_preparation`
+    pins this, but CI never runs that test, so six PRs broke it unnoticed. The
+    same scan runs here, on every PR, over the same roots. :CheckingInteriorState
+*/
+const CHECKING_STATE_ROOTS: &[&str] = &[
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
+    "omega-rust/psi/compilation/validation/src",
+];
+const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
+
+fn checking_interior_state_violations(root: &Path) -> Vec<String> {
+    let mut files = Vec::new();
+    for dir in CHECKING_STATE_ROOTS {
+        collect_files_with_ext(&root.join(dir), root, "rs", &mut files);
+    }
+    let mut violations = Vec::new();
+    for path in files {
+        if path
+            .file_name()
+            .is_some_and(|n| n == "immutable_checking_input.rs")
+        {
+            continue;
+        }
+        let text = fs::read_to_string(&path).unwrap_or_default();
+        for token in CHECKING_STATE_FORBIDDEN {
+            if text.contains(token) {
+                let rel = path
+                    .strip_prefix(root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                violations.push(format!(
+                    "{rel}: contains `{token}`. Checking holds no hidden mutable state (immutable_checking_input.rs): pass the state explicitly"
+                ));
+            }
+        }
+    }
+    violations
+}
+
 fn rust_files(root: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     collect_files_with_ext(&root.join(RUST_ROOT), root, "rs", &mut out);
@@ -1908,6 +1951,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let baseline = read_baseline(&baseline_text);
         violations.extend(ratchet_violations(spec, &counts, &baseline));
     }
+
+    violations.extend(checking_interior_state_violations(&root));
 
     let dangling_baseline_text =
         fs::read_to_string(root.join(DANGLING_BASELINE)).unwrap_or_default();

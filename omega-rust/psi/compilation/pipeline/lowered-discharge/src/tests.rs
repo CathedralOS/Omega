@@ -19,7 +19,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{Discharge, Discharged, Evidence, discharge};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
+use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
@@ -136,8 +137,8 @@ fn machine(parameters: Vec<ScalarType>, statements: Vec<Statement>) -> Machine {
     }
 }
 
-/// Lowers `machines` (machine 1 is the entry) and discharges them.
-fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+/// Lowers `machines` (machine 1 is the entry).
+fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
@@ -156,11 +157,25 @@ fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge
             crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
-    let mut elaboration =
-        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
-            .unwrap();
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+}
+
+/// Lowers `machines` (machine 1 is the entry) and discharges them.
+fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = lower(machines).unwrap();
     let result = discharge(&mut elaboration).unwrap();
     (elaboration, result)
+}
+
+/// The route's verdict on `machines`, which must reject the program.
+fn rejected(machines: Vec<Machine>) -> Vec<UnprovedObligation> {
+    match judge(lower(machines)).unwrap() {
+        RouteVerdict::Rejected {
+            unproved,
+            unestablished,
+        } if unestablished.is_empty() => unproved,
+        verdict => panic!("the program must be rejected: {verdict:?}"),
+    }
 }
 
 /// Every verdict of `machine` whose obligation has the kind `select` picks.
@@ -267,9 +282,31 @@ fn assert_unproved(verdict: &Checked<Discharged>) {
     let refusal = verdict
         .as_ref()
         .expect_err("the obligation must be refused");
+    assert!(
+        matches!(refusal.reason, RefusalReason::Unproved(_)),
+        "{:?}: {}",
+        refusal.reason,
+        refusal.detail
+    );
+}
+
+/// A store whose written value is not shown to keep a clause is not a
+/// rejection: it would open an invariant window, which this route does not
+/// have yet, so the closure is handed back to the current checker.
+fn assert_opens_a_window(verdict: &Checked<Discharged>) {
+    let refusal = verdict
+        .as_ref()
+        .expect_err("the store's obligation must be refused");
     assert_eq!(
         refusal.reason,
-        RefusalReason::Unproved,
+        RefusalReason::Unsupported,
+        "{}",
+        refusal.detail
+    );
+    assert!(
+        refusal
+            .detail
+            .starts_with("a store that would open an invariant window"),
         "{}",
         refusal.detail
     );
@@ -557,6 +594,44 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
     }
 }
 
+/// `local = a * b; return local <operation> operand`: the second operation
+/// is representable only through a bound on the product.
+fn after_a_product(
+    scalar_type: ScalarType,
+    requires: Vec<Proposition>,
+    operation: Strict,
+    operand: IntegerValue,
+) -> Machine {
+    Machine {
+        locals: vec![scalar_type],
+        requires,
+        result: scalar_type,
+        ..machine(
+            vec![scalar_type, scalar_type],
+            vec![
+                Statement::Bind {
+                    slot: 2,
+                    value: strict(Strict::Multiply, slot(0, scalar_type), slot(1, scalar_type)),
+                },
+                returns(strict(
+                    operation,
+                    slot(2, scalar_type),
+                    literal(scalar_type, operand),
+                )),
+            ],
+        )
+    }
+}
+
+fn assert_all_kernel_checked(machine: Machine, expected: usize) {
+    let (elaboration, result) = run(vec![machine]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert_eq!(verdicts.len(), expected);
+    for (obligation, verdict) in verdicts {
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+}
+
 fn compare(operation: Strict, left: Expression, right: Expression) -> Expression {
     expression(
         ExpressionKind::Strict {
@@ -713,6 +788,89 @@ fn relate(strict: bool, left: u64, right: u64) -> Proposition {
     } else {
         Proposition::LessOrEqual(left, right)
     }
+}
+
+#[test]
+fn a_bound_follows_an_earlier_exact_multiply_result() {
+    // a <= 1000 and b <= 1000 give local <= 1_000_000, which is exactly
+    // what the add needs. One more and the add can overflow.
+    let requires = || vec![at_most(1, 1000), at_most(2, 1000)];
+    let headroom = u128::from(u32::MAX) - 1_000_000;
+    assert_all_kernel_checked(
+        after_a_product(
+            u32_type(),
+            requires(),
+            Strict::Add,
+            IntegerValue::Unsigned(headroom),
+        ),
+        2,
+    );
+    let (elaboration, result) = run(vec![after_a_product(
+        u32_type(),
+        requires(),
+        Strict::Add,
+        IntegerValue::Unsigned(headroom + 1),
+    )]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert!(verdicts[0].1.is_ok(), "the multiply itself still fits");
+    assert_unproved(verdicts[1].1);
+}
+
+#[test]
+fn a_signed_multiply_result_is_bounded_on_both_sides() {
+    // a in [-10, 10] and b in [-20, 5] give local in [-200, 200]: the least
+    // product is 10 * -20 and the greatest -10 * -20, neither from the
+    // operands' lower bounds alone.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let range = |position, low, high| {
+        vec![
+            Proposition::LessOrEqual(signed(low), formal(position, i32_type())),
+            Proposition::LessOrEqual(formal(position, i32_type()), signed(high)),
+        ]
+    };
+    let requires = || {
+        let mut requires = range(1, -10, 10);
+        requires.extend(range(2, -20, 5));
+        requires
+    };
+    let maximum = i128::from(i32::MAX);
+    for (operation, fits) in [
+        (Strict::Add, maximum - 200),
+        (Strict::Subtract, maximum - 199),
+    ] {
+        assert_all_kernel_checked(
+            after_a_product(
+                i32_type(),
+                requires(),
+                operation,
+                IntegerValue::Signed(fits),
+            ),
+            2,
+        );
+        let (elaboration, result) = run(vec![after_a_product(
+            i32_type(),
+            requires(),
+            operation,
+            IntegerValue::Signed(fits + 1),
+        )]);
+        assert_unproved(verdicts(&elaboration, &result, 1, safety)[1].1);
+    }
+}
+
+#[test]
+fn a_multiply_result_past_the_carrier_keeps_only_its_carrier_bound() {
+    // a, b <= 100_000 reach 10^10, beyond u32. The multiply's own
+    // obligation is unproved, and its result gains no bound that would let
+    // the add through.
+    let (elaboration, result) = run(vec![after_a_product(
+        u32_type(),
+        vec![at_most(1, 100_000), at_most(2, 100_000)],
+        Strict::Add,
+        IntegerValue::Unsigned(1),
+    )]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert_unproved(verdicts[0].1);
+    assert_unproved(verdicts[1].1);
 }
 
 #[test]
@@ -895,6 +1053,186 @@ fn a_disequality_guard_splits_into_cases() {
     assert_eq!(
         core,
         MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
+    );
+}
+
+// The route's verdict: an obligation the prover cannot discharge rejects the
+// program; the route never accepts it with a guard or hands Omega 00 a
+// module with an unsealed obligation.
+
+#[test]
+fn the_route_accepts_a_closure_only_when_every_obligation_is_discharged() {
+    let RouteVerdict::Accepted(accepted) = judge(lower(vec![add_of_formals(vec![
+        at_most(1, 100),
+        at_most(2, 100),
+    ])]))
+    .unwrap() else {
+        panic!("every obligation is discharged");
+    };
+    // One seal for the one operation obligation, so Omega 00 receives
+    // evidence for every operation obligation of the module.
+    assert_eq!(accepted.seals.len(), 1);
+    let safety_rows = verdicts(&accepted.elaboration, &accepted.discharge, 1, safety);
+    assert_eq!(safety_rows.len(), 1);
+    assert_eq!(accepted.seals[0].obligation, safety_rows[0].0);
+}
+
+#[test]
+fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
+    let unproved = rejected(vec![add_of_formals(Vec::new())]);
+    assert_eq!(unproved.len(), 1);
+    let entry = &unproved[0];
+    assert!(safety(&entry.kind));
+    assert_eq!(entry.cause, UnprovedCause::NoDerivation);
+    let diagnostic = entry.reject_diagnostic();
+    assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
+    assert!(
+        diagnostic.message.starts_with(
+            "unproved obligation: operation safety: no proof found from the facts available here ("
+        ),
+        "{}",
+        diagnostic.message
+    );
+    // The test bodies carry no authored span, and none is invented.
+    assert_eq!(diagnostic.source_span, None);
+}
+
+#[test]
+fn an_unproved_call_requirement_names_the_callee_clause() {
+    let unproved = rejected(caller(Vec::new(), unsigned(20)));
+    assert_eq!(unproved.len(), 1);
+    assert!(requirement(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .reject_diagnostic()
+            .message
+            .starts_with("unproved obligation: requires clause 1 of the called machine: "),
+        "{}",
+        unproved[0].reject_diagnostic().message
+    );
+}
+
+#[test]
+fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
+    // f(a) ensures a <= 10 { when a <= 10 -> 0; return 1 }: the fall-through
+    // return does not establish the clause. The published clause fails only
+    // because of it, so it is not reported a second time.
+    let program = Machine {
+        ensures: vec![at_most(1, 10)],
+        ..machine(
+            vec![u32_type()],
+            vec![
+                guarded(
+                    compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(10)),
+                    unsigned(0),
+                ),
+                returns(unsigned(1)),
+            ],
+        )
+    };
+    let unproved = rejected(vec![program]);
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(guarantee(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .reject_diagnostic()
+            .message
+            .starts_with("unproved obligation: ensures clause 1 on a normal return: "),
+        "{}",
+        unproved[0].reject_diagnostic().message
+    );
+}
+
+#[test]
+fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() {
+    let refused = |reason| Refusal {
+        reason,
+        machine: id(1),
+        concerns: Construct::Machine,
+        detail: String::from("test"),
+    };
+    assert!(matches!(
+        judge(Err(refused(RefusalReason::Unsupported))),
+        Ok(RouteVerdict::FallBack(_))
+    ));
+    assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
+}
+
+fn bool_type() -> ScalarType {
+    ScalarType::Boolean
+}
+
+/// Machine 1 takes `(a: u32, flag: bool)` and calls machine 2 with `flag`;
+/// machine 2 requires its `bool` formal to equal `false`, a goal form the
+/// prover has no rule for. With `add`, machine 1 returns the call's result
+/// plus `a`, an add of two unbounded values.
+fn bool_requirement(add: bool) -> Vec<Machine> {
+    let callee = Machine {
+        requires: vec![Proposition::Equal(
+            formal(1, bool_type()),
+            ScalarTerm::boolean(false),
+        )],
+        ..machine(vec![bool_type()], vec![returns(unsigned(0))])
+    };
+    let called = call(2, vec![slot(1, bool_type())]);
+    let result = if add {
+        strict(Strict::Add, called, slot(0, u32_type()))
+    } else {
+        called
+    };
+    let caller = machine(vec![u32_type(), bool_type()], vec![returns(result)]);
+    vec![caller, callee]
+}
+
+#[test]
+fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
+    let value = formal(1, u32_type());
+    let flag = formal(1, bool_type());
+    assert!(crate::has_rules_for(&at_most(1, 10)));
+    assert!(crate::has_rules_for(&Proposition::Equal(
+        value.clone(),
+        bound(u32_type(), IntegerValue::Unsigned(3)),
+    )));
+    assert!(!crate::has_rules_for(&Proposition::Equal(
+        flag.clone(),
+        ScalarTerm::boolean(false),
+    )));
+    // One uncovered part leaves the whole goal without a rule.
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
+}
+
+#[test]
+fn a_goal_form_without_a_rule_is_incomplete_not_rejected() {
+    let RouteVerdict::Incomplete(unproved) = judge(lower(bool_requirement(false))).unwrap() else {
+        panic!("the prover has no rule for a bool equality");
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(requirement(&unproved[0].kind));
+    assert_eq!(unproved[0].cause, UnprovedCause::NoRuleForGoalForm);
+    assert!(
+        unproved[0].message().starts_with(
+            "unproved obligation: requires clause 1 of the called machine: \
+             the prover has no rule for this form of goal ("
+        ),
+        "{}",
+        unproved[0].message()
+    );
+}
+
+#[test]
+fn an_unproved_goal_with_rules_rejects_even_beside_one_without() {
+    let unproved = rejected(bool_requirement(true));
+    let causes: Vec<UnprovedCause> = unproved.iter().map(|entry| entry.cause).collect();
+    assert_eq!(
+        causes,
+        vec![
+            UnprovedCause::NoRuleForGoalForm,
+            UnprovedCause::NoDerivation
+        ],
+        "{unproved:?}"
     );
 }
 
@@ -1713,6 +2051,69 @@ fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
     assert!(uses(&result).iter().all(Result::is_ok));
 }
 
+/// The route's one verdict rejects a program with an unestablished use: it is
+/// a compile error, never an acceptance and never a hand-back to the current
+/// checker. The rejection names the use and where it arises.
+#[test]
+fn the_verdict_rejects_a_program_with_an_unestablished_use() {
+    // f() -> u32 { let mut x: u32; x }
+    let elaboration = elaborate_places(vec![Shaped {
+        parameters: Vec::new(),
+        locals: vec![u32_type().into()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![declare(0, u32_type().into()), returns(slot(0, u32_type()))],
+    }]);
+    let read = elaboration.module.machines[0].blocks[0]
+        .operations
+        .iter()
+        .find(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
+        .unwrap()
+        .id;
+    let RouteVerdict::Rejected {
+        unproved,
+        unestablished,
+    } = judge(Ok(elaboration)).unwrap()
+    else {
+        panic!("a program that reads unestablished storage must be rejected");
+    };
+    assert!(unproved.is_empty(), "{unproved:?}");
+    let [used] = unestablished.as_slice() else {
+        panic!("exactly the read is unestablished: {unestablished:?}");
+    };
+    assert_eq!(used.machine, id(1));
+    assert_eq!(used.at, terminal_check_tables::Construct::Operation(read));
+    assert!(used.site.is_some());
+    assert!(used.message().starts_with("unestablished storage: "));
+}
+
+/// Elaboration refuses a dispatch with no arm for a declared case as
+/// `Unestablished`. The verdict takes that as a rejection of the program, not
+/// as a defect of the route and not as a hand-back, and invents no source
+/// position for a closure that has no source correspondence.
+#[test]
+fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
+    let refused = terminal_check_tables::Refusal {
+        reason: RefusalReason::Unestablished,
+        machine: id(1),
+        concerns: terminal_check_tables::Construct::Block(id(2)),
+        detail: String::from("a dispatch selects no arm for a declared case"),
+    };
+    let RouteVerdict::Rejected {
+        unproved,
+        unestablished,
+    } = judge(Err(refused)).unwrap()
+    else {
+        panic!("an unestablished closure must be rejected");
+    };
+    assert!(unproved.is_empty());
+    let [used] = unestablished.as_slice() else {
+        panic!("one refusal is one rejection: {unestablished:?}");
+    };
+    assert_eq!(used.at, terminal_check_tables::Construct::Block(id(2)));
+    assert_eq!(used.site, None);
+}
+
 #[test]
 fn a_read_of_a_local_nothing_was_stored_into_is_unestablished() {
     // f() -> u32 { let mut x: u32; x }
@@ -2061,7 +2462,6 @@ fn every_use_of_storage_has_exactly_one_verdict() {
 // 3 with field 7.
 
 use structure_elaboration::CaseType;
-use terminal_check_tables::Construct;
 use terminal_psi::Terminator;
 
 const DOT: usize = 0;
@@ -2183,13 +2583,13 @@ fn over_sums(
 }
 
 /// The values machine 1's knowledge equates on the edges of its dispatches:
-/// each `BranchCondition` row between two values, as (bound, held).
+/// each `DispatchBinding` row between two values, as (bound, held).
 fn bound_payloads(tables: &MachineTables) -> Vec<(ValueId, ValueId)> {
     tables
         .knowledge
         .iter()
         .filter_map(|(_, row)| {
-            let Justification::BranchCondition { edge, holds: true } = row.justification else {
+            let Justification::DispatchBinding { edge } = row.justification else {
                 return None;
             };
             assert_eq!(row.available_from, ProgramPoint::Edge(edge));
@@ -2966,11 +3366,11 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
         tables.obligations.get(owed[1].0).unwrap().created_at,
         ProgramPoint::AfterOperation(operation)
     );
-    // The twin that stores 12 breaks the clause: 12 <= 9 is unproved.
+    // The twin that stores 12 does not keep the clause (12 <= 9): it would open a window.
     let (elaboration, result) = span_store(12);
     let owed = domains(&elaboration, &result);
     assert!(owed[0].1.is_ok());
-    assert_unproved(owed[1].1);
+    assert_opens_a_window(owed[1].1);
 }
 
 #[test]
@@ -2978,7 +3378,7 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
     // f() -> u32 { let mut s = make(); s.low = 0; s.high }
     // `s.high` is what the call returned: contents with no value identity.
     // `0 <= high` is true of every `u32`, and still the clause cannot be
-    // stated over values, so the obligation is unproved, never dropped.
+    // stated over values, so the store is not shown to keep it; never dropped.
     let (elaboration, result) = run_constrained(vec![
         closed(
             vec![data(SPAN)],
@@ -3007,7 +3407,11 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
     let refusal = owed[0].1.as_ref().unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unproved);
+    assert!(
+        refusal.reason == RefusalReason::Unsupported,
+        "{:?}",
+        refusal.reason
+    );
     assert!(
         refusal.detail.contains("no value identity"),
         "{}",
@@ -3089,7 +3493,7 @@ fn a_nested_store_owes_the_clauses_of_every_type_that_contains_the_field() {
     let verdicts: Vec<bool> = owed.iter().map(|(_, verdict)| verdict.is_ok()).collect();
     // The inner literal, the outer literal, then the store's two.
     assert_eq!(verdicts, [true, true, true, false]);
-    assert_unproved(owed[3].1);
+    assert_opens_a_window(owed[3].1);
 }
 
 #[test]
@@ -3206,7 +3610,11 @@ fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
     let Ok(Discharged::Gated(why)) = owed[0].1 else {
         panic!("the declaration's clause is gated, found {:?}", owed[0].1);
     };
-    assert_eq!(why.reason, RefusalReason::Unproved);
+    assert!(
+        matches!(why.reason, RefusalReason::Unproved(_)),
+        "{:?}",
+        why.reason
+    );
     assert_eq!(uses(&result), [Err(RefusalReason::Unestablished)]);
     // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
     // the value, over the stored `3`, before anything observes it.
@@ -3271,7 +3679,7 @@ fn every_data_domain_obligation_has_exactly_one_verdict() {
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 4);
     assert!(matches!(owed[0].1, Ok(Discharged::Certificate(_))));
-    assert_unproved(owed[1].1);
+    assert_opens_a_window(owed[1].1);
     assert!(matches!(owed[2].1, Ok(Discharged::Gated(_))));
     assert!(matches!(owed[3].1, Ok(Discharged::Certificate(_))));
 }
@@ -3351,7 +3759,7 @@ fn a_read_of_an_established_value_carries_the_clause_of_the_one_field_it_reads()
 #[test]
 fn a_place_this_machine_wrote_lends_no_clause_to_a_read() {
     // f(b: Bounded) -> u32 { let mut c = b; c.value = 99; bounded(c.value) }
-    // The store breaks `value <= 5` and is unproved. The read after it
+    // The store does not keep `value <= 5` and would open a window. The read after it
     // equals the stored `99` and carries no clause: a broken place supplies
     // no premise, and `bounded`'s requirement is unproved too.
     let (elaboration, result) = run_constrained(vec![
@@ -3375,7 +3783,7 @@ fn a_place_this_machine_wrote_lends_no_clause_to_a_read() {
         read_equals(tables, observed),
         Some(constants(&elaboration)[0])
     );
-    assert_unproved(domains(&elaboration, &result)[0].1);
+    assert_opens_a_window(domains(&elaboration, &result)[0].1);
     assert_unproved(verdicts_of(&elaboration, &result)[0].1);
     // Without the store the copy still holds what arrived, and the read of
     // the copy carries the clause.
@@ -3568,7 +3976,11 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
         .1
         .as_ref()
         .unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unproved);
+    assert!(
+        matches!(refusal.reason, RefusalReason::Unproved(_)),
+        "{:?}",
+        refusal.reason
+    );
     assert!(
         refusal.detail.contains("no value identity"),
         "{}",

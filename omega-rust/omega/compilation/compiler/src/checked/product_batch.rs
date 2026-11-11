@@ -14,6 +14,7 @@ impl CompilationSession {
     pub(super) fn select_build_batch<Owner>(
         &mut self,
         builds: Vec<(Owner, PreparedPackageBuild)>,
+        mut frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
         let mut applications = Vec::with_capacity(builds.len());
@@ -57,6 +58,7 @@ impl CompilationSession {
                     &rollback,
                     self.reuse(),
                     &mut self.selections,
+                    frontier.as_deref_mut(),
                 )
             });
             match checked {

@@ -317,6 +317,18 @@ impl<'a> Storage<'a> {
         self.gated = gated;
     }
 
+    /// Whether `operation` writes into storage that already holds a value: a
+    /// scalar field store or a replacement of a field. A construction and a
+    /// zero establishment make a value; they do not write into one.
+    pub(crate) fn store(&self, operation: OperationId) -> Checked<bool> {
+        Ok(matches!(
+            self.operation(operation, Construct::Operation(operation))?
+                .kind,
+            OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::StoreStructuralField { .. }
+        ))
+    }
+
     pub(crate) fn zero_establishment(&self, operation: OperationId) -> Checked<bool> {
         Ok(matches!(
             self.operation(operation, Construct::Operation(operation))?

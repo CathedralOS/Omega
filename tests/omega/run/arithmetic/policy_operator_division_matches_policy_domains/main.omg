@@ -1,0 +1,69 @@
+// Division and remainder under each policy suffix. `/!` and `%!` trap on a
+// zero divisor and on signed `MIN / -1`, so they publish `crashes Trap`
+// unless the contract rules both out. `/%`, `/|`, `%%` and `%|` are total
+// over the unrepresentable quotient but still owe a nonzero divisor, and on
+// an unsigned carrier they equal `/` and `%`.
+use omega_language_std::console;
+data Main { }
+
+machine trapping_signed(value: i32, divisor: i32) -> bool crashes Trap {
+    let quotient: i32 = value /! divisor;
+    let rest: i32 = value %! divisor;
+    let qualified_value: i32 in Trapping = value as i32 in Trapping;
+    let qualified_divisor: i32 in Trapping = divisor as i32 in Trapping;
+    quotient == ((qualified_value / qualified_divisor) as i32)
+        && rest == ((qualified_value % qualified_divisor) as i32)
+        && quotient == -3 && rest == -1
+}
+
+machine trapping_unsigned(value: u32, divisor: u32) -> bool crashes Trap {
+    let quotient: u32 = value /! divisor;
+    let rest: u32 = value %! divisor;
+    quotient == 3 && rest == 1
+}
+
+machine total_unsigned(value: u32, divisor: u32) -> bool
+    requires divisor != 0
+{
+    let wrapped: u32 = value /% divisor;
+    let wrapped_rest: u32 = value %% divisor;
+    let clamped: u32 = value /| divisor;
+    let clamped_rest: u32 = value %| divisor;
+    wrapped == value / divisor && wrapped_rest == value % divisor
+        && clamped == value / divisor && clamped_rest == value % divisor
+        && wrapped == 3 && wrapped_rest == 1
+}
+
+// A positive divisor is neither zero nor `-1`, so no trap can happen and
+// these public machines publish no `crashes Trap`.
+public machine guarded_quotient(value: i32, divisor: i32) -> i32
+    requires divisor > 0
+{
+    value /! divisor
+}
+
+public machine guarded_rest(value: u32, divisor: u32) -> u32
+    requires divisor != 0
+{
+    value %! divisor
+}
+
+machine subject() -> bool crashes Trap {
+    trapping_signed(-7, 2) && trapping_unsigned(7, 2) && total_unsigned(7, 2)
+        && guarded_quotient(-7, 2) == -3 && guarded_rest(7, 2) == 1
+}
+
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    transition subject() {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

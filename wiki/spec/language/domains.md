@@ -133,9 +133,10 @@ public domain Reservation::Issued
 
 ReservationAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(Issues::issue)]);
-        plan
+        AccessPlan::new(
+            &schema,
+            Issuance::Only { routes: [reflect::callable(Issues::issue)] }
+        )
     }
 }
 
@@ -246,8 +247,10 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(Cell::create)]);
+        let mut plan: AccessPlan = AccessPlan::new(
+            &schema,
+            Issuance::Only { routes: [reflect::callable(Cell::create)] }
+        );
         AccessPlan::allow_readers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
         );
@@ -268,10 +271,12 @@ parallel ways of configuring the policy. `access` belongs to the domain, not a
 field-private modifier. Fields may use qualified types; a whole-value domain's
 policy may also name individual fields with `reflect::field(Type::field)`.
 
-`AccessPlan::new(&schema)` imposes no additional caller restrictions. Explicit
-establishment, reader and writer lists are independent ceilings: omission leaves
-that axis unrestricted by this policy, an empty list permits nobody, and a
-nonempty list contains alternative exact callable identities. Authorizing writers
+Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
+`AccessPlan::new(&schema, issuance)` takes `Issuance::Only` with the exact
+routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
+Reader and writer lists are independent ceilings: omission leaves that axis
+unrestricted by this policy, an empty list permits nobody, and a nonempty list
+contains alternative exact callable identities. Authorizing writers
 does not authorize readers or issuers. Whole-subject, field, inherited and repeated
 restrictions intersect without order-dependent overrides. A field rule alone
 does not require a whole-object rule. Backing/loan authority still limits every
@@ -842,17 +847,26 @@ decide whether the source remains usable afterward.
 ## Semantic roles and operators
 
 Role identity is closed and compiler-owned. Packages supply theories within
-these roles, not new roles by declaration:
+these roles, not new roles by declaration, and a domain's declaration
+determines its role:
 
-| Role | Meaning |
-| --- | --- |
-| Predicate knowledge | Facts such as positivity, ranges, or UTF-8 validity. |
-| Denotation/dimension | Unit or other semantic interpretation. |
-| Arithmetic policy | Exact, wrapping, saturating, or trapping behavior. |
+| Role | Meaning | A domain has it when |
+| --- | --- | --- |
+| Arithmetic policy | Exact, wrapping, saturating, or trapping behavior. | It is `Wrapping`, `Saturating` or `Trapping` from `omega::core`. |
+| Denotation/dimension | Unit or other semantic interpretation. | It owns an operator: some machine declared with an operator token is homed in the domain. |
+| Predicate knowledge | Facts such as positivity, ranges, or UTF-8 validity. | It declares a `requires`. |
+
+The roles are independent. `Degrees requires self < 360` with a
+`+ Degrees::add` is a denotation that also carries a predicate; the same
+declaration with no operator is predicate knowledge only. A domain is
+*predicate-only* when it declares predicates and is neither a denotation, a
+policy, an alias, an indexed family, nor restricted by an access policy.
 
 A type may carry contributions in different roles, such as `Km & Wrapping`.
-Competing contributions to one role reject: `Wrapping & Trapping` has
-conflicting arithmetic policies.
+It carries at most one arithmetic policy and at most one denotation:
+`Wrapping & Trapping` has conflicting arithmetic policies, and two domains
+that each own an operator have conflicting denotations. Any number of
+predicate-only domains may accompany them.
 
 An operator applies only when the instantiated parameter types of one
 declaration equal the operands' complete static qualified types, after alias
@@ -875,12 +889,16 @@ unrelated implementations in sequence. Operand types may differ, so a domain
 may declare an operator against a plain operand:
 
 ```omega
-machine > Positive::greater(left: i32 in Positive, right: i32) -> bool
-ensures result == ((left as -Positive) > right)
+machine > Small::greater(left: u16 in Small, right: u16) -> bool
+ensures result == ((left as -Small) > right)
 {
-    (left as -Positive) > right
+    (left as -Small) > right
 }
 ```
+
+Owning this operator gives `Small` the denotation role, so it then combines
+with predicate-only domains and a policy, not with another operator-owning
+domain.
 
 `Wrapping`, `Saturating` and `Trapping` are the `omega::core` contributions to
 the arithmetic-policy role. Their unsuffixed integer operators are defined by
@@ -910,9 +928,12 @@ defined by [numeric values](numeric_values.md) and total proof formation by
 ### Result-domain overloads
 
 Named machine and requirement calls may overload by result domain. Their
-dispatch projection contains normalized semantic-role contributions, routed
-provenance, access-policy atoms, and empty explicit tags. Predicate-only domains
-without access policies contribute no key.
+dispatch projection contains the result's denotation and arithmetic-policy
+contributions under the [role table](#semantic-roles-and-operators), routed
+provenance, access-policy atoms, and empty explicit tags.
+[Predicate-only](#semantic-roles-and-operators) domains contribute no key, so
+`u32 in Degrees` selects an overload when `Degrees` owns an operator and does
+not when it only declares its range.
 The expected result projection must equal one declared projection; without an
 expected result, lookup selects the empty projection. Only afterward check
 predicates and ordinary compatibility.

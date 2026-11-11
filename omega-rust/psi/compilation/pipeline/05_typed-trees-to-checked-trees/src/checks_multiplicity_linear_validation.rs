@@ -2706,8 +2706,21 @@ mod permission_production {
             let captured_source = capture.is_some_and(|capture| {
                 capture.evaluation == evaluation && capture.captures_anonymous_source(expression)
             });
+            /*
+                A destination written from `producer() as T` receives the
+                producer's own value through a value-preserving cast, exactly
+                as `let x = producer()` does. The temporary is that write's
+                source, not a second anonymous owner with its own obligation.
+            */
             if written_targets.iter().any(|(written, _)| {
-                written.value == expression && (written.root == target.root || !captured_source)
+                (written.value == expression
+                    || validation::ownership_source_expression(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        written.value,
+                    ) == expression)
+                    && (written.root == target.root || !captured_source)
             })
                 || temporary_owners
                 .iter()

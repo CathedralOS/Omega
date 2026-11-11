@@ -43,6 +43,12 @@ yet.
 mod graph;
 mod places;
 mod prove;
+mod verdict;
+
+pub use verdict::{AcceptedClosure, RouteVerdict, UnestablishedUse, UnprovedObligation, judge};
+
+#[cfg(test)]
+pub(crate) use prove::has_rules_for;
 
 #[cfg(test)]
 mod tests;
@@ -62,6 +68,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{Justification, KnowledgeRow};
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, Refusal, RefusalReason,
+    UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
 use terminal_psi::{TerminalMachine, Terminator};
@@ -388,8 +395,8 @@ fn machine(
         }
     }
     // What each edge of a dispatch binds: its payload parameters, each
-    // equal to what the payload leaf holds. Like a branch condition, the
-    // row holds because that edge was taken and is available on it.
+    // equal to what the payload leaf holds. The row holds because that edge
+    // was taken and is available on it.
     if knowledge == Knowledge::All {
         for block in &lowered.blocks {
             for (edge, equation) in storage.payload_equations(tables, block)? {
@@ -397,7 +404,7 @@ fn machine(
                     tables,
                     equation,
                     ProgramPoint::Edge(edge),
-                    Justification::BranchCondition { edge, holds: true },
+                    Justification::DispatchBinding { edge },
                 );
             }
         }
@@ -507,13 +514,35 @@ fn machine(
     for ((_, row), (_, verdict)) in tables.obligations.iter().zip(decided.iter()) {
         settled.push(match (row.kind, verdict) {
             (ObligationKind::DataDomain { operation, .. }, Err(unproved))
-                if unproved.reason == RefusalReason::Unproved
+                if matches!(unproved.reason, RefusalReason::Unproved(_))
                     && storage.zero_establishment(operation)? =>
             {
                 if !gated.contains(&operation) {
                     gated.push(operation);
                 }
                 Ok(Discharged::Gated(Box::new(unproved.clone())))
+            }
+            // A store whose written value is not known to keep a clause does
+            // not break the program: dependent_values.md, "Invariant windows":
+            // "A write known to preserve the default domain keeps it
+            // established. Otherwise the write opens a window on the place
+            // ... The domain must be proved again at the next consumption
+            // point". This route has no windows yet, so it cannot judge the
+            // closure whole and hands it back; it never rejects a store for
+            // a clause the specification lets a later store restore.
+            (ObligationKind::DataDomain { operation, .. }, Err(unproved))
+                if matches!(unproved.reason, RefusalReason::Unproved(_))
+                    && storage.store(operation)? =>
+            {
+                Err(Refusal {
+                    reason: RefusalReason::Unsupported,
+                    machine: id,
+                    concerns: unproved.concerns,
+                    detail: format!(
+                        "a store that would open an invariant window: {}",
+                        unproved.detail
+                    ),
+                })
             }
             (_, verdict) => verdict.clone(),
         });
@@ -540,7 +569,7 @@ fn published(
 ) -> Checked<Discharged> {
     let unproved = |detail: &str| {
         refusal(
-            RefusalReason::Unproved,
+            RefusalReason::Unproved(UnprovedCause::ReturnDoesNotEstablish),
             id,
             Construct::Obligation(published),
             detail,
@@ -689,7 +718,14 @@ impl Unbound {
             Self::Unsupported(detail) => {
                 refusal(RefusalReason::Unsupported, machine, concerns, detail)
             }
-            Self::Unproved(detail) => refusal(RefusalReason::Unproved, machine, concerns, detail),
+            // The clause cannot be stated over values here, so no derivation
+            // of it exists from what this point knows.
+            Self::Unproved(detail) => refusal(
+                RefusalReason::Unproved(UnprovedCause::NoDerivation),
+                machine,
+                concerns,
+                detail,
+            ),
             Self::Refused(refusal) => refusal,
         }
     }
@@ -1015,8 +1051,8 @@ fn decide(
     goal: Proposition,
     relations: bool,
 ) -> Checked<Evidence> {
-    let unproved = |detail: String| Refusal {
-        reason: RefusalReason::Unproved,
+    let unproved = |cause: UnprovedCause, detail: String| Refusal {
+        reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
         detail,
@@ -1045,6 +1081,7 @@ fn decide(
             Justification::EntryRequirement { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {
                 assumption_rows.push(row);
@@ -1053,11 +1090,24 @@ fn decide(
         }
     }
     let mut prover = prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
-    let proof = prover
-        .prove(&goal)
-        .map_err(|reason| unproved(reason.to_owned()))?;
-    let identity = EvidenceIdentity::new(obligation.get())
-        .ok_or_else(|| unproved(String::from("evidence identity")))?;
+    let proof = prover.prove(&goal).map_err(|reason| {
+        // Classified by the goal's form, not by which search path failed
+        // last, so the outcome does not depend on search order.
+        let cause = if prove::has_rules_for(&goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        unproved(cause, reason.to_owned())
+    })?;
+    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Obligation(obligation),
+            "obligation identity is not an evidence identity",
+        )
+    })?;
     let certificate = CertificateEnvelope {
         identity,
         proof_system_marker: ProofSystemMarker::CURRENT,
@@ -1074,7 +1124,7 @@ fn decide(
         &axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
-    .map_err(|error| unproved(format!("kernel {error:?}")))?;
+    .map_err(|error| unproved(UnprovedCause::KernelRefused, format!("kernel {error:?}")))?;
     Ok(Evidence {
         goal,
         assumptions: assumption_rows,
