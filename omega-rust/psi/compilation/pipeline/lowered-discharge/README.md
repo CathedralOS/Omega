@@ -26,35 +26,46 @@ one prover.
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
-Beside the obligations it judges initialization: every operation and
-terminator that reads storage gets one verdict (`MachineDischarge::uses`),
-and a use that some path reaches with nothing stored is refused with reason
-`Unestablished`. That is a compile error of the program, like `Unproved`,
-not a construct outside the subset; see [Initialization](#initialization).
+Beside the obligations it makes two structural judgments, which share one
+verdict per operation and terminator that touches storage
+(`MachineDischarge::uses`). Initialization: a use that some path reaches
+with nothing stored is refused. Payload access: a case payload named where
+its case is not established on every path is refused, and so is a dispatch
+with no edge for a declared case. All three are refused with reason
+`Unestablished`, a compile error of the program like `Unproved`, not a
+construct outside the subset; see [Initialization](#initialization) and
+[Payload access](#payload-access).
 
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
 (`OperationSemantics`, on its normal successor), per field read whose place
 holds one value on every path to it (`OperationSemantics` of the read; see
-below), per callee `ensures` clause (`CalleeGuarantee`, after the call) and
+below), per callee `ensures` clause (`CalleeGuarantee`, after the call),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
-true edge and `false` on the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
+true edge and `false` on the false edge) and per payload parameter a dispatch
+edge binds (`DispatchBinding` of that edge: the parameter equals the one
+value its payload leaf holds, when there is one). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
 
 ## What a place holds
 
-A read, a whole copy and the initialization judgment all ask one question:
-what does this scalar leaf hold on every path to this point?
-[places.rs](src/places.rs) answers it with one walk (`Storage::reaching`)
-over the tables and the lowered form:
+A read, a whole copy, a dispatch's payload parameters and the two structural
+judgments all ask what a place holds on every path to a point: which value a
+scalar leaf holds, or which case a sum is established as.
+[places.rs](src/places.rs) answers both with one walk (`Storage::reaching`)
+over the tables and the lowered form. The two questions differ only in which
+rows end a path and in what an edge can establish:
 
-- **The place.** A place is its root and the fields from the root down to
-  it. A read names its fields by `StructuralFieldId`; a Terminal Psi storage
-  path is resolved by the lowered form itself, one segment against the type
-  the previous segment reached (`runtime_structural_field`).
+- **The place.** A place is its root and the segments from the root down to
+  it: fields, and for a payload a `Case` segment followed by a payload
+  field. A read names its fields by `StructuralFieldId` and its case by
+  `StructuralCaseId`; a Terminal Psi storage path is resolved by the lowered
+  form itself, one field against the prefix before it
+  (`runtime_structural_field`). Every `Case` segment is checked against the
+  declared cases of the exact sum it is applied to.
 - **Overlap.** One function answers whether two places may share storage: a
   place overlaps itself, its ancestors and its descendants; two places that
   part by two different record fields are disjoint; any other pair of sibling
@@ -73,6 +84,11 @@ over the tables and the lowered form:
   - A path that reaches the machine's entry with no write is supplied by the
     place's entry content when its root is a formal, and by nothing
     otherwise.
+
+- **Leaves.** The leaves beneath a place are its scalars and its sums. A
+  sum is a leaf itself, standing for its discriminator, beside the payload
+  leaves of every one of its cases: it is established by a whole write,
+  whatever case that write selected.
 
 A store inside a block reaches only what that block leads to: a store in a
 guarded arm that completes the machine reaches neither a read nor a copy in
@@ -110,6 +126,69 @@ not by fewer.
 It is a structural judgment over the write log and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
 prover.
+
+### Payload access
+
+A case's payload overlays its sum's storage, so naming one is sound only
+where the sum holds that case.
+[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"Each `Case` step requires source admission to establish the selected case
+for the same root and prefix at the read's observation epoch. A dominating
+membership test or dispatch supplies that fact." and "A write to the sum or
+any prefix retires these facts".
+
+Every operation and terminator is judged for each `Case` step on the path of
+each place it names: a payload read, a copy out of a payload, a store into
+one, a case test or dispatch on a sum inside one. The walk asks which case
+the sum before that step holds on every path to the use, and the use is
+accepted only when the answer is that one case. Going back from the use:
+
+- A write to the sum or to a place above it ends the path. A construction
+  (`EstablishScalarCase`, `EstablishStructuralCase`) on exactly the sum
+  supplies its `result_case`; a whole copy, a data operand or a data value
+  stored into a field continues at the same sum inside its source, before
+  the operation; anything else supplies no case. A store beneath the sum
+  changes a payload, not the case, and does not end the path.
+- An edge of a `StructuralCase` on exactly this sum supplies that edge's
+  case. A block several of its edges enter, the wildcard arm, gets none.
+- The true edge of a `Conditional` whose condition is the result of a
+  `StructuralCaseMembership` on exactly this sum supplies the tested case,
+  when the test stands in the branching block and no write to the sum or a
+  place above it follows the test there.
+- The machine's entry supplies none: which case a formal holds is not known.
+
+So the three accepted shapes are a dominating dispatch edge, a dominating
+true edge of a membership test, and a construction that is every reaching
+write. The false edge of a test supplies nothing: "Otherwise the case holds
+when every other declared case of that sum is refuted" needs proof about the
+other cases and is refused here, not guessed. A refusal has reason
+`Unestablished` and concerns the access.
+
+A `StructuralCase` terminator is one more use, named by its block. Its
+subject must be established, and its roster must list every declared case
+of the sum it observes exactly once; a declared case with no edge is
+`Unestablished` ([patterns](../../../../../wiki/spec/language/patterns.md):
+"Every dispatch must cover the admitted subject. Missing runtime coverage is
+a compile error, not an implicit trap or fallthrough."). Any other fault in
+a roster (a case of another sum, a case twice, a payload field that is no
+scalar field of its case) refuses the module.
+
+### What a dispatch binds
+
+A dispatch delivers the scalar payload fields of the selected case as the
+parameters of its arm's block
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+"Selected payload fields become scalar parameters on that case's edge before
+cleanup."). Each parameter gets the row a payload read would get: it equals
+the one value its payload leaf holds on every path to the dispatch, when
+there is one. The row is available on that edge and justified as its
+`DispatchBinding`. A payload of a case other than the one the sum was
+constructed as resolves to no value, because the last write to storage it
+overlays was another case's.
+
+The case itself is not a knowledge row. A dispatch has no Boolean value to
+state it over, and knowledge names values only; it is the structural
+judgment above and nothing else.
 
 Knowledge names values only. No row states a proposition about a place and
 no structural `Proposition` variant is used, so the prover gained no
@@ -208,6 +287,22 @@ subset needs, so the prover emits them directly.
    `OWNER_QUESTIONS.md` (`local-without-initializer`). If the answer is
    zero, elaboration logs the zero at the reserving operation and nothing
    here changes.
+
+9. **A case fact is not knowledge.** The lane plan asks for "the
+   membership value on each `StructuralCase` edge, as the existing
+   `BranchCondition` row". A `StructuralCase` terminator has no membership
+   value, and the only proposition that could state the fact
+   (`Proposition::StructuralCaseMembership`) names a place, which this
+   route's knowledge never does. The case selected on an edge is therefore
+   held by the payload judgment alone. What an edge binds is over values and
+   is a row, justified as `Justification::DispatchBinding`.
+10. **A payload judgment that source programs do not reach yet.** Stage 02
+    leaves a directly authored payload member (`s.at`) with no field symbol,
+    so elaboration refuses it as a spelling, and the payload members it does
+    read are pattern bindings, which lie under their own dispatch edge.
+    The refusing paths of the judgment (a read after a write to the sum, on
+    a false edge, of a formal, of another case) are exercised by tests over
+    closed bodies, not yet by a corpus program.
 
 ## Evidence seals
 

@@ -58,6 +58,15 @@ pub(crate) struct Program<'t> {
     resolving: Vec<SymbolHandle>,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
+    /// How many `StructuralCaseId`s the sums above hold.
+    cases_minted: u64,
+    /// The subject of each value-position `match` whose arms are being
+    /// read, outermost first, by the capture identity stage 03 gave the
+    /// match and every `SavedSubject` node of its arms.
+    captures: Vec<(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        crate::body::Expression,
+    )>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -100,6 +109,8 @@ impl<'t> Program<'t> {
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             fields_minted: 0,
+            cases_minted: 0,
+            captures: Vec::new(),
         }
     }
 }
@@ -351,9 +362,12 @@ mod tests {
             })
         };
         let cases = [
+            // A payload member is the payload field its symbol names; the
+            // case it spells is never read, so one with no symbol is a
+            // spelling like any other member.
             (
                 member(Some(Default::default())),
-                "expression case payload member",
+                "spelling member without a field symbol",
             ),
             (member(None), "spelling member without a field symbol"),
             (
@@ -361,7 +375,7 @@ mod tests {
                     case_name: Some(Default::default()),
                     ..Default::default()
                 }),
-                "expression case literal",
+                "spelling case literal without a case symbol",
             ),
             (
                 ExpressionNode::StructLiteral(TableStructLiteral::default()),
@@ -369,12 +383,66 @@ mod tests {
             ),
             (
                 ExpressionNode::Match(TableMatchExpression::default()),
-                "expression match",
+                "expression missing expression",
+            ),
+            (
+                ExpressionNode::SavedSubject(Default::default()),
+                "expression saved subject",
             ),
         ];
         for (node, expected) in cases {
             assert_eq!(refused(&typed, node), expected);
         }
+    }
+
+    /// Dispatch forms outside the slice are refused by name before anything
+    /// is read from them: a `match` on a scalar, a case arm with a guard of
+    /// its own, and a pattern whose head names no case.
+    #[test]
+    fn each_dispatch_form_outside_the_slice_is_refused_by_name() {
+        use semantic_vocabulary::StructuralTypeId;
+        use typed_trees::expression::{TableDestructurePattern, TableMatchExpression};
+        let mut typed = TypedTrees::default();
+        let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let scalar_match =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Match(TableMatchExpression {
+                    subject: truth,
+                    ..Default::default()
+                }));
+        let mut program = Program::new(&typed);
+        assert_eq!(
+            program
+                .expression(machine(), &[], scalar_match, None)
+                .unwrap_err()
+                .detail,
+            "expression match on a scalar subject"
+        );
+        let record = StructuralTypeId::new(1).unwrap();
+        let pattern = |guard, head| TableDestructurePattern {
+            guard,
+            head,
+            ..Default::default()
+        };
+        let detail = |pattern: TableDestructurePattern| {
+            let refusal = program
+                .case_pattern(machine(), record, &pattern)
+                .unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            refusal.detail
+        };
+        assert_eq!(
+            detail(pattern(truth, ExpressionHandle::invalid())),
+            "transition case arm with a guard"
+        );
+        assert_eq!(
+            detail(pattern(ExpressionHandle::invalid(), truth)),
+            "transition pattern head that is not a case"
+        );
     }
 
     /// A store names a field by its symbol and a declaration without an

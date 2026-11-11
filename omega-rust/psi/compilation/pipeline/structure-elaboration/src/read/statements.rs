@@ -74,8 +74,18 @@ impl Program<'_> {
                             at = base;
                         }
                         ExpressionKind::Slot(slot) => break *slot,
+                        // A payload member with a field symbol comes only
+                        // from a pattern binding, which is not assignable; a
+                        // directly authored payload destination (`s.at = x`)
+                        // has no symbol and was refused as a spelling above.
+                        ExpressionKind::Payload { .. } => {
+                            return Err(unserved("store into a case payload"));
+                        }
                         ExpressionKind::Integer(_)
                         | ExpressionKind::Boolean(_)
+                        | ExpressionKind::Case { .. }
+                        | ExpressionKind::IsCase { .. }
+                        | ExpressionKind::Match { .. }
                         | ExpressionKind::Record { .. }
                         | ExpressionKind::Strict { .. }
                         | ExpressionKind::Not(_)
