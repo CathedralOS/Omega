@@ -36,7 +36,7 @@ use std::num::NonZeroU64;
 
 pub use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId, PlaceId,
-    PsiSemanticId, ValueId,
+    PropositionId, PsiSemanticId, ValueId,
 };
 
 macro_rules! check_id {
@@ -128,8 +128,29 @@ pub enum RefusalReason {
     /// The construct is outside the construct families this checker serves.
     /// Fail closed: an unserved construct is never accepted by default.
     Unsupported,
-    /// An obligation was reconstructed and its evidence did not check.
-    Unproved,
+    /// An obligation was reconstructed and its evidence did not check. The
+    /// cause is typed so a diagnostic reports it without reading `detail`.
+    Unproved(UnprovedCause),
+    /// A place is used on a path on which nothing was stored into it: a
+    /// compile error of the program, neither an unserved construct nor an
+    /// unproved proposition. `wiki/spec/terminal-psi/structural_access.md`:
+    /// "An unestablished local cannot be read: a whole read of the home, a
+    /// loan of it to an ordinary or boundary call, and its forwarding on a
+    /// state edge each require a whole store into it on every path reaching
+    /// that use." `wiki/spec/language/state_contracts.md`: "Uninitialized
+    /// storage has no assumed zero." It is a structural judgment over the
+    /// write log and the lowered graph, so it has no obligation row and no
+    /// certificate.
+    ///
+    /// The same reason covers the two structural judgments over a sum. A
+    /// case payload named where its case is not established on every path:
+    /// structural_access.md, "Each `Case` step requires source admission to
+    /// establish the selected case for the same root and prefix at the
+    /// read's observation epoch." And a dispatch with no edge for a declared
+    /// case: `wiki/spec/language/patterns.md`, "Every dispatch must cover
+    /// the admitted subject. Missing runtime coverage is a compile error,
+    /// not an implicit trap or fallthrough."
+    Unestablished,
     /// An edge did not account for an incoming conserved obligation exactly
     /// once. ownership.md: "every incoming owned obligation occurs exactly once
     /// in the edge's transfer map, explicit terminal consumption, eligible
@@ -140,6 +161,60 @@ pub enum RefusalReason {
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
+}
+
+/// Why an obligation's evidence did not check. Closed like `RefusalReason`:
+/// a prover that finds a new way to fail names it here.
+///
+/// None of these claims the obligation is false.
+/// `wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a
+/// proof is not proof of falsehood", and "Diagnostics distinguish failed
+/// source checking, invalid proof, unavailable evidence and receiving-policy
+/// refusal." Every cause but `NoRuleForGoalForm` publishes `Reject` with no
+/// artifact (`wiki/spec/packages/review.md`: "Unproved source contracts
+/// reject in Psi checking"). `NoRuleForGoalForm` publishes `Incomplete`: the
+/// program may be valid and the prover cannot judge it, which is the
+/// outcome table's "unsupported valid case" (owner ruling on
+/// `unproved-goal-form-outcome`). There is no exhaustion cause because the
+/// lowered-form prover has no search or resource bound. A bound added later
+/// needs its own cause, published as `Incomplete` with the resource
+/// diagnostic (`wiki/spec/build/configuration.md`: "Exhaustion leaves an
+/// unproved obligation and a resource diagnostic; it grants no ... runtime
+/// fallback").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnprovedCause {
+    /// The prover has rules for the goal's form and found no derivation of
+    /// it from the knowledge available at the obligation's point.
+    NoDerivation,
+    /// The prover has no rule for the goal's form (an order or equality over
+    /// non-integers, a shift-left bound, a proposition form it does not
+    /// reason about), so it cannot judge the obligation either way.
+    NoRuleForGoalForm,
+    /// The prover built a certificate and the proof kernel refused it: an
+    /// invalid proof ("an invalid certificate is `Reject`").
+    KernelRefused,
+    /// A normal return does not establish a published `ensures` clause: the
+    /// guarantee owed on that return edge is unproved or was never owed.
+    ReturnDoesNotEstablish,
+}
+
+impl UnprovedCause {
+    /// The cause as a program diagnostic states it. Stable wording: corpus
+    /// expectations match it. It says what was not shown, never that the
+    /// obligation is false.
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::NoDerivation => "no proof found from the facts available here",
+            Self::NoRuleForGoalForm => "the prover has no rule for this form of goal",
+            Self::KernelRefused => "invalid proof: the proof kernel refused the certificate",
+            Self::ReturnDoesNotEstablish => "not shown to hold on every normal return",
+        }
+    }
+
+    /// True when the outcome is `Incomplete` rather than `Reject`.
+    pub const fn is_incomplete(self) -> bool {
+        matches!(self, Self::NoRuleForGoalForm)
+    }
 }
 
 /// The only negative result of a checking step: a reason, the machine, and
@@ -188,6 +263,10 @@ pub fn row<Id: PsiSemanticId, T>(
 pub struct MachineTables {
     pub values: IdTable<ValueId, values::ValueRow>,
     pub knowledge: IdTable<KnowledgeId, values::KnowledgeRow>,
+    /// The propositions knowledge rows state, minted by `push`. Machine-local
+    /// like every other identity here: Terminal Psi keeps contract
+    /// propositions inline and has no proposition table of its own.
+    pub propositions: IdTable<PropositionId, semantic_vocabulary::Proposition>,
     pub places: IdTable<ExactPlaceId, bindings::PlaceRow>,
     /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
     /// `PlaceId`s densely too, so interning a root is one index.

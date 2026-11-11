@@ -195,9 +195,7 @@ pub(crate) mod const_applications {
             }
         }
         realize_folded_applications(typed, &published, domain);
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        crate::report_evaluation_diagnostics(&warnings)?;
         Ok(())
     }
 
@@ -2366,9 +2364,7 @@ pub(crate) mod const_generic_calls {
                         ));
                     }
                 };
-                for warning in &evaluated.warnings {
-                    eprintln!("{warning}");
-                }
+                crate::report_evaluation_diagnostics(&evaluated.warnings)?;
                 syntax.type_references.retain_const_argument_normalization(
                     *argument,
                     reference,
@@ -4964,9 +4960,7 @@ pub(crate) mod range_endpoints {
                 return Err(round.diagnostics);
             }
         }
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        crate::report_evaluation_diagnostics(&warnings)?;
         Ok(())
     }
 

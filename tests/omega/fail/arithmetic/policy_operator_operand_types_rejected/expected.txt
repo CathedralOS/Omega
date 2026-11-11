@@ -1,0 +1,5 @@
+`+%` needs both operands in one fixed-width integer carrier, found `u32` and `u64`
+`+%` is a fixed-width integer operation, but its left operand has type `f64`
+`+%` needs at least one integer-typed operand: a wholly anonymous calculation has no carrier
+`+%` is a fixed-width integer operation, but its left operand has type `T`
+`<<%` takes unqualified integer operands, but its count operand has type `u32 in Wrapping`

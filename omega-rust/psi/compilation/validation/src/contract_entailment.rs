@@ -15127,6 +15127,7 @@ pub(crate) mod contract_refinement {
         invocation_parameters: &[typed_trees::data::TypeParameter],
         application: &AppliedTraitScope<'_>,
         requirement: &StateSignature,
+        selecting: Option<&typed_trees::trait_definition::Conformance>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let trait_definition = application.declaration;
@@ -15205,7 +15206,7 @@ pub(crate) mod contract_refinement {
             &captured,
         );
         if let Some(operations) =
-            selected_operation_correspondence(program, machine, application, requirement)
+            selected_operation_correspondence(program, machine, application, requirement, selecting)
         {
             required.bind_selected_operations(program, &operations.required);
             member.bind_selected_operations(program, &operations.provided);
@@ -15266,10 +15267,32 @@ pub(crate) mod contract_refinement {
         machine: &Machine,
         application: &AppliedTraitScope<'_>,
         requirement: &StateSignature,
+        selecting: Option<&typed_trees::trait_definition::Conformance>,
     ) -> Option<SelectedOperationCorrespondence> {
         use super::law_conformance::slot_bindings::TraitOperationSlots;
 
-        let (selected, scope) = program.lexical_conformance_scope(machine.symbol)?;
+        /*
+            An inline member finds the implementation it belongs to through its
+            enclosing block. A machine named by a selection row has no enclosing
+            block and may fill slots of several implementations, so the row's
+            own implementation is the one whose selections its contract is
+            read against. That implementation must hold this machine in a row
+            it does not own; any other caller keeps the lexical route.
+        */
+        let (selected, scope) = match program.lexical_conformance_scope(machine.symbol) {
+            Some(lexical) => lexical,
+            None => {
+                let selecting = selecting.filter(|selecting| {
+                    selecting.rows.iter().any(|row| {
+                        !row.source.owns_realization() && row.realization_machine == machine.symbol
+                    })
+                })?;
+                (
+                    selecting,
+                    AppliedTraitScope::from_conformance(program.typed_program(), selecting)?,
+                )
+            }
+        };
         let scope =
             scope.declaring_scope(program.typed_program(), application.declaration.symbol)?;
         if !scope.same_application(program.typed_program(), application) {
@@ -63171,6 +63194,7 @@ pub(crate) mod structural_judgment {
                         }));
                     let joined = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: BinaryOperator::And,
                             right,
@@ -63178,6 +63202,7 @@ pub(crate) mod structural_judgment {
                     ));
                     let repeated = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: joined,
                             operator: BinaryOperator::Or,
                             right: joined,

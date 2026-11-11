@@ -148,6 +148,33 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Required issuance choice](designs/required_issuance_choice.md): every
+  access plan states who may create values of its domain, with stock
+  `IssuedBy` policies and issuance shown in package review; delete when the
+  board item lands.
+- [Boundary slots as static implementations](designs/boundary_slot_implementation_views.md):
+  a boundary trait that inherits an ordinary trait can be passed, named and
+  stored as a static implementation of it, still routed through the slot;
+  delete when the board item lands.
+- [`invokes` as an entry ceiling](designs/invokes_entry_ceiling.md): `invokes`
+  bounds synchronous entry into callbacks and inbound entries, and a
+  provider's host calls move to its derived inventory; delete when the board
+  item lands.
+- [Required automatic discharge](designs/required_automatic_discharge.md):
+  the obligations every checker proves unaided are order reasoning and range
+  propagation, with `--floor-only` to confirm sources need nothing more;
+  delete when the board item lands.
+- [Published write frames](designs/published_write_frames.md): the set of
+  places a checked body may write is inferred and published as part of its
+  contract, with no new syntax; delete when the board item lands.
+- [Record or sum data](designs/record_or_sum_data.md): a `data` declaration
+  holds fields or cases, never both; common fields beside alternatives are a
+  record holding a sum, and `data` declarations nest; delete when the board
+  item lands.
+- [Typed static parameters](designs/typed_static_parameters.md): a static
+  code parameter is one typed `const` value, and a machine is bound to a
+  requirement only by a declared edge, a selection row or
+  `(m satisfies T::m)`; delete when the board item lands.
 - [Activation storage plans](designs/activation_storage_plans.md): suspension
   preserves the unfinished computation and its storage layout is a
   compile-time `ActivationStorage` argument at the start site, `Fixed` or
@@ -160,9 +187,6 @@ Dated cost and failure evidence, superseded by a later run.
   with `dropped by` takes its subject by value, and a consuming pattern in the
   type's own package is what takes such a value apart; delete when the board
   item lands.
-- [Case projection type](designs/case_projection_type.md): `Data::case` names
-  the case-only view that `case as name` binds, so a helper can accept it
-  behind a reference; delete when the board item lands.
 - [Open callable contracts](designs/open_callable_contracts.md): an omitted
   `reaches` or `crashes` is open in every callable contract, and runtime
   callable types and boundary requirements must write both; delete when the
@@ -211,6 +235,9 @@ Dated cost and failure evidence, superseded by a later run.
   decision. Elaborate typed trees to unsealed Terminal Psi by structure alone,
   then check on that form, replacing Psi 05, validation and Psi 06 after one
   proven route.
+
+- [Route one measures](designs/route_one_measures.md): the eight gate
+  measures of that route and the verdict against its stop rule.
 
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
   compiler rules for stage outputs and `"validated"` claims, and the rule that

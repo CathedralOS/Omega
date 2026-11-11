@@ -15,7 +15,7 @@ machine forward(line: &mut [u8; 64]) -> ReadOutcome {
     replace(line)
 }
 machine observe(line: &[u8; 64], count: u64) -> u64 in Wrapping {
-    (line[0] as u64 in Wrapping + count as u64 in Wrapping)
+    ((line[0] as u64 in Wrapping) + count as u64 in Wrapping)
 }
 machine main() crashes Trap {
     let mut line: [u8; 64];

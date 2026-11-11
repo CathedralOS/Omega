@@ -487,7 +487,7 @@ pub(crate) mod callback_applications {
                 (
                     source_key(usage.site, usage.registration_operation),
                     usage,
-                    None,
+                    Vec::new(),
                 )
             })
             .collect::<Vec<_>>();
@@ -524,23 +524,47 @@ pub(crate) mod callback_applications {
             });
             let key = source_key(site, registration);
             let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
-            for (_, _, registrar) in requested[first..]
+            for (_, _, registrars) in requested[first..]
                 .iter_mut()
                 .take_while(|(candidate, _, _)| *candidate == key)
             {
-                if registrar.replace(operation).is_some() {
-                    return Err(
-                        "callback application names multiple emitted registrar operations".into(),
-                    );
-                }
+                registrars.push(operation);
             }
         }
+        // One checked registration can be emitted more than once: nested machines
+        // that call each other in a cycle are emitted whole for every member an
+        // outside caller enters, so a registering call inside the cycle becomes
+        // one boundary operation per copy. Every copy runs the registration and
+        // needs its own row, because a row names exactly one registrar. The first
+        // copy keeps the checked occurrence number, so a program without copies
+        // publishes the numbers it always did; later copies take fresh numbers
+        // above every checked one, including the installed-interrupt callbacks
+        // that are numbered after the ordinary uses.
+        let checked_occurrences = checked.facts.nominal_machine_uses.uses.len()
+            + checked
+                .facts
+                .installed_interrupt_registrations
+                .iter()
+                .map(|registration| registration.callbacks.uses.len())
+                .sum::<usize>();
+        let mut next_occurrence = u32::try_from(checked_occurrences)
+            .map_err(|_| "callback application count exceeds u32".to_owned())?;
+        requested.sort_unstable_by_key(|(_, usage, _)| usage.application_index);
         let mut applications = Vec::with_capacity(requested.len());
-        for (_, usage, registrar) in requested {
-            let Some(registrar) = registrar else { continue };
-            applications.push(lower_application(
-                identities, checked, sources, lowered, usage, registrar,
-            )?);
+        for (_, usage, mut registrars) in requested {
+            registrars.sort_unstable();
+            registrars.dedup();
+            for (copy, registrar) in registrars.into_iter().enumerate() {
+                let mut application =
+                    lower_application(identities, checked, sources, lowered, usage, registrar)?;
+                if copy != 0 {
+                    application.application_index = next_occurrence;
+                    next_occurrence = next_occurrence
+                        .checked_add(1)
+                        .ok_or("callback application count exceeds u32")?;
+                }
+                applications.push(application);
+            }
         }
         applications.sort_unstable_by_key(|application| application.application_index);
         lowered.semantic_module.callback_applications = applications;

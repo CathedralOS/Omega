@@ -240,7 +240,8 @@ before variants are added. Route one is:
   obligations discharged with kernel-checked evidence (all of the subset's);
   decisions keyed on text (none); steps that drop without a refusal (none);
   routes that can prove one kind of obligation (one; a call's `requires` has
-  about twenty today, tried in order).
+  about twenty today, tried in order). [Route one measures](route_one_measures.md)
+  records all eight and the verdict against the stop rule.
 - **Stop rule.** If the route is not clearly smaller than what it replaces,
   cannot reach agreement on the widened subset, or cannot prove two-value
   relations through its single certificate route, the replacement stops and
@@ -253,7 +254,8 @@ groups rather than ten simultaneous sessions:
 1. **Places foundation first:** records, fields, cases, constants and
    expressions, so `ExactPlaceId` projections, structural roots and the forward
    write log (`places`, `roots`, `writes`, all empty in the scalar spine) are
-   built once.
+   built once. [Places foundation lane](places_foundation_lane.md) is the
+   staged plan: scope, tables, corpus slice, measures and worker brief.
 2. **First parallel group (five lanes):** references, loans, windows, ownership
    and cleanup; calls and callee summaries; loops, recursion and termination;
    integers, floats, casts and domains; proofs, evidence and quotients.

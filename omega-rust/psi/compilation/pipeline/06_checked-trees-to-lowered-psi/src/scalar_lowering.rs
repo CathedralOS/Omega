@@ -1594,6 +1594,17 @@ pub(crate) mod contracts {
                     crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
                     namespace.structural(*parameter_position)
                 }
+                CheckedScalarExpression::StructuralLocalField {
+                    symbol,
+                    primitive_type,
+                    ..
+                } => {
+                    // Source checking admits this term only for a local of
+                    // the calling state, so a namespace without that local's
+                    // place is a broken Psi 05 plan, not an unsupported shape.
+                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
+                    namespace.views.local(*symbol).map(|_| ())
+                }
             }
         }
 
@@ -1731,8 +1742,35 @@ pub(crate) mod contracts {
         pub scalar_applications: &'a SourceScalarApplications,
         pub constant_values: &'a [typed_trees::constant_recipes::ClosedConstantRecipe],
         pub parameters: &'a [(u32, StructuralParameterDeclaration)],
+        /// Immutable structural locals an erased call actual may observe.
+        pub locals: &'a [ContractLocalObservation],
         pub result: ContractStructuralResult<'a>,
         pub structural_types: &'a [StructuralTypeDeclaration],
+    }
+
+    /// The place of one caller structural local, for proof-side field terms.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct ContractLocalObservation {
+        pub symbol: symbols::SymbolHandle,
+        pub place: semantic_vocabulary::PlaceId,
+        pub structural_type: semantic_vocabulary::StructuralTypeId,
+        pub access: terminal_psi::StructuralAccess,
+    }
+
+    impl ContractViewNamespace<'_> {
+        /// The place of the caller local an erased actual observes.
+        pub(crate) fn local(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Result<&ContractLocalObservation, LoweringError> {
+            self.locals
+                .iter()
+                .find(|local| local.symbol == symbol)
+                .ok_or(LoweringError::MissingDependencyRosterEntry {
+                    identity_kind: "structural local place",
+                    role: "erased call actual observation",
+                })
+        }
     }
 
     impl ContractViewNamespace<'static> {
@@ -1740,6 +1778,7 @@ pub(crate) mod contracts {
             scalar_applications: &SourceScalarApplications::EMPTY,
             constant_values: &[],
             parameters: &[],
+            locals: &[],
             result: ContractStructuralResult::Absent,
             structural_types: &[],
         };
@@ -2445,6 +2484,21 @@ pub(crate) mod contracts {
                     position,
                     &path,
                     &self.authored_structural_parameters(),
+                    self.views.structural_types,
+                );
+            }
+            if let CheckedScalarExpression::StructuralLocalField {
+                symbol,
+                path,
+                primitive_type,
+            } = expression
+            {
+                let local = self.views.local(*symbol)?;
+                return crate::proofs::crash_routes::lower_structural_local_member_term(
+                    identities,
+                    (local.place, local.structural_type, local.access),
+                    path,
+                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                     self.views.structural_types,
                 );
             }

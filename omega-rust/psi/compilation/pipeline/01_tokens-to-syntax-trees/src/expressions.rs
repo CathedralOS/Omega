@@ -310,6 +310,7 @@ pub(crate) mod membership {
                 ));
                 expression =
                     exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: expression,
                         operator,
                         right,
@@ -324,6 +325,7 @@ pub(crate) mod parse_expression {
     use crate::grammar::expressions::context::ExpressionContext;
     use crate::storage::tables::{exprs, exprs_of};
     use crate::tokens::token_cursor::{Input, ParseResult};
+    use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::IntegerLiteral;
     use syntax_trees::FloatSpelling;
     use syntax_trees::SyntaxTrees;
@@ -388,13 +390,18 @@ pub(crate) mod parse_expression {
         input: Input<'tokens, 'source>,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
         let outer_depth = input.depth();
-        let input = input.deepen()?;
+        let outer_constant = input.constant_position();
+        let input = input.with_constant_position(true).deepen()?;
         let (handle, rest) = parse_bitwise_or_expression_handle(
             syntax_trees,
             input,
             ExpressionContext::NoStructLiteral,
         )?;
-        Ok((handle, rest.with_depth(outer_depth)))
+        Ok((
+            handle,
+            rest.with_depth(outer_depth)
+                .with_constant_position(outer_constant),
+        ))
     }
 
     pub(crate) fn parse_expression_handle_in<'tokens, 'source>(
@@ -465,8 +472,113 @@ pub(crate) mod parse_expression {
                 (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
                 (PunctuationKind::Slash, BinaryOperator::Divide, 5),
                 (PunctuationKind::Percent, BinaryOperator::Modulo, 5),
+                (PunctuationKind::PlusWrapping, BinaryOperator::Add, 4),
+                (PunctuationKind::PlusSaturating, BinaryOperator::Add, 4),
+                (PunctuationKind::PlusTrapping, BinaryOperator::Add, 4),
+                (PunctuationKind::MinusWrapping, BinaryOperator::Subtract, 4),
+                (
+                    PunctuationKind::MinusSaturating,
+                    BinaryOperator::Subtract,
+                    4,
+                ),
+                (PunctuationKind::MinusTrapping, BinaryOperator::Subtract, 4),
+                (
+                    PunctuationKind::AsteriskWrapping,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (
+                    PunctuationKind::AsteriskSaturating,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (
+                    PunctuationKind::AsteriskTrapping,
+                    BinaryOperator::Multiply,
+                    5,
+                ),
+                (PunctuationKind::SlashWrapping, BinaryOperator::Divide, 5),
+                (PunctuationKind::SlashSaturating, BinaryOperator::Divide, 5),
+                (PunctuationKind::SlashTrapping, BinaryOperator::Divide, 5),
+                (PunctuationKind::PercentWrapping, BinaryOperator::Modulo, 5),
+                (
+                    PunctuationKind::PercentSaturating,
+                    BinaryOperator::Modulo,
+                    5,
+                ),
+                (PunctuationKind::PercentTrapping, BinaryOperator::Modulo, 5),
+                (
+                    PunctuationKind::LessLessWrapping,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
+                (
+                    PunctuationKind::LessLessSaturating,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
+                (
+                    PunctuationKind::LessLessTrapping,
+                    BinaryOperator::ShiftLeft,
+                    3,
+                ),
             ],
         )
+    }
+
+    /// The policy a suffixed operator token selects. A suffixed form keeps
+    /// the precedence and associativity of its base operator, so the chain
+    /// table lists it beside that operator and this reads the suffix back.
+    fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDomain {
+        match punctuation {
+            PunctuationKind::PlusWrapping
+            | PunctuationKind::MinusWrapping
+            | PunctuationKind::AsteriskWrapping
+            | PunctuationKind::SlashWrapping
+            | PunctuationKind::PercentWrapping
+            | PunctuationKind::LessLessWrapping => ArithmeticDomain::Wrapping,
+            PunctuationKind::PlusSaturating
+            | PunctuationKind::MinusSaturating
+            | PunctuationKind::AsteriskSaturating
+            | PunctuationKind::SlashSaturating
+            | PunctuationKind::PercentSaturating
+            | PunctuationKind::LessLessSaturating => ArithmeticDomain::Saturating,
+            PunctuationKind::PlusTrapping
+            | PunctuationKind::MinusTrapping
+            | PunctuationKind::AsteriskTrapping
+            | PunctuationKind::SlashTrapping
+            | PunctuationKind::PercentTrapping
+            | PunctuationKind::LessLessTrapping => ArithmeticDomain::Trapping,
+            _ => ArithmeticDomain::Exact,
+        }
+    }
+
+    /// Right shift has no suffixed token: `>>` stays one token so a nested
+    /// static argument list can close one `>` at a time. Its policy suffix is
+    /// the `%`, `|` or `!` written immediately after it, with no space, so
+    /// `a >>! b` traps while `a >> !b` shifts by a negation.
+    fn take_right_shift_policy<'tokens, 'source>(
+        shift: source::SourceSpan,
+        input: Input<'tokens, 'source>,
+    ) -> Result<(ArithmeticDomain, Input<'tokens, 'source>), crate::ParseError> {
+        for (punctuation, label, policy) in [
+            (PunctuationKind::Percent, "%", ArithmeticDomain::Wrapping),
+            (PunctuationKind::Pipe, "|", ArithmeticDomain::Saturating),
+            (
+                PunctuationKind::Exclamation,
+                "!",
+                ArithmeticDomain::Trapping,
+            ),
+        ] {
+            if !input.at_punctuation(punctuation) {
+                continue;
+            }
+            let suffix = input.current_source_span();
+            if suffix.source_id == shift.source_id && suffix.span.start == shift.span.end {
+                return Ok((policy, input.take_punctuation(punctuation, label)?));
+            }
+        }
+        Ok((ArithmeticDomain::Exact, input))
     }
 
     fn parse_binary_chain_handle<'tokens, 'source, const PRECEDENCE_LEVELS: usize>(
@@ -490,30 +602,56 @@ pub(crate) mod parse_expression {
             .copied()
         {
             while pending_count != 0 {
-                let (_, _, pending_precedence, _) = pending[pending_count - 1]
+                let (_, _, pending_precedence, _, _) = pending[pending_count - 1]
                     .as_ref()
                     .expect("pending operator");
                 if *pending_precedence < precedence {
                     break;
                 }
                 pending_count -= 1;
-                let (left, operator, _, span) =
+                let (left, operator, _, span, policy) =
                     pending[pending_count].take().expect("pending operator");
-                expression =
-                    insert_binary_expression(syntax_trees, left, operator, expression, span);
+                expression = insert_binary_expression(
+                    syntax_trees,
+                    left,
+                    operator,
+                    policy,
+                    expression,
+                    span,
+                );
             }
             let operator_span = input.current_source_span();
             input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-            pending[pending_count] = Some((expression, operator, precedence, operator_span));
+            let mut policy = punctuation_policy(punctuation);
+            if punctuation == PunctuationKind::GreaterGreater {
+                (policy, input) = take_right_shift_policy(operator_span, input)?;
+            }
+            // A constant position is folded before any operand is typed, and
+            // folding a suffixed operator as the bare Exact one would drop
+            // its policy without a word. Reject it at the operator, however
+            // deeply the constant nests it.
+            if policy != ArithmeticDomain::Exact && input.constant_position() {
+                return Err(crate::ParseError::at_source_span(
+                    format!(
+                        "the policy operator `{}{}` is not available in a constant expression yet; use it in executable machine code",
+                        operator.display_name(),
+                        policy.operator_suffix(),
+                    ),
+                    operator_span,
+                ));
+            }
+            pending[pending_count] =
+                Some((expression, operator, precedence, operator_span, policy));
             pending_count += 1;
             (expression, input) = lower(syntax_trees, input, context)?;
         }
 
         while pending_count != 0 {
             pending_count -= 1;
-            let (left, operator, _, span) =
+            let (left, operator, _, span, policy) =
                 pending[pending_count].take().expect("pending operator");
-            expression = insert_binary_expression(syntax_trees, left, operator, expression, span);
+            expression =
+                insert_binary_expression(syntax_trees, left, operator, policy, expression, span);
         }
         Ok((expression, input))
     }
@@ -522,11 +660,13 @@ pub(crate) mod parse_expression {
         syntax_trees: &mut SyntaxTrees,
         left: ExpressionHandle,
         operator: BinaryOperator,
+        policy: ArithmeticDomain,
         right: ExpressionHandle,
         span: source::SourceSpan,
     ) -> ExpressionHandle {
         let expression =
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy,
                 left,
                 operator,
                 right,
@@ -703,6 +843,7 @@ pub(crate) mod parse_expression {
                             .expressions
                             .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
                         ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: zero,
                             operator: BinaryOperator::Subtract,
                             right: expression,
@@ -755,6 +896,24 @@ pub(crate) mod parse_expression {
             PunctuationKind::Asterisk => "*",
             PunctuationKind::Slash => "/",
             PunctuationKind::Percent => "%",
+            PunctuationKind::PlusWrapping => "+%",
+            PunctuationKind::PlusSaturating => "+|",
+            PunctuationKind::PlusTrapping => "+!",
+            PunctuationKind::MinusWrapping => "-%",
+            PunctuationKind::MinusSaturating => "-|",
+            PunctuationKind::MinusTrapping => "-!",
+            PunctuationKind::AsteriskWrapping => "*%",
+            PunctuationKind::AsteriskSaturating => "*|",
+            PunctuationKind::AsteriskTrapping => "*!",
+            PunctuationKind::SlashWrapping => "/%",
+            PunctuationKind::SlashSaturating => "/|",
+            PunctuationKind::SlashTrapping => "/!",
+            PunctuationKind::PercentWrapping => "%%",
+            PunctuationKind::PercentSaturating => "%|",
+            PunctuationKind::PercentTrapping => "%!",
+            PunctuationKind::LessLessWrapping => "<<%",
+            PunctuationKind::LessLessSaturating => "<<|",
+            PunctuationKind::LessLessTrapping => "<<!",
             _ => "?",
         }
     }
@@ -1007,6 +1166,11 @@ pub(crate) mod parse_postfix {
             if input.at_keyword(KeywordKind::As) {
                 let cast_source = input.current_source_span();
                 input = input.take_keyword(KeywordKind::As, "as")?;
+                if at_cast_entry(input) {
+                    (expression, input) =
+                        parse_cast_entries(syntax_trees, expression, input, false)?;
+                    continue;
+                }
                 let mut form = language_core::cast_form::CastForm::Value;
                 if input.at_punctuation(PunctuationKind::Ampersand) {
                     input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
@@ -1080,12 +1244,128 @@ pub(crate) mod parse_postfix {
                         form,
                     }));
                 exprs(syntax_trees).set_source_span(expression, cast_source);
+                if at_cast_entry(input) {
+                    if form.is_recast() {
+                        return Err(input.error_here(
+                            "a recast re-views a place's bytes and takes no domain entries",
+                        ));
+                    }
+                    if domain != ArithmeticDomain::Exact || !semantic_domain.is_empty() {
+                        return Err(input.error_here(
+                            "a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both",
+                        ));
+                    }
+                    (expression, input) =
+                        parse_cast_entries(syntax_trees, expression, input, true)?;
+                }
                 continue;
             }
 
             break;
         }
 
+        Ok((expression, input))
+    }
+
+    fn at_cast_entry(input: Input<'_, '_>) -> bool {
+        input.at_punctuation(PunctuationKind::Plus)
+            || input.at_punctuation(PunctuationKind::Minus)
+            || input.at_punctuation(PunctuationKind::Equal)
+    }
+
+    /*
+        The run of `=D`, `-D` and `+D` entries after `as` (domains.md,
+        "Grouping"). A `+` or `-` here always begins an entry, so no name lookup
+        is needed and arithmetic on a cast result takes parentheses. Each entry
+        becomes its own cast node over the previous one, because a cast node
+        names one domain; typing accounts for the run as one simultaneous cast.
+    */
+    fn parse_cast_entries<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
+        mut expression: ExpressionHandle,
+        mut input: Input<'tokens, 'source>,
+        after_carrier: bool,
+    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+        use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
+        let mut first = true;
+        while at_cast_entry(input) {
+            let kind = if input.at_punctuation(PunctuationKind::Plus) {
+                CastEntryKind::Add
+            } else if input.at_punctuation(PunctuationKind::Minus) {
+                CastEntryKind::Remove
+            } else {
+                CastEntryKind::Keep
+            };
+            let sign = kind.sign();
+            if after_carrier && kind != CastEntryKind::Add {
+                return Err(input.error_here(format!(
+                    "a carrier cast `as T` may only add domains; `{sign}` entries belong to a domain-only cast written first, as in `value as -D as T +D`. For arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
+                )));
+            }
+            let entry_start = input;
+            let entry_source = input.current_source_span();
+            let after_sign = match kind {
+                CastEntryKind::Add => input.take_punctuation(PunctuationKind::Plus, "+")?,
+                CastEntryKind::Remove => input.take_punctuation(PunctuationKind::Minus, "-")?,
+                CastEntryKind::Keep => input.take_punctuation(PunctuationKind::Equal, "=")?,
+            };
+            if !after_sign.at_name_like() {
+                return Err(after_sign.error_here(format!(
+                    "`{sign}` after a cast begins a domain entry such as `{sign}Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
+                )));
+            }
+            let (domain_name, rest) =
+                crate::grammar::type_syntax::parse_type::parse_static_name(after_sign)?;
+            let mut domain = ArithmeticDomain::Exact;
+            let mut semantic_domain = arena::HandleSpan::empty();
+            let mut semantic_domain_arguments = arena::HandleSpan::empty();
+            match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
+                Some(parsed) => {
+                    if rest.at_punctuation(PunctuationKind::Less) {
+                        return Err(rest.error_here(
+                            "compiler arithmetic domains do not take index arguments",
+                        ));
+                    }
+                    domain = parsed;
+                    input = rest;
+                }
+                None => {
+                    exprs(syntax_trees)
+                        .append_identifier_path_member_to_span(&mut semantic_domain, domain_name);
+                    let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
+                    semantic_domain_arguments = arguments;
+                    input = rest;
+                }
+            }
+            let consumed = entry_start.tokens.len().saturating_sub(input.tokens.len());
+            let label_text = entry_start.tokens[..consumed]
+                .iter()
+                .map(|token| entry_start.text(token).as_str())
+                .collect::<String>();
+            let mut target_label = HandleSpan::empty();
+            exprs(syntax_trees).append_identifier_path_member_to_span(
+                &mut target_label,
+                Identifier::generated(label_text),
+            );
+            // Typing replaces this placeholder with the operand's carrier.
+            let target_type = crate::storage::tables::type_refs(syntax_trees).insert_unit();
+            expression = exprs(syntax_trees).insert(ExpressionNode::Cast(TableCastExpression {
+                value: expression,
+                target_type,
+                target_label,
+                domain,
+                semantic_domain,
+                semantic_domain_arguments,
+                form: CastForm::Entry(CastEntry {
+                    kind,
+                    first,
+                    after_carrier,
+                }),
+            }));
+            // Each entry reports at its own sign, not at the shared `as`.
+            exprs(syntax_trees).set_source_span(expression, entry_source);
+            first = false;
+        }
         Ok((expression, input))
     }
 

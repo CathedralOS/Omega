@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "rejection_contains": [
     "cannot prove requires contract for call exercise",
-    "witness == 7"
+    "record.value == 7"
   ]
 }

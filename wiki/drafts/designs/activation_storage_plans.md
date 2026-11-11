@@ -70,7 +70,12 @@ starts activations, and that cost grows with each library written.
 `TaskRuntime::start` and `try_start` gain a fourth static argument:
 
 ```omega
-machine start<T, Arguments, machine Target, const Storage: ActivationStorage>(
+machine start<
+    T,
+    Arguments,
+    const Target: machine(arguments: Arguments) -> T suspends blocks,
+    const Storage: ActivationStorage
+>(
     arguments: Arguments
 ) -> Task<T>
 ```

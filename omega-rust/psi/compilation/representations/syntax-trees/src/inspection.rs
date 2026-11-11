@@ -454,7 +454,8 @@ pub mod snapshot {
                 },
                 ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
                     left: Box::new(snapshot_expression_handle(syntax_trees, binary.left)),
-                    operator: snapshot_binary_operator(binary.operator),
+                    operator: snapshot_policy_operator(binary.operator, binary.policy)
+                        .unwrap_or_else(|| snapshot_binary_operator(binary.operator)),
                     right: Box::new(snapshot_expression_handle(syntax_trees, binary.right)),
                 },
                 ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
@@ -467,6 +468,11 @@ pub mod snapshot {
                     arithmetic_domain: cast.domain.name(),
                     form: match cast.form {
                         language_core::cast_form::CastForm::Value => "value",
+                        language_core::cast_form::CastForm::Entry(entry) => match entry.kind {
+                            language_core::cast_form::CastEntryKind::Keep => "entry_keep",
+                            language_core::cast_form::CastEntryKind::Remove => "entry_remove",
+                            language_core::cast_form::CastEntryKind::Add => "entry_add",
+                        },
                         language_core::cast_form::CastForm::Recast(access) => match access {
                             language_core::ReferenceAccess::Shared => "recast_shared",
                             language_core::ReferenceAccess::Mutable => "recast_mutable",
@@ -661,6 +667,43 @@ pub mod snapshot {
                 name: snapshot_identifier(syntax_trees, &field.name),
                 value: snapshot_expression_handle(syntax_trees, field.value),
             }
+        }
+
+        /// A suffixed policy operator snapshots under its own name, so two
+        /// parsers that disagree about a suffix do not compare equal.
+        fn snapshot_policy_operator(
+            operator: BinaryOperator,
+            policy: numerics::arithmetic::ArithmeticDomain,
+        ) -> Option<&'static str> {
+            use numerics::arithmetic::ArithmeticDomain;
+            Some(match (operator, policy) {
+                (BinaryOperator::Add, ArithmeticDomain::Wrapping) => "add_wrapping",
+                (BinaryOperator::Add, ArithmeticDomain::Saturating) => "add_saturating",
+                (BinaryOperator::Add, ArithmeticDomain::Trapping) => "add_trapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => "subtract_wrapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => "subtract_saturating",
+                (BinaryOperator::Subtract, ArithmeticDomain::Trapping) => "subtract_trapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => "multiply_wrapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => "multiply_saturating",
+                (BinaryOperator::Multiply, ArithmeticDomain::Trapping) => "multiply_trapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Wrapping) => "divide_wrapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Saturating) => "divide_saturating",
+                (BinaryOperator::Divide, ArithmeticDomain::Trapping) => "divide_trapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Wrapping) => "modulo_wrapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Saturating) => "modulo_saturating",
+                (BinaryOperator::Modulo, ArithmeticDomain::Trapping) => "modulo_trapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => "shift_left_wrapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Saturating) => {
+                    "shift_left_saturating"
+                }
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Trapping) => "shift_left_trapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => "shift_right_wrapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Saturating) => {
+                    "shift_right_saturating"
+                }
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => "shift_right_trapping",
+                _ => return None,
+            })
         }
 
         fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
@@ -1010,6 +1053,11 @@ pub mod snapshot {
                 requirement_ordinal: usize,
                 declaration: Box<ItemSnapshot>,
             },
+            Selection {
+                declaring_trait: IdentifierSnapshot,
+                requirement: IdentifierSnapshot,
+                target: Vec<IdentifierSnapshot>,
+            },
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1225,6 +1273,18 @@ pub mod snapshot {
                                     syntax_trees,
                                     &Item::Machine(machine.clone()),
                                 )),
+                            },
+                            ConformanceMember::Selection {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => ConformanceMemberSnapshot::Selection {
+                                declaring_trait: snapshot_identifier(syntax_trees, declaring_trait),
+                                requirement: snapshot_identifier(syntax_trees, requirement),
+                                target: snapshot_identifier_slice(
+                                    syntax_trees,
+                                    syntax_trees.items.identifier_path_members(*target),
+                                ),
                             },
                         })
                         .collect(),

@@ -24,12 +24,14 @@ The fresh review must include `UnusedNumericProvider::native_negate` even though
 consumer never calls it. Execution still requires the exact selected contract and installed provider
 authority.
 
-The library exports a negate choice even though its classifier never calls
-negate. Core now also supplies a default for that slot. Different providers
-in the same default tier conflict, so the consumer must make an explicit root
-choice under [provider selection](../../../../../wiki/spec/build/provider_selection.md).
-Its four target rows choose the library’s exact public provider. Neither default
-is discarded, and the library still has no ProgramEntry.
+Under decision `target-realized-float-arithmetic`
+([numeric values](../../../../../wiki/spec/language/numeric_values.md#target-realization-and-control-state)),
+each target's declared realization table supplies `F32::negate`, and neither
+this library nor the consumer may select a provider for it. Both build programs
+therefore make no float selections. The unused external member stays a
+reviewed declaration of a package that still has no ProgramEntry; it is never
+an execution candidate. The history below records the earlier selection-based
+form.
 
 The original consumer at source `69ec9f80599b` first failed package setup because
 the old fixture copier omitted its sibling. With the sibling present, the same

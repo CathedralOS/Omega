@@ -1,0 +1,32 @@
+// Implicit integer landing after a fractional intermediate rejects at every
+// destination, even though `(7 / 2) * 2` cancels to the integral, in-range 7.
+// Only a whole-expression `as` (pass/arithmetic/explicit_integer_landing_exit)
+// acknowledges the fraction. The const
+// destination is pinned separately by implicit_fractional_const_landing,
+// because static evaluation rejects before body validation runs.
+data Held [copy] { value: u64; }
+
+machine identity(value: u64) -> u64 { value }
+
+machine returned() -> u64 { (7 / 2) * 2 }
+
+machine joined(flag: bool) -> u64 {
+    match flag {
+        true -> (9 / 4) * 4,
+        false -> 14 / 2
+    }
+}
+
+machine local() -> u64 {
+    let value: u64 = (5 / 2) * 2;
+    value
+}
+
+machine field() -> u64 {
+    let held: Held = Held { value: (11 / 2) * 2 };
+    held.value
+}
+
+machine argument() -> u64 { identity((13 / 2) * 2) }
+
+machine half() -> u64 { 0.5 * 4096 }

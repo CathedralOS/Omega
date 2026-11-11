@@ -764,6 +764,7 @@ pub(crate) mod machine {
             service_reach_row: machine.service_reach_row,
             service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
             admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+            declares_no_crash_route: machine.declares_no_crash_route,
             suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
             blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             lifetime_parameters: lower_names(&machine.lifetime_parameters),

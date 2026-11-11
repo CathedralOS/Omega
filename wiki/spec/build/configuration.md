@@ -69,6 +69,9 @@ For example, an ordinary Build entry may contain:
 builder.proof.index_expansion_terms = 128;
 ```
 
+The [required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+is outside this policy: it has no allowance and cannot be configured smaller.
+
 This is ordinary Build data, not a generic argument, source annotation, or
 language keyword. It limits resulting summands per attempted automatic
 compatibility-proof product expansion, not normalization steps, integer

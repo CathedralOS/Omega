@@ -6,7 +6,7 @@ machine int_hash(key: &u64) -> u64 { key }
 machine int_same(left: &u64, right: &u64) -> bool { left == right }
 
 machine byte_hash(key: &[u8; 8]) -> u64 {
-    let h: u64 = key[0] as u64 + key[7] as u64;
+    let h: u64 = (key[0] as u64) + key[7] as u64;
     h
 }
 machine byte_same(left: &[u8; 8], right: &[u8; 8]) -> bool { left == right }

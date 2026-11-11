@@ -1,11 +1,10 @@
 # Chapter 16: Errors, traps, and failure
 
-Return a sum when the caller can handle failure. Its cases describe what
-happened and carry the information needed to continue.
+There are no exceptions. A failure the caller can handle is a return value. A
+failure nobody can handle is a crash, and a machine has to say when it can
+crash.
 
-## Handle a failed operation
-
-This parser accepts one ASCII digit:
+## Return a sum
 
 ```omega
 data ParseResult {
@@ -28,18 +27,13 @@ machine digit_or_zero(byte: u8) -> u32 {
 }
 ```
 
-The true arm proves subtraction is valid. The caller covers both outcomes,
-and `value` is available only in the `Parsed` arm. Larger parsers can add
-cases such as `Empty` or carry the failing offset.
+The caller has to cover both cases, and `value` only exists in the `Parsed`
+arm. A library `Result<T, E>` is the same thing with type parameters.
 
-Use `_ = call();` when intentionally discarding a result that may legally be
-disposed of. A linear result still needs its required consumer; discarding its
-name cannot dispose of an unfinished task or transaction.
+To ignore a result on purpose, write `_ = call();`. That does not work for a
+`[linear]` result, which still has to be finished.
 
-## Return an error
-
-A wrapper can translate a failure into its own result type. Here an invalid
-digit becomes an invalid setting:
+## Translating an error
 
 ```omega
 data SettingResult {
@@ -55,13 +49,9 @@ machine parse_level(byte: u8) -> SettingResult {
 }
 ```
 
-The transition makes the choice explicit. Each outgoing path must transfer or
-clean up its owned values and restore borrowed storage. A library
-`Result<T, E>` follows these same sum and ownership rules.
+There is no `?` operator. Each layer matches and decides.
 
-## Use facts from a result
-
-A successful payload can carry a useful bound:
+## A result can carry a fact
 
 ```omega
 domain u32::TableIndex requires self < 16;
@@ -72,19 +62,13 @@ data Slot {
 }
 ```
 
-Constructing `Found` takes an index cast with `as +TableIndex`, and that cast
-proves the range. In a `Found { index }` arm, the caller
-can use that bound when indexing a sixteen-entry collection. Ordinary borrow
-and indexing requirements still apply.
+In a `Found { index }` arm the caller already knows `index < 16` and can index
+a sixteen-entry table without checking again.
 
-Across a call, `requires` states what the caller proves and `ensures` states
-what completion establishes. An error outcome must fulfill the guarantees
-attached to that outcome too. See [contracts](chapter_9_proof_obligations.md).
+## Compile errors are not runtime failures
 
-## Distinguish proof errors from runtime failure
-
-An unproved Exact division or array index is a compile error. To accept
-untrusted input, branch first and return an error for the invalid case:
+Dividing by something that might be zero is a compile error. To accept
+untrusted input, branch and return an error for the bad case:
 
 ```omega
 data Division {
@@ -100,21 +84,15 @@ machine try_divide(numerator: u32, denominator: u32) -> Division {
 }
 ```
 
-The nonzero arm proves the division safe. No handler or runtime check is
-inserted merely because the checker could not prove an obligation.
+## Crashes
 
-## Declare possible crashes
+A crash stops the current execution without running cleanup. There are two
+kinds:
 
-A crash ends the activation without a normal successor or cleanup.
-`crashes Trap` permits specified operation or platform faults;
-`crashes Abort` permits deliberate termination of the execution domain.
-On a public machine, leaving the clause off promises there are no crash
-routes, so a helper edit that introduces a trap fails to compile at that
-boundary until the public declaration says `crashes Trap` with its guard. A
-private helper with no clause has its routes derived from its body. On a
-callback requirement, leaving the clause off accepts whatever the selected
-callback publishes, and `crashes none` accepts only crash-free callbacks.
-Declare Abort when a machine can deliberately end execution:
+| Clause | Permits |
+| --- | --- |
+| `crashes Trap` | A fault from an operation, such as `+!` overflowing. |
+| `crashes Abort` | Deliberately ending execution. |
 
 ```omega
 machine require_ready(ready: bool)
@@ -131,42 +109,32 @@ crashes Abort
 }
 ```
 
-This declaration permits Abort for the machine. A guarded crash clause can
-narrow that permission to particular input conditions; a caller that rules out
-those conditions can rule out the crash. Omitting a cause forbids it.
+A public machine with no `crashes` clause promises it cannot crash. If you
+edit a helper so that it can trap, every public machine that reaches it stops
+compiling until it says `crashes Trap`. A private machine's clause is worked
+out from its body.
 
-A clause describes permitted behavior. To get trapping arithmetic, write a
-trapping operator such as `+!` or operate on a `Trapping` value; adding a crash
-clause to Exact arithmetic does not change its meaning. See [guarded crashes](../spec/language/effects.md#guarded-crashes).
+The clause permits a crash; it does not cause one. To get trapping arithmetic
+write `+!`.
 
-## Plan recovery separately
+## After a crash
 
-Returning an error takes an ordinary cleanup path. Crashing abandons the live
-state: a device may be half-programmed or a peer may have observed half a
-protocol. A supervisor needs isolation, an owner-death protocol, or a reset
-guarantee before continuing with affected resources.
+An error return runs normal cleanup. A crash abandons everything in flight: a
+device may be half-programmed, a lock may be held. Restarting gives a fresh
+start, not a resumed one, so code that survives another part's crash needs an
+isolation boundary between them. See
+[recovery](../spec/language/effects.md#recovery-and-execution-domains).
 
-Restarting creates a fresh activation. It does not resume the abandoned
-computation or establish that its buffers are safe to reuse. See
-[recovery contracts](../spec/language/effects.md#recovery-and-execution-domains).
+## Stack overflow is not a runtime failure
 
-Likewise, process exit abandons outstanding obligations. For graceful shutdown,
-finish tasks, release resources and return from the entry operation. Automatic
-cleanup must itself return normally.
+The compiler adds up the stack a program needs, including what it uses itself,
+before the program runs. Recursion that could grow the stack is rejected
+([Chapter 3](chapter_3_machines.md#loops-are-recursion)), so there is no
+stack-overflow path to handle.
 
-## Provision stack storage before execution
+## Host errors
 
-Omega accounts for stack demand, including compiler spills, before execution.
-The activation needs sufficient aligned, accessible backing for its lifetime.
-A provisioning failure belongs to startup or admission; source code does not
-gain a stack-overflow branch because register allocation used more space.
-
-The [stack reference](../spec/resources/storage.md#compiler-owned-stack-accesses)
-covers call chains, tail cycles and physical backing.
-
-## Handle host errors and cancellation
-
-A host API can use the same sum pattern:
+Operating-system failures use the same pattern:
 
 ```omega
 data ReadOutcome {
@@ -176,9 +144,10 @@ data ReadOutcome {
 }
 ```
 
-Its contract also states which buffers and handles remain valid after each
-outcome. Whether the read blocks or suspends is a separate declaration.
+Cancellation of a task is delivered the same way, as data at a point where the
+task waits. See [Chapter 18](chapter_18_concurrency.md#cancel-a-task).
 
-Cancellation is similarly delivered through task protocol data at a declared
-wait or safe point. Requesting it leaves the task's completion obligation live.
-[Concurrency](chapter_18_concurrency.md#cancel-a-task) shows the full lifecycle.
+## Where next
+
+[Chapter 17](chapter_17_drops_and_cleanup.md) covers cleanup. The complete
+rules are in [guarded crashes](../spec/language/effects.md#guarded-crashes).

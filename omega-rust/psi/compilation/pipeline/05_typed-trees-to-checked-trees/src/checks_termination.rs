@@ -5136,7 +5136,8 @@ mod ranking {
                             && program
                                 .primitive_type_reference(parameter.type_reference)
                                 .is_some()
-                    })
+                    }) || dispatch_subject_initializer(program, state, name.symbol)
+                        .is_some_and(|initializer| stable_guard(program, state, initializer))
                 }
                 ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -5148,6 +5149,34 @@ mod ranking {
                 }
                 _ => false,
             }
+        }
+
+        /*
+            A `transition subject { true -> .. false -> .. }` dispatch reads its
+            subject once into an immutable generated local (typed trees do not
+            always retain its `DispatchSubject` role, so the unspellable generated
+            name identifies it, as in checks.rs), and the parser
+            drops the guard of the final arm of an exhaustive Boolean pair. That
+            arm's only fact is the negation of the earlier arm's guard over the
+            captured local. The local cannot change between consecutive arms, so
+            it is stable exactly when the expression it captured is stable.
+        */
+        fn dispatch_subject_initializer(
+            program: &dyn ::validation::CheckingInput,
+            state: &typed_trees::state::State,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<ExpressionHandle> {
+            state_statements(program, state.statement_nodes)
+                .iter()
+                .filter_map(|statement| statement.as_local_data())
+                .find(|local| {
+                    local.symbol == symbol
+                        && (local.role == language_core::LocalBindingRole::DispatchSubject
+                            || local.name.as_str().starts_with("__transition_subject#"))
+                        && !local.is_mutable
+                        && local.initial_value.is_valid()
+                })
+                .map(|local| local.initial_value)
         }
 
         fn target_symbol_matches_state_symbol(

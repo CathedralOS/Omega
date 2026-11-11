@@ -365,6 +365,31 @@ pub(crate) mod domain_constraints {
         retained: symbols::SymbolHandle,
         arguments: &[typed_trees::types::TypeReferenceHandle],
     ) -> Vec<typed_trees::domain::DomainDefinition> {
+        select_domain_candidates_where(
+            source,
+            program,
+            authored_name,
+            reference,
+            retained,
+            |domain| {
+                typed_trees::domain::domain_accepts_carrier(program, domain, carrier, arguments)
+            },
+        )
+    }
+
+    /*
+        The same visible-name selection with the carrier test supplied by the
+        caller. A domain cast on an anonymous literal has no operand carrier to
+        test against: there the one visible domain of that name supplies it.
+    */
+    pub(crate) fn select_domain_candidates_where(
+        source: &SymbolResolvedTrees,
+        program: &TypedTrees,
+        authored_name: &str,
+        reference: Option<source::SourceSpan>,
+        retained: symbols::SymbolHandle,
+        accepts: impl Fn(&DomainDefinition) -> bool,
+    ) -> Vec<typed_trees::domain::DomainDefinition> {
         let selected = reference
             .and_then(|span| {
                 source.symbols.find_top_level_by_name_and_kinds_from_source(
@@ -382,12 +407,7 @@ pub(crate) mod domain_constraints {
         };
         let matches = if let Some(symbol) = selected {
             domain_by_symbol(program, symbol)
-                .filter(|domain| {
-                    visible(domain)
-                        && typed_trees::domain::domain_accepts_carrier(
-                            program, domain, carrier, arguments,
-                        )
-                })
+                .filter(|domain| visible(domain) && accepts(domain))
                 .cloned()
                 .into_iter()
                 .collect()
@@ -415,9 +435,7 @@ pub(crate) mod domain_constraints {
                                     authored_name,
                                     reference,
                                 ))
-                            && typed_trees::domain::domain_accepts_carrier(
-                                program, domain, carrier, arguments,
-                            ))
+                            && accepts(domain))
                         .then(|| domain.clone())
                     })
                     .collect()
@@ -1099,6 +1117,7 @@ pub(crate) mod const_arguments {
                         ));
                         program.expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left,
                                 operator: BinaryOperator::Add,
                                 right: value,

@@ -1,1 +1,1 @@
-argument `value` for state `entry` expects `LayoutStorage<Record, OtherPolicy>`
+argument `value` for state `observe` expects `LayoutStorage<Record, OtherPolicy>`

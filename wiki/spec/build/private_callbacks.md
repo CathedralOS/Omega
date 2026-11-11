@@ -9,9 +9,9 @@ requirement, or replace its selected ABI adapter and registration contract.
 
 ## Authored selection
 
-A registrar's static machine binder declares
-`requires machine Selected satisfies CallbackRequirement::call`. That
-signature-free path must select one exact overload at the binder declaration;
+A registrar's static callable parameter is typed
+`const Selected: CallbackRequirement::call`. That
+signature-free path must select one exact overload at the parameter declaration;
 signature coincidence or a uniquely visible machine cannot choose it later.
 Adding an overload that makes such a reference ambiguous is a compatibility
 break, diagnosed at the declaring trait and affected uses. No callback-specific
@@ -126,7 +126,8 @@ caller storage needs the [general foreign-retention contract](foreign_storage.md
 `invokes` describes possible synchronous entry before the registrar returns;
 it is separate from creating a future root. Bodyful machines infer direct
 invocations; bodyless requirements declare them. Omitted `invokes` on a bodyless
-requirement means no synchronous invocation. The handler's service and
+requirement means no synchronous entry; it says nothing about the provider's
+[outgoing service calls](../language/effects.md#direct-synchronous-invocation). The handler's service and
 selected operational envelope contribute to current-invocation reach. The direct
 synchronous invocation graph must be acyclic; inserting another synchronous
 trait does not break a cycle. A genuine new-activation boundary does. A package

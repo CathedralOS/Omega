@@ -466,6 +466,7 @@ pub(crate) mod contracts {
                             );
                             chain_expression = exprs(syntax_trees).insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: chain_expression,
                                     operator,
                                     right: membership,
@@ -603,6 +604,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: BinaryOperator::GreaterOrEqual,
                         right: start,
@@ -611,6 +613,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: if end_inclusive {
                             BinaryOperator::LessOrEqual
@@ -620,6 +623,7 @@ pub(crate) mod contracts {
                         right: end,
                     }));
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: lower,
                 operator: BinaryOperator::And,
                 right: upper,
@@ -692,6 +696,10 @@ pub(crate) mod contracts {
             pub return_type: syntax_trees::types::TypeReferenceHandle,
             pub admitted_same_stack_bytes: u64,
             pub same_stack_clause_span: Option<source::SourceSpan>,
+            /// The header wrote `crashes none`. That clause publishes no
+            /// contract row, so this is the only record that the empty crash
+            /// set was authored rather than omitted.
+            pub declares_no_crash_route: bool,
         }
 
         type RankedSubjects = (
@@ -1026,6 +1034,7 @@ pub(crate) mod contracts {
                     return_type,
                     admitted_same_stack_bytes,
                     same_stack_clause_span,
+                    declares_no_crash_route: crashes_none_declared,
                 },
                 input,
             ))
@@ -1327,13 +1336,14 @@ pub(crate) mod contracts {
                 || input.at_punctuation(PunctuationKind::LeftBrace)
                 || input.at_contextual("requires")
                 || input.at_contextual("ensures")
-                || input.at_contextual("terminates")
-                || input.at_contextual("reaches")
-                || input.at_contextual("effects")
-                || input.at_contextual("invokes")
-                || input.at_contextual("suspends")
-                || input.at_contextual("blocks")
-                || input.at_contextual("crashes")
+                || ((input.at_contextual("terminates")
+                    || input.at_contextual("reaches")
+                    || input.at_contextual("effects")
+                    || input.at_contextual("invokes")
+                    || input.at_contextual("suspends")
+                    || input.at_contextual("blocks")
+                    || input.at_contextual("crashes"))
+                    && !input.clause_word_is_an_operand())
                 || input.tokens.is_empty()
         }
 
