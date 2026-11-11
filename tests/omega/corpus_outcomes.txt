@@ -11745,24 +11745,33 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 1274ms expe
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/representation_agreement_through_call_result_rejected rejected 19047ms expected @a5b92c4265f0
+fail/facts/representation_agreement_through_call_result_rejected rejected 19540ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_const_name_rejected rejected 16890ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_const_name_rejected rejected 19216ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_field_rejected rejected 15792ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_field_rejected rejected 16891ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_local_rejected rejected 18067ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_local_rejected rejected 18520ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_match_join_rejected rejected 16968ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_match_join_rejected rejected 20039ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_machine_rejected rejected 16879ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_other_machine_rejected rejected 18591ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_state_rejected rejected 17973ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_other_state_rejected rejected 17988ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_parameter_rejected rejected 15545ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_parameter_rejected rejected 15855ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_target_body_rejected rejected 15515ms expected @a5b92c4265f0
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_target_body_rejected rejected 15246ms expected @a097987fd520
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
 fail/facts/required_output_path/call_result rejected 1037ms expected @a763a36a6498
 	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/required_output_path/const_name rejected 774ms expected @a763a36a6498
@@ -16912,6 +16921,9 @@ fail/proofs/borrowed_boolean_policy_wrong_validator rejected 2012ms expected @2f
 	cannot prove ensures contract for exit from check at statement 0: accepts(result, value)
 fail/proofs/call_argument_snapshot_precedes_write rejected 1836ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from invalid: snapshot.value == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/called_disjunction_requires rejected 4450ms expected @a097987fd520
+	cannot prove ensures contract for exit from unique at statement 0: left.first == right.first
+	cannot prove ensures contract for exit from unique at statement 0: left.last == right.last
 fail/proofs/case_call_wrong_subject rejected 801ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -24814,15 +24826,15 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/representation_agreement_through_call_result_exit checked 23956ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_const_name_exit checked 21677ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_field_exit checked 21855ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_local_exit checked 21688ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_match_join_exit checked 22488ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_other_machine_exit checked 19587ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_other_state_exit checked 24395ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_parameter_exit checked 20054ms check-target:macos_arm64 @a5b92c4265f0
-pass/facts/representation_agreement_through_target_body_exit checked 21886ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_call_result_exit checked 25592ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_const_name_exit checked 25367ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_field_exit checked 26570ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_local_exit checked 25795ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_match_join_exit checked 24779ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_other_machine_exit checked 22644ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_other_state_exit checked 22446ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_parameter_exit checked 22823ms check-target:macos_arm64 @a097987fd520
+pass/facts/representation_agreement_through_target_body_exit checked 24364ms check-target:macos_arm64 @a097987fd520
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
@@ -27235,6 +27247,7 @@ pass/proofs/borrowed_descriptor_bound_local_result_exit rejected 2334ms check-ta
 	cannot prove ensures contract for exit from retain at statement 0: result <= used
 	cannot prove ensures contract for exit from filter_partition at statement 2: partition.used <= partition.entries.len
 pass/proofs/builtin_unsigned_integer_ordering checked 2386ms @ccdb99ca2214
+pass/proofs/called_conjunction_requires checked 7448ms @a097987fd520
 pass/proofs/captured_entry_comparison_after_mutation checked 2621ms @ccdb99ca2214
 pass/proofs/captured_scalar_field_observations checked 3299ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/case_call_premises checked 7444ms @9af3eb514e16

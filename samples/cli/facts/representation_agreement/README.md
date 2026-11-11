@@ -85,10 +85,26 @@ The nine positive programs and nine decoder-only controls are mirrored under
 
 ## Standard-interface validation
 
-The added standard-interface executions are awaiting qualification. The local
-positive, decoder-only twin and native/Psi check run first; the other eight
-places retain the identical addition and their original transport. No passing
-standard-interface or intended-control result is claimed yet.
+The standard-interface block is proved and executed on linux_x86_64. On a
+compiler built from source `a097987fd520`, `xtask sample-gate` reports native
+exit 0 and Psi exit 0 for all nine places and a rejection for all nine
+decoder-only twins. Windows, macOS and Linux ARM64 have not run the changed
+source.
+
+Three statements in the block needed more than an empty proof body:
+
+- Each model's `unique` law concludes `core::Identity<Pair>` from two
+  `represents` premises. `pair_rebuilt` states that a record is its own fields
+  rebuilt, and `pair_same` cites it for both records, so equal fields give the
+  same record.
+- Each decoding adapter promises validity and representation, but the original
+  decoder it forwards to publishes no guarantee. The adapter picks its branch
+  with the row's validity test. For a valid frame, `first_decodes` or
+  `second_decodes` states what the decoder returns and `read_first_valid` or
+  `read_second_valid` carries that onto the returned value. For an invalid
+  frame the row's `decode_rejects` law says the decoder fails.
+- The twin's corrupted first decoder now also fails `first_decodes`, so each
+  twin reports that diagnostic beside `FirstAgreement::round_trip`.
 
 ## Published custom-interface evidence
 
