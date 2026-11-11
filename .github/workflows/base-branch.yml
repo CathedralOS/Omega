@@ -22,6 +22,6 @@ jobs:
           BASE: ${{ github.base_ref }}
         run: |
           if [ "$BASE" != "main" ]; then
-            echo "::error::This pull request targets '$BASE'. CI and landing run only for pull requests against main: rebase onto main, change the base, then push so every check starts."
+            echo "::error::This pull request targets '$BASE'. CI and landing run only for pull requests against main: rebase onto main and change the base. Both required checks start when the base becomes main."
             exit 1
           fi

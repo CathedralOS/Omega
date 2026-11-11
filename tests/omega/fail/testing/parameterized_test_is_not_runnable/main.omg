@@ -1,0 +1,44 @@
+// A test entry receives only the arguments its installed runner contract
+// supplies. This group's requirement takes a parameter no runner installs, so
+// its satisfiers are reported as not runnable and refuse the build rather than
+// being silently left out of the roster. This twin of
+// run/testing/registered_group_runs_on_both_engines differs only in the
+// requirement's parameter.
+trait Tests {
+    machine arithmetic(base: u32)
+        crashes Trap;
+}
+
+machine addition_is_correct(base: u32)
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 2u32 + 3u32 != 5u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine subtraction_is_correct(base: u32)
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 5u32 - 3u32 != 2u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine main() { }

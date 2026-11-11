@@ -6395,6 +6395,108 @@ pub(crate) mod declared_frontier_tests {
         let excessive = array(&mut program, applied, super::MAX_REFERENCE_ORIGIN_LEAVES);
         assert!(declared_carrier_references(&program, excessive).is_none());
     }
+
+    /*
+        A const argument fixes how many reference leaves an application holds, so
+        two applications of one declaration with different counts must not share a
+        leaf roster or an identity. Without its argument, the generic body's array
+        is opaque: the complete inventory refuses it rather than guessing a count.
+    */
+    #[test]
+    fn const_argument_fixes_the_leaf_count_of_each_application() {
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::expression::ExpressionNode;
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("const_test"));
+        let holder = builder
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Holder"))])
+            .start();
+        let count = builder
+            .insert_children(
+                holder,
+                [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
+            )
+            .start();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: ReferenceAccess::Mutable,
+                lifetime: Some(Identifier::from("loan")),
+            });
+        let u64_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let counted = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: reference,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: count,
+                    name: Identifier::from("N"),
+                },
+            });
+        let parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: count,
+            name: Identifier::from("N"),
+            kind: TypeParameterKind::Const {
+                type_reference: u64_type,
+            },
+            ..TypeParameter::default()
+        }]);
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                identity: Some(5),
+                name: Identifier::from("items"),
+                type_reference: counted,
+                ..DataField::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: holder,
+            name: Identifier::from("Holder"),
+            type_parameters: parameters,
+            members,
+            ..DataDefinition::default()
+        });
+        let mut applied = Vec::new();
+        for value in [1, 2] {
+            let expression = program.expression_table.insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(value),
+            ));
+            let argument = program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(expression));
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles([argument]);
+            applied.push(
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol: holder,
+                        base_name: Identifier::from("Holder"),
+                        lifetime_arguments: Vec::new(),
+                        arguments,
+                    }),
+            );
+        }
+        let one = declared_carrier_references(&program, applied[0]).unwrap();
+        let two = declared_carrier_references(&program, applied[1]).unwrap();
+        assert_eq!(one.len(), 1);
+        assert_eq!(two.len(), 2);
+        assert_ne!(
+            program.normalized_type_identity(applied[0]),
+            program.normalized_type_identity(applied[1])
+        );
+        assert!(declared_carrier_references(&program, counted).is_none());
+        let inventory = super::declared_carrier_inventory(&program, counted).unwrap();
+        assert!(inventory.known.is_empty());
+        assert_eq!(inventory.opaque.len(), 1);
+    }
 }
 pub(crate) mod declared_returns {
     use super::{is_mutable_structural_parameter, loan_owner_path, record_carrier_sources};
@@ -6886,6 +6988,20 @@ fn reference_origin_expansion_is_bounded(
     program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
+    reference_origin_expansion_bound(program, reference, false)
+}
+
+/*
+    `opaque_type_parameters` admits an unbound type parameter as a leaf that
+    expands no further. Only the opaque-aware inventory asks for that; every
+    other judgment still treats such a carrier as unbounded.
+*/
+fn reference_origin_expansion_bound(
+    program: &dyn CheckingInput,
+    reference: TypeReferenceHandle,
+    opaque_type_parameters: bool,
+) -> bool {
+    #[allow(clippy::too_many_arguments)]
     fn visit(
         program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
@@ -6894,6 +7010,7 @@ fn reference_origin_expansion_is_bounded(
         leaves: &mut usize,
         scopes: &mut DeclarationScopes,
         scope: usize,
+        opaque_type_parameters: bool,
     ) -> Option<()> {
         *visits = visits.checked_add(1)?;
         if *visits > MAX_REFERENCE_ORIGIN_VISITS || depth > MAX_REFERENCE_ORIGIN_DEPTH {
@@ -6918,6 +7035,7 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 );
             }
             TypeReferenceNode::FixedArray {
@@ -6933,13 +7051,16 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 )?;
                 let element_leaves = leaves.checked_sub(before)?;
                 if element_leaves == 0 {
                     return Some(());
                 }
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                    return None;
+                // An extent this scope cannot count is an opaque leaf for the
+                // inventory and unbounded for every other judgment.
+                let Some(length) = &fixed_array_extent(program, scopes, length, scope) else {
+                    return opaque_type_parameters.then_some(());
                 };
                 *leaves = before.checked_add(element_leaves.checked_mul(*length)?)?;
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
@@ -6953,9 +7074,17 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 );
             }
             _ => return Some(()),
+        }
+        if opaque_type_parameters
+            && let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(reference)
+            && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            return Some(());
         }
         let (data, scope) = scopes.definition(program, reference, scope)?;
         for field in program.data_member_fields(program.data_members(data)) {
@@ -6968,6 +7097,7 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 )?;
             }
         }
@@ -6981,6 +7111,7 @@ fn reference_origin_expansion_is_bounded(
         &mut 0,
         &mut DeclarationScopes::default(),
         0,
+        opaque_type_parameters,
     )
     .is_some()
 }
@@ -7642,16 +7773,75 @@ pub struct DeclaredCarrierReference {
     pub crosses_reference: bool,
 }
 
+/*
+    The element count of a fixed array in this declaration scope: a literal, or a
+    const parameter bound to an integer argument by an enclosing application
+    (`values: [u8; Count]` inside `Owner<_, 2>`). An unbound parameter, as in the
+    generic body itself, or any other extent has no count here.
+*/
+fn fixed_array_extent(
+    program: &dyn CheckingInput,
+    scopes: &DeclarationScopes,
+    length: &typed_trees::types::FixedArrayLength,
+    scope: usize,
+) -> Option<usize> {
+    match length {
+        typed_trees::types::FixedArrayLength::Literal(length) => Some(*length),
+        typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+            let (argument, _) = scopes.bound_argument(*symbol, scope)?;
+            let TypeReferenceNode::ConstExpression(expression) =
+                program.type_reference_table.type_reference(argument)
+            else {
+                return None;
+            };
+            let typed_trees::expression::ExpressionNode::Integer(value) =
+                program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            usize::try_from(value.value_u64()?).ok()
+        }
+        _ => None,
+    }
+}
+
+/*
+    The declared reference leaves of a carrier type, together with every place
+    whose type is an unbound type parameter. A generic body cannot see what such
+    a parameter is instantiated with, so the place may or may not hold references:
+    it is an opaque leaf, never an empty one.
+
+    Callers choose what an opaque leaf means for them. `declared_carrier_references`
+    refuses the whole carrier when one exists, which is what every caller that
+    needs a complete inventory (custody, result origins, cleanup) relies on. A
+    caller that can act on the known leaves alone must say why the opaque ones
+    cannot reach its judgment.
+*/
+pub struct DeclaredCarrierInventory {
+    pub known: Vec<DeclaredCarrierReference>,
+    pub opaque: Vec<Vec<checked_trees::CheckedReferenceOriginProjection>>,
+}
+
 pub fn declared_carrier_references(
     program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<DeclaredCarrierReference>> {
+    let inventory = declared_carrier_inventory(program, reference)?;
+    inventory.opaque.is_empty().then_some(inventory.known)
+}
+
+pub fn declared_carrier_inventory(
+    program: &dyn CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<DeclaredCarrierInventory> {
     use checked_trees::CheckedReferenceOriginProjection::{Element, Exact};
+    type Path = Vec<checked_trees::CheckedReferenceOriginProjection>;
     fn visit(
         program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
-        path: &mut Vec<checked_trees::CheckedReferenceOriginProjection>,
+        path: &mut Path,
         output: &mut Vec<DeclaredCarrierReference>,
+        opaque: &mut Vec<Path>,
         scopes: &mut DeclarationScopes,
         scope: usize,
     ) -> Option<()> {
@@ -7687,22 +7877,31 @@ pub fn declared_carrier_references(
         }
         if let TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
+            length,
         } = program.type_reference_table.type_reference(reference)
+            && let Some(length) = &fixed_array_extent(program, scopes, length, scope)
         {
             if *length == 0 {
                 return Some(());
             }
             let mut element_leaves = Vec::new();
+            let mut element_opaque = Vec::new();
             visit(
                 program,
                 *element_type,
                 &mut Vec::new(),
                 &mut element_leaves,
+                &mut element_opaque,
                 scopes,
                 scope,
             )?;
             u64::try_from(*length - 1).ok()?;
+            for leaf in element_opaque {
+                let mut leaf_path = path.clone();
+                leaf_path.push(Element);
+                leaf_path.extend(leaf);
+                opaque.push(leaf_path);
+            }
             if element_leaves.is_empty() {
                 return Some(());
             }
@@ -7726,23 +7925,41 @@ pub fn declared_carrier_references(
             }
             return Some(());
         }
+        // A length this declaration cannot evaluate, such as a const parameter,
+        // leaves the element count unknown: the array is opaque here.
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            opaque.push(path.clone());
+            return Some(());
+        }
         if let TypeReferenceNode::Slice { element_type } =
             program.type_reference_table.type_reference(reference)
         {
             path.push(Element);
-            visit(program, *element_type, path, output, scopes, scope)?;
+            visit(program, *element_type, path, output, opaque, scopes, scope)?;
             path.pop();
             return Some(());
         }
         if let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(reference)
         {
-            return visit(program, *base_type, path, output, scopes, scope);
+            return visit(program, *base_type, path, output, opaque, scopes, scope);
         }
         if let TypeReferenceNode::Named { symbol, .. } =
             program.type_reference_table.type_reference(reference)
             && crate::activation_claim_byte_carrier(program, *symbol).is_some()
         {
+            return Some(());
+        }
+        // Only an unbound type parameter that no earlier rule settled reaches here;
+        // its instantiation is unknown to this declaration, so it is opaque.
+        if let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(reference)
+            && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            opaque.push(path.clone());
             return Some(());
         }
         let selected = scopes.definition(program, reference, scope);
@@ -7771,7 +7988,15 @@ pub fn declared_carrier_references(
                         CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                     ),
                 ));
-                visit(program, field.type_reference, path, output, scopes, scope)?;
+                visit(
+                    program,
+                    field.type_reference,
+                    path,
+                    output,
+                    opaque,
+                    scopes,
+                    scope,
+                )?;
                 path.pop();
             }
             if matches!(member, typed_trees::data::DataMember::Variant(_)) {
@@ -7780,19 +8005,21 @@ pub fn declared_carrier_references(
         }
         Some(())
     }
-    if !reference_origin_expansion_is_bounded(program, reference) {
+    if !reference_origin_expansion_bound(program, reference, true) {
         return None;
     }
-    let mut output = Vec::new();
+    let mut known = Vec::new();
+    let mut opaque = Vec::new();
     visit(
         program,
         reference,
         &mut Vec::new(),
-        &mut output,
+        &mut known,
+        &mut opaque,
         &mut DeclarationScopes::default(),
         0,
     )?;
-    Some(output)
+    Some(DeclaredCarrierInventory { known, opaque })
 }
 
 fn declared_input_reference(

@@ -52,8 +52,14 @@ pub(crate) struct TerminalProductionView<'a> {
 }
 
 impl<'a> TerminalProductionView<'a> {
+    // Roots decide which machines the published Terminal program retains, so
+    // two products share a production only when they share that publication
+    // as well as checked source: a separately selected test root over the same
+    // source must not adopt the application's program.
     fn shares_source(&self, other: &Self) -> bool {
-        self.source_identity.same_source(&other.source_identity) && self.sources == other.sources
+        self.source_identity.same_source(&other.source_identity)
+            && self.sources == other.sources
+            && std::ptr::eq(self.publication, other.publication)
     }
 
     pub(crate) fn selection(

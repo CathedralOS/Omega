@@ -67,80 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - May a consumer re-verify a carried proof instead of searching for it again?
-
-Decision name: `specialization-certificate-reuse`.
-
-This asks for a confirmation of a reading, not a new rule. Read in context, the
-two clauses below appear to agree; the line between "a result" and "a proof"
-is ours, so the owner should confirm it before the checker is built on it.
-
-**Customer.** Rebuilding the checker on the lowered form
-([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
-retires stage 05's source-text hash cache for dependency-body judgments
-(`05_typed-trees-to-checked-trees/src/checking.rs`), and
-[what each stage may trust](wiki/drafts/designs/stage_trust.md) makes the
-checker accept an obligation only when the proof kernel has verified a proof
-of it. Generic specializations and dependency checks then need one settled
-rule for what proof work may be carried forward and what must be repeated in
-each consumer.
-
-**The two clauses.**
-
-- [Generic declarations](wiki/spec/language/generics.md#closed-applications-and-canonical-identity):
-  *"Root Build controls recorded proof-discovery effort. An unresolved
-  obligation may need a larger search allowance or an explicit theorem, but an
-  unequal key is not evidence of mathematical inequality. Carry checked
-  derivations through specialization and published artifacts without
-  re-searching under a consumer's smaller discovery budget. Ordinary formation,
-  custody and trust obligations remain in force."* The paragraphs before it
-  are about proof effort never changing identity: *"A caller's proof budget
-  cannot change inferred arguments, declaration matching, or specialization
-  keys."*
-- [Validation subjects](wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)
-  (ratified 2026-11-08): *"No result is reused: a consumer checks every
-  dependency declaration it needs afresh, and the full-package gate is a claim
-  about the library, not evidence a consumer consumes in place of checking."*
-  The same chapter says what a check of a demanded declaration is: *"a generic
-  body under its requirements, a selected conformance with its laws, a lemma
-  with valid evidence"*, and *"no fact used to accept a product may come from
-  an unchecked declaration."*
-
-**The reading to confirm.** The first clause is about proof search and the
-second about checking. A consumer does not search again for a proof that was
-already found: the derivation is carried through specialization, with concrete
-arguments substituted. A consumer does check again: it works out for itself
-what must be proved from its own program, and runs the carried derivation
-through the proof kernel against that goal. A derivation that no longer fits
-(the program changed, an assumption is missing, it is attached to another
-obligation) fails that check and is never accepted on the strength of having
-passed before. A pass verdict from an earlier compile is never used in place
-of checking.
-
-**If the reading is wrong, the alternatives are:**
-
-- **Search again in every consumer.** "No result is reused" also forbids
-  carried derivations, so each specialized body is proved from scratch in each
-  consumer, and the generics clause's discovery-budget sentence is amended to
-  match.
-- **Trust a checked template for every admitted use.** Checking a generic body
-  under its requirements suffices for all concrete selections, with only the
-  instantiation bounds re-checked and no derivation re-verified per use.
-
-**Not asked here.** How a separately built, host-trusted artifact is consumed
-is governed by `psi-execution-admission` in
-[Psi product](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-(*"receipt does not require kernel replay"*) and is not changed by this
-question, which concerns a dependency checked from source.
-
-**Withdrawn.** An earlier entry, `evidence-gated-check-removal`, asked whether
-native code should keep a runtime check when an obligation lacks
-kernel-checked evidence. It is withdrawn without a ruling: the compiler will
-not trade runtime speed for a checker defect. Kernel-checked evidence is the
-checker's own acceptance bar and a failed proof is a compile error, which
-needs no change to `psi-execution-admission`.
-
-### Q2 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
+### Q1 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
 
 Decision name: `operation-record-source-forms`.
 
@@ -204,7 +131,7 @@ structural identity unifies two all-row `satisfies` blocks with the same
 selections, and does not unify a block with an inline member body with any
 other, because *"An inline body still declares a new machine"*.
 
-### Q3 - Does explicit landing apply at a proof-level Int peer?
+### Q2 - Does explicit landing apply at a proof-level Int peer?
 
 Decision name: `explicit-landing-proof-int-peer`.
 
@@ -227,7 +154,7 @@ a fixed-integer destination, and if so how does an author acknowledge it?
 Until answered, the compiler rejects every fixed-integer implicit landing and
 keeps the proof-`Int` peer as a warning.
 
-### Q4 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
+### Q3 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
 
 Decision name: `implementation-telescope-identity`.
 
@@ -276,7 +203,7 @@ unifies only non-generic implementations that have at least one row and whose
 rows are all selection rows. Empty and generic implementations keep their
 current declaration-and-argument identity.
 
-### Q5 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+### Q4 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
 
 Decision name: `unproved-goal-form-publication`.
 
@@ -312,76 +239,499 @@ has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
 
-### Q6 - Does a local declared without an initializer hold its type's zero, or nothing until it is stored into?
+### Q5 - May a Build program select a provider for a requirement it declares itself?
 
-Decision name: `local-without-initializer`.
+Decision name: `build-declared-requirement-provider`.
+
+**Customer.** A Build program that computes a value, such as an array
+length, through a checked helper it declares in its own `build.omg`.
+`tests/omega/pass/build/selected_const_array_length_exit` does this with
+`boundary trait CheckedMath` and has not compiled since #2296.
+
+After #2331 the compiler can name such a requirement during constant
+evaluation. The program still fails, because nothing selects an
+implementation for it. One candidate exists and the compiler may not pick it:
+
+- [Provider selection](wiki/spec/build/provider_selection.md): *"Readiness
+  never searches for a satisfier, chooses the sole visible candidate"* and
+  *"Ordinary product Build::select_provider rows do not select or authorize
+  this Build-host slot"*.
+- [Execution](wiki/spec/build/execution.md): *"No satisfier search, ambient
+  import or default chooses a service implementation."*
+- `Build::await_provider` takes its implementation from a build dependency,
+  which cannot name a trait declared in the depending `build.omg`.
+
+The same call from `build()` at run time fails with
+`ProviderInstallationMissing`, so this is not specific to constants.
+
+The question:
+
+- **(a)** Should a Build program be able to select a provider for a
+  requirement it declares itself, and with what form?
+- **(b)** Or is that part of the fixture stale, to be rewritten without the
+  requirement or retired?
+
+Until answered the fixture stays red and the compiler selects nothing.
+
+### Q6 - Who approves a new rule in the proof kernel?
+
+Decision name: `kernel-rule-admission`.
+
+**Customer.** The checker on the lowered form accepts an obligation only when
+the proof kernel has checked a certificate for it. Seven correct corpus
+programs cannot be accepted because the kernel has no rule for a step their
+proofs need
+([route one measures](wiki/drafts/designs/route_one_measures.md)).
+
+This file's header says a missing operation needed for accepted behavior is
+implementation work. A kernel rule is different in one way: the kernel is the
+part everything else trusts, and a wrong rule has nothing behind it to catch
+it.
+
+The rules asked for:
+
+1. A contradiction between two values with no literal (`low <= high` against
+   a guard `high < low`).
+   [Contracts](wiki/spec/proofs/contracts.md#required-automatic-discharge)
+   lists "contradiction of an unreachable path" among the proofs the compiler
+   must find, so this one may already be owed.
+2. A quotient by a non-literal divisor.
+3. A remainder by a non-literal divisor, bounded by the dividend.
+4. A quotient related to its dividend (`value / 2 <= value`).
+5. Closed evaluation of a bitwise expression, and any rule for xor.
+6. A product related to its operand (`value * value >= value`).
+
+The question:
+
+- **(a)** May a lane add a kernel rule as ordinary implementation work, one
+  rule per pull request with its row in the kernel's rule table and tests?
+- **(b)** Or does each new kernel rule need an owner's approval, and if so
+  which of the six above are approved?
+
+Until answered no kernel rule is added and the seven programs stay unproved
+on the new route. The current checker still accepts them.
+
+### Q7 - May a caller rely on what a callee's body returns beyond its `ensures`?
+
+Decision name: `callee-result-body-summary`.
 
 **Customer.** The checker on the lowered form
-([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md),
-[places foundation lane](wiki/drafts/designs/places_foundation_lane.md))
-must decide what `let mut x: u32;` and `let mut p: Point;` hold before the
-first store, because a read there is either an ordinary read of zero or a
-compile error. The product requirement is the language's own: an author must
-know whether `let mut total: u32;` followed by `total = total + n;` is a
-valid program that starts from zero or a use of uninitialized storage.
+([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
+must decide `tests/omega/pass/contracts/boolean_result_all_normal_returns_exit`:
 
-**The clauses, which pull opposite ways.**
+```omega
+machine choose(pick: bool) -> bool {
+    transition pick {
+        true -> false
+        false -> false
+    }
+}
+machine hold(value: bool) -> bool requires value == false { true }
+machine main() {
+    let direct: bool = choose(false);
+    let observed: bool = hold(direct);
+}
+```
 
-- [State contracts](wiki/spec/language/state_contracts.md#mutation-and-subject-identity):
-  *"Uninitialized storage has no assumed zero."* and, under restored scalar
-  values, *"Entry storage may supply an initialized reaching value without an
-  earlier store in the body; no zero value or initialization is inferred for
-  uninitialized storage."*
-- [Structural access](wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
-  *"An unestablished local cannot be read: a whole read of the home, a loan
-  of it to an ordinary or boundary call, and its forwarding on a state edge
-  each require a whole store into it on every path reaching that use."* The
-  sentence sits in the paragraph on `EstablishStructuralLocal` homes (linear
-  carriers and view descriptors). The same section says of scalars only that
-  *"`EstablishPrimitiveLocal` consumes an exactly typed SSA initializer and
-  establishes the referent"*, and does not say what the initializer of a
-  declaration without one is.
-- [Dependent values](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
-  *"A zeroed storage representation can be accessed as an established value
-  only after its default-domain obligations hold."* and *"If zero satisfies
-  the default domain, the value is zero-constructible. Otherwise the type is
-  gated: construction or checked qualification must establish the domain
-  before observation."* The section is about `data` declarations and never
-  says that a `let` without an initializer zero-constructs.
-- [Language guide, chapter 3](wiki/language_guide/chapter_3_machines.md), on
-  `let mut application: Application; run(&mut application);`: *"This example
-  uses its ordinary zero initialization; a type whose invariant does not hold
-  at zero needs an explicit construction establishing that invariant."*
+`choose` publishes no `ensures`. The current checker accepts the program: it
+evaluates `choose`'s body at the call with the actual argument
+(`05_typed-trees-to-checked-trees/src/flow_transfers.rs`, `mod
+normal_returns`, reached from `capture_call`) and records `direct == false`
+as a value fact, restricted only to direct calls of checked bodies with
+scalar parameters, not to private callees or one verification unit. The new
+route uses only the callee's contract and leaves `hold`'s requirement
+unproved, which under [what each stage may trust](wiki/drafts/designs/stage_trust.md)
+rule 2 rejects the program.
 
-**What the compiler does today.** It zero-initializes both and uses the zero
-as a fact. `let mut x: u32; f(x)` with `machine f(v: u32) requires v == 0`
-is accepted, and lowers to `IntegerConstant 0`, `EstablishPrimitiveLocal`.
-`let mut p: Point; p.x = 3; f(p.y)` is accepted the same way and lowers to
-`EstablishZeroedStructural`. `tests/omega/pass/data/prefix_case_pure_sum_retirement`
-reads `let zero_value: Stored;` and expects its zero at run time.
+**Contracts checked.**
 
-**Gap.** No contract says that a declaration without an initializer is a
-zero-construction, for a scalar or for a zero-constructible `data` type. The
-guide implies it for data; state contracts read literally deny the zero as a
-fact for any uninitialized storage; structural access denies the read for
-"an unestablished local" without saying which locals are unestablished.
+- [Proof contracts](wiki/spec/proofs/contracts.md#machines-and-bundles):
+  *"`ensures` states conclusions its body must justify. Before importing a
+  callee's conclusions, a caller establishes the assumptions under the exact
+  argument substitution."* Only `ensures` is named as what a caller imports.
+- [Proof contracts](wiki/spec/proofs/contracts.md#identity-availability-and-erasure):
+  *"Private strengthening does not become a public guarantee"*, said of
+  public trait requirements and their private realizations.
+- [Machines as runtime values](wiki/spec/language/machine_values.md):
+  *"A callable field publishes the complete contract its caller may rely
+  on."* Said of callable fields, not of named calls.
+- [Effects](wiki/spec/language/effects.md), crash routes: *"Only a body
+  inside the same fingerprinted verification unit may supply a local body
+  summary; otherwise use the published ceiling."* The same rule in
+  [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md#crash).
+  Both sit in the crash-route text.
+- [Dependent values](wiki/spec/language/dependent_values.md#mutation-frames):
+  (`published-write-frames`, settled 2026-11-10): a checked body's write
+  frame is *"Inferred from the body and published"*, and *"A caller in the
+  same fingerprinted verification unit may use the body's exact summary;
+  every other caller uses the published frame."* Inference is spelled out for
+  frames and reach, not for a result.
 
-**Questions for Zac.**
+So body-derived evidence crosses a call for crash routes and write frames
+(the exact summary within one verification unit, a published inferred frame
+beyond it), and nothing says whether it may for a result. The design record treats every axis alike (*"Information derived
+from a body crosses only edges inside 'the same fingerprinted verification
+unit'; every other edge uses the authored contract"*), and lists the result
+relation as one axis; the specification does not.
 
-- **(a) Zero-constructible data:** Does `let p: Point;`, where zero satisfies
-  `Point`'s default domain, establish `p` as the zero value, so that a read
-  before any store is valid and provably reads zero?
-- **(b) Scalars:** Does `let mut x: u32;` do the same, or is `x` unestablished
-  until its first store, so that a read before it is a compile error?
-- **(c) Gated data:** For a `data` type whose default domain fails at zero, is
-  the declaration itself rejected, or accepted with every read before a whole
-  store rejected?
+**Direction reported, not ratified.** A direction relayed from the owners'
+discussion on 2026-11-11, and not in the specification: the compiler infers
+further facts from the instructions a body actually executes, with no new
+syntax (a body that writes 1000 under `ensures value > 100` acts as `ensures
+value == 1000`), rather than taking every fact only from `requires` and
+`ensures`. Its scope was not stated.
 
-**What the new checker does until this is answered.** The fail-closed
-reading: a declaration without an initializer reserves storage and holds
-nothing, and a read, copy, argument or return that some path reaches with no
-store into every leaf is refused as `Unestablished`. The emitted module still
-stores the zero the current pipeline stores, so run-time behavior is
-unchanged. If (a) or (b) is answered "zero", elaboration records the zero as
-the content the reserving operation writes and those reads become ordinary
-reads; nothing else changes.
+**Question.** Does a fact inferred from a callee's body (here `result ==
+false`, from both arms returning `false`) reach its callers when the callee's
+`ensures` does not state it?
+
+- **Scope:** (a) only inside one fingerprinted verification unit, as crash
+  routes do; (b) across a published contract as well; or (c) not for
+  results, so callers see only `ensures`.
+- **Form:** if it reaches callers, is it a summary over the formals, checked
+  once against the body, or may it use each call's actual arguments, as the
+  current checker does?
+
+Under (c) the current checker's acceptance of this fixture is an error, and
+the fixture moves to `fail/` or gains `ensures result == false`.
+
+### Q8 - What source form binds a boundary requirement to a field of a foreign function table?
+
+Decision name: `native-table-field-binding`.
+
+**Customer.** UEFI firmware hands a loader tables of function pointers, and
+`source/library/std/targets/uefi_x86_64/handoff.omg` calls four Boot Services
+entries (`allocate_pages`, `free_pages`, `get_memory_map`,
+`exit_boot_services`) through them. Each is a bodyless leaf written
+`satisfies UefiBootServices::allocate_pages via ForeignBinding::TableFunction(allocate_pages);`.
+33 corpus fixtures and probes use the same `TableFunction` / `VtableField`
+spelling, for example `samples/uefi/uefi_hello/main.omg` and
+`samples/cli/probes/native_table_call/main.omg`. The compiler already realizes
+these: it validates an `addr` field of the exact table record and a readable
+borrow of that record, then computes the target offset
+([measurement](wiki/drafts/measurements/source_free_table_fields_2026_11_02/README.md)).
+
+**What the specification says.** The ratified `build-owned-native-bindings`
+decision retires `via` and binds DllImport and syscall leaves with
+`Build::bind<Requirement>(builder, target, locator)`. For tables it says only
+what the replacement is not:
+
+- [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values):
+  *"`VtableField` is deliberately not a case of it ... it remains on its
+  explicit legacy carrier until NativeFieldIdentity has an ordinary typed
+  source form; it must not be smuggled into this sum"*.
+- The same section: *"Retiring `via` does not add table or instruction
+  variants to `ForeignBinding`: validated typed table/field mechanisms ...
+  must migrate without a compatibility parser"*, and *"A table call names a
+  validated field, not an authored numeric slot ordinal."*
+
+So `via` cannot be deleted while these leaves exist, and the specification
+names no form to move them to.
+
+**Question.** How does source bind a boundary requirement to a function-pointer
+field of a foreign table?
+
+- **(a)** A Build row with a second operand naming the field, such as
+  `Build::bind<UefiBootServices::allocate_pages, EfiBootServicesTable::allocate_pages>(builder, uefi_x86_64)`,
+  with the dispatch borrow taken from the requirement's first parameter.
+- **(b)** A field-typed declaration form in source next to the table record,
+  with no Build row.
+- **(c)** Something else. Separately: do vtable fields, which pass the table
+  itself as the first argument, and table functions, which do not, need two
+  forms?
+
+Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
+cannot delete its parser.
+
+### Q9 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+
+Decision name: `applied-provider-cycle-selection`.
+
+**Customer.** `ENTRY-CONTENT-ROOTS` on [TASKS.md](TASKS.md) accepts
+`pass/capabilities/*` through `omega run --both`.
+`tests/omega/pass/capabilities/selected_applied_synchronous_chain_exit`
+declares `FirstStage<const Phase: u64> satisfies Stage<Phase>`, whose `read`
+calls `Stage<2u64>::read()`, and `SecondStage<const Phase: u64> satisfies
+Stage<Phase>`, whose `read` returns 73. Build selects `FirstStage<1u64>` for
+`Stage<1u64>` and `SecondStage<2u64>` for `Stage<2u64>`. Neither requirement
+nor implementation states `terminates`. The product requirement is a staged
+provider chain where one application's provider calls another application of
+the same boundary.
+
+The ledger records the row `checked`, but on current `main` checking rejects
+it on every target: *"machine call cycle: `FirstStage::read` can re-enter
+itself through a selector call or boundary requirement call; termination
+across implementation selection is not yet ranked"*. Without selection,
+`FirstStage<2u64>` is a supplied implementation of `Stage<2u64>`, so
+`FirstStage<2u64>::read` → `Stage<2u64>::read` → `FirstStage<2u64>::read` is
+an unranked cycle; only the Build row for `Stage<2u64>` removes it.
+
+**Gap.** Two ratified passages give different answers:
+
+- [Provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
+  *"Psi checks every supplied implementation independently of target
+  selection."* `tests/omega/fail/termination/unselected_implementation_reentry_rejected`
+  pins that an unranked cycle through an unselected implementation rejects.
+  Read alone, this fixture rejects.
+- [Termination](wiki/spec/language/termination.md), checked dependency row:
+  *"Instantiate the exact selected operation's termination premises under its
+  actual argument substitution."* With
+  [generic selected requirements](wiki/spec/build/provider_selection.md#generic-selected-requirements)
+  (*"The selected generic member must implement the public contract for every
+  admitted application"*), read alone, only the selected `SecondStage<2u64>`
+  is called and there is no cycle.
+
+Neither says whether "supplied" ranges over every application a generic
+implementation could satisfy, or only the applications Build admits for it.
+
+**Question.**
+
+- **(a)** Does Psi's selection-independent cycle check include
+  `FirstStage<2u64>` as a supplier of `Stage<2u64>`, so the fixture rejects
+  and moves to `fail/` (or gains a ranking or `terminates` promise)?
+- **(b)** Or does the check range only over the applications Build admits for
+  each generic implementation, so the fixture is accepted and the call graph
+  must follow the exact closed application?
+
+Until answered the row is left red and the call graph is unchanged.
+
+### Q10 - May a nested helper's body rely on facts its caller holds at the call?
+
+Decision name: `nested-helper-caller-facts`.
+
+**Customer.** Private nested helpers in ranked loops, the ordinary way to split one
+machine's step into named parts. `tests/omega/fail/termination/private_stored_reference_rank_no_ambient_helper_bound`
+declares `count`, which branches on `remaining.child.count > 0` and on the `true`
+arm transitions to its nested helper `forward(remaining, counter)`. `forward`
+declares only `requires pending.child.count <= 7` and computes
+`pending.child.count - 1`. Its single arrival is that `true` arm, so the
+subtraction cannot underflow when the program runs. The fixture pins
+"exact arithmetic in machine `forward`"; the current checker accepts it, and the
+ledger records it `checked`. The file still carries the header "Expected exit: 0"
+and has no positive twin.
+
+**Gap.** Two ratified passages give different answers:
+
+- [State contracts](wiki/spec/language/state_contracts.md):
+  *"Live caller facts can discharge a nested helper's requirements; body
+  inference must justify any inferred private requirements on every arrival,
+  not grant them from lexical ancestry."* Read alone, `forward` has an inferred
+  private requirement `pending.child.count > 0`, which its only arrival
+  justifies, so the program is valid. [Assembly](wiki/spec/language/assembly.md)
+  says the same for blocks: *"admissible private contract inference can
+  discharge those goals ... but every actual incoming edge must justify any
+  inferred requirement. Public contracts cannot silently strengthen from one
+  implementation's body."*
+- [Machines](wiki/spec/language/machines.md#nested-machines-and-identity):
+  *"Nested contracts can use that static context and their own parameters, not
+  another invocation's local values or live facts."* Read alone, `forward` is
+  judged by its own contract, which does not bound the subtraction, so the
+  program rejects. #2317's lowered-form comparison classified 8 `pass/`/`run/`
+  programs as current-checker errors on this reading, among them
+  `runtime_boolean_divisor_state_exit`, `private_division_exact_pair_exit` and
+  `private_arrival_guarded_helper_range_exit`: each has a nested machine with
+  no `requires` that divides, multiplies or subtracts using its caller's path facts.
+
+Neither says whether a requirement inferred from a nested helper's body is part
+of "their own" contract, or is one of the caller's "live facts" the helper may
+not use.
+
+**Question.**
+
+- **(a)** May a private nested helper carry requirements inferred from its body,
+  each justified on every arrival? Then the fixture is a valid program and
+  moves to `pass/`, and the 8 programs stay accepted.
+- **(b)** Or is a nested helper judged only by its authored contract? Then the
+  fixture rejects, the 8 programs move to `fail/` or gain a `requires`, and the
+  state-contracts sentence on inferred private requirements needs narrowing.
+
+Until answered the row is left as recorded and the checker is unchanged.
+
+### Q11 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+
+Decision name: `validation-subjects` (`Build::validate` naming).
+
+**Customer.** The toolchain release gate, which
+[validation subjects](wiki/spec/build/validation_subjects.md#admission-and-release)
+says "checks each bundled library as a subject", and any product that wants
+its dependency checked in full with `Build::validate`.
+
+The specification's example registers dependencies as identifiers:
+
+```omega
+Build::dependency(builder, core, locator);
+Build::validate(builder, core);
+```
+
+The shipped Build vocabulary has no `Build::dependency` and names no
+dependency by identifier. A dependency is registered with
+`Build::depend(builder, Source::Path { location: "vendor" })` or
+`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
+alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+product at all; the toolchain supplies them. Today
+`omega --check source/library/core/main.omg` is refused with
+`source root ... overlaps toolchain root`, so no command can check a bundled
+library as a subject.
+
+The question:
+
+- **(a)** Is the argument of `Build::validate` the dependency's alias, as in
+  `Build::validate(builder, "vendor")`, or a new identifier form?
+- **(b)** How is a bundled library named as a subject: by
+  `Build::validate(builder, "core")` without registration, by checking the
+  library's own directory as a root (lifting the overlap refusal for the
+  toolchain's own packages), or by another form?
+
+Until answered `Build::validate` is not implemented and the release gate has
+no full-package check of `core` and `std`. Ordinary checks already treat only
+the root package as a subject.
+
+### Q12 - May a guard on one copy bound a place restored from another copy of the same version?
+
+Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
+
+**Customer.** `tests/omega/fail/contracts/scalar_copy_guard_after_source_restore`
+reads `main.items[selector]` twice, into `copied` and `saved`, with no write
+between the reads. It then writes `0` to that element, writes `saved` back,
+and branches on `copied >= 48 && copied <= 49`. The `true` arm calls
+`bounded`, which requires `main.items[selector]` to lie in `48..=49`. When the
+program runs the requirement always holds: both copies hold the value the
+element had before the two writes, and the element holds that value again.
+The fixture pins "cannot prove requires contract". The current checker
+accepts it (`mbx xtask corpus --filter` reports `rejected -> checked` at
+`c507708a7a`), and the ledger row is recorded `checked` here. The fixture
+was last edited on 2026-10-27, before the decision below.
+
+**Gap.** The ratified text reads as describing this exact program:
+
+- [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md#restored-scalar-values):
+  *"For integer copies `copied` and `saved` of that same version, their
+  equality survives later writes to the original storage. A restoring store
+  of `saved` introduces an equality for the new storage version at its
+  captured destination. A guard on `copied` can then prove bounds on a later
+  read of that version."*
+- [State contracts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value)
+  (named decision `restored-scalar-value-facts`, ratified 2026-11-02):
+  *"Writing the saved value back establishes a new equality between the
+  current contents of that exact destination and the saved value. A
+  subsequent guard on the copy may therefore justify a requirement on the
+  restored contents."*
+
+Read together, the program is valid and the fixture contradicts the
+specification. Only the state-contracts sentence says "the copy" in the
+singular. It could be read as admitting only a guard on `saved` itself, not
+on a second copy of the same version.
+
+**Question.**
+
+- **(a)** Does a guard on any integer copy of the restored version justify
+  the requirement, as the fact-validity text says? Then the program is valid.
+  The fixture moves to `pass/` or is retired, and the checker is unchanged.
+- **(b)** Or does only a guard on the copy that was written back justify it?
+  Then the fact-validity sentence narrows and the checker must stop relating
+  `copied` to the restored element.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q13 - May a denotational call observe a record with shared reference fields through a shared reference?
+
+Decision name: `shared-observation-denotational-content`.
+
+**Customer.** `tests/omega/fail/layouts/fixed_layout_policy_borrowed_content`
+declares `data Payload [copy] { left: &u64; value: u64; right: u64; }` and
+lays it out with a `FixedLayout` policy. Its `validate` machine publishes
+`ensures policy(result, storage, expected)`, where `storage` is
+`&LayoutStorage<Payload, Policy>` and `policy` reads only `storage.value`.
+The fixture's header says *"A layout cannot make a borrowed field into a
+repeatable proof value"*. It pins "the application carries forbidden
+denotational content". The current checker accepts it (`rejected -> checked`
+at `c507708a7a`), and the ledger row is recorded `checked` here. The layout plays
+no part: the same program with `storage: &Payload` is also accepted.
+
+**Cause.** #2184 (`4a194ff149`, 2026-11-09) made shared reference arguments
+use a separate `SharedObservation` content rule in
+`omega-rust/psi/compilation/validation/src/proof_contracts_core.rs`. That
+rule follows a readable reference field inside the shared referent instead
+of refusing it: *"The enclosing shared loan permits reads through these
+fields; their actual observations still retain storage and backing
+identity."* Before #2184 the argument went through the value-observation
+rule, which refuses every reference field. That refusal is the diagnostic the
+fixture pins. Slices of reference-bearing elements still refuse under the new
+rule (`fail/facts/computed_subslice_extent_nested_reference_elements_rejected`).
+
+**Gap.** These contracts were checked and do not say whether such content is
+admissible:
+
+- [Contracts](wiki/spec/proofs/contracts.md): *"A call interpreted
+  denotationally needs a checked observation-free, reach-free, crash-free,
+  terminating invocation"*, and repeated pure comparisons share a denotation
+  only for *"exact unchanged arguments"*; *"observation-dependent inputs ...
+  invalidate that reasoning"*.
+- [Invocation admission](wiki/spec/language/evaluation.md#invocation-admission)
+  lists the admission axes. None of them mentions reference fields reached
+  through a shared argument.
+- [Ownership](wiki/spec/language/ownership.md): *"Shared reference and
+  borrowed-view fields may occur in `[copy]` data ... Copying the record
+  duplicates its shared loan carriers, not its referents"*. This rule is about
+  copying, not proof use.
+
+Neither text says whether reading through a shared loan into a record whose
+fields are themselves shared references gives an argument that is
+"unchanged" and free of observations for a specification call.
+
+**Question.**
+
+- **(a)** Are readable reference fields inside a shared referent admissible
+  denotational content, as the checker has held since #2184? Then the
+  fixture is a valid program and moves to `pass/` or is retired.
+- **(b)** Or does any reference field in a denotational argument carry
+  forbidden content? Then the shared-observation rule stops following
+  reference fields, and the customer #2184 served needs another form.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q14 - Which in-memory filesystem does a test group select, and what does it implement?
+
+Decision name: `test-group-virtual-filesystem`.
+
+**Customer.** [Requirement-based test groups](wiki/spec/build/testing.md)
+require a group that selects a private in-memory filesystem
+(`memory.service<Filesystem, MemoryFilesystem>()`) to run on both engines
+under its implementation acceptance, and `TASKS.md` item `BUILD-TEST-GROUPS`
+carries that acceptance. Registration, discovery, both-engine execution and
+the roster report are implemented; no provider exists for such a group to
+select.
+
+**Gap.** These contracts were checked and do not define the provider:
+
+- [Testing](wiki/spec/build/testing.md#group-configuration-and-authority):
+  *"Benign captured output and a private in-memory filesystem require no
+  approval ceremony, but are explicitly selected"*, and *"Operations supported
+  by the delegated virtual interface use that backing; real-only or otherwise
+  unavailable operations reject without a host fallback."* It names neither
+  the virtual interface nor which operations it supports.
+- [Chapter 23](wiki/language_guide/chapter_23_testing.md#services-and-fixtures)
+  spells the selection `service<Filesystem, MemoryFilesystem>`, but std's
+  filesystem slot is the boundary trait `FilesystemService`
+  (`source/library/std/filesystem.omg`), `Filesystem` is an empty data type,
+  and no `MemoryFilesystem` exists anywhere in `source/library`.
+- [Platform services](wiki/spec/build/platform_services.md) and
+  [provider selection](wiki/spec/build/provider_selection.md) define real
+  filesystem providers and root-delegated replacement, not a virtual backing's
+  path model, initial contents or per-test state.
+
+**Question.**
+
+- **(a)** Is the virtual filesystem a std provider for the whole
+  `FilesystemService` slot, with every operation implemented over private
+  per-invocation state (directories, metadata, permissions and enumeration
+  included)?
+- **(b)** Or is it a narrower declared virtual interface (for example content
+  read/write/create/exists only), where the other `FilesystemService`
+  operations reject before execution as unsupported by the backing?
+- In either case: which library owns it (`std` or a separate test-support
+  package), what its initial contents are, and whether the selection operand
+  names the `FilesystemService` slot or the guide's `Filesystem` type.
+
+Until answered, test groups run only without services, and
+`BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.

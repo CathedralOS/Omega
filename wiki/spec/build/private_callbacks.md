@@ -126,7 +126,8 @@ caller storage needs the [general foreign-retention contract](foreign_storage.md
 `invokes` describes possible synchronous entry before the registrar returns;
 it is separate from creating a future root. Bodyful machines infer direct
 invocations; bodyless requirements declare them. Omitted `invokes` on a bodyless
-requirement means no synchronous invocation. The handler's service and
+requirement means no synchronous entry; it says nothing about the provider's
+[outgoing service calls](../language/effects.md#direct-synchronous-invocation). The handler's service and
 selected operational envelope contribute to current-invocation reach. The direct
 synchronous invocation graph must be acyclic; inserting another synchronous
 trait does not break a cycle. A genuine new-activation boundary does. A package

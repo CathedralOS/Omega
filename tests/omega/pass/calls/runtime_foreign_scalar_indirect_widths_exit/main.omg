@@ -1,7 +1,6 @@
 // Expected exit: 0. Real memcpy returns caller-buffer values at every scalar width.
 // Fixed-size inputs expose exact C storage; shared scalar loans may use narrower codecs.
 use omega_language_std::calling;
-use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 data ScalarResultPolicies {}
 data LinuxScalarResultPolicies {}
@@ -13,80 +12,36 @@ SnapshotCalling satisfies CallingPolicy {
 boundary trait SnapshotU8: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 1], count: u64) -> u8 reaches requires count == 1;
 }
-linux_x86_64 machine snapshot_U8(value: &[u8; 1], count: u64) -> u8
-satisfies SnapshotU8::copy via snapshot_binding()
-requires count == 1;
-NativeSnapshotU8 satisfies SnapshotU8 { machine copy(value: &[u8; 1], count: u64) -> u8 requires count == 1 { snapshot_U8(value, count) } }
 boundary trait SnapshotI8: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 1], count: u64) -> i8 reaches requires count == 1;
 }
-linux_x86_64 machine snapshot_I8(value: &[u8; 1], count: u64) -> i8
-satisfies SnapshotI8::copy via snapshot_binding()
-requires count == 1;
-NativeSnapshotI8 satisfies SnapshotI8 { machine copy(value: &[u8; 1], count: u64) -> i8 requires count == 1 { snapshot_I8(value, count) } }
 boundary trait SnapshotU16: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 2], count: u64) -> u16 reaches requires count == 2;
 }
-linux_x86_64 machine snapshot_U16(value: &[u8; 2], count: u64) -> u16
-satisfies SnapshotU16::copy via snapshot_binding()
-requires count == 2;
-NativeSnapshotU16 satisfies SnapshotU16 { machine copy(value: &[u8; 2], count: u64) -> u16 requires count == 2 { snapshot_U16(value, count) } }
 boundary trait SnapshotI16: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 2], count: u64) -> i16 reaches requires count == 2;
 }
-linux_x86_64 machine snapshot_I16(value: &[u8; 2], count: u64) -> i16
-satisfies SnapshotI16::copy via snapshot_binding()
-requires count == 2;
-NativeSnapshotI16 satisfies SnapshotI16 { machine copy(value: &[u8; 2], count: u64) -> i16 requires count == 2 { snapshot_I16(value, count) } }
 boundary trait SnapshotU32: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 4], count: u64) -> u32 reaches requires count == 4;
 }
-linux_x86_64 machine snapshot_U32(value: &[u8; 4], count: u64) -> u32
-satisfies SnapshotU32::copy via snapshot_binding()
-requires count == 4;
-NativeSnapshotU32 satisfies SnapshotU32 { machine copy(value: &[u8; 4], count: u64) -> u32 requires count == 4 { snapshot_U32(value, count) } }
 boundary trait SnapshotI32: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 4], count: u64) -> i32 reaches requires count == 4;
 }
-linux_x86_64 machine snapshot_I32(value: &[u8; 4], count: u64) -> i32
-satisfies SnapshotI32::copy via snapshot_binding()
-requires count == 4;
-NativeSnapshotI32 satisfies SnapshotI32 { machine copy(value: &[u8; 4], count: u64) -> i32 requires count == 4 { snapshot_I32(value, count) } }
 boundary trait SnapshotU64: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 8], count: u64) -> u64 reaches requires count == 8;
 }
-linux_x86_64 machine snapshot_U64(value: &[u8; 8], count: u64) -> u64
-satisfies SnapshotU64::copy via snapshot_binding()
-requires count == 8;
-NativeSnapshotU64 satisfies SnapshotU64 { machine copy(value: &[u8; 8], count: u64) -> u64 requires count == 8 { snapshot_U64(value, count) } }
 boundary trait SnapshotI64: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 8], count: u64) -> i64 reaches requires count == 8;
 }
-linux_x86_64 machine snapshot_I64(value: &[u8; 8], count: u64) -> i64
-satisfies SnapshotI64::copy via snapshot_binding()
-requires count == 8;
-NativeSnapshotI64 satisfies SnapshotI64 { machine copy(value: &[u8; 8], count: u64) -> i64 requires count == 8 { snapshot_I64(value, count) } }
 boundary trait SnapshotF32: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 4], count: u64) -> f32 reaches requires count == 4;
 }
-linux_x86_64 machine snapshot_F32(value: &[u8; 4], count: u64) -> f32
-satisfies SnapshotF32::copy via snapshot_binding()
-requires count == 4;
-NativeSnapshotF32 satisfies SnapshotF32 { machine copy(value: &[u8; 4], count: u64) -> f32 requires count == 4 { snapshot_F32(value, count) } }
 boundary trait SnapshotF64: Calling<SnapshotCalling> {
     machine copy(value: &[u8; 8], count: u64) -> f64 reaches requires count == 8;
 }
-linux_x86_64 machine snapshot_F64(value: &[u8; 8], count: u64) -> f64
-satisfies SnapshotF64::copy via snapshot_binding()
-requires count == 8;
-NativeSnapshotF64 satisfies SnapshotF64 { machine copy(value: &[u8; 8], count: u64) -> f64 requires count == 8 { snapshot_F64(value, count) } }
 boundary trait SnapshotBool: Calling<SnapshotCalling> {
     machine copy(value: &[bool; 1], count: u64) -> bool reaches requires count == 1;
 }
-linux_x86_64 machine snapshot_Bool(value: &[bool; 1], count: u64) -> bool
-satisfies SnapshotBool::copy via snapshot_binding()
-requires count == 1;
-NativeSnapshotBool satisfies SnapshotBool { machine copy(value: &[bool; 1], count: u64) -> bool requires count == 1 { snapshot_Bool(value, count) } }
 machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult 
     satisfies CallingPolicy::plan
 {
@@ -119,11 +74,6 @@ machine snapshot_plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "copy expects source and byte count" } }
     }
-}
-linux_x86_64 machine snapshot_binding() -> ForeignBinding<9, 6, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.14",
-    } }
 }
 machine main() crashes Trap {
     transition { _ -> check_U8() }

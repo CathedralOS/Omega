@@ -124,7 +124,10 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
    passes"` history prose). Commit all code and fixture files before running
    `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
    never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
-   or a `fail/` row as `unexpected`.
+   or a `fail/` row as `unexpected`. A regression that already exists on
+   `main` is bad news the ledger must hold: record it from a PR that changes
+   only corpus ledgers and Markdown
+   ([who may record a regression](tools/testing.md#who-may-record-a-regression)).
 6. **Stop rule: decline the patch that would add another carrier.** If your fix
    would add another carrier, case or per-place branch for a mechanism that
    already has one, stop. Write a cluster report in the claim note and your
@@ -336,7 +339,9 @@ reads the allowed lanes from this table:
   Claim an idle pool slot (`worker-1`, `worker-2`, …) via
   `cargo xtask worktree acquire <lane>-<topic>`, which resets an idle `worker-N`
   checkout to `origin/main` in place so its fixed path and warm `target/` cache
-  stay 100% valid across tasks. Release finished slots with
+  stay 100% valid across tasks. In a cloud session the slot instead starts at
+  the commit its restored build was published for; rebase onto `origin/main`
+  only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
 - **No `facts/` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under

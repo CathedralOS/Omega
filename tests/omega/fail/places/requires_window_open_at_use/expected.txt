@@ -1,0 +1,1 @@
+a prior write left data `Span`'s default domain FALSE

@@ -761,15 +761,11 @@ pub(crate) mod access_views {
                         "closed view has no exact toolchain template custody",
                     ));
                 }
-                let template_source = typed
-                    .symbols
-                    .symbol_source_span(view.template_symbol)
-                    .and_then(|span| typed.symbols.source_file(span));
-                if template_source.is_none_or(|file| {
-                    file.origin != source::SourceOrigin::Toolchain
-                        || file.path.strip_prefix(&file.package_root).ok()
-                            != Some(std::path::Path::new("layout.omg"))
-                }) {
+                if typed.symbols.sealed_intrinsic(view.template_symbol)
+                    != Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::PlacedAccessorTemplate,
+                    )
+                {
                     return Err(invalid(
                         "template does not belong to the sealed layout interface",
                     ));

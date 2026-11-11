@@ -37,7 +37,7 @@ machine exercise(application: &mut Application, end: bool, lend: bool, choice: b
     machine observe(application: &mut Application, line: &[u8; 64], count: u64, choice: bool) -> bool {
         let selected: &[u8; 64] = match choice { true -> line, false -> line };
         application.ledger.count = count as u64 in Wrapping;
-        (selected[0] as u64 in Wrapping + application.ledger.count) == 42
+        ((selected[0] as u64 in Wrapping) + application.ledger.count) == 42
     }
 }
 machine probe(end: bool, lend: bool, choice: bool) -> bool {

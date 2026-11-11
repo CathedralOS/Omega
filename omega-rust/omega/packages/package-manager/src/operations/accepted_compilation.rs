@@ -487,6 +487,12 @@ fn prepare_occurrences(
                         closure.dependency_path(&key),
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
+                // Each occurrence is the root of its own scope. A consumer
+                // compile product-checks only the root occurrence and the
+                // independent components it requires (`required_components`
+                // in orchestration); a dependency's Build already ran as a
+                // dependency activation during source resolution.
+                dependency_activation: false,
             },
             collect_timings: request.timings,
             optimization_rollback: request.product.optimization_rollback(),

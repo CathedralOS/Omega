@@ -302,6 +302,27 @@ impl Observation {
     }
 }
 
+/// One interpreter execution's empty working directory, removed afterwards.
+struct ScratchDirectory(std::path::PathBuf);
+
+impl ScratchDirectory {
+    fn create() -> std::io::Result<Self> {
+        static SEQUENCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let sequence = SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = super::sealed_fixture_staging::temporary_session_root()
+            .join(format!("interpret-{sequence}"));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path)?;
+        Ok(Self(path))
+    }
+}
+
+impl Drop for ScratchDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 pub(super) fn interpret(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     native_image: Option<&compilation_products::RetainedNativeArtifact>,
@@ -326,10 +347,20 @@ pub(super) fn interpret(
         Ok(executable) => executable,
         Err(error) => return Observation::failure(format!("native sponsor executable: {error}")),
     };
+    let scratch = match ScratchDirectory::create() {
+        Ok(scratch) => scratch,
+        Err(error) => {
+            return Observation::failure(format!("interpreter scratch directory: {error}"));
+        }
+    };
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         native_image,
         entry: None,
-        filesystem: Default::default(),
+        // The native leg runs in its own empty directory; so does this one, so
+        // relative paths never land in the runner's or another job's directory.
+        filesystem: terminal_runtime::TerminalFilesystemDelegation::HostDirectory(
+            scratch.0.clone(),
+        ),
         // The native leg runs this same product on this host; package-owned
         // reach of its admitted imports needs no further fixture policy.
         native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,

@@ -77,12 +77,6 @@
 //! artifact and records unchecked without a source replay. The check golden's
 //! canonical target and a different runtime target remain distinct program inputs.
 //!
-//! `OMEGA_CORPUS_CHECKED_INTERPRETER=1` explicitly selects the independent
-//! checked-tree source oracle instead of Terminal execution. It records
-//! `interpreter-engine:checked-tree` and consumes the exact selected entry and
-//! provisioned receiver from checked compilation; it is never a fallback for a
-//! Terminal refusal and cannot reuse a native report's Terminal artifact.
-//!
 //! A `rollback.txt` beside `main.omg` declares a release rollback overlay for
 //! the fixture: one exact optimization case name per line, the spelling
 //! `--disable-optimization` takes. The declared `OptimizationRollback` rides
@@ -150,8 +144,6 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/artifact_capture.rs"]
 mod artifact_capture;
-#[path = "support/checked_interpreter_dispatch/mod.rs"]
-mod checked_interpreter_dispatch;
 #[path = "support/entry_inputs.rs"]
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
@@ -173,10 +165,7 @@ mod runtime_oracles;
 mod terminal_execution;
 #[path = "support/terminal_inspection.rs"]
 mod terminal_inspection;
-use fixture_package_inputs::{
-    fixture_build_snapshot, repo_root, reviewed_repository_fixture_package_inputs,
-    sealed_fixture_staging,
-};
+use fixture_package_inputs::{fixture_build_snapshot, repo_root, sealed_fixture_staging};
 
 fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -570,6 +559,293 @@ fn rollback_pair_facts(
     (facts, Ok(()))
 }
 
+/// A fixture declaring `expected_application_baseline.txt` names a sibling
+/// fixture (a path relative to this fixture's directory) whose application is
+/// the same program without this fixture's test-group registration. Both are
+/// compiled to their Terminal products for this fixture's first bound target
+/// and their machine sections compared: `application-baseline-machines:same`
+/// shows no registered test root joined the application's executable code
+/// (wiki/spec/build/testing.md#products-reuse-and-native-harnesses), and
+/// `:differs` that this application retains machines its baseline lacks.
+/// `application-baseline-sections:` names every other differing module section
+/// without judging it. Names are not compared because Terminal machines carry
+/// none.
+fn application_baseline_facts(
+    root_path: &Path,
+    fixture_dir: &Path,
+    sequence: usize,
+) -> Option<Vec<String>> {
+    let declared =
+        fs::read_to_string(fixture_dir.join("expected_application_baseline.txt")).ok()?;
+    let unavailable = |reason: String| {
+        Some(vec![
+            "application-baseline:unavailable".to_owned(),
+            format!("application-baseline-reason:{}", space_free(&reason)),
+        ])
+    };
+    let baseline_dir = fixture_dir.join(declared.trim());
+    let corpus = fixture_dir
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent);
+    let contained = match (baseline_dir.canonicalize(), corpus.map(Path::canonicalize)) {
+        (Ok(baseline), Some(Ok(corpus))) => baseline.starts_with(corpus),
+        _ => false,
+    };
+    if declared.trim().is_empty() || !contained {
+        return unavailable(format!(
+            "baseline `{}` is not a corpus fixture",
+            declared.trim()
+        ));
+    }
+    let build_dir = unique_build_dir(sequence).join("application-baseline");
+    let discovered = match discover_fixture(root_path) {
+        Ok(discovered) => discovered,
+        Err(errors) => return unavailable(errors.iter().map(|e| e.message.clone()).collect()),
+    };
+    let target = discovered.targets.first().cloned();
+    let application = produce_terminal_semantic(
+        discovered,
+        build_dir.join("application"),
+        target.clone(),
+        None,
+    );
+    let baseline = discover_fixture(&baseline_dir.join("main.omg")).and_then(|discovered| {
+        produce_terminal_semantic(discovered, build_dir.join("baseline"), target, None)
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    match (application, baseline) {
+        (Ok(application), Ok(baseline)) => {
+            let application = application.artifact.artifact().view().module();
+            let baseline = baseline.artifact.artifact().view().module();
+            let sections = [
+                (
+                    "scalar_applications",
+                    application.scalar_applications != baseline.scalar_applications,
+                ),
+                (
+                    "folded_constants",
+                    application.folded_constants != baseline.folded_constants,
+                ),
+                (
+                    "indexed_theorems",
+                    application.indexed_theorems != baseline.indexed_theorems,
+                ),
+                (
+                    "mathematical_carriers",
+                    application.mathematical_carriers != baseline.mathematical_carriers,
+                ),
+                (
+                    "identity_formations",
+                    application.identity_formations != baseline.identity_formations,
+                ),
+                ("quotients", application.quotients != baseline.quotients),
+                (
+                    "vocabulary_marker",
+                    application.vocabulary_marker != baseline.vocabulary_marker,
+                ),
+                ("identities", application.identities != baseline.identities),
+                ("entry", application.entry != baseline.entry),
+                (
+                    "scalar_qualifications",
+                    application.scalar_qualifications != baseline.scalar_qualifications,
+                ),
+                (
+                    "structural_types",
+                    application.structural_types != baseline.structural_types,
+                ),
+                (
+                    "structural_referents",
+                    application.structural_referents != baseline.structural_referents,
+                ),
+                (
+                    "structural_domains",
+                    application.structural_domains != baseline.structural_domains,
+                ),
+                ("services", application.services != baseline.services),
+                (
+                    "root_service_reach",
+                    application.root_service_reach != baseline.root_service_reach,
+                ),
+                (
+                    "access_view_inputs",
+                    application.access_view_inputs != baseline.access_view_inputs,
+                ),
+                (
+                    "access_view_plans",
+                    application.access_view_plans != baseline.access_view_plans,
+                ),
+                (
+                    "access_lifecycle_plans",
+                    application.access_lifecycle_plans != baseline.access_lifecycle_plans,
+                ),
+                (
+                    "reborrow_restored_call_uses",
+                    application.reborrow_restored_call_uses != baseline.reborrow_restored_call_uses,
+                ),
+                (
+                    "boundary_machines",
+                    application.boundary_machines != baseline.boundary_machines,
+                ),
+                (
+                    "calling_signatures",
+                    application.calling_signatures != baseline.calling_signatures,
+                ),
+                (
+                    "calling_abi_signatures",
+                    application.calling_abi_signatures != baseline.calling_abi_signatures,
+                ),
+                (
+                    "calling_policy_requests",
+                    application.calling_policy_requests != baseline.calling_policy_requests,
+                ),
+                (
+                    "opaque_representations",
+                    application.opaque_representations != baseline.opaque_representations,
+                ),
+                (
+                    "unoptimized_behavior",
+                    application.unoptimized_behavior != baseline.unoptimized_behavior,
+                ),
+                (
+                    "external_providers",
+                    application.external_providers != baseline.external_providers,
+                ),
+                (
+                    "provider_candidates",
+                    application.provider_candidates != baseline.provider_candidates,
+                ),
+                (
+                    "provider_instance_requirements",
+                    application.provider_instance_requirements
+                        != baseline.provider_instance_requirements,
+                ),
+                (
+                    "boundary_application_candidates",
+                    application.boundary_application_candidates
+                        != baseline.boundary_application_candidates,
+                ),
+                (
+                    "callback_applications",
+                    application.callback_applications != baseline.callback_applications,
+                ),
+                (
+                    "installed_interrupt_registrations",
+                    application.installed_interrupt_registrations
+                        != baseline.installed_interrupt_registrations,
+                ),
+                (
+                    "dynamic_dispatch",
+                    application.dynamic_dispatch != baseline.dynamic_dispatch,
+                ),
+                (
+                    "float_meaning_projections",
+                    application.float_meaning_projections != baseline.float_meaning_projections,
+                ),
+                (
+                    "float_meaning_equalities",
+                    application.float_meaning_equalities != baseline.float_meaning_equalities,
+                ),
+                (
+                    "proposition_declarations",
+                    application.proposition_declarations != baseline.proposition_declarations,
+                ),
+                (
+                    "proposition_applications",
+                    application.proposition_applications != baseline.proposition_applications,
+                ),
+                (
+                    "evidence_terms",
+                    application.evidence_terms != baseline.evidence_terms,
+                ),
+                (
+                    "evidence_contract_lanes",
+                    application.evidence_contract_lanes != baseline.evidence_contract_lanes,
+                ),
+                (
+                    "proof_output_calls",
+                    application.proof_output_calls != baseline.proof_output_calls,
+                ),
+                (
+                    "proof_recursive_components",
+                    application.proof_recursive_components != baseline.proof_recursive_components,
+                ),
+                (
+                    "scalar_block_invariants",
+                    application.scalar_block_invariants != baseline.scalar_block_invariants,
+                ),
+                (
+                    "operation_crash_contracts",
+                    application.operation_crash_contracts != baseline.operation_crash_contracts,
+                ),
+                (
+                    "closed_conformance_applications",
+                    application.closed_conformance_applications
+                        != baseline.closed_conformance_applications,
+                ),
+                (
+                    "suspension_call_plan_count",
+                    application.suspension_call_plan_count != baseline.suspension_call_plan_count,
+                ),
+                (
+                    "suspension_call_sites",
+                    application.suspension_call_sites != baseline.suspension_call_sites,
+                ),
+                (
+                    "suspension_call_plans",
+                    application.suspension_call_plans != baseline.suspension_call_plans,
+                ),
+                ("machines", application.machines != baseline.machines),
+                (
+                    "target_machine_families",
+                    application.target_machine_families != baseline.target_machine_families,
+                ),
+                (
+                    "target_layout_applications",
+                    application.target_layout_applications != baseline.target_layout_applications,
+                ),
+                (
+                    "native_layouts",
+                    application.native_layouts != baseline.native_layouts,
+                ),
+                (
+                    "boundary_application_demands",
+                    application.boundary_application_demands
+                        != baseline.boundary_application_demands,
+                ),
+                (
+                    "task_activation_demands",
+                    application.task_activation_demands != baseline.task_activation_demands,
+                ),
+            ];
+            let differing: Vec<&str> = sections
+                .iter()
+                .filter(|(_, differs)| *differs)
+                .map(|(name, _)| *name)
+                .collect();
+            // The claim is about executable code: no test-only machine joins
+            // the application. Other sections are named, not judged, because
+            // the registration's requirement operand is itself a retained
+            // declaration reference that may add declaration metadata.
+            let mut facts = vec![if application.machines == baseline.machines {
+                "application-baseline-machines:same".to_owned()
+            } else {
+                "application-baseline-machines:differs".to_owned()
+            }];
+            if !differing.is_empty() {
+                facts.push(format!(
+                    "application-baseline-sections:{}",
+                    differing.join(",")
+                ));
+            }
+            Some(facts)
+        }
+        (Err(errors), _) | (_, Err(errors)) => {
+            unavailable(errors.iter().map(|e| e.message.clone()).collect())
+        }
+    }
+}
+
 /// The files a fixture's `expected_published.txt` promises, or `None` when it
 /// declares no publication oracle.
 fn declared_publication(fixture_dir: &Path) -> Option<Vec<String>> {
@@ -704,11 +980,7 @@ fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
 
 /// Whether runnable fixtures also execute on the explicitly selected engine.
 fn interpreter_leg() -> bool {
-    env::var_os("OMEGA_CORPUS_INTERPRET").is_some() || checked_interpreter_leg()
-}
-
-fn checked_interpreter_leg() -> bool {
-    env::var_os("OMEGA_CORPUS_CHECKED_INTERPRETER").is_some()
+    env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
 }
 
 /// Both execution legs read independent handles to the same authored byte
@@ -724,9 +996,8 @@ fn fixture_input(fixture_dir: &Path) -> std::io::Result<Box<dyn std::io::Read + 
     }
 }
 
-/// Dispatch the explicitly selected oracle. Terminal execution owns its canonical
-/// artifact and instance lifecycle; checked execution owns its independent source
-/// product. Both use reviewed fixture inputs, never an engine-refusal fallback.
+/// Interpret the fixture's own Terminal artifact. Terminal execution owns its
+/// canonical artifact and instance lifecycle and reads the reviewed fixture input.
 fn interpret_fixture(
     root_path: &Path,
     fixture_dir: &Path,
@@ -734,9 +1005,6 @@ fn interpret_fixture(
     target: String,
     rollback: Option<&OptimizationRollback>,
 ) -> terminal_execution::Observation {
-    if checked_interpreter_leg() {
-        return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
-    }
     let work_budget = match terminal_execution::work_budget(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -768,155 +1036,6 @@ fn interpret_fixture(
         work_budget,
         input,
     )
-}
-
-/// Run the source-shaped oracle only when the caller explicitly selects it.
-/// Admission, target and entry custody come from the same fixture harness as
-/// every compile leg; no source name or unsupported Terminal result selects it.
-fn interpret_checked_fixture(
-    root_path: &Path,
-    fixture_dir: &Path,
-    build_dir: PathBuf,
-    target: &str,
-    rollback: Option<&OptimizationRollback>,
-) -> terminal_execution::Observation {
-    let compile_checked = || {
-        let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
-        fixture_package_inputs::check_fixture(
-            &mut prepared,
-            target,
-            rollback.cloned().unwrap_or_default(),
-        )
-    };
-    let checked = compile_checked();
-    let _ = fs::remove_dir_all(&build_dir);
-    let checked = match checked {
-        Ok(checked) => checked,
-        Err(errors) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:unchecked".to_owned()],
-                diagnostics: errors
-                    .iter()
-                    .map(|error| host_free_diagnostic_text(&error.message))
-                    .collect(),
-            };
-        }
-    };
-    let Some(entry) = checked.execution().selected_program_entry.as_ref() else {
-        return terminal_execution::Observation::failure(
-            "checked fixture has no selected ProgramEntry",
-        );
-    };
-    let dispatch =
-        match checked_interpreter_dispatch::prepare_checked_interpreter_dispatch(&checked) {
-            Ok(dispatch) => dispatch,
-            Err(errors) => {
-                return terminal_execution::Observation {
-                    facts: vec!["interpreter:declined".to_owned()],
-                    diagnostics: errors
-                        .iter()
-                        .map(|error| host_free_diagnostic_text(&error.message))
-                        .collect(),
-                };
-            }
-        };
-    let mut input = match fixture_input(fixture_dir) {
-        Ok(input) => input,
-        Err(error) => return terminal_execution::Observation::failure(error),
-    };
-    let mut input_bytes = Vec::new();
-    if let Err(error) = std::io::Read::read_to_end(&mut input, &mut input_bytes) {
-        return terminal_execution::Observation::failure(error);
-    }
-    // The realization owner chose `target` for this fixture's check leg; a call
-    // bound to a target family runs the member body selected for that target,
-    // the same member native realization binds.
-    let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
-        .source_inspection()
-        .program()
-        .typed
-        .target_machine_families
-        .iter()
-        .filter_map(|family| {
-            family
-                .members
-                .iter()
-                .find(|member| member.target.as_str() == target)
-                .map(|member| checked_interpreter::SelectedBuildTimeMachineBody {
-                    family: family.canonical,
-                    body: member.machine,
-                })
-        })
-        .collect();
-    // The same owner supplies the x86 flags environment for this check leg:
-    // when `target` is an x86 target the host's captured image is the modeled
-    // state `pushfq` observes and `popfq` restores, matching the environment
-    // Terminal execution receives.
-    let x86_flags = if terminal_psi::RegisterTargetApplicability::X86_64.accepts_target_name(target)
-    {
-        runtime_abi::capture_host_x86_flags()
-    } else {
-        None
-    };
-    let outcome = checked_interpreter::interpret_entry(
-        checked.source_inspection().program(),
-        checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
-        &input_bytes,
-        checked_interpreter::InterpretOptions {
-            boundary_adapters: &dispatch.boundary_adapters,
-            float_comparisons: &dispatch.float_comparisons,
-            machine_bodies: &machine_bodies,
-            x86_flags,
-            ..checked_interpreter::InterpretOptions::default()
-        },
-    );
-    let mut observation = match (outcome.crash_cause, outcome.error.as_deref()) {
-        // The crash's site names where a trap fired, so a trapping harness or
-        // fixture record says which machine and state crashed.
-        (Some(typed_trees::signature::CrashCause::Trap), error) => {
-            terminal_execution::Observation {
-                facts: vec!["interpreter:trapped".to_owned()],
-                diagnostics: error
-                    .map(|site| format!("Checked interpreter: {site}"))
-                    .into_iter()
-                    .collect(),
-            }
-        }
-        (None, None) => terminal_execution::Observation {
-            facts: vec![format!("interpreter-exit:{}", outcome.exit_code)],
-            diagnostics: Vec::new(),
-        },
-        // Only the executed checked cause satisfies a Trap oracle. Internal
-        // evaluator errors and Abort remain distinct, regardless of wording.
-        (_, Some(error)) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: vec![format!("Checked interpreter: {error}")],
-            };
-        }
-        (Some(cause), None) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: vec![format!("Checked interpreter: explicit crash {cause:?}")],
-            };
-        }
-    };
-    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
-        let matches = std::str::from_utf8(&outcome.stdout)
-            .is_ok_and(|actual| actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
-        if !matches {
-            output_oracles::show_differing_stream("interpreter stdout", &outcome.stdout);
-        }
-        observation.facts.push(
-            if matches {
-                "interpreter-stdout:match"
-            } else {
-                "interpreter-stdout:differs"
-            }
-            .to_owned(),
-        );
-    }
-    observation
 }
 
 /// Observe the native report's own immutable Terminal product before publication
@@ -962,7 +1081,7 @@ fn observe_retained_terminal(
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
-    let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
+    let mut observation = if interpreter_leg() {
         match fixture_input(fixture_dir) {
             Ok(input) => terminal_execution::interpret(
                 artifact,
@@ -1761,9 +1880,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 realized = true;
                 let build_dir = unique_build_dir(sequence);
                 let interpretation = (terminal_target_oracle
-                    || (!checked_interpreter_leg() && interpreter_target.as_ref() == Some(target)))
+                    || interpreter_target.as_ref() == Some(target))
                 .then(|| {
-                    shared_interpreter_request = !checked_interpreter_leg();
+                    shared_interpreter_request = true;
                     (fixture_dir.as_path(), &mut interpreter_observation)
                 });
                 let capture = artifact_capture::Capture::from_environment(tier, &rel, target);
@@ -1839,7 +1958,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             // An authored installation matrix observes one exact portable product,
             // not separately compiled native products for its named target rows.
             (_, _, _) if terminal_target_oracle && !requests_target_cohort => {
-                shared_interpreter_request = !checked_interpreter_leg();
+                shared_interpreter_request = true;
                 let check_target = check_leg_realization_target(&targets);
                 let leg = (|| {
                     let capture = artifact_capture::Capture::from_environment(
@@ -1897,10 +2016,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             (_, _, _) => {
                 let check_target = check_leg_realization_target(&targets);
                 let interpretation = (check_target.is_some()
-                    && (terminal_target_oracle
-                        || (!checked_interpreter_leg() && check_target == interpreter_target)))
+                    && (terminal_target_oracle || check_target == interpreter_target))
                     .then(|| {
-                        shared_interpreter_request = !checked_interpreter_leg();
+                        shared_interpreter_request = true;
                         (fixture_dir.as_path(), &mut interpreter_observation)
                     });
                 let capture = artifact_capture::Capture::from_environment(
@@ -1908,6 +2026,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                     &rel,
                     check_target.as_deref().unwrap_or("terminal"),
                 );
+                if let Some(baseline) = application_baseline_facts(main, &fixture_dir, sequence) {
+                    facts.extend(baseline);
+                }
                 let check_outcome = match (&capture, &declared_rollback, &check_target) {
                     (Err(message), _, _) => {
                         Err(vec![diagnostics::Diagnostic::error(message.clone())])
@@ -1956,7 +2077,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         }
     };
     let mut interpreter_diagnostics = Vec::new();
-    if terminal_target_oracle && (!interpreter_leg() || checked_interpreter_leg()) {
+    if terminal_target_oracle && !interpreter_leg() {
         if let Some(observation) = interpreter_observation.take() {
             facts.extend(observation.facts);
             interpreter_diagnostics.extend(observation.diagnostics);
@@ -1965,9 +2086,6 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         }
     }
     if interpreter_leg() && tier != "fail" && runnable {
-        if checked_interpreter_leg() {
-            facts.push("interpreter-engine:checked-tree".to_owned());
-        }
         let observation = if let Some(observation) = interpreter_observation {
             observation
         } else if shared_interpreter_request || rollback_error.is_some() {

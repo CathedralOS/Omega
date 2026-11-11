@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // A scalar domain survives a foreign boundary through literals, locals,
 // fields, forwarding and a later state. The domain excludes abs(INT_MIN).
-use omega::language::core::external_binding;
 
 public domain i32::RepresentableMagnitude
     requires self > -2147483648; (self & 1) == 0;
@@ -10,17 +9,6 @@ public boundary trait Magnitude {
         reaches
         requires 6 in RepresentableMagnitude;
 }
-
-macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs",
-        },
-    }
-}
-macos_arm64 machine absolute(value: i32 in RepresentableMagnitude) -> i32
-    satisfies Magnitude::absolute via absolute_binding()
-    requires 6 in RepresentableMagnitude;
 
 data Main { value: i32; }
 machine forward(main: &Main, value: i32 in RepresentableMagnitude) -> i32

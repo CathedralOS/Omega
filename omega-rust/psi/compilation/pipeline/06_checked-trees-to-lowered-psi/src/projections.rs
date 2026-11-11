@@ -2083,21 +2083,25 @@ pub(crate) mod task_activation {
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             let typed = &checked.typed;
+            /*
+                A call may name a specialized copy of the requirement, which
+                has no authored declaration of its own; ask the catalog about
+                the authored trait and the member name instead.
+            */
+            use language_core::sealed_intrinsics::SealedIntrinsic;
             let Some((definition, signature, operation)) =
                 typed.traits().iter().find_map(|definition| {
-                    if !definition.is_boundary
-                        || definition.name.as_str() != "TaskRuntime"
-                        || !typed
-                            .symbol_toolchain_relative_path(definition.symbol)
-                            .is_some_and(|path| path == std::path::Path::new("task.omg"))
-                    {
+                    if !definition.is_boundary {
                         return None;
                     }
                     let signature =
                         typed.trait_machine_signature_by_symbol(definition, requirement)?;
-                    let operation = match signature.name.as_str() {
-                        "start" => TaskStartOperation::Start,
-                        "try_start" => TaskStartOperation::TryStart,
+                    let operation = match typed
+                        .symbols
+                        .sealed_member_intrinsic(definition.symbol, signature.name.as_str())
+                    {
+                        Some(SealedIntrinsic::TaskRuntimeStart) => TaskStartOperation::Start,
+                        Some(SealedIntrinsic::TaskRuntimeTryStart) => TaskStartOperation::TryStart,
                         _ => return None,
                     };
                     Some((definition, signature, operation))

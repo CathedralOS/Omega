@@ -1,6 +1,6 @@
 /*
     We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 16). Sequences are `u64` length-prefixed, byte strings are framed,
+    version 17). Sequences are `u64` length-prefixed, byte strings are framed,
     every enum uses a checked tag, and the provider identity table is serialized
     ahead of every service-schema field that indexes into it so recovery
     re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
@@ -12,11 +12,12 @@ use crate::codec_bytes::{push_count_u64, push_encoded};
 use crate::digest_encoder::content_identity;
 use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
 use effects::provider_plan::{
-    BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
-    ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow, ServiceEntryClaim,
-    ServiceMethod, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
-    ServiceProgressPremise, ServiceProgressSubject, ServiceReceiverApplication, ServiceResultClaim,
-    ServiceSchema, ServiceSchemaDigest, ServiceSurface,
+    BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderIdentityTable,
+    ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
+    ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+    ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    ServiceSurface,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
@@ -38,7 +39,7 @@ use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 16;
+const RECORD_VERSION: u16 = 17;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -332,6 +333,7 @@ fn encode_service_method(
         encode_calling_abi(&application.abi, out);
         push_encoded(out, application.plan.report_fingerprint.to_le_bytes());
         push_framed(out, &application.plan.commitment.as_bytes());
+        push_framed(out, &application.plan.promise.as_bytes());
     }
 }
 
@@ -469,6 +471,7 @@ fn recover_service_method(
                 commitment: BoundaryCallingPlanCommitment::from_digest(
                     cursor.framed()?.try_into().ok()?,
                 ),
+                promise: BoundaryCallingPlanPromise::from_digest(cursor.framed()?.try_into().ok()?),
             },
         ))
     })?;
@@ -1072,6 +1075,7 @@ mod tests {
         let calling = ServiceCallingPlan {
             report_fingerprint: 73,
             commitment: BoundaryCallingPlanCommitment::from_digest([19; 32]),
+            promise: BoundaryCallingPlanPromise::from_digest([23; 32]),
         };
         let mut attached = schema.clone();
         for actual in ["u32", "u64"] {

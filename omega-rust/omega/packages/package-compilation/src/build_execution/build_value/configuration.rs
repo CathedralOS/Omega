@@ -24,6 +24,7 @@ pub struct EvaluatedBuildSettings {
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
     pub privileged_services: PrivilegedServicesGrants, // Authored granular privileged-service grants (`port_io`, `interrupt_table`).
     pub elf_interpreters: ElfInterpreterSelections, // Authored per-target ELF loader selections (`PT_INTERP`).
+    pub tests_disabled: bool, // Authored `builder.tests.disabled`: registered groups stay checked but are reported disabled, never run or passed.
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -88,6 +89,7 @@ impl Default for EvaluatedBuildSettings {
             x86_deployment_claim: X86DeploymentClaim::Baseline,
             privileged_services: PrivilegedServicesGrants::default(),
             elf_interpreters: ElfInterpreterSelections::default(),
+            tests_disabled: false,
         }
     }
 }
@@ -262,6 +264,22 @@ pub(crate) fn extract_build_settings(
         Err(_) => ElfInterpreterSelections::default(),
     };
 
+    // Testing is enabled unless authored otherwise; builds that predate the
+    // facet carry no `tests` row and keep that default.
+    let tests_disabled = match field("tests") {
+        Ok(BuildTimeValue::Struct { fields, .. }) => match fields
+            .iter()
+            .find(|(field, _)| field == "disabled")
+            .map(|(_, value)| value)
+        {
+            Some(BuildTimeValue::Bool(value)) => *value,
+            Some(other) => return Err(format!("Build.tests.disabled is not a bool: {other:?}")),
+            None => false,
+        },
+        Ok(other) => return Err(format!("Build.tests is not a BuildTests struct: {other:?}")),
+        Err(_) => false,
+    };
+
     let (optimizations, optimization_report) = optimization_admission.extract(build)?;
 
     Ok((
@@ -274,6 +292,7 @@ pub(crate) fn extract_build_settings(
             x86_deployment_claim,
             privileged_services,
             elf_interpreters,
+            tests_disabled,
         },
         optimization_report,
     ))

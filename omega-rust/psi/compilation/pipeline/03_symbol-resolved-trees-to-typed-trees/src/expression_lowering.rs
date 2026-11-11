@@ -182,7 +182,7 @@ pub(crate) mod expression {
                                 .data_definition_by_symbol(program.symbols.get(path.symbol).parent)
                                 .is_some_and(|definition| {
                                     definition.predicate_subject_symbol == path.symbol
-                                        && !definition.where_facts.is_empty()
+                                        && !definition.requires_facts.is_empty()
                                 });
                     }
                     typed::expression::ExpressionNode::SavedSubject(saved) => {
@@ -1242,7 +1242,11 @@ pub(crate) mod expression {
                                 .target_trees
                                 .type_reference_table
                                 .insert_type_reference_handles(semantic_domain_arguments);
-                            if semantic_domain.is_empty() && !cast.form.is_recast() {
+                            // A domain entry has no carrier until its run is accounted for.
+                            if semantic_domain.is_empty()
+                                && !cast.form.is_recast()
+                                && cast.form.entry().is_none()
+                            {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     self.target_trees,
@@ -1299,7 +1303,18 @@ pub(crate) mod expression {
                                 return Ok(lowered);
                             }
                             if let Some(program) = self.program {
-                                let namespace = if call.receiver.is_valid() {
+                                let facet =
+                                    crate::expressions::product_selections::test_group_facet(
+                                        program,
+                                        self.source,
+                                        call.receiver,
+                                        call.target_symbol,
+                                        call.target.as_str(),
+                                        call.arguments.len(),
+                                    );
+                                let namespace = if let Some(build) = facet {
+                                    build
+                                } else if call.receiver.is_valid() {
                                     match self.source.expression(call.receiver) {
                                         resolved::expression::ExpressionNode::Name(path) => {
                                             path.symbol
@@ -1353,18 +1368,20 @@ pub(crate) mod expression {
                                         call.target_symbol,
                                         call.target.as_str(),
                                         &call.machine_arguments,
-                                        call.arguments.len(),
+                                        call.arguments.len() + usize::from(facet.is_some()),
                                         call.evidence_arguments.len(),
                                         self.source.source_span(expression),
                                     )?
                                 {
-                                    let arguments = self
-                                        .source
-                                        .expression_handles(call.arguments)
-                                        .to_vec()
-                                        .into_iter()
-                                        .map(|argument| self.lower_value(argument))
-                                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                                    let arguments = match facet {
+                                        Some(_) => vec![call.receiver],
+                                        None => {
+                                            self.source.expression_handles(call.arguments).to_vec()
+                                        }
+                                    }
+                                    .into_iter()
+                                    .map(|argument| self.lower_value(argument))
+                                    .collect::<Result<Vec<_>, Diagnostic>>()?;
                                     return crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
@@ -2445,8 +2462,55 @@ pub(crate) mod expression {
                 {
                     return declared_data_field(program, literal.type_symbol, member);
                 }
-                let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
-                declared_field(program, receiver, member)
+                match declared_type(program, expressions, member.receiver, depth + 1) {
+                    Some(receiver) => declared_field(program, receiver, member),
+                    None => selected_field(program, member.member_symbol),
+                }
+            }
+
+            /*
+                A member that already carries its field symbol names that
+                declaration whatever its receiver is. A case arm's payload
+                binding has no declared receiver type here, so a field read
+                through it (`inner.x`) reaches `Inner` by this route.
+            */
+            fn selected_field(
+                program: &resolved::SymbolResolvedTrees,
+                symbol: SymbolHandle,
+            ) -> Option<&DataField> {
+                if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Field {
+                    return None;
+                }
+                let owner = program.symbols.get(symbol).parent;
+                let data = match program.symbols.get(owner).kind {
+                    SymbolKind::Data => owner,
+                    SymbolKind::Variant => program.symbols.get(owner).parent,
+                    _ => return None,
+                };
+                let mut definitions = program
+                    .data_definitions
+                    .iter()
+                    .filter(|definition| definition.symbol == data);
+                let definition = definitions.next()?;
+                if definitions.next().is_some() || !exact_top_level_data_symbol(program, definition)
+                {
+                    return None;
+                }
+                let mut fields = program
+                    .data_members(definition.members)
+                    .iter()
+                    .flat_map(|node| match node {
+                        DataMember::Field(field) if owner == data => std::slice::from_ref(field),
+                        DataMember::Variant(variant) if variant.symbol == owner => {
+                            program.data_payload_fields(variant.payload)
+                        }
+                        _ => &[],
+                    })
+                    .filter(|field| {
+                        field.symbol == symbol && exact_field_symbol(program, owner, field)
+                    });
+                let field = fields.next()?;
+                fields.next().is_none().then_some(field)
             }
 
             fn declared_type<'program>(
@@ -2592,13 +2656,55 @@ pub(crate) mod expression {
                                 && exact_field_symbol(program, definition.symbol, field))
                             .then_some(field)
                         });
-                let field = fields.next()?;
+                let Some(field) = fields.next() else {
+                    return member
+                        .case_variant
+                        .is_none()
+                        .then(|| sole_payload_field(program, definition, member))
+                        .flatten();
+                };
                 if fields.next().is_some()
                     || (member.member_symbol.is_valid() && member.member_symbol != field.symbol)
                 {
                     return None;
                 }
                 Some(field)
+            }
+
+            /*
+                `shape.at` written without its case names a payload field only
+                when no common field and exactly one case declares that
+                spelling. The member then carries that field's symbol, whose
+                parent is the case, exactly as a record member carries its
+                field. A spelling two cases share stays unresolved here, and
+                whoever rejects or selects it today still does.
+            */
+            fn sole_payload_field<'program>(
+                program: &'program resolved::SymbolResolvedTrees,
+                definition: &resolved::data::DataDefinition,
+                member: &TableMemberExpression,
+            ) -> Option<&'program DataField> {
+                let mut selected = None;
+                for node in program.data_members(definition.members) {
+                    let DataMember::Variant(variant) = node else {
+                        continue;
+                    };
+                    for field in program.data_payload_fields(variant.payload) {
+                        if field.name.as_str() != member.member.as_str() {
+                            continue;
+                        }
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some((variant, field));
+                    }
+                }
+                let (variant, field) = selected?;
+                (variant.symbol.is_valid()
+                    && program.symbols.get(variant.symbol).parent == definition.symbol
+                    && exact_field_symbol(program, variant.symbol, field)
+                    && (!member.member_symbol.is_valid() || member.member_symbol == field.symbol))
+                    .then_some(field)
             }
 
             fn inferred_capture_type<'program>(

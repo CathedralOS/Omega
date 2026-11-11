@@ -34,6 +34,108 @@ pub(crate) fn check_product_source(
     let symbol_sources = typed.symbols.source_map();
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
+    // Validation subjects: the root package is checked in full; a dependency
+    // only where the root package or one of the Build's selections reaches it
+    // (`PackageCompilationInputs::is_validation_subject`).
+    let library_slice = psi_compiler::LibrarySliceRequest {
+        root_package: package_inputs.map(PackageCompilationInputs::root),
+    };
+    let mut demanded = external_roots.clone();
+    // The target realization table supplies canonical float operations, so,
+    // as for the Build activation, the sealed catalog map and its public
+    // requirements stay whether or not the program names them.
+    demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
+    // What the Build's selections name: the providers it selected and what
+    // each provides, the layout scopes' entries, and the opaque
+    // representations it chose. A check claims these with their closure
+    // (validation_subjects.md, "the obligations of the Build's selections").
+    let mut selected = Vec::new();
+    for selection in layout_scopes
+        .iter()
+        .flat_map(|scope| &scope.provider_declarations)
+        .chain(&build.provider_selections)
+        .chain(&build.default_provider_selections)
+    {
+        use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
+        selected.push(selection.provider_type.symbol);
+        match &selection.subject {
+            ProviderSelectionSubject::BoundaryTrait(identity)
+            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                selected.push(identity.symbol);
+            }
+            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                selected.extend(family.coordinates().iter().map(|row| row.symbol));
+            }
+        }
+    }
+    for scope in &layout_scopes {
+        selected.extend(scope.entry_declarations.iter().flatten().copied());
+    }
+    selected.extend(
+        build
+            .opaque_representation_selections
+            .iter()
+            .map(|selection| selection.opaque()),
+    );
+    demanded.extend(selected.iter().copied());
+    // A dependency's provider-default machines run for every product that
+    // depends on it, and settlement finds them by their purpose rather than a
+    // name, so they are preparation entries of this check.
+    demanded.extend(
+        typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            })
+            .map(|machine| machine.symbol),
+    );
+    // Each accepted semantic binding names a service declaration of the
+    // package it was accepted for, and selected execution rejoins it by that
+    // name, so the admitted bindings are obligations of this check whether or
+    // not the program calls the service.
+    for binding in package_inputs
+        .into_iter()
+        .flat_map(PackageCompilationInputs::accepted_semantic_bindings)
+    {
+        demanded.extend(
+            typed
+                .traits()
+                .iter()
+                .map(|definition| definition.symbol)
+                .chain(typed.machines().iter().map(|machine| machine.symbol))
+                .filter(|symbol| {
+                    typed.symbols.symbol_package_identity(*symbol) == Some(binding.package())
+                        && typed.symbols.display_path(*symbol, "::") == binding.declaration_path()
+                }),
+        );
+    }
+    // Representation and provider requests are read back from the Build
+    // machine that made them.
+    demanded.extend(computed_build_config.selected_build_machine_symbol);
+    // A bound root slot takes its boundary schema from the target's entry
+    // contract source. Nothing in the program names that schema, so those
+    // sources are subjects too.
+    let mut entry_contracts = Vec::new();
+    for binding in &build.root_bindings {
+        if let Some((owner, _)) = binding.slot.rsplit_once("::")
+            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
+            && let Some(package) = profile.program_entry_slot().physical_contract_package
+        {
+            entry_contracts.push(package);
+        }
+    }
+    let typed = validation::execution_projection::project_subject_program(
+        &typed,
+        |file| {
+            PackageCompilationInputs::is_validation_subject(package_inputs, file)
+                || entry_contracts.iter().any(|package| {
+                    file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new(package.package_relative_source()))
+                })
+        },
+        &demanded,
+    );
     let source_admission = psi_compiler::SourceAdmission {
         external_roots: &external_roots,
         layout_scopes: &layout_scopes,
@@ -89,9 +191,7 @@ pub(crate) fn check_product_source(
             admission: source_admission,
             previous: &previous,
             retain: reuse.retain,
-            library_slice: psi_compiler::LibrarySliceRequest {
-                root_package: package_inputs.map(PackageCompilationInputs::root),
-            },
+            library_slice,
         }
         .check_keeping_typed_frontier(frontier.is_some().then_some(&mut judged));
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
@@ -105,6 +205,8 @@ pub(crate) fn check_product_source(
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed,
             entries: external_roots.clone(),
+            subject: package_inputs.map(PackageCompilationInputs::root),
+            selected,
         });
     }
     let outcome = outcome.map_err(|mut diagnostics| {

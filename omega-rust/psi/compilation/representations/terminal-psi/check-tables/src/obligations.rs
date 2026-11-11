@@ -88,6 +88,25 @@ pub enum ObligationKind {
     /// `wiki/spec/terminal-psi/control_flow.md`: "Each partial operation still
     /// proves its own safety from facts available before it executes".
     OperationSafety { operation: OperationId },
+    /// One clause of a data type's `requires`, owed by one operation that
+    /// forms or changes a value of that type: a record or case construction,
+    /// a zero establishment, or a store into a field of a place of that type
+    /// or of a type that contains it. `wiki/spec/language/data_and_literals.md`:
+    /// "Construction and every restoring write prove the owning
+    /// default-domain clauses." The goal is the clause with `self` replaced
+    /// by the values the place holds once the operation completes, proved
+    /// from what is known before it.
+    /// `wiki/spec/terminal-psi/structural_access.md`: "The obligation binds
+    /// the initializer or replacement SSA value, never the old field
+    /// contents."
+    ///
+    /// One operation can owe clauses of several types: a store to `l.from.x`
+    /// owes `Point`'s for `l.from` and `Line`'s for `l`. `clause` is the
+    /// position in the operation's whole list: the types that own the
+    /// written path from the innermost outward, or for a zero establishment
+    /// the data-typed places of the zero value in declaration order, parent
+    /// first; within one type its clauses in authored order.
+    DataDomain { operation: OperationId, clause: u32 },
     /// A block invariant on one incoming edge. control_flow.md: "A scalar
     /// block invariant is a semantic row identifying a machine, destination
     /// block, scalar predicate, and one obligation for every actual incoming
@@ -192,6 +211,13 @@ mod tests {
         };
         assert!(loan.is_conserved() && window.is_conserved());
         assert!(!ObligationKind::ArrivalInvariant { edge }.is_conserved());
+        assert!(
+            !ObligationKind::DataDomain {
+                operation: OperationId::new(1).unwrap(),
+                clause: 0,
+            }
+            .is_conserved()
+        );
         assert!(
             !ObligationKind::NormalGuarantee {
                 exit: edge,

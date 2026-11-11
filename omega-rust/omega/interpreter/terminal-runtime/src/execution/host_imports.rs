@@ -268,6 +268,14 @@ impl<'host> HostContext<'host> {
         native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {
+        // The sponsor resolves its own relative paths (libc, Windows), so a
+        // rooted namespace starts it in that root as well.
+        let native_provider = native_provider.map(|mut command| {
+            if let super::TerminalFilesystemDelegation::HostDirectory(root) = &filesystem {
+                command.current_dir(root);
+            }
+            command
+        });
         Self {
             native: native_provider::NativeContext::new(native_provider, native_services),
             filesystem: filesystem::FilesystemContext::new(filesystem),

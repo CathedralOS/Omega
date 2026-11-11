@@ -1,0 +1,31 @@
+// `saved` routes its guarantee back onto the read of `ticket`. After that
+// statement the read stands for the storage, so the write in the next
+// statement retires it before that statement reads `ticket` again: the
+// second argument of `both` is the replaced value, not the issued one.
+data Ticket [copy] { amount: i32; marker: i32; }
+domain Ticket::Issued established by Ticket::issue;
+
+machine Ticket::issue() -> Ticket
+ensures result in Ticket::Issued {
+    Ticket { amount: 41, marker: 9 }
+}
+
+machine replace(ticket: &mut Ticket) -> bool {
+    ticket = Ticket { amount: 0, marker: 0 };
+    true
+}
+
+machine saved(ticket: Ticket) -> bool
+requires ticket in Ticket::Issued
+ensures ticket in Ticket::Issued {
+    true
+}
+
+machine both(changed: bool, ticket: Ticket)
+requires ticket in Ticket::Issued {}
+
+machine main() {
+    let mut ticket: Ticket = Ticket::issue();
+    let captured: bool = saved(ticket);
+    both(replace(&mut ticket), ticket);
+}

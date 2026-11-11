@@ -156,6 +156,10 @@ Dated cost and failure evidence, superseded by a later run.
   a boundary trait that inherits an ordinary trait can be passed, named and
   stored as a static implementation of it, still routed through the slot;
   delete when the board item lands.
+- [`invokes` as an entry ceiling](designs/invokes_entry_ceiling.md): `invokes`
+  bounds synchronous entry into callbacks and inbound entries, and a
+  provider's host calls move to its derived inventory; delete when the board
+  item lands.
 - [Required automatic discharge](designs/required_automatic_discharge.md):
   the obligations every checker proves unaided are order reasoning and range
   propagation, with `--floor-only` to confirm sources need nothing more;
@@ -230,7 +234,16 @@ Dated cost and failure evidence, superseded by a later run.
 - [Check on the lowered form](designs/check_on_lowered_form.md): architecture
   decision. Elaborate typed trees to unsealed Terminal Psi by structure alone,
   then check on that form, replacing Psi 05, validation and Psi 06 after one
-  proven route.
+  proven route. Further construct families wait on its four-condition gate.
+
+- [Type and value parameters on the lowered form](designs/lowered_type_generics.md):
+  proposal for condition 3 of that gate beyond implementation parameters: a
+  rigid sort for an opaque `T`, concrete arms under type equations, and
+  certificates carried by substitution; delete when the gate decides it.
+
+- [Route one measures](designs/route_one_measures.md): the eight gate
+  measures of that route and the verdict against its first stop rule, since
+  replaced by the gate.
 
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
   compiler rules for stage outputs and `"validated"` claims, and the rule that

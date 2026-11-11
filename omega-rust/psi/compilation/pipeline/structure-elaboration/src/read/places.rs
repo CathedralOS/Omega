@@ -16,10 +16,12 @@ read: a payload member is the payload field its symbol names.
 
 The slice served is copy-eligible plain data: a record whose fields, or a sum
 whose payload fields, are builtin integers, `bool` or other such data.
-Everything else about a `data` declaration is refused by name, and later
-slices add to these functions rather than replace them: data `requires`
-(`type data requires`), custody (`type data with custody`), common fields
-beside cases (`type mixed data`). Stores into a record's fields are read in
+A declaration's `requires` is read into `RecordType::requires` by the clause
+reader the machine contracts use (`contracts`), over `self` and its fields;
+a `requires` on a case is refused (`type data requires`). Everything else
+about a `data` declaration is refused by name, and later slices add to these
+functions rather than replace them: custody (`type data with custody`),
+common fields beside cases (`type mixed data`). Stores into a record's fields are read in
 `statements`, dispatch over a sum in `transitions`.
 */
 
@@ -34,6 +36,7 @@ use typed_trees::expression::{
     TableMemberExpression, TableStructLiteral,
 };
 
+use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -43,13 +46,13 @@ use crate::{SourceOrigin, Unserved, refuse};
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
 /// body holds positions.
 pub(super) struct RecordSource {
-    declaration: SymbolHandle,
-    fields: Vec<SymbolHandle>,
-    cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+    pub(super) declaration: SymbolHandle,
+    pub(super) fields: Vec<SymbolHandle>,
+    pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
 
 /// What a member's field symbol names in its receiver's data type.
-enum Member {
+pub(super) enum Member {
     Field(usize),
     Payload { case: usize, field: usize },
 }
@@ -176,12 +179,42 @@ impl Program<'_> {
             identity,
             fields: declared,
             cases: case_types,
+            requires: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
             fields: field_symbols,
             cases: case_symbols,
         });
+        // The declaration's `requires`, read once the fields and cases it
+        // names have their identities, by the clause reader the machine
+        // contracts use.
+        let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let scope = ClauseScope {
+            slots: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a data clause"),
+            formal_fields: false,
+            subject: Some(DataSubject {
+                record,
+                symbol: data.predicate_subject_symbol,
+                root,
+            }),
+        };
+        let facts = super::span(
+            &typed.proof_facts,
+            data.requires_facts,
+            id,
+            "data requires span",
+        )?;
+        let mut requires = Vec::with_capacity(facts.len());
+        for fact in facts {
+            requires.push(self.clause(id, &scope, self.fact(id, fact)?)?);
+        }
+        self.records
+            .get_mut(record)
+            .ok_or_else(|| unserved("record identity"))?
+            .requires = requires;
         Ok(ValueType::Record(record))
     }
 
@@ -211,7 +244,11 @@ impl Program<'_> {
         terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)
     }
 
-    fn data_type(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordType> {
+    pub(super) fn data_type(
+        &self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&RecordType> {
         terminal_check_tables::row(&self.records, record, id, Construct::Machine)
     }
 
@@ -233,7 +270,7 @@ impl Program<'_> {
     /// What the field symbol of a member names in `record`: a field, or a
     /// payload field of one of its cases. Each field symbol is one
     /// declaration, so at most one answer exists.
-    fn member_of(
+    pub(super) fn member_of(
         &self,
         id: MachineId,
         record: StructuralTypeId,
@@ -318,11 +355,83 @@ impl Program<'_> {
             })
     }
 
+    /// `let { a, b as _ } = subject;`: the marker local of a record pattern.
+    /// It binds nothing and lowers to nothing. The bound fields are the
+    /// ordinary locals that follow it, each a field read of the subject; the
+    /// marker only says which fields the author named, and the pattern is
+    /// served when those are every field of the subject's record.
+    /// `wiki/spec/language/patterns.md`: "A pattern that can fail rejects; a
+    /// binding introduces no hidden branch, trap, fallback or runtime
+    /// assertion." Coverage is read from the roster's field symbols and the
+    /// record's own; no spelling is compared.
+    pub(super) fn record_pattern(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Checked<()> {
+        let refused = |what| refuse(id, Construct::Machine, what);
+        if !local.pattern_subject.is_valid() {
+            return Err(refused(Unserved::Spelling(
+                "record pattern without a resolved subject",
+            )));
+        }
+        let subject = self.expression(id, slots, local.initial_value, None)?;
+        let mut place = &subject;
+        while let ExpressionKind::Field { base, .. } = &place.kind {
+            place = base;
+        }
+        if !matches!(place.kind, ExpressionKind::Slot(_)) {
+            return Err(refused(Unserved::Statement(
+                "record pattern over a value that is not a place",
+            )));
+        }
+        let Some(ValueType::Record(record)) = subject.result else {
+            return Err(refused(Unserved::Typing(
+                "record pattern over a value that is not a record",
+            )));
+        };
+        let source =
+            terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?;
+        if source.declaration != local.pattern_subject {
+            return Err(refused(Unserved::Typing(
+                "record pattern resolved against another record",
+            )));
+        }
+        if !source.cases.is_empty() {
+            return Err(refused(Unserved::Typing("record pattern over a sum")));
+        }
+        let roster = self
+            .typed
+            .expression_table
+            .match_fields(local.pattern_fields);
+        if roster
+            .iter()
+            .any(|row| !row.field_symbol.is_valid() || !source.fields.contains(&row.field_symbol))
+        {
+            return Err(refused(Unserved::Spelling(
+                "record pattern field without a symbol",
+            )));
+        }
+        if source
+            .fields
+            .iter()
+            .any(|field| !roster.iter().any(|row| row.field_symbol == *field))
+        {
+            return Err(refused(Unserved::Statement(
+                "record pattern that omits a field",
+            )));
+        }
+        Ok(())
+    }
+
     /// `receiver.member`: a field of the record, or a payload field of a
     /// case of the sum, that the receiver names. Which of the two is read
     /// from the member's field symbol; a member the typed trees hold only as
-    /// a spelling is refused, and stage 02 leaves a directly authored
-    /// payload member (`s.at`) in that form.
+    /// a spelling is refused. A directly authored payload member (`s.at`)
+    /// carries its payload field's symbol when exactly one case declares
+    /// that field, as stage 03 records it; whether the sum holds that case
+    /// where it is read is judged on the lowered form.
     pub(super) fn member(
         &mut self,
         id: MachineId,
@@ -634,12 +743,6 @@ fn record_shape<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    if !data.where_facts.is_empty()
-        || data.predicate_subject_symbol.is_valid()
-        || data.predicate_subject_type.is_valid()
-    {
-        return unserved("data requires");
-    }
     // Copy eligibility (`places_foundation_lane.md`): "data with no disposal
     // obligation, no linear or affine field, no reference field and no
     // attached `Drop`". ownership.md: "Plain unrestricted primitive-array,
@@ -652,9 +755,9 @@ fn record_shape<'m>(
     if data.properties.carry.is_some() {
         return unserved("data with a carry policy");
     }
-    if data.zero_gated {
-        return unserved("zero-gated data");
-    }
+    // `zero_gated` is not read: whether the zero value satisfies the
+    // declaration's `requires` is this route's own proof question, asked
+    // where a local of the type is declared without an initializer.
     if !data.retired_identities.is_empty() {
         return unserved("data with retired field identities");
     }
@@ -668,7 +771,7 @@ fn record_shape<'m>(
         match member {
             DataMember::Variant(variant) => {
                 cases = true;
-                if !variant.where_facts.is_empty() {
+                if !variant.requires_facts.is_empty() {
                     return unserved("data requires");
                 }
                 if !variant.retired_payload_identities.is_empty() {
@@ -687,9 +790,8 @@ fn record_shape<'m>(
         }
     }
     // Common fields beside cases: a case literal names no common field
-    // (`Token::Mark { kind: 2 }`), so what they hold after construction is
-    // the zero-initialization question `OWNER_QUESTIONS.md` records as
-    // `local-without-initializer`. Refused until it is answered.
+    // (`Token::Mark { kind: 2 }`), so what they hold after construction
+    // is a rule of its own that no slice of this lane lowers yet.
     if fields && cases {
         return unserved("mixed data");
     }
@@ -733,10 +835,9 @@ mod tests {
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
         assert_eq!(record_shape(machine(), &data, &members, |_| &[]), Ok(()));
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 11] = [
-            ("type data requires", |data, _| {
-                data.where_facts = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
-            }),
+        // A declaration-level `requires` is no longer refused here: its
+        // clauses are read by the clause reader. A case-level one still is.
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 10] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Affine;
             }),
@@ -755,7 +856,7 @@ mod tests {
             }),
             ("type data requires", |_, members| {
                 *members = vec![DataMember::Variant(DataVariant {
-                    where_facts: HandleSpan::from_parts(Handle::from_parts(1, 1), 1),
+                    requires_facts: HandleSpan::from_parts(Handle::from_parts(1, 1), 1),
                     ..DataVariant::default()
                 })];
             }),

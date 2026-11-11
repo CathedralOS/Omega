@@ -617,9 +617,9 @@ def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     return tuple(row if len(row) == 40 else row + (0, 0) for row in rows)
 
 
-# The clause kinds whose rows hold a fact expression: requires, ensures and
-# where.
-FACT_CLAUSES = (6, 7, 8)
+# The clause kinds whose rows hold a fact expression: requires and ensures.
+# Tag 8 belonged to the retired `where` and is not reused.
+FACT_CLAUSES = (6, 7)
 
 
 def clause_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
@@ -1447,6 +1447,8 @@ def machine_form_cases(program: str) -> None:
     )
     assert actual.machines[0][30:35] == (1, 1, *span(source, b"+")), actual.machines
 
+    # `where` is retired in every clause position; it rejects at its own
+    # token, as a requirement contract or as a fact clause.
     retired = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
     rejected(program, "retired-where-machine", retired, 201,
              span(retired, b"where")[1:], generic_parameter_count=1,
@@ -3390,8 +3392,7 @@ def main() -> None:
     for name, source, diagnostic, span, counts in clause_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
 
-    # A state's arrival `requires` facts share the clause table; a state
-    # admits no other clause and a machine admits no `where`.
+    # A state's arrival `requires` facts share the clause table.
     source = b"machine f(n: u64) { machine s(n: u64) requires n < 9 requires n > 0 {} }"
     status, payload = run(program, source)
     assert status == 0, f"state-requires: status {status}"
@@ -3405,8 +3406,8 @@ def main() -> None:
     assert actual.machines[1][13:15] == (0, 2), f"state-requires:\n{actual.machines}"
     assert actual.machines[0][13:15] == (0, 0), f"state-requires:\n{actual.machines}"
 
-    # `requires` and `ensures` facts continue after `,` like `where` facts:
-    # each fact is its own clause row, spanning from its first token.
+    # `requires` and `ensures` facts continue after `,`: each fact is its
+    # own clause row, spanning from its first token.
     source = b"machine f(n: u64) ensures n > 0, n < 9 { machine s(n: u64) requires n < 9, n > 0, {} }"
     status, payload = run(program, source)
     assert status == 0, f"fact-lists: status {status}"
@@ -3424,7 +3425,7 @@ def main() -> None:
     assert actual.machines[0][13:15] == (0, 2), f"fact-lists:\n{actual.machines}"
     assert actual.machines[1][13:15] == (2, 2), f"fact-lists:\n{actual.machines}"
     admission_rejections = (
-        ("machine-where", b"machine f() where 1 {}", 105, (12, 17), {}),
+        ("machine-where", b"machine f() where 1 {}", 201, (12, 17), {}),
     )
     for name, source, diagnostic, span, counts in admission_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
@@ -3438,16 +3439,16 @@ def main() -> None:
     assert [row[0] for row in actual.clauses] == [6, 6], f"data-requires:\n{actual.clauses}"
     assert actual.data_items[0][16:18] == (0, 2), f"data-requires:\n{actual.data_items}"
     assert actual.cases[0][12:14] == (2, 0), f"data-requires:\n{actual.cases}"
-    for name, word in (("retired-case-where", b"where"), ("retired-case-requires", b"requires")):
+    for name, word, diagnostic in (("retired-case-where", b"where", 201), ("retired-case-requires", b"requires", 203)):
         source = b"data D { case C(x: u8) " + word + b" x < 9; }"
         start = source.index(word)
-        rejected(program, name, source, 203, (start, start + len(word)),
+        rejected(program, name, source, diagnostic, (start, start + len(word)),
                  payload_field_count=1, type_reference_count=1)
     where_rejections = (
-        ("retired-data-where", b"data D where a {}", 105, (7, 12), {}),
+        ("retired-data-where", b"data D where a {}", 201, (7, 12), {}),
         ("requires-fact", b"data D requires {}", 95, (16, 17), {}),
         ("requires-separator", b"data D requires a b {}", 11, (18, 19), {"expression_count": 1}),
-        ("case-where-fact", b"data D { case C where ; }", 203, (16, 21), {}),
+        ("case-where-fact", b"data D { case C where ; }", 201, (16, 21), {}),
     )
     for name, source, diagnostic, span, counts in where_rejections:
         rejected(program, name, source, diagnostic, span, **counts)

@@ -74,10 +74,9 @@ impl Program<'_> {
                             at = base;
                         }
                         ExpressionKind::Slot(slot) => break *slot,
-                        // A payload member with a field symbol comes only
-                        // from a pattern binding, which is not assignable; a
-                        // directly authored payload destination (`s.at = x`)
-                        // has no symbol and was refused as a spelling above.
+                        // A payload is stored into through its case's
+                        // dispatch binding or a directly authored member
+                        // (`s.at = x`); neither store is lowered yet.
                         ExpressionKind::Payload { .. } => {
                             return Err(unserved("store into a case payload"));
                         }
@@ -146,6 +145,8 @@ impl Program<'_> {
             language_core::LocalBindingRole::AtomicObservedResult => {
                 return unserved("atomic observed result");
             }
+            // A pattern's marker binds no value: the body driver reads it
+            // with `record_pattern` and never as a local.
             language_core::LocalBindingRole::RecordPattern => {
                 return unserved("record pattern binding");
             }

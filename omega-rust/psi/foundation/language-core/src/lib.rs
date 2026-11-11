@@ -8,7 +8,8 @@ catalog contracts and scratch-register tables (`inline_assembly`), operator
 spellings (`operator_spelling`), compiler-owned layout query names
 (`data_layout_queries`), evaluated constant values (`constant_value`), and core
 surface operation descriptors (`activation_storage`, `descriptor_tables`,
-`layout_storage`, `static_interrupts`).
+`layout_storage`, `static_interrupts`), and the sealed intrinsic catalog of
+bundled declarations that receive compiler custody (`sealed_intrinsics`).
 */
 
 /*
@@ -29,6 +30,7 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 
 pub mod atomic;
 pub mod inline_assembly;
+pub mod sealed_intrinsics;
 mod source_semantics;
 
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
@@ -67,6 +69,38 @@ pub mod cast_form {
         #[default]
         Value, // Value conversion (`x as T`).
         Recast(crate::ReferenceAccess), // Re-view the same backing with the stated reference access.
+        /*
+            One `=D`, `-D` or `+D` entry of a domain cast (domains.md, "Domain
+            casts"). The parser writes one node per entry because each entry
+            names one domain; typing accounts for the whole run at once and
+            then leaves ordinary `Value` casts behind, so no later stage sees
+            this form.
+        */
+        Entry(CastEntry),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CastEntryKind {
+        Keep,   // `=D`: the operand carries `D` and so does the result.
+        Remove, // `-D`: the operand carries `D` and the result does not.
+        Add,    // `+D`: the operand lacks `D` and the result carries it.
+    }
+
+    impl CastEntryKind {
+        pub const fn sign(self) -> &'static str {
+            match self {
+                Self::Keep => "=",
+                Self::Remove => "-",
+                Self::Add => "+",
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CastEntry {
+        pub kind: CastEntryKind,
+        pub first: bool, // The innermost entry: its operand is the value the whole cast accounts for.
+        pub after_carrier: bool, // The run follows `as T`, which may only add.
     }
 
     impl CastForm {
@@ -76,8 +110,15 @@ pub mod cast_form {
 
         pub const fn recast_access(self) -> Option<crate::ReferenceAccess> {
             match self {
-                Self::Value => None,
+                Self::Value | Self::Entry(_) => None,
                 Self::Recast(access) => Some(access),
+            }
+        }
+
+        pub const fn entry(self) -> Option<CastEntry> {
+            match self {
+                Self::Entry(entry) => Some(entry),
+                Self::Value | Self::Recast(_) => None,
             }
         }
     }
@@ -362,19 +403,6 @@ pub mod static_interrupts {
                 Self::Context => 1,
                 Self::BeginCompletion => 2,
                 Self::FinishCompletion => 3,
-            }
-        }
-
-        pub fn from_core_declaration(name: &str, source: &[u8]) -> Option<Self> {
-            if source != CORE_DECLARATIONS {
-                return None;
-            }
-            match name {
-                "X86StaticInterruptScope::run" => Some(Self::Install),
-                "view_static_interrupt_context" => Some(Self::Context),
-                "begin_static_interrupt_completion" => Some(Self::BeginCompletion),
-                "finish_static_interrupt_completion" => Some(Self::FinishCompletion),
-                _ => None,
             }
         }
     }

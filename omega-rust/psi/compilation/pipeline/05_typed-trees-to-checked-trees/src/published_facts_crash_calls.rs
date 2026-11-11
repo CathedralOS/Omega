@@ -5240,6 +5240,60 @@ pub(super) fn attach_checked_crash_calls(
                                 };
                                 (capsule, signature)
                             };
+                            // effects.md, "Static binder contract dependencies": a
+                            // requirement that publishes no crash route defers to
+                            // the selection (`crashes none` admits only crash-free
+                            // members, so their routes are empty), and an
+                            // application "receives ... the selected published
+                            // routes". Where the call names its realization, the
+                            // call keeps the requirement's identity and contract
+                            // and takes that member's routes over its formals.
+                            let deferred = capsule
+                                .published_buckets()
+                                .is_empty()
+                                .then(|| call_site.static_requirement_dispatch())
+                                .flatten()
+                                .and_then(|dispatch| {
+                                    let machine =
+                                        program.machine_by_symbol(dispatch.realization_machine)?;
+                                    let state = program
+                                        .state_in_machine(machine, dispatch.realization_state)?;
+                                    let index =
+                                        *plan_indices.get(&dispatch.realization_machine)?;
+                                    let plan = plans.get(index)?;
+                                    let routes = if !machine.target_family_interface
+                                        && !plan.crash.published().is_empty()
+                                    {
+                                        SelectedTargetCrashRoutes::Published {
+                                            buckets: plan.crash.published(),
+                                            contracts: program.machine_contracts(machine),
+                                        }
+                                    } else if machine.target_family_interface
+                                        || machine.supply_mode
+                                            == language_semantics::MachineSupplyMode::CheckedBody
+                                    {
+                                        SelectedTargetCrashRoutes::Private(
+                                            summary_by_machine.get(&dispatch.realization_machine)?,
+                                        )
+                                    } else {
+                                        SelectedTargetCrashRoutes::Empty
+                                    };
+                                    Some((
+                                        program.state_parameters(state),
+                                        plan_entry_parameter_names[index].as_slice(),
+                                        routes,
+                                    ))
+                                });
+                            if let Some((member_parameters, member_names, routes)) = deferred {
+                                (
+                                    member_parameters,
+                                    Vec::new(),
+                                    Some(member_names),
+                                    routes,
+                                    capsule.target_contract_report_fingerprint(),
+                                    capsule.target_contract_commitment(),
+                                )
+                            } else {
                             let parameters = program.state_signature_parameters(signature);
                             (
                                 parameters,
@@ -5256,6 +5310,7 @@ pub(super) fn attach_checked_crash_calls(
                                 capsule.target_contract_report_fingerprint(),
                                 capsule.target_contract_commitment(),
                             )
+                            }
                         };
                         if call_site.is_internal_state_transfer(program, state_flow.machine_symbol)
                         {

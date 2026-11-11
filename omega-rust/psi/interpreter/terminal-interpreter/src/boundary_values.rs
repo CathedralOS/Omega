@@ -1747,6 +1747,7 @@ pub(crate) mod values {
 
             fn declaration(value: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: identity(value),
                     identity: TerminalIdentityIndex(value),
@@ -2235,6 +2236,7 @@ pub(crate) mod values {
         }
         fn declaration() -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),

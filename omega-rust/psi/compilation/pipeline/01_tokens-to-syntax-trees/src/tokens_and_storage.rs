@@ -873,6 +873,27 @@ pub(crate) mod tokens {
                     })
             }
 
+            /// Whether `{` opens the retired `terminates { decreases ...; }`
+            /// ranking block rather than a body: its first statement would be
+            /// `decreases` or `increases` followed by a subject, which no body
+            /// statement can start with.
+            pub(crate) fn at_retired_ranking_block(&self) -> bool {
+                if !self.at_punctuation(PunctuationKind::LeftBrace) {
+                    return false;
+                }
+                let Some(after_brace) = self.tokens.get(1..).map(skip_non_semantic_tokens) else {
+                    return false;
+                };
+                let Some((word, rest)) = after_brace.split_first() else {
+                    return false;
+                };
+                matches!(word.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                    && matches!(self.text(word).as_str(), "decreases" | "increases")
+                    && skip_non_semantic_tokens(rest)
+                        .first()
+                        .is_some_and(is_identifier_token_for_parser)
+            }
+
             pub(crate) fn at_contextual_then_name(&self, name: &str) -> bool {
                 self.at_contextual(name) && self.peek(1).is_some_and(is_identifier_token_for_parser)
             }

@@ -7,6 +7,23 @@
     declaration requests and lexical authority recorded in the Product source.
 */
 
+pub mod test_groups {
+    use symbols::SymbolHandle;
+
+    /*
+        One registered test group (wiki/spec/build/testing.md#registration-and-discovery):
+        the exact ordinary trait machine requirement a Build activation named
+        through `builder.tests.group<Requirement>()`. Registration selects
+        identity only; the runner later collects that requirement's checked
+        package-local satisfiers and executes them under their own authority.
+    */
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestGroupRegistration {
+        pub requirement: SymbolHandle,
+        pub selecting_machine: SymbolHandle,
+        pub source_span: source::SourceSpan,
+    }
+}
 pub mod assumed_bindings {
     use symbols::SymbolHandle;
 
@@ -371,6 +388,7 @@ pub mod native_bindings {
 }
 pub mod product_declarations {
     use crate::product::assumed_bindings::AssumedBindingContract;
+    use crate::product::test_groups::TestGroupRegistration;
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
         BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
@@ -390,6 +408,7 @@ pub mod product_declarations {
         pub service_audits: Vec<ServiceAuditRegistration>,
         pub assumed_bindings: Vec<AssumedBindingContract>,
         pub wire_demands: Vec<WireCompatibilityDemand>,
+        pub test_groups: Vec<TestGroupRegistration>,
     }
 
     fn supported(operation: BuildOperation) -> bool {
@@ -398,6 +417,7 @@ pub mod product_declarations {
             BuildOperation::ServiceAudit
                 | BuildOperation::AssumedBindingContract
                 | BuildOperation::WireCompatibilityRequest
+                | BuildOperation::TestGroupRegistration
         )
     }
 
@@ -447,6 +467,7 @@ pub mod product_declarations {
         let mut audits = Vec::<ServiceAuditRegistration>::new();
         let mut assumed = Vec::new();
         let mut wire = Vec::<WireCompatibilityDemand>::new();
+        let mut test_groups = Vec::<TestGroupRegistration>::new();
         for event in executed
             .iter()
             .filter(|event| supported(event.request.operation))
@@ -507,6 +528,21 @@ pub mod product_declarations {
                         source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
                     });
                 }
+                BuildOperation::TestGroupRegistration => {
+                    // A group is one exact requirement application per Build
+                    // activation; registering it twice is an authoring error,
+                    // not an idempotent request (testing.md: duplicate rejects).
+                    if test_groups.iter().any(|group| group.requirement == subject) {
+                        return Err(refuse(
+                            "test group registration repeats the same requirement application",
+                        ));
+                    }
+                    test_groups.push(TestGroupRegistration {
+                        requirement: subject,
+                        selecting_machine: author,
+                        source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+                    });
+                }
                 BuildOperation::WireCompatibilityRequest => {
                     let path = |position| {
                         operand(typed, request, position)
@@ -558,6 +594,7 @@ pub mod product_declarations {
             service_audits: audits,
             assumed_bindings: assumed,
             wire_demands: wire,
+            test_groups,
         })
     }
 }

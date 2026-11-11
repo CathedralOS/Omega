@@ -4900,39 +4900,39 @@ pass/facts/zero_byte_erased_carrier_through_other_machine_exit built 2381ms exit
 pass/facts/zero_byte_erased_carrier_through_other_state_exit built 2371ms exit:0 @a92f16431042
 pass/facts/zero_byte_erased_carrier_through_parameter_exit built 2379ms exit:0 @a92f16431042
 pass/facts/zero_byte_erased_carrier_through_target_body_exit built 2917ms exit:0 @a92f16431042
-pass/filesystem/create_dir_all_existing_file_exit built 111766ms exit:0 @a92f16431042
-pass/filesystem/create_dir_all_symlink_kind_exit built 110387ms exit:0 @a92f16431042
-pass/filesystem/cross_linux_value_syscalls checked 78811ms @a92f16431042
-pass/filesystem/dir_walk_wrappers_exit built 111195ms exit:70 @a92f16431042
-pass/filesystem/native_canonicalize built 106951ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_close built 45194ms @a92f16431042
-pass/filesystem/native_crud built 50372ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_errno built 49726ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_filetype built 50465ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_fs_workflow built 53524ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_blocks built 50358ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_ctime_dev built 51310ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_ino built 47786ms @a92f16431042
-pass/filesystem/native_metadata_nlink built 33977ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_read_dir_iter built 35097ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_wrapper_write_all_result built 129871ms exit:0 stdout:match @a92f16431042
-pass/filesystem/portable_raw_family_capabilities_exit built 117205ms exit:0 @a92f16431042
-pass/filesystem/runtime_local_host_result_dispatch_exit built 33694ms exit:70 @a92f16431042
-pass/filesystem/runtime_portable_copy_errors_exit built 180697ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_directory_failure_exit built 176349ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_directory_names_exit built 145059ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_metadata_availability_exit built 145642ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_metadata_exit built 142274ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_permissions_exit built 139593ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 406143ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_zero_descriptor_exit built 136187ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_borrowed_directory_link_exit built 33958ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_borrowed_view_io_exit built 51424ms exit:0 stdout:match @a92f16431042
-pass/filesystem/runtime_posix_native_storage_bounds_exit built 45218ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_read_runtime_range_view_exit built 48588ms exit:0 stdout:match @a92f16431042
-pass/filesystem/windows_canonicalize_exit built 150276ms exit:70 @a92f16431042
+pass/filesystem/create_dir_all_existing_file_exit built 178947ms exit:0 interpreter-exit:0 interpreter:agrees @902fbbae66a2
+pass/filesystem/create_dir_all_symlink_kind_exit built 167029ms exit:0 interpreter-exit:0 interpreter:agrees @902fbbae66a2
+pass/filesystem/cross_linux_value_syscalls checked 160215ms @902fbbae66a2
+pass/filesystem/dir_walk_wrappers_exit built 155978ms exit:70 interpreter-exit:70 interpreter:agrees @902fbbae66a2
+pass/filesystem/native_canonicalize built 180550ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @93b39bed6afe
+pass/filesystem/native_close built 67841ms @370fd47c6e97
+pass/filesystem/native_crud built 73628ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_errno built 73141ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_filetype built 66643ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_fs_workflow built 69805ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_blocks built 63737ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_ctime_dev built 56156ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_ino built 67313ms @370fd47c6e97
+pass/filesystem/native_metadata_nlink built 62774ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_read_dir_iter built 45239ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_wrapper_write_all_result built 148776ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @1c6acc4206c4
+pass/filesystem/portable_raw_family_capabilities_exit built 130711ms exit:0 interpreter-exit:0 interpreter:agrees @8cd734fe71f6
+pass/filesystem/runtime_local_host_result_dispatch_exit built 76982ms exit:70 interpreter-exit:70 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_copy_errors_exit built 167316ms exit:0 interpreter-exit:0 interpreter:agrees @93b39bed6afe
+pass/filesystem/runtime_portable_directory_failure_exit built 159458ms exit:0 interpreter-exit:0 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_directory_names_exit built 184327ms exit:0 interpreter-exit:0 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_metadata_availability_exit built 137808ms exit:0 interpreter-exit:0 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_metadata_exit built 146724ms exit:0 interpreter-exit:0 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_permissions_exit built 114265ms exit:0 interpreter-exit:0 interpreter:agrees @1c6acc4206c4
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 262197ms exit:0 interpreter-exit:0 interpreter:agrees @902fbbae66a2
+pass/filesystem/runtime_portable_zero_descriptor_exit built 177273ms exit:0 interpreter-exit:0 interpreter:agrees @93b39bed6afe
+pass/filesystem/runtime_posix_borrowed_directory_link_exit built 65400ms exit:0 interpreter-exit:0 interpreter:agrees @93b39bed6afe
+pass/filesystem/runtime_posix_borrowed_view_io_exit built 71663ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @93b39bed6afe
+pass/filesystem/runtime_posix_native_storage_bounds_exit built 68719ms exit:0 interpreter-exit:0 interpreter:agrees @93b39bed6afe
+pass/filesystem/runtime_posix_read_runtime_range_view_exit built 47118ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @93b39bed6afe
+pass/filesystem/windows_canonicalize_exit built 160427ms exit:70 interpreter-exit:70 interpreter:agrees @8cd734fe71f6
 pass/filesystem/windows_external_async_handle_exit built 95586ms @a92f16431042
-pass/filesystem/windows_lock_has_empty_reach checked 46271ms @a92f16431042
+pass/filesystem/windows_lock_has_empty_reach checked 72764ms @902fbbae66a2
 pass/filesystem/windows_namespace_rename_exit built 82983ms @a92f16431042
 pass/filesystem/windows_native_create_write_close_exit built 71144ms @a92f16431042
 pass/filesystem/windows_raw_argument_failures_exit built 70039ms @a92f16431042
@@ -4947,10 +4947,10 @@ pass/filesystem/windows_raw_metadata_exit built 198339ms terminal-inspections:ma
 pass/filesystem/windows_raw_positioned_io_exit built 229848ms terminal-inspections:match @a92f16431042
 pass/filesystem/windows_raw_read_link_exit built 226646ms terminal-inspections:match @a92f16431042
 pass/filesystem/windows_set_file_time_exit built 84606ms @a92f16431042
-pass/filesystem/windows_wrapper_results_exit built 164641ms exit:70 @a92f16431042
-pass/filesystem/wrapper_lock_metadata_exit built 146148ms exit:70 @a92f16431042
-pass/filesystem/wrapper_open_with_exit built 150863ms exit:70 @a92f16431042
-pass/filesystem/write_all_full_device_exit built 143735ms exit:0 @a92f16431042
+pass/filesystem/windows_wrapper_results_exit built 161501ms exit:70 interpreter-exit:70 interpreter:agrees @8cd734fe71f6
+pass/filesystem/wrapper_lock_metadata_exit built 149061ms exit:70 interpreter-exit:70 interpreter:agrees @902fbbae66a2
+pass/filesystem/wrapper_open_with_exit built 125769ms exit:70 interpreter-exit:70 interpreter:agrees @902fbbae66a2
+pass/filesystem/write_all_full_device_exit built 106040ms exit:0 interpreter-exit:0 interpreter:agrees @8cd734fe71f6
 pass/float/admitted_float_conversion_crash built 22079ms exit:signal signal:4 stdout:match @a92f16431042
 pass/float/admitted_float_lower_boundary_crash built 59472ms exit:signal signal:4 stdout:match @a92f16431042
 pass/float/admitted_numeric_imports_preserve_semantics built 70588ms exit:70 @a92f16431042
@@ -6227,8 +6227,10 @@ pass/providers/runtime_generic_boundary_relay_places_exit built 2568ms exit:0 @a
 pass/providers/runtime_generic_case_extraction_exit built 3673ms exit:0 @a92f16431042
 pass/providers/runtime_linear_provider_results_exit built 2804ms exit:0 @a92f16431042
 pass/providers/runtime_named_provider_explicit_state_exit built 8563ms exit:70 @a92f16431042
-pass/providers/runtime_provider_mutable_reference_exit built 2513ms exit:0 @a92f16431042
-pass/providers/runtime_provider_mutable_reference_forward_exit built 2219ms exit:0 @a92f16431042
+pass/providers/runtime_provider_mutable_reference_exit rejected 5831ms regressed-from:built+exit:0 @9249502ef973
+	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/providers/runtime_provider_mutable_reference_forward_exit rejected 5829ms regressed-from:built+exit:0 @9249502ef973
+	target legalization failed: ReferenceDisposalConflict { machine: MachineId(1), place: PlaceId(32) }
 pass/providers/runtime_provider_owned_reference_exit built 2433ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_alias_exit built 2561ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_allocation_exit built 4196ms exit:0 @a92f16431042
@@ -7352,14 +7354,10 @@ run/float/folded_anonymous_operator_custody_exit built 9497ms exit:0 @a92f164310
 run/generics/runtime_value_index_operands rejected 619ms regressed-from:built+exit:0 @a92f16431042
 	a value call to generic machine `read_at` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 	call `entry` has an invalid static type argument correspondence
-run/layouts/placed_ram_capture_forwarding rejected 2730ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-run/layouts/placed_ram_capture_helper rejected 2717ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-run/layouts/placed_ram_capture_retirement rejected 3224ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-run/layouts/placed_ram_capture_return rejected 3246ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+run/layouts/placed_ram_capture_forwarding built 42285ms exit:0 stdout:match stderr:match @c24c8eb91760
+run/layouts/placed_ram_capture_helper built 44624ms exit:0 stdout:match stderr:match @c24c8eb91760
+run/layouts/placed_ram_capture_retirement built 42311ms exit:0 stdout:match stderr:match @c24c8eb91760
+run/layouts/placed_ram_capture_return built 35482ms exit:0 stdout:match stderr:match @c24c8eb91760
 run/layouts/placed_ram_original_backing built 116543ms exit:0 stdout:match stderr:match @95596d66052e
 run/layouts/placed_ram_scalar_types rejected 3773ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	placed view `Placed<ScalarPlacement,ScalarRegisters>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `ScalarPlacement::plan` state `field0` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[1].key` in machine `ScalarPlacement::plan` state `field1` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[2].key` in machine `ScalarPlacement::plan` state `field2` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first

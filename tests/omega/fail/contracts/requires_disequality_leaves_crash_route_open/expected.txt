@@ -1,0 +1,2 @@
+call from `divide` to `bad` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+call from `quotient` to `checked` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation

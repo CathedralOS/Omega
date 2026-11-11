@@ -60,6 +60,10 @@ pub(crate) fn project_contract_cast(
             .collect::<Result<Vec<_>, _>>()?,
         form: match cast.form {
             CastForm::Value => PackageReviewCastForm::Value,
+            // Typing replaces every entry with a value cast before review reads the program.
+            CastForm::Entry(_) => {
+                return Err(context.rejected("cast retains an unaccounted domain entry"));
+            }
             CastForm::Recast(access) => PackageReviewCastForm::Recast(match access {
                 ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
                 ReferenceAccess::Mutable => PackageReviewReferenceAccess::Mutable,

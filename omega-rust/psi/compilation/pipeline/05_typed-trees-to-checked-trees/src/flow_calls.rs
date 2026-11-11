@@ -101,6 +101,7 @@ pub(super) fn build_call_flow_fact<'plans>(
             build,
             *active_contexts,
             *active_constraints,
+            state.symbol,
             borrow_call,
             observed_writes.as_ref(),
         );

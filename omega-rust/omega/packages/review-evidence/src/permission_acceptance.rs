@@ -40,6 +40,7 @@ impl<'a> RuntimePermissionInput<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct TerminalPermissionAcceptance {
     pub schema_version: u16,
     pub package: PackageKeyIdentity,

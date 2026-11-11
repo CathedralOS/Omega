@@ -71,6 +71,7 @@ pub(crate) mod body_copies {
                 contracts: $self.copy_capability_contract_span($other, $signature.contracts),
                 default_body: $self.copy_statement_handle_span($other, $signature.default_body),
                 terminates_guarantee: $signature.terminates_guarantee,
+                declares_no_crash_route: $signature.declares_no_crash_route,
             }
         }};
     }
@@ -323,6 +324,7 @@ pub(crate) mod body_copies {
                     initial_value: self.copy_expression_handle(other, local_data.initial_value),
                     is_mutable: local_data.is_mutable,
                     relevance: local_data.relevance,
+                    pattern_fields: self.copy_match_fields(other, local_data.pattern_fields),
                 }),
                 StatementNode::Transition(transition) => {
                     let patterns = other
@@ -661,16 +663,17 @@ pub(crate) mod body_copies {
             copied
         }
 
-        fn copy_destructure_pattern(
+        /// One pattern's field roster, for a dispatch arm or a record
+        /// pattern's marker local alike.
+        fn copy_match_fields(
             &mut self,
             other: &SyntaxTrees,
-            pattern: TableDestructurePattern,
-        ) -> TableDestructurePattern {
+            fields: HandleSpan<crate::expression::TableMatchField>,
+        ) -> HandleSpan<crate::expression::TableMatchField> {
             use crate::expression::{MatchFieldAction, TableMatchField};
-            let head = self.copy_expression_handle(other, pattern.head);
             let fields = other
                 .expressions
-                .match_fields(pattern.fields)
+                .match_fields(fields)
                 .iter()
                 .map(|field| TableMatchField {
                     component: field.component,
@@ -684,7 +687,16 @@ pub(crate) mod body_copies {
                     },
                 })
                 .collect::<Vec<_>>();
-            let fields = self.expressions.insert_match_fields(fields);
+            self.expressions.insert_match_fields(fields)
+        }
+
+        fn copy_destructure_pattern(
+            &mut self,
+            other: &SyntaxTrees,
+            pattern: TableDestructurePattern,
+        ) -> TableDestructurePattern {
+            let head = self.copy_expression_handle(other, pattern.head);
+            let fields = self.copy_match_fields(other, pattern.fields);
             let guard = self.copy_expression_handle(other, pattern.guard);
             let proof_selectors = self.statements.insert_outcome_proof_selectors(
                 other
@@ -1566,7 +1578,7 @@ pub(crate) mod item_copies {
                         }
                     }),
                 }),
-                where_facts: self.copy_domain_fact_span(other, data.where_facts),
+                requires_facts: self.copy_domain_fact_span(other, data.requires_facts),
                 members: self.copy_data_member_span(other, data.members),
             }
         }
@@ -1888,7 +1900,7 @@ pub(crate) mod item_copies {
                         identity: variant.identity,
                         name: variant.name.clone(),
                         payload: this.copy_data_payload_field_span(other, variant.payload),
-                        where_facts: this.copy_domain_fact_span(other, variant.where_facts),
+                        requires_facts: this.copy_domain_fact_span(other, variant.requires_facts),
                         retired_payload_identities: variant.retired_payload_identities.clone(),
                     }),
                     DataMember::Retired(identity) => DataMember::Retired(*identity),

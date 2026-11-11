@@ -30,10 +30,10 @@ machine load(table: &mut Table) {
     }
 }
 machine number(main: &mut Main, value: u64 in Wrapping) reaches Console {
-    Console::write_byte(((value / 1000) % 10) as i32 + 48);
-    Console::write_byte(((value / 100) % 10) as i32 + 48);
-    Console::write_byte(((value / 10) % 10) as i32 + 48);
-    Console::write_byte((value % 10) as i32 + 48);
+    Console::write_byte((((value / 1000) % 10) as i32) + 48);
+    Console::write_byte((((value / 100) % 10) as i32) + 48);
+    Console::write_byte((((value / 10) % 10) as i32) + 48);
+    Console::write_byte(((value % 10) as i32) + 48);
 }
 machine report(main: &mut Main, table: &Table, budget: &Budget) reaches Console {
     transition { _ -> row(main, table, budget, 0) }

@@ -63,6 +63,7 @@ pub(crate) mod activation_storage {
                         "activation backing type identity overflows",
                     ))?;
                 types.push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: crate::shared::terminal_identities::structural_type_id(next),
                     identity: key,
@@ -1845,13 +1846,21 @@ pub(crate) mod terminal_identities {
     id_constructor!(obligation_id, ObligationId);
     id_constructor!(proposition_id, PropositionId);
 
+    /*
+        A service is named the way every other declaration is. A portable
+        artifact needs a hermetic name (package or toolchain owned). Code lowered
+        for one build-time invocation may instead reach a service declared in
+        the invoking program's own unpackaged source, such as a boundary trait
+        in `build.omg`; that code is never published, so the service takes the
+        same invocation-local coordinate its machines already take. Portable
+        lowering still refuses such a declaration.
+    */
     pub(crate) fn service_declaration_identity(
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         checked: &checked_trees::CheckedTrees,
         symbol: symbols::SymbolHandle,
-    ) -> Result<String, LoweringError> {
-        checked
-            .typed
-            .normalized_hermetic_symbol_identity(symbol)
+    ) -> Result<terminal_psi::TerminalIdentityIndex, LoweringError> {
+        crate::machine_lowering::declarations::semantic_identity(identities, checked, symbol)
             .map_err(LoweringError::InvalidServiceIdentity)
     }
 

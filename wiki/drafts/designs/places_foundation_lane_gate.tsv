@@ -1,0 +1,628 @@
+diagnostic	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	1	reject	bytes 744..756	unproved obligation: requires clause 1 of the called machine: no proof found from the facts available here (the bounds do not decide the comparison)
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	1	safety	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	2	requirement	discharged-judged+interval	ExactIntegerAdd,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	1	3	requirement	discharged-judged+interval	IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	1	safety	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	2	2	safety	discharged-judged+interval	ExactIntegerMultiply,IntegerConstant	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	1	published	every-exit:1	-	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	3	2	guarantee	discharged-judged+interval	formal	-
+obligation	tests/omega/run/calls/scalar_contract_route_exit/main.omg	4	1	requirement	unproved	-	the bounds do not decide the comparison
+program	tests/omega/pass/cases/arm_field_placement/main.omg	current=accepted	current_us=14834258	route=no-entry
+program	tests/omega/pass/cases/arm_rename_waive/main.omg	current=accepted	current_us=13498357	route=no-entry
+program	tests/omega/pass/cases/arm_returns_mut_ref/main.omg	current=accepted	current_us=13322648	route=no-entry
+program	tests/omega/pass/cases/case_arm_pattern_names/main.omg	current=accepted	current_us=13924305	route=no-entry
+program	tests/omega/pass/cases/case_call_premises/main.omg	current=rejected	current_us=9153903	route=unreached	Some(Diagnostic { severity: Error, message: "machine `concrete` ensures contract proof fact `empty_only(Tree) == empty_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or 
+program	tests/omega/pass/cases/case_payload_member/main.omg	current=accepted	current_us=12741170	route=no-entry
+program	tests/omega/pass/cases/case_requires_payload/main.omg	current=accepted	current_us=14347267	route=no-entry
+program	tests/omega/pass/cases/case_union_exhaustive/main.omg	current=accepted	current_us=13489044	route=no-entry
+program	tests/omega/pass/cases/case_where_common/main.omg	current=accepted	current_us=12815963	route=no-entry
+program	tests/omega/pass/cases/case_where_match/main.omg	current=accepted	current_us=13038681	route=no-entry
+program	tests/omega/pass/cases/dup_match_order/main.omg	current=accepted	current_us=13413942	route=no-entry
+program	tests/omega/pass/cases/field_subject_arm_chain/main.omg	current=accepted	current_us=13412159	route=no-entry
+program	tests/omega/pass/cases/later_arm_requires/main.omg	current=accepted	current_us=13977100	route=no-entry
+program	tests/omega/pass/cases/match_call_patterns/main.omg	current=accepted	current_us=11898630	route=no-entry
+program	tests/omega/pass/cases/match_guard_slice_index/main.omg	current=accepted	current_us=11339153	route=no-entry
+program	tests/omega/pass/cases/match_record_field/main.omg	current=accepted	current_us=12207106	route=no-entry
+program	tests/omega/pass/cases/match_reference_local/main.omg	current=accepted	current_us=13433125	route=no-entry
+program	tests/omega/pass/cases/mid_arm_value_return/main.omg	current=accepted	current_us=13573897	route=no-entry
+program	tests/omega/pass/cases/mixed_record_cases/main.omg	current=accepted	current_us=13330962	route=no-entry
+program	tests/omega/pass/cases/ordered_underscore_arms/main.omg	current=accepted	current_us=12665774	route=no-entry
+program	tests/omega/pass/cases/param_case_payload_return/main.omg	current=accepted	current_us=13643189	route=no-entry
+program	tests/omega/pass/cases/runtime_borrowed_case_subject_exit/main.omg	current=accepted	current_us=11393970	route=outside	type constrained
+program	tests/omega/pass/cases/runtime_call_result_case_membership_exit/main.omg	current=accepted	current_us=12541644	route=outside	type data with custody
+program	tests/omega/pass/cases/runtime_case_component_borrow_identity_exit/main.omg	current=accepted	current_us=12112740	route=outside	type mixed data
+program	tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg	current=accepted	current_us=11518951	route=outside	type data with custody
+program	tests/omega/pass/cases/runtime_constructor_subject_range_exit/main.omg	current=accepted	current_us=14306877	route=outside	type data with custody
+program	tests/omega/pass/cases/runtime_nested_payload_scalar_projection_exit/main.omg	current=accepted	current_us=13055879	route=outside	spelling member without a field symbol
+program	tests/omega/pass/cases/runtime_owned_case_payload_after_guard_exit/main.omg	current=accepted	current_us=12675386	route=outside	type data with custody
+program	tests/omega/pass/cases/runtime_refuted_generic_case_dispatch_exit/main.omg	current=accepted	current_us=35402026	route=outside	machine service reach
+program	tests/omega/pass/cases/runtime_stored_case_reference_subject_exit/main.omg	current=accepted	current_us=14329856	route=outside	type data with custody
+program	tests/omega/pass/cases/self_payload_return/main.omg	current=accepted	current_us=13162872	route=no-entry
+program	tests/omega/pass/cases/union_guard_paren/main.omg	current=accepted	current_us=14015375	route=no-entry
+program	tests/omega/pass/cases/unit_empty_arm/main.omg	current=accepted	current_us=13359916	route=no-entry
+program	tests/omega/pass/cases/write_only_case_postcondition_exit/main.omg	current=accepted	current_us=14665947	route=outside	parameter mutable parameter
+program	tests/omega/pass/constants/closed_generic_predicate_constant/main.omg	current=accepted	current_us=14514981	route=no-entry
+program	tests/omega/pass/constants/computed_unsigned_max_exit/main.omg	current=accepted	current_us=12742643	route=refused-module	route_us=1395	invocation outside an operation
+program	tests/omega/pass/constants/const_alias_identity/main.omg	current=accepted	current_us=15031313	route=no-entry
+program	tests/omega/pass/constants/const_data_param/main.omg	current=accepted	current_us=16001680	route=no-entry
+program	tests/omega/pass/constants/constant_bound_distance/main.omg	current=accepted	current_us=14051877	route=no-entry
+program	tests/omega/pass/constants/direct_named_implementation_initializer_exit/main.omg	current=accepted	current_us=13926675	route=refused-module	route_us=1030	invocation outside an operation
+program	tests/omega/pass/constants/lexical_const_shadow/main.omg	current=accepted	current_us=12634814	route=no-entry
+program	tests/omega/pass/constants/machine_const_indices/main.omg	current=accepted	current_us=14194304	route=no-entry
+program	tests/omega/pass/constants/mathematical_constant_domain_selection/main.omg	current=accepted	current_us=14474124	route=no-entry
+program	tests/omega/pass/constants/nested_const_projection/main.omg	current=accepted	current_us=15646949	route=no-entry
+program	tests/omega/pass/constants/owned_record_argument_snapshot_exit/main.omg	current=accepted	current_us=15422545	route=refused-module	route_us=705	invocation outside an operation
+program	tests/omega/pass/constants/predicate_constant_static_index/main.omg	current=accepted	current_us=13324161	route=no-entry
+program	tests/omega/pass/constants/qualified_variant_constant/main.omg	current=accepted	current_us=13626642	route=no-entry
+program	tests/omega/pass/constants/runtime_predicate_constant_materialization_exit/main.omg	current=accepted	current_us=13036870	route=outside	type data with custody
+program	tests/omega/pass/constants/runtime_scoped_const_exit/main.omg	current=accepted	current_us=35699924	route=outside	machine service reach
+program	tests/omega/pass/constants/static_namespace_constant/main.omg	current=accepted	current_us=13716716	route=no-entry
+program	tests/omega/pass/constants/target_layout_derived_alignment_exit/main.omg	current=accepted	current_us=15424091	route=outside	call compiler operation call
+program	tests/omega/pass/constants/target_layout_derived_ground_guarantee_exit/main.omg	current=accepted	current_us=13664074	route=accepted	route_us=163	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	gated=0
+program	tests/omega/pass/constants/target_layout_derived_helper_alias_exit/main.omg	current=accepted	current_us=14043075	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/constants/target_layout_derived_helper_exit/main.omg	current=accepted	current_us=15308772	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/constants/target_layout_derived_helper_generic_exit/main.omg	current=accepted	current_us=15210253	route=outside	call static application arguments
+program	tests/omega/pass/constants/target_layout_derived_public_alias_exit/main.omg	current=accepted	current_us=15671011	route=outside	call compiler operation call
+program	tests/omega/pass/constants/target_layout_derived_shadow_exit/main.omg	current=accepted	current_us=14741565	route=refused-module	route_us=1179	invocation outside an operation
+program	tests/omega/pass/constants/target_layout_derived_skipped_crashing_helper_exit/main.omg	current=accepted	current_us=15995946	route=outside	call compiler operation call
+program	tests/omega/pass/data/case_first_payload_zero_established/main.omg	current=accepted	current_us=14052457	route=no-entry
+program	tests/omega/pass/data/case_membership_union_guard_exit/main.omg	current=accepted	current_us=25022937	route=outside	machine service reach
+program	tests/omega/pass/data/closed_literal_nested_predicates/main.omg	current=accepted	current_us=14008917	route=no-entry
+program	tests/omega/pass/data/indexed_element_invariant_local/main.omg	current=accepted	current_us=13424257	route=no-entry
+program	tests/omega/pass/data/match_exhaustive_by_case_union_domain/main.omg	current=accepted	current_us=39157155	route=outside	machine service reach
+program	tests/omega/pass/data/mixed_record_common_field_and_payload_dispatch_exit/main.omg	current=accepted	current_us=25397769	route=outside	machine service reach
+program	tests/omega/pass/data/opaque_copy_selected/main.omg	current=accepted	current_us=14332781	route=accepted	route_us=234	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	gated=0
+program	tests/omega/pass/data/opaque_nested_field_selected/main.omg	current=accepted	current_us=14007476	route=accepted	route_us=184	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	gated=0
+program	tests/omega/pass/data/payload_less_case_equality/main.omg	current=accepted	current_us=14386303	route=no-entry
+program	tests/omega/pass/data/prefix_case_contextual_case_field/main.omg	current=accepted	current_us=12970877	route=refused-module	route_us=1288	invocation outside an operation
+program	tests/omega/pass/data/prefix_case_empty_reference_array/main.omg	current=accepted	current_us=14284548	route=outside	type mixed data
+program	tests/omega/pass/data/prefix_case_pure_sum_retirement/main.omg	current=accepted	current_us=14010276	route=outside	type data with retired field identities
+program	tests/omega/pass/data/property_carry_declared/main.omg	current=accepted	current_us=12495953	route=no-entry
+program	tests/omega/pass/data/qualified_record_pattern_exit/main.omg	current=accepted	current_us=13545162	route=outside	type constrained
+program	tests/omega/pass/data/record_pattern_let_exit/main.omg	current=accepted	current_us=24800230	route=outside	machine service reach
+program	tests/omega/pass/data/record_snapshot_finish/main.omg	current=accepted	current_us=13742206	route=no-entry
+program	tests/omega/pass/data/runtime_case_payload_call_result_window_exit/main.omg	current=accepted	current_us=14654428	route=outside	type fixed array
+program	tests/omega/pass/data/runtime_case_reassignment_exit/main.omg	current=accepted	current_us=25012465	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_constructor_observation_exit/main.omg	current=accepted	current_us=25960375	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_data_properties_exit/main.omg	current=accepted	current_us=23182768	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_mixed_case_common_fields_exit/main.omg	current=accepted	current_us=25709091	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	current=rejected	current_us=10951388	route=unreached	Some(Diagnostic { severity: Error, message: "state `observe` receives `count` without an exact retained backing for its loan: the access has no unique completed operand", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/data/runtime_mixed_case_payload_dispatch_exit/main.omg	current=accepted	current_us=23239728	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_mixed_shape_exit/main.omg	current=accepted	current_us=14903124	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_proof_only_data_declared_exit/main.omg	current=accepted	current_us=22468861	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_record_field_value_pattern_exit/main.omg	current=accepted	current_us=22773356	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_zeroed_first_case_enum_payload_exit/main.omg	current=accepted	current_us=25506254	route=outside	machine service reach
+program	tests/omega/pass/data/runtime_zeroed_first_case_float_payload_exit/main.omg	current=accepted	current_us=24749079	route=outside	machine service reach
+program	tests/omega/pass/expressions/acquires_helper_return/main.omg	current=accepted	current_us=13767275	route=no-entry
+program	tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg	current=accepted	current_us=13620407	route=no-entry
+program	tests/omega/pass/expressions/anonymous_structural_match_results_exit/main.omg	current=accepted	current_us=14470277	route=outside	type fixed array
+program	tests/omega/pass/expressions/arithmetic_domain_cast_exit/main.omg	current=accepted	current_us=24597487	route=outside	machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_range_proven_exact_exit/main.omg	current=accepted	current_us=24390844	route=outside	machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_requires_proven_exact_exit/main.omg	current=accepted	current_us=24517235	route=outside	machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_saturating_signed_exit/main.omg	current=accepted	current_us=24908297	route=outside	machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_trapping_overflow/main.omg	current=accepted	current_us=26482983	route=outside	machine service reach
+program	tests/omega/pass/expressions/arithmetic_domain_wrapping_exit/main.omg	current=accepted	current_us=23849703	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrow_carrying_data_field_exit/main.omg	current=accepted	current_us=24389740	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_call_product/main.omg	current=accepted	current_us=26147678	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_direct_value/main.omg	current=accepted	current_us=25610053	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_field_store_match_product/main.omg	current=accepted	current_us=23111815	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_dynamic_index/main.omg	current=accepted	current_us=23868997	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_exclusive_read/main.omg	current=accepted	current_us=37906304	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_exclusive_store/main.omg	current=accepted	current_us=23418702	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_local_origin/main.omg	current=accepted	current_us=26728619	route=outside	machine service reach
+program	tests/omega/pass/expressions/borrowed_join_match_whole_store/main.omg	current=accepted	current_us=26093563	route=outside	machine service reach
+program	tests/omega/pass/expressions/call_result_comparison_operands_exit/main.omg	current=accepted	current_us=25896296	route=outside	machine service reach
+program	tests/omega/pass/expressions/comparison_result_integer_conversion_exit/main.omg	current=accepted	current_us=25790402	route=outside	machine service reach
+program	tests/omega/pass/expressions/dead_trapping_let_traps/main.omg	current=accepted	current_us=24448462	route=outside	machine service reach
+program	tests/omega/pass/expressions/declared_operator_match_result/main.omg	current=accepted	current_us=24949646	route=outside	machine service reach
+program	tests/omega/pass/expressions/declared_operator_private_helper_exit/main.omg	current=accepted	current_us=14106590	route=outside	type data with custody
+program	tests/omega/pass/expressions/declared_operator_result_loan_exit/main.omg	current=accepted	current_us=14063889	route=outside	type data with custody
+program	tests/omega/pass/expressions/declared_operator_result_qualification_exit/main.omg	current=accepted	current_us=12851057	route=outside	type data with custody
+program	tests/omega/pass/expressions/declared_operator_stateful_body_exit/main.omg	current=accepted	current_us=14378669	route=outside	type data with custody
+program	tests/omega/pass/expressions/deep_paren_nesting/main.omg	current=accepted	current_us=14567243	route=no-entry
+program	tests/omega/pass/expressions/derives_helper_return/main.omg	current=accepted	current_us=13671619	route=no-entry
+program	tests/omega/pass/expressions/entry_mut_scalar_param/main.omg	current=accepted	current_us=14674791	route=no-entry
+program	tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg	current=accepted	current_us=11932774	route=no-entry
+program	tests/omega/pass/expressions/giant_literal_subject/main.omg	current=accepted	current_us=13632086	route=no-entry
+program	tests/omega/pass/expressions/indexed_qualified_call_argument/main.omg	current=accepted	current_us=12905192	route=no-entry
+program	tests/omega/pass/expressions/match_anonymous_result_landing/main.omg	current=accepted	current_us=22876609	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_domain_results/main.omg	current=accepted	current_us=13612368	route=no-entry
+program	tests/omega/pass/expressions/match_float_interpretation/main.omg	current=accepted	current_us=13343628	route=no-entry
+program	tests/omega/pass/expressions/match_float_patterns/main.omg	current=accepted	current_us=36641980	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_float_results/main.omg	current=accepted	current_us=12731633	route=no-entry
+program	tests/omega/pass/expressions/match_float_subjects/main.omg	current=accepted	current_us=12360427	route=outside	type data with custody
+program	tests/omega/pass/expressions/match_fresh_owned/main.omg	current=accepted	current_us=12812099	route=no-entry
+program	tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg	current=rejected	current_us=21614760	route=unreached	Some(Diagnostic { severity: Error, message: "authored Operator declaration selection occurrence 9690 (`*` in tests/omega/pass/expressions/match_operand_anonymous_operation_exit/main.omg) remained unresolved after successful checking (CheckedOperator)", exce
+program	tests/omega/pass/expressions/match_ordered_duplicate_patterns/main.omg	current=accepted	current_us=12966282	route=no-entry
+program	tests/omega/pass/expressions/match_owned_authored_state_subject/main.omg	current=accepted	current_us=21794612	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_call_product_arms/main.omg	current=accepted	current_us=24764000	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_call_return_values/main.omg	current=accepted	current_us=24680696	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg	current=rejected	current_us=17818690	route=unreached	Some(Diagnostic { severity: Error, message: "Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.", exceeded_provision: None, source_sp
+program	tests/omega/pass/expressions/match_owned_construction_and_call_arms/main.omg	current=accepted	current_us=22712895	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_interleaved_call_results/main.omg	current=accepted	current_us=23111595	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_mixed_projection_reads/main.omg	current=rejected	current_us=15400955	route=unreached	Some(Diagnostic { severity: Error, message: "Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.", exceeded_provision: None, source_sp
+program	tests/omega/pass/expressions/match_owned_mixed_result_kinds/main.omg	current=accepted	current_us=23262460	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_parameter_field_subject/main.omg	current=rejected	current_us=17585387	route=unreached	Some(Diagnostic { severity: Error, message: "Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.", exceeded_provision: None, source_sp
+program	tests/omega/pass/expressions/match_owned_projected_field_arm/main.omg	current=accepted	current_us=24111607	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_projected_local_roots/main.omg	current=accepted	current_us=24816317	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_projected_parameter_roots/main.omg	current=accepted	current_us=25620999	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_projection_no_match_control/main.omg	current=accepted	current_us=24226941	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_record_results/main.omg	current=accepted	current_us=34473512	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_result_field_reads/main.omg	current=accepted	current_us=25190662	route=outside	machine service reach
+program	tests/omega/pass/expressions/match_owned_same_root_projections/main.omg	current=accepted	current_us=25728529	route=outside	machine service reach
+program	tests/omega/pass/expressions/mixed_integer_comparison_places/main.omg	current=accepted	current_us=21090478	route=outside	machine service reach
+program	tests/omega/pass/expressions/mixed_integer_comparison_widths/main.omg	current=accepted	current_us=14973256	route=outside	machine service reach
+program	tests/omega/pass/expressions/mixed_integer_guard_comparison/main.omg	current=accepted	current_us=16413276	route=outside	machine service reach
+program	tests/omega/pass/expressions/numeric_operand_destinations/main.omg	current=accepted	current_us=15288515	route=outside	machine service reach
+program	tests/omega/pass/expressions/owned_match_authored_state/main.omg	current=accepted	current_us=7300356	route=no-entry
+program	tests/omega/pass/expressions/owned_match_call_values/main.omg	current=accepted	current_us=8186636	route=no-entry
+program	tests/omega/pass/expressions/owned_match_interleaved_values/main.omg	current=accepted	current_us=7345581	route=no-entry
+program	tests/omega/pass/expressions/owned_match_mixed_values/main.omg	current=accepted	current_us=12013405	route=no-entry
+program	tests/omega/pass/expressions/owned_match_parameter_values/main.omg	current=accepted	current_us=12989382	route=no-entry
+program	tests/omega/pass/expressions/owned_match_projected_field/main.omg	current=accepted	current_us=14009668	route=no-entry
+program	tests/omega/pass/expressions/owned_match_record_values/main.omg	current=accepted	current_us=13386114	route=no-entry
+program	tests/omega/pass/expressions/owned_match_values/main.omg	current=accepted	current_us=14198805	route=no-entry
+program	tests/omega/pass/expressions/qualified_call_result_argument/main.omg	current=accepted	current_us=13625768	route=no-entry
+program	tests/omega/pass/expressions/runtime_comparison_store_integer_exit/main.omg	current=accepted	current_us=26296502	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_enum_comparison_left_value_before_right_mutation_exit/main.omg	current=accepted	current_us=14697674	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_enum_comparison_operands_once_exit/main.omg	current=accepted	current_us=12092202	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_flat_boolean_logic_exit/main.omg	current=accepted	current_us=26107202	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_float_record_field_reads_exit/main.omg	current=accepted	current_us=38561250	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_indexed_float_record_fields_exit/main.omg	current=accepted	current_us=26063928	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_match_borrowed_call_subject_once_exit/main.omg	current=accepted	current_us=14297384	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_match_copy_descriptor_call_exit/main.omg	current=rejected	current_us=12815771	route=unreached	Some(Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"exercise\", reason: \"computed owned structural operand changes its source custody\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/expressions/runtime_match_copy_descriptor_snapshot_exit/main.omg	current=accepted	current_us=15011304	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_match_copy_subject_snapshot_exit/main.omg	current=accepted	current_us=13591013	route=outside	transition case arm with a guard
+program	tests/omega/pass/expressions/runtime_match_nested_saved_tag_exit/main.omg	current=accepted	current_us=13854188	route=outside	transition case arm with a guard
+program	tests/omega/pass/expressions/runtime_match_projected_equatable_exit/main.omg	current=accepted	current_us=13866435	route=outside	transition pattern head that is not a case
+program	tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg	current=accepted	current_us=12975245	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_match_structural_result_subject_once_exit/main.omg	current=accepted	current_us=12559476	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_nested_record_field_call_exit/main.omg	current=accepted	current_us=14513364	route=outside	parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_nested_record_field_reads_exit/main.omg	current=accepted	current_us=24650088	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_numeric_cast_exit/main.omg	current=accepted	current_us=25890072	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_owned_match_borrowed_subject_exit/main.omg	current=accepted	current_us=12942218	route=outside	type fixed array
+program	tests/omega/pass/expressions/runtime_owned_match_call_result_exit/main.omg	current=accepted	current_us=23714639	route=outside	machine service reach
+program	tests/omega/pass/expressions/runtime_owned_match_effectful_subject_exit/main.omg	current=accepted	current_us=12090473	route=outside	type fixed array
+program	tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg	current=rejected	current_us=14045481	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.second does not establish drop_token clause `token.code == 0`", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/expressions/runtime_owned_match_parameter_claim_replacement_exit/main.omg	current=accepted	current_us=14606861	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_owned_match_pattern_claim_replacement_exit/main.omg	current=accepted	current_us=13761467	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_owned_match_pattern_replacement_exit/main.omg	current=accepted	current_us=13742701	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit/main.omg	current=accepted	current_us=16166314	route=outside	type data with custody
+program	tests/omega/pass/expressions/runtime_temporary_record_field_call_exit/main.omg	current=accepted	current_us=13952326	route=outside	parameter mutable parameter
+program	tests/omega/pass/expressions/runtime_widened_comparison_exit/main.omg	current=accepted	current_us=38477406	route=outside	machine service reach
+program	tests/omega/pass/expressions/scalar_match_boundary_composition_exit/main.omg	current=accepted	current_us=26568679	route=outside	machine service reach
+program	tests/omega/pass/expressions/seq_consuming_combinators/main.omg	current=rejected	current_us=5459315	route=unreached	Some(Diagnostic { severity: Error, message: "generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$168f7f0591239da4$0$4663` state `map$specialized$168f7f0591239da4$0$4663::entry`: Type slot `U`
+program	tests/omega/pass/expressions/sequential_fresh_linear_selection/main.omg	current=accepted	current_us=13815157	route=outside	type data with custody
+program	tests/omega/pass/expressions/unit_case_return_call_product/main.omg	current=accepted	current_us=19091974	route=outside	machine service reach
+program	tests/omega/pass/facts/abi_multi_arg_spill_through_call_result_exit/main.omg	current=accepted	current_us=14278030	route=refused-module	route_us=6039	clause names a value that is not a formal
+program	tests/omega/pass/facts/abstract_signature_call_constant_initializer_through_local_exit/main.omg	current=accepted	current_us=15730786	route=refused-module	route_us=4777	invocation outside an operation
+program	tests/omega/pass/facts/address_count_partition_through_match_join_exit/main.omg	current=accepted	current_us=14500839	route=outside	type constrained
+program	tests/omega/pass/facts/alias_fact_transfer_through_other_state_exit/main.omg	current=accepted	current_us=14428348	route=outside	type data with custody
+program	tests/omega/pass/facts/as_slice_views_generic_through_match_join_exit/main.omg	current=rejected	current_us=12964175	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/atomic_boolean_store/other_state/main.omg	current=accepted	current_us=14179307	route=outside	type data with custody
+program	tests/omega/pass/facts/atomic_try_exchange_once/controls/discarded_result/main.omg	current=accepted	current_us=13914749	route=outside	type data with custody
+program	tests/omega/pass/facts/borrowed_content_partition_through_other_state_exit/main.omg	current=accepted	current_us=17468924	route=outside	type data with custody
+program	tests/omega/pass/facts/boundary_provider_call_through_target_body_exit/main.omg	current=accepted	current_us=13097410	route=outside	machine service reach
+program	tests/omega/pass/facts/bounded_activation_through_match_join_exit/main.omg	current=accepted	current_us=15912643	route=outside	type data with custody
+program	tests/omega/pass/facts/build_target_provider_through_const_name_exit/reading_provider/main.omg	current=accepted	current_us=17988837	route=no-entry
+program	tests/omega/pass/facts/call_result_bound_discharge_through_target_body_exit/main.omg	current=accepted	current_us=9018059	route=outside	type data with custody
+program	tests/omega/pass/facts/case_match_payload_loan_through_const_name_exit/main.omg	current=accepted	current_us=7433599	route=outside	type data with custody
+program	tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	current=accepted	current_us=7423795	route=refused-module	route_us=564	clause names a value that is not a formal
+program	tests/omega/pass/facts/case_where_equality_root_exit/main.omg	current=accepted	current_us=7430744	route=outside	type data with custody
+program	tests/omega/pass/facts/checked_asm_countdown_through_const_name_exit/main.omg	current=accepted	current_us=7602643	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/facts/checked_asm_nominal_predicate_through_field_exit/main.omg	current=accepted	current_us=7352566	route=outside	contract term other than a formal or literal
+program	tests/omega/pass/facts/checked_predicate_disjoint_loans_through_match_join_exit/main.omg	current=accepted	current_us=7879373	route=outside	type fixed array
+program	tests/omega/pass/facts/component_scalar_lending_through_parameter_exit/producer/main.omg	current=accepted	current_us=8174848	route=accepted	route_us=218	obligations=0	judged=0	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	gated=0
+program	tests/omega/pass/facts/computed_record_window_through_parameter_exit/main.omg	current=accepted	current_us=9046884	route=outside	type fixed array
+program	tests/omega/pass/facts/contract_excluded_case_through_target_body_exit/main.omg	current=accepted	current_us=8724729	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/facts/correlated_invariant_store_through_const_name_exit/main.omg	current=accepted	current_us=7412314	route=outside	type data with custody
+program	tests/omega/pass/facts/crash_entry_representation_view_through_local_exit/main.omg	current=accepted	current_us=8256469	route=outside	type reference
+program	tests/omega/pass/facts/data_where_standing_borrowed_field_through_local_exit/main.omg	current=accepted	current_us=7174353	route=outside	type generic data
+program	tests/omega/pass/facts/data_where_standing_predicate_helper_through_field_exit/main.omg	current=accepted	current_us=8180820	route=outside	contract term other than a formal or literal
+program	tests/omega/pass/facts/default_domain_field_write_through_field_exit/main.omg	current=accepted	current_us=7360270	route=outside	spelling member without a field symbol
+program	tests/omega/pass/facts/descriptor_range_exclusive_loan_through_local_exit/main.omg	current=rejected	current_us=6346830	route=unreached	Some(Diagnostic { severity: Error, message: "cannot establish assignment invariants: partial write enclosure has no declared type", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/domain_carrier_identity_through_other_machine_exit/main.omg	current=accepted	current_us=7914236	route=outside	contract domain membership
+program	tests/omega/pass/facts/domain_selected_cleanup_computed_parameter_exit/main.omg	current=accepted	current_us=8374075	route=outside	type data with custody
+program	tests/omega/pass/facts/dyn_returned_view_membership_through_field_exit/main.omg	current=accepted	current_us=7398332	route=outside	type reference
+program	tests/omega/pass/facts/dynamic_trait_dispatch_through_match_join_exit/main.omg	current=accepted	current_us=8190171	route=outside	type dynamic trait
+program	tests/omega/pass/facts/exclusive_match_arm_through_other_state_exit/main.omg	current=rejected	current_us=6529155	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`", exceeded_provision: None, source_span: Som
+program	tests/omega/pass/facts/finite_family_exclusive_result/target_body/main.omg	current=rejected	current_us=6769520	route=unreached	Some(Diagnostic { severity: Error, message: "statement 0 creates local borrow `entry` while local borrow `entry` is still active (borrowed at statement 0)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/five_variant_enum_payload_bound_through_const_name_exit/main.omg	current=accepted	current_us=9105055	route=refused-module	route_us=1281	invocation outside an operation
+program	tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_local_exit/main.omg	current=accepted	current_us=7330170	route=outside	type fixed array
+program	tests/omega/pass/facts/fixed_layout_reference_readback_through_match_join_exit/main.omg	current=accepted	current_us=13016176	route=outside	type generic application
+program	tests/omega/pass/facts/float_meaning_result_through_match_join_exit/main.omg	current=accepted	current_us=7009805	route=outside	type float
+program	tests/omega/pass/facts/foreign_indirect_float_record_result_through_other_state_exit/main.omg	current=accepted	current_us=7513167	route=outside	machine service reach
+program	tests/omega/pass/facts/foreign_retained_mutable_borrow_other_state/main.omg	current=rejected	current_us=7713136	route=unreached	Some(Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(Unsupported(\"retained-borrow callable lost its schema owner\"))", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/foreign_scalar_record_result_through_target_body_exit/main.omg	current=accepted	current_us=8369966	route=outside	machine service reach
+program	tests/omega/pass/facts/generic_case_subject_through_other_machine_exit/main.omg	current=accepted	current_us=6953838	route=outside	type generic data
+program	tests/omega/pass/facts/generic_terminated_array_through_parameter_exit/main.omg	current=accepted	current_us=8145645	route=outside	machine service reach
+program	tests/omega/pass/facts/ieee_float_ordered_comparison_through_call_result_exit/main.omg	current=accepted	current_us=7027399	route=outside	type float
+program	tests/omega/pass/facts/independent_content_partition_through_const_name_exit/main.omg	current=accepted	current_us=8039856	route=outside	type data with custody
+program	tests/omega/pass/facts/indexed_recoverable_replacement_window_through_local_exit/main.omg	current=accepted	current_us=7274414	route=outside	type data with custody
+program	tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/main.omg	current=accepted	current_us=8251557	route=outside	type fixed array
+program	tests/omega/pass/facts/integer_multiple_remainder_through_other_machine_exit/main.omg	current=accepted	current_us=8226279	route=outside	type data with custody
+program	tests/omega/pass/facts/lexical_generic_bound_through_parameter_exit/main.omg	current=accepted	current_us=8267024	route=outside	contract contracts on a state
+program	tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_call_result_exit/main.omg	current=accepted	current_us=8298151	route=refused-module	route_us=812	invocation outside an operation
+program	tests/omega/pass/facts/match_effectful_subject_custody_through_field_exit/main.omg	current=accepted	current_us=8126225	route=outside	type data with custody
+program	tests/omega/pass/facts/match_primitive_local_origin_through_match_join_exit/main.omg	current=accepted	current_us=7342438	route=outside	expression match on a scalar subject
+program	tests/omega/pass/facts/matched_field_windows_through_other_state_exit/main.omg	current=rejected	current_us=6427930	route=unreached	Some(Diagnostic { severity: Error, message: "`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0", exceeded_provision: Some(ExceededProvisi
+program	tests/omega/pass/facts/may_write_computed_receiver_through_target_body_exit/main.omg	current=rejected	current_us=10837376	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `selected` while local borrow `probe` is still active (borrowed at statement 1; its last use is at statement 4)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/mixed_width_record_padding_geometry_through_const_name_exit/main.omg	current=accepted	current_us=7348683	route=outside	call compiler operation call
+program	tests/omega/pass/facts/named_conformance_dispatch_through_local_exit/main.omg	current=accepted	current_us=7827117	route=outside	machine suspends or blocks
+program	tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_other_machine_exit/main.omg	current=accepted	current_us=7050346	route=outside	expression cast
+program	tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_exit/main.omg	current=accepted	current_us=7406205	route=outside	expression cast
+program	tests/omega/pass/facts/nested_borrow_qualification_through_call_result_exit/main.omg	current=accepted	current_us=7344013	route=outside	type data with custody
+program	tests/omega/pass/facts/nested_record_field_borrow_bound_through_const_name_exit/main.omg	current=accepted	current_us=7533288	route=outside	type data with custody
+program	tests/omega/pass/facts/nested_three_level_record_field_bound_through_local_exit/main.omg	current=accepted	current_us=7595760	route=refused-module	route_us=595	invocation outside an operation
+program	tests/omega/pass/facts/nominal_declaration_owner_through_match_join/main.omg	current=accepted	current_us=8454287	route=outside	expression match on a scalar subject
+program	tests/omega/pass/facts/non_owning_reference_erasure_through_other_state_exit/main.omg	current=rejected	current_us=5798829	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 777, end: 782 } }), resolved_
+program	tests/omega/pass/facts/open_const_implementation_through_match_join_exit/main.omg	current=accepted	current_us=8019494	route=outside	type data with custody
+program	tests/omega/pass/facts/placed_stable_write_through_other_machine_exit/main.omg	current=accepted	current_us=11662328	route=outside	type data with custody
+program	tests/omega/pass/facts/progress_selector_nested_arrival_through_parameter_exit/main.omg	current=accepted	current_us=7892491	route=outside	machine service reach
+program	tests/omega/pass/facts/provider_contract_endpoint_closed_owner_through_call_result_exit/main.omg	current=accepted	current_us=9949317	route=outside	contract term other than a formal or literal
+program	tests/omega/pass/facts/provider_contract_endpoint_through_const_name_exit/main.omg	current=accepted	current_us=8873810	route=outside	contract term other than a formal or literal
+program	tests/omega/pass/facts/readonly_byte_literal_subslice_through_local_exit/main.omg	current=accepted	current_us=7742824	route=outside	type reference
+program	tests/omega/pass/facts/recorded_build_role/other_machine/main.omg	current=accepted	current_us=8136220	route=refused-module	route_us=206	invocation outside an operation
+program	tests/omega/pass/facts/reflection_capacity_through_parameter_exit/main.omg	current=accepted	current_us=28950036	route=outside	type reference
+program	tests/omega/pass/facts/representation_agreement_through_call_result_exit/main.omg	current=rejected	current_us=9050346	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove ensures contract for exit from FirstAgreement::encode_covers at statement 0: WriteFirst.try_from(value) == Result::Ok", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/facts/resident_backing_plain_ram_exit/main.omg	current=rejected	current_us=5814358	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 539, end: 544 } }), resolved_locatio
+program	tests/omega/pass/facts/returned_write_destination_through_match_join_exit/main.omg	current=accepted	current_us=7801047	route=outside	parameter mutable parameter
+program	tests/omega/pass/facts/runtime_index_application_computed_through_other_state_exit/main.omg	current=accepted	current_us=7635648	route=outside	type generic application
+program	tests/omega/pass/facts/runtime_index_application_mutating_operator_through_target_body_exit/main.omg	current=accepted	current_us=8232900	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/facts/runtime_index_application_through_const_name_exit/main.omg	current=accepted	current_us=7395143	route=outside	type generic application
+program	tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit/main.omg	current=rejected	current_us=6674493	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `en
+program	tests/omega/pass/facts/scalar_array_row_construction_through_call_result_exit/main.omg	current=accepted	current_us=7221245	route=outside	type fixed array
+program	tests/omega/pass/facts/scalar_tag_field_loan_through_field_exit/main.omg	current=accepted	current_us=7683180	route=outside	type data with custody
+program	tests/omega/pass/facts/selected_crash_formal_through_match_join_exit/main.omg	current=accepted	current_us=8334649	route=outside	call static application arguments
+program	tests/omega/pass/facts/selected_value_application_through_other_state_exit/main.omg	current=accepted	current_us=8257678	route=outside	machine service reach
+program	tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_exit/main.omg	current=accepted	current_us=7868792	route=outside	call receiver call
+program	tests/omega/pass/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_exit/main.omg	current=accepted	current_us=7998879	route=outside	type constrained
+program	tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_local_exit/main.omg	current=accepted	current_us=8113640	route=outside	expression cast
+program	tests/omega/pass/facts/signed_8bit_shift_left_bound_through_other_machine_exit/main.omg	current=accepted	current_us=10131340	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/facts/signed_division_quotient_through_parameter_exit/main.omg	current=accepted	current_us=11569828	route=outside	expression cast
+program	tests/omega/pass/facts/signed_shift_left_bound_through_call_result_exit/main.omg	current=accepted	current_us=10000203	route=refused-module	route_us=820	clause names a value that is not a formal
+program	tests/omega/pass/facts/slice_view_layout_geometry_through_call_result_exit/main.omg	current=accepted	current_us=8401840	route=outside	call compiler operation call
+program	tests/omega/pass/facts/source_indexed_type_parameter_through_const_name_exit/main.omg	current=rejected	current_us=5117379	route=unreached	Some(Diagnostic { severity: Error, message: "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 2008, end: 2113 } }), resolved_location: Some(Reso
+program	tests/omega/pass/facts/static_callable_type_requirements_through_field_exit/main.omg	current=accepted	current_us=8798987	route=outside	type data with custody
+program	tests/omega/pass/facts/stored_exclusive_byte_view_through_call_result_exit/main.omg	current=accepted	current_us=9202125	route=outside	type fixed array
+program	tests/omega/pass/facts/target_family_contract_operand/field/main.omg	current=accepted	current_us=9225047	route=outside	machine service reach
+program	tests/omega/pass/facts/target_recursive_bound_through_match_join_exit/main.omg	current=accepted	current_us=8942842	route=outside	call suspend or block acknowledgement
+program	tests/omega/pass/facts/typed_reflection_mutation_through_other_state_exit/main.omg	current=accepted	current_us=9880929	route=outside	parameter mutable parameter
+program	tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit/main.omg	current=accepted	current_us=9486331	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_parameter_exit/main.omg	current=accepted	current_us=9629927	route=outside	type constrained
+program	tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_call_result_exit/main.omg	current=accepted	current_us=9153756	route=outside	expression match on a scalar subject
+program	tests/omega/pass/facts/unsigned_8bit_shift_right_bound_through_field_exit/main.omg	current=accepted	current_us=8367234	route=outside	type data with custody
+program	tests/omega/pass/facts/unsigned_division_remainder_through_match_join_exit/main.omg	current=accepted	current_us=10156046	route=outside	expression cast
+program	tests/omega/pass/facts/unsigned_shift_left_bound_through_other_state_exit/main.omg	current=accepted	current_us=12712103	route=refused-module	route_us=636	invocation outside an operation
+program	tests/omega/pass/facts/wildcard_structural_return_through_other_machine_exit/main.omg	current=accepted	current_us=17319045	route=outside	parameter mutable parameter
+program	tests/omega/pass/facts/write_only_ieee_store_readback_through_parameter_exit/main.omg	current=accepted	current_us=15918953	route=outside	type float
+program	tests/omega/pass/facts/zero_byte_erased_carrier_through_call_result_exit/main.omg	current=accepted	current_us=9869532	route=outside	type data with custody
+program	tests/omega/pass/locals/mutable_local_call_initializer_exit/main.omg	current=accepted	current_us=15049122	route=outside	machine service reach
+program	tests/omega/pass/locals/mutable_local_call_multistate_reassignment_exit/main.omg	current=accepted	current_us=15113550	route=outside	machine service reach
+program	tests/omega/pass/locals/mutable_local_call_reassignment_exit/main.omg	current=accepted	current_us=15157731	route=outside	machine service reach
+program	tests/omega/pass/locals/runtime_deferred_scalar_initialization_exit/main.omg	current=accepted	current_us=15198380	route=outside	machine service reach
+program	tests/omega/pass/locals/runtime_erased_parameter_mutable_local_exit/main.omg	current=accepted	current_us=8170050	route=outside	parameter erased parameter
+program	tests/omega/pass/locals/runtime_local_array_member_stores_without_mut_exit/main.omg	current=accepted	current_us=14606735	route=outside	machine service reach
+program	tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg	current=rejected	current_us=14049719	route=unreached	Some(Diagnostic { severity: Error, message: "`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: missing exact flow occurrence); in state `Main::main::main`, statement 3", exceeded_provision: Some(ExceededPro
+program	tests/omega/pass/locals/runtime_local_record_array_element_field_reads_exit/main.omg	current=accepted	current_us=15202986	route=outside	machine service reach
+program	tests/omega/pass/locals/runtime_local_view_member_element_read_exit/main.omg	current=accepted	current_us=15014462	route=outside	machine service reach
+program	tests/omega/pass/locals/runtime_unrestricted_record_rebinding_exit/main.omg	current=accepted	current_us=8189650	route=refused-module	route_us=1483	invocation outside an operation
+program	tests/omega/pass/locals/static_local_field_names_exit/main.omg	current=accepted	current_us=7457699	route=outside	call receiver, requirement or coercion call
+program	tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg	current=accepted	current_us=7841469	route=refused-module	route_us=1071	invocation outside an operation
+program	tests/omega/pass/structs/affine_record_state_clone/main.omg	current=accepted	current_us=14065289	route=outside	machine service reach
+program	tests/omega/pass/structs/affine_result_constructor/main.omg	current=accepted	current_us=22728876	route=outside	machine service reach
+program	tests/omega/pass/structs/case_field_type_store_shapes/main.omg	current=accepted	current_us=15062881	route=outside	machine service reach
+program	tests/omega/pass/structs/copied_array_field_shared_record/main.omg	current=accepted	current_us=14646455	route=outside	machine service reach
+program	tests/omega/pass/structs/deep_nested_write_paths_exit/main.omg	current=accepted	current_us=14213430	route=outside	type data with custody
+program	tests/omega/pass/structs/mutable_array_record_state_transfer/main.omg	current=accepted	current_us=15188826	route=outside	machine service reach
+program	tests/omega/pass/structs/mutable_record_state_transfer/main.omg	current=accepted	current_us=14095896	route=outside	machine service reach
+program	tests/omega/pass/structs/nested_unused_provider_fields/main.omg	current=accepted	current_us=15083752	route=outside	machine service reach
+program	tests/omega/pass/structs/qualified_record_element_assignment_exit/main.omg	current=accepted	current_us=14401405	route=outside	machine service reach
+program	tests/omega/pass/structs/record_literal_array_field/main.omg	current=accepted	current_us=14882993	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_array_member_snapshot_exit/main.omg	current=accepted	current_us=14520894	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_case_array_payload_exit/main.omg	current=accepted	current_us=14473950	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_completed_array_elements_exit/main.omg	current=accepted	current_us=14633198	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_composed_case_payload_reads_exit/main.omg	current=accepted	current_us=14528817	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_declared_record_member_fill_exit/main.omg	current=accepted	current_us=14639190	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_local_array_snapshot_exit/main.omg	current=accepted	current_us=14457516	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_local_record_policy_exit/main.omg	current=accepted	current_us=14765900	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_mixed_common_field_store_exit/main.omg	current=accepted	current_us=7617592	route=outside	type data with custody
+program	tests/omega/pass/structs/runtime_named_array_record_member_exit/main.omg	current=accepted	current_us=14412738	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_nested_struct_construction_exit/main.omg	current=accepted	current_us=14699883	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_nonzero_array_elements_exit/main.omg	current=accepted	current_us=14154664	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_owned_float_selection_store_exit/main.omg	current=accepted	current_us=7757231	route=outside	type float
+program	tests/omega/pass/structs/runtime_qualified_record_call_composition_exit/main.omg	current=accepted	current_us=21255172	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_state_record_array_element_read_exit/main.omg	current=accepted	current_us=14866265	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_struct_array_literal_exit/main.omg	current=accepted	current_us=14337467	route=outside	machine service reach
+program	tests/omega/pass/structs/runtime_view_array_elements_exit/main.omg	current=accepted	current_us=14698335	route=outside	machine service reach
+program	tests/omega/pass/structs/uninit_record_local_exit/main.omg	current=accepted	current_us=14272671	route=outside	machine service reach
+program	tests/omega/pass/structs/uninit_record_member_read/main.omg	current=accepted	current_us=14569649	route=outside	machine service reach
+program	tests/omega/pass/structs/uninit_record_member_store/main.omg	current=accepted	current_us=15219072	route=outside	machine service reach
+program	tests/omega/pass/structs/zeroed_record_member_wide_array_exit/main.omg	current=accepted	current_us=15358951	route=outside	machine service reach
+program	tests/omega/pass/structs/zeroed_record_members_exit/main.omg	current=accepted	current_us=19117441	route=outside	machine service reach
+program	tests/omega/pass/structural/borrowed_array_state_carry/main.omg	current=accepted	current_us=10094701	route=no-entry
+program	tests/omega/pass/structural/case_field_local_store/main.omg	current=accepted	current_us=16212282	route=outside	machine service reach
+program	tests/omega/pass/structural/case_field_member_store/main.omg	current=accepted	current_us=16919279	route=outside	machine service reach
+program	tests/omega/pass/structural/case_payload_record_member_read/main.omg	current=accepted	current_us=17166175	route=outside	type data with custody
+program	tests/omega/pass/structural/composed_case_field_store_exit/main.omg	current=accepted	current_us=17470883	route=outside	machine service reach
+program	tests/omega/pass/structural/computed_enum_case_guard_effects_exit/main.omg	current=accepted	current_us=9071865	route=outside	type data with custody
+program	tests/omega/pass/structural/computed_enum_equality_guard_exit/main.omg	current=accepted	current_us=9337163	route=outside	expression operator on a record
+program	tests/omega/pass/structural/element_store/main.omg	current=accepted	current_us=16571963	route=outside	machine service reach
+program	tests/omega/pass/structural/indexed_scalar_call_result_store/main.omg	current=accepted	current_us=23928614	route=outside	machine service reach
+program	tests/omega/pass/structural/local_record_receivers/main.omg	current=accepted	current_us=18318041	route=no-entry
+program	tests/omega/pass/structural/primitive_array_snapshot_indexed_row_exit/main.omg	current=accepted	current_us=27508252	route=outside	machine service reach
+program	tests/omega/pass/structural/primitive_array_snapshot_swap_exit/main.omg	current=accepted	current_us=15273368	route=outside	machine service reach
+program	tests/omega/pass/structural/record_literal_moves_zeroed_local_array_exit/main.omg	current=accepted	current_us=14297595	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_affine_local_successor_loans_exit/main.omg	current=accepted	current_us=7058599	route=outside	type data with custody
+program	tests/omega/pass/structural/runtime_enum_equality_exit/main.omg	current=accepted	current_us=14288056	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_mutable_record_copy_exit/main.omg	current=accepted	current_us=13804683	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_nested_constructor_payload_exit/main.omg	current=accepted	current_us=7010651	route=outside	type fixed array
+program	tests/omega/pass/structural/runtime_provider_payload_array_exit/main.omg	current=accepted	current_us=14658040	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg	current=rejected	current_us=6630393	route=unreached	Some(Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"churn::next\", reason: \"owned edge transfers an unavailable owner\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/pass/structural/runtime_selected_case_record_member_exit/main.omg	current=accepted	current_us=16460274	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_state_local_whole_store_exit/main.omg	current=accepted	current_us=16262465	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_structural_operand_snapshot_exit/main.omg	current=accepted	current_us=17393677	route=outside	machine service reach
+program	tests/omega/pass/structural/runtime_structural_result_crash_branch_exit/main.omg	current=accepted	current_us=9555150	route=outside	type data with custody
+program	tests/omega/pass/structural/selected_record_payload_observations_exit/main.omg	current=accepted	current_us=17482796	route=outside	machine service reach
+program	tests/omega/pass/structural/sum_attachment_receiver_compile/main.omg	current=accepted	current_us=8662685	route=no-entry
+program	tests/omega/pass/types/address_comparison_symbolic_bound_compile/main.omg	current=accepted	current_us=8455742	route=no-entry
+program	tests/omega/pass/types/address_model_conversion/main.omg	current=accepted	current_us=9857262	route=outside	expression projected name path
+program	tests/omega/pass/types/exact_address_conversion/main.omg	current=accepted	current_us=9412167	route=outside	type data with custody
+program	tests/omega/pass/types/runtime_addr_algebra_exit/main.omg	current=accepted	current_us=16714032	route=outside	machine service reach
+program	tests/omega/pass/types/runtime_addr_conversion_trap_exit/main.omg	current=accepted	current_us=17034416	route=outside	machine service reach
+program	tests/omega/pass/types/runtime_addr_field_exit/main.omg	current=accepted	current_us=24118459	route=outside	machine service reach
+program	tests/omega/pass/types/runtime_address_literal_landing_exit/main.omg	current=accepted	current_us=9282903	route=outside	type addr
+program	tests/omega/pass/types/runtime_exact_address_subtraction_exit/main.omg	current=accepted	current_us=16924576	route=outside	machine service reach
+program	tests/omega/pass/types/runtime_i16_signed_arith_exit/main.omg	current=accepted	current_us=16643170	route=outside	machine service reach
+program	tests/omega/pass/types/shared_borrow_retains_carrier_exit/main.omg	current=accepted	current_us=9953983	route=outside	type addr
+program	tests/omega/pass/types/storage_address_aggregate/main.omg	current=accepted	current_us=8784488	route=no-entry
+program	tests/omega/pass/types/storage_address_core_name_shadowed_exit/main.omg	current=accepted	current_us=9401010	route=refused-module	route_us=992	invocation outside an operation
+program	tests/omega/run/arithmetic/anonymous_comparison_with_typed_operators/main.omg	current=accepted	current_us=9370535	route=refused-module	route_us=1184	invocation outside an operation
+program	tests/omega/run/arithmetic/disjoint_pressure_regions/main.omg	current=accepted	current_us=29421568	route=outside	machine service reach
+program	tests/omega/run/arithmetic/fixed_input_reused_across_calls/main.omg	current=accepted	current_us=17878668	route=outside	machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_after_call/main.omg	current=accepted	current_us=17091365	route=outside	machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_after_pressure/main.omg	current=accepted	current_us=22763031	route=outside	machine service reach
+program	tests/omega/run/arithmetic/fixed_integer_operand_join/main.omg	current=accepted	current_us=17630704	route=outside	machine service reach
+program	tests/omega/run/arithmetic/float_structural_initializer_selection/main.omg	current=accepted	current_us=15118191	route=outside	machine service reach
+program	tests/omega/run/arithmetic/pinned_dividend_across_console_calls/main.omg	current=accepted	current_us=16129210	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operator_division_matches_policy_domains/main.omg	current=accepted	current_us=17370399	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operator_exact_result_fact/main.omg	current=accepted	current_us=16770356	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operator_minimum_quotient_traps/main.omg	current=accepted	current_us=16463830	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operator_minimum_remainder_traps/main.omg	current=accepted	current_us=16277426	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operator_zero_divisor_traps/main.omg	current=accepted	current_us=17231257	route=outside	machine service reach
+program	tests/omega/run/arithmetic/policy_operators_match_policy_domains/main.omg	current=accepted	current_us=26445863	route=outside	machine service reach
+program	tests/omega/run/borrows/affine_produced_membership_move/main.omg	current=accepted	current_us=9420972	route=outside	type data with custody
+program	tests/omega/run/borrows/call_result_mutable_window_field_exit/main.omg	current=accepted	current_us=17178614	route=outside	machine service reach
+program	tests/omega/run/borrows/computed_element_view_state_extent/main.omg	current=rejected	current_us=7172498	route=unreached	Some(Diagnostic { severity: Error, message: "returned projection exceeds its source presentation", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/borrows/conditional_disjoint_field_loans_exit/main.omg	current=accepted	current_us=16940637	route=outside	machine service reach
+program	tests/omega/run/borrows/conditional_returned_descriptor_origins/main.omg	current=accepted	current_us=9768897	route=outside	type fixed array
+program	tests/omega/run/borrows/direct_runtime_index_write/main.omg	current=accepted	current_us=16549884	route=outside	machine service reach
+program	tests/omega/run/borrows/dynamic_ancestor_static_byte_child_exit/main.omg	current=accepted	current_us=15682017	route=outside	machine service reach
+program	tests/omega/run/borrows/incoming_carrier_transport/main.omg	current=accepted	current_us=8558205	route=outside	type data with custody
+program	tests/omega/run/borrows/independent_invocation_reference_results/main.omg	current=accepted	current_us=9450577	route=outside	machine service reach
+program	tests/omega/run/borrows/indexed_loan_element_write/main.omg	current=accepted	current_us=16219070	route=outside	machine service reach
+program	tests/omega/run/borrows/local_mut_borrow/main.omg	current=accepted	current_us=16371743	route=outside	machine service reach
+program	tests/omega/run/borrows/mut_record_loan_member_access/main.omg	current=accepted	current_us=16984449	route=outside	machine service reach
+program	tests/omega/run/borrows/owned_array_view_establishment/main.omg	current=accepted	current_us=9216891	route=outside	type fixed array
+program	tests/omega/run/borrows/probe_shared_len/main.omg	current=accepted	current_us=16207045	route=outside	machine service reach
+program	tests/omega/run/borrows/proved_window_index_replacement/main.omg	current=accepted	current_us=9171341	route=outside	type fixed array
+program	tests/omega/run/borrows/qualified_owner_views/main.omg	current=accepted	current_us=9373576	route=outside	type constrained
+program	tests/omega/run/borrows/recast_mut_borrow/main.omg	current=accepted	current_us=16508408	route=outside	machine service reach
+program	tests/omega/run/borrows/reference_local_binding_routes/main.omg	current=accepted	current_us=16166587	route=outside	machine service reach
+program	tests/omega/run/borrows/reference_result_call_binding/main.omg	current=accepted	current_us=16773509	route=outside	machine service reach
+program	tests/omega/run/borrows/returned_descriptor_entry_snapshot/main.omg	current=rejected	current_us=8766644	route=unreached	Some(Diagnostic { severity: Error, message: "`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: call operation: structural result loan)); in state `main::entry`, statement 3", exceeded_provision: Some(ExceededProvisi
+program	tests/omega/run/borrows/returned_element_from_offset_view/main.omg	current=accepted	current_us=9330997	route=outside	type fixed array
+program	tests/omega/run/borrows/returned_image_nested_arrival/main.omg	current=accepted	current_us=9451386	route=outside	type data with custody
+program	tests/omega/run/borrows/returned_image_nested_field/main.omg	current=accepted	current_us=9352621	route=outside	type generic data
+program	tests/omega/run/borrows/returned_indexed_case/main.omg	current=accepted	current_us=9095696	route=outside	type data with custody
+program	tests/omega/run/borrows/returned_indexed_case_descriptor_field/main.omg	current=accepted	current_us=9500514	route=outside	type data with custody
+program	tests/omega/run/borrows/runtime_index_bounded_borrow/main.omg	current=accepted	current_us=25792728	route=outside	machine service reach
+program	tests/omega/run/borrows/runtime_index_scalar_write_descriptor_result/main.omg	current=accepted	current_us=9449546	route=outside	type data with custody
+program	tests/omega/run/borrows/shared_field_borrow/main.omg	current=accepted	current_us=16409537	route=outside	machine service reach
+program	tests/omega/run/borrows/shared_indexed_read/main.omg	current=accepted	current_us=16568356	route=outside	machine service reach
+program	tests/omega/run/borrows/shared_local_borrow/main.omg	current=accepted	current_us=16619939	route=outside	machine service reach
+program	tests/omega/run/borrows/shared_recast_borrow/main.omg	current=accepted	current_us=15863403	route=outside	machine service reach
+program	tests/omega/run/borrows/shared_record_loan_member_read/main.omg	current=accepted	current_us=16742801	route=outside	machine service reach
+program	tests/omega/run/borrows/shared_runtime_index_borrow/main.omg	current=accepted	current_us=17020733	route=outside	machine service reach
+program	tests/omega/run/borrows/stored_case_reference_state/main.omg	current=accepted	current_us=9514008	route=outside	type reference
+program	tests/omega/run/borrows/stored_subview_identity/main.omg	current=accepted	current_us=9443114	route=outside	type fixed array
+program	tests/omega/run/borrows/stored_subview_nested_call_result/main.omg	current=accepted	current_us=9581052	route=outside	type fixed array
+program	tests/omega/run/borrows/stored_subview_repeated_updates/main.omg	current=accepted	current_us=9458513	route=outside	type fixed array
+program	tests/omega/run/borrows/terminal_case_completed_observation/main.omg	current=rejected	current_us=7589833	route=unreached	Some(Diagnostic { severity: Error, message: "state `finish` receives `pool` while local borrow `field` is still active (borrowed at statement 0; its last use is at statement 2)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/borrows/transition_guard_descriptor_fallthrough/main.omg	current=rejected	current_us=15036479	route=unreached	Some(Diagnostic { severity: Error, message: "state `checked` receives `buffer.values[0]::Some.payload.target` without an exact retained backing for its loan: the access has no unique completed operand", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/borrows/transition_shared_borrow/main.omg	current=accepted	current_us=26428560	route=outside	machine service reach
+program	tests/omega/run/calls/affine_call_local_field_exit/main.omg	current=accepted	current_us=8752372	route=outside	type data with custody
+program	tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg	current=rejected	current_us=12192938	route=unreached	Some(Diagnostic { severity: Error, message: "`main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `main::entry`, statement 0", exceeded_provision: Some(ExceededProvision { resource: "coverage_statement_
+program	tests/omega/run/calls/byte_literal_expression_values/main.omg	current=accepted	current_us=13170778	route=outside	type generic data
+program	tests/omega/run/calls/call_result_ascii_prefix_literal_exit/main.omg	current=accepted	current_us=12056126	route=outside	type data with custody
+program	tests/omega/run/calls/call_result_ascii_prefix_literal_mismatch/main.omg	current=accepted	current_us=13142193	route=outside	type data with custody
+program	tests/omega/run/calls/fixed_dividend_across_console_calls/main.omg	current=accepted	current_us=36765307	route=outside	machine service reach
+program	tests/omega/run/calls/indexed_case_successor_exit/main.omg	current=accepted	current_us=13218954	route=outside	type fixed array
+program	tests/omega/run/calls/named_transition_f32_destination_single_rounding_exit/main.omg	current=accepted	current_us=20226551	route=outside	type float
+program	tests/omega/run/calls/named_transition_scalar_borrow_arguments_exit/main.omg	current=accepted	current_us=14416892	route=outside	type data with custody
+program	tests/omega/run/calls/named_transition_scalar_borrow_plain_guard_exit/main.omg	current=accepted	current_us=13706773	route=outside	type data with custody
+program	tests/omega/run/calls/named_transition_suffixed_float_arguments_exit/main.omg	current=accepted	current_us=14294850	route=outside	type data with custody
+program	tests/omega/run/calls/named_transition_zero_argument_guard_exit/main.omg	current=accepted	current_us=13510788	route=outside	type data with custody
+program	tests/omega/run/calls/nested_case_terminal_process_exit/main.omg	current=accepted	current_us=25605659	route=outside	type fixed array
+program	tests/omega/run/calls/nested_range_call_operands/main.omg	current=accepted	current_us=13831259	route=outside	type fixed array
+program	tests/omega/run/calls/nested_static_implementation_context/main.omg	current=accepted	current_us=13656689	route=outside	type data with custody
+program	tests/omega/run/calls/nested_static_implementation_shadow/main.omg	current=rejected	current_us=7203287	route=unreached	Some(Diagnostic { severity: Error, message: "machine `middle` static argument 2 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/calls/ordered_literal_call_operands/main.omg	current=accepted	current_us=13905938	route=outside	type data with custody
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_exit/main.omg	current=accepted	current_us=23620149	route=outside	machine service reach
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_input_exit/main.omg	current=rejected	current_us=16580325	route=unreached	Some(Diagnostic { severity: Error, message: "machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(219), span: Span { start: 1043, end
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_inputs_exit/main.omg	current=rejected	current_us=17455073	route=unreached	Some(Diagnostic { severity: Error, message: "machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(219), span: Span { start: 897, end:
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_nested_exit/main.omg	current=accepted	current_us=23717212	route=outside	machine service reach
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_result_exit/main.omg	current=rejected	current_us=30171784	route=unreached	Some(Diagnostic { severity: Error, message: "machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(219), span: Span { start: 910, end:
+program	tests/omega/run/calls/outcome_specific_selected_guarantee_variants_exit/main.omg	current=accepted	current_us=22629805	route=outside	machine service reach
+program	tests/omega/run/calls/owned_literal_call_operands/main.omg	current=accepted	current_us=13293323	route=outside	type generic data
+program	tests/omega/run/calls/projected_call_domain_exit/main.omg	current=accepted	current_us=12301329	route=outside	type constrained
+program	tests/omega/run/calls/projected_call_domain_plain_exit/main.omg	current=accepted	current_us=13448945	route=outside	type fixed array
+program	tests/omega/run/calls/qualified_ancestor_reference_forwarding_exit/main.omg	current=accepted	current_us=14280189	route=outside	type fixed array
+program	tests/omega/run/calls/qualified_atomic_operation_names/main.omg	current=accepted	current_us=14461449	route=outside	call receiver call
+program	tests/omega/run/calls/qualified_literal_return_exit/main.omg	current=accepted	current_us=13540444	route=outside	type reference
+program	tests/omega/run/calls/recursive_machine_transition_scalar_arguments_exit/main.omg	current=accepted	current_us=13657568	route=outside	type constrained
+program	tests/omega/run/calls/resultless_scalar_parameters/main.omg	current=accepted	current_us=23569470	route=outside	machine service reach
+program	tests/omega/run/calls/retained_implicit_entry_selection/main.omg	current=accepted	current_us=14137937	route=outside	expression cast
+program	tests/omega/run/calls/returned_reference_case_write_then_view_exit/main.omg	current=accepted	current_us=13108933	route=outside	parameter mutable parameter
+program	tests/omega/run/calls/runtime_float_distinct_operand_calls_exit/main.omg	current=accepted	current_us=26239922	route=outside	machine service reach
+program	tests/omega/run/calls/runtime_float_normalized_operand_single_evaluation_exit/main.omg	current=accepted	current_us=24778527	route=outside	machine service reach
+program	tests/omega/run/calls/saved_scalar_dispatch_guard_arguments_exit/main.omg	current=accepted	current_us=12554422	route=outside	type float
+program	tests/omega/run/calls/scalar_contract_route_exit/main.omg	current=accepted	current_us=12801263	route=rejected	route_us=14415	obligations=8	judged=6	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestablished=0	gated=0
+program	tests/omega/run/calls/scalar_guard_after_borrow_parameters_exit/main.omg	current=accepted	current_us=12645375	route=outside	type data with custody
+program	tests/omega/run/calls/selected_provider_range_arguments/main.omg	current=accepted	current_us=14359309	route=outside	type fixed array
+program	tests/omega/run/calls/static_boundary_terminal_arguments/main.omg	current=accepted	current_us=13709858	route=outside	machine service reach
+program	tests/omega/run/calls/table_report_call_survival/main.omg	current=accepted	current_us=23743259	route=outside	machine service reach
+program	tests/omega/run/contained_health_loop_command_branch/main.omg	current=accepted	current_us=37441984	route=outside	machine service reach
+program	tests/omega/run/contracts/captured_bound_unused_mutation/main.omg	current=accepted	current_us=13654828	route=outside	parameter mutable parameter
+program	tests/omega/run/contracts/cyclic_mixed_conjunction/main.omg	current=accepted	current_us=13855776	route=outside	type data with custody
+program	tests/omega/run/contracts/cyclic_record_writer/main.omg	current=accepted	current_us=16341461	route=outside	type fixed array
+program	tests/omega/run/contracts/cyclic_terminal_result_producers/main.omg	current=accepted	current_us=14073065	route=outside	call recursion
+program	tests/omega/run/contracts/nested_cyclic_copy_bound/main.omg	current=accepted	current_us=13279671	route=outside	type fixed array
+program	tests/omega/run/contracts/qualified_result_forwarding_exit/main.omg	current=accepted	current_us=24486701	route=outside	machine service reach
+program	tests/omega/run/contracts/scalar_crash_route_exit/main.omg	current=accepted	current_us=15557638	route=refused-module	route_us=503	clause names a value that is not a formal
+program	tests/omega/run/contracts/scalar_crash_route_trap/main.omg	current=accepted	current_us=13464515	route=refused-module	route_us=357	clause names a value that is not a formal
+program	tests/omega/run/contracts/target_family_forwarded_result/main.omg	current=accepted	current_us=13596928	route=outside	machine service reach
+program	tests/omega/run/core/content_reunion/main.omg	current=accepted	current_us=13617088	route=outside	type constrained
+program	tests/omega/run/domains/byte_view_predicates_keep_selected_extent/main.omg	current=accepted	current_us=12791168	route=outside	type data with custody
+program	tests/omega/run/domains/checked_provider_issued_field/main.omg	current=accepted	current_us=14791216	route=outside	machine service reach
+program	tests/omega/run/domains/checked_provider_issued_root/main.omg	current=accepted	current_us=13824676	route=outside	machine service reach
+program	tests/omega/run/domains/completed_membership_after_earlier_guarantee/main.omg	current=rejected	current_us=9938360	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 1679, end: 1683 } }), resolved_location: Some(R
+program	tests/omega/run/domains/current_record_predicate_captures/main.omg	current=accepted	current_us=14563081	route=outside	type constrained
+program	tests/omega/run/domains/fixed_byte_array_content_observations_exit/main.omg	current=accepted	current_us=13896490	route=outside	type fixed array
+program	tests/omega/run/domains/fixed_byte_array_empty_observations_exit/main.omg	current=accepted	current_us=12907192	route=outside	type fixed array
+program	tests/omega/run/domains/fixed_byte_array_runtime_predicate_exit/main.omg	current=accepted	current_us=14639939	route=outside	parameter mutable parameter
+program	tests/omega/run/domains/fixed_byte_array_selector_once_exit/main.omg	current=accepted	current_us=14062002	route=outside	type fixed array
+program	tests/omega/run/domains/fixed_byte_array_zero_geometry_exit/main.omg	current=accepted	current_us=15196265	route=outside	type data with custody
+program	tests/omega/run/domains/issued_case_owner_observation/main.omg	current=accepted	current_us=13818113	route=outside	type data with custody
+program	tests/omega/run/domains/issued_owned_case_parameter/main.omg	current=accepted	current_us=14812600	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_case_residual/main.omg	current=accepted	current_us=13526953	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_case_return/main.omg	current=accepted	current_us=13945798	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_case_temporary/main.omg	current=accepted	current_us=14142744	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_reinitialized_home/main.omg	current=accepted	current_us=14361387	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_state_arrivals/main.omg	current=accepted	current_us=11448662	route=outside	type constrained
+program	tests/omega/run/domains/issued_owned_temporary_observation/main.omg	current=accepted	current_us=14486813	route=outside	type constrained
+program	tests/omega/run/domains/issued_record_domain_predicate_transport/main.omg	current=accepted	current_us=14478638	route=outside	type constrained
+program	tests/omega/run/domains/issued_record_integer_bounds/main.omg	current=rejected	current_us=12291324	route=unreached	Some(Diagnostic { severity: Error, message: "construction value is not proven in domain `Handle::Open` in issue state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance", exceeded_provision: None, source_span: None, resolved_location: None
+program	tests/omega/run/domains/module_qualified_cast_domain/main.omg	current=accepted	current_us=11055755	route=outside	type constrained
+program	tests/omega/run/domains/predicate_interval_premises/main.omg	current=rejected	current_us=13134418	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 704, end: 713 } }), resolved_location: Some(ResolvedSour
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_append_exit/main.omg	current=accepted	current_us=11136981	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_exit/main.omg	current=accepted	current_us=14300328	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_explicit_byte_buffer_field_source_exit/main.omg	current=accepted	current_us=10716404	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_explicit_utf8_buffer_exit/main.omg	current=accepted	current_us=14335446	route=outside	type fixed array
+program	tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg	current=accepted	current_us=13073710	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_carrier_exit/main.omg	current=accepted	current_us=12730246	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit/main.omg	current=accepted	current_us=9360345	route=outside	type constrained
+program	tests/omega/run/domains/qualified_fixed_byte_array_forwarding_exit/main.omg	current=accepted	current_us=8161582	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_generic_view_return_exit/main.omg	current=accepted	current_us=7801553	route=outside	type fixed array
+program	tests/omega/run/domains/qualified_fixed_byte_array_geometry_exit/main.omg	current=accepted	current_us=7940429	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_nested_zero_exit/main.omg	current=accepted	current_us=8361007	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_optimized_exit/main.omg	current=accepted	current_us=7985653	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_owned_parameter_exit/main.omg	current=accepted	current_us=12600627	route=outside	type constrained
+program	tests/omega/run/domains/qualified_fixed_byte_array_plain_copy_exit/main.omg	current=accepted	current_us=36898499	route=outside	machine service reach
+program	tests/omega/run/domains/qualified_fixed_byte_array_record_loan_exit/main.omg	current=accepted	current_us=13281749	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_runtime_store_exit/main.omg	current=accepted	current_us=12680820	route=outside	type constrained
+program	tests/omega/run/domains/qualified_fixed_byte_array_selected_view_return_exit/main.omg	current=accepted	current_us=14177294	route=outside	type fixed array
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_mutation_exit/main.omg	current=accepted	current_us=14163338	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_optimized_exit/main.omg	current=accepted	current_us=13763246	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_utf8_parameter_exit/main.omg	current=accepted	current_us=14332390	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_view_element_copy_exit/main.omg	current=accepted	current_us=11729695	route=outside	type fixed array
+program	tests/omega/run/domains/qualified_fixed_byte_array_view_element_store_exit/main.omg	current=accepted	current_us=14723335	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_byte_array_write_only_exit/main.omg	current=accepted	current_us=11990879	route=outside	type data with custody
+program	tests/omega/run/domains/qualified_fixed_vec_byte_view_exit/main.omg	current=accepted	current_us=22260724	route=outside	type generic data
+program	tests/omega/run/domains/qualified_record_transfer/main.omg	current=accepted	current_us=15548169	route=outside	type constrained
+program	tests/omega/run/domains/qualified_record_view_reference_erased_storage_exit/main.omg	current=rejected	current_us=9521873	route=unreached	Some(Diagnostic { severity: Error, message: "cannot establish assignment invariants: source parent type is unavailable", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/domains/qualified_record_view_state_arrival_exit/main.omg	current=accepted	current_us=13998099	route=outside	type constrained
+program	tests/omega/run/domains/semantic_predicate_domain_admission/main.omg	current=accepted	current_us=13145888	route=outside	contract contracts on a state
+program	tests/omega/run/domains/structural_predicate_casts/main.omg	current=accepted	current_us=15807446	route=outside	type constrained
+program	tests/omega/run/domains/structural_qualification_cast_transitions/main.omg	current=accepted	current_us=12894681	route=outside	contract contracts on a state
+program	tests/omega/run/domains/structural_qualification_cast_values/main.omg	current=accepted	current_us=15386845	route=outside	type constrained
+program	tests/omega/run/domains/structural_qualification_nested_values/main.omg	current=accepted	current_us=14728994	route=outside	type constrained
+program	tests/omega/run/domains/vacuous_tag_call_arguments/main.omg	current=accepted	current_us=12523198	route=outside	type constrained
+program	tests/omega/run/domains/wide_array_literal_membership_exit/main.omg	current=accepted	current_us=13485189	route=outside	type constrained
+program	tests/omega/run/domains/zero_case_default_domain/main.omg	current=accepted	current_us=12550060	route=outside	type data with custody
+program	tests/omega/run/domains/zero_case_default_payload/main.omg	current=accepted	current_us=13779131	route=outside	type data with custody
+program	tests/omega/run/domains/zero_field_call_formation_exit/main.omg	current=accepted	current_us=12358644	route=outside	type constrained
+program	tests/omega/run/dyn_finite_family_correlated/main.omg	current=accepted	current_us=39340047	route=outside	machine service reach
+program	tests/omega/run/dyn_finite_family_owned_carrier/main.omg	current=accepted	current_us=24336230	route=outside	machine service reach
+program	tests/omega/run/dyn_finite_family_runtime_dispatch/main.omg	current=accepted	current_us=25852815	route=outside	machine service reach
+program	tests/omega/run/facts/double_indexed_rmw_through_call_result_traps/main.omg	current=accepted	current_us=13221979	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_const_name_traps/main.omg	current=accepted	current_us=13086890	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_field_traps/main.omg	current=accepted	current_us=15034896	route=outside	type data with custody
+program	tests/omega/run/facts/double_indexed_rmw_through_local_traps/main.omg	current=accepted	current_us=13595852	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_match_join_traps/main.omg	current=accepted	current_us=14173246	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_other_machine_traps/main.omg	current=accepted	current_us=14058718	route=outside	type data with custody
+program	tests/omega/run/facts/double_indexed_rmw_through_other_state_traps/main.omg	current=accepted	current_us=13026394	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_parameter_traps/main.omg	current=accepted	current_us=14292510	route=outside	type fixed array
+program	tests/omega/run/facts/double_indexed_rmw_through_target_body_traps/main.omg	current=accepted	current_us=13021955	route=outside	type fixed array
+program	tests/omega/run/facts/float_comparison_route_through_call_result_traps/main.omg	current=accepted	current_us=14367064	route=outside	type float
+program	tests/omega/run/facts/float_comparison_route_through_const_name_traps/main.omg	current=accepted	current_us=11845461	route=outside	expression float literal
+program	tests/omega/run/facts/float_comparison_route_through_field_traps/main.omg	current=accepted	current_us=11268057	route=outside	type data with custody
+program	tests/omega/run/facts/float_comparison_route_through_local_traps/main.omg	current=accepted	current_us=12835437	route=outside	type float
+program	tests/omega/run/facts/float_comparison_route_through_match_join_traps/main.omg	current=accepted	current_us=13436819	route=outside	type float
+program	tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg	current=accepted	current_us=12894508	route=outside	type data with custody
+program	tests/omega/run/facts/float_comparison_route_through_other_state_traps/main.omg	current=accepted	current_us=13404617	route=outside	type float
+program	tests/omega/run/facts/float_comparison_route_through_parameter_traps/main.omg	current=accepted	current_us=13237163	route=outside	type float
+program	tests/omega/run/facts/float_comparison_route_through_target_body_traps/main.omg	current=accepted	current_us=14194216	route=outside	machine supply mode other than a checked body
+program	tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps/main.omg	current=accepted	current_us=14053566	route=outside	expression cast
+program	tests/omega/run/float/folded_anonymous_operator_custody_exit/main.omg	current=accepted	current_us=37828306	route=outside	machine service reach
+program	tests/omega/run/generics/runtime_value_index_operands/main.omg	current=accepted	current_us=14032474	route=outside	type fixed array
+program	tests/omega/run/layouts/placed_ram_capture_forwarding/main.omg	current=rejected	current_us=30834369	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_ram_capture_helper/main.omg	current=rejected	current_us=30955957	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_ram_capture_retirement/main.omg	current=rejected	current_us=29560100	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_ram_capture_return/main.omg	current=rejected	current_us=30595819	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_ram_original_backing/main.omg	current=rejected	current_us=29292330	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_ram_scalar_types/main.omg	current=accepted	current_us=36111074	route=outside	machine service reach
+program	tests/omega/run/layouts/placed_ram_stored_field_return/main.omg	current=rejected	current_us=42133035	route=unreached	Some(Diagnostic { severity: Error, message: "statement 3 creates local borrow `returned` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 3)", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/layouts/placed_stable_array/main.omg	current=accepted	current_us=18531246	route=outside	type data with custody
+program	tests/omega/run/layouts/placed_stable_distinct_fields/main.omg	current=accepted	current_us=20018861	route=outside	type data with custody
+program	tests/omega/run/layouts/placed_stable_nested_array/main.omg	current=accepted	current_us=18950943	route=outside	type data with custody
+program	tests/omega/run/nested_mut_alias_assignment_return/main.omg	current=accepted	current_us=21257658	route=outside	machine service reach
+program	tests/omega/run/ownership/claim_correspondence_all_returns/main.omg	current=accepted	current_us=13665957	route=outside	type data with custody
+program	tests/omega/run/ownership/content_transform_case_alias/main.omg	current=accepted	current_us=12237910	route=outside	type data with custody
+program	tests/omega/run/ownership/content_transform_case_parent/main.omg	current=accepted	current_us=12465278	route=outside	type data with custody
+program	tests/omega/run/ownership/content_transform_empty_array/main.omg	current=accepted	current_us=12346034	route=outside	type constrained
+program	tests/omega/run/ownership/content_transform_ended_parent_loan/main.omg	current=accepted	current_us=13603924	route=outside	type constrained
+program	tests/omega/run/ownership/content_transform_inactive_content/main.omg	current=accepted	current_us=12757247	route=outside	type constrained
+program	tests/omega/run/ownership/content_transform_inactive_payload/main.omg	current=accepted	current_us=12370621	route=outside	type constrained
+program	tests/omega/run/ownership/declared_record_selected_exit_disposal/main.omg	current=accepted	current_us=12690497	route=outside	type data with custody
+program	tests/omega/run/ownership/linear_result_crash_ceiling/main.omg	current=accepted	current_us=13723118	route=outside	type data with custody
+program	tests/omega/run/ownership/linear_result_guarded_terminal_call/main.omg	current=accepted	current_us=13304845	route=outside	type data with custody
+program	tests/omega/run/ownership/owned_parameter_member_moves_exit/main.omg	current=accepted	current_us=23572319	route=outside	machine service reach
+program	tests/omega/run/ownership/owned_parameter_narrow_member_moves_exit/main.omg	current=accepted	current_us=23651882	route=outside	machine service reach
+program	tests/omega/run/ownership/selected_owned_constructor_moves/main.omg	current=accepted	current_us=13863660	route=outside	type data with custody
+program	tests/omega/run/ownership/sequence_owned_local_cleanup/main.omg	current=rejected	current_us=9571722	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove published termination for machine `CleanupConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `CleanupConsole::write_byte::write_byte` statement 0 call 0 targets `ConsoleNativeProvider::wr
+program	tests/omega/run/ownership/temporary_case_observation/main.omg	current=accepted	current_us=12709883	route=outside	type data with custody
+program	tests/omega/run/ownership/temporary_projected_copy_argument/main.omg	current=accepted	current_us=13093467	route=outside	type data with custody
+program	tests/omega/run/ownership/temporary_projected_value_residual/main.omg	current=accepted	current_us=10915316	route=outside	type data with custody
+program	tests/omega/run/proofs/embed_collection_length_exit/main.omg	current=accepted	current_us=7907168	route=outside	type fixed array
+program	tests/omega/run/proofs/quotient_copy_paths/main.omg	current=accepted	current_us=23551679	route=outside	machine service reach
+program	tests/omega/run/providers/module_named_float_conversion_family_exit/main.omg	current=accepted	current_us=15549278	route=outside	machine service reach
+program	tests/omega/run/providers/target_applicable_provider_closure/main.omg	current=accepted	current_us=15823227	route=outside	machine service reach
+program	tests/omega/run/providers/target_family_provider_boundary_identity_exit/main.omg	current=accepted	current_us=20453086	route=outside	machine service reach
+program	tests/omega/run/ranges/borrowed_case_payload_alias/main.omg	current=rejected	current_us=12076855	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove every subslice range endpoint of `0..alias.length` is non-negative", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/ranges/borrowed_case_payload_bound/main.omg	current=rejected	current_us=11631991	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove every subslice range endpoint of `0..text.length` is non-negative", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/ranges/guarded_case_payload_identity/main.omg	current=rejected	current_us=10859390	route=unreached	Some(Diagnostic { severity: Error, message: "cannot prove every subslice range endpoint of `0..text.length` is non-negative", exceeded_provision: None, source_span: None, resolved_location: None })
+program	tests/omega/run/ranges/guarded_case_payload_types/main.omg	current=accepted	current_us=13924162	route=outside	type data with custody
+program	tests/omega/run/ranges/refuted_boolean_alias_dispatch/main.omg	current=accepted	current_us=14014568	route=outside	type reference
+program	tests/omega/run/ranges/refuted_boolean_alias_local/main.omg	current=accepted	current_us=13654451	route=outside	type reference
+program	tests/omega/run/slices/call_result_mutable_window_exit/main.omg	current=accepted	current_us=13772180	route=outside	type fixed array
+program	tests/omega/run/slices/computed_record_window/main.omg	current=accepted	current_us=14859923	route=outside	type fixed array
+program	tests/omega/run/slices/disjoint_local_state_windows/main.omg	current=accepted	current_us=25286576	route=outside	machine service reach
+program	tests/omega/run/slices/edge_window_owned_backing/main.omg	current=accepted	current_us=12658489	route=outside	type fixed array
+program	tests/omega/run/slices/folded_window_endpoint_effects/main.omg	current=accepted	current_us=14817913	route=outside	type fixed array
+program	tests/omega/run/slices/matched_computed_window_end/main.omg	current=accepted	current_us=14412276	route=outside	type fixed array
+program	tests/omega/run/slices/matched_record_window_lower_bound/main.omg	current=accepted	current_us=14716704	route=outside	type fixed array
+program	tests/omega/run/slices/mutable_window_call_argument/main.omg	current=accepted	current_us=12109229	route=outside	type fixed array
+program	tests/omega/run/slices/returned_record_fixed_array_window/main.omg	current=rejected	current_us=14208286	route=unreached	Some(Diagnostic { severity: Error, message: "`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 2", exceeded_provision: Some
+program	tests/omega/run/slices/returned_record_parameter_length/main.omg	current=accepted	current_us=14724401	route=outside	type data with custody
+program	tests/omega/run/state_owned_nested_borrow/main.omg	current=accepted	current_us=14188895	route=outside	type data with custody
+program	tests/omega/run/state_shared_nested_backing/main.omg	current=accepted	current_us=14565500	route=outside	type data with custody
+program	tests/omega/run/stores/runtime_float_indexed_call_result_exit/main.omg	current=accepted	current_us=41257809	route=outside	machine service reach
+program	tests/omega/run/stores/runtime_float_store_selector_snapshot_exit/main.omg	current=accepted	current_us=25054675	route=outside	machine service reach
+program	tests/omega/run/traits/named_map_record_result_contract/main.omg	current=accepted	current_us=14812633	route=outside	machine service reach
+program	tests/omega/run/traits/selection_row_existing_machines/main.omg	current=accepted	current_us=13481906	route=outside	type data with custody
+program	tests/omega/run/traits/selection_row_law_selected_operation/main.omg	current=accepted	current_us=14914647	route=outside	type data with custody
+program	tests/omega/run/traits/static_implementation_method_arguments/main.omg	current=accepted	current_us=15050919	route=outside	call static application arguments
+program	tests/omega/run/traits/target_scoped_map_method_arguments/main.omg	current=accepted	current_us=16002149	route=outside	type fixed array
+program	tests/omega/run/variant_decimal_runtime_division/main.omg	current=accepted	current_us=22766939	route=outside	machine service reach
+program	tests/omega/run/variant_record_normalization_repeats/main.omg	current=accepted	current_us=27847154	route=outside	machine service reach

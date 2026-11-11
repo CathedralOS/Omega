@@ -46,7 +46,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine lower(plain: &mut [u8; 4], text: &[u8; 4] in Utf8, position: i32, last: u8)
         requires 0 <= position && position < 4
     {
-        let lowered: u8 in Wrapping = plain[position] as u8 in Wrapping + 32;
+        let lowered: u8 in Wrapping = (plain[position] as u8 in Wrapping) + 32;
         plain[position] = lowered as u8;
         transition { _ -> fold(plain, text, position + 1, last) }
     }

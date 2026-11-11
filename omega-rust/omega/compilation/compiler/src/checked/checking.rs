@@ -561,6 +561,8 @@ pub(super) fn select_completed_build(
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(CompileFailure::from(diagnostics)),
             independent_components,
+            tests: Vec::new(),
+            test_notes: Vec::new(),
         },
     }
 }

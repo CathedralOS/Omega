@@ -349,5 +349,7 @@ fn refusal(failure: CompileFailure) -> SelectedCompileOutcome {
     SelectedCompileOutcome {
         result: Err(failure),
         independent_components: IndependentComponentDiscovery::default(),
+        tests: Vec::new(),
+        test_notes: Vec::new(),
     }
 }
