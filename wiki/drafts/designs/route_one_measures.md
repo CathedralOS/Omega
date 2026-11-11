@@ -420,7 +420,7 @@ without the kernel.
 ## What was not measured
 
 - **The route's diagnostics on rejected programs.** Measured separately, on
-  41% of `fail/` so far, in
+  every `fail/` fixture, in
   [route one diagnostics](route_one_diagnostics.md): whether each rejection
   points a programmer at the fixture's defect.
 - **Rejection agreement on an unscreened selection.** The harness at the

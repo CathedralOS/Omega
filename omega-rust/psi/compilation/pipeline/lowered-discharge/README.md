@@ -857,7 +857,7 @@ target/debug/examples/route_one_comparison --tally < out.tsv
 ```
 
 The measurement on `fail/` is in
-[route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#diagnostics-on-must-reject-programs).
+[route one diagnostics](../../../../../wiki/drafts/designs/route_one_diagnostics.md).
 
 ## Reusing a saved proof (experiment)
 
