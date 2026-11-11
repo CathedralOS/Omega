@@ -1,7 +1,7 @@
 # Chapter 14: Traits and runtime machine values
 
-A trait names required operations. An implementation is a checked record that
-supplies them, and generic code receives it explicitly.
+A trait is a named set of machine signatures. An implementation supplies
+bodies for them, and generic code asks for an implementation by name.
 
 ## A trait and an implementation
 
@@ -71,8 +71,6 @@ WireCodec satisfies Codec<Message> {
 
 A row, `Trait::member = machine;`, uses a machine that already exists instead
 of wrapping it.
-
-## Implementations are values
 
 Traits can also declare ordinary fields and `requires` constraints. You can
 construct, pass and return their records like other values.
