@@ -489,7 +489,6 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
- "checked-interpreter",
  "checked-trees",
  "compilation-products",
  "compiler-storage",
@@ -2493,6 +2492,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "language-core",
  "semantic-vocabulary",
  "source",
 ]

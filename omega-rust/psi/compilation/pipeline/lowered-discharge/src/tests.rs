@@ -3862,6 +3862,149 @@ fn a_read_of_an_established_value_carries_the_clause_of_the_one_field_it_reads()
     );
 }
 
+use semantic_vocabulary::EdgeId;
+
+/// `within(v: u32) -> u32 requires v <= 255 { v }`.
+fn within_a_byte() -> Shaped {
+    Shaped {
+        requires: vec![at_most(1, 255)],
+        ..bounded()
+    }
+}
+
+/// What machine 1's knowledge says of its dispatches' payload parameters
+/// beside their equations: the propositions of its `DispatchBinding` rows
+/// that are not an equation between two values, with each row's edge.
+fn dispatch_premises(tables: &MachineTables) -> Vec<(EdgeId, Proposition)> {
+    tables
+        .knowledge
+        .iter()
+        .filter_map(|(_, row)| {
+            let Justification::DispatchBinding { edge } = row.justification else {
+                return None;
+            };
+            assert_eq!(row.available_from, ProgramPoint::Edge(edge));
+            let proposition = tables.propositions.get(row.proposition).unwrap().clone();
+            (!matches!(
+                proposition,
+                Proposition::Equal(ScalarTerm::Value { .. }, ScalarTerm::Value { .. })
+            ))
+            .then_some((edge, proposition))
+        })
+        .collect()
+}
+
+/// `match c { ByteRead::Byte { value } -> within(value), ByteRead::Eof {} -> 0 }`
+/// over the `ByteRead` in slot `slot`.
+fn dispatch_a_byte(slot: usize) -> Expression {
+    let c = || place(slot, data(BYTE_READ));
+    matching(
+        c(),
+        vec![(1, call(2, vec![payload(c(), 1, 0)])), (0, unsigned(0))],
+        None,
+    )
+}
+
+/// The payload parameter machine 1's one dispatch binds on its `Byte`
+/// edge, with that edge.
+fn bound_byte(elaboration: &structure_elaboration::Elaboration) -> (EdgeId, ValueId) {
+    let blocks = &elaboration.module.machines[0].blocks;
+    let (edge, target) = blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::StructuralCase { cases, .. } => cases
+                .iter()
+                .find(|edge| !edge.payload_fields.is_empty())
+                .map(|edge| (edge.edge, edge.target)),
+            _ => None,
+        })
+        .expect("a dispatch with a payload edge");
+    let parameter = blocks
+        .iter()
+        .find(|block| block.id == target)
+        .unwrap()
+        .parameters[0]
+        .id;
+    (edge, parameter)
+}
+
+#[test]
+fn a_dispatched_payload_of_an_established_value_carries_its_clause_under_the_selected_case() {
+    // f(b: ByteRead) -> u32 {
+    //     let c = b;
+    //     match c { ByteRead::Byte { value } -> within(value), ByteRead::Eof {} -> 0 }
+    // }
+    // `(self in Eof) || ((self in Byte) && self.value <= 255)`: on the
+    // `Byte` edge the first test is false and the second true, so what is
+    // left is `value <= 255` of the bound parameter
+    // (`pass/facts/case_payload_transport_through_local_exit`).
+    let (elaboration, result) = run_constrained(vec![
+        Shaped {
+            parameters: vec![data(BYTE_READ)],
+            locals: vec![data(BYTE_READ)],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(1, place(0, data(BYTE_READ))),
+                returns(dispatch_a_byte(1)),
+            ],
+        },
+        within_a_byte(),
+    ]);
+    assert!(
+        uses(&result).iter().all(Result::is_ok),
+        "{:?}",
+        uses(&result)
+    );
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let (edge, value) = bound_byte(&elaboration);
+    assert_eq!(
+        dispatch_premises(tables),
+        [(edge, at_most_value(value, 255))]
+    );
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+}
+
+#[test]
+fn a_dispatched_payload_this_machine_built_lends_no_clause() {
+    // f(v: u32) -> u32 {
+    //     let c = ByteRead::Byte { value: v };
+    //     match c { ByteRead::Byte { value } -> within(value), ByteRead::Eof {} -> 0 }
+    // }
+    // The construction owes `v <= 255` and does not prove it; the bound
+    // parameter equals `v` and takes no clause, so `within`'s requirement
+    // is unproved too: a value this machine built is held to its own
+    // obligation, not lent its type's clause.
+    let (elaboration, result) = run_constrained(vec![
+        Shaped {
+            parameters: vec![u32_type().into()],
+            locals: vec![data(BYTE_READ)],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(
+                    1,
+                    of_type(
+                        ExpressionKind::Case {
+                            case: 1,
+                            fields: vec![(0, slot(0, u32_type()))],
+                        },
+                        data(BYTE_READ),
+                    ),
+                ),
+                returns(dispatch_a_byte(1)),
+            ],
+        },
+        within_a_byte(),
+    ]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(dispatch_premises(tables), []);
+    assert_eq!(bound_payloads(tables).len(), 1);
+    assert_unproved(domains(&elaboration, &result)[0].1);
+    assert_unproved(verdicts_of(&elaboration, &result)[0].1);
+}
+
 #[test]
 fn a_place_this_machine_wrote_lends_no_clause_to_a_read() {
     // f(b: Bounded) -> u32 { let mut c = b; c.value = 99; bounded(c.value) }

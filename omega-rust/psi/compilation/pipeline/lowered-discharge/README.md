@@ -63,7 +63,9 @@ versions."),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
-value its payload leaf holds, when there is one). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
+value its payload leaf holds, when there is one, and holds each clause of
+its storage's type that a payload read at the head of the arm could state;
+see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
@@ -368,7 +370,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
 
   | Specification | Lowered construct |
   | --- | --- |
-  | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read beneath the place that takes a clause of its storage's type as a premise (`read_premises` not empty). A field read with no premise, a case test and a dispatch rely on nothing and consume nothing. |
+  | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read or a dispatch's bound payload beneath the place that takes a clause of its storage's type as a premise (`read_premises` or `payload_premises` not empty). A field read or dispatch with no premise, and a case test, rely on nothing and consume nothing. |
   | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). Borrows are refused by elaboration. |
   | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". Loans are refused by elaboration. |
   | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
@@ -453,11 +455,18 @@ lies in, stated on the read's fresh value and justified by the read
   written value where it was written, and the read equation names that
   value. A store that broke the clause therefore lends it to no read.
 - The clause names that one leaf and no other, and any case it tests is
-  established at the read by structure. A clause that relates two fields is
-  no premise on one read.
+  established at the read by structure: by a construction, by a dominating
+  true edge of a membership test, or by the dispatch edge that entered the
+  block (the one walk of [Payload access](#payload-access)). The case is
+  asked of the place the read observes the value through, the copy when
+  the value was copied: a test or dispatch on the copy establishes it
+  there, and the place the value arrived in may have been written since.
+  A clause testing a case of a type above the observed storage's root is
+  not stated. A clause that relates two fields is no premise on one read.
 
 A clause that cannot be stated adds no row; nothing is assumed in its place.
-A payload parameter of a dispatch edge gets no such row (finding 13).
+A payload parameter of a dispatch edge gets the same rows, stated on the
+parameter ([What a dispatch binds](#what-a-dispatch-binds)).
 
 ### Payload access
 
@@ -517,6 +526,20 @@ there is one. The row is available on that edge and justified as its
 `DispatchBinding`. A payload of a case other than the one the sum was
 constructed as resolves to no value, because the last write to storage it
 overlays was another case's.
+
+Each parameter also gets the rows a payload read at the head of its arm's
+block would take from its type
+([What a read learns from its type](#what-a-read-learns-from-its-type)):
+the same `Storage::premises`, under the same two conditions, stated on the
+parameter, available on the edge and justified as its `DispatchBinding`.
+Asked at the head of the arm, a case test of the clause is decided by the
+edge that entered it: `self in C` is true on the `C` edge and false on any
+other, so `(self in Empty) || ((self in Ready) && (self.value <= 50))`
+leaves `value <= 50` on the `Ready` edge. An arm several edges enter, the
+wildcard, establishes no case, and a clause that tests one is not stated.
+A dispatch whose payloads take a premise relies on the domain of every
+place those leaves lie in, so it is a consumption point of a window open
+there, as such a read is.
 
 The case itself is not a knowledge row. A dispatch has no Boolean value to
 state it over, and knowledge names values only; it is the structural
@@ -708,13 +731,13 @@ subset needs, so the prover emits them directly.
     unproved there. Every arm of this subset completes the machine, so the
     only join is a short-circuit `&&`/`||`, where no store can be written;
     no expressible program is over-refused by it today.
-13. **A payload parameter carries no clause of its type.** A dispatch edge
-    binds a payload as a block parameter with no read operation, and the
-    tables have no justification for "the type of the storage an edge bound
-    this from". The equation with the value the leaf holds is filed under
-    `BranchCondition` (finding 9); the clause is not filed under it too, so
-    `match b { Byte { value } -> .. }` on a formal learns nothing of `value`
-    from `ByteRead`'s `requires`.
+13. **A payload parameter carries the clause of its type through its
+    edge.** A dispatch edge binds a payload as a block parameter with no
+    read operation, so the clause is not justified by a read's
+    `OperationSemantics`: it is filed under the edge's
+    `Justification::DispatchBinding`, beside the equation with the value
+    the leaf holds. `match b { Byte { value } -> .. }` on a formal, or on a
+    copy of one, learns `value <= 255` from `ByteRead`'s `requires`.
 14. **`Reached::Returned` tells a call's result from other unknown
     contents.** The walk could already say "contents with no value
     identity"; a read's type premise needs to know those contents arrived
@@ -818,6 +841,23 @@ point of an invariant window; a program with such a use is
 `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
+
+It also measures the route's diagnostics on programs the current checker
+rejects, so a lane can see whether its errors would lead a programmer to the
+defect. With `--every-machine` it also roots the route at each of the
+fixture's own machines, which reaches fixtures that bind no entry. For each
+program both checkers reject it prints a `quality` line: whether the route's
+messages contain the fixture's `expected.txt` fragments, and how the route's
+error sites compare with the current checker's. `--tally` reads the output
+back and prints the three counts:
+
+```
+target/debug/examples/route_one_comparison --every-machine <fixture>/main.omg ... > out.tsv < /dev/null
+target/debug/examples/route_one_comparison --tally < out.tsv
+```
+
+The measurement on `fail/` is in
+[route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#diagnostics-on-must-reject-programs).
 
 ## Reusing a saved proof (experiment)
 

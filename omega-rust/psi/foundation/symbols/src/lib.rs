@@ -39,6 +39,28 @@ mod retained_declaration;
 mod symbol;
 mod table;
 
+/*
+    The custody gate in front of the sealed intrinsic catalog: only a file the
+    toolchain supplied, outside any admitted package graph, can be classified,
+    and its package-relative path, declaration path and exact source bytes
+    must then match one catalog row. A user package that copies a bundled file
+    and its names therefore receives no compiler custody.
+*/
+pub fn sealed_intrinsic_at(
+    file: &source::SourceFile,
+    declaration: &str,
+) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+    use language_core::sealed_intrinsics::{SealedDeclarationSite, SealedIntrinsicCatalog};
+    if file.origin != source::SourceOrigin::Toolchain || file.package_identity.is_some() {
+        return None;
+    }
+    SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+        file: file.path.strip_prefix(&file.package_root).ok()?,
+        declaration,
+        source: file.source.as_bytes(),
+    })
+}
+
 pub use builtin::{
     BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember,
     FixedCoreDeclaration, builtin_function_symbols, builtin_type_member_symbols,

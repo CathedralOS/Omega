@@ -801,9 +801,10 @@ worked around by adding to `terminal-check-tables`.
     members"). Both publish no route in the generic form, so the generic
     check decides nothing about crashes through the call either way. The
     current checker refuses a member that is not crash-free where it
-    satisfies a `crashes none` requirement; the deferral is not yet carried
-    to generic callers
-    (`tests/omega/pending/traits/omitted_requirement_crashes_reach_generic_caller`).
+    satisfies a `crashes none` requirement, and gives each application of a
+    deferring requirement the selected member's routes
+    (`tests/omega/fail/traits/omitted_requirement_crashes_reach_generic_caller`).
+    This route hands those programs back (conformances are outside it).
 31. **The declared machine's call through a parameter names a child of the
     parameter.** In the generic declaration `Selected::apply(x)` targets a
     state symbol under the parameter's symbol, with no requirement recorded

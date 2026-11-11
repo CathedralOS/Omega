@@ -31,7 +31,13 @@ pub(super) use linux::LinuxFilesystemWrite;
 
 #[derive(Clone)]
 pub(super) struct FilesystemContext {
+    /// Whether the host namespace is delegated at all.
     supplied: bool,
+    /// Whether that namespace is rooted at a directory. Only the Linux kernel
+    /// adapter resolves `AT_FDCWD` against its own root; the Darwin and
+    /// Windows supplies run in the native sponsor's working directory and
+    /// therefore refuse a rooted delegation.
+    rooted: bool,
     windows: Rc<RefCell<windows::Handles>>,
     linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
     descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
@@ -168,13 +174,34 @@ enum Formal {
 
 impl FilesystemContext {
     pub(super) fn new(delegation: TerminalFilesystemDelegation) -> Self {
+        // A root that cannot be opened supplies no namespace at all, so every
+        // filesystem call refuses rather than falling back to the process
+        // directory.
+        let (supplied, rooted, linux) = match delegation {
+            TerminalFilesystemDelegation::Unprovided => (false, false, Default::default()),
+            TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
+            TerminalFilesystemDelegation::HostDirectory(root) => {
+                match native_provider_runtime::LinuxFilesystem::rooted(&root) {
+                    Ok(linux) => (true, true, linux),
+                    Err(_) => (false, true, Default::default()),
+                }
+            }
+        };
         Self {
-            supplied: matches!(delegation, TerminalFilesystemDelegation::HostNamespace),
+            supplied,
+            rooted,
             windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
-            linux: Rc::new(RefCell::new(
-                native_provider_runtime::LinuxFilesystem::default(),
-            )),
+            linux: Rc::new(RefCell::new(linux)),
+        }
+    }
+
+    /// The working-directory namespace the Darwin and Windows supplies use.
+    fn process_namespace(&self) -> Result<(), &'static str> {
+        match (self.supplied, self.rooted) {
+            (true, false) => Ok(()),
+            (_, true) => Err("only the Linux kernel supply resolves a rooted filesystem namespace"),
+            (false, false) => Err("no explicit host filesystem namespace was supplied"),
         }
     }
 
@@ -366,7 +393,7 @@ impl FilesystemContext {
                 break;
             }
         }
-        if self.supplied
+        if self.process_namespace().is_ok()
             && matches!(
                 runtime_abi::descriptor_import(locator),
                 Some((runtime_abi::DescriptorAbi::DarwinLibSystem, _))
@@ -377,12 +404,8 @@ impl FilesystemContext {
         let Some((parameters, result, descriptor)) = selected else {
             return Ok(None);
         };
-        if !self.supplied {
-            return Err(TerminalRuntimeError::missing(
-                "runtime-filesystem",
-                "no explicit host filesystem namespace was supplied",
-            ));
-        }
+        self.process_namespace()
+            .map_err(|reason| TerminalRuntimeError::missing("runtime-filesystem", reason))?;
         let namespace_admission = self.admit_services(program, declaration);
         if !matches!(descriptor, DescriptorEffect::Io) {
             namespace_admission

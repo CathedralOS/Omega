@@ -61335,11 +61335,23 @@ pub(crate) mod structural_judgment {
                             // invariant with it, wherever the value was read from.
                             // A field reached only through a runtime array index is
                             // otherwise invisible to the entry-parameter facts.
+                            // A pending recast view is the exception: until its
+                            // predicate is proved over the source storage it is not
+                            // yet a valid value, and admitting the predicate here
+                            // would let the cast establish itself.
+                            let admits = !crate::value_custody::recasts::pending_views::withholds_default_predicate(
+                                self.program,
+                                scope.0,
+                                scope.1,
+                                local.initial_value,
+                            );
                             completed.paths.map(|paths| {
                                 paths
                                     .into_iter()
                                     .map(|mut path| {
-                                        if let Some(value) = path.observed_value().cloned() {
+                                        if admits
+                                            && let Some(value) = path.observed_value().cloned()
+                                        {
                                             path.judge.intake_admitted_value_predicates(
                                                 local.type_reference,
                                                 value,
@@ -88841,7 +88853,20 @@ pub(crate) mod structural_terms {
             if cast.form.recast_access() != Some(language_semantics::ReferenceAccess::Shared) {
                 return None;
             }
-            if !super::scalar_operand_is_observed(program, source, &value) {
+            // A shared recast reads the place it borrows, so its operand term
+            // can arrive as the borrow's shared observation (`&f32` over the
+            // scalar) while `source` names the borrowed carrier (`f32`). That
+            // observation holds exactly the scalar, so it is observed for the
+            // recast; the representation below normalizes through the shell.
+            let borrowed_observation = crate::reference_shell(program, source).is_none()
+                && super::shared_inline_observation_type(program, &value).is_some_and(|observed| {
+                    crate::reference_shell(program, observed).is_some_and(|shell| {
+                        shell.access == language_semantics::ReferenceAccess::Shared
+                            && crate::declared_carriers_match(program, source, shell.referee)
+                    })
+                });
+            if !borrowed_observation && !super::scalar_operand_is_observed(program, source, &value)
+            {
                 return None;
             }
             let source_carrier = match crate::reference_shell(program, source) {

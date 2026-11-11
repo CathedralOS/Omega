@@ -111,28 +111,6 @@ installation: Windows traps while the other authored targets return Unit. This
 is not acceptance of the complete Build companion or a grant of backing authority
 from family catalog membership.
 
-`--checked-interpreter` explicitly selects the checked-tree source oracle instead
-of Terminal. It uses the same reviewed fixture inputs, selected entry and
-explicit installed arguments, but owns its independent checked compilation rather than
-reusing a native report's Terminal artifact. No refusal or source spelling chooses
-this route. Remaining automatic entry-context construction must migrate under
-`EXPLICIT-ENTRY-STORAGE`; a root parameter alone grants no storage. It records
-`interpreter-engine:checked-tree`; its separate defaults
-are `corpus_checked_interpreted.txt` and, with `--both`,
-`corpus_checked_both_<target>.txt`. Until those goldens exist, use an explicit
-golden to expose fact moves without recording:
-
-```bash
-python3 tools/corpus_gate.py --checked-interpreter \
-  --golden tests/omega/corpus_outcomes.txt \
-  --filter pass/layouts/runtime_callee_integer_at_fitting_write_exit,pass/calls/runtime_guarded_reference_return_crash
-```
-
-The checked engine has no typed Trap outcome. Every execution error remains
-declined, including explicit crashes; diagnostic text cannot satisfy a trap
-oracle. Both engines enforce the same authored exit and stdout promises before
-recording. Trap probes remain declined until the checked API retains their kind.
-
 ## Reviewed interpreter migration debt
 
 `tests/omega/interpreter_migration.json` designates the original selected

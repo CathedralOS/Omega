@@ -580,9 +580,9 @@ pub(crate) fn byte_sequence_operand_bytes(value: &Value) -> EvalResult<Vec<u8>> 
 pub(crate) mod call_evaluation {
     use super::byte_sequence_operand_bytes;
     use crate::interpreter::evaluator::{
-        ArithmeticDomain, EvalResult, ExpressionHandle, ExpressionNode, FloatMeaning,
-        FloatSemantics, Frame, Halt, PrimitiveType, SemanticFloatClass, SemanticFloatFormat,
-        SymbolHandle, Value, expression_table, trap, unsupported,
+        ArithmeticDomain, EvalResult, ExpressionHandle, FloatMeaning, FloatSemantics, Frame, Halt,
+        PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value,
+        expression_table, trap, unsupported,
     };
     use language_semantics::declaration_selection::CollectionMeasure;
     use numerics::float_semantics_catalog::FloatSemanticOperation;
@@ -646,36 +646,6 @@ pub(crate) mod call_evaluation {
                 )?;
                 return Ok(self.guard_subject_value(handle, frame, value));
             }
-            let receiver_symbol = match self.program.expression_table.expression(call.receiver) {
-                ExpressionNode::Member(member) => member.member_symbol,
-                ExpressionNode::Name(path) => path.symbol,
-                _ => SymbolHandle::invalid(),
-            };
-            if let Some(dispatch) = self.selected_boundary_adapter(
-                receiver_symbol,
-                call.target_symbol,
-                &call.machine_arguments,
-            ) {
-                let value = self.run_boundary_adapter(
-                    dispatch,
-                    expression_table(self.program).expression_handles(call.arguments),
-                    Some(validation::CallSite::Expression {
-                        expression: handle,
-                        call,
-                    }),
-                    frame,
-                )?;
-                return Ok(self.guard_subject_value(handle, frame, value));
-            }
-
-            if let Some(value) = self.try_virtual_clock_operation(
-                call.target_symbol,
-                expression_table(self.program).expression_handles(call.arguments),
-                frame,
-            )? {
-                return Ok(self.guard_subject_value(handle, frame, value));
-            }
-
             if let Some(value) = self.try_operator_application(
                 call.target_symbol,
                 handle,
@@ -753,12 +723,9 @@ pub(crate) mod call_evaluation {
                 .symbols
                 .builtin_function_for_symbol(call.target_symbol);
             if builtin == Some(BuiltinFunction::AsmSnapshotFlags) && !call.receiver.is_valid() {
-                let Some(environment) = self.x86_flags else {
-                    return unsupported(
-                        "pushfq requires an explicitly supplied target flags environment in Terminal execution",
-                    );
-                };
-                return Ok(Value::Int(environment.snapshot() as i64));
+                return unsupported(
+                    "pushfq requires an explicitly supplied target flags environment in Terminal execution",
+                );
             }
             if let Some(builtin @ (BuiltinFunction::FloatMaximum | BuiltinFunction::FloatMinimum)) =
                 builtin
@@ -1672,15 +1639,10 @@ pub(crate) mod match_dispatch {
             if uses.next().is_some() {
                 return Err(missing());
             }
-            let product_executions = self.selected_product_float_comparisons.unwrap_or(&[]);
-            let build_executions = facts
+            let mut executions = facts
                 .selected_float_comparisons
                 .iter()
-                .filter(|_| self.selected_product_float_comparisons.is_none())
-                .map(|(_, execution)| execution);
-            let mut executions = product_executions
-                .iter()
-                .chain(build_executions)
+                .map(|(_, execution)| execution)
                 .filter(|execution| execution.operator_use() == operator_use);
             let execution = executions.next().ok_or_else(missing)?;
             if executions.next().is_some() {

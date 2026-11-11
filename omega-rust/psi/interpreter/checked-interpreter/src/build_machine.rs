@@ -823,15 +823,11 @@ pub(crate) mod output_obligations {
 }
 
 pub(crate) mod paths {
-    use crate::interpreter::evaluator::filesystem::real::real_fs;
     use crate::interpreter::evaluator::{
         BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame,
         Halt, SymbolHandle, Value, trap,
     };
-    use crate::{
-        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
-        MAX_INCLUDED_BUILD_SOURCES,
-    };
+    use crate::{FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity};
 
     pub(crate) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
     const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
@@ -975,20 +971,6 @@ pub(crate) mod paths {
                                 return trap("Build filesystem path belongs to another facet root");
                             }
                         }
-                        crate::interpreter::evaluator::PreparedFilesystemCall::Read {
-                            fd, ..
-                        }
-                        | crate::interpreter::evaluator::PreparedFilesystemCall::Write {
-                            fd, ..
-                        }
-                        | crate::interpreter::evaluator::PreparedFilesystemCall::Close { fd } => {
-                            if let Some(issued) = real_fs(evaluator)
-                                .and_then(|filesystem| filesystem.descriptor_root(*fd))
-                                && issued != root
-                            {
-                                return trap("Build descriptor belongs to another facet root");
-                            }
-                        }
                         _ => {}
                     }
                     Ok(call)
@@ -1068,34 +1050,9 @@ pub(crate) mod paths {
                 return trap("generated-source handoff path belongs to a different build root");
             }
             validate_build_relative_path(&relative_path)?;
-            self.real_fs
-                .as_ref()
-                .ok_or_else(|| {
-                    Halt::Trap("generated source requires scoped output custody".into())
-                })?
-                .require_sealed_rooted_file(output_root, &relative_path)?;
-            let scoped_real_output = real_fs(self)
-                .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped);
-            if !scoped_real_output {
-                return trap("generated-source handoff requires a scoped build-output grant");
-            }
-            if self.build_included_sources.len() == MAX_INCLUDED_BUILD_SOURCES {
-                return Err(Halt::Resource(format!(
-                    "generated-source handoff exceeds its {MAX_INCLUDED_BUILD_SOURCES}-source ceiling"
-                )));
-            }
-            if self.build_included_sources.iter().any(|source| {
-                source.root() == included_root && source.relative_path() == relative_path
-            }) {
-                return trap("generated-source handoff names the same path more than once");
-            }
-            self.build_included_sources
-                .push(crate::BuildIncludedSource::new(
-                    included_root,
-                    relative_path,
-                    self.filesystem_operation_attempts.len(),
-                ));
-            Ok(Value::Unit)
+            // Generated sources need sealed output custody from a scoped host
+            // grant, which build-time evaluation never supplies.
+            trap("generated source requires scoped output custody")
         }
 
         pub(crate) fn exact_build_facet_method(

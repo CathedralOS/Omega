@@ -709,14 +709,21 @@ fn fill_knowledge(
         }
     }
     // What each edge of a dispatch binds: its payload parameters, each
-    // equal to what the payload leaf holds. The row holds because that edge
-    // was taken and is available on it.
+    // equal to what the payload leaf holds, and each under the clauses the
+    // type of that storage states of it, as a payload read would be. The
+    // rows hold because that edge was taken and are available on it.
     if knowledge == Knowledge::All {
         for block in &lowered.blocks {
-            for (edge, equation) in storage.payload_equations(tables, block)? {
+            let equations = storage.payload_equations(tables, block)?;
+            let premises = storage.payload_premises(tables, block)?;
+            for (edge, proposition) in equations.into_iter().chain(
+                premises
+                    .into_iter()
+                    .map(|(edge, _, premise)| (edge, premise)),
+            ) {
                 push_knowledge(
                     tables,
-                    equation,
+                    proposition,
                     ProgramPoint::Edge(edge),
                     Justification::DispatchBinding { edge },
                 );

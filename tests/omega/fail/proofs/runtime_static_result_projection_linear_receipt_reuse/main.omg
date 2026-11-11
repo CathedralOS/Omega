@@ -17,7 +17,7 @@ requires machine Read(index: Nat) -> Observation terminates;
 machine result_projection<machine Read>(index: Nat)
 requires machine Read(index: Nat) -> Observation terminates;
 ensures
-    project<Read>(index) == (Read(index)).value
+    core::Identity<Nat>(project<Read>(index), (Read(index)).value)
 {
 }
 
@@ -27,7 +27,7 @@ machine literal(index: Nat) -> Observation terminates {
 
 machine retire_receipt(receipt: Receipt)
 ensures
-    project<literal>(Nat::Zero) == Nat::Zero
+    core::Identity<Nat>(project<literal>(Nat::Zero), Nat::Zero)
 {
     result_projection<literal>(Nat::Zero);
     drop(receipt);
