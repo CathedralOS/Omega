@@ -1467,6 +1467,8 @@ fail/borrows/local_case_subject_carried_alias_write rejected 5930ms expected @91
 	statement 9 mutates `frame.items[1]` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 9)
 fail/borrows/local_descriptor_replacement_while_borrowed rejected 5256ms expected @923ef974b33c
 	statement 4 mutates `view` while local borrow `borrowed` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/local_loaned_field_write_beside_live_loan rejected 6107ms expected @2e348e6b2dca
+	statement 4 mutates `s.a` while local borrow `loaned` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 2174ms expected @ccdb99ca2214
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 1635ms expected @ccdb99ca2214
@@ -14420,23 +14422,23 @@ fail/facts/write_only_ieee_store_readback_through_parameter_rejected rejected 26
 	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_ieee_store_readback_through_target_body_rejected rejected 2633ms expected @ccdb99ca2214
 	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_indexed_reborrow_through_call_result_rejected rejected 2000ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_call_result_rejected rejected 6693ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_const_name_rejected rejected 1168ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_const_name_rejected rejected 6680ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_field_rejected rejected 1437ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_field_rejected rejected 6811ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_local_rejected rejected 1046ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_local_rejected rejected 7400ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_match_join_rejected rejected 1491ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_match_join_rejected rejected 7784ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_other_machine_rejected rejected 1596ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_other_machine_rejected rejected 5925ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_other_state_rejected rejected 1650ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_other_state_rejected rejected 7404ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 1265ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 6375ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 1529ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 5730ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @c79bb8268163+wt
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
@@ -26049,15 +26051,15 @@ pass/facts/write_only_ieee_store_readback_through_other_machine_exit checked 597
 pass/facts/write_only_ieee_store_readback_through_other_state_exit checked 5919ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_ieee_store_readback_through_parameter_exit checked 6445ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_ieee_store_readback_through_target_body_exit checked 7695ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 3474ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 3266ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_field_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_local_exit checked 3596ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 4014ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_other_machine_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 3358ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 4143ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 4526ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 11894ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 12382ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_field_exit checked 11884ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_local_exit checked 11940ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 11802ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_other_machine_exit checked 11856ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 11762ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 11369ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 15829ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @2e348e6b2dca
 pass/facts/write_only_match_join_through_call_result_exit checked 42871ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/write_only_match_join_through_const_name_exit checked 37490ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/write_only_match_join_through_field_exit checked 43846ms check-target:macos_arm64 @c79bb8268163+wt
@@ -28679,6 +28681,7 @@ run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @
 run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
 run/borrows/indexed_loan_element_write checked 75455ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/local_mut_borrow checked 80383ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/local_sibling_field_write_beside_live_loan checked 6723ms check-target:macos_arm64 @2e348e6b2dca
 run/borrows/mut_record_loan_member_access checked 62881ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/owned_array_view_establishment checked 3072ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/probe_shared_len checked 59658ms check-target:macos_arm64 @c3cb68d51f3f
