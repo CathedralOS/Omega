@@ -2441,10 +2441,9 @@ mod summary {
     use validation::find_call_site;
     use validation::{
         CallFrameResolver, CallSite, CanonicalPlace, ContentsRequirement, LocalWriteOrigin,
-        assignment_stored_value_type, atomic_once_carrier,
-        canonical_place_type_reference, checking_thread_pool, find_state, has_contents,
-        project_type_reference_from_segments, reference_shell,
-        storage_origin_types_match, transition_call_target,
+        assignment_stored_value_type, atomic_once_carrier, canonical_place_type_reference,
+        checking_thread_pool, find_state, has_contents, project_type_reference_from_segments,
+        reference_shell, storage_origin_types_match, transition_call_target,
     };
 
     use crate::flow::indexed_statements;

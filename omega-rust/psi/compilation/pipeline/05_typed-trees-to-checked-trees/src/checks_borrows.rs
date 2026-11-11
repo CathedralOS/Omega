@@ -6014,13 +6014,12 @@ mod statements {
             let Some(assignment) = statement_node.as_assignment() else {
                 continue;
             };
-            let access = if assignment_requires_exclusive_access(
-                program, machine, state, assignment,
-            ) {
-                checked_trees::BorrowAccessKind::Mutable
-            } else {
-                checked_trees::BorrowAccessKind::Read
-            };
+            let access =
+                if assignment_requires_exclusive_access(program, machine, state, assignment) {
+                    checked_trees::BorrowAccessKind::Mutable
+                } else {
+                    checked_trees::BorrowAccessKind::Read
+                };
             let mut owned_frames = None;
             let frames = shared_call_frames_or(call_frames, program, &mut owned_frames);
             let binding_replacement = frames.is_some_and(|frames| {
