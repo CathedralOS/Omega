@@ -5707,7 +5707,11 @@ mod statements {
         active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
         active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     ) {
-        let completed = build.control.statements.get(statement_fact).completed_writes;
+        let completed = build
+            .control
+            .statements
+            .get(statement_fact)
+            .completed_writes;
         let written_places = build
             .control
             .operand_origin_writes
@@ -7031,8 +7035,7 @@ mod domain {
                     return None;
                 }
                 let storage = validation::canonical_place_from_expression(program, expression)?;
-                if !matches!(storage.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
-                {
+                if !matches!(storage.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
                     return None;
                 }
                 let mut segments = storage.segments;
@@ -7074,7 +7077,9 @@ mod domain {
                 )
             }
 
-            fn fact_statement(point: facts::ProgramPoint) -> Option<(symbols::SymbolHandle, usize)> {
+            fn fact_statement(
+                point: facts::ProgramPoint,
+            ) -> Option<(symbols::SymbolHandle, usize)> {
                 match point {
                     facts::ProgramPoint::Statement {
                         state_symbol,
@@ -7535,9 +7540,9 @@ mod domain {
     pub(crate) use invalidation::context_survives_place_mutations;
     pub(in crate::flow) use invalidation::filter_contexts_after_mutations;
     pub(crate) use invalidation::filter_contexts_after_place_mutations;
-    pub(crate) use invalidation::retire_occurrence_contexts_after_statement;
     pub(in crate::flow) use invalidation::matching_mutation_for_fact_place;
     pub(in crate::flow) use invalidation::matching_mutation_for_settled_occurrence;
+    pub(crate) use invalidation::retire_occurrence_contexts_after_statement;
 }
 #[path = "flow_mutation.rs"]
 mod mutation;
@@ -11982,8 +11987,8 @@ pub(crate) use context::{
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
-pub(crate) use domain::retire_occurrence_contexts_after_statement;
 pub(crate) use domain::relative_place_segments_from_expression;
+pub(crate) use domain::retire_occurrence_contexts_after_statement;
 use exits::append_state_exit_facts;
 pub(crate) use exits::{exit_parameter_origins, state_exit_parameter_origins};
 pub(crate) use mutation::close_storage_places_over_aliases;
