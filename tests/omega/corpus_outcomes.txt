@@ -15697,6 +15697,9 @@ fail/generics/selected_operator_preserves_blocking_ceiling rejected 8666ms expec
 	machine `choose` omits `blocks` from its published contract, but its body may block
 fail/generics/selected_value_bool_public_contract_mismatch rejected 3086ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/specialized_alternative_overload_identity_rejected rejected 4510ms expected @6ddc2ee2157d
+	cannot prove ensures contract for exit from pick at statement 2: type == type && width(result) == 32 || type == type && width(result) == 32
+	cannot prove ensures contract for exit from pick$specialized$356762b0370d0d1b$1$4639 at statement 2: type == type && width(result) == 32 || type == type && width(result) == 32
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 16727ms expected @32c7663ba3ad
 	argument `value` for state `finish` expects `Output`, got `call expression`; expected carrier `named(name(nominal\\(package-owner\\(32:3f980a102e704a22a0bde676e6ae85f3cd25434bb1fc66e7f09cd0b3753dd88d\\)\\,path\\(wrong::Output\\)\\)))`, declared place carrier `named(name(nominal\\(package-owner\\(32:3f980a102e704a22a0bde676e6ae85f3cd25434bb1fc66e7f09cd0b3753dd88d\\)\\,path\\(wrong::Input\\)\\)))`
 fail/generics/static_callable_excess_local_type_argument rejected 17505ms expected @32c7663ba3ad
@@ -26578,6 +26581,7 @@ pass/generics/selected_open_capture_carriers_exit checked 3833ms check-target:ma
 pass/generics/selected_value_bool_public_contract_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/seq_map_filter rejected 1605ms regressed-from:checked @ccdb99ca2214
 	recursive proof machine `fold` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
+pass/generics/specialized_alternative_overload_identity_exit checked 5421ms check-target:macos_arm64 @6ddc2ee2157d
 pass/generics/static_callable_local_type_argument_exit checked 4188ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/static_dispatch_public_ensures_reaches_caller_exit checked 5189ms check-target:macos_arm64 @24bfc5388538+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 3721ms @ada93c78b02f+wt
