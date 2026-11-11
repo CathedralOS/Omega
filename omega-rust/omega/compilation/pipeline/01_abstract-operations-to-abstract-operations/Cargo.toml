@@ -14,7 +14,7 @@ optimization-core = { path = "../../../foundation/optimization-core" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-input" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 optimization = { path = "../../../../psi/foundation/optimization" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
@@ -24,6 +24,11 @@ psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/wo
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 
 [dev-dependencies]
+# Tests and the allocation example admit real Terminal artifacts through Omega 00
+# to build this stage's input; production code reads only the representation.
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+lowered-discharge = { path = "../../../../psi/compilation/pipeline/lowered-discharge" }
+structure-elaboration = { path = "../../../../psi/compilation/pipeline/structure-elaboration" }
 typed-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-typed-trees" }
 # Dev builds enable test-support so the psi_optimization_allocations example and
 # the test_support exports it drives compile alongside the unit tests.

@@ -201,7 +201,7 @@ use optimization_unit::{
     AbstractOptimizationEvidence, PsiOptimizationUnit, PsiTransformationLedger,
 };
 use std::sync::Arc;
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
+use verified_optimization_input::VerifiedPsiOptimizationInput;
 
 pub(crate) fn publish_optimization_run(
     run: OptimizationRun,

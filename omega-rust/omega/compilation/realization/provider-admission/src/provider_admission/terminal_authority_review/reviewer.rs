@@ -178,26 +178,42 @@ impl<'a> Reviewer<'a> {
         let (selected_plan, selected_row, _) = self.context.selected_requirement(requirement)?;
         if let Some(authority) = self.context.component_authority(boundary)? {
             for leaf in authority.review().leaves() {
-                let effects::TerminalAuthorityClosureCustody::SelectedRequirement {
-                    service_schema,
-                    requirement_identity,
-                    provider_plan,
-                } = leaf.custody()
-                else {
-                    return Err("component direct-root authority requires an explicit receiving subject; it cannot inherit a foreign or boundary permission".into());
-                };
-                let requirement = authority
-                    .review()
-                    .identities()
-                    .text(requirement_identity)
-                    .ok_or("component authority leaf lost its original identity table")?;
-                self.admit_leaf(
-                    service_schema,
-                    requirement,
-                    provider_plan,
-                    leaf.mechanism(),
-                    leaf.origin(),
-                )?;
+                match leaf.custody() {
+                    effects::TerminalAuthorityClosureCustody::SelectedRequirement {
+                        service_schema,
+                        requirement_identity,
+                        provider_plan,
+                    } => {
+                        let requirement = authority
+                            .review()
+                            .identities()
+                            .text(requirement_identity)
+                            .ok_or("component authority leaf lost its original identity table")?;
+                        self.admit_leaf(
+                            service_schema,
+                            requirement,
+                            provider_plan,
+                            leaf.mechanism(),
+                            leaf.origin(),
+                        )?;
+                    }
+                    // A checked instruction the component executes directly
+                    // lies in the closure of the requirement this consumer
+                    // selected it for, exactly as a fused checked adapter's
+                    // own instructions do. Its receiving subject is that
+                    // selected requirement (permissions.md, "Two-axis
+                    // containment"); it inherits no foreign or boundary
+                    // permission and is classified and adjudicated afresh.
+                    effects::TerminalAuthorityClosureCustody::ProgramRoot { .. } => {
+                        self.admit_leaf(
+                            selected_plan.schema_identity_digest(),
+                            requirement,
+                            selected_plan.identity_digest(),
+                            leaf.mechanism(),
+                            leaf.origin(),
+                        )?;
+                    }
+                }
             }
             return Ok(());
         }

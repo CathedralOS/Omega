@@ -638,7 +638,12 @@ crashes Trap
         transition { _ -> value(resolver_harness, output, index + 1) }
     }
 
-    machine binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping) {
+    // Binding rows index the fixed binding tables directly. `binding` enters
+    // only below `binding_count`, which `NameResolution` bounds by 65536, and
+    // each row state forwards that bound to the next.
+    machine binding_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping)
+    requires index <= 65535
+    {
         let type_binding: TypeBinding = output.type_bindings[index];
         transition type_binding {
             TypeBinding::Unresolved -> type_row(resolver_harness, output, index, 0, 0)
@@ -661,7 +666,9 @@ crashes Trap
         output: &NameResolution,
         index: u64 in Trapping,
         builtin: BuiltinType
-    ) {
+    )
+    requires index <= 65535
+    {
         transition builtin {
             BuiltinType::Bool -> type_row(resolver_harness, output, index, 1, 0)
             BuiltinType::I8 -> type_row(resolver_harness, output, index, 1, 1)
@@ -694,7 +701,9 @@ crashes Trap
         index: u64 in Trapping,
         tag: u8,
         handle: u64 in Trapping
-    ) {
+    )
+    requires index <= 65535
+    {
         ResolverHarness::write_byte(resolver_harness, tag);
         ResolverHarness::write_u64(resolver_harness, handle);
         transition output.domain_bindings[index] {

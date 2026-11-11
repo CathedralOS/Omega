@@ -20691,6 +20691,15 @@ pub(crate) mod write_frames {
                     if !root.is_valid() {
                         return Err("retained view resolves to no original storage declaration");
                     }
+                    // A write through an element of a fixed sub-range view
+                    // (`view = &mut items[1..3]; view[0].value = ..`) reaches
+                    // the origin as `items[1..3][0].value`. The coordinate
+                    // names exact storage, `items[1].value`, so every
+                    // consumer types and relates the same element whichever
+                    // view spelled it. Paths that do not fold exactly (a
+                    // runtime index into the window, a whole-window write)
+                    // stay as recorded and keep their existing refusals.
+                    let path = fold_fixed_element_window_path(path);
                     let coordinate = StorageCoordinate {
                         place: CanonicalPlace {
                             root,
@@ -20702,6 +20711,27 @@ pub(crate) mod write_frames {
                     };
                     Ok(coordinate)
                 }
+            }
+
+            fn fold_fixed_element_window_path(path: Vec<PlaceSegment>) -> Vec<PlaceSegment> {
+                use crate::value_custody::places::{WindowedSegment, fold_fixed_element_windows};
+                let is_window = |segment: &PlaceSegment| {
+                    matches!(segment, PlaceSegment::FixedRange { .. })
+                        && *segment != crate::field_domains::WHOLE_ELEMENT_EXTENT
+                };
+                if !path.iter().any(is_window) {
+                    return path;
+                }
+                fold_fixed_element_windows(path.iter().map(|segment| match segment {
+                    PlaceSegment::FixedRange { start, end } if is_window(segment) => {
+                        WindowedSegment::Window {
+                            start: *start,
+                            end: Some(*end),
+                        }
+                    }
+                    segment => WindowedSegment::Segment(*segment),
+                }))
+                .unwrap_or(path)
             }
 
             pub(crate) fn retained_view_predecessor(

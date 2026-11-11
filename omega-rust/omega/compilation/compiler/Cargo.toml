@@ -74,6 +74,7 @@ layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
 psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }

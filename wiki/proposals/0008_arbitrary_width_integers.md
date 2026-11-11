@@ -4,6 +4,12 @@ Status: proposed, not accepted. No arbitrary-width implementation or source
 spelling is ratified by this document. The immediate domain-carrier checking
 defect is independent of this proposal.
 
+Unbounded computational `i`/`u` were separately ratified on 2026-11-11 under
+[numeric values](../spec/language/numeric_values.md#unbounded-computational-integers).
+They have no finite numerical width. That decision does not approve arbitrary
+finite widths, and choosing `i200` would restrict values rather than merely
+choose a layout for `i`. Runtime realization remains separately required.
+
 Affected owners: [numeric values](../spec/language/numeric_values.md),
 [generics](../spec/language/generics.md),
 [domains](../spec/language/domains.md),
@@ -12,8 +18,9 @@ Affected owners: [numeric values](../spec/language/numeric_values.md),
 
 ## Problem and customer
 
-Omega currently has a fixed set of integer carriers. A program needing arithmetic
-with another width must use a larger carrier with explicit range/masking work,
+Omega has a fixed set of bounded integer carriers, independently of the
+unbounded computational carriers. A program needing arithmetic with another
+finite width must use a larger bounded carrier with explicit range/masking work,
 or an ordinary multi-limb library representation. The question is whether a
 width-indexed integer carrier would make a concrete program clearer, safer, or
 more efficient than those alternatives.

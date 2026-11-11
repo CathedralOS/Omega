@@ -1096,7 +1096,7 @@ pub(crate) fn runtime_borrowed_projection(
         regions.path,
         declarations,
         expected.map(|declaration| declaration.id),
-        |field| field.borrowed_presentation_type(access, expected),
+        |field| terminal_semantics::borrowed_field_presentation(field, access, expected),
     )?;
     let indices = regions.selector_runs(leaf_indices);
     Ok((selected, shape, offset, indices))

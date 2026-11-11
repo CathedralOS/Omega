@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let counters: [Counter; 1] = [Counter { slot: &mut written }];
     PacketCodec::encode(&sample, &mut buffer, counters[0].slot);
-    transition written == 4 && items[index] == 7 {
+    transition items[index] == 7 && written == 4 {
         true -> done()
         _ -> bad()
     }

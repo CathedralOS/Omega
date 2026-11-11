@@ -40,6 +40,7 @@ pub(super) fn count(policy: &PackagePolicyBaseline) -> Result<usize, PackageRevi
         policy.restricted_build_requests.len(),
         policy.assumed_bindings.len(),
         policy.service_audits.len(),
+        policy.component_assumptions.len(),
     ];
     counts
         .into_iter()
@@ -79,6 +80,7 @@ pub(super) fn acceptance_count(
         policy.restricted_build_requests.len(),
         policy.assumed_bindings.len(),
         policy.service_audits.len(),
+        policy.component_assumptions.len(),
     ]
     .into_iter()
     .chain(
@@ -93,6 +95,28 @@ pub(super) fn acceptance_count(
             .checked_add(count)
             .ok_or_else(|| rejected("acceptance row count overflows"))
     })
+}
+
+// Shared by the review baseline and root Product admission so a lock row
+// accepted at review is the exact row admission recomputes.
+pub(super) fn component_assumptions_rows(
+    builder: &mut Builder,
+    rows: &[crate::record::PackagePolicyComponentAssumption],
+) -> Result<(), PackageReviewEncodingError> {
+    for assumption in rows {
+        builder.push(
+            PackagePolicyRowKind::ComponentAssumption,
+            true,
+            true,
+            |encoder| {
+                encoder.package_identity(assumption.component);
+                encoder.fixed_bytes(&assumption.assumption);
+                Ok(())
+            },
+            |encoder| baseline::component_assumption(encoder, assumption),
+        )?;
+    }
+    Ok(())
 }
 
 pub(super) fn project(
@@ -116,6 +140,7 @@ pub(super) fn project(
         restricted_build_requests,
         assumed_bindings,
         service_audits,
+        component_assumptions,
     } = policy;
     builder.push(
         PackagePolicyRowKind::Header,
@@ -138,6 +163,7 @@ pub(super) fn project(
             |encoder| encode_nominal(encoder, service),
         )?;
     }
+    component_assumptions_rows(builder, component_assumptions)?;
     let PackagePolicyCallables {
         package: _,
         target: _,

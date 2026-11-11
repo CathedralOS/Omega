@@ -1,10 +1,10 @@
 data Packet { value: u64; }
 
 machine leaf(left: &Packet, right: &Packet)
-crashes Abort left == right {}
+crashes Abort core::Identity<Packet>(Packet { value: left.value }, Packet { value: right.value }) {}
 
 machine inspect(left: &Packet, right: &Packet, replacement: &Packet)
-crashes Abort left == right {
+crashes Abort core::Identity<Packet>(Packet { value: left.value }, Packet { value: right.value }) {
     let mut selected: &Packet = left;
     let retained: &Packet = selected;
     leaf(selected, right);

@@ -63,8 +63,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
   Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q1](OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer)).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [integer arithmetic](wiki/drafts/designs/computational_and_mathematical_integers.md).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Implement `i`/`u`, exact math `/`, quotient/remainder and checked bridges; migrate existing integer-proof fixtures under the design's controls.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
 
@@ -81,7 +82,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
-  Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
+  Acceptance: `FIREWALL_ALLOWANCES` in `tools/xtask/src/boundary.rs` has no `provider-planning` or `selected-dispatch` rows, and `mbx xtask check-boundary` passes.
 
 ## Lowering, checker, and data-flow
 
@@ -124,8 +125,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Retire Psi 06 shape gates (`tools/stage06_shape_gates.txt`) and source-context reads (`tools/stage06_source_context.txt`) using Psi 05 plans.
   Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
 
-- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/std/wire.omg`.
-  Acceptance: `source/library/std/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
+- **WIRE-CODEC-LIBRARY.** (covers **SEMANTIC-REFLECTION**) Complete [semantic reflection](wiki/spec/language/reflection.md) and `compact_binary` in `source/library/core/wire.omg`.
+  Acceptance: `source/library/core/wire.omg`, the 40-field record, `tests/omega/{pass,fail}/wire/*`, and `wire_protocol` pass `omega run --both`.
 
 ## Universal interpreter cutover
 

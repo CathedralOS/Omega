@@ -105,6 +105,9 @@ pub fn project_checked_package_policy<'a>(
         restricted_build_requests: restricted_build::project(compilation),
         assumed_bindings: assumed_bindings::project(compilation)?,
         service_audits: authority::registrations(compilation)?,
+        component_assumptions: crate::record::PackagePolicyComponentAssumption::project(
+            compilation.custody.providers(),
+        ),
     };
     let services = policy.service_audits().to_vec();
     policy.apply_service_audit_policy(&services);

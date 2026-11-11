@@ -15,10 +15,6 @@ reading typed or checked source trees or performing policy-file I/O.
 In package-aware compilations (`reject_package_non_provider_grants`), individual
 accepted-machine grants are rejected because package claims require complete
 package-level review.
-
-We also define `AuthoredComponentAssumptionAcceptance`, which records the exact
-32-byte assumption digest and declaration provenance for an authored
-`accept_component_assumption` directive in Build results.
 */
 
 #![forbid(unsafe_code)]
@@ -40,12 +36,4 @@ pub use effects::provider_grants::{
     resolve_selected_provider_grants,
 };
 pub(crate) use optimization_core::digest_encoder;
-use symbols::SymbolHandle;
 pub use trust_admission::TrustAdmission;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthoredComponentAssumptionAcceptance {
-    pub digest: [u8; 32],
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source::SourceSpan,
-}

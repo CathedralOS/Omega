@@ -24,7 +24,6 @@ use terminal_psi::{
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 use terminal_semantics::primitive_projection_declaration;
-use terminal_semantics::reference_origin_type;
 use terminal_semantics::stored_descriptor_paths;
 
 mod borrowed_arrivals {
@@ -2505,20 +2504,21 @@ pub(crate) fn call_results(
             if !access_covers(source.access, result_access) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            if reference_source_type(function, live, types, source)
-                .and_then(|root| {
-                    reference_origin_type(types.values().copied(), root, &binding.suffix)
+            let Some(suffix) =
+                reference_source_type(function, live, types, source).and_then(|root| {
+                    binding.projected_origin_suffix(
+                        types.values().copied(),
+                        root,
+                        expected,
+                        result_access,
+                    )
                 })
-                .is_none_or(|endpoint| {
-                    binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && endpoint != expected
-                })
-            {
+            else {
                 return Err(LoweringError::InvalidReferenceResult {
                     machine: function.machine,
                     reason: "returned reference origin does not resolve to its declared referent storage type",
                 });
-            }
+            };
             let mut leaf = if transfers_existing {
                 let Some((StructuralPathSegment::Referent, carrier_path)) =
                     source.path.split_last()
@@ -2543,7 +2543,7 @@ pub(crate) fn call_results(
             } else {
                 ReferenceStorage {
                     root: normalized_source(function, live, types, source)?
-                        .projected_family(&binding.suffix, binding.extent),
+                        .projected_family(&suffix, binding.extent),
                     carrier_type: leaf_type(types, result.structural_type, &mapping.path)
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                     referent: expected,
