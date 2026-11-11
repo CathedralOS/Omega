@@ -125,10 +125,45 @@ pub struct Body {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    /// Evaluate `value` and bind `slot` to it: a local's initializer or an
-    /// assignment, which rebinds an existing scalar slot. A record slot is
-    /// bound once, by its local's initializer, to the root that holds it.
+    /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
+    /// assignment of a whole value, which rebinds the slot. A scalar slot
+    /// names the value from then on; a record slot names the fresh root that
+    /// holds the assigned value, which is how the current pipeline lowers
+    /// `r = other;` on a record local. Every arm completes the machine, so
+    /// the statements of a body lie on one spine and a slot has one binding
+    /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// `let x: T;`: a local declared without an initializer. Its storage is
+    /// reserved and nothing is stored into it: the checker treats every use
+    /// that a store does not reach on every path as unestablished.
+    /// `wiki/spec/language/state_contracts.md`: "Uninitialized storage has no
+    /// assumed zero." A scalar slot declared this way is a storage home, not
+    /// an SSA value: it is written by `Store` with an empty path and read
+    /// through its place.
+    ///
+    /// `home` is, for a scalar slot, the text identity of its type as the
+    /// typed trees render it. Terminal Psi declares the primitive type of
+    /// such a home with an interned text identity, as it does a record's
+    /// (`RecordType::identity`); lowering copies it there and nothing
+    /// compares it. A record slot has `None`: its `RecordType` holds its own.
+    Declare {
+        slot: usize,
+        home: Option<String>,
+        source: SourceOrigin,
+    },
+    /// `slot.path = value;`: evaluate `value`, then store it into exactly the
+    /// place `path` selects beneath the slot's root, each step a field
+    /// position in the record type the previous step reached. The path is
+    /// empty only for a scalar slot that `Declare` homed.
+    /// `wiki/spec/language/state_contracts.md`: "Assignments first capture
+    /// their destination place ... They then evaluate the right-hand side".
+    /// A destination made of a slot and fields has nothing to evaluate.
+    Store {
+        slot: usize,
+        path: Vec<usize>,
+        value: Expression,
+        source: SourceOrigin,
+    },
     /// Evaluate for effect and discard the result.
     Evaluate(Expression),
     /// One transition arm. With a guard, the arm runs when it is true and the
@@ -167,8 +202,9 @@ pub struct Expression {
 pub enum ExpressionKind {
     Integer(IntegerValue),
     Boolean(bool),
-    /// A formal or local. A scalar slot is the value it holds; a record slot
-    /// is the root place it holds.
+    /// A formal or local. A scalar slot is the value it holds, or for a
+    /// local declared without an initializer a fresh read of its home; a
+    /// record slot is the root place it holds.
     Slot(usize),
     /// `R { a: x, b: y }`: each operand in authored order, then one atomic
     /// establishment of the record `result` names.

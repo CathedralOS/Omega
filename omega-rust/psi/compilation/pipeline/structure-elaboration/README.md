@@ -54,12 +54,29 @@ refusal anywhere in the closure refuses the whole closure.
 
 ### Records
 
-A formal, a local with an initializer, a result, a field and an argument may
-also be a copy-eligible plain record: a `data` declaration marked `[copy]`
-whose fields are builtin integers, `bool` or other such records. On such
-values the subset serves the record literal `R { a: x, b: y }`, the field
-read `r.a` and `r.a.b`, and copying a record value (`let b = a;`, passing it
-by value, returning it, moving it into a field of a literal).
+A formal, a local, a result, a field and an argument may also be a
+copy-eligible plain record: a `data` declaration marked `[copy]` whose fields
+are builtin integers, `bool` or other such records. On such values the subset
+serves:
+
+- the record literal `R { a: x, b: y }`, the field read `r.a` and `r.a.b`,
+  and copying a record value (`let b = a;`, passing it by value, returning
+  it, moving it into a field of a literal);
+- a store into a field of a `mut` local, `r.a = x` and `r.a.b = x`, and the
+  replacement of a record field by a record, `l.from = p`;
+- whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
+- a local declared without an initializer, `let mut x: u32;` and
+  `let mut r: R;`, stored into later.
+
+`[copy]` is required, not inferred
+([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
+requires an explicit `[copy]` declaration; copyable fields do not change the
+affine default."). Plain data without it is affine, moves once, and belongs
+to the ownership lane (`type data with custody`).
+
+Formals are immutable here. A `mut` formal is refused where the signature is
+read (`parameter mutable parameter`), and a store through a `&mut` formal
+belongs to the references lane (`type reference`).
 
 The rest of the places foundation lane
 (`wiki/drafts/designs/places_foundation_lane.md`) is refused by name until
@@ -71,9 +88,9 @@ the slice that serves it:
 | data that is not `[copy]`, or has a cleanup selection | `type data with custody` |
 | data with cases | `type sum data` |
 | generic, quotient, zero-gated or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type zero-gated data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
-| `r.a = x` | `statement field store` |
-| `r = R { ... }` | `statement whole assignment of a record` |
-| a local with no initializer | `statement uninitialized local` |
+| a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
+| a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
+| `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | `let { a, b } = r;`, arm payload bindings | `statement record pattern binding`, `statement arm pattern binding`, `transition destructuring pattern` |
 | `match` | `expression match` |
 | a case literal, a payload member, `s in S::C` | `expression case literal`, `expression case payload member`, `expression case membership` |
@@ -204,27 +221,72 @@ with the Terminal Psi operations that create the storage
 operation that produces a record (`OperationResult`: a literal, a whole copy,
 a call with a record result) and a record machine's result place (`Result`).
 A record local has no place of its own: its slot holds the root its
-initializer produced. `PlaceId`s are dense per machine, like every identity
-here.
+initializer, or the last whole value assigned to it, produced. A local
+declared without an initializer is the one local with a home of its own: the
+root of the operation that reserves its storage. `PlaceId`s are dense per
+machine, like every identity here.
 
 **Projections.** `r.a` is the row `(r, Segment::Field(a))`, found by binary
 search of the parent's sorted `children` and pushed only when absent, so a
 path is one `ExactPlaceId` however often it is used.
 
-**Writes.** Each establishment logs one `WriteRow` per scalar leaf beneath
-its fresh root, at `ProgramPoint::AfterOperation` of the establishing
-operation:
+**Writes.** Each row says what one operation stored and where, at
+`ProgramPoint::AfterOperation` of that operation. Lowering never asks what a
+place holds: answering that needs the graph, and the checker is the one that
+walks it.
 
 | Operation | What is logged |
 | --- | --- |
-| `EstablishRecord` | each scalar field `Content::Value(operand)`; each record field, leaf by leaf, what its operand's root held |
-| `StructuralLeafCopy` | each leaf, what the source leaf held |
+| `EstablishRecord` | each scalar field `Content::Value(operand)`; each record field one `Content::Overwritten` on that field's place |
+| `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | `Content::Value(stored)` on exactly the leaf it names |
+| `StoreStructuralField` (a record into a field) | one `Content::Overwritten` on that field's place |
+| `StructuralLeafCopy` | one `Content::Overwritten` on its fresh root |
 | a call with a record result | one `Content::Overwritten` on the root: the callee's values have no identity here |
+| `EstablishZeroedStructural`, `EstablishPrimitiveLocal` of a local with no initializer | nothing |
+
+`Content` has no variant for "what that other place held". So a whole copy,
+a record operand and a record stored into a field log only that the
+destination has new contents; the operation at the row's point names the
+source, and the checker resolves each leaf through it with the same walk it
+uses for a read. A sibling of a stored leaf gets no row and keeps its
+contents, and no row is ever edited, so what was known about an old value
+stays known.
 
 What a formal holds at entry is not a write. It is one value per scalar leaf
-with `ValueOrigin::EntryContent { place }`, minted the first time the leaf is
-read or copied and shared by every later use. No value is invented: a leaf
-copied from unknown contents is logged `Overwritten`.
+with `ValueOrigin::EntryContent { place }`, minted the first time an
+operation names the leaf or a place above it and shared by every later use.
+No value is invented.
+
+**Stores.** `r.a.b = x` evaluates `x` and emits one
+`StructuralScalarFieldStore` whose path is the carrier `a` and whose field is
+the leaf `b`; a plain field has no declared range, so `range_obligation` is
+`None`. `l.from = p` constructs the value first (a literal is its own root, a
+local is copied whole) and replaces the field with one
+`StoreStructuralField`, never with member stores
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"A whole record assignment constructs its operands before replacing the
+destination through the ordinary structural replacement operation ... Root,
+field, and indexed destinations do not change construction semantics or
+decompose the assignment into member stores"). Whole assignment to a local,
+`r = R { ... }`, constructs the value and then the local names that root:
+this is what the current pipeline emits for a root destination, and it is
+the same rebinding a scalar assignment does. Stores go straight into the
+root a local names ("A whole, unqualified, claim-free owned record home
+(entry, block parameter, or completed establishment/call result) supplies
+write authority directly"); the current pipeline first moves a `mut` local
+into a block parameter, which this subset has no join to need.
+
+**Locals with no initializer.** `let mut r: R;` emits
+`EstablishZeroedStructural` and `let mut x: u32;` a zero constant and
+`EstablishPrimitiveLocal`, the operations the current pipeline emits, so the
+module runs. Neither logs a row: the storage is reserved and the checker
+treats a use that no store reaches on every path as unestablished
+([state contracts](../../../../../wiki/spec/language/state_contracts.md):
+"Uninitialized storage has no assumed zero."). The current checker instead
+treats both as holding zero; which reading the language means is
+`OWNER_QUESTIONS.md`, `local-without-initializer`. Such a scalar local is a
+storage home, written by `WriteOnlyPrimitiveStore` and read by
+`PrimitiveScalarRead`; every other scalar local stays an SSA value.
 
 **The Terminal Psi forms.** Operands of a literal are evaluated in authored
 order and the one `EstablishRecord` follows them with its roster in
@@ -244,7 +306,17 @@ module, what the codec and the interpreter require: `structural_types` (one
 `Record` per type, `copyable`, `Packed`, each field `Scalar` or
 `Structural`), `identities` (the interned type and field texts), and
 `native_layouts` (one natural row per record, with no policy, no realization
-and absent nominal identities). A scalar module declares none of them.
+and absent nominal identities). Each scalar type some local is homed in is
+declared after the records as a `PrimitiveScalar` type, with the identity the
+typed trees render for it. A scalar module with no such local declares none
+of them.
+
+The record flags (`copyable`, `no_code_affine_cleanup`, `descriptor_cleanup`,
+no linear claim) are the ones the current pipeline emits for the same plain
+`[copy]` record, checked by decoding its artifact. One column differs: the
+current pipeline sets `inline_carrier` on each scalar field to the primitive
+structural type of that scalar, and this route leaves it `None`. The
+interpreter loads and runs both.
 
 ## Obligations
 
@@ -344,21 +416,22 @@ worked around by adding to `terminal-check-tables`.
 12. **`StructuralLeafCopy` of a member path needs the interned text index.**
     Its path is `StructuralPathSegment::Field(TerminalIdentityIndex)`.
     Lowering fills it from the field's own declaration row and compares
-    nothing; the checker reads the copy's effect from the write log, not from
-    the path.
+    nothing. The checker needs the copy's source place, which no table row
+    can hold, and gets it by asking the lowered form to resolve the path
+    (`terminal_semantics::runtime_structural_field`); it compares no
+    identity itself.
 13. **The decoder requires a native layout row per record.** A module with a
     record type and an empty `native_layouts` encodes and then fails to load
     ("native layout catalog differs from the complete ordered record
     inventory"). Lowering adds the natural row. Its nominal native identities
     are absent: producing them is the native layout review's identity work,
     which this route does not do.
-14. **`held` is exact only while every arm completes the machine.** Lowering
-    reads what a leaf holds from the last write it logged on that leaf or an
-    ancestor. That is the reaching write because a body's statements lie on
-    one spine of blocks, each dominating the next. The checker does not lean
-    on this and derives reaching writes from the graph. A slice that joins
-    two contents of one place (a value `match`, a loop) must take the graph
-    answer here instead of extending `held`.
+14. **The write log cannot say "copied from that place".** `Content` holds a
+    value, a reference, unknown contents or a hole, and `WriteRow` has no
+    source column. A whole copy therefore logs `Overwritten` and the checker
+    reads the source from the operation. A `Content` variant naming the
+    source `ExactPlaceId` would let the log stand alone; this lane adds no
+    such variant and reports the gap instead.
 15. **A return does not write the result place.** A record machine's result
     place is a root with no log entry. The slice that states `result.field`
     clauses logs the returned leaves on the return edge.

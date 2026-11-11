@@ -207,6 +207,7 @@ impl<'t> Program<'t> {
                 symbol: formal.symbol,
                 value_type,
                 assignable: false,
+                homed: false,
             });
         }
         let result = self.result_type(id, state.return_type)?;
@@ -387,6 +388,7 @@ impl<'t> Program<'t> {
                 symbol: formal.symbol,
                 value_type: *value_type,
                 assignable: false,
+                homed: false,
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);

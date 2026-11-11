@@ -14,7 +14,8 @@ The slice served is copy-eligible plain data: every field a builtin integer,
 `bool` or another such record. Everything else about a `data` declaration is
 refused by name, and later slices add to these functions rather than replace
 them: sums and payloads (`type sum data`), data `requires` (`type data
-requires`), custody (`type data with custody`), field stores and patterns.
+requires`), custody (`type data with custody`) and patterns. Stores into a
+record's fields are read in `statements`.
 */
 
 use semantic_vocabulary::{MachineId, StructuralFieldId, StructuralTypeId};

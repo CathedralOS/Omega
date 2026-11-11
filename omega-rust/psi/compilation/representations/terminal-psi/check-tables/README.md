@@ -66,7 +66,9 @@ value row.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places:
+A construct-family lane changes this crate in exactly two places (a closed
+`RefusalReason` variant, cited the same way, is the one further addition a
+lane has made):
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
@@ -82,6 +84,17 @@ Every checking step returns `Checked<T>`: a row, or a `Refusal` carrying a
 closed `RefusalReason`, the machine and the lowered `Construct` it concerns.
 There is no way to return "nothing". A construct the lane does not serve is
 refused as `Unsupported`, never accepted by default.
+
+Three reasons are verdicts about the program and the rest are about the
+checker. `Unproved` means an obligation's evidence did not check.
+`Unestablished` means a place is read, copied, passed or returned on a path
+on which nothing was stored into it
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"An unestablished local cannot be read"); it is a structural judgment over the
+write log and the graph, with no obligation row and no certificate, and the
+places foundation lane added it as a reason, not as a table. `Unsupported`
+means the checker does not serve the construct and says nothing about the
+program.
 
 ## Obligation kinds
 
