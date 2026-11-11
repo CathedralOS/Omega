@@ -19,8 +19,12 @@ method. Field bounds, data `requires` and payload access become obligations
 or structural checks over the tables, and the one route-one prover discharges
 them through `proof/admission`.
 
-The corpus numbers in [the slice](#the-corpus-slice) are a probe run on
-`#2307`'s head over a 710-fixture slice, labelled where they are estimates.
+On a 608-fixture slice probed at `#2307`'s head, the lane removes the first
+refusal of 178 programs. Only 16 to 20 of those newly enter the subset (an
+estimate), because most of the rest also borrow, and borrowing is the next
+lane's work. The lane is worth doing for its tables, not for the rows it
+moves on its own. [The slice](#the-corpus-slice) gives the counts and labels
+the estimates.
 
 ## Scope
 
@@ -44,7 +48,8 @@ emits, and the sentence it implements. Quotations are verbatim.
 | Record pattern `let R { a, b } = r;`, arm payload bindings | Field reads of the subject; each binding is the read's value | [patterns](../../spec/language/patterns.md#irrefutable-data-bindings): "A pattern that can fail rejects; a binding introduces no hidden branch, trap, fallback or runtime assertion." |
 | Data `requires` (default domain) on construction and on writes | Obligation `DataDomain` (below) at `EstablishRecord`, `Establish*Case`, field store and whole store | [data and literals](../../spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." [Structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "Record and case construction and scalar-field replacement use the same declaration-owned requirement. The obligation binds the initializer or replacement SSA value, never the old field contents." |
 | Field-domain premises at a read | Knowledge row on the read's value | [structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "A validated field read or selected-case payload copy instantiates that invariant on its fresh scalar snapshot; other fields and unselected cases provide no premise. The snapshot survives later writes". |
-| A local declared without an initializer, assigned later | A primitive or structural root with no content until its first write | [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary): "An unestablished local cannot be read: a whole read of the home, a loan of it to an ordinary or boundary call, and its forwarding on a state edge each require a whole store into it on every path reaching that use." [State contracts](../../spec/language/state_contracts.md): "Uninitialized storage has no assumed zero." |
+| A primitive local declared without an initializer, assigned later | A root with no content until its first write | [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary): "An unestablished local cannot be read: a whole read of the home, a loan of it to an ordinary or boundary call, and its forwarding on a state edge each require a whole store into it on every path reaching that use." [State contracts](../../spec/language/state_contracts.md): "Uninitialized storage has no assumed zero." |
+| A `data` local declared without an initializer (`let v: Stored;`) | `EstablishZeroedStructural`, then a `DataDomain` obligation on the zero value before first use | [dependent values](../../spec/language/dependent_values.md#default-domains-and-zero-initialization): "A zeroed storage representation can be accessed as an established value only after its default-domain obligations hold." [Data and literals](../../spec/language/data_and_literals.md): "The ordinary case-bearing zero representation selects the first declared case and recursively zeroed common fields/payload." `pass/data/prefix_case_pure_sum_retirement` reads such a local and expects its zero. The lane confirms against `state_contracts.md` that the two rows do not conflict, and asks in `OWNER_QUESTIONS.md` if they do. |
 | Named `const` of scalar, record or copy-eligible case type | The constant's `materialized_initializer` elaborated in place, at each use, as literal operands and construction | [constants](../../spec/language/constants.md): "`const` names an immutable compile-time value, not runtime storage." and "A constant has no stable address and grants no authority." |
 | `requires` / `ensures` clauses that project a formal or `result` (`p.first == 7`, `result in S::C`) | Clause terms over the entry content of the formal's place, or over the result root | [fact validity](../../spec/terminal-psi/fact_validity.md#restored-scalar-values): "a valid initialized ordinary storage place at entry may supply its exact reaching value version; it need not have a store inside the current body." |
 | Copying a record or case value (`let b = a;`, passing it by value) | `StructuralLeafCopy` / `StructuralCaseLeafCopy` into a fresh root | [ownership](../../spec/terminal-psi/ownership.md#roots-continuations-and-order): "Plain unrestricted primitive-array, scalar-case, and plain record payloads have no disposal obligation." |
@@ -233,7 +238,91 @@ AGENTS.md stop rule 6 applies to every row above. In particular:
 
 ## The corpus slice
 
-SLICE_PLACEHOLDER
+The probe ran on `#2307`'s head (`e10fbc6cc`). It ran
+`structure_elaboration_corpus`, built with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p compiler --example structure_elaboration_corpus`,
+on this cloud VM (Linux x86_64, 4 CPUs), in three shards over a list shuffled
+with a fixed seed. All 608 fixtures completed in about 48 minutes. The probe
+reports only the *first* refusal of each closure.
+
+The slice has two parts:
+
+- **All** 506 fixtures in `pass/{cases,constants,data,expressions,locals,patterns,structs,structural,types}`
+  and `run/`. These are the directories where records, cases and constants
+  live.
+- **A sample** of 102 from `pass/facts`: every 38th fixture by name, out of
+  3,885.
+
+| Probe stage | Fixtures |
+| --- | ---: |
+| refused | 477 |
+| no program entry | 67 |
+| current checker failed (so no typed trees) | 52 |
+| ran (already inside route one) | 11 |
+| panicked | 1 (`run/`, in the fixture harness) |
+
+First refusals, top ten:
+
+| Refusal | Fixtures | In this lane |
+| --- | ---: | --- |
+| `machine service reach` | 183 | no; 170 of them import `omega_language_std::console` |
+| `type nominal type` | 117 | yes |
+| `statement uninitialized local` | 51 | yes, but see below |
+| `type constrained` | 26 | no (domains) |
+| `type fixed array` | 25 | no (collections) |
+| `call receiver call` | 10 | no |
+| `type float` | 8 | no |
+| `expression cast` | 7 | no |
+| `type reference` | 6 | no |
+| `call receiver, requirement or coercion call` | 5 | no |
+
+The lane removes six refusals: `type nominal type`,
+`statement uninitialized local`, `expression match`, `expression member`,
+`expression projected name path` and `expression record literal`. Those six
+are the first refusal of **178** fixtures (117, 51, 4, 4, 1 and 1). That is
+how many reach a *later* refusal once the lane lands, not how many enter.
+
+How many enter is an **estimate**, because the probe stops at the first
+refusal. Each of the 178 sources was screened by text, as a measurement only,
+for constructs outside route one plus this lane. 157 contain at least one.
+The counts overlap: a borrow or reference type 136, a bracket (array, index or
+slice) 84, other out-of-lane keywords 55, a generic application 52, `as` 35,
+a string literal 32, a float type 11. The remaining **21** were then read one
+by one:
+
+| Verdict by reading | Fixtures |
+| --- | ---: |
+| inside route one plus this lane | 16 |
+| needs a rule the lane must confirm: a machine call inside a data `requires` (`pass/facts/case_where_equality_data_predicate_whole_replacement_restored_exit`), integer literal patterns (`pass/patterns/named_value_before_negative_integer_pattern_exit`), a zero-established data local (`pass/data/prefix_case_pure_sum_retirement`), data from another package (`pass/facts/nominal_declaration_owner_through_local`) | 4 |
+| outside: mutual recursion (`run/contracts/cyclic_mixed_conjunction`) | 1 |
+
+So **16 to 20 fixtures of this slice newly enter the subset**. The 16 read
+as inside are 7 in `pass/`, 2 in `run/` and 7 in the `pass/facts` sample;
+the 4 to confirm are 2 in `pass/` and 2 in `pass/facts`. Even 20 is an upper
+bound, because a program that passes the screen can still hit a later
+refusal. Scaled from the sample (7 to 9 hits in 102, times 38), about 270 to
+340 of `pass/facts`' 3,885 fixtures would enter. That is a counted estimate
+with wide error, not a measurement.
+
+What the numbers say about the lane:
+
+- **Places alone move few rows.** Of the 178 programs whose first refusal
+  this lane removes, 136 also borrow, and every one of the 51 refused as
+  `statement uninitialized local` also uses something out of lane. Most
+  initialize the local through `&write` or pass it as `&mut` entry storage.
+  The lane still serves initialization, because it owns the write log, but
+  that refusal will not turn into entering rows until the references lane
+  lands. The lane's value is the tables the next five lanes build on. Its
+  agreement sample is small, and the lane says so rather than claiming
+  coverage.
+- **`machine service reach` is the largest single refusal**, at 183 of 608,
+  and no lane in the post-gate ordering names it before the second group's
+  `host`. Any program that prints, including most `run/` rows, is blocked
+  there whatever this lane does. This is recorded for the coordinator. It is
+  not in scope here.
+- **Fail rows were not probed.** At this head, a program the current checker
+  rejects never reaches elaboration, so its stage is `check-failed`; `#2312`
+  adds that seam. The must-reject rows below were chosen by reading.
 
 ### Must-reject rows that guard the lane
 
