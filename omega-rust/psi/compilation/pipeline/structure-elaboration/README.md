@@ -67,8 +67,10 @@ serves:
 - a store into a field of a `mut` local, `r.a = x` and `r.a.b = x`, and the
   replacement of a record field by a record, `l.from = p`;
 - whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
-- a local declared without an initializer, `let mut x: u32;` and
-  `let mut r: R;`, stored into later.
+- a local declared without an initializer: `let mut r: R;` holds the zero
+  value of `R`, and `let mut x: u32;` holds nothing until it is stored into;
+- a `requires` on the declaration, over `self` and its fields
+  ([Data `requires`](#data-requires)).
 
 `[copy]` is required, not inferred
 ([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
@@ -95,9 +97,8 @@ payload field, and an argument. A payload field is a builtin integer,
   bindings, renames (`p as q`), waived fields (`p as _`) and `..`;
 - value-position `match` over a sum named by a slot or a path beneath one,
   with scalar arms;
-- a local of sum type declared without an initializer. As for a record, it
-  holds nothing until something is stored
-  (`OWNER_QUESTIONS.md`, `local-without-initializer`).
+- a local of sum type declared without an initializer, which holds the
+  first declared case with a zeroed payload.
 
 Whether a payload may be named where it is named is not decided here. It is
 the checker's payload judgment
@@ -110,10 +111,12 @@ the slice that serves it:
 
 | Construct | Refusal detail |
 | --- | --- |
-| data with a `requires` | `type data requires` |
+| a `requires` on a case | `type data requires` |
+| a data `requires` clause that calls a machine, compares with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract inequality (no negated proposition)`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
+| a constrained field type or a named domain | `type constrained` |
 | data that is not `[copy]`, or has a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
-| generic, quotient, zero-gated or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type zero-gated data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
+| generic, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
@@ -126,7 +129,7 @@ the slice that serves it:
 | a `match` arm with a guard or after the wildcard | `transition case arm with a guard`, `expression match arm after the wildcard` |
 | `s in S::C` whose right side names no case | `expression case membership` |
 | a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |
-| a clause that names a record formal or projects a formal or `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
+| a clause that names a record formal whole, an `ensures` or crash guard that projects a formal, and any clause that projects `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
 | `==` and `!=` between records or between two sum values | `expression operator on a record` |
 | a field or literal type the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol` |
 
@@ -351,14 +354,64 @@ into a block parameter, which this subset has no join to need.
 **Locals with no initializer.** `let mut r: R;` emits
 `EstablishZeroedStructural` and `let mut x: u32;` a zero constant and
 `EstablishPrimitiveLocal`, the operations the current pipeline emits, so the
-module runs. Neither logs a row: the storage is reserved and the checker
-treats a use that no store reaches on every path as unestablished
+module runs.
+
+A data local is zero-established. Its declaration logs one row for the
+root's new contents and, on each scalar leaf of the zero value, a constant
+zero of the leaf's type, emitted just before the establishment. The zero
+value of a sum is its first declared case with a zeroed payload
+([data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+"The ordinary zero representation of a sum selects the first declared case
+and a recursively zeroed payload."), so only that case's payload leaves get a
+row. The current pipeline emits no constant for a data home; the constants
+are what gives each leaf's content a value identity the module contains, the
+way its own scalar home's constant does. The establishment owes the
+`requires` clauses of the type and of every data-typed place of the zero
+value, and the checker decides from them whether the storage is an
+established value or the type is gated
+([lowered-discharge](../lowered-discharge/README.md#zero-establishment)).
+
+A scalar local logs no row: its storage is reserved and the checker treats a
+use that no store reaches on every path as unestablished
 ([state contracts](../../../../../wiki/spec/language/state_contracts.md):
 "Uninitialized storage has no assumed zero."). The current checker instead
-treats both as holding zero; which reading the language means is
+treats it as holding zero; which reading the language means for a scalar is
 `OWNER_QUESTIONS.md`, `local-without-initializer`. Such a scalar local is a
 storage home, written by `WriteOnlyPrimitiveStore` and read by
 `PrimitiveScalarRead`; every other scalar local stays an SSA value.
+
+<a id="data-requires"></a>
+**Data `requires`.** A declaration's `requires` is the type's default domain
+([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"A data declaration's field qualifications and `requires` clauses define its
+default domain"). The reader reads each clause with the clause reader the
+machine contracts use (`read/contracts.rs`), with `self`, its fields named
+bare, and member paths beneath them in scope, and with two forms a machine
+contract does not have: `self in S::C` and `||`. A clause is kept in
+`RecordType::requires` in the form Terminal Psi gives a clause over storage:
+a field is a field term over one root that stands for `self` and the dense
+field and case identities down to the field, and a case test is a
+case-membership proposition on such a path. Nothing proves or knows a clause
+in that form. The clauses travel beside the module in
+`Elaboration::domains`, because Terminal Psi's type declaration has no slot
+for them: the current pipeline proves them on checked trees and its Terminal
+module carries none.
+
+Lowering mints one `DataDomain` obligation per owed clause, at the point
+before the operation that owes it
+([data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+"Construction and every restoring write prove the owning default-domain
+clauses."):
+
+| Operation | Clauses owed, in the order `DataDomain::clause` numbers them |
+| --- | --- |
+| `EstablishRecord`, `EstablishScalarCase`, `EstablishStructuralCase` | the constructed type's |
+| `EstablishZeroedStructural` | the type's, then those of each data-typed field of the zero value in declaration order, parent first |
+| `StructuralScalarFieldStore`, `StoreStructuralField` | those of the type that declares the written field, then of each type that contains it, outward to the root |
+
+A record stored whole into a field owes nothing for its own type: it was
+established where it was constructed. The goal of each obligation is built
+by the checker, not here.
 
 **The Terminal Psi forms.** Operands of a literal are evaluated in authored
 order and the one `EstablishRecord` follows them with its roster in
@@ -564,8 +617,41 @@ worked around by adding to `terminal-check-tables`.
     is refused instead of given a wider guard.
 23. **Mixed data is refused.** A case literal of a type with common fields
     beside its cases names none of them (`Token::Mark { kind: 2 }`), so what
-    they hold after construction is the zero-initialization question
-    `OWNER_QUESTIONS.md` records as `local-without-initializer`.
+    they hold after construction is a rule no slice of this lane lowers yet.
 24. **`ValueType::Record` and `RecordType` name records and sums.** A sum is
     the same row with `cases` instead of `fields`; the names were kept so
     the slices before this one read unchanged.
+25. **Terminal Psi carries no data `requires`.** For
+    `data R requires low <= high`, the current pipeline's module holds the
+    construction and the store with `range_obligation: None` and no clause
+    anywhere: it proves the domain on checked trees. The clauses therefore
+    travel in `Elaboration::domains`, a field of this crate's result, not in
+    the module and not in `terminal-check-tables`.
+26. **No field in this subset has a `range_obligation`.** The slot is set
+    for a field of bounded or refined type (`StructuralFieldType::BoundedInteger`,
+    `RefinedScalar`), which a constrained field type or a named domain
+    produces. A plain integer field under a data `requires`, one-sided or
+    two-sided, lowers with `range_obligation: None` in the current pipeline,
+    so this slice mints no `OperationSafety` for a field.
+27. **The current checker opens a window where this route owes a proof.**
+    [Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
+    "Otherwise the write opens a window on the place ... The domain must be
+    proved again at the next consumption point". Terminal Psi has none
+    ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+    "Terminal Psi opens no invariant window on a field"), and this route
+    follows it and the lane plan: every store owes the clauses. A program
+    that breaks a clause with one store and restores it with the next before
+    anything consumes the value is accepted by the current checker and
+    unproved here. `ObligationKind::DomainDebt` is the conserved obligation
+    that would carry such a window; no lane mints it yet.
+28. **An entry `requires` may project a record formal; nothing may project
+    `result` yet.** `requires p.first == 7` is read as a field term rooted
+    at the formal's place (the `k`-th record formal is place `k + 1`), the
+    form the module's contract carries; the checker states it over the
+    formal's entry content inside the machine and over the actual's leaf at
+    each call. `ensures result.x <= 9`, `ensures result in S::C`, a formal's
+    field in an `ensures` and in a crash route guard are still refused as
+    `contract clause that projects a formal or result`: they need the
+    returned leaves logged on the return edge (finding 15) and a result
+    leaf stated as a value in the caller, which this slice does not do.
+

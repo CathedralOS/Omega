@@ -308,6 +308,8 @@ mod tests {
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
+            subject: None,
+            formal_fields: false,
             slots: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
@@ -591,6 +593,8 @@ mod tests {
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
         let scope = ClauseScope {
+            subject: None,
+            formal_fields: false,
             slots: &slots,
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),

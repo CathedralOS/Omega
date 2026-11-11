@@ -932,11 +932,13 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(2, "y", ValueType::Scalar(u32_type())),
         ],
         cases: Vec::new(),
+        requires: Vec::new(),
     });
     records.push(RecordType {
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
         cases: Vec::new(),
+        requires: Vec::new(),
     });
     records
 }
@@ -1072,7 +1074,9 @@ fn read_equals(tables: &MachineTables, read: (OperationId, ValueId)) -> Option<V
                 assert_eq!(*result, read.1);
                 Some(*held)
             }
-            other => panic!("a read equation is between two values, found {other:?}"),
+            // A read of typed storage may also carry its type's `requires`
+            // on the read value: an order, or an equation with a literal.
+            _ => None,
         }
     });
     let first = held.next();
@@ -1769,7 +1773,7 @@ fn a_read_of_a_local_nothing_was_stored_into_is_unestablished() {
 }
 
 #[test]
-fn a_record_is_established_by_a_store_into_every_leaf_and_not_by_fewer() {
+fn a_record_local_without_an_initializer_holds_the_zero_value() {
     // f() -> Point { let mut p: Point; p.x = 1; [p.y = 2;] p }
     let built = |every_leaf: bool| {
         let mut statements = vec![declare(0, point()), store(0, &[0], unsigned(1))];
@@ -1786,19 +1790,17 @@ fn a_record_is_established_by_a_store_into_every_leaf_and_not_by_fewer() {
         }])
         .1
     };
-    // The whole copy that returns `p` and the return of that copy.
+    // The whole copy that returns `p` and the return of that copy. A data
+    // local is zero-established, so the leaf no store reached holds zero
+    // and the record is established either way. (Until the owner settled
+    // the data half of `local-without-initializer`, the second was
+    // `Unestablished`.)
     assert_eq!(uses(&built(true)), [Ok(()), Ok(())]);
-    assert_eq!(
-        uses(&built(false)),
-        [
-            Err(RefusalReason::Unestablished),
-            Err(RefusalReason::Unestablished)
-        ]
-    );
+    assert_eq!(uses(&built(false)), [Ok(()), Ok(())]);
     // g() -> u32 { let mut l: Line; l.from = Point { x: 1, y: 2 }; l.to.x = 3;
     //              l.from.y & l.to.x & l.to.y }
-    // A whole store into `l.from` establishes both its leaves; `l.to.x` is
-    // established by its own store; `l.to.y` by nothing.
+    // A whole store into `l.from` supplies both its leaves, `l.to.x` its
+    // own store, and `l.to.y` the zero the declaration established.
     let leaf = |outer: usize, inner: usize| {
         read(
             of_type(
@@ -1830,7 +1832,7 @@ fn a_record_is_established_by_a_store_into_every_leaf_and_not_by_fewer() {
             Ok(()),
             Ok(()),
             Ok(()),
-            Err(RefusalReason::Unestablished)
+            Ok(())
         ]
     );
 }
@@ -2092,6 +2094,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         identity: String::from("Point"),
         fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
         cases: Vec::new(),
+        requires: Vec::new(),
     });
     records.push(RecordType {
         identity: String::from("Shape"),
@@ -2106,11 +2109,13 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
             case(3, "Boxed", vec![field(6, "inner", point())]),
             case(4, "Empty", Vec::new()),
         ],
+        requires: Vec::new(),
     });
     records.push(RecordType {
         identity: String::from("Holder"),
         fields: vec![field(7, "shape", shape())],
         cases: Vec::new(),
+        requires: Vec::new(),
     });
     records
 }
@@ -2629,19 +2634,983 @@ fn a_fact_from_one_match_arm_does_not_survive_the_join() {
 }
 
 #[test]
-fn a_sum_local_nothing_was_stored_into_is_unestablished() {
-    // let z: Shape; match z { Shape::Dot { at } -> at, _ -> 0 }
-    let (_, _, verdicts) = sum_uses(
+fn a_sum_local_without_an_initializer_is_its_first_case_with_a_zeroed_payload() {
+    // let z: Shape; match z { Shape::Dot { at } -> bounded(at), _ -> 0 }
+    // `Dot` is the first declared case, so the zero value is `Dot` with
+    // `at` zero: the dispatch is established, the payload parameter equals
+    // the zero constant, and `bounded`'s requirement follows from it.
+    // (Until the owner settled the data half of
+    // `local-without-initializer`, the dispatch was `Unestablished`.)
+    let (elaboration, result, verdicts) = sum_uses(
         Vec::new(),
         vec![shape()],
         vec![
             declare(0, shape()),
             returns(matching(
                 place(0, shape()),
-                vec![(DOT, payload(place(0, shape()), DOT, 0))],
+                vec![(DOT, call(2, vec![payload(place(0, shape()), DOT, 0)]))],
                 Some(unsigned(0)),
             )),
         ],
     );
+    assert_eq!(verdicts, [Ok(())]);
+    let zero = constants(&elaboration)[0];
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let bound = bound_payloads(tables);
+    assert_eq!(bound.len(), 1);
+    assert_eq!(bound[0].1, zero);
+    let required = verdicts_of(&elaboration, &result);
+    assert_eq!(required.len(), 1);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+    // A payload of a case the zero value is not is not established: the
+    // zero value of `Shape` is `Dot`, never `Pair`.
+    let (_, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![shape()],
+        vec![
+            declare(0, shape()),
+            returns(payload(place(0, shape()), PAIR, 0)),
+        ],
+    );
     assert_eq!(verdicts, [Err(RefusalReason::Unestablished)]);
+}
+
+// Data `requires`: each clause is a `DataDomain` obligation at every
+// operation that forms or changes a value of the type.
+
+use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseSubject};
+
+const BOUNDED: u64 = 1;
+const SPAN: u64 = 2;
+const WRAP: u64 = 3;
+const BYTE_READ: u64 = 4;
+const GATED: u64 = 5;
+const PAIRED: u64 = 6;
+
+fn data(raw: u64) -> ValueType {
+    ValueType::Record(id(raw))
+}
+
+/// The `u32` field of `self` a data clause names by the field identities
+/// from the value down to it.
+fn own(path: Vec<CanonicalStructuralPathSegment>) -> ScalarTerm {
+    ScalarTerm::IntegerField {
+        root: structure_elaboration::self_place().unwrap(),
+        path,
+        scalar_type: integer_type(IntegerSign::Unsigned),
+    }
+}
+
+fn field_of_self(raw: u64) -> ScalarTerm {
+    own(vec![CanonicalStructuralPathSegment::Field(id(raw))])
+}
+
+fn number(value: u128) -> ScalarTerm {
+    bound(u32_type(), IntegerValue::Unsigned(value))
+}
+
+fn self_is(case: u64) -> Proposition {
+    Proposition::StructuralCaseMembership {
+        subject: StructuralCaseSubject::new(
+            structure_elaboration::self_place().unwrap(),
+            Vec::new(),
+        ),
+        case: id(case),
+    }
+}
+
+/// The data types of the `requires` tests:
+///
+/// - `Bounded { value } requires value <= 5`
+/// - `Span { low, high } requires low <= high`
+/// - `Wrap { span: Span, top } requires self.span.high <= top`
+/// - `ByteRead { case Eof; case Byte(value) } requires (self in Eof)
+///   || ((self in Byte) && self.value <= 255)`
+/// - `Gated { v } requires 1 <= v`, which zero does not satisfy
+/// - `Paired { neighbor, value } requires value <= 255, 1 <= value`
+fn constrained() -> IdTable<StructuralTypeId, RecordType> {
+    let scalar = ValueType::Scalar(u32_type());
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let record = |spelled: &str, fields, requires| RecordType {
+        identity: spelled.to_owned(),
+        fields,
+        cases: Vec::new(),
+        requires,
+    };
+    let mut records = IdTable::default();
+    records.push(record(
+        "Bounded",
+        vec![field(1, "value", scalar)],
+        vec![Proposition::LessOrEqual(field_of_self(1), number(5))],
+    ));
+    records.push(record(
+        "Span",
+        vec![field(2, "low", scalar), field(3, "high", scalar)],
+        vec![Proposition::LessOrEqual(field_of_self(2), field_of_self(3))],
+    ));
+    records.push(record(
+        "Wrap",
+        vec![field(4, "span", data(SPAN)), field(5, "top", scalar)],
+        vec![Proposition::LessOrEqual(
+            own(vec![
+                CanonicalStructuralPathSegment::Field(id(4)),
+                CanonicalStructuralPathSegment::Field(id(3)),
+            ]),
+            field_of_self(5),
+        )],
+    ));
+    records.push(RecordType {
+        identity: String::from("ByteRead"),
+        fields: Vec::new(),
+        cases: vec![
+            CaseType {
+                id: id(1),
+                identity: String::from("Eof"),
+                fields: Vec::new(),
+            },
+            CaseType {
+                id: id(2),
+                identity: String::from("Byte"),
+                fields: vec![field(6, "value", scalar)],
+            },
+        ],
+        requires: vec![Proposition::Disjunction(vec![
+            self_is(1),
+            Proposition::Conjunction(vec![
+                self_is(2),
+                Proposition::LessOrEqual(
+                    own(vec![
+                        CanonicalStructuralPathSegment::Case(id(2)),
+                        CanonicalStructuralPathSegment::Field(id(6)),
+                    ]),
+                    number(255),
+                ),
+            ]),
+        ])],
+    });
+    records.push(record(
+        "Gated",
+        vec![field(7, "v", scalar)],
+        vec![Proposition::LessOrEqual(number(1), field_of_self(7))],
+    ));
+    records.push(record(
+        "Paired",
+        vec![field(8, "neighbor", scalar), field(9, "value", scalar)],
+        vec![
+            Proposition::LessOrEqual(field_of_self(9), number(255)),
+            Proposition::LessOrEqual(number(1), field_of_self(9)),
+        ],
+    ));
+    records
+}
+
+fn run_constrained(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = elaborate_over(machines, &constrained());
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+fn domain(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::DataDomain { .. })
+}
+
+/// Machine 1's `DataDomain` verdicts, in obligation order.
+fn domains<'a>(
+    elaboration: &structure_elaboration::Elaboration,
+    result: &'a Discharge,
+) -> Vec<(ObligationId, &'a Checked<Discharged>)> {
+    verdicts(elaboration, result, 1, domain)
+}
+
+fn literal_of(record: u64, fields: Vec<Expression>) -> Expression {
+    of_type(
+        ExpressionKind::Record {
+            fields: fields.into_iter().enumerate().collect(),
+        },
+        data(record),
+    )
+}
+
+/// One machine with no formal: its locals, its result and its body.
+fn closed(locals: Vec<ValueType>, result: ValueType, statements: Vec<Statement>) -> Shaped {
+    Shaped {
+        parameters: Vec::new(),
+        locals,
+        result,
+        requires: Vec::new(),
+        statements,
+    }
+}
+
+fn at_most_value(value: ValueId, limit: u128) -> Proposition {
+    Proposition::LessOrEqual(ScalarTerm::value(value, u32_type()), number(limit))
+}
+
+#[test]
+fn a_construction_binds_the_value_that_reaches_it_and_not_the_initializer() {
+    // The stale-local witness (`fail/data/constructor_stale_local_bounds`):
+    //   f() -> Bounded { let mut current = 1; current = 7;
+    //                    Bounded { value: current } }
+    // The clause `value <= 5` is owed over the operand the literal reads,
+    // which is the reassigned `7`, never the initializer `1`.
+    let built = |first: u128, second: u128| {
+        run_constrained(vec![closed(
+            vec![u32_type().into()],
+            data(BOUNDED),
+            vec![
+                bind(0, unsigned(first)),
+                bind(0, unsigned(second)),
+                returns(literal_of(BOUNDED, vec![slot(0, u32_type())])),
+            ],
+        )])
+    };
+    let (elaboration, result) = built(1, 7);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1, "one obligation per clause");
+    assert_unproved(owed[0].1);
+    // The twin with the two constants exchanged holds, and its goal names
+    // the second constant.
+    let (elaboration, result) = built(7, 1);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    let evidence = certificate(owed[0].1);
+    assert_eq!(evidence.goal, at_most_value(constants(&elaboration)[1], 5));
+    assert_kernel_checked(&elaboration, 1, owed[0].0, evidence);
+}
+
+#[test]
+fn a_literal_on_a_sibling_field_is_no_evidence_for_the_bounded_field() {
+    // make(v) -> Paired { Paired { neighbor: 17, value: v } }, with
+    // `requires value <= 255, 1 <= value` on the type
+    // (`fail/cases/constructor_subject_range_neighbor_not_evidence`).
+    let make = |requires| {
+        run_constrained(vec![Shaped {
+            parameters: vec![u32_type().into()],
+            locals: Vec::new(),
+            result: data(PAIRED),
+            requires,
+            statements: vec![returns(literal_of(
+                PAIRED,
+                vec![unsigned(17), slot(0, u32_type())],
+            ))],
+        }])
+    };
+    let (elaboration, result) = make(Vec::new());
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 2, "one obligation per clause");
+    assert_unproved(owed[0].1);
+    assert_unproved(owed[1].1);
+    // With the formal bounded at entry both clauses hold, over the formal.
+    let (elaboration, result) = make(vec![at_least(1, 1), at_most(1, 255)]);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(
+        certificate(owed[0].1).goal,
+        at_most_value(id(1), 255),
+        "the goal names the operand of the bounded field"
+    );
+    for (obligation, verdict) in owed {
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+}
+
+/// `f() -> u32 { let mut s = Span { low: 1, high: 9 }; s.low = stored; s.high }`.
+fn span_store(stored: u128) -> (structure_elaboration::Elaboration, Discharge) {
+    run_constrained(vec![closed(
+        vec![data(SPAN)],
+        u32_type().into(),
+        vec![
+            bind(0, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+            store(0, &[0], unsigned(stored)),
+            returns(read(place(0, data(SPAN)), 1)),
+        ],
+    )])
+}
+
+#[test]
+fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logged_value() {
+    // `low <= high`: the store to `low` owes it over the stored value and
+    // the value the write log holds for `high`, the construction's `9`.
+    let (elaboration, result) = span_store(5);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 2, "the construction and the store");
+    let (one, nine, five) = {
+        let constants = constants(&elaboration);
+        (constants[0], constants[1], constants[2])
+    };
+    let value = |value| ScalarTerm::value(value, u32_type());
+    assert_eq!(
+        certificate(owed[0].1).goal,
+        Proposition::LessOrEqual(value(one), value(nine))
+    );
+    // The goal names the stored value, never the value `low` held before.
+    assert_eq!(
+        certificate(owed[1].1).goal,
+        Proposition::LessOrEqual(value(five), value(nine))
+    );
+    for (obligation, verdict) in &owed {
+        assert_kernel_checked(&elaboration, 1, *obligation, certificate(verdict));
+    }
+    // The store's obligation is created before the store: the completed
+    // write's own row is not among its premises.
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let ObligationKind::DataDomain { operation, .. } =
+        tables.obligations.get(owed[1].0).unwrap().kind
+    else {
+        panic!("a data domain obligation");
+    };
+    assert_ne!(
+        tables.obligations.get(owed[1].0).unwrap().created_at,
+        ProgramPoint::AfterOperation(operation)
+    );
+    // The twin that stores 12 breaks the clause: 12 <= 9 is unproved.
+    let (elaboration, result) = span_store(12);
+    let owed = domains(&elaboration, &result);
+    assert!(owed[0].1.is_ok());
+    assert_unproved(owed[1].1);
+}
+
+#[test]
+fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
+    // f() -> u32 { let mut s = make(); s.low = 0; s.high }
+    // `s.high` is what the call returned: contents with no value identity.
+    // `0 <= high` is true of every `u32`, and still the clause cannot be
+    // stated over values, so the obligation is unproved, never dropped.
+    let (elaboration, result) = run_constrained(vec![
+        closed(
+            vec![data(SPAN)],
+            u32_type().into(),
+            vec![
+                bind(
+                    0,
+                    of_type(
+                        ExpressionKind::Call {
+                            callee: id(2),
+                            arguments: Vec::new(),
+                        },
+                        data(SPAN),
+                    ),
+                ),
+                store(0, &[0], unsigned(0)),
+                returns(read(place(0, data(SPAN)), 1)),
+            ],
+        ),
+        closed(
+            Vec::new(),
+            data(SPAN),
+            vec![returns(literal_of(SPAN, vec![unsigned(1), unsigned(9)]))],
+        ),
+    ]);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    let refusal = owed[0].1.as_ref().unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unproved);
+    assert!(
+        refusal.detail.contains("no value identity"),
+        "{}",
+        refusal.detail
+    );
+}
+
+/// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
+///               w.span.high = stored; w.top }`.
+fn nested_store(stored: u128) -> (structure_elaboration::Elaboration, Discharge) {
+    run_constrained(vec![closed(
+        vec![data(WRAP)],
+        u32_type().into(),
+        vec![
+            bind(
+                0,
+                literal_of(
+                    WRAP,
+                    vec![
+                        literal_of(SPAN, vec![unsigned(1), unsigned(9)]),
+                        unsigned(9),
+                    ],
+                ),
+            ),
+            store(0, &[0, 1], unsigned(stored)),
+            returns(read(place(0, data(WRAP)), 1)),
+        ],
+    )])
+}
+
+#[test]
+fn a_nested_store_owes_the_clauses_of_every_type_that_contains_the_field() {
+    // `w.span.high = 8` changes a `Span` and the `Wrap` around it: it owes
+    // `Span`'s `low <= high` for `w.span`, then `Wrap`'s `span.high <= top`
+    // for `w`, innermost first.
+    let (elaboration, result) = nested_store(8);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let store = elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::StructuralScalarFieldStore { .. }
+            )
+        })
+        .unwrap()
+        .id;
+    let at_store: Vec<_> = domains(&elaboration, &result)
+        .into_iter()
+        .filter(|(obligation, _)| {
+            matches!(
+                tables.obligations.get(*obligation).unwrap().kind,
+                ObligationKind::DataDomain { operation, .. } if operation == store
+            )
+        })
+        .collect();
+    assert_eq!(at_store.len(), 2);
+    let constants = constants(&elaboration);
+    let (one, top, eight) = (constants[0], constants[2], constants[3]);
+    let value = |value| ScalarTerm::value(value, u32_type());
+    assert_eq!(
+        certificate(at_store[0].1).goal,
+        Proposition::LessOrEqual(value(one), value(eight)),
+        "the inner type's clause, over the stored value and the logged sibling"
+    );
+    assert_eq!(
+        certificate(at_store[1].1).goal,
+        Proposition::LessOrEqual(value(eight), value(top)),
+        "the enclosing type's clause"
+    );
+    for (obligation, verdict) in &at_store {
+        assert_kernel_checked(&elaboration, 1, *obligation, certificate(verdict));
+    }
+    // Storing 12 keeps `Span` (1 <= 12) and breaks `Wrap` (12 <= 9).
+    let (elaboration, result) = nested_store(12);
+    let owed = domains(&elaboration, &result);
+    let verdicts: Vec<bool> = owed.iter().map(|(_, verdict)| verdict.is_ok()).collect();
+    // The inner literal, the outer literal, then the store's two.
+    assert_eq!(verdicts, [true, true, true, false]);
+    assert_unproved(owed[3].1);
+}
+
+#[test]
+fn a_clause_that_tests_a_case_is_decided_by_the_constructed_case() {
+    // `(self in Eof) || ((self in Byte) && self.value <= 255)`
+    // (`fail/cases/constructor_subject_range_unproved`).
+    let byte = |operand: Expression| {
+        of_type(
+            ExpressionKind::Case {
+                case: 1,
+                fields: vec![(0, operand)],
+            },
+            data(BYTE_READ),
+        )
+    };
+    let make = |parameters: Vec<ValueType>, literal: Expression| {
+        run_constrained(vec![Shaped {
+            parameters,
+            locals: Vec::new(),
+            result: data(BYTE_READ),
+            requires: Vec::new(),
+            statements: vec![returns(literal)],
+        }])
+    };
+    // `ByteRead::Eof`: the first disjunct is true by structure, so the
+    // clause is, and the payload it names under the other case is never
+    // projected.
+    let (elaboration, result) = make(
+        Vec::new(),
+        of_type(
+            ExpressionKind::Case {
+                case: 0,
+                fields: Vec::new(),
+            },
+            data(BYTE_READ),
+        ),
+    );
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    assert_eq!(certificate(owed[0].1).goal, Proposition::Truth);
+    // `ByteRead::Byte { value: 7 }`: the false disjunct drops, the true
+    // conjunct drops, and what is left is over the operand value alone.
+    let (elaboration, result) = make(Vec::new(), byte(unsigned(7)));
+    let owed = domains(&elaboration, &result);
+    let evidence = certificate(owed[0].1);
+    assert_eq!(
+        evidence.goal,
+        at_most_value(constants(&elaboration)[0], 255)
+    );
+    assert_kernel_checked(&elaboration, 1, owed[0].0, evidence);
+    // `ByteRead::Byte { value: v }` with `v` an unconstrained formal.
+    let (elaboration, result) = make(vec![u32_type().into()], byte(slot(0, u32_type())));
+    assert_unproved(domains(&elaboration, &result)[0].1);
+}
+
+/// `zero(v: u32) -> u32 requires v == 0 { v }`.
+fn zero_only() -> Shaped {
+    Shaped {
+        parameters: vec![u32_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![Proposition::Equal(formal(1, u32_type()), number(0))],
+        statements: vec![returns(slot(0, u32_type()))],
+    }
+}
+
+#[test]
+fn a_data_local_without_an_initializer_is_established_as_zero_when_zero_satisfies_its_requires() {
+    // f() -> u32 { let b: Bounded; zero(b.value) }
+    // `Bounded requires value <= 5` holds of zero: the declaration owes the
+    // clause over the zero constant, the read equals that constant, and
+    // `zero`'s requirement follows.
+    let (elaboration, result) = run_constrained(vec![
+        closed(
+            vec![data(BOUNDED)],
+            u32_type().into(),
+            vec![
+                declare(0, data(BOUNDED)),
+                returns(call(2, vec![read(place(0, data(BOUNDED)), 0)])),
+            ],
+        ),
+        zero_only(),
+    ]);
+    let zero = constants(&elaboration)[0];
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    assert_eq!(certificate(owed[0].1).goal, at_most_value(zero, 5));
+    assert_kernel_checked(&elaboration, 1, owed[0].0, certificate(owed[0].1));
+    assert_eq!(uses(&result), [Ok(())]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        read_equals(tables, field_reads(&elaboration)[0]),
+        Some(zero)
+    );
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+}
+
+#[test]
+fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
+    // f() -> u32 { let g: Gated; g.v }, with `Gated requires 1 <= v`.
+    // Zero does not satisfy the clause, so the type is gated: declaring the
+    // local is no error, and observing its zeroed storage is.
+    let (elaboration, result) = run_constrained(vec![closed(
+        vec![data(GATED)],
+        u32_type().into(),
+        vec![
+            declare(0, data(GATED)),
+            returns(read(place(0, data(GATED)), 0)),
+        ],
+    )]);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    let Ok(Discharged::Gated(why)) = owed[0].1 else {
+        panic!("the declaration's clause is gated, found {:?}", owed[0].1);
+    };
+    assert_eq!(why.reason, RefusalReason::Unproved);
+    assert_eq!(uses(&result), [Err(RefusalReason::Unestablished)]);
+    // f() -> u32 { let mut g: Gated; g.v = 3; g.v }: the store establishes
+    // the value, over the stored `3`, before anything observes it.
+    let (elaboration, result) = run_constrained(vec![closed(
+        vec![data(GATED)],
+        u32_type().into(),
+        vec![
+            declare(0, data(GATED)),
+            store(0, &[0], unsigned(3)),
+            returns(read(place(0, data(GATED)), 0)),
+        ],
+    )]);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 2);
+    assert!(matches!(owed[0].1, Ok(Discharged::Gated(_))));
+    assert_kernel_checked(&elaboration, 1, owed[1].0, certificate(owed[1].1));
+    assert_eq!(uses(&result), [Ok(())]);
+    // f() -> u32 { let mut g: Gated; g = Gated { v: 3 }; g.v }: the zeroed
+    // storage is never observed, so nothing about the program is refused.
+    let (elaboration, result) = run_constrained(vec![closed(
+        vec![data(GATED)],
+        u32_type().into(),
+        vec![
+            declare(0, data(GATED)),
+            bind(0, literal_of(GATED, vec![unsigned(3)])),
+            returns(read(place(0, data(GATED)), 0)),
+        ],
+    )]);
+    assert!(
+        domains(&elaboration, &result)
+            .iter()
+            .all(|(_, verdict)| verdict.is_ok())
+    );
+    assert_eq!(uses(&result), [Ok(())]);
+}
+
+#[test]
+fn every_data_domain_obligation_has_exactly_one_verdict() {
+    // A construction that holds, a store that breaks its clause, a gated
+    // declaration and a case construction in one machine: each
+    // `DataDomain` row has one verdict, of every outcome.
+    let (elaboration, result) = run_constrained(vec![closed(
+        vec![data(SPAN), data(GATED)],
+        data(BYTE_READ),
+        vec![
+            bind(0, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+            store(0, &[0], unsigned(12)),
+            declare(1, data(GATED)),
+            returns(of_type(
+                ExpressionKind::Case {
+                    case: 0,
+                    fields: Vec::new(),
+                },
+                data(BYTE_READ),
+            )),
+        ],
+    )]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
+    assert_eq!(verdicts.len(), tables.obligations.len());
+    assert!(tables.obligations.keys().eq(verdicts.keys()));
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 4);
+    assert!(matches!(owed[0].1, Ok(Discharged::Certificate(_))));
+    assert_unproved(owed[1].1);
+    assert!(matches!(owed[2].1, Ok(Discharged::Gated(_))));
+    assert!(matches!(owed[3].1, Ok(Discharged::Certificate(_))));
+}
+
+/// What machine 1's knowledge says of a read's value beside its equation:
+/// the propositions of the read's own `OperationSemantics` rows that are
+/// not an equation between two values.
+fn read_premises(tables: &MachineTables, read: (OperationId, ValueId)) -> Vec<Proposition> {
+    tables
+        .knowledge
+        .iter()
+        .filter(|(_, row)| row.justification == Justification::OperationSemantics(read.0))
+        .map(|(_, row)| tables.propositions.get(row.proposition).unwrap().clone())
+        .filter(|proposition| {
+            !matches!(
+                proposition,
+                Proposition::Equal(ScalarTerm::Value { .. }, ScalarTerm::Value { .. })
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_read_of_an_established_value_carries_the_clause_of_the_one_field_it_reads() {
+    // f(b: Bounded) -> u32 { bounded(b.value) }
+    // `b` arrived established, so `value <= 5` holds of the read's fresh
+    // value, and `bounded`'s `v <= 10` follows from it.
+    let (elaboration, result) = run_constrained(vec![
+        Shaped {
+            parameters: vec![data(BOUNDED)],
+            locals: Vec::new(),
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![returns(call(2, vec![read(place(0, data(BOUNDED)), 0)]))],
+        },
+        bounded(),
+    ]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(
+        read_premises(tables, observed),
+        [at_most_value(observed.1, 5)]
+    );
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+
+    // g(s: Span, p: Paired) -> u32 { s.low & p.neighbor & p.value }
+    // `low <= high` relates two fields and is no premise on one read; the
+    // neighbor of the bounded field gets nothing; the bounded field gets
+    // both of its clauses.
+    let (elaboration, _) = run_constrained(vec![Shaped {
+        parameters: vec![data(SPAN), data(PAIRED)],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(and(
+            and(
+                read(place(0, data(SPAN)), 0),
+                read(place(1, data(PAIRED)), 0),
+            ),
+            read(place(1, data(PAIRED)), 1),
+        ))],
+    }]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    assert_eq!(read_premises(tables, reads[0]), []);
+    assert_eq!(read_premises(tables, reads[1]), []);
+    assert_eq!(
+        read_premises(tables, reads[2]),
+        [
+            at_most_value(reads[2].1, 255),
+            Proposition::LessOrEqual(number(1), ScalarTerm::value(reads[2].1, u32_type())),
+        ]
+    );
+}
+
+#[test]
+fn a_place_this_machine_wrote_lends_no_clause_to_a_read() {
+    // f(b: Bounded) -> u32 { let mut c = b; c.value = 99; bounded(c.value) }
+    // The store breaks `value <= 5` and is unproved. The read after it
+    // equals the stored `99` and carries no clause: a broken place supplies
+    // no premise, and `bounded`'s requirement is unproved too.
+    let (elaboration, result) = run_constrained(vec![
+        Shaped {
+            parameters: vec![data(BOUNDED)],
+            locals: vec![data(BOUNDED)],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(1, place(0, data(BOUNDED))),
+                store(1, &[0], unsigned(99)),
+                returns(call(2, vec![read(place(1, data(BOUNDED)), 0)])),
+            ],
+        },
+        bounded(),
+    ]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(read_premises(tables, observed), []);
+    assert_eq!(
+        read_equals(tables, observed),
+        Some(constants(&elaboration)[0])
+    );
+    assert_unproved(domains(&elaboration, &result)[0].1);
+    assert_unproved(verdicts_of(&elaboration, &result)[0].1);
+    // Without the store the copy still holds what arrived, and the read of
+    // the copy carries the clause.
+    let (elaboration, result) = run_constrained(vec![
+        Shaped {
+            parameters: vec![data(BOUNDED)],
+            locals: vec![data(BOUNDED)],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(1, place(0, data(BOUNDED))),
+                returns(call(2, vec![read(place(1, data(BOUNDED)), 0)])),
+            ],
+        },
+        bounded(),
+    ]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(
+        read_premises(tables, observed),
+        [at_most_value(observed.1, 5)]
+    );
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+}
+
+#[test]
+fn a_type_built_around_an_arrived_value_lends_no_clause_to_a_read_inside_it() {
+    // f(s: Span) -> u32 { let w = Wrap { span: s, top: 9 }; w.span.high }
+    // `Wrap requires span.high <= top` is owed by the literal and unproved:
+    // nothing bounds what `s.high` held at entry. The read of `w.span.high`
+    // reaches that same entry content, and `Wrap` is no part of the value
+    // that arrived, so its clause is not lent to the read.
+    let (elaboration, result) = run_constrained(vec![Shaped {
+        parameters: vec![data(SPAN)],
+        locals: vec![data(WRAP)],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(1, literal_of(WRAP, vec![place(0, data(SPAN)), unsigned(9)])),
+            returns(read(
+                of_type(
+                    ExpressionKind::Field {
+                        base: Box::new(place(1, data(WRAP))),
+                        field: 0,
+                    },
+                    data(SPAN),
+                ),
+                1,
+            )),
+        ],
+    }]);
+    assert_unproved(domains(&elaboration, &result)[0].1);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert!(read_equals(tables, observed).is_some());
+    assert_eq!(read_premises(tables, observed), []);
+}
+
+#[test]
+fn a_read_of_what_a_call_returned_carries_its_types_clause() {
+    // f() -> u32 { let b = make(); bounded(b.value) }
+    // make() -> Bounded { Bounded { value: 3 } }
+    // The caller cannot name what `make` returned, and it need not: the
+    // value arrived established, so the read's value is at most 5.
+    let (elaboration, result) = run_constrained(vec![
+        closed(
+            vec![data(BOUNDED)],
+            u32_type().into(),
+            vec![
+                bind(
+                    0,
+                    of_type(
+                        ExpressionKind::Call {
+                            callee: id(3),
+                            arguments: Vec::new(),
+                        },
+                        data(BOUNDED),
+                    ),
+                ),
+                returns(call(2, vec![read(place(0, data(BOUNDED)), 0)])),
+            ],
+        ),
+        bounded(),
+        closed(
+            Vec::new(),
+            data(BOUNDED),
+            vec![returns(literal_of(BOUNDED, vec![unsigned(3)]))],
+        ),
+    ]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(read_equals(tables, observed), None);
+    assert_eq!(
+        read_premises(tables, observed),
+        [at_most_value(observed.1, 5)]
+    );
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+}
+
+// Entry clauses over a field of a record formal.
+
+/// The `u32` field `field` of the callee's first record formal, as an entry
+/// clause names it: a field term rooted at that formal's place.
+fn formal_field(field: u64) -> ScalarTerm {
+    ScalarTerm::IntegerField {
+        root: id(1),
+        path: vec![CanonicalStructuralPathSegment::Field(id(field))],
+        scalar_type: integer_type(IntegerSign::Unsigned),
+    }
+}
+
+/// `peek(p: Point) -> u32 requires p.x == 7 { p.y }`.
+fn peek() -> Shaped {
+    Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![Proposition::Equal(formal_field(1), number(7))],
+        statements: vec![returns(read(place(0, point()), 1))],
+    }
+}
+
+fn peeking(argument: Expression) -> Expression {
+    of_type(
+        ExpressionKind::Call {
+            callee: id(2),
+            arguments: vec![argument],
+        },
+        u32_type().into(),
+    )
+}
+
+#[test]
+fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf() {
+    // f() -> u32 { peek(Point { x: first, y: 9 }) }
+    // (`fail/constants/owned_record_argument_requires`, without the
+    // constant.) The clause `p.x == 7` stands, at the call, for what the
+    // actual's `x` leaf holds there: the literal's operand.
+    let calling = |first: u128| {
+        run_places(vec![
+            closed(
+                Vec::new(),
+                u32_type().into(),
+                vec![returns(peeking(point_of(unsigned(first), unsigned(9))))],
+            ),
+            peek(),
+        ])
+    };
+    let (elaboration, result) = calling(7);
+    let required = verdicts_of(&elaboration, &result);
+    assert_eq!(required.len(), 1);
+    let evidence = certificate(required[0].1);
+    assert_eq!(
+        evidence.goal,
+        Proposition::Equal(
+            ScalarTerm::value(constants(&elaboration)[0], u32_type()),
+            number(7)
+        ),
+        "the goal names the value the actual's leaf holds, and no place"
+    );
+    assert_kernel_checked(&elaboration, 1, required[0].0, evidence);
+    // With `first = 8` the same clause is `8 == 7`.
+    let (elaboration, result) = calling(8);
+    assert_unproved(verdicts_of(&elaboration, &result)[0].1);
+    // g() -> u32 { peek(make()) }, make() -> Point { Point { x: 7, y: 9 } }:
+    // what a call returned has no value identity in the caller, so the
+    // requirement is unproved and says why.
+    let (elaboration, result) = run_places(vec![
+        closed(
+            Vec::new(),
+            u32_type().into(),
+            vec![returns(peeking(of_type(
+                ExpressionKind::Call {
+                    callee: id(3),
+                    arguments: Vec::new(),
+                },
+                point(),
+            )))],
+        ),
+        peek(),
+        closed(
+            Vec::new(),
+            point(),
+            vec![returns(point_of(unsigned(7), unsigned(9)))],
+        ),
+    ]);
+    let refusal = verdicts_of(&elaboration, &result)[0]
+        .1
+        .as_ref()
+        .unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unproved);
+    assert!(
+        refusal.detail.contains("no value identity"),
+        "{}",
+        refusal.detail
+    );
+}
+
+#[test]
+fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
+    // f(p: Point) -> u32 requires p.x <= 7 { bounded(p.x) }
+    // The clause is knowledge about the value `p.x` held at entry; the read
+    // equals that value, so `bounded`'s `v <= 10` follows.
+    let reading = |requires| {
+        run_places(vec![
+            Shaped {
+                parameters: vec![point()],
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires,
+                statements: vec![returns(call(2, vec![read(place(0, point()), 0)]))],
+            },
+            bounded(),
+        ])
+    };
+    let (elaboration, result) = reading(vec![Proposition::LessOrEqual(formal_field(1), number(7))]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    let entry = read_equals(tables, observed).unwrap();
+    assert!(matches!(
+        tables.values.get(entry).unwrap().origin,
+        ValueOrigin::EntryContent { .. }
+    ));
+    let stated: Vec<_> = tables
+        .knowledge
+        .iter()
+        .filter(|(_, row)| row.justification == Justification::EntryRequirement { clause: 0 })
+        .map(|(_, row)| tables.propositions.get(row.proposition).unwrap().clone())
+        .collect();
+    assert_eq!(stated, [at_most_value(entry, 7)]);
+    let required = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
+    // Without the clause nothing bounds the field.
+    let (elaboration, result) = reading(Vec::new());
+    assert_unproved(verdicts_of(&elaboration, &result)[0].1);
 }

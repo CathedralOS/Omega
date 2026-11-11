@@ -20,8 +20,9 @@ one prover.
 | Kind | Goal | Hypotheses available at its point |
 | --- | --- | --- |
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
-| `CallRequirement` | the callee's `requires` clause at that position, its formals replaced by the call's actuals | the same, before the call |
+| `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position | the same, on the exit edge |
+| `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)) | the same, before the operation |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
@@ -37,10 +38,15 @@ construct outside the subset; see [Initialization](#initialization) and
 
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
-(`EntryRequirement`, at the entry block), per operation result equation
+(`EntryRequirement`, at the entry block; a clause over a field of a record
+formal is stated over that field's entry content value, and states nothing
+when no operation names the field), per operation result equation
 (`OperationSemantics`, on its normal successor), per field read whose place
 holds one value on every path to it (`OperationSemantics` of the read; see
-below), per callee `ensures` clause (`CalleeGuarantee`, after the call),
+below), per `requires` clause of a data type that a read of established
+storage can state on its own value (`OperationSemantics` of the read; see
+[What a read learns from its type](#what-a-read-learns-from-its-type)), per
+callee `ensures` clause (`CalleeGuarantee`, after the call),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`BranchCondition` of that edge: the parameter equals the one
@@ -122,9 +128,99 @@ reason `Unestablished`, concerning that operation or edge. A record is
 therefore established by a whole write or by a store into every leaf, and
 not by fewer.
 
+<a id="zero-establishment"></a>
+A data local declared without an initializer is zero-established: its
+declaration is a whole write that supplies every leaf, each scalar leaf of
+the zero value with a zero constant the read equation can name, and a sum
+with its first declared case. The declaration owes the `requires` clauses of
+the zero value as `DataDomain` obligations. When one is not proved, the type
+is gated
+([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"If zero satisfies the default domain, the value is zero-constructible.
+Otherwise the type is gated: construction or checked qualification must
+establish the domain before observation."). The refusal then sits at the
+observation, not at the declaration, because "Zeroing storage is permitted
+independently of establishing a value.": the clause's verdict is
+`Discharged::Gated`, which rejects nothing by itself, and the walk answers
+`Unestablished` for whatever that declaration's rows supply, so every read,
+copy, argument and return they reach is refused. A store into a leaf
+supplies that leaf again. A scalar local is unchanged: it holds nothing
+until a store.
+
 It is a structural judgment over the write log and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
 prover.
+
+### Data `requires`
+
+<a id="data-requires"></a>
+[Data and literals](../../../../../wiki/spec/language/data_and_literals.md):
+"Construction and every restoring write prove the owning default-domain
+clauses." Elaboration mints one `DataDomain` obligation per clause an
+operation owes; `Storage::owed` recomputes which data-typed places those
+are, in the same order, and `discharge` refuses a module in which an owed
+clause has no row or two.
+
+The goal is the clause under the one substitution (`substitute`), with the
+names of the clause standing for what the place holds at the operation's
+normal continuation:
+
+- **A field** becomes the one value the write log says that leaf holds
+  there, found by the reaching walk: the operand of a construction, the
+  zero constant of a zero establishment, the stored value for the written
+  field, and for every other field the value that reached the store. For a
+  nested store the same walk serves each enclosing type. A record operand or
+  a record stored into a field is followed to its source, as for a read.
+- **A case test** `self in S::C` becomes `Truth` or `Falsehood`: whether the
+  walk finds the place established as that case there, which a construction
+  or a zero establishment decides by structure. The connective around it is
+  simplified: a conjunction with a false conjunct is false, a disjunction
+  with a true disjunct is true, and then their other parts are not looked
+  at, which is what lets a clause project a payload under the test of its
+  case.
+
+So the goal names values and literals only, and it is proved from the
+knowledge available before the operation
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
+"The obligation binds the initializer or replacement SSA value, never the
+old field contents."). The stored value enters the goal from the write-log
+row, not from a knowledge row, so the completed write contributes no fact to
+its own proof. A field with no value identity at that point (what a call
+returned, a join of two different stores) or a case no structure decides
+leaves the clause unstated: the obligation is `Unproved`, with a detail that
+says which, never dropped and never assumed.
+
+Every store owes its clauses; there is no window. A store that breaks a
+clause is unproved even when a later store would restore it (finding 12).
+
+### What a read learns from its type
+
+[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
+"A validated field read or selected-case payload copy instantiates that
+invariant on its fresh scalar snapshot; other fields and unselected cases
+provide no premise. The snapshot survives later writes".
+
+A field read gets one row per `requires` clause of each data type its leaf
+lies in, stated on the read's fresh value and justified by the read
+(`OperationSemantics`), when two things hold.
+
+- What the leaf holds arrived, on every path, inside a value another machine
+  established: a formal's entry content, however it was copied since, or a
+  leaf of the root a call returned that this machine never stored over. The
+  clause must belong to a type inside that value, on the path from its root
+  to the leaf; a type this machine built around it lends nothing
+  ([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+  "no consumption sees the value outside its required domain", and a call
+  and a return each consume the value they pass). A leaf this machine wrote
+  gets no such row: its `DataDomain` obligation proved the clause of the
+  written value where it was written, and the read equation names that
+  value. A store that broke the clause therefore lends it to no read.
+- The clause names that one leaf and no other, and any case it tests is
+  established at the read by structure. A clause that relates two fields is
+  no premise on one read.
+
+A clause that cannot be stated adds no row; nothing is assumed in its place.
+A payload parameter of a dispatch edge gets no such row (finding 13).
 
 ### Payload access
 
@@ -276,12 +372,12 @@ subset needs, so the prover emits them directly.
    (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
    value of `StoreStructuralField`). An `Overwritten` row at any other
    operation keeps its own meaning: contents with no value identity.
-8. **A local with no initializer is unestablished here and zero in the
-   current checker.** `let mut x: u32; f(x)` is accepted today with `x == 0`
-   known; this route rejects the read. The question is in
+8. **A scalar local with no initializer is unestablished here and zero in
+   the current checker.** `let mut x: u32; f(x)` is accepted today with
+   `x == 0` known; this route rejects the read. The question is in
    `OWNER_QUESTIONS.md` (`local-without-initializer`). If the answer is
-   zero, elaboration logs the zero at the reserving operation and nothing
-   here changes.
+   zero, elaboration logs the zero at the reserving operation, as it does
+   for a data local, and nothing here changes.
 
 9. **A case fact is not knowledge.** The lane plan asks for "the
    membership value on each `StructuralCase` edge, as the existing
@@ -299,6 +395,46 @@ subset needs, so the prover emits them directly.
     The refusing paths of the judgment (a read after a write to the sum, on
     a false edge, of a formal, of another case) are exercised by tests over
     closed bodies, not yet by a corpus program.
+
+11. **A gated declaration has a verdict that is neither a discharge nor a
+    refusal.** `Discharged::Gated` holds why the zero value's clause was not
+    proved. It exists because the specification puts the refusal at the
+    observation, and an `Unproved` verdict at the declaration would reject
+    `let mut g: Gated; g = Gated { .. };`, which the current checker
+    accepts. One over-refusal remains: after `g.a = 3;` on a gated two-field
+    type, the leaf no store reached is still supplied by the gated
+    declaration, so a use of `g` is `Unestablished` even when the clauses
+    hold of `(3, 0)`.
+12. **No invariant window.** The current checker lets a store break a
+    clause and a later store restore it before the value is consumed
+    (dependent_values.md, "Otherwise the write opens a window on the
+    place"). This route owes the clauses at every store, as Terminal Psi
+    states them ("Terminal Psi opens no invariant window on a field"), so
+    such a program is `Unproved` at the first store. The conserved
+    `DomainDebt` obligation is where a window would live.
+13. **A payload parameter carries no clause of its type.** A dispatch edge
+    binds a payload as a block parameter with no read operation, and the
+    tables have no justification for "the type of the storage an edge bound
+    this from". The equation with the value the leaf holds is filed under
+    `BranchCondition` (finding 9); the clause is not filed under it too, so
+    `match b { Byte { value } -> .. }` on a formal learns nothing of `value`
+    from `ByteRead`'s `requires`.
+14. **`Reached::Returned` tells a call's result from other unknown
+    contents.** The walk could already say "contents with no value
+    identity"; a read's type premise needs to know those contents arrived
+    established. It is read from the operation at the row, like a copy's
+    source, by matching the invocation table.
+15. **A requirement over a field of a record actual needs that field to
+    hold one named value at the call.** `peek(make())` with
+    `requires packet.first == 7` is unproved: what `make` returned has no
+    value identity in the caller, and no `ensures` over `result` can supply
+    one yet. The current checker rejects the same call when `make` builds
+    `first = 8`, by evaluating the callee.
+16. **A clause over a field with no value identity is unproved even when it
+    is true of every value.** After `let mut s = make(); s.low = 0;`, the
+    clause `low <= high` is unproved: `high` has no value there. Stating a
+    result leaf as a value needs the callee's `ensures` over `result`, which
+    this slice does not serve.
 
 ## Evidence seals
 
