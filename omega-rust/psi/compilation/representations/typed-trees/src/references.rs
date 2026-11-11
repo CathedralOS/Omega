@@ -2684,7 +2684,7 @@ fn visit_data(
     if let Some(selection) = &data.cleanup_selection {
         visit_cleanup_selection(program, retained, selection);
     }
-    visit_proof_facts(program, retained, data.where_facts);
+    visit_proof_facts(program, retained, data.requires_facts);
     for member in program.data_members(data) {
         match member {
             crate::data::DataMember::Field(field) => {
@@ -2694,7 +2694,7 @@ fn visit_data(
                 for field in program.data_payload_fields(variant) {
                     visit_type_reference(program, retained, field.type_reference);
                 }
-                visit_proof_facts(program, retained, variant.where_facts);
+                visit_proof_facts(program, retained, variant.requires_facts);
             }
         }
     }
@@ -3082,6 +3082,14 @@ fn visit_call_expression(
     for operator in crate::operator::named_expression_call_candidates(program, call) {
         visit_symbol(retained, operator.symbol);
     }
+    // Overload selection runs after the walk, so the walk keeps every member
+    // of a named machine family the call may select.
+    if let Some(path) = crate::operator::named_expression_call_family_path(program, call) {
+        let reference = program.expression_table.source_span(expression);
+        for member in crate::operator::named_call_family_members(program, &path, reference) {
+            visit_symbol(retained, member);
+        }
+    }
     visit_symbol(retained, call.static_machine_parameter);
     if call.authored_machine_application.is_valid() {
         visit_symbol(
@@ -3181,6 +3189,13 @@ fn visit_statement(
             for operator in crate::operator::named_statement_call_candidates(program, call) {
                 visit_symbol(retained, operator.symbol);
             }
+            if let Some(path) = crate::operator::named_statement_call_family_path(program, call) {
+                for member in
+                    crate::operator::named_call_family_members(program, &path, call.source_span)
+                {
+                    visit_symbol(retained, member);
+                }
+            }
             visit_symbol(retained, call.static_machine_parameter);
             if call.authored_machine_application.is_valid() {
                 visit_symbol(
@@ -3219,6 +3234,14 @@ fn visit_statement(
         }
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
+            for field in program.expression_table.match_fields(local.pattern_fields) {
+                if field.field_symbol.is_valid() {
+                    visit_symbol(retained, field.field_symbol);
+                }
+            }
+            if local.pattern_subject.is_valid() {
+                visit_symbol(retained, local.pattern_subject);
+            }
         }
         StatementNode::Assignment(assignment) => {
             if retained.derived_declaration_references() {
@@ -3251,6 +3274,15 @@ fn visit_statement(
                     visit_symbol(retained, path.symbol);
                     visit_symbol(retained, path.receiver_symbol);
                     visit_symbol(retained, path.head_symbol);
+                }
+                if let Some((name, reference)) =
+                    crate::operator::named_transition_family_path(program, target)
+                {
+                    for member in
+                        crate::operator::named_call_family_members(program, name, reference)
+                    {
+                        visit_symbol(retained, member);
+                    }
                 }
             }
         }

@@ -42,8 +42,9 @@ nothing else: lowering never asks what a place holds.
 - A data local declared without an initializer writes one
   `Content::Overwritten` on its fresh root and a constant zero on each
   scalar leaf of the zero value. A scalar local declared that way writes
-  nothing: its home is reserved and holds no content until a store reaches
-  it.
+  the zero constant its home is established with on that home
+  (`local-without-initializer`: a builtin scalar admits zero, so the zero is
+  an established value).
 - What a formal holds at entry is not a write. It is one value per scalar
   leaf with `ValueOrigin::EntryContent { place }`, minted the first time an
   operation names the leaf or a place above it, whatever is stored there
@@ -213,6 +214,7 @@ pub(crate) fn declare<'a>(
             ));
         };
         structural_types.push(StructuralTypeDeclaration {
+            requires: record.requires.clone(),
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
@@ -251,6 +253,7 @@ pub(crate) fn declare<'a>(
                 )
             })?;
             structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id,
                 identity: identities.intern(home),
@@ -1160,10 +1163,15 @@ impl<'a> Lowering<'a> {
     /// each data-typed place of the zero value; whether they hold decides
     /// whether the storage is an established value (`lowered-discharge`).
     ///
-    /// A scalar local is logged as holding nothing: state_contracts.md,
-    /// "Uninitialized storage has no assumed zero." Whether that sentence
-    /// governs a scalar local is `OWNER_QUESTIONS.md`,
-    /// `local-without-initializer`.
+    /// A scalar local is zero-constructed the same way
+    /// (`local-without-initializer`): its home is logged as holding the
+    /// zero constant it is established with. dependent_values.md: "If zero
+    /// satisfies the default domain, the value is zero-constructible.
+    /// Otherwise the type is gated: construction or checked qualification
+    /// must establish the domain before observation." Every scalar type
+    /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
+    /// scalar type is refused by the reader, so a scalar home owes no
+    /// domain clause and is never gated.
     pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
             ValueType::Record(record) => {
@@ -1202,13 +1210,21 @@ impl<'a> Lowering<'a> {
                     .ok_or_else(|| self.internal("a homed scalar type is not declared"))?;
                 let value = self.zero(scalar_type, source)?;
                 let operation = self.operation_identity(source);
-                let (root, _) = self.produce(
+                let (root, exact) = self.produce(
                     operation,
                     home,
                     OperationKind::EstablishPrimitiveLocal {
                         value,
                         range_obligation: None,
                     },
+                )?;
+                // The home holds the zero it was established with: a local
+                // declared without an initializer is zero-constructed, and a
+                // builtin scalar admits zero, so nothing is owed here.
+                self.write(
+                    exact,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Value(value),
                 )?;
                 Bound::Home(root)
             }

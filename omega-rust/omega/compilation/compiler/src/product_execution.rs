@@ -445,6 +445,7 @@ impl RequestedTerminalCompilation {
                         rollback,
                         subsystem,
                         settlement,
+                        tests: Vec::new(),
                     },
                 )));
             }

@@ -1158,6 +1158,119 @@ pub mod operator {
                     .collect::<Vec<_>>()
             })
         }
+
+        /*
+            A named call can denote a family of machines that share one path
+            and differ in their operands, such as `float::to_bits(f32)` and
+            `float::to_bits(f64)`. Symbol resolution leaves such a call without
+            a unique target, and checking selects the member from the operand
+            and result types. Two readers need the family before that
+            selection: overload selection itself, and the declaration walker
+            that decides which library declarations the checked program keeps.
+            Both ask here, so a member the selector may choose is never one
+            the projection already dropped.
+
+            The path is the authored target, qualified by its static receiver
+            (a module, type, domain, trait or machine). A value receiver names
+            no declaration family. The source span only places the reference
+            in its file, which decides which imports and namespaces it sees.
+        */
+        pub fn named_call_family_path<'name>(
+            program: &TypedTrees,
+            target: &'name str,
+            receiver_missing: bool,
+            receiver: SymbolHandle,
+        ) -> Option<std::borrow::Cow<'name, str>> {
+            if receiver_missing {
+                return Some(std::borrow::Cow::Borrowed(target));
+            }
+            if !receiver.is_valid()
+                || !matches!(
+                    program.symbols.get(receiver).kind,
+                    symbols::SymbolKind::Module
+                        | symbols::SymbolKind::Data
+                        | symbols::SymbolKind::BuiltinType
+                        | symbols::SymbolKind::Domain
+                        | symbols::SymbolKind::Trait
+                        | symbols::SymbolKind::Machine
+                )
+            {
+                return None;
+            }
+            Some(std::borrow::Cow::Owned(format!(
+                "{}::{target}",
+                program.symbols.display_path(receiver, "::")
+            )))
+        }
+
+        pub fn named_expression_call_family_path<'call>(
+            program: &TypedTrees,
+            call: &'call crate::expression::TableCallExpression,
+        ) -> Option<std::borrow::Cow<'call, str>> {
+            let receiver = if call.receiver.is_valid() {
+                match program.expression_table.expression(call.receiver) {
+                    crate::expression::ExpressionNode::Name(path) => {
+                        path.resolved_symbol().unwrap_or_else(SymbolHandle::invalid)
+                    }
+                    _ => SymbolHandle::invalid(),
+                }
+            } else {
+                SymbolHandle::invalid()
+            };
+            named_call_family_path(
+                program,
+                call.target.as_str(),
+                !call.receiver.is_valid(),
+                receiver,
+            )
+        }
+
+        pub fn named_statement_call_family_path<'call>(
+            program: &TypedTrees,
+            call: &'call crate::statement::TableCall,
+        ) -> Option<std::borrow::Cow<'call, str>> {
+            named_call_family_path(
+                program,
+                call.target.as_str(),
+                call.receiver.is_empty(),
+                call.receiver_symbol,
+            )
+        }
+
+        /// A named transition target names a family by its single unqualified
+        /// member while symbol resolution has left it without a target.
+        pub fn named_transition_family_path(
+            program: &TypedTrees,
+            target: crate::statement::TransitionTargetHandle,
+        ) -> Option<(&str, source::SourceSpan)> {
+            let crate::statement::TransitionTargetNode::Named {
+                path, source_span, ..
+            } = program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            if path.symbol.is_valid() {
+                return None;
+            }
+            let [name] = program.statement_table.name_path_members(path.members) else {
+                return None;
+            };
+            Some((name.as_str(), *source_span))
+        }
+
+        /// Every machine the family path names from `reference`, after
+        /// namespace and import precedence, before operand selection.
+        pub fn named_call_family_members(
+            program: &TypedTrees,
+            path: &str,
+            reference: source::SourceSpan,
+        ) -> Vec<SymbolHandle> {
+            program.symbols.top_level_candidates_from_source(
+                path,
+                &[symbols::SymbolKind::Machine],
+                reference,
+            )
+        }
     }
     pub(crate) mod operand_signatures {
         use crate::TypedTrees;
@@ -3821,7 +3934,9 @@ pub mod operator {
         unconstrained_type_reference,
     };
     pub use named_calls::{
-        named_expression_call_candidates, named_statement_call_candidates, resolve_named_call,
+        named_call_family_members, named_call_family_path, named_expression_call_candidates,
+        named_expression_call_family_path, named_statement_call_candidates,
+        named_statement_call_family_path, named_transition_family_path, resolve_named_call,
         resolve_named_expression_call, selected_named_expression_call_has_no_runtime_receiver,
         selected_named_statement_call_has_no_runtime_receiver,
     };

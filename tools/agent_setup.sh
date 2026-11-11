@@ -58,7 +58,7 @@ if [ "$mbx_only" = false ]; then
     if [ "$(id -u)" = 0 ] && command -v apt-get >/dev/null; then
       # A fresh container has no package lists, so install alone finds nothing.
       { apt-get update -qq && apt-get install -y -qq zstd >/dev/null; } ||
-        echo "zstd install failed; warm-build restore will be skipped" >&2
+        echo "zstd install failed; tools/warm_build.sh cannot unpack the warm build" >&2
     else
       echo "zstd missing: install it with the host's package manager" >&2
     fi

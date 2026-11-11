@@ -57,7 +57,7 @@ pub mod activation_storage {
             && program.data_type_parameters(data).is_empty()
             && data.generic_instance.is_none()
             && data.quotient.is_none()
-            && data.where_facts.is_empty()
+            && data.requires_facts.is_empty()
             && !data.zero_gated
             && data.properties.carry.is_none()
             && data.retired_identities.is_empty())
@@ -202,8 +202,8 @@ pub mod activation_storage {
             || rejected.identity.is_some()
             || !established.retired_payload_identities.is_empty()
             || !rejected.retired_payload_identities.is_empty()
-            || !established.where_facts.is_empty()
-            || !rejected.where_facts.is_empty()
+            || !established.requires_facts.is_empty()
+            || !rejected.requires_facts.is_empty()
             || !rejected.payload.is_empty()
         {
             return None;
@@ -673,7 +673,7 @@ pub mod atomic_fences {
             };
             if case.name.as_str() != name
                 || !case.payload.is_empty()
-                || !case.where_facts.is_empty()
+                || !case.requires_facts.is_empty()
             {
                 return None;
             }
@@ -900,7 +900,7 @@ pub mod atomic_operations {
                         language_semantics::Multiplicity::Affine
                     }
                 }
-                || !data.where_facts.is_empty()
+                || !data.requires_facts.is_empty()
                 || data.zero_gated
                 || data.quotient.is_some()
             {
@@ -933,7 +933,7 @@ pub mod atomic_operations {
                 let schema = custody.outcome_identity.cases().get(index)?;
                 let name = schema.case.name();
                 let payload = schema.payload;
-                if case.name.as_str() != name || !case.where_facts.is_empty() {
+                if case.name.as_str() != name || !case.requires_facts.is_empty() {
                     return None;
                 }
                 let fields = program.data_payload_fields(case);
@@ -3940,7 +3940,7 @@ pub mod data {
         members: &[DataMember],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let facts = program.proof_facts.span_or_empty(definition.where_facts);
+        let facts = program.proof_facts.span_or_empty(definition.requires_facts);
         validate_proof_facts(
             program,
             facts,
@@ -4272,7 +4272,6 @@ pub mod destructure {
     use diagnostics::Diagnostic;
     use typed_trees::data::DataMember;
 
-    const MARKER_PREFIX: &str = "__destructure#";
     const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
 
     pub(crate) fn validate_destructure_exhaustiveness(
@@ -4296,86 +4295,154 @@ pub mod destructure {
                         );
                         continue;
                     }
-                    let Some(encoded) = local.name.as_str().strip_prefix(MARKER_PREFIX) else {
-                        continue;
-                    };
-                    let spelled: Vec<&str> = encoded.split('#').collect();
-
-                    let declared = crate::value_custody::places::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        local.initial_value,
-                    );
-                    let resolved = declared.or_else(|| {
-                        local
-                            .type_reference
-                            .is_valid()
-                            .then_some(local.type_reference)
-                    });
-                    let Some(resolved) = resolved else {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern in machine `{}` state `{}` destructures a place whose declared type cannot be resolved -- the exhaustiveness law needs the data definition",
-                        machine.name, state.name,
-                    )));
-                        continue;
-                    };
-                    let Some(data) =
-                        crate::value_custody::places::data_definition_for_type(program, resolved)
-                    else {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern in machine `{}` state `{}` destructures a value that is not a data record -- only plain data definitions destructure",
-                        machine.name, state.name,
-                    )));
-                        continue;
-                    };
-                    if data.quotient.is_some() {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern in machine `{}` state `{}` cannot destructure quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
-                        machine.name, state.name, data.name,
-                    )));
+                    if local.role != language_core::LocalBindingRole::RecordPattern {
                         continue;
                     }
-
-                    let mut declared_fields: Vec<&str> = Vec::new();
-                    let mut has_variants = false;
-                    for member in program.data_members(data) {
-                        match member {
-                            DataMember::Field(field) => {
-                                declared_fields.push(field.name.as_str());
-                            }
-                            DataMember::Variant(_) => {
-                                has_variants = true;
-                            }
+                    let data = match record_pattern_subject(program, machine, state, local) {
+                        Ok(data) => data,
+                        Err(refusal) => {
+                            diagnostics.push(refusal.diagnostic(machine, state));
+                            continue;
                         }
-                    }
-                    if has_variants {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern in machine `{}` state `{}` destructures sum type `{}` -- case variants need a `case` arm, not a record pattern",
-                        machine.name, state.name, data.name,
-                    )));
-                        continue;
-                    }
+                    };
 
-                    for field in &declared_fields {
-                        if !spelled.contains(field) {
-                            diagnostics.push(Diagnostic::error(format!(
+                    let roster = crate::frozen_program::expression_table(program)
+                        .match_fields(local.pattern_fields);
+                    let declared = program
+                        .data_members(data)
+                        .iter()
+                        .filter_map(DataMember::as_field)
+                        .collect::<Vec<_>>();
+                    let resolved = local.pattern_subject == data.symbol;
+                    let (unmentioned, unknown) =
+                        record_pattern_coverage(resolved, &declared, roster);
+                    for field in unmentioned {
+                        diagnostics.push(Diagnostic::error(format!(
                             "record pattern in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`",
-                            machine.name, state.name, field, data.name,
+                            machine.name, state.name, field.name, data.name,
                         )));
-                        }
                     }
-                    for field in &spelled {
-                        if !declared_fields.contains(field) {
-                            diagnostics.push(Diagnostic::error(format!(
+                    for row in unknown {
+                        diagnostics.push(Diagnostic::error(format!(
                             "record pattern in machine `{}` state `{}` names `{}`, which is not a field of `{}`",
-                            machine.name, state.name, field, data.name,
+                            machine.name, state.name, row.member, data.name,
                         )));
-                        }
                     }
                 }
             }
         }
+    }
+
+    /*
+        A pattern's coverage of its record, decided on identity alone: the
+        declared fields no roster row names, in declaration order, then the
+        rows that name no declared field, in authored order. Typed preparation
+        gave each row the symbol of the field it names; a row it could not
+        place has none. `resolved` says the roster was resolved against this
+        very record. One resolved against any other declaration names no field
+        here, however its rows are spelled.
+    */
+    fn record_pattern_coverage<'row>(
+        resolved: bool,
+        declared: &[&'row typed_trees::data::DataField],
+        roster: &'row [typed_trees::expression::TableMatchField],
+    ) -> (
+        Vec<&'row typed_trees::data::DataField>,
+        Vec<&'row typed_trees::expression::TableMatchField>,
+    ) {
+        let names = |row: &typed_trees::expression::TableMatchField,
+                     field: &typed_trees::data::DataField| {
+            resolved && field.symbol.is_valid() && row.field_symbol == field.symbol
+        };
+        let unmentioned = declared
+            .iter()
+            .copied()
+            .filter(|field| !roster.iter().any(|row| names(row, field)))
+            .collect();
+        let unknown = roster
+            .iter()
+            .filter(|row| !declared.iter().any(|field| names(row, field)))
+            .collect();
+        (unmentioned, unknown)
+    }
+
+    /// Why a record pattern's subject offers no field roster to cover.
+    pub enum RecordPatternRefusal<'program> {
+        UnresolvedType,
+        NotData,
+        Quotient(&'program typed_trees::data::DataDefinition),
+        Sum(&'program typed_trees::data::DataDefinition),
+    }
+
+    impl RecordPatternRefusal<'_> {
+        fn diagnostic(
+            &self,
+            machine: &typed_trees::machine::Machine,
+            state: &typed_trees::state::State,
+        ) -> Diagnostic {
+            Diagnostic::error(match self {
+                Self::UnresolvedType => format!(
+                    "record pattern in machine `{}` state `{}` destructures a place whose declared type cannot be resolved -- the exhaustiveness law needs the data definition",
+                    machine.name, state.name,
+                ),
+                Self::NotData => format!(
+                    "record pattern in machine `{}` state `{}` destructures a value that is not a data record -- only plain data definitions destructure",
+                    machine.name, state.name,
+                ),
+                Self::Quotient(data) => format!(
+                    "record pattern in machine `{}` state `{}` cannot destructure quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
+                    machine.name, state.name, data.name,
+                ),
+                Self::Sum(data) => format!(
+                    "record pattern in machine `{}` state `{}` destructures sum type `{}` -- case variants need a `case` arm, not a record pattern",
+                    machine.name, state.name, data.name,
+                ),
+            })
+        }
+    }
+
+    /*
+        The plain record a `let { .. } = subject;` marker destructures, by the
+        subject's declared place type. Typed preparation resolves the pattern's
+        roster against this declaration and checking covers the same one, so
+        both ask here.
+    */
+    pub fn record_pattern_subject<'program>(
+        program: &'program dyn crate::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Result<&'program typed_trees::data::DataDefinition, RecordPatternRefusal<'program>> {
+        let declared = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            local.initial_value,
+        );
+        let resolved = declared.or_else(|| {
+            local
+                .type_reference
+                .is_valid()
+                .then_some(local.type_reference)
+        });
+        let Some(resolved) = resolved else {
+            return Err(RecordPatternRefusal::UnresolvedType);
+        };
+        let Some(data) = crate::value_custody::places::data_definition_for_type(program, resolved)
+        else {
+            return Err(RecordPatternRefusal::NotData);
+        };
+        if data.quotient.is_some() {
+            return Err(RecordPatternRefusal::Quotient(data));
+        }
+        if program
+            .data_members(data)
+            .iter()
+            .any(|member| matches!(member, DataMember::Variant(_)))
+        {
+            return Err(RecordPatternRefusal::Sum(data));
+        }
+        Ok(data)
     }
 
     fn validate_arm_pattern_marker(
@@ -4496,6 +4563,110 @@ pub mod destructure {
                 machine.name, state.name, field, subject_name,
             )));
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::record_pattern_coverage;
+        use symbols::SymbolHandle;
+        use typed_trees::data::DataField;
+        use typed_trees::expression::{MatchFieldAction, TableMatchField};
+        use typed_trees::name::Identifier;
+
+        fn field(symbol: u32, name: &str) -> DataField {
+            DataField {
+                identity: None,
+                symbol: SymbolHandle::from_arena_index(symbol),
+                name: Identifier::generated(name),
+                relevance: language_core::BindingRelevance::Relevant,
+                type_reference: Default::default(),
+            }
+        }
+
+        fn row(symbol: Option<u32>, member: &str, binding: Option<&str>) -> TableMatchField {
+            TableMatchField {
+                component: language_core::PatternComponent::Fields,
+                member: Identifier::generated(member),
+                field_symbol: symbol.map_or_else(SymbolHandle::invalid, |symbol| {
+                    SymbolHandle::from_arena_index(symbol)
+                }),
+                action: binding.map_or(MatchFieldAction::Waive, |binding| {
+                    MatchFieldAction::Bind(Identifier::generated(binding))
+                }),
+            }
+        }
+
+        fn verdict(
+            resolved: bool,
+            declared: &[DataField],
+            roster: &[TableMatchField],
+        ) -> (Vec<String>, Vec<String>) {
+            let declared = declared.iter().collect::<Vec<_>>();
+            let (unmentioned, unknown) = record_pattern_coverage(resolved, &declared, roster);
+            (
+                unmentioned
+                    .iter()
+                    .map(|field| field.name.to_string())
+                    .collect(),
+                unknown.iter().map(|row| row.member.to_string()).collect(),
+            )
+        }
+
+        /// `data Point { x; y; z; }`: a field counts as named only through a
+        /// row carrying its symbol, bound or waived alike.
+        #[test]
+        fn coverage_follows_field_symbols_in_declaration_and_authored_order() {
+            let point = [field(11, "x"), field(12, "y"), field(13, "z")];
+            let none: (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+            let full = [
+                row(Some(13), "z", None),
+                row(Some(11), "x", Some("x")),
+                row(Some(12), "y", Some("vertical")),
+            ];
+            assert_eq!(verdict(true, &point, &full), none);
+            assert_eq!(
+                verdict(true, &point, &full[1..2]),
+                (vec!["y".to_owned(), "z".to_owned()], Vec::new())
+            );
+            let stray = [
+                row(None, "depth", None),
+                row(Some(11), "x", Some("x")),
+                row(Some(12), "y", None),
+                row(Some(13), "z", None),
+                row(Some(40), "other", None),
+            ];
+            assert_eq!(
+                verdict(true, &point, &stray),
+                (Vec::new(), vec!["depth".to_owned(), "other".to_owned()])
+            );
+        }
+
+        /// A spelling decides nothing: rows spelled like the fields but
+        /// carrying no symbol, another record's symbols, or resolved against
+        /// another record cover no field and name none.
+        #[test]
+        fn a_row_spelled_like_a_field_does_not_name_it() {
+            let point = [field(11, "x"), field(12, "y")];
+            let everything = (
+                vec!["x".to_owned(), "y".to_owned()],
+                vec!["x".to_owned(), "y".to_owned()],
+            );
+            let unplaced = [row(None, "x", Some("x")), row(None, "y", None)];
+            assert_eq!(verdict(true, &point, &unplaced), everything);
+            let foreign = [row(Some(21), "x", Some("x")), row(Some(22), "y", None)];
+            assert_eq!(verdict(true, &point, &foreign), everything);
+            let placed = [row(Some(11), "x", Some("x")), row(Some(12), "y", None)];
+            assert_eq!(verdict(false, &point, &placed), everything);
+            // A declared field without a symbol is named by no row.
+            let unsymboled = [DataField {
+                symbol: SymbolHandle::invalid(),
+                ..field(0, "x")
+            }];
+            assert_eq!(
+                verdict(true, &unsymboled, &unplaced[..1]),
+                (vec!["x".to_owned()], vec!["x".to_owned()])
+            );
         }
     }
 }
@@ -5251,7 +5422,7 @@ pub mod intrinsic_boundaries {
             || !program.data_type_parameters(data).is_empty()
             || data.generic_instance.is_some()
             || data.quotient.is_some()
-            || !data.where_facts.is_empty()
+            || !data.requires_facts.is_empty()
             || data.zero_gated
             || data.properties.carry.is_some()
             || data.properties.multiplicity == language_semantics::Multiplicity::Linear
@@ -5274,7 +5445,7 @@ pub mod intrinsic_boundaries {
         };
         if eof.name.as_str() != "Eof"
             || !eof.payload.is_empty()
-            || !eof.where_facts.is_empty()
+            || !eof.requires_facts.is_empty()
             || byte.name.as_str() != "Byte"
         {
             return None;
@@ -5294,7 +5465,7 @@ pub mod intrinsic_boundaries {
         {
             return None;
         }
-        crate::case_where_field_intervals(program, byte)?
+        crate::case_requires_field_intervals(program, byte)?
             .iter()
             .all(|(_, minimum, maximum)| {
                 minimum.is_none_or(|minimum| minimum <= 0)

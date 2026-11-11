@@ -440,7 +440,7 @@ pub mod data {
         pub properties: DataProperties,
         pub cleanup_selection: Option<crate::domain::CleanupSelection>,
         pub quotient: Option<QuotientDefinition>,
-        pub where_facts: HandleSpan<crate::domain::ProofFact>,
+        pub requires_facts: HandleSpan<crate::domain::ProofFact>,
         pub zero_gated: bool,
         pub retired_identities: Vec<u64>,
         pub members: HandleSpan<DataMember>,
@@ -462,7 +462,7 @@ pub mod data {
                 properties: DataProperties::default(),
                 cleanup_selection: None,
                 quotient: None,
-                where_facts: HandleSpan::empty(),
+                requires_facts: HandleSpan::empty(),
                 zero_gated: false,
                 retired_identities: Vec::new(),
                 members: HandleSpan::empty(),
@@ -782,7 +782,7 @@ pub mod data {
         pub symbol: SymbolHandle,
         pub name: Identifier,
         pub payload: HandleSpan<DataField>,
-        pub where_facts: HandleSpan<crate::domain::ProofFact>,
+        pub requires_facts: HandleSpan<crate::domain::ProofFact>,
         pub retired_payload_identities: Vec<u64>,
     }
 }

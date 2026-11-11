@@ -114,13 +114,20 @@ fn probe(main: &Path) -> Probed {
         route,
         reason,
     };
-    let Some(entry) = frontier.entries.first().copied() else {
+    if frontier.entries.is_empty() {
         return probed("no-entry\t-".to_owned(), "no-entry", None);
-    };
+    }
     if std::env::var_os("STRUCTURE_ELABORATION_DUMP").is_some() {
         dump_transitions(&frontier.typed);
     }
-    let elaboration = match structure_elaboration::elaborate(&frontier.typed, entry) {
+    let elaboration = match structure_elaboration::elaborate(
+        &frontier.typed,
+        structure_elaboration::Compilation {
+            entries: &frontier.entries,
+            subject: frontier.subject,
+            selected: &frontier.selected,
+        },
+    ) {
         Ok(elaboration) => elaboration,
         Err(refusal) => {
             return probed(

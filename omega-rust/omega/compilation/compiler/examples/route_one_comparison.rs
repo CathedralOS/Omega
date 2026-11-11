@@ -2,44 +2,56 @@
 //! the lowered form, on the same corpus programs.
 //!
 //! For each `main.omg` given on the command line it checks the fixture with
-//! the ordinary pipeline through the typed-frontier seam (the current
-//! checker's verdict and diagnostics, the frozen typed trees and the bound
-//! entry, for rejected programs as well as accepted ones), then elaborates
-//! the entry with `structure_elaboration` and discharges it with
+//! the ordinary pipeline (the current checker's verdict, and the only way to
+//! obtain the frozen typed trees and the bound entries), then elaborates the
+//! compilation with `structure_elaboration` and discharges it with
 //! `lowered_discharge`, twice: with every kind of knowledge, and without
 //! branch conditions, to count what branch facts buy. Each route is timed by
 //! wall clock around its own calls only. Tab-separated lines:
 //!
-//!     program <path> current=<accepted|rejected|review-refused> current_us=<n> root=<..> route=<..> route_us=<n> ...
+//!     program <path> current=<accepted|rejected|stopped> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
-//!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message> site=<class>
-//!     use <path> <machine> <operation or edge> unestablished <detail> <site> site=<class>
+//!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
+//!     use <path> <machine> <operation or edge> unestablished <detail>
+//!     window <path> <machine> <opening obligation> <consumption point> <closed-..|open:..>
 //!     current-diagnostic <path> <site> <message>
 //!     fallback <path> root=<..> <construct> <refusal detail>
 //!     quality <path> root=<..> fragment=<all|part|none|absent> site=<class> expected=<fragments>
+//!
+//! Every `program` line carries `root=`: `compilation` when the route judges
+//! what the check claims (`structure_elaboration::elaborate`), or
+//! `machine:<name>` for one machine's closure (below). `diagnostic` and `use`
+//! lines end with `site=<class>`, how that error's site compares with the
+//! current checker's diagnostics.
+//!
+//! A `diagnostic` for a value consumed inside an open invariant window
+//! carries `consumed at <site>` after the opening write's site.
 //!
 //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
 //! (one `diagnostic` line per unproved obligation and one `use` line per use
 //! of storage that is not established, the compile errors the program gets on
 //! this route), `incomplete` (the prover has no rule for some
 //! goal's form), `fallback` (an unsupported obligation hands the closure to
-//! the current checker) or `defect`. Before a verdict exists it is `outside`
-//! (elaboration refused the closure; the refusal reason leads the detail),
-//! `refused-module` (discharge refused it whole, with `reason=`), `no-entry`,
-//! or `unreached` when the compilation stopped before Psi 04 produced typed
-//! trees.
+//! the current checker) or `defect`.
 //!
-//! **Roots.** The route elaborates the Build's bound entry and the machines
-//! it calls (`root=entry`). Most `fail/` fixtures bind no entry, and a defect
-//! in a machine the entry never calls is outside that closure. With
-//! `--every-machine` as the first argument, each machine declared in a source
-//! file under the fixture's directory (other than its `build.omg`), or in a
-//! source file that a current diagnostic names, is also elaborated as the
-//! root of its own closure (`root=machine:<name>`, one more `program` line
-//! each): what the route says once it elaborates every checked machine.
+//! The route is given everything the check claims: the Build's entries and
+//! every declaration of the fixture's package, used or not. A program the
+//! current checker rejects is compared as well (`current=rejected`), through
+//! the typed-frontier seam; `current=stopped` means no typed trees exist
+//! (`route=unreached`).
+//!
+//! **Fixtures that bind no entry.** A Terminal module names one entry, so a
+//! compilation with none has no module and is not elaborated
+//! (`route=no-entry`); most `fail/` fixtures are like that. With
+//! `--every-machine` as the first argument, each machine declared in a
+//! source file under the fixture's directory (other than its `build.omg`), or
+//! in a source file a current diagnostic names, is instead elaborated as the
+//! root of its own closure (`structure_elaboration::elaborate_closure`, one
+//! more `program` line each, `root=machine:<name>`).
 //!
 //! **Diagnostic quality.** A program both checkers reject gets one `quality`
-//! line that weighs the new route's errors against the current checker's:
+//! line per root the route rejects, weighing its errors against the current
+//! checker's:
 //!
 //! - `fragment=` compares the route's messages with the fixture's
 //!   `expected.txt` by the corpus runner's rule (every nonempty line must
@@ -50,16 +62,16 @@
 //!   current diagnostic's: `exact`, `overlap` (the spans intersect),
 //!   `same-line`, `different`, `unpositioned:<reason>` when no route error
 //!   has a position, or `current-unpositioned` when the current checker gave
-//!   none to compare with. Each `diagnostic` and `use` line carries its own.
+//!   none to compare with.
 //!
 //! `route_one_comparison --tally < output.tsv` reads this tool's own output,
 //! from one run or several concatenated, and prints the three diagnostic
 //! counts for the programs the current checker rejects: rejected at all by
 //! the new route, of those the pinned fragment present, and of those the
-//! site matched. It prints them for the entry's closure alone and, when the
-//! run used `--every-machine`, again over all roots: a fixture is rejected
-//! when any closure is, and takes the best fragment and site among its
-//! closures.
+//! site matched. A fixture with several roots is rejected when any closure
+//! is, and takes the best fragment and site among its closures. A rejection
+//! at a site the current checker never names may be of another construct
+//! than the one the fixture pins; `route_one_measures.md` classifies those.
 //!
 //! This is a measuring tool, not a gate, and not part of the shipped CLI.
 
@@ -68,7 +80,7 @@ mod fixture_package_inputs;
 
 use std::collections::BTreeMap;
 use std::io::BufRead;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 use diagnostics::Diagnostic;
@@ -193,35 +205,35 @@ fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
     }
 }
 
-/// Checks one fixture and judges each root's closure on the new route. One
-/// `program` line body per root; the first is always the entry's.
+/// Checks one fixture and judges what the route can on it. One `program`
+/// line body per root.
 fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<String> {
     use fixture_package_inputs::FixtureFrontierCheck;
     let started = Instant::now();
     let checked =
         fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64");
     let current_us = started.elapsed().as_micros();
+    // A program the current checker rejects is compared too: the seam keeps
+    // the typed trees that checker judged, and its diagnostics.
     let (frontier, current, current_diagnostics) = match checked {
         FixtureFrontierCheck::Accepted { frontier, .. } => (frontier, "accepted", Vec::new()),
         FixtureFrontierCheck::Rejected {
             frontier,
             diagnostics,
-        } => (frontier, "rejected", diagnostics),
-        FixtureFrontierCheck::ReviewRefused {
+        }
+        | FixtureFrontierCheck::ReviewRefused {
             frontier,
             diagnostics,
-        } => (frontier, "review-refused", diagnostics),
-        FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
+        } => (frontier, "rejected", diagnostics),
+        FixtureFrontierCheck::StoppedBeforeTypedFrontier(errors) => {
             return vec![format!(
-                "current=rejected\tcurrent_us={current_us}\troot=entry\troute=unreached\t{}",
-                one_line(format!(
-                    "{:?}",
-                    diagnostics.first().map(|first| &first.message)
-                ))
+                "current=stopped\tcurrent_us={current_us}\troot=compilation\troute=unreached\t{}",
+                one_line(format!("{:?}", errors.first().map(|first| &first.message)))
             )];
         }
     };
-    let sites = CurrentSites::of(&current_diagnostics);
+    let typed = &frontier.typed;
+    let sites = CurrentSites::of(&current_diagnostics, &typed.symbols);
     for diagnostic in &current_diagnostics {
         lines.push(format!(
             "current-diagnostic\t{}\t{}\t{}",
@@ -231,73 +243,81 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
         ));
     }
     let head = format!("current={current}\tcurrent_us={current_us}");
-    let typed = &frontier.typed;
-    let mut programs = Vec::new();
-    let mut roots = Vec::new();
-    let entry = frontier.entries.first().copied();
-    match entry {
-        Some(entry) => roots.push(("entry".to_owned(), entry)),
-        None => programs.push(format!("{head}\troot=entry\troute=no-entry")),
-    }
-    if every_machine {
-        // The route elaborates only the entry's call closure today. Rooting
-        // it at each machine of the fixture's own sources, and of any source
-        // a current diagnostic names, measures what it says once it
-        // elaborates every checked machine, and reaches fixtures that bind no
-        // entry or whose current diagnostic carries no position.
-        // The fixture is checked from a copy (a session directory holding
-        // `source/<fixture path>`), so a source is the fixture's own when one
-        // of its directories ends with the fixture's directory as given.
-        let fixture = main
-            .parent()
-            .filter(|fixture| !fixture.as_os_str().is_empty());
-        for machine in typed.machines() {
-            let Some(declared) = typed.symbols.symbol_source_span(machine.symbol) else {
-                continue;
-            };
-            let own = fixture.as_deref().is_some_and(|fixture| {
-                typed.symbols.source_file(declared).is_some_and(|file| {
-                    // `build.omg` declares the Build, which the product check
-                    // does not judge.
-                    file.path.file_name() != Some(std::ffi::OsStr::new("build.omg"))
-                        && file
-                            .path
-                            .ancestors()
-                            .any(|directory| directory.ends_with(fixture))
-                })
-            });
-            let diagnosed = sites
-                .spans
-                .iter()
-                .any(|current| current.source_id == declared.source_id);
-            if (own || diagnosed) && Some(machine.symbol) != entry {
-                roots.push((format!("machine:{}", machine.name.as_str()), machine.symbol));
-            }
-        }
-    }
-    for (label, root) in roots {
-        let judged = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            probe_root(main, typed, root, &label, current, &sites, lines)
+    let judged = |label: &str,
+                  lines: &mut Vec<String>,
+                  elaborate: &dyn Fn() -> terminal_check_tables::Checked<
+        structure_elaboration::Elaboration,
+    >| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let started = Instant::now();
+            let elaborated = elaborate();
+            judge_elaboration(main, elaborated, started, label, current, &sites, lines)
         }))
-        .unwrap_or_else(|_| "route=panicked".to_owned());
-        programs.push(format!("{head}\troot={label}\t{judged}"));
+        .unwrap_or_else(|_| "route=panicked".to_owned())
+    };
+    if !frontier.entries.is_empty() {
+        let compilation = structure_elaboration::Compilation {
+            entries: &frontier.entries,
+            subject: frontier.subject,
+            selected: &frontier.selected,
+        };
+        let line = judged("compilation", lines, &|| {
+            structure_elaboration::elaborate(typed, compilation)
+        });
+        return vec![format!("{head}\troot=compilation\t{line}")];
+    }
+    let mut programs = vec![format!("{head}\troot=compilation\troute=no-entry")];
+    if !every_machine {
+        return programs;
+    }
+    // The checked copy lives in a session directory holding `source/<fixture
+    // path>`, so a source is the fixture's own when one of its directories
+    // ends with the fixture's directory as given.
+    let fixture = main
+        .parent()
+        .filter(|fixture| !fixture.as_os_str().is_empty());
+    for machine in typed.machines() {
+        let Some(declared) = typed.symbols.symbol_source_span(machine.symbol) else {
+            continue;
+        };
+        let own = fixture.is_some_and(|fixture| {
+            typed.symbols.source_file(declared).is_some_and(|file| {
+                // `build.omg` declares the Build, which the product check
+                // does not judge.
+                file.path.file_name() != Some(std::ffi::OsStr::new("build.omg"))
+                    && file
+                        .path
+                        .ancestors()
+                        .any(|directory| directory.ends_with(fixture))
+            })
+        });
+        let diagnosed = sites
+            .spans
+            .iter()
+            .any(|current| current.source_id == declared.source_id);
+        if !(own || diagnosed) {
+            continue;
+        }
+        let label = format!("machine:{}", machine.name.as_str());
+        let line = judged(&label, lines, &|| {
+            structure_elaboration::elaborate_closure(typed, machine.symbol)
+        });
+        programs.push(format!("{head}\troot={label}\t{line}"));
     }
     programs
 }
 
-/// Elaborates `root`'s closure, discharges it and returns the fields of its
-/// `program` line from `route=` on.
-fn probe_root(
+/// Discharges one elaboration and returns the fields of its `program` line
+/// from `route=` on.
+fn judge_elaboration(
     main: &Path,
-    typed: &typed_trees::TypedTrees,
-    root: symbols::SymbolHandle,
+    elaborated: terminal_check_tables::Checked<structure_elaboration::Elaboration>,
+    started: Instant,
     label: &str,
     current: &str,
-    sites: &CurrentSites,
+    sites: &CurrentSites<'_>,
     lines: &mut Vec<String>,
 ) -> String {
-    let started = Instant::now();
-    let elaborated = structure_elaboration::elaborate(typed, root);
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
         Err(refusal) => {
@@ -310,7 +330,10 @@ fn probe_root(
     let for_verdict = elaboration.clone();
     let mut without_branches = elaboration.clone();
     let mut intervals_only = elaboration.clone();
+    let mut consumer = elaboration.clone();
+    let discharge_started = Instant::now();
     let discharged = discharge_with(&mut elaboration, Knowledge::All);
+    let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
         Ok(discharged) => discharged,
@@ -324,6 +347,26 @@ fn probe_root(
     };
     let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
     let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
+    // Re-verifying the saved certificates in a consumer elaborated from the
+    // same typed trees: goal and hypotheses recomputed, no search.
+    let reverify_started = Instant::now();
+    let mut reverified = 0_usize;
+    for (machine, result) in discharged.machines.iter() {
+        for (obligation, verdict) in result.verdicts.iter() {
+            if let Ok(lowered_discharge::Discharged::Certificate(evidence)) = verdict
+                && lowered_discharge::reverify(
+                    &mut consumer,
+                    machine,
+                    obligation,
+                    &evidence.certificate,
+                )
+                .is_ok()
+            {
+                reverified += 1;
+            }
+        }
+    }
+    let reverify_us = reverify_started.elapsed().as_micros();
     let held = |run: &Option<lowered_discharge::Discharge>, machine, obligation| {
         run.as_ref()
             .and_then(|run: &lowered_discharge::Discharge| run.machines.get(machine))
@@ -339,9 +382,39 @@ fn probe_root(
     // rejection of the program, not a construct outside the subset.
     let mut uses = 0_usize;
     let mut unestablished = 0_usize;
-    let mut gated = 0_usize;
+    let mut opened = 0_usize;
+    let mut consumed = 0_usize;
+    let mut closed = 0_usize;
     for (machine, result) in discharged.machines.iter() {
         uses += result.uses.len();
+        for window in &result.windows {
+            consumed += 1;
+            let outcome = match &window.verdict {
+                Ok(evidence) => {
+                    closed += 1;
+                    match &evidence.fact.route {
+                        AcceptedFactRoute::CertificateDerived { acceptance, .. } => {
+                            match &acceptance.mathematical_core {
+                                MathematicalCoreDecision::Judged(_) => "closed-judged".to_owned(),
+                                MathematicalCoreDecision::Refused(family) => {
+                                    format!("closed-core-refused:{family}")
+                                }
+                            }
+                        }
+                        other => format!("unexpected-route:{other:?}"),
+                    }
+                }
+                Err(refusal) => format!("open:{:?}:{}", refusal.reason, one_line(&refusal.detail)),
+            };
+            lines.push(format!(
+                "window\t{}\t{}\t{}\t{:?}\t{outcome}",
+                main.display(),
+                machine.get(),
+                window.opened_by.get(),
+                window.at,
+            ));
+        }
+        // Each unestablished use is printed with its site by the verdict.
         unestablished += result.unestablished().count();
         let Some(tables) = elaboration.tables.machines.get(machine) else {
             continue;
@@ -357,7 +430,15 @@ fn probe_root(
                 Some(ObligationKind::NormalGuarantee { .. }) => "guarantee",
                 Some(ObligationKind::PublishedGuarantee { .. }) => "published",
                 Some(ObligationKind::DataDomain { .. }) => "domain",
-                Some(_) => "other",
+                Some(ObligationKind::ArrivalInvariant { .. }) => "arrival",
+                Some(ObligationKind::CrashCoverage { .. }) => "crash",
+                Some(ObligationKind::WellFoundedness { .. }) => "well-founded",
+                Some(ObligationKind::RankComparison { .. }) => "rank",
+                Some(ObligationKind::Claim { .. }) => "claim",
+                Some(ObligationKind::Loan { .. }) => "loan",
+                Some(ObligationKind::RestorationWindow { .. }) => "restoration",
+                Some(ObligationKind::DomainDebt { .. }) => "domain-debt",
+                Some(ObligationKind::EstablishmentDebt { .. }) => "establishment-debt",
                 None => "missing",
             };
             let (outcome, goal, detail) = match verdict {
@@ -398,11 +479,15 @@ fn probe_root(
                         "-".to_owned(),
                     )
                 }
-                // A zero establishment of a gated type: nothing is owed
-                // there, and each use its contents reach is unestablished.
-                Ok(lowered_discharge::Discharged::Gated(why)) => {
-                    gated += 1;
-                    ("gated".to_owned(), None, one_line(&why.detail))
+                // A store or zero establishment not shown to keep a clause:
+                // it opens an invariant window, owed at each consumption
+                // point the window reaches open (one `window` line each).
+                Ok(lowered_discharge::Discharged::Window(why)) => {
+                    opened += 1;
+                    ("window".to_owned(), None, one_line(&why.detail))
+                }
+                Ok(lowered_discharge::Discharged::Preserved) => {
+                    ("preserved".to_owned(), None, "-".to_owned())
                 }
                 Err(refusal) => {
                     let outcome = match refusal.reason {
@@ -456,6 +541,11 @@ fn probe_root(
             ));
         }
     }
+    let weakened_joins: usize = discharged
+        .machines
+        .values()
+        .map(|machine| machine.weakened_joins.len())
+        .sum();
     // The route's own verdict, the one a router takes: an unproved obligation
     // rejects the program with a diagnostic, an unsupported one hands the
     // closure back to the current checker.
@@ -515,9 +605,45 @@ fn probe_root(
         Err(_) => "defect",
     };
     format!(
-        "route={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
+        "route={route}\troute_us={route_us}\tdischarge_us={discharge_us}\treverify_us={reverify_us}\treverified={reverified}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\twindows={opened}\tconsumed={consumed}\tclosed={closed}\tweakened_joins={weakened_joins}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
+}
+
+/// One `diagnostic` line per unproved obligation, with its outcome and how
+/// its site compares with the current checker's. Returns the best site class,
+/// or `None` when there is no unproved obligation.
+fn report(
+    main: &Path,
+    unproved: &[UnprovedObligation],
+    outcome: &str,
+    sites: &CurrentSites<'_>,
+    lines: &mut Vec<String>,
+) -> Option<SiteClass> {
+    let mut best: Option<SiteClass> = None;
+    for entry in unproved {
+        let class = sites.class(Some(entry.site));
+        best = Some(best.map_or(class, |best| best.min(class)));
+        // An unclosed window names its consumption point beside the
+        // opening write.
+        let consumed = match entry.consumed {
+            Some(consumed) => format!(
+                "\tconsumed at {}",
+                sites.describe_route(Some(consumed.site))
+            ),
+            None => String::new(),
+        };
+        lines.push(format!(
+            "diagnostic\t{}\t{}\t{}\t{outcome}\t{}{consumed}\t{}\tsite={}",
+            main.display(),
+            entry.machine.get(),
+            entry.obligation.get(),
+            sites.describe_route(Some(entry.site)),
+            one_line(entry.message()),
+            class.name(),
+        ));
+    }
+    best
 }
 
 /// How a route error's source site compares with the current checker's
@@ -563,45 +689,35 @@ impl SiteClass {
     }
 }
 
-/// The source spans the current checker's diagnostics name, and the text of
-/// each source they name, to turn a byte offset into a line.
-struct CurrentSites {
+/// The source spans the current checker's diagnostics name, and the
+/// compilation's own source map, to name the file and line of any span.
+struct CurrentSites<'a> {
     spans: Vec<source::SourceSpan>,
-    texts: BTreeMap<usize, (PathBuf, String)>,
+    symbols: &'a symbols::SymbolTable,
 }
 
-impl CurrentSites {
-    fn of(diagnostics: &[Diagnostic]) -> Self {
-        let mut texts = BTreeMap::new();
-        let mut spans = Vec::new();
-        for diagnostic in diagnostics {
-            let Some(span) = diagnostic.source_span else {
-                continue;
-            };
-            spans.push(span);
-            if let Some(location) = &diagnostic.resolved_location
-                && let Ok(text) = std::fs::read_to_string(&location.path)
-            {
-                texts
-                    .entry(span.source_id.0)
-                    .or_insert((location.path.clone(), text));
-            }
-        }
-        Self { spans, texts }
+impl<'a> CurrentSites<'a> {
+    fn of(diagnostics: &[Diagnostic], symbols: &'a symbols::SymbolTable) -> Self {
+        let spans = diagnostics
+            .iter()
+            .filter_map(|diagnostic| diagnostic.source_span)
+            .collect();
+        Self { spans, symbols }
     }
 
-    /// The one-based line of a byte offset, when the source's text is known.
+    /// The one-based line of a span's start, from the source it lies in.
     fn line(&self, span: source::SourceSpan) -> Option<usize> {
-        let (_, text) = self.texts.get(&span.source_id.0)?;
-        let prefix = text.as_bytes().get(..span.span.start)?;
+        let file = self.symbols.source_file(span)?;
+        let prefix = file.source.as_bytes().get(..span.span.start)?;
         Some(1 + prefix.iter().filter(|byte| **byte == b'\n').count())
     }
 
     fn describe_span(&self, span: source::SourceSpan) -> String {
-        let name = self.texts.get(&span.source_id.0).map_or_else(
+        let name = self.symbols.source_file(span).map_or_else(
             || format!("source {}", span.source_id.0),
-            |(path, _)| {
-                path.file_name()
+            |file| {
+                file.path
+                    .file_name()
                     .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
             },
         );
@@ -681,33 +797,6 @@ fn pinned_fragments(main: &Path, messages: &[String]) -> (&'static str, String) 
     (class, fragments.join(" | "))
 }
 
-/// One `diagnostic` line per unproved obligation, with its outcome and how
-/// its site compares with the current checker's. Returns the best site class,
-/// or `None` when there is no unproved obligation.
-fn report(
-    main: &Path,
-    unproved: &[UnprovedObligation],
-    outcome: &str,
-    sites: &CurrentSites,
-    lines: &mut Vec<String>,
-) -> Option<SiteClass> {
-    let mut best: Option<SiteClass> = None;
-    for entry in unproved {
-        let class = sites.class(Some(entry.site));
-        best = Some(best.map_or(class, |best| best.min(class)));
-        lines.push(format!(
-            "diagnostic\t{}\t{}\t{}\t{outcome}\t{}\t{}\tsite={}",
-            main.display(),
-            entry.machine.get(),
-            entry.obligation.get(),
-            sites.describe_route(Some(entry.site)),
-            one_line(entry.message()),
-            class.name(),
-        ));
-    }
-    best
-}
-
 /// What `--tally` keeps for one fixture and one choice of roots.
 #[derive(Default)]
 struct Tallied {
@@ -757,8 +846,8 @@ impl Tallied {
 }
 
 /// Reads this tool's output and prints the three diagnostic counts for the
-/// programs the current checker rejects: once for the entry's closure alone,
-/// and once more over every root when the run used `--every-machine`.
+/// programs the current checker rejects: once for what the check claims
+/// alone, and once more over every root when the run used `--every-machine`.
 fn tally(input: impl BufRead) {
     // Per fixture: the entry root alone, then every root.
     let mut fixtures: BTreeMap<String, [Tallied; 2]> = BTreeMap::new();
@@ -776,7 +865,7 @@ fn tally(input: impl BufRead) {
         let Some(path) = fields.get(1) else {
             continue;
         };
-        let entry_root = field("root=") == "entry";
+        let entry_root = field("root=") == "compilation";
         machine_roots |= !entry_root && field("root=") != "-";
         match fields.first().copied() {
             Some("program") => {
@@ -829,8 +918,8 @@ fn tally(input: impl BufRead) {
     println!("programs\t{}", programs.len());
     println!("current checker rejects\t{}", fixtures.len());
     let choices = [
-        "roots: the bound entry",
-        "roots: the entry and every machine of the fixture's or a diagnosed source file",
+        "roots: what the check claims (fixtures that bind an entry)",
+        "roots: as above, and each own machine of a fixture that binds no entry",
     ];
     for (choice, title) in choices.iter().enumerate() {
         if choice == 1 && !machine_roots {

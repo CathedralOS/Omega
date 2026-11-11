@@ -154,8 +154,8 @@ impl Program<'_> {
             | BinaryOperator::Less
             | BinaryOperator::LessOrEqual
             | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => operator,
-            BinaryOperator::NotEqual => return unserved("inequality (no negated proposition)"),
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::NotEqual => operator,
             BinaryOperator::Or => return unserved("disjunction"),
             BinaryOperator::Add
             | BinaryOperator::Subtract
@@ -194,6 +194,19 @@ impl Program<'_> {
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
             BinaryOperator::Greater => Ok(Proposition::LessThan(right, left)),
             BinaryOperator::GreaterOrEqual => Ok(Proposition::LessOrEqual(right, left)),
+            // There is no negated proposition. An integer `a != b` is the
+            // disjunction the kernel denotes a false integer equality by
+            // (`predicate_denotation`: `a < b or b < a`), so a requirement
+            // and a guard of the same disequality state the same fact.
+            BinaryOperator::NotEqual => canonical::clauses(
+                vec![
+                    Proposition::LessThan(left.clone(), right.clone()),
+                    Proposition::LessThan(right, left),
+                ],
+                Repeated::Refuse,
+                id,
+            )
+            .map(Proposition::Disjunction),
             _ => unserved("comparison"),
         }
     }
@@ -216,7 +229,13 @@ impl Program<'_> {
             // result occurrence belongs to its contract owner, not any local
             // or parameter spelled `result`."
             ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
-                if path.reserved_result_of != scope.owner {
+                // A machine stage 04 generated for a static application
+                // keeps its declaration's clause trees, whose result is
+                // recorded against that declaration.
+                let declared = typed.symbols.get(scope.owner).generated_from;
+                if path.reserved_result_of != scope.owner
+                    && !(declared.is_valid() && path.reserved_result_of == declared)
+                {
                     return unserved("result of another callable");
                 }
                 match scope.result {

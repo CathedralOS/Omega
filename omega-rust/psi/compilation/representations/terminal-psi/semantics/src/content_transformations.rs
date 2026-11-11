@@ -2662,6 +2662,7 @@ pub mod domain_preservation {
             let low = StructuralFieldId::new(1).unwrap();
             let case_id = |id| StructuralCaseId::new(id).unwrap();
             let declaration = |id, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id,
                 identity: TerminalIdentityIndex(id.get() as u32),

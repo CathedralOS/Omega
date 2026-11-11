@@ -93,9 +93,12 @@ refused as `Unsupported`, never accepted by default.
 Three reasons are verdicts about the program and the rest are about the
 checker. `Unproved` means an obligation's evidence did not check.
 `Unestablished` means a place is read, copied, passed or returned on a path
-on which nothing was stored into it
-([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
-"An unestablished local cannot be read"); it is a structural judgment over the
+on which nothing established it. A local declared without an initializer is
+zero-constructed (`local-without-initializer`), so for plain storage that is
+the zeroed storage of a gated type
+([dependent values](../../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+"Otherwise the type is gated: construction or checked qualification must
+establish the domain before observation."); it is a structural judgment over the
 write log and the graph, with no obligation row and no certificate, and the
 places foundation lane added it as a reason, not as a table. The lane's two
 structural judgments over a sum report through the same reason: a case
@@ -126,6 +129,12 @@ being added here.
   judgment of `lowered-discharge`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
   knowledge row justified as `Justification::DispatchBinding`.
+- **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
+  names its domain by a `DomainSemanticId`; a data `requires` clause has no
+  such identity (its clauses ride in `Elaboration::domains`, by type and
+  position). An invariant window on one is therefore the opening write's
+  `DataDomain` row, followed to its consumption points by
+  `lowered-discharge`, and not a conserved row here.
 
 ## Obligation kinds
 
@@ -179,7 +188,8 @@ being added here.
   (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
   carrier"): knowledge never names a place. A storage observation enters as the value its
   read produced, and what the read equals is one more equation between values,
-  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  derived from the stores the lowered operations make (`lowered-discharge`,
+  `places.rs`), which the write log must restate. No lane uses
   a structural `Proposition` variant in a knowledge row; a contract clause
   that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's

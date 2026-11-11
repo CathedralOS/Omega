@@ -2034,6 +2034,7 @@ pub fn prepare_typed_trees(
     array_extents::normalize(&mut program, type_frontier);
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
     crate::assignment_destinations::prepare(&mut program);
+    crate::record_patterns::prepare(&mut program);
     {
         let contracts = arena::Arena::default();
         let owners =
@@ -2119,6 +2120,7 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);
+    crate::record_patterns::prepare(&mut program);
     array_extents::normalize(&mut program, type_frontier);
     crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     Ok(program)

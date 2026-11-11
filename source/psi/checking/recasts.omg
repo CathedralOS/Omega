@@ -16,7 +16,7 @@ use psi::types::types;
 // both sides. Same-width integers and IEEE floats share every bit pattern,
 // so they view each other either way. A Boolean is one of two bytes: it
 // views as an integer shared but never mutably, and an integer views as a
-// Boolean only when it is a field of data whose `where` facts bound it to
+// Boolean only when it is a field of data whose `requires` facts bound it to
 // zero or one, which the zone then proves; a fact that only the body
 // established does not make every representation of the carrier valid.
 // A declared domain narrows the source's set, so a qualified source views
@@ -73,7 +73,7 @@ crashes Trap
         }
     }
 
-    // The borrowed place must be a field of data carrying `where` facts,
+    // The borrowed place must be a field of data carrying `requires` facts,
     // and those facts must bound it to zero or one.
     machine bounded_field(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
         let operand: Value = Checker::value_at(checker, expression.left);

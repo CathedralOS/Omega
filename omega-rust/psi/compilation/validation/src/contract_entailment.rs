@@ -12533,7 +12533,7 @@ pub(crate) mod zero_predicates {
         program: &dyn crate::CheckingInput,
         definition: &DataDefinition,
     ) -> bool {
-        if !definition.type_parameters.is_empty() || definition.where_facts.is_empty() {
+        if !definition.type_parameters.is_empty() || definition.requires_facts.is_empty() {
             return false;
         }
         let mut parameters = Vec::new();
@@ -12581,7 +12581,7 @@ pub(crate) mod zero_predicates {
             false,
         );
         program
-        .conjunctive_proof_facts(definition.where_facts)
+        .conjunctive_proof_facts(definition.requires_facts)
         .all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;
@@ -21319,7 +21319,7 @@ pub(crate) mod call_handbacks {
                             .any(|field| field.symbol == symbol)
                             .then_some(variant)
                     });
-                    if crate::declarations::data_queries::data_field_is_where_independent(
+                    if crate::declarations::data_queries::data_field_is_requires_independent(
                         program, definition, field,
                     ) || judged_parents
                         .contains(&(parent.clone(), variant.map(|variant| variant.symbol)))
@@ -21353,12 +21353,12 @@ pub(crate) mod call_handbacks {
                         || receiver.is_some_and(|receiver| {
                             program
                                 .proof_facts
-                                .span_or_empty(definition.where_facts)
+                                .span_or_empty(definition.requires_facts)
                                 .iter()
                                 .chain(variant.into_iter().flat_map(|variant| {
                                     program
                                         .proof_facts
-                                        .span_or_empty(variant.where_facts)
+                                        .span_or_empty(variant.requires_facts)
                                         .iter()
                                 }))
                                 .all(|fact| {
@@ -25755,9 +25755,9 @@ pub(crate) mod ranking_range {
                 _ => rank_coordinate(program, &mut engine, source_measure)?,
             };
             let rank = rank_value.value.clone();
-            let view_bound = match source_measure {
-                RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
-                _ => None,
+            let view_bound = match source_measure.fixed_view_bound() {
+                Some(limit) => Some(engine.normalize(limit)?),
+                None => None,
             };
             let source_range = member_call_range(program, &caller, entry, &mut engine)?;
             if !at_entry && let Some((floor, ceiling, inclusive)) = &source_range {
@@ -25856,7 +25856,9 @@ pub(crate) mod ranking_range {
             if callee.paired_subject.is_valid() {
                 destination_expressions.push(callee.paired_subject);
             }
-            if let RankingRangeMeasure::IncreasingTo { limit, .. } = destination_measure {
+            if let Some(limit) = destination_measure.fixed_view_bound()
+                && !destination_expressions.contains(&limit)
+            {
                 destination_expressions.push(limit);
             }
             if callee.range.is_valid()
@@ -25958,15 +25960,9 @@ pub(crate) mod ranking_range {
                 None => rank_coordinate(program, &mut engine, destination_measure)?,
             };
             let next_rank = next_rank_value.value.clone();
-            let pinned_view_bound = match (view_bound, destination_measure) {
-                (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
-                    Some((bound, engine.normalize(limit)?))
-                }
-                (None, RankingRangeMeasure::Distance { .. })
-                | (None, RankingRangeMeasure::Single(_))
-                | (None, RankingRangeMeasure::Computed { .. })
-                | (None, RankingRangeMeasure::Field { .. })
-                | (None, RankingRangeMeasure::SliceLength(_)) => None,
+            let pinned_view_bound = match (view_bound, destination_measure.fixed_view_bound()) {
+                (Some(bound), Some(limit)) => Some((bound, engine.normalize(limit)?)),
+                (None, None) => None,
                 _ => return None,
             };
             let destination_range = member_call_range(program, &callee, destination, &mut engine)?;
@@ -32607,6 +32603,28 @@ pub(crate) mod ranking_range {
         },
     }
 
+    impl RankingRangeMeasure {
+        /*
+            The bound a distance view climbs toward. `Nat::IncreasingTo(limit)`
+            names it as `limit`; `Nat::BoundedDistance` binds it as the second
+            subject, `upper`. Stage 05 emits the rank of either as
+            `MAX - lower`, which descends only while the bound stays put, so
+            every edge of the component must arrive with the bound it left
+            with. A call `second(index, limit - 1)` shrinks `upper - lower`
+            without moving `lower`; without this pin it counted as descent.
+        */
+        pub(crate) fn fixed_view_bound(self) -> Option<ExpressionHandle> {
+            match self {
+                Self::IncreasingTo { limit, .. } => Some(limit),
+                Self::Distance { upper, .. } => Some(upper),
+                Self::Single(_)
+                | Self::Computed { .. }
+                | Self::SliceLength(_)
+                | Self::Field { .. } => None,
+            }
+        }
+    }
+
     #[derive(Clone, Copy)]
     pub enum RankingRangePremises {
         RankInvariant,
@@ -33633,17 +33651,13 @@ pub(crate) mod ranking_range {
         let next_rank = next_rank_value.value.clone();
         let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
         let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
-        let pinned_view_bound = match measure {
-            RankingRangeMeasure::IncreasingTo { limit, .. } => {
+        let pinned_view_bound = match measure.fixed_view_bound() {
+            Some(limit) => {
                 let bound = engine.normalize(limit)?;
                 let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
                 Some((bound, next))
             }
-            RankingRangeMeasure::Distance { .. }
-            | RankingRangeMeasure::Single(_)
-            | RankingRangeMeasure::Computed { .. }
-            | RankingRangeMeasure::SliceLength(_)
-            | RankingRangeMeasure::Field { .. } => None,
+            None => None,
         };
         for (operator, left, right) in auxiliary
             .iter()
@@ -39183,11 +39197,11 @@ pub(crate) mod specification_calls {
                     let mut bindings = Self::for_retained_call_site(
                         program,
                         caller,
-                        &SelectedCallContract::Signature(member.signature),
+                        &SelectedCallContract::Signature(member.requirement),
                         site,
                     )?;
                     let public =
-                        program.requirement_invocation_contract_parameters(member.signature);
+                        program.requirement_invocation_contract_parameters(member.requirement);
                     let declared = program.machine_type_parameters(member.machine);
                     if public.len() != declared.len()
                         || public.iter().zip(declared).any(|(public, declared)| {
@@ -40745,7 +40759,7 @@ pub(crate) mod specification_calls {
             if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
                 && crate::field_domains::readable_nominal_definition(program, required_type)
                     .is_some_and(|required| {
-                        required.symbol == pending.symbol && !required.where_facts.is_empty()
+                        required.symbol == pending.symbol && !required.requires_facts.is_empty()
                     })
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -41029,7 +41043,7 @@ pub(crate) mod specification_calls {
         mut expression: ExpressionHandle,
     ) -> Option<&typed_trees::data::DataDefinition> {
         let definition = program.data_definition_by_symbol(owner)?;
-        if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        if !definition.predicate_subject_symbol.is_valid() || definition.requires_facts.is_empty() {
             return None;
         }
         let mut visited = Vec::new();
@@ -41912,17 +41926,41 @@ pub(crate) mod specification_calls {
         Operator(&'program typed_trees::operator::OperatorDefinition),
     }
 
-    struct DirectNamedMemberContract<'program> {
-        machine: &'program Machine,
-        state: &'program State,
-        signature: &'program StateSignature,
+    /// A call that names a member of a named implementation directly, such as
+    /// `Write::try_from(value)`, rather than reaching it through a binder.
+    ///
+    /// An inline member is an ordinary machine with its own identity
+    /// (conformances.md, "Complete row identity"), so this is the one place
+    /// that says which machine such a call runs. Every check then treats the
+    /// call as it would a call to that machine written as a free machine:
+    /// `requirement` is what the member inherits from the requirement it
+    /// realizes, and `machine`/`state` carry everything it adds on its own.
+    /// A call through a binder names no member and never produces this.
+    #[derive(Clone, Copy)]
+    pub struct DirectMemberCall<'program> {
+        pub machine: &'program Machine,
+        pub state: &'program State,
+        pub requirement: &'program StateSignature,
+    }
+
+    /// Resolves `site` to the member it names directly. `caller` may be the
+    /// calling machine or one of its states.
+    pub fn direct_member_call<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<DirectMemberCall<'program>> {
+        let caller = program
+            .machine_holding_state(caller)
+            .map_or(caller, |machine| machine.symbol);
+        direct_named_member_contract(program, caller, site)
     }
 
     fn direct_named_member_contract<'program>(
         program: &'program dyn crate::CheckingInput,
         caller: SymbolHandle,
         site: crate::CallSite<'_>,
-    ) -> Option<DirectNamedMemberContract<'program>> {
+    ) -> Option<DirectMemberCall<'program>> {
         let receiver = match site {
             crate::CallSite::Expression { call, .. } => {
                 expression_table(program)
@@ -41971,10 +42009,10 @@ pub(crate) mod specification_calls {
         if program.machine_states(machine).first()?.symbol != state.symbol {
             return None;
         }
-        Some(DirectNamedMemberContract {
+        Some(DirectMemberCall {
             machine,
             state,
-            signature,
+            requirement: signature,
         })
     }
 
@@ -42004,6 +42042,16 @@ pub(crate) mod specification_calls {
         if let Some(member) = direct_named_member_contract(program, caller, site) {
             return Some(SelectedCallContract::Concrete(member.machine, member.state));
         }
+        selected_contract_past_direct_member(program, caller, site)
+    }
+
+    /// The rest of `selected_call_site_contract` for a site already known not
+    /// to name an implementation member directly.
+    pub(crate) fn selected_contract_past_direct_member<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<SelectedCallContract<'program>> {
         if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
         {
             return Some(SelectedCallContract::Signature(signature));
@@ -50239,7 +50287,7 @@ pub(crate) mod structural_judgment {
                         definition.name, variant.name, admitted, subject_type, admitted_subject
                     );
                 }
-                if !definition.where_facts.is_empty() && admitted {
+                if !definition.requires_facts.is_empty() && admitted {
                     let mut complete = true;
                     let mut projections = Vec::new();
                     for field in program
@@ -50295,7 +50343,7 @@ pub(crate) mod structural_judgment {
                             });
                             bindings.push((name, admitted_subject.clone()));
                         }
-                        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                        for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                             if let ProofFact::Expression(expression) = fact {
                                 self.intake_instantiated_predicate(
                                     definition.symbol,
@@ -50308,7 +50356,7 @@ pub(crate) mod structural_judgment {
                         }
                     }
                 }
-                for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51111,7 +51159,7 @@ pub(crate) mod structural_judgment {
                     bindings.push((field.name.to_string(), projected.clone()));
                     self.intake_admitted_data_predicates(projected_type, projected, active);
                 }
-                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51145,7 +51193,7 @@ pub(crate) mod structural_judgment {
                 }
                 if !program
                     .proof_facts
-                    .span_or_empty(definition.where_facts)
+                    .span_or_empty(definition.requires_facts)
                     .is_empty()
                     || !program.data_application_value_fields(reference).is_empty()
                 {
@@ -51937,28 +51985,22 @@ pub(crate) mod structural_judgment {
                 }
                 let left = left.into_semantic_value();
                 let right = right.into_semantic_value();
-                if right == value_predicates::boolean_term(true)
-                    && let StructuralTerm::MathematicalBinary {
-                        operator: BinaryOperator::And,
-                        left,
-                        right,
-                    } = &left
-                    && left.is_checked_predicate()
-                    && right.is_checked_predicate()
-                {
-                    self.intake_equation_with_purpose(
-                        *left.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    self.intake_equation_with_purpose(
-                        *right.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    return;
+                // A conjunction known true makes each operand true, whether it was
+                // authored in the contract or came back from unfolding a boolean
+                // machine named by it. Only `&&` equated with `true` splits: a false
+                // conjunction and either truth of `||` fix neither operand.
+                if let Some(conjunction) = self.true_conjunction_operands(&left, &right) {
+                    for operand in conjunction.operands {
+                        self.intake_equation_with_purpose(
+                            operand,
+                            value_predicates::boolean_term(true),
+                            depth + 1,
+                            purpose,
+                        );
+                    }
+                    if !conjunction.retained_as_premise {
+                        return;
+                    }
                 }
                 let logical_premise = match (&left, &right) {
                     (StructuralTerm::LogicalNot { .. }, truth)
@@ -75147,6 +75189,9 @@ pub(crate) mod structural_judgment {
         pub(crate) struct CapturedStoreDestination {
             coordinate: Option<CapturedStorageCoordinate>,
             frame: facts::NormalizedWriteFrame,
+            // What cleanup of the displaced value and of temporaries that die
+            // inside the statement may write, beyond the destination itself.
+            cleanup: facts::NormalizedWriteFrame,
             version: Option<StorageVersion>,
             value_expression: ExpressionHandle,
             stored_type: TypeReferenceHandle,
@@ -76659,9 +76704,13 @@ pub(crate) mod structural_judgment {
                 if coordinate.is_none() && !self.requires_value_preservation() {
                     return None;
                 }
+                let cleanup = self
+                    .frame_resolver()?
+                    .statement_cleanup_write_frame(machine, statement);
                 Some(CapturedStoreDestination {
                     coordinate,
                     frame,
+                    cleanup,
                     version: self.statement_node_storage_version(state, statement),
                     value_expression: statement.as_assignment()?.value,
                     stored_type,
@@ -76764,8 +76813,35 @@ pub(crate) mod structural_judgment {
                 value: super::StructuralTerm,
             ) -> Option<()> {
                 let destination_value_expression = destination.value_expression;
+                // The store displaces the destination's old value, whose
+                // `dropped by` hook may write through exclusive references it
+                // held. Those places are not the destination, so a value that
+                // is disjoint from the destination is not thereby untouched:
+                // nothing is carried across the store, and the cleanup places
+                // join the written set.
+                let cleanup_free = destination
+                    .cleanup
+                    .complete_paths()
+                    .is_some_and(<[String]>::is_empty);
+                let written_paths = if cleanup_free {
+                    destination.frame.complete_paths().map(<[String]>::to_vec)
+                } else {
+                    destination
+                        .frame
+                        .complete_paths()
+                        .zip(destination.cleanup.complete_paths())
+                        .map(|(stored, cleanup)| {
+                            let mut paths = stored.to_vec();
+                            for path in cleanup {
+                                if !paths.contains(path) {
+                                    paths.push(path.clone());
+                                }
+                            }
+                            paths
+                        })
+                };
                 let mut preserved = Vec::new();
-                if let Some(written) = &destination.coordinate {
+                if let Some(written) = destination.coordinate.as_ref().filter(|_| cleanup_free) {
                     let frames = self.frame_resolver()?;
                     for stored in self.stored_values.iter() {
                         if !stored
@@ -76810,11 +76886,7 @@ pub(crate) mod structural_judgment {
                         ));
                     }
                 }
-                self.observe_storage_effects(
-                    state,
-                    destination.frame.complete_paths(),
-                    destination.version,
-                )?;
+                self.observe_storage_effects(state, written_paths.as_deref(), destination.version)?;
                 for (coordinate, current) in preserved {
                     self.retain_storage_value(coordinate, current, false);
                 }
@@ -77175,7 +77247,7 @@ pub(crate) mod structural_judgment {
             let Some((low, high)) = stored_integer_domain(stored) else {
                 return false;
             };
-            let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+            let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
                 return false;
             };
             let mut named = false;
@@ -77520,6 +77592,11 @@ pub(crate) mod structural_judgment {
             }
         }
 
+        pub(crate) struct TrueConjunction {
+            pub(crate) operands: [StructuralTerm; 2],
+            pub(crate) retained_as_premise: bool,
+        }
+
         impl StructuralJudge<'_> {
             pub(crate) fn boolean_equality_operand(
                 &self,
@@ -77556,6 +77633,50 @@ pub(crate) mod structural_judgment {
                     operand.clone(),
                     boolean_term(if equal { known } else { !known }),
                 ))
+            }
+
+            /// The operands of a conjunction equated with `true`. A mathematical
+            /// conjunction is fully replaced by its operands. An executable boolean
+            /// `&&` is also kept whole, because the integer reader builds its
+            /// premise worlds from retained boolean connectives.
+            pub(crate) fn true_conjunction_operands(
+                &self,
+                predicate: &StructuralTerm,
+                truth: &StructuralTerm,
+            ) -> Option<TrueConjunction> {
+                if boolean_value(truth) != Some(true) {
+                    return None;
+                }
+                match predicate {
+                    StructuralTerm::MathematicalBinary {
+                        operator: BinaryOperator::And,
+                        left,
+                        right,
+                    } if left.is_checked_predicate() && right.is_checked_predicate() => {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: false,
+                        })
+                    }
+                    StructuralTerm::ScalarBinary {
+                        references,
+                        operator: BinaryOperator::And,
+                        meaning,
+                        left,
+                        right,
+                    } if meaning.iter().all(|(primitive, domain)| {
+                        *primitive == PrimitiveType::Bool
+                            && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+                    }) && scalar_operand_is_observed(self.program, references[0], left)
+                        && scalar_operand_is_observed(self.program, references[1], right) =>
+                    {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: true,
+                        })
+                    }
+                    _ => None,
+                }
             }
 
             pub(crate) fn identity_equality_operands(
@@ -82482,41 +82603,54 @@ pub(crate) mod structural_judgment {
             if !self.specification_terms {
                 return false;
             }
-            // Predicate admission uses the selected public operation's denotation.
-            // A direct member still owns its declared call contract; choosing that
-            // contract must not replace this operation with a private body question.
             let lexical_owner = self
                 .program
                 .machine_holding_state(lexical_owner)
                 .map_or(lexical_owner, |machine| machine.symbol);
-            let signature = crate::requirement_contract_signature(
-                self.program,
-                lexical_owner,
-                &crate::CallSite::Expression {
-                    expression: Default::default(),
-                    call,
-                },
-            )
-            .map(|(_, signature)| signature)
-            .or_else(|| {
-                match super::specification_calls::selected_call_contract(
+            let site = crate::CallSite::Expression {
+                expression: Default::default(),
+                call,
+            };
+            let closed = |signature: &typed_trees::signature::StateSignature| {
+                crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
                     self.program,
-                    lexical_owner,
-                    call,
-                ) {
-                    Some(super::specification_calls::SelectedCallContract::Signature(
-                        signature,
-                    )) => Some(signature),
-                    _ => None,
+                    signature,
+                )
+            };
+            // A proposition may use a call as a value term only when the call is
+            // total and pure (domains.md, "eligible total, pure machine calls";
+            // contracts.md, "a checked observation-free, reach-free, crash-free,
+            // terminating invocation"). The site is resolved once here.
+            if let Some(member) =
+                super::specification_calls::direct_member_call(self.program, lexical_owner, site)
+            {
+                // The call names one implementation member, which is an ordinary
+                // machine. It has the closed contract it inherits from its
+                // requirement; failing that, it is judged below exactly as a
+                // free machine is, by its own checked application.
+                if closed(member.requirement) {
+                    return true;
                 }
-            });
-            if let Some(signature) = signature {
-                return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program, signature,
-                );
-            }
-            if call.static_requirement_dispatch.is_some() {
-                return false;
+            } else {
+                // Any other selected operation is judged by its public contract
+                // alone: a binder's selection supplies no body to consult.
+                let signature =
+                    match super::specification_calls::selected_contract_past_direct_member(
+                        self.program,
+                        lexical_owner,
+                        site,
+                    ) {
+                        Some(super::specification_calls::SelectedCallContract::Signature(
+                            signature,
+                        )) => Some(signature),
+                        _ => None,
+                    };
+                if let Some(signature) = signature {
+                    return closed(signature);
+                }
+                if call.static_requirement_dispatch.is_some() {
+                    return false;
+                }
             }
             let target =
                 super::structural_terms::structural_call_target(self.program, lexical_owner, call);
@@ -85746,7 +85880,7 @@ pub(crate) mod type_consequences {
                         let Some(binary) = program.expression_table.binary_node(expression) else {
                             continue;
                         };
-                        let relevant = !definition.where_facts.is_empty()
+                        let relevant = !definition.requires_facts.is_empty()
                             || crate::expression_result_type_reference(
                                 program,
                                 machine,
@@ -86318,7 +86452,7 @@ pub(crate) mod type_consequences {
             })
             || crate::field_domains::readable_nominal_definition(program, reference).is_some_and(
                 |definition| {
-                    relevant(definition.where_facts)
+                    relevant(definition.requires_facts)
                         || definition
                             .generic_instance
                             .and_then(|application| {
@@ -86329,7 +86463,7 @@ pub(crate) mod type_consequences {
                                 };
                                 program.unique_data_definition_by_symbol(*base_symbol)
                             })
-                            .is_some_and(|template| relevant(template.where_facts))
+                            .is_some_and(|template| relevant(template.requires_facts))
                         || program
                             .data_members(definition)
                             .iter()
@@ -86342,7 +86476,7 @@ pub(crate) mod type_consequences {
                                     )
                                 }
                                 typed_trees::data::DataMember::Variant(variant) => {
-                                    !variant.where_facts.is_empty()
+                                    !variant.requires_facts.is_empty()
                                         || program.data_payload_fields(variant).iter().any(
                                             |field| {
                                                 type_carries_predicate_context(
@@ -88707,7 +88841,20 @@ pub(crate) mod structural_terms {
             if cast.form.recast_access() != Some(language_semantics::ReferenceAccess::Shared) {
                 return None;
             }
-            if !super::scalar_operand_is_observed(program, source, &value) {
+            // A shared recast reads the place it borrows, so its operand term
+            // can arrive as the borrow's shared observation (`&f32` over the
+            // scalar) while `source` names the borrowed carrier (`f32`). That
+            // observation holds exactly the scalar, so it is observed for the
+            // recast; the representation below normalizes through the shell.
+            let borrowed_observation = crate::reference_shell(program, source).is_none()
+                && super::shared_inline_observation_type(program, &value).is_some_and(|observed| {
+                    crate::reference_shell(program, observed).is_some_and(|shell| {
+                        shell.access == language_semantics::ReferenceAccess::Shared
+                            && crate::declared_carriers_match(program, source, shell.referee)
+                    })
+                });
+            if !borrowed_observation && !super::scalar_operand_is_observed(program, source, &value)
+            {
                 return None;
             }
             let source_carrier = match crate::reference_shell(program, source) {

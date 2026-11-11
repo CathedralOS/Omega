@@ -17426,6 +17426,7 @@ pub(crate) mod structural_catalog {
 
             fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,

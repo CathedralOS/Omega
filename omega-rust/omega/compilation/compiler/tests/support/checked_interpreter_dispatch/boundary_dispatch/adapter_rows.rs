@@ -46,7 +46,7 @@ pub(crate) enum AdapterReceiver {
 }
 
 /// A selected requirement that declares local generic binders but cannot
-/// produce dispatch rows: either it declares no complete finite `where`
+/// produce dispatch rows: either it declares no complete finite `requires`
 /// family, or the selected provider's checked specializations do not cover
 /// every declared tuple. Ineligibility is individual: the requirement
 /// supplies no dispatch row, sibling requirements still settle, and a call
@@ -273,7 +273,7 @@ fn resolve_template_adapter_rows(
         };
 
     // Requirement-local binders make this a family of rows keyed by canonical
-    // value tuple, not one exact overload. The signature's `where` clause
+    // value tuple, not one exact overload. The signature's `requires` clause
     // must declare the complete finite roster explicitly.
     if !typed.state_signature_type_parameters(signature).is_empty() {
         return resolve_family_adapter_row(
@@ -636,7 +636,7 @@ fn resolve_family_adapter_row(
 
     let (adapter, template_entry) = planned_checked_adapter(typed, plan, row, machine_identity)?;
     // A family provider must be generic over exactly the requirement's
-    // enumerable value binders; other binder kinds have no `where` equality
+    // enumerable value binders; other binder kinds have no `requires` equality
     // to close them and mixed static arguments cannot key a value tuple.
     let provider_parameters = typed.machine_type_parameters(adapter);
     let provider_value_parameters = provider_parameters

@@ -428,7 +428,7 @@ mod guards {
     /*
         CASE-CONSTRAINTS (ch12): on the matched branch a case-membership guard
         (`subject in Type::Case`, lowered to `subject == Type::Case`) contributes
-        the selected case's `where` propositions, substituted onto the exact
+        the selected case's `requires` propositions, substituted onto the exact
         subject -- matching an established constrained case is how its
         constraints become arm-local facts (wiki/spec/language/patterns.md). The
         clause's payload and common-field names rebase to `subject.<field>`
@@ -483,7 +483,7 @@ mod guards {
                 continue;
             };
             let subject = binary.left;
-            if variant.where_facts.is_empty() {
+            if variant.requires_facts.is_empty() {
                 continue;
             }
             let Some(place) =
@@ -515,14 +515,14 @@ mod guards {
                     ));
                 }
             }
-            for offset in 0..variant.where_facts.count() {
+            for offset in 0..variant.requires_facts.count() {
                 let fact_handle = Handle::from_parts(
                     variant
-                        .where_facts
+                        .requires_facts
                         .start()
                         .arena_index()
                         .saturating_add(offset),
-                    variant.where_facts.start().generation(),
+                    variant.requires_facts.start().generation(),
                 );
                 let Some(fact_expression) = program.proof_facts.get(fact_handle).as_expression()
                 else {

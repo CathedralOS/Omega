@@ -23,6 +23,7 @@ mod package_compilation;
 mod package_review;
 mod product_batch;
 mod target_preparation;
+mod test_roots;
 
 pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,

@@ -47,7 +47,7 @@ pub mod declarations {
             pub properties: DataProperties,
             pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
             pub quotient: Option<QuotientDefinition>,
-            pub where_facts: HandleSpan<crate::domain::ProofFact>,
+            pub requires_facts: HandleSpan<crate::domain::ProofFact>,
             pub zero_gated: bool,
             pub retired_identities: Vec<u64>,
             pub members: HandleSpan<DataMember>,
@@ -234,7 +234,7 @@ pub mod declarations {
             pub symbol: SymbolHandle,
             pub name: DiagnosticName,
             pub payload: HandleSpan<DataField>,
-            pub where_facts: HandleSpan<crate::domain::ProofFact>,
+            pub requires_facts: HandleSpan<crate::domain::ProofFact>,
             pub retired_payload_identities: Vec<u64>,
         }
     }

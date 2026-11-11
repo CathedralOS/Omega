@@ -1351,6 +1351,17 @@ pub mod product_operand {
                         .map(move |requirement| (requirement.symbol, definition.is_public))
                 })
                 .collect(),
+            ProductOperandKind::TestRequirement => program
+                .traits()
+                .iter()
+                .filter(|definition| !definition.is_boundary)
+                .flat_map(|definition| {
+                    program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .map(move |requirement| (requirement.symbol, definition.is_public))
+                })
+                .collect(),
             ProductOperandKind::Data => program
                 .data_definitions()
                 .iter()

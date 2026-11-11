@@ -35,6 +35,7 @@
 #![forbid(unsafe_code)]
 
 pub use product::assumed_bindings;
+pub use product::test_groups;
 mod const_generic_expressions;
 mod const_initializers;
 pub(crate) mod build_time_evaluation {

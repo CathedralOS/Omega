@@ -94,13 +94,13 @@ machine read_frame<'frame, 'buffer>(source: &'frame Frame<'buffer>) -> Result<Pa
 trait BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.value == request.value
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64;
 }
 FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.value == request.value
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64
     {
         let encoded: Result<Frame<'buffer>, Failure<'buffer>> =
@@ -130,7 +130,7 @@ machine selected_round_trip<'buffer, Selected satisfies BufferedRoundTrip<'buffe
     request: Request<'buffer>
 ) -> Result<Request<'buffer>, Failure<'buffer>>
 requires request.output.len >= 3u64
-ensures (result in Result::Ok) && result.value.value == request.value
+ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64
 { Selected::round_trip(request) }
 
@@ -146,7 +146,7 @@ requires output.len >= 3u64
         Result::Ok { value as restored } -> consume(restored, expected, capacity)
     }
     machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
-    requires restored.value == expected
+    requires core::Identity<Pair>(restored.value, expected)
     requires restored.output.len >= 3u64
     {
         let bytes: bool = restored.output[0u64] == 165u8
@@ -157,7 +157,7 @@ requires output.len >= 3u64
     }
     // Returning this completed result preserves its value and borrowed output.
     machine carry_answer(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> Result<Request<'buffer>, Failure<'buffer>>
-    ensures result == incoming
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result, incoming)
     { incoming }
 }
 
@@ -205,7 +205,7 @@ requires output.len >= 3u64
     }
     // Returning this completed result preserves its value and borrowed output.
     machine carry_answer(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> Result<Request<'buffer>, Failure<'buffer>>
-    ensures result == incoming
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result, incoming)
     { incoming }
 }
 

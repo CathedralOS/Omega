@@ -170,6 +170,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             structural: Some(LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,

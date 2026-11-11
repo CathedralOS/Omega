@@ -29,6 +29,7 @@ mod expressions;
 mod machine;
 mod places;
 mod statements;
+mod subjects;
 mod transitions;
 mod types;
 
@@ -48,6 +49,13 @@ pub(crate) struct Program<'t> {
     pub signatures: IdTable<MachineId, Signature>,
     /// Every direct call read so far, as (caller, callee).
     calls: Vec<(MachineId, MachineId)>,
+    /// Whether this is a generic check form: the entry's implementation
+    /// parameters stay rigid, and a call through one names the requirement.
+    rigid: bool,
+    /// The machines that are a requirement's contract with no body.
+    pub requirements: Vec<MachineId>,
+    /// Every call through an implementation parameter read so far.
+    pub selections: Vec<crate::Selected>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -99,12 +107,15 @@ fn span<'a, T: Default>(
         .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
-    pub fn new(typed: &'t TypedTrees) -> Self {
+    pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             calls: Vec::new(),
+            rigid,
+            requirements: Vec::new(),
+            selections: Vec::new(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -175,7 +186,7 @@ mod tests {
     fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let refusal = program
             .expression(machine(), &[], handle, None)
             .unwrap_err();
@@ -246,7 +257,7 @@ mod tests {
     #[test]
     fn a_call_cycle_is_refused_as_recursion() {
         let typed = TypedTrees::default();
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         for _ in 0..3 {
             program.symbols.push(SymbolHandle::invalid());
         }
@@ -304,7 +315,7 @@ mod tests {
         let spelled = name(SymbolHandle::invalid());
         let mine = name(owner);
         let theirs = name(other);
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
@@ -413,7 +424,7 @@ mod tests {
                     subject: truth,
                     ..Default::default()
                 }));
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         assert_eq!(
             program
                 .expression(machine(), &[], scalar_match, None)
@@ -503,7 +514,7 @@ mod tests {
             assignable: true,
             homed: false,
         }];
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
             program
                 .assignment(
@@ -562,6 +573,7 @@ mod tests {
                         is_operand_capture: false,
                         relevance: language_core::BindingRelevance::Relevant,
                         reflected_query_origin: None,
+                        ..Default::default()
                     },
                 )
                 .map(drop)
@@ -615,6 +627,134 @@ mod tests {
         );
     }
 
+    /// `let { a, b as _ } = p;`: the marker is served when its roster names
+    /// every field of the subject's record by symbol, bound or waived alike.
+    /// A roster that omits a field, a row without a field symbol, and a roster
+    /// resolved against no record or another one are each refused, whatever
+    /// the rows are spelled.
+    #[test]
+    fn a_record_pattern_is_covered_by_field_symbols_never_by_spellings() {
+        use semantic_vocabulary::StructuralTypeId;
+        use typed_trees::expression::{MatchFieldAction, TableMatchField};
+        use typed_trees::name::Identifier;
+        use typed_trees::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Local, SymbolNameRef::Static("p")),
+                (SymbolKind::Data, SymbolNameRef::Static("Point")),
+                (SymbolKind::Data, SymbolNameRef::Static("Other")),
+            ],
+        );
+        let local = children.handles().next().unwrap();
+        let point = children.handles().nth(1).unwrap();
+        let other = children.handles().nth(2).unwrap();
+        let fields = builder.insert_children(
+            point,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("a")),
+                (SymbolKind::Field, SymbolNameRef::Static("b")),
+            ],
+        );
+        let (a, b) = (fields.handle_at(0), fields.handle_at(1));
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("p"));
+        let subject = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: local,
+                ..TableNamePath::default()
+            }));
+        let literal = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let row = |field_symbol, member: &str, bound: bool| TableMatchField {
+            component: language_core::PatternComponent::Fields,
+            member: Identifier::generated(member),
+            field_symbol,
+            action: if bound {
+                MatchFieldAction::Bind(Identifier::generated(member))
+            } else {
+                MatchFieldAction::Waive
+            },
+        };
+        let mut roster =
+            |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
+        let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
+        let partial = roster(vec![row(a, "a", true)]);
+        let spelled = roster(vec![
+            row(a, "a", true),
+            row(SymbolHandle::invalid(), "b", true),
+        ]);
+        let foreign = roster(vec![
+            row(a, "a", true),
+            row(b, "b", true),
+            row(other, "c", false),
+        ]);
+        let slots = [Slot {
+            symbol: local,
+            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            assignable: false,
+            homed: false,
+        }];
+        let mut program = Program::new(&typed, false);
+        program.record_sources.push(places::RecordSource {
+            declaration: point,
+            fields: vec![a, b],
+            cases: Vec::new(),
+        });
+        let mut read = |pattern_subject, pattern_fields, initial_value| {
+            program.record_pattern(
+                machine(),
+                &slots,
+                &TableLocalData {
+                    role: language_core::LocalBindingRole::RecordPattern,
+                    initial_value,
+                    pattern_fields,
+                    pattern_subject,
+                    ..Default::default()
+                },
+            )
+        };
+        assert_eq!(read(point, full, subject), Ok(()));
+        let mut detail = |pattern_subject, pattern_fields, initial_value| {
+            read(pattern_subject, pattern_fields, initial_value)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            detail(point, partial, subject),
+            "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, spelled, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(point, foreign, subject),
+            "spelling record pattern field without a symbol"
+        );
+        assert_eq!(
+            detail(SymbolHandle::invalid(), full, subject),
+            "spelling record pattern without a resolved subject"
+        );
+        assert_eq!(
+            detail(other, full, subject),
+            "typing record pattern resolved against another record"
+        );
+        assert_eq!(
+            detail(point, full, literal),
+            "statement record pattern over a value that is not a place"
+        );
+    }
+
     /// A type is `u32` by its builtin slot. A declaration spelled `u32` is a
     /// different symbol and is refused as nominal; a `Named` type with no
     /// symbol is refused as a spelling.
@@ -650,7 +790,7 @@ mod tests {
                 access: ReferenceAccess::Shared,
                 lifetime: None,
             });
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         assert_eq!(
             program.scalar_type(machine(), builtin),
             Ok(ScalarType::Integer(

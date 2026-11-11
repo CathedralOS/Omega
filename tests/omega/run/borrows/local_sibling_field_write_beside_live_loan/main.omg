@@ -1,0 +1,18 @@
+// A write to one field of a local record leaves a live loan of its sibling
+// field intact: `s.b = 5` writes only `s.b`, so the exclusive loan of `s.a`
+// stays valid and the later write through it lands in `s.a`.
+//
+// Expected exit: 0
+data Pair { a: i64; b: i64; }
+machine put(target: &mut i64) { target = 3; }
+machine main() crashes Trap {
+    let mut s: Pair;
+    s.a = 1;
+    s.b = 2;
+    let loaned: &mut i64 = &mut s.a;
+    s.b = 5;
+    put(loaned);
+    transition s.a == 3 && s.b == 5 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

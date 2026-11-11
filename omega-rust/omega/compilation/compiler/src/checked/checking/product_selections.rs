@@ -81,6 +81,7 @@ pub(super) fn admit(
     computed.config.service_audits = admitted.declarations.service_audits;
     computed.config.assumed_bindings = admitted.declarations.assumed_bindings;
     computed.config.wire_compatibility_demands = admitted.declarations.wire_demands;
+    computed.config.test_groups = admitted.declarations.test_groups;
     computed.config.behavior_exclusions = admitted.exclusions;
     Ok(())
 }

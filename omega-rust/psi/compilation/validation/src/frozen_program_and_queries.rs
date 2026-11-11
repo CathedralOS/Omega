@@ -1680,10 +1680,22 @@ pub mod queries {
             collect_selected_program_references,
         };
 
+        /*
+            Project the program a Build activation checks and executes
+            (wiki/spec/build/validation_subjects.md#orchestration). Its roots are
+            the Build entry, the declarations the activation selects, and every
+            Build-scope declaration authored in a subject source; everything
+            else enters only as their closure. Executing a dependency's Build
+            (the toolchain core Build that settles provider defaults on every
+            compile, for example) therefore checks what that Build reaches and
+            never promotes the dependency's other Build-scope declarations to
+            subjects.
+        */
         pub fn project_build_program(
             original: &dyn crate::CheckingInput,
             entry: SymbolHandle,
             selected_declarations: &[SymbolHandle],
+            is_subject: impl Fn(&source::SourceFile) -> bool,
         ) -> Result<TypedTrees, Vec<Diagnostic>> {
             let instances = instantiated_declarations(original);
             let is_generated = |symbol| is_derived_declaration(original, &instances, symbol);
@@ -1721,6 +1733,16 @@ pub mod queries {
                         .and_then(|span| original.symbols.source_file(span))
                         .is_some_and(|file| file.dependency_scope == DependencyScope::Build)
             };
+            let is_subject_build_declaration = |symbol| {
+                symbol == entry
+                    || original
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .and_then(|span| original.symbols.source_file(span))
+                        .is_some_and(|file| {
+                            file.dependency_scope == DependencyScope::Build && is_subject(file)
+                        })
+            };
             let generated_methods = original
                 .machines()
                 .iter()
@@ -1738,7 +1760,7 @@ pub mod queries {
                     if selected.contains(symbol) {
                         return true;
                     }
-                    is_build_scope(symbol)
+                    is_subject_build_declaration(symbol)
                         && !is_generated(symbol)
                         && (original
                             .machine(symbol)
@@ -1824,6 +1846,106 @@ pub mod queries {
             });
             program.excluded_authored_selection_occurrences = excluded.into();
             program
+        }
+
+        /*
+            Narrow a product program to its validation subjects before checking
+            (wiki/spec/build/validation_subjects.md). What stays: every
+            declaration authored in a subject source, the declarations the Build
+            demands (product roots and its selections), and whatever those
+            reference. A dependency declaration nothing reaches is removed
+            rather than left unchecked, so no later stage can rely on it.
+
+            Dispatch chooses among conformances and methods after this point, so
+            every conformance of a reached trait and every method of a reached
+            data type stays. Operator resolution likewise chooses among every
+            operator and token-bound machine (a primitive `==` on `f32` selects
+            `Float::equal` by its token, not by a name the walker sees), so those
+            stay as candidates too.
+        */
+        pub fn project_subject_program(
+            original: &TypedTrees,
+            is_subject: impl Fn(&source::SourceFile) -> bool,
+            demanded: &[SymbolHandle],
+        ) -> TypedTrees {
+            let instances = instantiated_declarations(original);
+            let mut demanded = demanded.iter().copied().collect::<HashSet<_>>();
+            demanded.extend(
+                original
+                    .operators()
+                    .iter()
+                    .chain(original.machine_token_bindings())
+                    .map(|operator| operator.symbol)
+                    .filter(|symbol| symbol.is_valid()),
+            );
+            let domains = original
+                .tables
+                .domain_definitions
+                .span_or_empty(original.roots.domain_definitions);
+            // ponytail: keeps all conformances of a reached trait, not only the
+            // selected ones. Narrow it once selection is known before checking.
+            let children = original
+                .machines()
+                .iter()
+                .filter(|machine| machine.attached_data_symbol.is_valid())
+                .map(|machine| (machine.attached_data_symbol, machine.symbol))
+                .chain(
+                    original
+                        .conformances()
+                        .iter()
+                        .map(|conformance| (conformance.trait_symbol, conformance.symbol)),
+                )
+                // A value's qualification names a domain of its data type
+                // without a reference the walker follows, so a reached data
+                // type keeps its domains.
+                .chain(
+                    domains
+                        .iter()
+                        .map(|domain| (domain.subject_symbol, domain.symbol)),
+                )
+                // A machine owned by a domain, such as its content projection
+                // `Granted::content`, names that domain only by its path in the
+                // same package; the checker finds it the same way. A reached
+                // domain keeps those machines.
+                .chain(
+                    original
+                        .machines()
+                        .iter()
+                        .filter(|machine| !machine.attached_data_symbol.is_valid())
+                        .filter_map(|machine| {
+                            let owner = machine.attached_data.as_ref()?.as_str();
+                            Some((machine, owner.rsplit("::").next().unwrap_or(owner)))
+                        })
+                        .flat_map(|(machine, owner)| {
+                            domains
+                                .iter()
+                                .filter(move |domain| {
+                                    let name = domain.name.as_str();
+                                    name.rsplit("::").next().unwrap_or(name) == owner
+                                        && original.symbols.same_symbol_source_package(
+                                            machine.symbol,
+                                            domain.symbol,
+                                        )
+                                })
+                                .map(move |domain| (domain.symbol, machine.symbol))
+                        }),
+                )
+                .collect::<Vec<_>>();
+            project_declarations(
+                original,
+                |symbol| {
+                    demanded.contains(&symbol)
+                        || (!is_derived_declaration(original, &instances, symbol)
+                            && original
+                                .symbols
+                                .symbol_provenance_source_span(symbol)
+                                .and_then(|span| original.symbols.source_file(span))
+                                .is_none_or(&is_subject))
+                },
+                |_| true,
+                &children,
+                None,
+            )
         }
 
         fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {

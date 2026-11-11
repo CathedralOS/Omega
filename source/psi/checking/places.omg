@@ -500,7 +500,7 @@ crashes Trap
 }
 
 // The value (one-based place) whose invariant window storing `place` opens:
-// the owner of a stored field when its data carries `where` facts, else
+// the owner of a stored field when its data carries `requires` facts, else
 // zero.
 public machine Checker::window_owner(checker: &Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) -> u64 in Trapping
 crashes Trap
@@ -592,7 +592,6 @@ crashes Trap
         ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle)
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
-        ValueBinding::PayloadField { field } -> payload_name(checker, field)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
         ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker)
         ValueBinding::DomainSubject { domain } -> subject(checker)
@@ -630,22 +629,13 @@ crashes Trap
         value
     }
 
-    // A `where` fact's field name: the value a construction writes there
+    // A `requires` fact's field name: the value a construction writes there
     // while its facts are decided, else the field of `fields_parent` while
     // that value's domain is installed.
     machine field_name(checker: &mut Checker, typing: &Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition checker.field_values && field >= checker.field_first {
             true -> written(checker, field - checker.field_first)
             _ -> installed(checker, typing, field, type_handle)
-        }
-    }
-
-    // A case fact's payload name: what the construction writes there, or the
-    // arm's binder for it, while the case's facts are decided or assumed.
-    machine payload_name(checker: &Checker, field: u64 in Trapping) -> Value {
-        transition checker.payload_values && field >= checker.payload_first {
-            true -> written(checker, checker.payload_slot + (field - checker.payload_first))
-            _ -> unbounded()
         }
     }
 

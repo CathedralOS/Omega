@@ -1,0 +1,26 @@
+// The positive twin with one producer changed: `second` can return 6. If the
+// checker let `first` cite `second`'s own `result == 5` for its tail call, the
+// unranked cycle would justify itself (`contracts.md`: "citation cycles cannot
+// justify themselves"). `first` must instead reach every producer, so its tail
+// call into `second` rejects along with `second`'s own exit.
+machine first(remaining: u64) -> u64
+ensures result == 5
+{
+    transition remaining > 0 {
+        true -> second(remaining - 1)
+        false -> 5
+    }
+}
+
+machine second(remaining: u64) -> u64
+ensures result == 5
+{
+    transition remaining > 0 {
+        true -> first(remaining - 1)
+        false -> 6
+    }
+}
+
+machine main() {
+    let observed: u64 = first(3);
+}

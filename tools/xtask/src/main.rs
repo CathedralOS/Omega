@@ -6,6 +6,7 @@
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask corpus [--filter <fragments>] [--record] [--native] [--list-pinned-regressions]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
+//! - `cargo xtask stage-coverage [--list <file>] [--json <path>] <program>... [-- <omega-args>...]`
 //! - `cargo xtask doctor [--json <path>]`
 //! - `cargo xtask focused-test [--validate | --prepare]`
 //! - `cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>]`
@@ -30,6 +31,7 @@ mod rules;
 #[path = "../../../omega-rust/omega/compilation/compiler/tests/support/runtime_oracles.rs"]
 mod runtime_oracles;
 mod samples;
+mod stage_coverage;
 mod worktree;
 
 use std::path::{Path, PathBuf};
@@ -53,6 +55,7 @@ commands:
   check-rules      Verify commit lane, PR provenance, ratchets, and corpus/board hygiene
   corpus           Run focused corpus verification, recording, or regression listing
   sample-gate      Run differential native + Terminal Psi sample verification
+  stage-coverage   Count the Psi 05, validation and Psi 06 lines a program runs
   qualify          Execute exact corpus and CLI selections with retained producer evidence
   doctor           Run host toolchain and repository preflight checks
   focused-test     Validate, prepare, or run a focused CI Rust test selection
@@ -76,6 +79,7 @@ fn main() -> ExitCode {
         "check-rules" => rules::run(&args),
         "corpus" => corpus::run(&args),
         "sample-gate" => samples::run(&args),
+        "stage-coverage" => stage_coverage::run(&args),
         "qualify" => qualification::run(&args),
         "doctor" => doctor::run(&args),
         "focused-test" => focused_test::run(&args),

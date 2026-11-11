@@ -131,6 +131,7 @@ mod tests {
 
     fn declaration() -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,

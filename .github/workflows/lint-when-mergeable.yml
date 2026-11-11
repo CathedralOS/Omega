@@ -1,0 +1,58 @@
+name: Lint when mergeable
+
+# `workspace-clippy` is a required check, but `repository-lint.yml` starts it
+# only on a push made while the pull request's base is `main`. A pull request
+# retargeted to `main` after its last push therefore had a green
+# `compiler-check`, no `workspace-clippy` at all, and a merge queue that waited
+# without saying why: #2305, #2309, #2321 and #2328 each lost about half an
+# hour to it. This workflow starts the lint at the two moments a pull request
+# can become mergeable without a push: its base changes to `main`, or it is
+# marked ready for review.
+#
+# It dispatches `repository-lint.yml` on the head branch instead of adding
+# `edited` to that workflow's own triggers. `edited` also fires for every title
+# and description change, and a job-level `if` cannot filter those out safely:
+# a skipped job still reports a `workspace-clippy` check, which branch
+# protection reads as passing, so a description edit would hide a failed lint.
+# Here a description edit skips an unrequired job and costs no runner.
+#
+# The dispatched run lints the branch head rather than the merge candidate.
+# The merge queue lints the exact candidate again before anything lands.
+on:
+  pull_request:
+    branches: [main]
+    types: [edited, ready_for_review]
+
+permissions:
+  actions: write
+  checks: read
+  contents: read
+
+jobs:
+  start-missing-lint:
+    # A fork's branch is not a ref this repository can dispatch on; a push to
+    # the fork's pull request still starts the lint in the ordinary way.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action == 'ready_for_review' || github.event.changes.base)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Start workspace-clippy unless this head already has it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # A draft pushed against main was already linted on that push, so
+          # marking it ready must not lint the same commit a second time. A
+          # cancelled run proved nothing and does not count.
+          existing=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=workspace-clippy&per_page=100" \
+            --jq '[.check_runs[] | select(.conclusion != "cancelled")] | length')
+          if [ "$existing" != "0" ]; then
+            echo "workspace-clippy already has $existing run(s) on $HEAD_SHA; nothing to start."
+            exit 0
+          fi
+          gh workflow run repository-lint.yml --repo "$REPO" --ref "$HEAD_REF"
+          echo "Started repository-lint.yml on $HEAD_REF ($HEAD_SHA)."

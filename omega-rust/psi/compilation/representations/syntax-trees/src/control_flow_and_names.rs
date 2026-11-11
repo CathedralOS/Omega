@@ -417,6 +417,10 @@ pub mod control_flow {
             pub initial_value: ExpressionHandle,
             pub is_mutable: bool,
             pub relevance: language_core::BindingRelevance,
+            /// The fields a record pattern names, in authored order, each
+            /// bound or waived. Empty on every local that is not a
+            /// `LocalBindingRole::RecordPattern` marker.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
         }
 
         #[derive(

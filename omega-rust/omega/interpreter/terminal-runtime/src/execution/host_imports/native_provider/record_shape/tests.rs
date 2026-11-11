@@ -37,6 +37,7 @@ fn field(id: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration
 
 fn record(id: u32, fields: Vec<StructuralFieldDeclaration>) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        requires: Vec::new(),
         quotient_carrier: None,
         id: type_id(id),
         identity: TerminalIdentityIndex(id),
