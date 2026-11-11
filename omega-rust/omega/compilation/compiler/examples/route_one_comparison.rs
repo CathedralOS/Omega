@@ -196,7 +196,10 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     let for_verdict = elaboration.clone();
     let mut without_branches = elaboration.clone();
     let mut intervals_only = elaboration.clone();
+    let mut consumer = elaboration.clone();
+    let discharge_started = Instant::now();
     let discharged = discharge_with(&mut elaboration, Knowledge::All);
+    let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
         Ok(discharged) => discharged,
@@ -209,6 +212,26 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     };
     let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
     let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
+    // Re-verifying the saved certificates in a consumer elaborated from the
+    // same typed trees: goal and hypotheses recomputed, no search.
+    let reverify_started = Instant::now();
+    let mut reverified = 0_usize;
+    for (machine, result) in discharged.machines.iter() {
+        for (obligation, verdict) in result.verdicts.iter() {
+            if let Ok(lowered_discharge::Discharged::Certificate(evidence)) = verdict
+                && lowered_discharge::reverify(
+                    &mut consumer,
+                    machine,
+                    obligation,
+                    &evidence.certificate,
+                )
+                .is_ok()
+            {
+                reverified += 1;
+            }
+        }
+    }
+    let reverify_us = reverify_started.elapsed().as_micros();
     let held = |run: &Option<lowered_discharge::Discharge>, machine, obligation| {
         run.as_ref()
             .and_then(|run: &lowered_discharge::Discharge| run.machines.get(machine))
@@ -368,7 +391,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
+        "{head}\troute={route}\troute_us={route_us}\tdischarge_us={discharge_us}\treverify_us={reverify_us}\treverified={reverified}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

@@ -96,6 +96,8 @@ pub enum Unpositioned {
     /// The block a call continues in after the edge that retires the homes
     /// of the record arguments it consumed.
     ArgumentRetirement,
+    /// The one call a conformance witness makes of the implementation.
+    ConformanceWitness,
 }
 
 impl SourceOrigin {
@@ -158,6 +160,29 @@ pub struct Elaboration {
     /// trees and its Terminal module carries none. A `DataDomain` obligation
     /// names its clause by position among these.
     pub domains: IdTable<StructuralTypeId, Vec<semantic_vocabulary::Proposition>>,
+    /// The machines that stand for a requirement instead of a body: the
+    /// rigid machine parameters of a generic check form (`lower_generic`).
+    /// Each has its formals, result and contract and no block. Empty for
+    /// every concrete module; a module that names one is never sealed,
+    /// encoded or run (generics.md: "Generic bodies use the abstract
+    /// requirement envelope").
+    pub requirements: Vec<MachineId>,
+    /// Every call through an implementation parameter that a static
+    /// application closed, with the member it selects.
+    pub selections: Vec<Selected>,
+}
+
+/// One call through an implementation parameter in a machine stage 04
+/// generated for a static application: which machine holds the call, the
+/// parameter and the requirement it was written against, and the member the
+/// application selected for it. All identities; nothing here is a spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Selected {
+    pub caller: MachineId,
+    pub parameter: SymbolHandle,
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub implementation: MachineId,
 }
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -244,7 +269,7 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// Any refusal refuses the whole compilation, because a module missing a
 /// machine the check claims would be a silent drop.
 pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<Elaboration> {
-    let mut program = read::Program::new(typed);
+    let mut program = read::Program::new(typed, false);
     let first = MachineId::new(1).expect("1 is nonzero");
     let Some((entry, others)) = compilation.entries.split_first() else {
         // A Terminal module names one entry machine, so a compilation that
@@ -261,7 +286,121 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
+    finish_reading(program, entry, IdTable::default())
+}
+
+/// Elaborates one machine and the closure of machines it calls, in discovery
+/// order: `entry` is `MachineId` 1. This is not what a compilation claims
+/// (`elaborate`): it is the closure of one machine, for a measurement or for
+/// carrying a generic body's proofs into one of its specializations. Any
+/// refusal refuses the whole closure.
+pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
+    elaborate_form(typed, entry, false)
+}
+
+/// Elaborates the generic check form of `template`, a machine whose only
+/// generic parameters are implementation parameters. Each parameter stays
+/// rigid: a call through one names the requirement, which is read for its
+/// contract and has no body (`lower_generic`). The result is checked once,
+/// against the requirements alone, and is never sealed, encoded or run.
+pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
+    elaborate_form(typed, template, true)
+}
+
+/// The declaration a machine was generated from, when stage 04 generated it
+/// to close a static application: the generic machine it specializes.
+pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
+    let states = typed
+        .machine_states
+        .span(typed.machine_by_symbol(machine)?.states)?;
+    let [state] = states else {
+        return None;
+    };
+    let declared = typed.symbols.get(state.symbol).generated_from;
+    if !declared.is_valid() {
+        return None;
+    }
+    Some(match typed.symbols.get(declared).kind {
+        symbols::SymbolKind::State => typed.symbols.get(declared).parent,
+        _ => declared,
+    })
+}
+
+/// Elaborates the conformance witness of `implementation` for `requirement`:
+/// machine 1 has the requirement's formals, result and contract, and its
+/// body is one call of the implementation with those formals, returning its
+/// result. Checking it is checking that the implementation refines the
+/// requirement (machines.md, "Machines and contract refinement"): its call
+/// requirements are the implementation's `requires` under the requirement's,
+/// and its guarantees the requirement's `ensures` under the implementation's.
+/// It is a statement to prove, not a program: nothing calls or runs it.
+pub fn elaborate_witness(
+    typed: &TypedTrees,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+    implementation: SymbolHandle,
+) -> Checked<Elaboration> {
+    let mut program = read::Program::new(typed, false);
+    let entry = program.witnessed(declaring_trait, requirement)?;
+    let callee = program.machine(implementation)?;
+    program.forwards(entry, callee);
+    let required =
+        terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
+    let supplied =
+        terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?;
+    if required.parameters != supplied.parameters || required.result != supplied.result {
+        return Err(refuse(
+            entry,
+            Construct::Machine,
+            Unserved::Typing("implementation signature differs from the requirement's"),
+        ));
+    }
+    let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
+    let call = Expression {
+        kind: ExpressionKind::Call {
+            callee,
+            arguments: required
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(slot, value_type)| Expression {
+                    kind: ExpressionKind::Slot(slot),
+                    result: Some(*value_type),
+                    source,
+                })
+                .collect(),
+        },
+        result: required.result,
+        source,
+    };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(Body {
+        slots: required.parameters.clone(),
+        statements: vec![match required.result {
+            Some(_) => Statement::Arm {
+                guard: None,
+                target: Target::Value(call),
+                source,
+            },
+            None => Statement::Evaluate(call),
+        }],
+    });
+    finish_reading(program, entry, bodies)
+}
+
+fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
+    let mut program = read::Program::new(typed, rigid);
+    let entry = program.machine(entry)?;
+    finish_reading(program, entry, IdTable::default())
+}
+
+/// Reads every body not yet in `bodies`, callees as they are discovered,
+/// and lowers the closure.
+fn finish_reading(
+    mut program: read::Program<'_>,
+    entry: MachineId,
+    mut bodies: IdTable<MachineId, Body>,
+) -> Checked<Elaboration> {
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
     while bodies.len() < program.symbols.len() {
@@ -276,8 +415,15 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
         bodies.push(body);
     }
     program.refuse_recursion()?;
-    let mut elaboration = lower_bodies(entry, &bodies, &program.signatures, &program.records)?;
+    let mut elaboration = lower_generic(
+        entry,
+        &bodies,
+        &program.signatures,
+        &program.records,
+        &program.requirements,
+    )?;
     elaboration.machines = program.symbols;
+    elaboration.selections = program.selections;
     Ok(elaboration)
 }
 
@@ -295,7 +441,42 @@ pub fn lower_bodies(
     signatures: &IdTable<MachineId, Signature>,
     records: &IdTable<StructuralTypeId, RecordType>,
 ) -> Checked<Elaboration> {
-    let outcomes = outcome::outcomes(bodies, signatures)?;
+    lower_generic(entry, bodies, signatures, records, &[])
+}
+
+/// `lower_bodies` for the generic check form: a generic body lowered once
+/// with each of its machine parameters left rigid. A machine listed in
+/// `requirements` is such a parameter. It has a signature, which is the
+/// requirement's contract, and no body: its row in `bodies` holds its
+/// formals as slots and no statement, and it lowers to a machine with no
+/// block. A call of it is an ordinary direct call, so the caller's
+/// obligations and knowledge are stated against the requirement's contract
+/// by the same route as any callee's.
+///
+/// A requirement that leaves `crashes` to its selected member (generics.md,
+/// "Requirements and conformance evidence": "omitted `crashes` defers to its
+/// published routes") publishes no route here, and the dependency has no
+/// row: the generic form then decides nothing about crashes through that
+/// call. Each specialization is a concrete module, where the selected
+/// member's own routes are read and a `crashes none` they break is refused.
+pub fn lower_generic(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+) -> Checked<Elaboration> {
+    for requirement in requirements {
+        let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
+        if !body.statements.is_empty() {
+            return Err(refuse(
+                *requirement,
+                Construct::Machine,
+                Unserved::Machine("requirement with a body"),
+            ));
+        }
+    }
+    let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
     let mut module = TerminalModule::for_entry(entry);
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
@@ -317,7 +498,14 @@ pub fn lower_bodies(
             )
         })?;
         let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-        let lowered = lower::machine(id, body, signatures, &outcomes, &declared.records)?;
+        let lowered = lower::machine(
+            id,
+            body,
+            signatures,
+            &outcomes,
+            &declared.records,
+            requirements.contains(&id),
+        )?;
         module.machines.push(lowered.machine);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
@@ -332,6 +520,8 @@ pub fn lower_bodies(
         sources,
         machines: IdTable::default(),
         domains,
+        requirements: requirements.to_vec(),
+        selections: Vec::new(),
     })
 }
 

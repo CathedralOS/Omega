@@ -81,6 +81,7 @@ pub(crate) fn machine(
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
+    requirement: bool,
 ) -> Checked<Lowered> {
     let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
     let mut lowering = Lowering {
@@ -184,6 +185,13 @@ pub(crate) fn machine(
             SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
         );
         lowering.published.push(published);
+    }
+    // A requirement is its formals, its result and its contract. It has no
+    // block: the entry block opened above for those identities is dropped.
+    if requirement {
+        lowering.blocks = IdTable::default();
+        lowering.sources.blocks = IdTable::default();
+        return lowering.finish(entry, formals, result);
     }
     for statement in &body.statements {
         lowering.statement(statement)?;
