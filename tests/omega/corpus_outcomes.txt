@@ -18119,6 +18119,8 @@ fail/recast/boundary_postcondition_wrong_backing_scalar rejected 2810ms expected
 	cannot prove index `main.source.count` is within length 8 in Main::main::main
 fail/recast/byte_record_field_predicate rejected 2262ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from Packet::main at statement 2: packet.bytes requires [u8; N]::Ascii
+fail/recast/captured_field_guard_overlapping_byte_write rejected 6388ms expected @28e377af6110
+	cannot prove requires contract for call consume from stamp: bytes[offset].pages <= 4503599627370495 && bytes[offset].base <= 18446744073709551615 - bytes[offset].pages * 4096 (needs fact `descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096`
 fail/recast/captured_guard_conjunction_missing_bound rejected 2106ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from inspect: offset <= 8 && bytes[offset].pages <= 4503599627370495 && bytes[offset].base <= 18446744073709551615 - bytes[offset].pages * 4096 (needs fact `offset <= 8 && descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `offset <= 8 && descriptor.pages <= 4503599627370495 && descriptor.base <= 18446744073709551615 - descriptor.pages * 4096`
 fail/recast/completed_view_does_not_establish_model rejected 2231ms expected @ccdb99ca2214
@@ -18268,6 +18270,8 @@ fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
 fail/recast/unbounded_offset_names_the_bound rejected 7663ms expected @ccdb99ca2214
 	machine `read` state `entry`: cannot bound the recast offset `off` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
+fail/recast/view_field_write_retires_backing_byte rejected 5954ms expected @28e377af6110
+	cannot prove requires contract for call need from t: bytes[24] == 0 (needs fact `bytes[24] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/write_footprint/call_result rejected 2983ms expected @ccdb99ca2214
 	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/write_footprint/disjoint rejected 3384ms expected @ccdb99ca2214
@@ -27778,6 +27782,7 @@ pass/recast/callee_returned_interior_view_exit incomplete 3748ms check-target:ma
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 8
 pass/recast/callee_returned_mutable_view_exit checked 2893ms check-target:macos_arm64 @1f01fe627c9b
 pass/recast/callee_returned_scalar_interpretation_exit checked 3272ms check-target:macos_arm64 @ccdb99ca2214
+pass/recast/captured_field_guard_disjoint_byte_write checked 9470ms check-target:macos_arm64 @28e377af6110
 pass/recast/case_payload_member_view_compile checked 2313ms @ccdb99ca2214
 pass/recast/completed_view_preserves_independent_facts checked 3547ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/element_bits_view_compile checked 2378ms @ccdb99ca2214

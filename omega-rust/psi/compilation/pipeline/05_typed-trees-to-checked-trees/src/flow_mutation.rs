@@ -791,7 +791,8 @@ mod local_origins {
                     representation: None,
                     ..source.clone()
                 };
-                let (place, _) = structural_origin(program, state, statement_index, &backing)?;
+                let (mut place, _) = structural_origin(program, state, statement_index, &backing)?;
+                validation::completed_storage::widen_element_anchor(&mut place.segments);
                 return Some((place, OriginPrecision::Enclosing));
             }
             if source.representation.is_some() {
@@ -1274,11 +1275,66 @@ mod local_origins {
         program: &dyn ::validation::CheckingInput,
         state: &State,
         statement_index: usize,
+        places: Vec<CanonicalPlace>,
+        origins: &[LocalWriteOrigin],
+    ) -> Option<Vec<CanonicalPlace>> {
+        close_storage_places_over_written_origins(
+            program,
+            state,
+            statement_index,
+            places,
+            &[],
+            origins,
+        )
+    }
+
+    /*
+        `authored` names the places an assignment wrote through its own spelling
+        (`view.flags`). Writing a strict descendant of an alias changes only that
+        descendant of the alias's referent: record fields are disjoint storage, so
+        sibling facts under that alias name survive. Every other alias of the same
+        physical storage still closes over the complete physical footprint.
+    */
+    pub(crate) fn close_storage_places_over_written_origins(
+        program: &dyn ::validation::CheckingInput,
+        state: &State,
+        statement_index: usize,
         mut places: Vec<CanonicalPlace>,
+        authored: &[CanonicalPlace],
         origins: &[LocalWriteOrigin],
     ) -> Option<Vec<CanonicalPlace>> {
         let storage = places.clone();
         let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
+        let within = |written: &CanonicalPlace, alias: &CanonicalPlace| {
+            written.root == alias.root
+                && written.segments.len() > alias.segments.len()
+                && written.segments.starts_with(&alias.segments)
+        };
+        let alias_of = |origin: &LocalWriteOrigin| {
+            canonical_place_from_symbol(origin.local_symbol).map(|mut alias| {
+                alias.segments.extend_from_slice(&origin.local_segments);
+                alias
+            })
+        };
+        /*
+            An authored place only stands in for an alias it lies strictly within;
+            a spelling that crosses no such alias adds nothing to the footprint.
+        */
+        let authored = authored
+            .iter()
+            .filter(|written| {
+                origins.iter().any(|origin| {
+                    origin.source.is_some()
+                        && alias_of(origin).is_some_and(|alias| within(written, &alias))
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for place in &authored {
+            if seen.insert(place.clone()) {
+                places.push(place.clone());
+            }
+        }
         for origin in origins {
             if origin
                 .source
@@ -1290,14 +1346,13 @@ mod local_origins {
             let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
             alias.segments.extend_from_slice(&origin.local_segments);
             if origin.source.is_none() {
-                let written_within = storage.iter().any(|written| {
-                    written.root == alias.root
-                        && written.segments.len() > alias.segments.len()
-                        && written.segments.starts_with(&alias.segments)
-                });
+                let written_within = storage.iter().any(|written| within(written, &alias));
                 if !written_within && seen.insert(alias.clone()) {
                     places.push(alias);
                 }
+                continue;
+            }
+            if authored.iter().any(|written| within(written, &alias)) {
                 continue;
             }
             let (source, precision) = origin_place(program, state, statement_index, origin)
@@ -3835,7 +3890,7 @@ pub(crate) fn assignment_requires_exclusive_access(
 pub(crate) use ceiling::linear_restoration_ceiling_regions;
 pub(crate) use ceiling::signature_ceiling_places;
 pub(crate) use local_origins::close_storage_places_over_aliases;
-pub(crate) use local_origins::close_storage_places_over_origins;
+pub(crate) use local_origins::close_storage_places_over_written_origins;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
 pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referent_origin};
