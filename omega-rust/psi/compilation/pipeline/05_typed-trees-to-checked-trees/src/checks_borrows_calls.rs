@@ -1602,7 +1602,10 @@ fn check_build_selection_receiver<'p>(
     let Some(operation) = expressions(program).call_node(commit.authored_expression) else {
         return;
     };
-    if !operation.build_selection.is_valid() || operation.target.as_str() == "prepare" {
+    // `prepare_tests` prepares a test-group registration on the Build's
+    // `tests` facet, the same exclusive-use preparation as `prepare`.
+    let is_preparation = |target: &str| matches!(target, "prepare" | "prepare_tests");
+    if !operation.build_selection.is_valid() || is_preparation(operation.target.as_str()) {
         return;
     }
     let request = expressions(program).build_selection_request(operation.build_selection);
@@ -1610,7 +1613,7 @@ fn check_build_selection_receiver<'p>(
     let receiver_preparation = arguments.first().and_then(|expression| {
         let preparation = program.expression_table.call_node(*expression)?;
         let retained = expressions(program).build_selection_request(preparation.build_selection)?;
-        if preparation.target.as_str() != "prepare" || Some(retained) != request {
+        if !is_preparation(preparation.target.as_str()) || Some(retained) != request {
             return None;
         }
         let receiver = expressions(program)

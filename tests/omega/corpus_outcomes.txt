@@ -19138,6 +19138,8 @@ fail/termination/wrapping_subject_unguarded_decrement rejected 3339ms expected @
 fail/termination/zero_local_does_not_decrease_rank rejected 1874ms expected @ccdb99ca2214
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/testing/registered_group_failing_test_refuses_build rejected 8807ms expected @557ef57441f8
+	test `addition_is_correct` in group `Tests::arithmetic` failed on the Psi interpreter engine: crashed with Trap (target `windows_x86_64`)
 fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccdb99ca2214
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 5081ms expected @911f6617ba9e
@@ -28905,6 +28907,7 @@ run/state_owned_nested_borrow checked 71041ms check-target:macos_arm64 @c3cb68d5
 run/state_shared_nested_backing checked 28142ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_indexed_call_result_exit checked 65257ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_store_selector_snapshot_exit checked 54937ms check-target:macos_arm64 @c3cb68d51f3f
+run/testing/registered_group_runs_on_both_engines checked 8931ms check-target:macos_arm64 @557ef57441f8
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
 run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7

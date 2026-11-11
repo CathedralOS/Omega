@@ -109,6 +109,7 @@ public boundary trait BuildProductOperations {
 // Their activation-local ticket is interpreted only at admitted call sites.
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none;
+    machine prepare_tests(tests: &BuildTests) -> u64 reaches none;
     machine await_provider(activation: u64) reaches none suspends;
     machine bind(activation: u64) reaches none;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches none;
@@ -206,6 +207,14 @@ public data ElfInterpreterSelection<'storage> {
     linux_arm64: &'storage [u8];
     linux_x86_64: &'storage [u8];
 }
+// Compiler-owned test registration facet (wiki/spec/build/testing.md).
+// `builder.tests.group<Requirement>()` registers one exact ordinary trait
+// machine requirement as a test group; its operand is a designated product
+// reference, never an executed call. `disabled` defaults to false, so a
+// zero-initialized Build never silently disables its registered groups.
+public data BuildTests {
+    disabled: bool;
+}
 // Stored views share an explicit backing lifetime. Opaque mutable boundaries
 // must promise output safety; an unnamed relation cannot imply preservation.
 public data Build<'storage> {
@@ -226,6 +235,7 @@ public data Build<'storage> {
     output: BuildOutput;
     log: BuildLog;
     product: BuildProduct;
+    tests: BuildTests;
 }
 public data PackageSelection {
     case Root;

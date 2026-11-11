@@ -920,6 +920,7 @@ mod product {
                         | super::BuildOperation::ServiceAudit
                         | super::BuildOperation::AssumedBindingContract
                         | super::BuildOperation::WireCompatibilityRequest
+                        | super::BuildOperation::TestGroupRegistration
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -1037,6 +1038,9 @@ mod product {
         BoundarySubject,
         Provider,
         Requirement,
+        // An ordinary (non-boundary) trait machine requirement: the exact
+        // identity a test group registers (wiki/spec/build/testing.md).
+        TestRequirement,
         Data,
         Representation,
         WireCompatibilityFact,
@@ -1054,6 +1058,7 @@ mod product {
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
                     Some(Role::Requirement)
                 }
+                (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
                 (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                     Some(Role::Data)
                 }
@@ -1069,9 +1074,10 @@ mod product {
                 Self::ProviderSelection
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract => count == 2,
-                Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => {
-                    count == 1
-                }
+                Self::ServiceExclusion
+                | Self::ServiceAudit
+                | Self::BoundaryAcceptance
+                | Self::TestGroupRegistration => count == 1,
                 Self::WireCompatibilityRequest => count >= 5,
                 _ => false,
             }
@@ -1888,6 +1894,9 @@ pub enum BuildOperation {
     IncludedSourceHandoff,
     LogWriteLine,
     NativeBinding,
+    // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
+    // exact trait machine requirement registered as a test group.
+    TestGroupRegistration,
 }
 pub fn is_unresolved_provider_selection_call(
     target: &str,
@@ -1912,10 +1921,11 @@ impl BuildOperation {
                 | Self::WireCompatibilityRequest
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract
+                | Self::TestGroupRegistration
         )
     }
 
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
@@ -1929,6 +1939,7 @@ impl BuildOperation {
         Self::IncludedSourceHandoff,
         Self::LogWriteLine,
         Self::NativeBinding,
+        Self::TestGroupRegistration,
     ];
 
     pub const fn authored_spelling(self) -> &'static str {
@@ -1946,6 +1957,7 @@ impl BuildOperation {
             Self::WireCompatibilityRequest => "require_wire_compatibility",
             Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
+            Self::TestGroupRegistration => "group",
         }
     }
 
@@ -1988,6 +2000,9 @@ impl BuildOperation {
                 AuthoredDeclarationSelectionIntrinsic::BuildIncludedSourceHandoff
             }
             Self::LogWriteLine => AuthoredDeclarationSelectionIntrinsic::BuildLogWriteLine,
+            Self::TestGroupRegistration => {
+                AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration
+            }
         }
     }
 }
@@ -2012,6 +2027,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildRepresentationSelection,
     BuildServiceExclusion,
     BuildServiceAudit,
+    BuildTestGroupRegistration,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,

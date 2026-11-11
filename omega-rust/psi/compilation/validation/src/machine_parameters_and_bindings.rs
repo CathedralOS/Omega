@@ -4778,6 +4778,7 @@ pub mod machine_parameters {
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::ServiceAudit
                         | BuildOperation::AssumedBindingContract
+                        | BuildOperation::TestGroupRegistration
                 )
             )
         {
