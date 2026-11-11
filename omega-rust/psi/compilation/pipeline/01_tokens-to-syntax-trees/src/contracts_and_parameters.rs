@@ -763,6 +763,13 @@ pub(crate) mod contracts {
                         ranking_range = clause_range;
                         continue;
                     }
+                    if input.at_retired_ranking_block() {
+                        return Err(input.error_here(
+                            "the `terminates { decreases ...; }` block form is retired (decision 23): \
+                 attach the ranking witness to the guarantee as `terminates by \
+                 <subjects> [-> View] [in <range>]`",
+                        ));
+                    }
                     terminates_guarantee = true;
                     continue;
                 }
