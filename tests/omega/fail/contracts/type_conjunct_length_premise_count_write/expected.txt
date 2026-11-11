@@ -1,0 +1,2 @@
+cannot prove requires contract for call record from tag
+context.count < context.fields.len

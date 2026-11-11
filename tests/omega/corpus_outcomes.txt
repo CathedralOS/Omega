@@ -3775,6 +3775,9 @@ fail/contracts/template_call_retires_known_borrowed_field rejected 5250ms expect
 	cannot prove ensures contract for exit from after_call at statement 1: result == 7
 fail/contracts/transition_argument_effects_reject_old_observation rejected 1317ms expected @d2f3e99f1e08
 	cannot prove requires contract for call finish from main: cell.value == 7 (needs fact `observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/type_conjunct_length_premise_count_write rejected 6013ms expected @3783687b9cbf
+	cannot prove requires contract for call record from tag: context.count < context.fields.len (needs fact `context.count < context.fields.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call record from tag$specialized$d39846aa7d511e40$0$4666: context.count < context.fields.len (needs fact `context.count < context.fields.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/undischarged_contract_entailment rejected 13880ms expected @1e29a538216e
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/contracts/unproved_branch_is_not_contradiction rejected 1905ms expected @6be568cdb4e5
@@ -19783,7 +19786,7 @@ fail/types/unknown_machine_binder_carrier rejected 11102ms expected @ccdb99ca221
 	machine `scale` parameter `factor` references unknown data type `Ratio`
 fail/types/usize_rejected rejected 7636ms expected @ccdb99ca2214
 	data `Main` field `n` references unknown data type `usize`
-fail/wire/codec_reference_array_overlapping rejected 48035ms expected @1e29a538216e
+fail/wire/codec_reference_array_overlapping rejected 22606ms expected @3783687b9cbf
 	cannot prove index `index` is within length 4 in main::entry
 fail/wire/codec_shared_cursor rejected 24194ms expected @32c7663ba3ad
 	argument `written` for state `encode` is declared `&mut` (`&mut u64`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -21461,6 +21464,7 @@ pass/contracts/static_type_requires_prior_call_exit checked 3740ms check-target:
 pass/contracts/strict_clause_terminated_headers checked 2600ms @ccdb99ca2214
 pass/contracts/terminal_contract checked 3686ms @ccdb99ca2214
 pass/contracts/transition_argument_effects_before_later_observation_exit checked 2448ms check-target:macos_arm64 @d2f3e99f1e08
+pass/contracts/type_conjunct_length_premise_sibling_write_exit checked 7579ms check-target:macos_arm64 @3783687b9cbf
 pass/control_flow/affine_call_result_state_transfer_exit checked 16844ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/affine_case_nonreturning_loop checked 5749ms check-target:macos_arm64 @3e5750be47b9
 pass/control_flow/affine_declared_home_nonreturning_loop checked 26381ms check-target:macos_arm64 @4815ea579d91
@@ -28747,7 +28751,7 @@ pass/types/storage_address_aggregate checked 2207ms @ccdb99ca2214
 pass/types/storage_address_core_name_shadowed_exit checked 6437ms check-target:macos_arm64 @8e2d8b56d565
 pass/versioning/migration_generic_trait checked 50465ms check-target:macos_arm64 @1e29a538216e
 pass/versioning/runtime_version_migration_exit checked 52430ms check-target:macos_arm64 @1e29a538216e
-pass/wire/codec_reference_array_exit checked 53509ms check-target:macos_arm64 @1e29a538216e
+pass/wire/codec_reference_array_exit checked 25286ms check-target:macos_arm64 @3783687b9cbf
 pass/wire/codec_state_local_types_exit checked 47475ms check-target:macos_arm64 @1e29a538216e
 pass/wire/fixed_vec_member_through_qualified_path checked 45353ms @1e29a538216e
 pass/wire/fixed_vec_wire_member checked 41750ms @1e29a538216e

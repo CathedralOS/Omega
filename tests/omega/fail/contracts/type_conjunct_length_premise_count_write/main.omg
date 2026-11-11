@@ -1,0 +1,60 @@
+// Negative twin of type_conjunct_length_premise_count_write: the call
+// now writes `context.count` itself, so the entry conjunct
+// `context.count < context.fields.len` no longer describes the current
+// count and cannot prove `record`'s precondition.
+data Context {
+    storage: &mut [u8];
+    fields: &mut [u64];
+    used: u64;
+    count: u64;
+}
+data Written {
+    case Exhausted;
+    case Encoded(next: u64);
+}
+machine poke(bytes: &mut [u8], start: u64) -> Written {
+    transition start < bytes.len {
+        true -> store(bytes, start)
+        false -> Written::Exhausted
+    }
+    machine store(bytes: &mut [u8], start: u64) -> Written
+    requires start < bytes.len
+    {
+        bytes[start] = 7u8;
+        Written::Encoded { next: start + 1u64 }
+    }
+}
+machine poke_count(count: &mut u64, start: u64) -> Written {
+    count = start;
+    Written::Encoded { next: start }
+}
+machine tag<Kind>(context: &mut Context, value: &Kind)
+requires context.count < context.fields.len && Kind == u8
+{
+    let start: u64 = context.used;
+    transition poke_count(&mut context.count, start) {
+        Written::Encoded { next } -> record(context, next)
+        _ -> skip(context)
+    }
+    machine record(context: &mut Context, next: u64)
+    requires context.count < context.fields.len
+    {
+        context.fields[context.count] = next;
+        context.count = context.count + 1u64;
+        context.used = next;
+    }
+    machine skip(context: &mut Context) { context.used = 0u64; }
+}
+machine main() {
+    let mut bytes: [u8; 4] = [0u8, 0u8, 0u8, 0u8];
+    let mut ends: [u64; 2] = [0u64, 0u64];
+    let mut context: Context = Context { storage: &mut bytes[..], fields: &mut ends[..], used: 0u64, count: 0u64 };
+    let value: u8 = 3u8;
+    tag<u8>(&mut context, &value);
+    transition context.count == 1u64 && context.used == 1u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
