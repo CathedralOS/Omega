@@ -67,30 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Does explicit landing apply at a proof-level Int peer?
-
-Decision name: `explicit-landing-proof-int-peer`.
-
-An anonymous calculation whose exact history holds a fractional intermediate,
-used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
-in an `ensures` clause), lands as a mathematical integer. Should it reject like
-a fixed-integer destination, and if so how does an author acknowledge it?
-
-- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-  makes implicit integer landing an error and names `as T` with an integer
-  destination `T` as the acknowledgement; it does not say whether the
-  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
-- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
-  lists "proof integer peers" in its sweep and also says "proof-level
-  mathematical operations retain their rules".
-- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
-  program: the contract prover then cannot show the divisor nonzero
-  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
-
-Until answered, the compiler rejects every fixed-integer implicit landing and
-keeps the proof-`Int` peer as a warning.
-
-### Q2 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
 
 Decision name: `unproved-goal-form-publication`.
 
@@ -126,7 +103,7 @@ has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
 
-### Q3 - May a Build program select a provider for a requirement it declares itself?
+### Q2 - May a Build program select a provider for a requirement it declares itself?
 
 Decision name: `build-declared-requirement-provider`.
 
@@ -160,7 +137,7 @@ The question:
 
 Until answered the fixture stays red and the compiler selects nothing.
 
-### Q4 - Who approves a new rule in the proof kernel?
+### Q3 - Who approves a new rule in the proof kernel?
 
 Decision name: `kernel-rule-admission`.
 
@@ -198,7 +175,7 @@ The question:
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
 
-### Q5 - May a caller rely on what a callee's body returns beyond its `ensures`?
+### Q4 - May a caller rely on what a callee's body returns beyond its `ensures`?
 
 Decision name: `callee-result-body-summary`.
 
@@ -282,7 +259,7 @@ false`, from both arms returning `false`) reach its callers when the callee's
 Under (c) the current checker's acceptance of this fixture is an error, and
 the fixture moves to `fail/` or gains `ensures result == false`.
 
-### Q6 - What source form binds a boundary requirement to a field of a foreign function table?
+### Q5 - What source form binds a boundary requirement to a field of a foreign function table?
 
 Decision name: `native-table-field-binding`.
 
@@ -330,7 +307,7 @@ field of a foreign table?
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
 
-### Q7 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q6 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -382,7 +359,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q8 - May a nested helper's body rely on facts its caller holds at the call?
+### Q7 - May a nested helper's body rely on facts its caller holds at the call?
 
 Decision name: `nested-helper-caller-facts`.
 
@@ -434,7 +411,7 @@ not use.
 
 Until answered the row is left as recorded and the checker is unchanged.
 
-### Q9 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q8 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -473,7 +450,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q10 - May a guard on one copy bound a place restored from another copy of the same version?
+### Q9 - May a guard on one copy bound a place restored from another copy of the same version?
 
 Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
 
@@ -520,7 +497,7 @@ on a second copy of the same version.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q11 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q10 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -577,7 +554,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q12 - Which in-memory filesystem does a test group select, and what does it implement?
+### Q11 - Which in-memory filesystem does a test group select, and what does it implement?
 
 Decision name: `test-group-virtual-filesystem`.
 

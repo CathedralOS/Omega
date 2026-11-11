@@ -39,12 +39,15 @@ calculus. Executable exact arithmetic is partial until its safety conditions are
 proved, so executable `ScalarTerm` arithmetic cannot substitute for this domain.
 
 `Representable(expression, carrier)` is a schema-owned constructor, not an
-atomic predicate. It expands, in order, to:
+atomic predicate. For a finite carrier it expands, in order, to:
 
 ```text
 minimum(carrier) <= expression
 AND expression <= maximum(carrier)
 ```
+
+Unbounded `i` has no finite range predicate, and `u` requires nonnegativity
+without an upper bound. Never invent finite endpoints to reuse this schema.
 
 | Operation | Expression and carrier |
 | --- | --- |
@@ -71,6 +74,41 @@ operation schema, not inferred from a producer's interval analysis.
 The operation/site identity, `CanonicalScalarGoal`, and exact typed expression
 remain part of the obligation identity even when multiple operations project to
 the same mathematical proposition.
+
+## Computational and rational arithmetic
+
+The [numeric settlement](../language/numeric_values.md#unbounded-computational-integers)
+distinguishes unbounded computational `i`/`u`, mathematical integer values and
+exact rational division. Retain the source type, selected operation, exact
+operands, result type and correspondence through lowering and artifact receipt.
+A numerical integer payload alone cannot identify its source arithmetic.
+
+Computational division and the named mathematical integer quotient truncate
+toward zero. Mathematical `/` has rational meaning and a `Rat` result even
+when its value is integral. Quotient and rational division must not share an
+undifferentiated semantic identity. Computational remainder retains its exact
+quotient convention. Each division/remainder carries its independently
+established nonzero-divisor obligation; simplification cannot invent that fact.
+
+Anonymous rational inputs to mathematical division do not pass through an
+implicit integer landing. Already typed operands do not become anonymous after
+folding or inlining. Fractional-origin evidence belongs to source admission at
+computational integer landing; after admission it adds no integer value identity.
+Unbounded arithmetic cannot be reduced to the producer's or target's word size.
+
+The `Rat` interface's integer inclusions, arithmetic and any explicit narrowing
+must have checked correspondence with their source declarations and actual
+mathematical types. Internal rational payloads do not confer that correspondence
+on the existing library `Rat` or `IntPair` by name or shape. This specifies
+meaning and correspondence, not a new trusted rational carrier or a representation
+choice for the library.
+
+The common [proof bridge](../proofs/contracts.md#total-arithmetic) relates a
+computational division result to integer quotient, not rational `/`. Migrate
+old quotient records and incompatible cached artifacts through existing
+publication/admission rules; never reinterpret an old operation identity as the
+new rational operation. This decision adds no release-compatibility regime and
+grants no runtime representation or executable conversion to mathematical data.
 
 ## FloatMeaning
 
