@@ -14,7 +14,11 @@ best upper and lower literal bound, each with a node concluding
   symmetry, conjunction elimination);
 - its own result equation when it is an exact add or subtract, mapped from
   its operands' bounds (`IntegerExactAddDefinitionBound` and the subtract
-  twin).
+  twin);
+- its own result equation when it is an exact multiply: the bound on the
+  mathematical product (`IntegerAffineBound`) carried through the equation
+  (`ValueEqualityTransport`) and restated in the carrier
+  (`IntegerOrderSubstitution`).
 
 Goals decompose structurally (conjunction, disjunction, antisymmetry for
 equality). A comparison closes when the left side's bound and the right
@@ -895,7 +899,7 @@ impl<'a> Prover<'a> {
                 let other = if left == subject { right } else { left };
                 self.through(weaken(proof).ok()?, other, direction)
             }
-            // Exact add and subtract result equations.
+            // Exact add, subtract and multiply result equations.
             (Proposition::Equal(output, expression), _) if output == subject => {
                 self.definition(axiom?, subject, integer, expression, direction)
             }
@@ -947,7 +951,7 @@ impl<'a> Prover<'a> {
         })
     }
 
-    /// A bound on the output of an exact add or subtract from its
+    /// A bound on the output of an exact add, subtract or multiply from its
     /// operands' bounds, citing the result equation as the definition.
     fn definition(
         &mut self,
@@ -958,6 +962,9 @@ impl<'a> Prover<'a> {
         direction: Direction,
     ) -> Option<Bound> {
         let (left, right, right_direction, add) = match expression {
+            ScalarTerm::ExactIntegerMultiply { .. } => {
+                return self.product(axiom, subject, integer, expression, direction);
+            }
             ScalarTerm::ExactIntegerAdd { left, right, .. } => (left, right, direction, true),
             ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 (left, right, direction.opposite(), false)
@@ -1011,6 +1018,145 @@ impl<'a> Prover<'a> {
             literal,
             proof: node(conclusion, rule),
         })
+    }
+
+    /// A bound on the output of an exact multiply. The kernel has no
+    /// definition rule for a product and needs none: it bounds the
+    /// mathematical product term (`image`), carries that bound through the
+    /// result equation onto the output value, and restates it in the
+    /// carrier. A corner product outside the carrier gives no bound here,
+    /// which leaves the output its carrier bound.
+    fn product(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::Value { id, .. } = subject else {
+            return None;
+        };
+        let ScalarTerm::ExactIntegerMultiply { left, right, .. } = expression else {
+            return None;
+        };
+        let image = self
+            .image(
+                Arithmetic::Multiply,
+                left,
+                right,
+                expression.clone(),
+                direction,
+            )
+            .ok()?;
+        let limit = match (&image.conclusion, direction) {
+            (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
+            | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
+            _ => return None,
+        };
+        let IntegerMathTerm::IntegerLiteral(literal) = &limit else {
+            return None;
+        };
+        let literal = literal.as_integer_value(integer)?;
+        let output = IntegerMathTerm::MathValue {
+            source_type: integer,
+            value: *id,
+        };
+        let (on_output, endpoint) = match direction {
+            Direction::Upper => (
+                Proposition::IntegerMathLessOrEqual(output.clone(), limit),
+                0,
+            ),
+            Direction::Lower => (
+                Proposition::IntegerMathLessOrEqual(limit, output.clone()),
+                1,
+            ),
+        };
+        let equation = node(
+            self.axioms.get(axiom)?.clone(),
+            ProofRule::SemanticAxiom { index: axiom },
+        );
+        let transported = node(
+            on_output,
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(image),
+                equalities: vec![equation],
+            },
+        );
+        // Substituting the output for itself changes nothing mathematically.
+        // The rule is used because it lets a mathematical order conclude in
+        // its carrier spelling, the form every other bound has.
+        let unchanged = primitive(
+            Proposition::IntegerMathEqual(output.clone(), output),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        let conclusion = Self::oriented(
+            subject,
+            ScalarTerm::integer(integer, literal).ok()?,
+            direction,
+        );
+        Some(Bound {
+            literal,
+            proof: node(
+                conclusion,
+                ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(transported),
+                    equality: Box::new(unchanged),
+                    endpoint,
+                },
+            ),
+        })
+    }
+
+    /// The kernel's image of the operands' bounds through `target`, an exact
+    /// operation on `first` and `second`: a bound in `direction` on the
+    /// operation's mathematical term.
+    fn image(
+        &mut self,
+        operation: Arithmetic,
+        first: &ScalarTerm,
+        second: &ScalarTerm,
+        target: ScalarTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
+        let opposite = direction.opposite();
+        let parts = match operation {
+            Arithmetic::Add => vec![
+                self.evidence(first, direction)?,
+                self.evidence(second, direction)?,
+            ],
+            Arithmetic::Subtract => vec![
+                self.evidence(first, direction)?,
+                self.evidence(second, opposite)?,
+            ],
+            // Multiply takes both bounds of each operand, the goal's own
+            // direction first (`map_direct_multiply_bound`).
+            Arithmetic::Multiply => vec![
+                self.evidence(first, direction)?,
+                self.evidence(first, opposite)?,
+                self.evidence(second, direction)?,
+                self.evidence(second, opposite)?,
+            ],
+        };
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let witness = IntegerAffineWitness {
+            root: first.clone(),
+            target,
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness)
+            .map_err(|_| "the kernel refuses the operation's witness")?;
+        let image = map_integer_affine_bound(&form, &root)
+            .map_err(|_| "the kernel maps no bound through the operation")?;
+        Ok(node(
+            image,
+            ProofRule::IntegerAffineBound {
+                root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(parts))),
+                witness,
+            },
+        ))
     }
 
     /// `left <= right` over mathematical integers, where one side is an
@@ -1136,37 +1282,8 @@ impl<'a> Prover<'a> {
             }
         }
         .map_err(|_| "operation term")?;
-        let opposite = direction.opposite();
-        let parts = match operation {
-            Arithmetic::Add => vec![
-                self.evidence(&first, direction)?,
-                self.evidence(&second, direction)?,
-            ],
-            Arithmetic::Subtract => vec![
-                self.evidence(&first, direction)?,
-                self.evidence(&second, opposite)?,
-            ],
-            // Multiply takes both bounds of each operand, the goal's own
-            // direction first (`map_direct_multiply_bound`).
-            Arithmetic::Multiply => vec![
-                self.evidence(&first, direction)?,
-                self.evidence(&first, opposite)?,
-                self.evidence(&second, direction)?,
-                self.evidence(&second, opposite)?,
-            ],
-        };
-        let root =
-            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
-        let witness = IntegerAffineWitness {
-            root: first,
-            target,
-            definition_axioms: Vec::new(),
-            literal_axioms: Vec::new(),
-        };
-        let form = check_integer_affine_witness(self.context, self.axioms, &witness)
-            .map_err(|_| "the kernel refuses the operation's witness")?;
-        let image = map_integer_affine_bound(&form, &root)
-            .map_err(|_| "the kernel maps no bound through the operation")?;
+        let affine = self.image(operation, &first, &second, target, direction)?;
+        let image = affine.conclusion.clone();
         let image_term = match (&image, direction) {
             (Proposition::IntegerMathLessOrEqual(term, _), Direction::Upper)
             | (Proposition::IntegerMathLessOrEqual(_, term), Direction::Lower) => term,
@@ -1175,13 +1292,6 @@ impl<'a> Prover<'a> {
         if image_term != term {
             return Err("the bound image is not the goal's term");
         }
-        let affine = node(
-            image.clone(),
-            ProofRule::IntegerAffineBound {
-                root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(parts))),
-                witness,
-            },
-        );
         let goal = match direction {
             Direction::Upper => Proposition::IntegerMathLessOrEqual(term.clone(), limit.clone()),
             Direction::Lower => Proposition::IntegerMathLessOrEqual(limit.clone(), term.clone()),

@@ -40,7 +40,12 @@ One goal-directed prover serves all three kinds. It carries interval bounds as
 proof: each integer value gets a best upper and lower literal bound, each with
 a node the kernel checks, from the carrier bound of its type, a hypothesis
 bounding it or relating it to another value, or, for an exact add or subtract
-result, its operands' bounds through `IntegerExactAddDefinitionBound`. A
+result, its operands' bounds through `IntegerExactAddDefinitionBound`. An exact
+multiply result has no definition rule and needs none: the prover bounds the
+mathematical product with `IntegerAffineBound` (the least or greatest of the
+four corner products of the operands' bounds), carries that bound through the
+result equation with `ValueEqualityTransport`, and restates it in the carrier
+with `IntegerOrderSubstitution`. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
 image of the operands' bounds the kernel itself computes.
@@ -96,8 +101,7 @@ subset needs, so the prover emits them directly.
 4. **Shift-left representability is not built.** The kernel has a direct
    shift route (`map_direct_shift_left_bound`); this prover does not build
    its evidence, so an exact `<<` whose count is not a literal zero is
-   `Unproved`. No multiply result bound is built either: the kernel has no
-   multiply definition rule.
+   `Unproved`.
 
 ## Evidence seals
 

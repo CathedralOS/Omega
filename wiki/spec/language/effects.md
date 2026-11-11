@@ -406,6 +406,7 @@ target and the current consumer set contribute nothing.
 | `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
 | suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
 | result relations | proof-only relation per binder, composed along value flow | authored claim or none | the requirement's guarantee bounds it | the selected published relation under the authored claim |
+| write frame | union of fixed paths and binder frames applied to their argument places | infer | defer to the selection | fixed paths plus the selected published frame |
 
 One rule produces that table. Omission derives the answer wherever derivation
 cannot widen a public surface without an author's hand. Suspension and
@@ -418,10 +419,13 @@ appears, so it stays authored. Reach infers on a body and defers on a
 requirement: a body cannot reach beyond the authority it holds, and an
 authored ceiling remains available for a narrower promise. An explicit empty value, `reaches none`, `crashes none`,
 `suspends false` or `blocks false`, promises the empty value and rejects any
-body or selection that violates it. Boundary requirements and runtime callable
+body or selection that violates it. A
+[write frame](dependent_values.md#mutation-frames) infers on a body and defers
+on a requirement for the reason reach does, and has no authored form.
+Boundary requirements and runtime callable
 types have no body to infer from and no static selection to defer to, so they
 write `reaches` and `crashes` and take the published-surface defaults for the
-other axes.
+other axes; their write frame is the signature's ceiling.
 
 The axes exchange facts without sharing an algebra. A disproved crash route may
 use the facts a preceding callback's requirement establishes; a false suspension
@@ -808,8 +812,8 @@ surviving components. Process exit is a distinct outcome, not an `Abort` route.
 ## Published identity and installation rows
 
 Deterministic normalizers own published service rows, reach and operational
-dependencies, invocation contracts, suspension/blocking ceilings, and crash
-buckets. Proof may discharge legality or enable optimization; it cannot shrink
+dependencies, invocation contracts, suspension/blocking ceilings, crash
+buckets, and write frames. Proof may discharge legality or enable optimization; it cannot shrink
 an authored export, rewrite its guards, or change interface identity.
 Specializing a published reach or operational dependency is contract
 substitution, not proof-based shrinking of an authored opaque ceiling.

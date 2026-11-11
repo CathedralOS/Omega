@@ -886,6 +886,10 @@ mod completion {
                 )
             })
             .transpose()?;
+        // Landing errors reject; see report_preparation_diagnostics.
+        if let Some(error) = warnings.iter().find(|warning| warning.is_error()) {
+            return Err(error.clone());
+        }
         for warning in warnings {
             eprintln!("{warning}");
         }
