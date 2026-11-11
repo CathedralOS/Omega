@@ -14394,8 +14394,8 @@ fail/float/named_call_implicit_policy_erasure rejected 2799ms expected @ccdb99ca
 	store in machine `invalid` state `combine` argument `addend` implicitly converts `f32 in Saturating` to `f32` (implicit domain weakening); a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
 	implicit domain weakening in argument `addend` for state `combine` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `invalid` state `entry` local `result` implicitly converts `f32` to `f32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32 in Saturating`)
-fail/float/named_float_to_integer_no_context_unproven rejected 2101ms unexpected @ccdb99ca2214
-	qualified call `from_f64` has no resolved callable declaration
+fail/float/named_float_to_integer_no_context_unproven rejected 37171ms expected @34061360b957
+	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 7644ms unexpected @ccdb99ca2214
 	constant checking: scalar evaluation needs an unavailable provider or external effect
 fail/float/named_trapping_cast_operand_requires_site_coverage rejected 15256ms expected @ccdb99ca2214
@@ -14434,8 +14434,8 @@ fail/float/private_arrival_inexact_integer_coercion_rejected rejected 3751ms exp
 fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @18fc751d0060+wt
 	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/private_float_projection_selection rejected 2788ms unexpected @ccdb99ca2214
-	machine `finite` ensures contract proof fact `result == FloatSemantics.is_finite(Float.meaning32(value))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/float/private_float_projection_selection rejected 31936ms expected @34061360b957
+	package PackageKeyIdentity([243, 218, 84, 244, 166, 252, 151, 254, 15, 181, 219, 40, 29, 64, 196, 102, 222, 68, 189, 185, 11, 16, 127, 35, 193, 67, 53, 218, 153, 67, 24, 168]) selects private operator `Float::meaning32`
 fail/float/public_boolean_result_contract_false rejected 4553ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
 fail/float/public_boolean_result_contract_lookalike rejected 4363ms expected @ccdb99ca2214
@@ -14448,9 +14448,8 @@ fail/float/public_class_result_contract_retains_actual rejected 5034ms expected 
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
 fail/float/public_class_state_contract_retains_entry_subject rejected 5882ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
-fail/float/public_integer_result_contract_retains_policy rejected 2621ms unexpected @ccdb99ca2214
-	machine `saturating_increment` state `entry`: value call `U8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `increment` state `entry`: value call `U8.from_f32(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/float/public_integer_result_contract_retains_policy rejected 34692ms expected @34061360b957
+	cannot prove ensures contract for exit from increment at statement 1: result == saturating_increment(value)
 fail/float/qualified_conversion_requires_operand_proof rejected 1756ms unexpected @ccdb99ca2214
 	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `3.75` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -25625,10 +25624,8 @@ pass/float/data_where_float_field_restored_exit checked 69292ms check-target:mac
 pass/float/directed_square_root_radius_exit checked 16143ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/equality_premise_excludes_nan checked 5283ms @ccdb99ca2214
 pass/float/explicit_float_comparison_formats checked 5550ms @ccdb99ca2214
-pass/float/f32_arg_const_arith_landed_exit rejected 9548ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	compiler-derived copies of one authored Call selection resolved inconsistently: `saturating_sub::entry` versus `saturating_sub::entry`
-pass/float/f32_per_operation_rounding_exit rejected 9363ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	compiler-derived copies of one authored Call selection resolved inconsistently: `saturating_sub::entry` versus `saturating_sub::entry`
+pass/float/f32_arg_const_arith_landed_exit checked 119323ms check-target:macos_arm64 @34061360b957
+pass/float/f32_per_operation_rounding_exit checked 159311ms check-target:macos_arm64 @34061360b957
 pass/float/finite_core_domain_range_discharge checked 60357ms check-target:macos_arm64 @911f6617ba9e
 pass/float/finite_signature_transport_exit checked 14450ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_catalog_calls checked 45014ms @1e29a538216e
@@ -25686,13 +25683,9 @@ pass/float/owned_local_computed_float_store_exit checked 14880ms check-target:ma
 pass/float/primitive_comparison_sealed_scope_exit checked 6385ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 6381ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/private_arrival_exact_integer_coercion_exit checked 15259ms check-target:macos_arm64 @469d71d218e2
-pass/float/public_boolean_result_contract_import_exit rejected 5495ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
-	cannot prove ensures contract for exit from finite_f64 at statement 0: result == F64.is_finite(value)
-pass/float/public_boolean_result_contract_match_import_exit rejected 4674ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from finite at statement 1: result == F32.is_finite(value)
-pass/float/public_boolean_result_contract_short_circuit_import_exit rejected 5198ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from finite at statement 1: result == F32.is_finite(value)
+pass/float/public_boolean_result_contract_import_exit checked 44261ms check-target:macos_arm64 @34061360b957
+pass/float/public_boolean_result_contract_match_import_exit checked 52933ms check-target:macos_arm64 @34061360b957
+pass/float/public_boolean_result_contract_short_circuit_import_exit checked 46082ms check-target:macos_arm64 @34061360b957
 pass/float/public_class_result_contract_import_exit rejected 4396ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from category at statement 0: result == F32.classify(value)
 pass/float/public_integer_input_contract_guarded_import_exit rejected 5038ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -25703,8 +25696,7 @@ pass/float/public_integer_input_contract_import_exit rejected 5425ms check-targe
 pass/float/public_integer_input_contract_state_import_exit rejected 5001ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from rounded at statement 1: F32.classify(result) == F32.classify(F32.from_i32(value)) && F32.is_nan(result) || result == F32.from_i32(value)
 	cannot prove ensures contract for exit from rounded at statement 2: F32.classify(result) == F32.classify(F32.from_i32(value)) && F32.is_nan(result) || result == F32.from_i32(value)
-pass/float/public_integer_result_contract_import_exit rejected 10476ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
-	cannot prove ensures contract for exit from integer at statement 1: result == saturating_integer(value)
+pass/float/public_integer_result_contract_import_exit checked 47872ms check-target:macos_arm64 @34061360b957
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 7158ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/requirement_nested_record_arithmetic_exit checked 15740ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/returned_record_computed_fields_exit checked 15972ms check-target:macos_arm64 @ccdb99ca2214
