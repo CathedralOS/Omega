@@ -7368,6 +7368,9 @@ run/arithmetic/float_structural_initializer_selection built 11795ms exit:0 inter
 run/arithmetic/pinned_dividend_across_console_calls built 7878ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @5f668826adf3+wt
 run/arithmetic/policy_operator_division_matches_policy_domains built 160659ms exit:70 interpreter-exit:70 interpreter:agrees @279079cabde3
 run/arithmetic/policy_operator_exact_result_fact built 262299ms exit:70 interpreter-exit:70 interpreter:agrees @bbdd9fe6f61f
+run/arithmetic/policy_operator_minimum_quotient_traps built 45128ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operator_minimum_remainder_traps built 42557ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operator_zero_divisor_traps built 44851ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
 run/arithmetic/policy_operators_match_policy_domains built 84264ms exit:70 interpreter-exit:70 interpreter:agrees @a7dc8e823f6e
 run/borrows/affine_produced_membership_move built 3298ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/borrows/call_result_mutable_window_field_exit rejected 10509ms interpreter:unchecked @5f668826adf3+wt

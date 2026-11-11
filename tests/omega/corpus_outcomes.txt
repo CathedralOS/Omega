@@ -28140,6 +28140,9 @@ run/arithmetic/float_structural_initializer_selection checked 141671ms check-tar
 run/arithmetic/pinned_dividend_across_console_calls checked 71356ms check-target:macos_arm64 @c3cb68d51f3f
 run/arithmetic/policy_operator_division_matches_policy_domains checked 89555ms check-target:macos_arm64 @473aad8691ce
 run/arithmetic/policy_operator_exact_result_fact checked 66071ms check-target:macos_arm64 @a54f74b63a36
+run/arithmetic/policy_operator_minimum_quotient_traps checked 75870ms check-target:macos_arm64 @47e9f59075e9
+run/arithmetic/policy_operator_minimum_remainder_traps checked 70820ms check-target:macos_arm64 @47e9f59075e9
+run/arithmetic/policy_operator_zero_divisor_traps checked 72982ms check-target:macos_arm64 @47e9f59075e9
 run/arithmetic/policy_operators_match_policy_domains checked 116124ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 73850ms check-target:macos_arm64 @c3cb68d51f3f
