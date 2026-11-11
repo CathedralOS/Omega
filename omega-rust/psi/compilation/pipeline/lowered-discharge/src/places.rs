@@ -87,7 +87,7 @@ use terminal_psi::{
     Block, Operation, OperationKind, StructuralArgument, StructuralCaseDeclaration,
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    Terminator,
+    Terminator, ValueDeclaration,
 };
 
 use crate::graph::Graph;
@@ -354,9 +354,8 @@ enum Touching<'a> {
     /// stored into a field, a call's record argument, a return, a transfer
     /// on an edge.
     Whole,
-    /// It reads one scalar leaf. `relies` when the read takes a clause of
-    /// its storage's type as a premise (`Storage::read_premises`).
-    Leaf { relies: bool },
+    /// It reads one scalar leaf.
+    Leaf,
     /// It tests which case a sum holds.
     Membership,
     /// It dispatches on a sum; the roster is judged with it.
@@ -374,6 +373,11 @@ struct Touch<'a> {
     used: Vec<Lineage>,
     /// Those and the place it stores into.
     named: Vec<Lineage>,
+    /// The scalar leaves whose clauses it takes as premises: a read's leaf
+    /// (`Storage::read_premises`) or a dispatch's bound payload leaves
+    /// (`Storage::payload_premises`). Each relies on the domain of every
+    /// place it lies in.
+    relied: Vec<Lineage>,
     how: Touching<'a>,
     /// Whether it is a use of storage the initialization and payload
     /// judgments see. A call or exit that names no storage is not one.
@@ -382,6 +386,16 @@ struct Touch<'a> {
     /// it ends the scope of, every place of this machine, so it consumes
     /// every window open there (`Storage::consumes`).
     releases: bool,
+}
+
+/// One payload parameter a dispatch binds (`Storage::bound_payloads`).
+struct BoundPayload<'a> {
+    edge: EdgeId,
+    /// The arm's block, which declares the parameter.
+    target: BlockId,
+    /// The payload leaf of the subject it is bound from.
+    leaf: Lineage,
+    parameter: &'a ValueDeclaration,
 }
 
 /// One machine's storage as the checker reads it: the stores its operations
@@ -1489,31 +1503,7 @@ impl<'a> Storage<'a> {
 
     /// What a read learns from the type of the storage it reads: each
     /// `requires` clause of a data type the leaf lies in, stated on the
-    /// read's fresh value. structural_access.md: "A validated field read or
-    /// selected-case payload copy instantiates that invariant on its fresh
-    /// scalar snapshot; other fields and unselected cases provide no
-    /// premise. The snapshot survives later writes".
-    ///
-    /// A clause is stated only when both hold.
-    ///
-    /// - What the leaf holds arrived, on every path, inside a value another
-    ///   machine established: a formal's entry content, however it was
-    ///   copied since, or a leaf of the root a call returned. The clause
-    ///   must belong to a type inside that value, on the path from its
-    ///   root to the leaf. dependent_values.md: "no
-    ///   consumption sees the value outside its required domain", and a
-    ///   call and a return each consume the value they pass. A leaf this
-    ///   machine wrote gets no premise here: its `DataDomain` obligation
-    ///   proved the clause of the written value where it was written, and
-    ///   the read equation names that value, so a store that broke the
-    ///   clause can never lend it to a later read.
-    /// - The clause names that one leaf and no other. A clause that relates
-    ///   it to a sibling cannot be stated on one read's value, and a case
-    ///   the clause tests must be established at the read by structure.
-    ///
-    /// A clause that cannot be stated is no premise; nothing is assumed in
-    /// its place. A clause that structure alone decides adds nothing and is
-    /// left out.
+    /// read's fresh value (`Storage::premises`).
     pub(crate) fn read_premises(
         &self,
         tables: &MachineTables,
@@ -1533,6 +1523,58 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
+        self.premises(
+            tables,
+            &leaf,
+            (result.id, result.scalar_type),
+            (block, before),
+            concerns,
+        )
+    }
+
+    /// What one scalar observation of `leaf` learns from the types of the
+    /// storage it lies in: each `requires` clause of a data type the leaf
+    /// lies in, stated on the observed value `observed`, with every name of
+    /// the clause read at the point `at` (a block and a position in it, as
+    /// `Graph::locate` orders points). structural_access.md: "A validated
+    /// field read or selected-case payload copy instantiates that invariant
+    /// on its fresh scalar snapshot; other fields and unselected cases
+    /// provide no premise. The snapshot survives later writes".
+    ///
+    /// A clause is stated only when both hold.
+    ///
+    /// - What the leaf holds arrived, on every path, inside a value another
+    ///   machine established: a formal's entry content, however it was
+    ///   copied since, or a leaf of the root a call returned. The clause
+    ///   must belong to a type inside that value, on the path from its
+    ///   root to the leaf. dependent_values.md: "no
+    ///   consumption sees the value outside its required domain", and a
+    ///   call and a return each consume the value they pass. A leaf this
+    ///   machine wrote gets no premise here: its `DataDomain` obligation
+    ///   proved the clause of the written value where it was written, and
+    ///   the read equation names that value, so a store that broke the
+    ///   clause can never lend it to a later read.
+    /// - The clause names that one leaf and no other. A clause that relates
+    ///   it to a sibling cannot be stated on one read's value, and a case
+    ///   the clause tests must be established at `at` by structure, on the
+    ///   place the observation goes through (a copy of what arrived, or
+    ///   the place it arrived in): by a construction, a dominating true
+    ///   edge of a membership test, or the dispatch edge that entered the
+    ///   block.
+    ///
+    /// A clause that cannot be stated is no premise; nothing is assumed in
+    /// its place. A clause that structure alone decides adds nothing and is
+    /// left out.
+    fn premises(
+        &self,
+        tables: &MachineTables,
+        leaf: &Lineage,
+        observed: (ValueId, ScalarType),
+        at: (BlockId, usize),
+        concerns: Construct,
+    ) -> Checked<Vec<Proposition>> {
+        let (block, before) = at;
+        let (observed, scalar_type) = observed;
         // Where the leaf's content arrived: the leaf of a formal whose
         // entry content it still is, or this same leaf when its root is
         // what a call returned. The types that lend a clause are the ones
@@ -1541,7 +1583,7 @@ impl<'a> Storage<'a> {
         let mut budget = self.budget();
         let arrived = match self.reaching(
             tables,
-            Asked::Contents(&leaf),
+            Asked::Contents(leaf),
             block,
             before,
             &mut budget,
@@ -1555,7 +1597,7 @@ impl<'a> Storage<'a> {
                 // established.
                 StructuralPlaceKind::OperationResult { producer, .. }
                     if self.log.iter().all(|row| {
-                        !overlap(&row.lineage, &leaf)
+                        !overlap(&row.lineage, leaf)
                             || (row.lineage.segments.is_empty() && row.operation == producer)
                     }) =>
                 {
@@ -1594,6 +1636,22 @@ impl<'a> Storage<'a> {
             let Shape::Typed(structural_type) = self.shape(&owner, concerns)? else {
                 continue;
             };
+            // The same value of that type as the observation reaches it: the
+            // prefix of `leaf` as far above it as `owner` is above `arrived`
+            // (a copy keeps the path beneath the place it copies). Which
+            // case it holds is asked of this place, because a dispatch or a
+            // test on the copy establishes it there, and the root the value
+            // arrived in may have been written since. A type above the
+            // observed storage has no such place.
+            let beneath = arrived.segments.len() - length;
+            let selected = leaf
+                .segments
+                .len()
+                .checked_sub(beneath)
+                .map(|kept| Lineage {
+                    root: leaf.root,
+                    segments: leaf.segments[..kept].to_vec(),
+                });
             for clause in self.clauses_of(structural_type, concerns)? {
                 let mut bindings = Observed {
                     held: Held {
@@ -1604,9 +1662,10 @@ impl<'a> Storage<'a> {
                         up_to: before,
                         concerns,
                     },
+                    selected: selected.as_ref(),
                     leaf: &arrived,
-                    result: ScalarTerm::value(result.id, result.scalar_type),
-                    scalar_type: result.scalar_type,
+                    result: ScalarTerm::value(observed, scalar_type),
+                    scalar_type,
                 };
                 match crate::substitute(clause, &mut bindings) {
                     Ok(Proposition::Truth | Proposition::Falsehood) => {}
@@ -1617,6 +1676,44 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(premises)
+    }
+
+    /// The payload parameters a dispatch binds, one per payload field of
+    /// each edge: the edge, the parameter of its arm's block and the
+    /// payload leaf it is bound from. Empty for any other terminator.
+    fn bound_payloads(&self, block: &Block) -> Checked<Vec<BoundPayload<'a>>> {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Block(block.id);
+        let subject = self.stored_at(*source, path, concerns)?;
+        let mut bound = Vec::new();
+        for edge in cases {
+            let target = self.block(edge.target)?;
+            for (position, field) in edge.payload_fields.iter().enumerate() {
+                let parameter = target.parameters.get(position).ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a payload field has no parameter in its arm's block",
+                    )
+                })?;
+                let mut leaf = subject.clone();
+                leaf.segments.push(Segment::Case(edge.case));
+                leaf.segments.push(Segment::Field(*field));
+                bound.push(BoundPayload {
+                    edge: edge.edge,
+                    target: edge.target,
+                    leaf,
+                    parameter,
+                });
+            }
+        }
+        Ok(bound)
     }
 
     /// What a dispatch binds on one of its edges: each payload parameter of
@@ -1630,60 +1727,67 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         block: &Block,
     ) -> Checked<Vec<(EdgeId, Proposition)>> {
-        let Terminator::StructuralCase {
-            source,
-            path,
-            cases,
-        } = &block.terminator
-        else {
-            return Ok(Vec::new());
-        };
         let concerns = Construct::Block(block.id);
-        let subject = self.stored_at(*source, path, concerns)?;
         let mut equations = Vec::new();
-        for edge in cases {
-            let target = self.block(edge.target)?;
-            for (position, field) in edge.payload_fields.iter().enumerate() {
-                let parameter = target.parameters.get(position).ok_or_else(|| {
-                    self.foreign(
-                        concerns,
-                        "a payload field has no parameter in its arm's block",
-                    )
-                })?;
-                let mut leaf = subject.clone();
-                leaf.segments.push(Segment::Case(edge.case));
-                leaf.segments.push(Segment::Field(*field));
-                let mut budget = self.budget();
-                let Reached::Value(held) = self.reaching(
-                    tables,
-                    Asked::Contents(&leaf),
-                    block.id,
-                    usize::MAX,
-                    &mut budget,
+        for bound in self.bound_payloads(block)? {
+            let mut budget = self.budget();
+            let Reached::Value(held) = self.reaching(
+                tables,
+                Asked::Contents(&bound.leaf),
+                block.id,
+                usize::MAX,
+                &mut budget,
+                concerns,
+            )?
+            else {
+                continue;
+            };
+            let held_type =
+                terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
+                    .scalar_type;
+            if held_type != bound.parameter.scalar_type {
+                return Err(self.unsupported(
                     concerns,
-                )?
-                else {
-                    continue;
-                };
-                let held_type =
-                    terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                        .scalar_type;
-                if held_type != parameter.scalar_type {
-                    return Err(self.unsupported(
-                        concerns,
-                        "a payload holds a value of another type than its parameter",
-                    ));
-                }
-                equations.push((
-                    edge.edge,
-                    Proposition::Equal(
-                        ScalarTerm::value(parameter.id, parameter.scalar_type),
-                        ScalarTerm::value(held, held_type),
-                    ),
+                    "a payload holds a value of another type than its parameter",
                 ));
             }
+            equations.push((
+                bound.edge,
+                Proposition::Equal(
+                    ScalarTerm::value(bound.parameter.id, bound.parameter.scalar_type),
+                    ScalarTerm::value(held, held_type),
+                ),
+            ));
         }
         Ok(equations)
+    }
+
+    /// What a dispatch's payload parameters learn from the types of the
+    /// storage they are bound from: the clauses a payload read at the head
+    /// of the arm's block would take (`Storage::premises`), stated on the
+    /// parameter. structural_access.md: "A validated field read or
+    /// selected-case payload copy instantiates that invariant on its fresh
+    /// scalar snapshot". Asked at the head of the arm, a case the clause
+    /// tests is the one the edge that entered it selected, and no case when
+    /// several edges enter it.
+    pub(crate) fn payload_premises(
+        &self,
+        tables: &MachineTables,
+        block: &Block,
+    ) -> Checked<Vec<(EdgeId, Lineage, Proposition)>> {
+        let mut premises = Vec::new();
+        for bound in self.bound_payloads(block)? {
+            for premise in self.premises(
+                tables,
+                &bound.leaf,
+                (bound.parameter.id, bound.parameter.scalar_type),
+                (bound.target, 0),
+                Construct::Edge(bound.edge),
+            )? {
+                premises.push((bound.edge, bound.leaf.clone(), premise));
+            }
+        }
+        Ok(premises)
     }
 
     /// The places an operation reads whole or by one leaf.
@@ -1922,10 +2026,12 @@ impl<'a> Storage<'a> {
                 if !judged && !releases {
                     continue;
                 }
-                let how = if self.read_leaf(operation)?.is_some() {
-                    Touching::Leaf {
-                        relies: !self.read_premises(tables, operation)?.is_empty(),
+                let mut relied = Vec::new();
+                let how = if let Some(leaf) = self.read_leaf(operation)? {
+                    if !self.read_premises(tables, operation)?.is_empty() {
+                        relied.push(leaf);
                     }
+                    Touching::Leaf
                 } else if matches!(
                     operation.kind,
                     OperationKind::StructuralCaseMembership { .. }
@@ -1940,6 +2046,7 @@ impl<'a> Storage<'a> {
                     up_to: position,
                     used,
                     named,
+                    relied,
                     how,
                     judged,
                     releases,
@@ -1956,12 +2063,19 @@ impl<'a> Storage<'a> {
                 } => {
                     let at = Construct::Block(block.id);
                     let subject = vec![self.stored_at(*source, path, at)?];
+                    let mut relied = Vec::new();
+                    for (_, leaf, _) in self.payload_premises(tables, block)? {
+                        if !relied.contains(&leaf) {
+                            relied.push(leaf);
+                        }
+                    }
                     touches.push(Touch {
                         at,
                         block: block.id,
                         up_to: usize::MAX,
                         named: subject.clone(),
                         used: subject,
+                        relied,
                         how: Touching::Dispatch(cases),
                         judged: true,
                         releases: false,
@@ -2045,6 +2159,7 @@ impl<'a> Storage<'a> {
                 up_to: usize::MAX,
                 named: used.clone(),
                 used,
+                relied: Vec::new(),
                 how: Touching::Whole,
                 judged,
                 releases,
@@ -2083,7 +2198,7 @@ impl<'a> Storage<'a> {
                 (Touching::Dispatch(_), None) => {
                     return Err(self.foreign(touch.at, "a dispatch names no subject"));
                 }
-                (Touching::Whole | Touching::Leaf { .. } | Touching::Membership, _) => judge()?,
+                (Touching::Whole | Touching::Leaf | Touching::Membership, _) => judge()?,
             };
             uses.push(StorageUse {
                 at: touch.at,
@@ -2156,10 +2271,11 @@ impl<'a> Storage<'a> {
     /// - "A read relying on the domain or a dependent coupling.": a whole
     ///   read of the place or of a place that contains it (a whole copy, a
     ///   record operand, a record stored into another place), which
-    ///   supplies the value under its type; and a field read beneath the
-    ///   place that takes a clause of its storage's type as a premise. A
-    ///   field read that takes none, a case test and a dispatch learn
-    ///   nothing from the domain and consume nothing.
+    ///   supplies the value under its type; and a field read, or a
+    ///   dispatch's bound payload, beneath the place that takes a clause of
+    ///   its storage's type as a premise. A field read or a dispatch that
+    ///   takes none, and a case test, learn nothing from the domain and
+    ///   consume nothing.
     /// - "Borrow creation or a call consuming the affected domain.": a
     ///   call's record argument that is the place or contains it.
     /// - "Transfer, return, scope expiration or loan handback releasing the
@@ -2190,20 +2306,21 @@ impl<'a> Storage<'a> {
     ) -> Checked<bool> {
         let place = &window.owner.place;
         let released = touch.releases && !window.initial;
+        // A whole use passes the place on; a leaf it takes a clause of as a
+        // premise relies on the domain of every place that leaf lies in. A
+        // read, a case test or a dispatch that takes no premise relies on
+        // nothing.
         let aimed = released
             || touch.used.iter().any(|used| {
                 used.root == place.root
                     && (window.initial
-                        || match touch.how {
-                            Touching::Whole => place.segments.starts_with(&used.segments),
-                            Touching::Leaf { relies: true } => {
-                                used.segments.starts_with(&place.segments)
-                            }
-                            Touching::Leaf { relies: false }
-                            | Touching::Membership
-                            | Touching::Dispatch(_) => false,
-                        })
-            });
+                        || matches!(touch.how, Touching::Whole)
+                            && place.segments.starts_with(&used.segments))
+            })
+            || touch
+                .relied
+                .iter()
+                .any(|leaf| leaf.root == place.root && leaf.segments.starts_with(&place.segments));
         if !aimed || !self.open_at(tables, place, window.opened_by, &window.restored, touch)? {
             return Ok(false);
         }
@@ -2659,9 +2776,13 @@ impl crate::Bindings for Named<'_> {
 /// The names of a data type's `requires` clause as one read observes them:
 /// the leaf it read is its fresh result, and every other field is nothing
 /// the read can speak for ("other fields and unselected cases provide no
-/// premise"). A case test is what the walk establishes at the read.
+/// premise"). A case test is what the walk establishes at the read, of the
+/// place the read observes the value through (`selected`).
 struct Observed<'s, 'a> {
     held: Held<'s, 'a>,
+    /// The place of the clause's type on the observed path, when the type
+    /// lies at or beneath the observed storage's root.
+    selected: Option<&'s Lineage>,
     leaf: &'s Lineage,
     result: ScalarTerm,
     scalar_type: ScalarType,
@@ -2701,6 +2822,9 @@ impl crate::Bindings for Observed<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
     ) -> Result<bool, crate::Unbound> {
-        self.held.case(root, path, case)
+        let place = self.selected.ok_or(crate::Unbound::Unproved(
+            "the clause tests a case of a value above the storage the read observes",
+        ))?;
+        Held { place, ..self.held }.case(root, path, case)
     }
 }
