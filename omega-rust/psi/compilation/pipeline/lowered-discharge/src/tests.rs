@@ -13,13 +13,14 @@ use semantic_vocabulary::{
 };
 use structure_elaboration::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Unpositioned,
+    Target, Unpositioned, ValueType,
 };
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{Discharge, Discharged, Evidence, discharge};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
+use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
@@ -44,7 +45,7 @@ fn nowhere() -> SourceOrigin {
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
         kind,
-        result,
+        result: result.map(ValueType::Scalar),
         source: nowhere(),
     }
 }
@@ -62,7 +63,7 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 }
 
 fn strict(operation: Strict, left: Expression, right: Expression) -> Expression {
-    let result = left.result;
+    let result = left.result.and_then(ValueType::scalar);
     expression(
         ExpressionKind::Strict {
             operation,
@@ -136,28 +137,42 @@ fn machine(parameters: Vec<ScalarType>, statements: Vec<Statement>) -> Machine {
     }
 }
 
-/// Lowers `machines` (machine 1 is the entry) and discharges them.
-fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+/// Lowers `machines` (machine 1 is the entry).
+fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
-        let mut slots = machine.parameters.clone();
-        slots.extend(machine.locals);
+        let parameters: Vec<ValueType> = machine.parameters.into_iter().map(Into::into).collect();
+        let mut slots = parameters.clone();
+        slots.extend(machine.locals.into_iter().map(ValueType::Scalar));
         bodies.push(Body {
             slots,
             statements: machine.statements,
         });
         signatures.push(Signature {
-            parameters: machine.parameters,
-            result: Some(machine.result),
+            parameters,
+            result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
             crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
-    let mut elaboration = structure_elaboration::lower_bodies(id(1), &bodies, &signatures).unwrap();
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+}
+
+/// Lowers `machines` (machine 1 is the entry) and discharges them.
+fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = lower(machines).unwrap();
     let result = discharge(&mut elaboration).unwrap();
     (elaboration, result)
+}
+
+/// The route's verdict on `machines`, which must reject the program.
+fn rejected(machines: Vec<Machine>) -> Vec<UnprovedObligation> {
+    match judge(lower(machines)).unwrap() {
+        RouteVerdict::Rejected(unproved) => unproved,
+        verdict => panic!("the program must be rejected: {verdict:?}"),
+    }
 }
 
 /// Every verdict of `machine` whose obligation has the kind `select` picks.
@@ -264,10 +279,10 @@ fn assert_unproved(verdict: &Checked<Discharged>) {
     let refusal = verdict
         .as_ref()
         .expect_err("the obligation must be refused");
-    assert_eq!(
+    assert!(
+        matches!(refusal.reason, RefusalReason::Unproved(_)),
+        "{:?}: {}",
         refusal.reason,
-        RefusalReason::Unproved,
-        "{}",
         refusal.detail
     );
 }
@@ -1014,4 +1029,702 @@ fn a_disequality_guard_splits_into_cases() {
         core,
         MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
     );
+}
+
+// The route's verdict: an obligation the prover cannot discharge rejects the
+// program; the route never accepts it with a guard or hands Omega 00 a
+// module with an unsealed obligation.
+
+#[test]
+fn the_route_accepts_a_closure_only_when_every_obligation_is_discharged() {
+    let RouteVerdict::Accepted(accepted) = judge(lower(vec![add_of_formals(vec![
+        at_most(1, 100),
+        at_most(2, 100),
+    ])]))
+    .unwrap() else {
+        panic!("every obligation is discharged");
+    };
+    // One seal for the one operation obligation, so Omega 00 receives
+    // evidence for every operation obligation of the module.
+    assert_eq!(accepted.seals.len(), 1);
+    let safety_rows = verdicts(&accepted.elaboration, &accepted.discharge, 1, safety);
+    assert_eq!(safety_rows.len(), 1);
+    assert_eq!(accepted.seals[0].obligation, safety_rows[0].0);
+}
+
+#[test]
+fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
+    let unproved = rejected(vec![add_of_formals(Vec::new())]);
+    assert_eq!(unproved.len(), 1);
+    let entry = &unproved[0];
+    assert!(safety(&entry.kind));
+    assert_eq!(entry.cause, UnprovedCause::NoDerivation);
+    let diagnostic = entry.reject_diagnostic();
+    assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
+    assert!(
+        diagnostic.message.starts_with(
+            "unproved obligation: operation safety: no proof found from the facts available here ("
+        ),
+        "{}",
+        diagnostic.message
+    );
+    // The test bodies carry no authored span, and none is invented.
+    assert_eq!(diagnostic.source_span, None);
+}
+
+#[test]
+fn an_unproved_call_requirement_names_the_callee_clause() {
+    let unproved = rejected(caller(Vec::new(), unsigned(20)));
+    assert_eq!(unproved.len(), 1);
+    assert!(requirement(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .reject_diagnostic()
+            .message
+            .starts_with("unproved obligation: requires clause 1 of the called machine: "),
+        "{}",
+        unproved[0].reject_diagnostic().message
+    );
+}
+
+#[test]
+fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
+    // f(a) ensures a <= 10 { when a <= 10 -> 0; return 1 }: the fall-through
+    // return does not establish the clause. The published clause fails only
+    // because of it, so it is not reported a second time.
+    let program = Machine {
+        ensures: vec![at_most(1, 10)],
+        ..machine(
+            vec![u32_type()],
+            vec![
+                guarded(
+                    compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(10)),
+                    unsigned(0),
+                ),
+                returns(unsigned(1)),
+            ],
+        )
+    };
+    let unproved = rejected(vec![program]);
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(guarantee(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .reject_diagnostic()
+            .message
+            .starts_with("unproved obligation: ensures clause 1 on a normal return: "),
+        "{}",
+        unproved[0].reject_diagnostic().message
+    );
+}
+
+#[test]
+fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() {
+    let refused = |reason| Refusal {
+        reason,
+        machine: id(1),
+        concerns: Construct::Machine,
+        detail: String::from("test"),
+    };
+    assert!(matches!(
+        judge(Err(refused(RefusalReason::Unsupported))),
+        Ok(RouteVerdict::FallBack(_))
+    ));
+    assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
+}
+
+fn bool_type() -> ScalarType {
+    ScalarType::Boolean
+}
+
+/// Machine 1 takes `(a: u32, flag: bool)` and calls machine 2 with `flag`;
+/// machine 2 requires its `bool` formal to equal `false`, a goal form the
+/// prover has no rule for. With `add`, machine 1 returns the call's result
+/// plus `a`, an add of two unbounded values.
+fn bool_requirement(add: bool) -> Vec<Machine> {
+    let callee = Machine {
+        requires: vec![Proposition::Equal(
+            formal(1, bool_type()),
+            ScalarTerm::boolean(false),
+        )],
+        ..machine(vec![bool_type()], vec![returns(unsigned(0))])
+    };
+    let called = call(2, vec![slot(1, bool_type())]);
+    let result = if add {
+        strict(Strict::Add, called, slot(0, u32_type()))
+    } else {
+        called
+    };
+    let caller = machine(vec![u32_type(), bool_type()], vec![returns(result)]);
+    vec![caller, callee]
+}
+
+#[test]
+fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
+    let value = formal(1, u32_type());
+    let flag = formal(1, bool_type());
+    assert!(crate::has_rules_for(&at_most(1, 10)));
+    assert!(crate::has_rules_for(&Proposition::Equal(
+        value.clone(),
+        bound(u32_type(), IntegerValue::Unsigned(3)),
+    )));
+    assert!(!crate::has_rules_for(&Proposition::Equal(
+        flag.clone(),
+        ScalarTerm::boolean(false),
+    )));
+    // One uncovered part leaves the whole goal without a rule.
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
+}
+
+#[test]
+fn a_goal_form_without_a_rule_is_incomplete_not_rejected() {
+    let RouteVerdict::Incomplete(unproved) = judge(lower(bool_requirement(false))).unwrap() else {
+        panic!("the prover has no rule for a bool equality");
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(requirement(&unproved[0].kind));
+    assert_eq!(unproved[0].cause, UnprovedCause::NoRuleForGoalForm);
+    assert!(
+        unproved[0].message().starts_with(
+            "unproved obligation: requires clause 1 of the called machine: \
+             the prover has no rule for this form of goal ("
+        ),
+        "{}",
+        unproved[0].message()
+    );
+}
+
+#[test]
+fn an_unproved_goal_with_rules_rejects_even_beside_one_without() {
+    let unproved = rejected(bool_requirement(true));
+    let causes: Vec<UnprovedCause> = unproved.iter().map(|entry| entry.cause).collect();
+    assert_eq!(
+        causes,
+        vec![
+            UnprovedCause::NoRuleForGoalForm,
+            UnprovedCause::NoDerivation
+        ],
+        "{unproved:?}"
+    );
+}
+
+// Records by structure. `Point { x: u32, y: u32 }` is record 1 with fields 1
+// and 2; `Line { from: Point, to: Point }` is record 2 with fields 3 and 4.
+// A field read is a fresh value; the tests below check when it is provably
+// the value its place holds.
+
+use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId};
+use structure_elaboration::{RecordField, RecordType};
+use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
+use terminal_check_tables::values::ValueOrigin;
+use terminal_check_tables::{ExactPlaceId, MachineTables};
+use terminal_psi::OperationKind;
+
+fn point() -> ValueType {
+    ValueType::Record(id(1))
+}
+
+fn line() -> ValueType {
+    ValueType::Record(id(2))
+}
+
+fn records() -> IdTable<StructuralTypeId, RecordType> {
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        identity: String::from("Point"),
+        fields: vec![
+            field(1, "x", ValueType::Scalar(u32_type())),
+            field(2, "y", ValueType::Scalar(u32_type())),
+        ],
+    });
+    records.push(RecordType {
+        identity: String::from("Line"),
+        fields: vec![field(3, "from", point()), field(4, "to", point())],
+    });
+    records
+}
+
+fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
+    Expression {
+        kind,
+        result: Some(result),
+        source: nowhere(),
+    }
+}
+
+fn place(slot: usize, value_type: ValueType) -> Expression {
+    of_type(ExpressionKind::Slot(slot), value_type)
+}
+
+/// `base.field`, a `u32` field.
+fn read(base: Expression, field: usize) -> Expression {
+    of_type(
+        ExpressionKind::Field {
+            base: Box::new(base),
+            field,
+        },
+        u32_type().into(),
+    )
+}
+
+fn point_of(x: Expression, y: Expression) -> Expression {
+    of_type(
+        ExpressionKind::Record {
+            fields: vec![(0, x), (1, y)],
+        },
+        point(),
+    )
+}
+
+fn bind(slot: usize, value: Expression) -> Statement {
+    Statement::Bind { slot, value }
+}
+
+/// One machine over `Point` and `Line`: its formals, its locals and its
+/// result, then its body.
+struct Shaped {
+    parameters: Vec<ValueType>,
+    locals: Vec<ValueType>,
+    result: ValueType,
+    requires: Vec<Proposition>,
+    statements: Vec<Statement>,
+}
+
+/// `bounded(v: u32) -> u32 requires v <= 10 { v }`.
+fn bounded() -> Shaped {
+    Shaped {
+        parameters: vec![u32_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![at_most(1, 10)],
+        statements: vec![returns(slot(0, u32_type()))],
+    }
+}
+
+fn elaborate_places(machines: Vec<Shaped>) -> structure_elaboration::Elaboration {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    for machine in machines {
+        let mut slots = machine.parameters.clone();
+        slots.extend(machine.locals);
+        bodies.push(Body {
+            slots,
+            statements: machine.statements,
+        });
+        signatures.push(Signature {
+            parameters: machine.parameters,
+            result: Some(machine.result),
+            requires: machine.requires,
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
+        });
+    }
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap()
+}
+
+fn run_places(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = elaborate_places(machines);
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+/// Every field read of machine 1, in block and operation order, as the
+/// operation and its result value.
+fn field_reads(elaboration: &structure_elaboration::Elaboration) -> Vec<(OperationId, ValueId)> {
+    elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::ScalarStructuralField { .. }))
+        .map(|operation| (operation.id, operation.result.scalar_ref().unwrap().id))
+        .collect()
+}
+
+/// The result of each integer constant of machine 1, in block and operation
+/// order.
+fn constants(elaboration: &structure_elaboration::Elaboration) -> Vec<ValueId> {
+    elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::IntegerConstant { .. }))
+        .map(|operation| operation.result.scalar_ref().unwrap().id)
+        .collect()
+}
+
+/// The value machine 1's knowledge equates a read's result with, if any:
+/// the right side of the read operation's own `OperationSemantics` row.
+fn read_equals(tables: &MachineTables, read: (OperationId, ValueId)) -> Option<ValueId> {
+    let mut held = tables.knowledge.iter().filter_map(|(_, row)| {
+        if row.justification != Justification::OperationSemantics(read.0) {
+            return None;
+        }
+        assert_eq!(row.available_from, ProgramPoint::AfterOperation(read.0));
+        match tables.propositions.get(row.proposition).unwrap() {
+            Proposition::Equal(
+                ScalarTerm::Value { id: result, .. },
+                ScalarTerm::Value { id: held, .. },
+            ) => {
+                assert_eq!(*result, read.1);
+                Some(*held)
+            }
+            other => panic!("a read equation is between two values, found {other:?}"),
+        }
+    });
+    let first = held.next();
+    assert!(held.next().is_none(), "a read has at most one equation");
+    first
+}
+
+#[test]
+fn a_read_after_construction_is_provably_the_constructed_operand() {
+    // f(a: u32) -> u32 {
+    //     let p = Point { x: a, y: 7 };
+    //     bounded(p.y);       // needs p.y <= 10: p.y is the 7 it was built with
+    //     bounded(p.x)        // needs p.x <= 10: p.x is `a`, and `y`'s 7 says
+    // }                       // nothing about a sibling
+    let caller = Shaped {
+        parameters: vec![u32_type().into()],
+        locals: vec![point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(1, point_of(slot(0, u32_type()), unsigned(7))),
+            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            returns(call(2, vec![read(place(1, point()), 0)])),
+        ],
+    };
+    let (elaboration, result) = run_places(vec![caller, bounded()]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [read_y, read_x] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    // Each read equals exactly the operand its field was established with:
+    // the constant 7 for `y`, the formal `a` (value 1) for `x`.
+    let seven = constants(&elaboration)[0];
+    assert_eq!(read_equals(tables, *read_y), Some(seven));
+    assert_eq!(read_equals(tables, *read_x), Some(id(1)));
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let [(first, needs_y), (_, needs_x)] = requirements.as_slice() else {
+        panic!("two requirements");
+    };
+    assert_kernel_checked(&elaboration, 1, *first, certificate(needs_y));
+    assert_unproved(needs_x);
+}
+
+#[test]
+fn a_formal_leaf_reads_as_its_one_entry_content_value() {
+    // f(p: Point) -> u32 { p.x - p.x }: both reads are the one value `p.x`
+    // holds at entry, so the unsigned difference cannot underflow. A
+    // difference of two different leaves has no such relation.
+    let difference = |left: usize, right: usize| Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Subtract,
+            read(place(0, point()), left),
+            read(place(0, point()), right),
+        ))],
+    };
+    let (elaboration, result) = run_places(vec![difference(0, 0)]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [first, second] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    let held = read_equals(tables, *first).unwrap();
+    assert_eq!(read_equals(tables, *second), Some(held));
+    assert!(matches!(
+        tables.values.get(held).unwrap().origin,
+        ValueOrigin::EntryContent { .. }
+    ));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+
+    let (elaboration, result) = run_places(vec![difference(0, 1)]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    assert_ne!(read_equals(tables, reads[0]), read_equals(tables, reads[1]));
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing() {
+    // f() -> u32 {
+    //     let p = Point { x: 3, y: 7 };  let q = p;
+    //     bounded(q.y);              // the copy carries 7
+    //     let t = make();            // a call's result: values unknown here
+    //     bounded(t.y)
+    // }
+    let caller = Shaped {
+        parameters: Vec::new(),
+        locals: vec![point(), point(), point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(0, point_of(unsigned(3), unsigned(7))),
+            bind(1, place(0, point())),
+            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            bind(
+                2,
+                of_type(
+                    ExpressionKind::Call {
+                        callee: id(3),
+                        arguments: Vec::new(),
+                    },
+                    point(),
+                ),
+            ),
+            returns(call(2, vec![read(place(2, point()), 1)])),
+        ],
+    };
+    let make = Shaped {
+        parameters: Vec::new(),
+        locals: Vec::new(),
+        result: point(),
+        requires: Vec::new(),
+        statements: vec![returns(point_of(unsigned(1), unsigned(2)))],
+    };
+    let (elaboration, result) = run_places(vec![caller, bounded(), make]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [of_copy, of_result] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    let seven = constants(&elaboration)[1];
+    assert_eq!(read_equals(tables, *of_copy), Some(seven));
+    assert_eq!(read_equals(tables, *of_result), None);
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let [(first, through_copy), (_, through_result)] = requirements.as_slice() else {
+        panic!("two requirements");
+    };
+    assert_kernel_checked(&elaboration, 1, *first, certificate(through_copy));
+    assert_unproved(through_result);
+}
+
+#[test]
+fn a_record_actual_leaves_scalar_clauses_named_by_their_own_lane() {
+    // takes(p: Point, v: u32) -> u32 requires v <= 10 { v }: `v` is the
+    // callee's first scalar formal though it is its second formal, and the
+    // clause is decided for the caller's first scalar actual.
+    let takes = Shaped {
+        parameters: vec![point(), u32_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![at_most(1, 10)],
+        statements: vec![returns(slot(1, u32_type()))],
+    };
+    let caller = |argument: u128| Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(call(
+            2,
+            vec![place(0, point()), unsigned(argument)],
+        ))],
+    };
+    let takes_again = || Shaped {
+        parameters: takes.parameters.clone(),
+        locals: Vec::new(),
+        result: takes.result,
+        requires: takes.requires.clone(),
+        statements: vec![returns(slot(1, u32_type()))],
+    };
+    let (elaboration, result) = run_places(vec![caller(7), takes_again()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run_places(vec![caller(20), takes_again()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+
+/// The place reached from root `root` by `fields`, which must be interned.
+fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
+    let mut place = *tables.roots.get(root).unwrap();
+    for field in fields {
+        let children = &tables.places.get(place).unwrap().children;
+        let segment = Segment::Field(id::<StructuralFieldId>(*field));
+        let found = children
+            .binary_search_by_key(&segment, |(segment, _)| *segment)
+            .unwrap();
+        place = children[found].1;
+    }
+    place
+}
+
+#[test]
+fn different_values_on_different_arrivals_give_no_equation() {
+    // f(a: bool, b: bool) -> u32 {
+    //     let p = Point { x: 1, y: 2 };
+    //     let c = a && !b;       // the `!b` block is one of two ways to the join
+    //     p.x
+    // }
+    // As lowered, the one write to `p.x` dominates the read. The subset has
+    // no store yet, so the arm's write is added to the log by hand: what the
+    // checker concludes must follow from the log and the graph alone.
+    let program = || {
+        elaborate_places(vec![Shaped {
+            parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
+            locals: vec![point(), ScalarType::Boolean.into()],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(2, point_of(unsigned(1), unsigned(2))),
+                bind(
+                    3,
+                    expression(
+                        ExpressionKind::ShortCircuit {
+                            conjunction: true,
+                            left: Box::new(slot(0, ScalarType::Boolean)),
+                            right: Box::new(expression(
+                                ExpressionKind::Not(Box::new(slot(1, ScalarType::Boolean))),
+                                Some(ScalarType::Boolean),
+                            )),
+                        },
+                        Some(ScalarType::Boolean),
+                    ),
+                ),
+                returns(read(place(2, point()), 0)),
+            ],
+        }])
+    };
+    // The constants 1 and 2 the literal was built with.
+    let built = constants(&program());
+    let (one, two) = (built[0], built[1]);
+    // What the read equals once `content` is also written to `place` after
+    // the arm's one operation.
+    let with_arm_write = |target: &[u64], content: Option<Content>| {
+        let mut elaboration = program();
+        let machine = &elaboration.module.machines[0];
+        let OperationKind::EstablishRecord { .. } = machine.blocks[0].operations[2].kind else {
+            panic!("the literal is the entry block's third operation");
+        };
+        let root = machine.blocks[0].operations[2]
+            .result
+            .as_structural()
+            .unwrap()
+            .place;
+        let arm = machine
+            .blocks
+            .iter()
+            .find(|block| {
+                matches!(
+                    block.operations.as_slice(),
+                    [operation] if matches!(operation.kind, OperationKind::BooleanNot { .. })
+                )
+            })
+            .unwrap()
+            .operations[0]
+            .id;
+        let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+        if let Some(content) = content {
+            let place = projected(tables, root, target);
+            let write = tables.writes.push(WriteRow {
+                place,
+                at: ProgramPoint::AfterOperation(arm),
+                content,
+            });
+            tables.places.get_mut(place).unwrap().writes.push(write);
+        }
+        discharge(&mut elaboration).unwrap();
+        let read = field_reads(&elaboration)[0];
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        read_equals(tables, read)
+    };
+    assert_eq!(with_arm_write(&[], None), Some(one));
+    // Another value on the arm: the two arrivals differ.
+    assert_eq!(with_arm_write(&[1], Some(Content::Value(two))), None);
+    // The same value on the arm: every arrival still supplies it.
+    assert_eq!(with_arm_write(&[1], Some(Content::Value(one))), Some(one));
+    // A write to the sibling `p.y` is disjoint and changes nothing.
+    assert_eq!(with_arm_write(&[2], Some(Content::Value(two))), Some(one));
+    // Unknown new contents of the whole record overlap its field.
+    assert_eq!(with_arm_write(&[], Some(Content::Overwritten)), None);
+}
+
+#[test]
+fn sibling_fields_are_disjoint_and_ancestors_overlap() {
+    // far(l: Line, m: Line) -> u32 { l.to.y & l.to.x & l.from.x & m.to.y }
+    let leaf = |slot: usize, outer: usize, inner: usize| {
+        read(
+            of_type(
+                ExpressionKind::Field {
+                    base: Box::new(place(slot, line())),
+                    field: outer,
+                },
+                point(),
+            ),
+            inner,
+        )
+    };
+    let and = |left, right| strict(Strict::BitwiseAnd, left, right);
+    let elaboration = elaborate_places(vec![Shaped {
+        parameters: vec![line(), line()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(and(
+            and(and(leaf(0, 1, 1), leaf(0, 1, 0)), leaf(0, 0, 0)),
+            leaf(1, 1, 1),
+        ))],
+    }]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let overlap = |left, right| {
+        let forward = crate::places::overlap(id(1), &tables.places, left, right).unwrap();
+        let backward = crate::places::overlap(id(1), &tables.places, right, left).unwrap();
+        assert_eq!(forward, backward, "overlap is symmetric");
+        forward
+    };
+    let l = |fields: &[u64]| projected(tables, id(1), fields);
+    let m = |fields: &[u64]| projected(tables, id(2), fields);
+    // A place overlaps itself, its ancestors and its descendants.
+    assert!(overlap(l(&[4, 2]), l(&[4, 2])));
+    assert!(overlap(l(&[]), l(&[4, 2])));
+    assert!(overlap(l(&[4]), l(&[4, 2])));
+    // Two fields of one record are disjoint, and so is everything beneath
+    // them.
+    assert!(!overlap(l(&[4, 2]), l(&[4, 1])));
+    assert!(!overlap(l(&[3]), l(&[4])));
+    assert!(!overlap(l(&[3, 1]), l(&[4, 1])));
+    assert!(!overlap(l(&[3]), l(&[4, 2])));
+    // The same path under another root is other storage.
+    assert!(!overlap(l(&[4, 2]), m(&[4, 2])));
+    assert!(!overlap(l(&[]), m(&[])));
+
+    // Segments that do not prove disjoint storage overlap: two cases of one
+    // sum overlay, and unequal identities alone prove nothing.
+    let mut places: IdTable<ExactPlaceId, PlaceRow> = IdTable::default();
+    let row = |origin| PlaceRow {
+        origin,
+        children: Vec::new(),
+        writes: Vec::new(),
+    };
+    let root = places.push(row(PlaceOrigin::Root(id(1))));
+    let mut child = |segment| {
+        places.push(row(PlaceOrigin::Projection {
+            parent: root,
+            segment,
+        }))
+    };
+    let first_case = child(Segment::Case(id(1)));
+    let second_case = child(Segment::Case(id(2)));
+    let field = child(Segment::Field(id(1)));
+    let first_index = child(Segment::FixedIndex(0));
+    let second_index = child(Segment::FixedIndex(1));
+    let may = |left, right| crate::places::overlap(id(1), &places, left, right).unwrap();
+    assert!(may(first_case, second_case));
+    assert!(may(first_case, field));
+    assert!(may(field, first_case));
+    assert!(may(first_index, second_index));
 }

@@ -1536,6 +1536,7 @@ pub(crate) mod conformance {
                 entry_state,
                 &application,
                 requirement,
+                None,
                 diagnostics,
             );
 
@@ -2187,6 +2188,7 @@ pub(crate) mod conformance {
             state: &State,
             application: &AppliedTraitScope<'_>,
             requirement: &StateSignature,
+            selecting: Option<&typed_trees::trait_definition::Conformance>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             let trait_definition = application.declaration;
@@ -2528,6 +2530,7 @@ pub(crate) mod conformance {
                 &actual_type_parameters,
                 application,
                 requirement,
+                selecting,
                 diagnostics,
             );
             validate_trait_effect_ceiling(
@@ -6609,6 +6612,7 @@ pub(crate) mod named_implementations {
                         state,
                         &application,
                         requirement,
+                        Some(conformance),
                         diagnostics,
                     );
                     crate::proof_contracts::contract_entailment::check_law_conformance(

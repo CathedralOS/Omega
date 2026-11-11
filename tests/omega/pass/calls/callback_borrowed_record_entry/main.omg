@@ -1,6 +1,5 @@
 use omega_language_std::calling;
 use omega_language_std::console;
-use omega::language::core::external_binding;
 
 public data SortPolicies { }
 public ComparatorCalling satisfies CallingPolicy {
@@ -29,6 +28,8 @@ macos_arm64 machine SortPolicies::comparator(signature: BoundarySignature) -> Bo
         plan.call.parameters[1] = SortPolicies::word(8, 1);
         plan.call.has_result = true;
         plan.call.result = SortPolicies::result_word(4);
+        plan.state.permitted_transitive_use.instruction_pointer = true;
+        plan.state.permitted_transitive_use.stack_pointer = true;
         SortPolicies::finish(plan)
     }
     machine reject() -> BoundaryPlanResult {
@@ -178,22 +179,6 @@ satisfies Comparator::compare
     compare_values(first, second)
 }
 
-macos_arm64 machine sort_binding() -> ForeignBinding<26, 6, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_qsort",
-        },
-    }
-}
-macos_arm64 machine sort_leaf<machine Handler>(
-    elements: &mut Elements, count: u64, width: u64
-)
-requires machine Handler satisfies Comparator::compare;
-satisfies SortRegistrar::sort
-via sort_binding()
-requires count == 2 && width == 16;
-
 data Main { elements: Elements; }
 machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
 invokes SortRegistrar
@@ -212,7 +197,6 @@ invokes Console
     machine done() { Console::exit_process(0); }
     machine failed() { Console::exit_process(71); }
 }
-
 
 machine SortPolicies::result_word(bytes: u64) -> ValuePlacement {
     SortPolicies::word(bytes, 0)
@@ -272,22 +256,6 @@ machine LinuxSortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResu
     plan.state.preemption = Preemption::NotApplicable;
     BoundaryPlanResult::Accepted { plan: plan }
 }
-
-linux_x86_64 machine linux_sort_binding() -> ForeignBinding<9, 5, 11> {
-    ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "qsort", version: "GLIBC_2.2.5",
-        },
-    }
-}
-
-linux_x86_64 machine sort_leaf<machine Handler>(
-    elements: &mut Elements, count: u64, width: u64
-)
-requires machine Handler satisfies Comparator::compare;
-satisfies SortRegistrar::sort
-via linux_sort_binding()
-requires count == 2 && width == 16;
 
 linux_x86_64 machine SortPolicies::comparator(signature: BoundarySignature) -> BoundaryPlanResult
 {

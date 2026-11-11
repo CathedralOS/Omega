@@ -8,10 +8,13 @@ the third piece of
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
 obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_trust.md)
-rule 2 lets remove a runtime check. It is not wired into the default compile.
+rule 2 lets remove a runtime check. It is not wired into the default compile;
+[the route's verdict](#the-routes-verdict) is what a router will take from it.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
-dominance between program points; [prove.rs](src/prove.rs) is the one prover.
+dominance between program points; [places.rs](src/places.rs) says what a
+place holds when a field read observes it; [prove.rs](src/prove.rs) is the
+one prover.
 
 ## What it decides
 
@@ -26,13 +29,53 @@ Any other kind is refused as `Unsupported`; elaboration mints none yet.
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
-(`OperationSemantics`, on its normal successor), per callee `ensures`
-clause (`CalleeGuarantee`, after the call) and per edge of a conditional
-(`BranchCondition`: the condition is `true` on the true edge and `false` on
-the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
+(`OperationSemantics`, on its normal successor), per field read whose place
+holds one value on every path to it (`OperationSemantics` of the read; see
+below), per callee `ensures` clause (`CalleeGuarantee`, after the call) and
+per edge of a conditional (`BranchCondition`: the condition is `true` on the
+true edge and `false` on the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## Reads of places
+
+A field read produces a fresh value. It gets the row `read == v` when `v` is
+the one value its place holds on every path to it
+([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md):
+"A primitive read may introduce an equality between its copied SSA result
+and an exact reaching stored SSA value. Every actual predecessor must supply
+that same value"). [places.rs](src/places.rs) finds that from the tables
+alone:
+
+- **The place.** The read's root is `roots[source]`, and each field of its
+  path is one binary search of a parent's `children`.
+- **Overlap.** One function answers whether two places may share storage: a
+  place overlaps itself, its ancestors and its descendants; two places that
+  part by two different record fields are disjoint; any other pair of sibling
+  segments overlaps, and places under different roots do not. Later lanes
+  extend this function (indices, referents) and add no second relation.
+- **Reaching.** Walking the graph back from the read, the first write to an
+  overlapping place on each path is the one that reaches along it. A write of
+  `Content::Value(v)` to exactly the read place supplies `v`. Any other
+  overlapping write supplies no value. A path that reaches the machine's
+  entry with no write is supplied by the place's entry content
+  (`ValueOrigin::EntryContent`).
+
+One value from every arrival gives the equation. Different values on
+different arrivals, or contents with no value identity, give none: the read
+is still well formed and nothing is known about it. A path that reaches the
+entry of a place with no entry content is a table that does not describe the
+module, and the machine is refused.
+
+Knowledge names values only. No row states a proposition about a place and
+no structural `Proposition` variant is used, so the prover gained no
+field-aware path: it sees one more equation between two values.
+
+A call's actuals are replaced into the callee's clauses by position in the
+scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
+actual. A record actual is a place and no clause term can name it, because
+elaboration refuses a clause that names or projects a record formal.
 
 ## The prover
 
@@ -102,6 +145,15 @@ subset needs, so the prover emits them directly.
    shift route (`map_direct_shift_left_bound`); this prover does not build
    its evidence, so an exact `<<` whose count is not a literal zero is
    `Unproved`.
+5. **The read equation needs no kernel rule.** `read == v` is passed to the
+   kernel as a semantic axiom, like every operation equation, and the
+   existing equality steps carry it: a bound on `v` bounds the read, and two
+   reads of one leaf are related through the value they share. An unsigned
+   `p.x - p.x` over a formal discharges with a `Judged` certificate.
+6. **Edge writes are refused, not placed.** The backward walk moves between
+   blocks. A write logged on one edge reaches only that edge's destination,
+   so a write at `ProgramPoint::Edge` that overlaps a read refuses the
+   machine until the slice that logs one teaches the walk about edges.
 
 ## Evidence seals
 
@@ -124,6 +176,49 @@ Seals are in memory only. Terminal Psi's layout has no place for them yet, so
 they are lost on a byte round trip and do not survive a stored artifact: a
 module lowered from bytes, including one a cache rebuilt, arrives with
 `ObligationEvidence::ReadFromBytes` and zero fingerprints.
+
+## The route's verdict
+
+An obligation the prover cannot discharge is a compile error for the program,
+never a slower guarded form
+([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
+`judge` ([verdict.rs](src/verdict.rs)) is the one function a router takes the
+route's decision from. It discharges an elaborated closure and returns:
+
+- `Accepted`: every obligation of every machine was discharged by a
+  certificate the kernel accepted, with the operation seals for Omega 00.
+- `Rejected`: one `UnprovedObligation` per obligation that was not, each with
+  its kind, its source site from elaboration's correspondence, and its cause
+  (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
+  `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
+  no artifact. It says what was not proved and never that the obligation is
+  false: "Failure to find a proof is not proof of falsehood"
+  ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  and "Unproved source contracts reject in Psi checking"
+  ([review.md](../../../../../wiki/spec/packages/review.md)). A published
+  clause that fails only because a return's guarantee failed is reported
+  once, at that return.
+- `Incomplete`: every unproved obligation's goal has a form the prover has no
+  rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
+  shift-left bound, a proposition form it does not reason about). The program
+  may be valid and the route cannot judge it, so this is the outcome table's
+  "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
+  artifact and no fallback either. `Reject` wins when both kinds occur. The
+  closed `Incomplete` resource table has no provision for a proof goal form
+  yet, so this variant has no `Diagnostic` constructor: a plain error would
+  publish it as `Reject`. The prover has no search bound, so no obligation is
+  `Incomplete` for exhaustion.
+- `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
+  Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
+
+There is no variant for a partly proved closure. Omega 00 accepts every
+obligation of the module it is given and fills evidence only where a seal
+arrives, so a module with an undischarged obligation must never reach it. Any
+other refusal is a defect of the route and comes back as `Err`.
+
+No router calls `judge` in the default compile yet: the comparison harness
+below is its only caller outside tests, and prints each unproved
+obligation's message with its outcome.
 
 ## Measuring against the current checker
 

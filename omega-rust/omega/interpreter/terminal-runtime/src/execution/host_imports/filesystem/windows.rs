@@ -225,9 +225,11 @@ impl Call {
         index: usize,
         bytes: &[u8],
     ) -> Result<(), TerminalEffectRejection> {
-        if self.path_argument(index)
-            && (bytes.len() != 8192 || !bytes.as_chunks::<2>().0.contains(&[0, 0]))
-        {
+        // The captured bytes are the whole declared array, whatever its length.
+        // A path without a terminator inside it would let the OS read past the
+        // borrowed storage, so it is refused here rather than trusted.
+        let (elements, partial) = bytes.as_chunks::<2>();
+        if self.path_argument(index) && (!partial.is_empty() || !elements.contains(&[0, 0])) {
             return Err(rejection(
                 "Windows path has no WCHAR terminator inside its complete captured array",
             ));
@@ -423,5 +425,35 @@ impl Call {
                 "Windows readonly file request differs from its exact input record",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_call() -> Call {
+        Call {
+            context: FilesystemContext::new(
+                crate::execution::TerminalFilesystemDelegation::HostNamespace,
+            ),
+            effect: Effect::Acquire,
+            symbol: b"CreateFileW",
+            namespace: Ok(()),
+        }
+    }
+
+    #[test]
+    fn path_of_any_length_needs_its_terminator_inside_the_array() {
+        let call = open_call();
+        // Four WCHARs "ab\0?" in a caller-sized array: terminated inside it.
+        assert!(call.validate_path(0, &[97, 0, 98, 0, 0, 0, 7, 0]).is_ok());
+        // No WCHAR is zero, although zero bytes straddle element boundaries.
+        assert!(call.validate_path(0, &[97, 0, 0, 98, 7, 0, 0, 7]).is_err());
+        // A capture that is not a whole number of WCHARs is not a path array.
+        assert!(call.validate_path(0, &[97, 0, 0, 0, 0]).is_err());
+        assert!(call.validate_path(0, &[]).is_err());
+        // Only the path argument is checked.
+        assert!(call.validate_path(1, &[97, 0]).is_ok());
     }
 }
