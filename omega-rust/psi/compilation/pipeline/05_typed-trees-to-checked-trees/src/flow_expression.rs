@@ -6033,8 +6033,15 @@ mod view_footprints {
             let places = if !value.referents.is_empty() {
                 direct_referent_places(&self.context.control, value.referents)?
             } else {
-                let operand = self.context.control.operands.insert(*value);
-                projectable_reference_places(self.program, &self.context.control, operand, &[])?
+                // The resolver reads operands by handle, so the query needs a
+                // temporary row. Rewind it: a left-behind copy would later look
+                // like a second capture of the same expression in this statement.
+                let retained = self.context.control.operands.frontier();
+                let operand = self.context.control.operands.append(*value);
+                let places =
+                    projectable_reference_places(self.program, &self.context.control, operand, &[]);
+                self.context.control.operands.rewind_appended(retained);
+                places?
             };
             Some(
                 places

@@ -22036,8 +22036,7 @@ pass/domains/runtime_scalar_domain_mixed_return_origins_exit rejected 2926ms che
 pass/domains/runtime_scalar_domain_return_cleanup_exit checked 16776ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/domains/runtime_scalar_domain_saved_call_result_exit checked 3294ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_scalar_tag_mixed_return_completion_exit checked 3008ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/runtime_selected_nested_field_domain_exit rejected 3531ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
-	returned view lost its completed invocation capture
+pass/domains/runtime_selected_nested_field_domain_exit checked 3888ms check-target:macos_arm64 @860df5ebb565
 pass/domains/runtime_stored_call_inequality_addition_exit checked 4050ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_structural_contract_erasure_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_terminal_result_context_exit checked 17192ms check-target:macos_arm64 @ccdb99ca2214
