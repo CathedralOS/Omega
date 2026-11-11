@@ -7744,11 +7744,11 @@ fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected reject
 fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 1706ms expected @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
-fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 1174ms expected @f78c2623a68c
-	argument `view` for state `forward::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 7540ms expected @c1e13a12056a
+	argument `view` for state `forward`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_recast_through_const_name_rejected rejected 2833ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 666ms expected @f78c2623a68c
+fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 8052ms expected @c1e13a12056a
 	construction of `Holder` field `view`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 2414ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -7756,13 +7756,13 @@ fail/facts/data_where_standing_mutable_recast_through_match_join_rejected reject
 	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 	argument `view` for state `forward::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
-fail/facts/data_where_standing_mutable_recast_through_other_machine_rejected rejected 671ms expected @f78c2623a68c
-	argument `counter` for state `relay::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
-fail/facts/data_where_standing_mutable_recast_through_other_state_rejected rejected 663ms expected @f78c2623a68c
-	argument `counter` for state `inspect::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
-fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejected 655ms expected @f78c2623a68c
-	argument `counter` for state `inspect::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
-fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 659ms expected @f78c2623a68c
+fail/facts/data_where_standing_mutable_recast_through_other_machine_rejected rejected 9751ms expected @c1e13a12056a
+	argument `counter` for state `relay`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_other_state_rejected rejected 8625ms expected @c1e13a12056a
+	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejected 6901ms expected @c1e13a12056a
+	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 7504ms expected @c1e13a12056a
 	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_snapshot_bound rejected 2197ms expected @563a0d1cc67a
 	cannot prove requires contract for call require_bound from fill: saved <= 60 (needs fact `value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -18172,8 +18172,8 @@ fail/recast/non_owning_erasure_preserves_stored_alias rejected 235ms expected @1
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/recast/partial_ascii_recast_does_not_restore_field rejected 7434ms expected @62c64cd54815
 	cannot prove default-domain field requirement for return from corrupt at statement 4: packet.bytes requires [u8; N]::Ascii
-fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
-	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
+fail/recast/pending_layout_view_call_requires_establishment rejected 7652ms expected @c1e13a12056a
+	argument `value` for state `consume`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected 1337ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/qualified_reference_local_escape rejected 2188ms expected @ccdb99ca2214
@@ -23092,10 +23092,10 @@ pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 39
 pass/facts/data_where_standing_mutable_recast_through_field_exit checked 3872ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3300ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 11078ms check-target:macos_arm64 @271311625238
-pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3800ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 12990ms check-target:macos_arm64 @c1e13a12056a
 pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 3882ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 3842ms check-target:macos_arm64 @f78c2623a68c
-pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 3271ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 12262ms check-target:macos_arm64 @c1e13a12056a
 pass/facts/data_where_standing_mutable_restoration checked 3284ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_restoration_snapshot checked 3689ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_nested_borrowed_field_call_result checked 6417ms check-target:macos_arm64 @cc73d2b91415
