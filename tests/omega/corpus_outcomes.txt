@@ -18889,8 +18889,6 @@ fail/traits/default_member_shadowing_argument rejected 13523ms expected @32c7663
 fail/traits/default_row_foreign_captured_operand rejected 2168ms expected @07aa19d13db7
 	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
-fail/traits/direct_member_silent_contract rejected 40212ms expected @3d461306e4ec
-	cannot prove published termination for machine `wrap`: its checked body reaches an operation without a usable termination guarantee; state `wrap::entry` statement 0 call 0 targets `Write::try_from::try_from` through `Write`, summary Some(NoGuarantee); source target `Write::try_from::try_from`, selected contract `try_from`, public requirement `TryFrom::try_from` NoGuarantee
 fail/traits/dyn_array_whole_missing_element rejected 1127ms expected @ccdb99ca2214
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`

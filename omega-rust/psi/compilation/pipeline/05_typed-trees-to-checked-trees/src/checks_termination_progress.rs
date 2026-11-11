@@ -1453,10 +1453,12 @@ mod machine_summaries {
         // The flow target may be the bare requirement. Its exact source call
         // retains the selected bound and the corresponding premise parameters.
         if let Some(signature) = flow_call_public_signature(program, machine, state, call).ok()? {
-            // A call that names a member of a named implementation directly
-            // runs that one machine. Where its requirement is silent about
-            // termination, the member's own published promise applies. A call
-            // through a binder keeps only what the bound publishes.
+            // A call that names an implementation member directly is a call to
+            // that ordinary machine (see `validation::DirectMemberCall`). It has
+            // the promise the member inherits from its requirement; where the
+            // requirement is silent it has what a free machine in the member's
+            // place would give. A call through a binder keeps only what the
+            // bound publishes.
             if !signature.termination_guarantee.promises_termination()
                 && let Some(site) = find_call_site(
                     program,
@@ -1465,14 +1467,10 @@ mod machine_summaries {
                     call.statement_index,
                     call.call_ordinal,
                 )
-                && let Some(member) =
-                    validation::direct_named_member_machine(program, machine, site)
-                && let language_semantics::TerminationInterface::Published(guarantee) =
-                    &member.termination_plan.interface
-                && guarantee.promises_termination()
+                && let Some(member) = validation::direct_member_call(program, machine, site)
             {
                 return Some((
-                    SelectedCallProgress { guarantee },
+                    direct_member_summary(program, member.machine, summaries)?,
                     call_target_parameters(program, call.target_symbol),
                 ));
             }
@@ -1487,6 +1485,41 @@ mod machine_summaries {
             selected_call_summary(program, call.target_symbol, summaries)?,
             call_target_parameters(program, call.target_symbol),
         ))
+    }
+
+    /*
+        What a direct call to an implementation member may rely on once its
+        requirement has turned out to be silent: the same answer
+        `selected_call_summary` gives for a free machine with this declaration.
+
+        One adjustment keeps that parity. A free machine that authors nothing
+        stays `InternalDerived`, but a member in that position was recorded as
+        publishing its requirement's silence, because that is the interface a
+        binder sees. Named directly it is still a machine with a checked body,
+        so "local direct calls may use that exact checked summary"
+        (termination.md) applies to it as to the free machine. A member whose
+        body is not the checked source of its behaviour keeps the silence.
+    */
+    fn direct_member_summary<'a>(
+        program: &'a dyn ::validation::CheckingInput,
+        member: &'a typed_trees::machine::Machine,
+        summaries: &ProgressSummaries<'a>,
+    ) -> Option<SelectedCallProgress<'a>> {
+        match &member.termination_plan.interface {
+            language_semantics::TerminationInterface::Published(guarantee)
+                if guarantee.promises_termination()
+                    || !member.body_is_present
+                    || !member.supply_mode.is_checked_body() =>
+            {
+                Some(SelectedCallProgress { guarantee })
+            }
+            _ => {
+                let summary = summaries.by_symbol(program, member.symbol)?;
+                Some(SelectedCallProgress {
+                    guarantee: &summary.guarantee,
+                })
+            }
+        }
     }
 
     pub(crate) fn missing_call_guarantee_context(

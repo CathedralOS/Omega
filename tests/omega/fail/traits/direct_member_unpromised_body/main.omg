@@ -1,14 +1,30 @@
-// Expected error: the member publishes no termination promise of its own, so a
-// terminating caller and a law about its result have nothing to rely on.
+// Expected error: a call that names a member directly gets what a free machine
+// with the same declaration would give, and no more. `Write::try_from` authors
+// no promise and its body calls `forward`, a generic machine that publishes no
+// termination guarantee because its binder's requirement is silent. A free
+// machine with this body gives a terminating caller and a law nothing to rely
+// on, so the member does not either.
+// The checker stops at the terminating caller `wrap`; with `wrap` removed the
+// law in `covers` is refused as "not denotational: the selected machine is not
+// unconditionally terminating".
 use omega::language::core::conversion;
 
 data Pair [copy] { first: u8; last: u8; }
 data Frame [copy] { tag: u8; first: u8; last: u8; }
 data Failure [copy] { case InvalidTag; }
 
-Write satisfies TryFrom<Pair, Frame, Failure> {
+Inner satisfies TryFrom<Pair, Frame, Failure> {
     machine try_from(source: Pair) -> Result<Frame, Failure> {
         Result::Ok { value: Frame { tag: 165u8, first: source.first, last: source.last } }
+    }
+}
+
+machine forward<W satisfies TryFrom<Pair, Frame, Failure>>(source: Pair) -> Result<Frame, Failure>
+{ W::try_from(source) }
+
+Write satisfies TryFrom<Pair, Frame, Failure> {
+    machine try_from(source: Pair) -> Result<Frame, Failure> {
+        forward<Inner>(source)
     }
 }
 
