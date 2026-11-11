@@ -310,3 +310,87 @@ The question:
 
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
+
+### Q7 - May a caller rely on what a callee's body returns beyond its `ensures`?
+
+Decision name: `callee-result-body-summary`.
+
+**Customer.** The checker on the lowered form
+([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
+must decide `tests/omega/pass/contracts/boolean_result_all_normal_returns_exit`:
+
+```omega
+machine choose(pick: bool) -> bool {
+    transition pick {
+        true -> false
+        false -> false
+    }
+}
+machine hold(value: bool) -> bool requires value == false { true }
+machine main() {
+    let direct: bool = choose(false);
+    let observed: bool = hold(direct);
+}
+```
+
+`choose` publishes no `ensures`. The current checker accepts the program: it
+evaluates `choose`'s body at the call with the actual argument
+(`05_typed-trees-to-checked-trees/src/flow_transfers.rs`, `mod
+normal_returns`, reached from `capture_call`) and records `direct == false`
+as a value fact, restricted only to direct calls of checked bodies with
+scalar parameters, not to private callees or one verification unit. The new
+route uses only the callee's contract and leaves `hold`'s requirement
+unproved, which under [what each stage may trust](wiki/drafts/designs/stage_trust.md)
+rule 2 rejects the program.
+
+**Contracts checked.**
+
+- [Proof contracts](wiki/spec/proofs/contracts.md#machines-and-bundles):
+  *"`ensures` states conclusions its body must justify. Before importing a
+  callee's conclusions, a caller establishes the assumptions under the exact
+  argument substitution."* Only `ensures` is named as what a caller imports.
+- [Proof contracts](wiki/spec/proofs/contracts.md#identity-availability-and-erasure):
+  *"Private strengthening does not become a public guarantee"*, said of
+  public trait requirements and their private realizations.
+- [Machines as runtime values](wiki/spec/language/machine_values.md):
+  *"A callable field publishes the complete contract its caller may rely
+  on."* Said of callable fields, not of named calls.
+- [Effects](wiki/spec/language/effects.md), crash routes: *"Only a body
+  inside the same fingerprinted verification unit may supply a local body
+  summary; otherwise use the published ceiling."* The same rule in
+  [calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md#crash).
+  Both sit in the crash-route text.
+- [Dependent values](wiki/spec/language/dependent_values.md#mutation-frames):
+  (`published-write-frames`, settled 2026-11-10): a checked body's write
+  frame is *"Inferred from the body and published"*, and *"A caller in the
+  same fingerprinted verification unit may use the body's exact summary;
+  every other caller uses the published frame."* Inference is spelled out for
+  frames and reach, not for a result.
+
+So body-derived evidence crosses a call for crash routes and write frames
+(the exact summary within one verification unit, a published inferred frame
+beyond it), and nothing says whether it may for a result. The design record treats every axis alike (*"Information derived
+from a body crosses only edges inside 'the same fingerprinted verification
+unit'; every other edge uses the authored contract"*), and lists the result
+relation as one axis; the specification does not.
+
+**Direction reported, not ratified.** A direction relayed from the owners'
+discussion on 2026-11-11, and not in the specification: the compiler infers
+further facts from the instructions a body actually executes, with no new
+syntax (a body that writes 1000 under `ensures value > 100` acts as `ensures
+value == 1000`), rather than taking every fact only from `requires` and
+`ensures`. Its scope was not stated.
+
+**Question.** Does a fact inferred from a callee's body (here `result ==
+false`, from both arms returning `false`) reach its callers when the callee's
+`ensures` does not state it?
+
+- **Scope:** (a) only inside one fingerprinted verification unit, as crash
+  routes do; (b) across a published contract as well; or (c) not for
+  results, so callers see only `ensures`.
+- **Form:** if it reaches callers, is it a summary over the formals, checked
+  once against the body, or may it use each call's actual arguments, as the
+  current checker does?
+
+Under (c) the current checker's acceptance of this fixture is an error, and
+the fixture moves to `fail/` or gains `ensures result == false`.

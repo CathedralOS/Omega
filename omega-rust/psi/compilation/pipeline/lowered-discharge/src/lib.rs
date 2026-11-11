@@ -51,12 +51,16 @@ Kinds outside `OperationSafety`, `CallRequirement`, `NormalGuarantee` and
 yet.
 */
 
+mod crashes;
 mod graph;
+mod joins;
 mod minted;
 mod places;
 mod prove;
+mod reuse;
 mod verdict;
 
+pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
     AcceptedClosure, ConsumptionSite, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
 };
@@ -72,9 +76,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, EvidenceIdentity, IdTable, InvocationSite, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -199,6 +203,10 @@ pub struct MachineDischarge {
     /// One verdict per consumption point each invariant window reaches
     /// open, in block and operation order.
     pub windows: Vec<WindowUse>,
+    /// Joins whose inferred predicate some arrival could not establish. Each
+    /// predicate was replaced by `Truth`, which every arrival establishes,
+    /// so the join contributes nothing downstream (`joins`).
+    pub weakened_joins: Vec<BlockId>,
 }
 
 impl MachineDischarge {
@@ -314,6 +322,25 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                 "machine tables are past the end",
             )
         })?;
+        // A requirement has a contract and no body, so nothing about it is
+        // decided here. Its guarantees are each selected implementation's to
+        // prove; leaving them without a verdict would read as vacuously held.
+        if elaboration.requirements.contains(&id) {
+            machines.push(MachineDischarge {
+                verdicts: tables.obligations.map(|obligation, _| {
+                    Err(refusal(
+                        RefusalReason::Unsupported,
+                        id,
+                        Construct::Obligation(obligation),
+                        "a requirement's guarantee is proved by each implementation, not here",
+                    ))
+                }),
+                uses: Vec::new(),
+                windows: Vec::new(),
+                weakened_joins: Vec::new(),
+            });
+            continue;
+        }
         machines.push(machine(
             &module.machines,
             &module.structural_types,
@@ -376,156 +403,47 @@ fn machine(
             "knowledge rows already present",
         ));
     }
-    let types = tables.values.map(|_, row| row.scalar_type);
-    // Before anything is decided: the rows must be the ones the lowered form
-    // owes, at its points, or deciding every row proves nothing (`minted`).
-    minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
-    let graph = Graph::new(id, lowered, tables)?;
-    let storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
-    storage.owed_are_minted(tables)?;
-    for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
-        // A clause over a field of a record formal is about what that field
-        // held at entry, which is a value when some operation names the
-        // field. One that names no such value states nothing here.
-        let stated = match substitute(proposition, &mut storage.at_entry(tables)) {
-            Ok(stated) => stated,
-            Err(Unbound::Unproved(_)) => continue,
-            Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
-        };
-        push_knowledge(
-            tables,
-            stated,
-            ProgramPoint::BlockEntry(lowered.entry),
-            Justification::EntryRequirement {
-                clause: position(clause, id)?,
-            },
-        );
-    }
-    for block in &lowered.blocks {
-        for operation in &block.operations {
-            if let Some(equation) = result_equation(id, operation, &types)? {
-                push_knowledge(
-                    tables,
-                    equation,
-                    ProgramPoint::AfterOperation(operation.id),
-                    Justification::OperationSemantics(operation.id),
-                );
-            }
-            // A field read's result is a fresh value; what it equals comes
-            // from the write log, not from the operation alone.
-            if let Some(equation) = storage.read_equation(tables, operation)? {
-                push_knowledge(
-                    tables,
-                    equation,
-                    ProgramPoint::AfterOperation(operation.id),
-                    Justification::OperationSemantics(operation.id),
-                );
-            }
-            // And what the type of the storage it reads says of that value.
-            for premise in storage.read_premises(tables, operation)? {
-                push_knowledge(
-                    tables,
-                    premise,
-                    ProgramPoint::AfterOperation(operation.id),
-                    Justification::OperationSemantics(operation.id),
-                );
-            }
-        }
-        // A conditional's condition holds on its true edge and fails on its
-        // false edge. Only a block that edge alone enters is dominated by it.
-        if let Terminator::Conditional {
-            condition,
-            when_true,
-            when_false,
-        } = &block.terminator
-            && knowledge == Knowledge::All
-        {
-            for (edge, holds) in [(when_true.edge, true), (when_false.edge, false)] {
-                push_knowledge(
-                    tables,
-                    Proposition::Equal(
-                        ScalarTerm::value(*condition, ScalarType::Boolean),
-                        ScalarTerm::Boolean(holds),
-                    ),
-                    ProgramPoint::Edge(edge),
-                    Justification::BranchCondition { edge, holds },
-                );
-            }
-        }
-    }
-    // What each edge of a dispatch binds: its payload parameters, each
-    // equal to what the payload leaf holds. The row holds because that edge
-    // was taken and is available on it.
-    if knowledge == Knowledge::All {
-        for block in &lowered.blocks {
-            for (edge, equation) in storage.payload_equations(tables, block)? {
-                push_knowledge(
-                    tables,
-                    equation,
-                    ProgramPoint::Edge(edge),
-                    Justification::DispatchBinding { edge },
-                );
-            }
-        }
-    }
-    for invocation in tables.invocations.keys().collect::<Vec<_>>() {
-        let row = terminal_check_tables::row(
-            &tables.invocations,
-            invocation,
-            id,
-            Construct::Invocation(invocation),
-        )?;
-        let InvocationSite::Operation(operation) = row.site else {
-            return Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Invocation(invocation),
-                "invocation outside an operation",
-            ));
-        };
-        let callee = callee(id, invocation, &row.callee)?;
-        let actuals = scalar_actuals(&row.actuals);
-        let contract = &terminal_machine(machines, callee, id)?.contract;
-        for (clause, ensures) in contract.ensures.iter().enumerate() {
-            let proposition = substitute(
-                &ensures.proposition,
-                &mut ScalarActuals {
-                    actuals: &actuals,
-                    tables,
-                },
-            )
-            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
-            push_knowledge(
-                tables,
-                proposition,
-                ProgramPoint::AfterOperation(operation),
-                Justification::CalleeGuarantee {
-                    invocation,
-                    clause: position(clause, id)?,
-                },
-            );
-        }
-    }
-
-    let context = PropositionContext::from_value_types(
-        types
-            .iter()
-            .map(|(value, scalar_type)| (value, *scalar_type)),
-    )
-    .map_err(|_| {
-        refusal(
-            RefusalReason::Unsupported,
-            id,
-            Construct::Machine,
-            "value types do not form a proposition context",
-        )
-    })?;
-    // Certificates first; a published clause is then decided from its exits.
+    let Prepared {
+        types,
+        graph,
+        context,
+    } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
+    let storage = places::Storage::new(
+        id,
+        lowered,
+        structural_types,
+        domains,
+        &graph,
+        tables,
+        &types,
+    )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
-        Vec::with_capacity(tables.obligations.len());
-    for (obligation, row) in tables.obligations.iter() {
+        (0..tables.obligations.len()).map(|_| None).collect();
+    // Join predicates first: each is checked on every arrival before it may
+    // justify anything downstream.
+    if knowledge == Knowledge::All {
+        joins::infer(lowered, id, tables, &graph, &context)?;
+    }
+    let weakened_joins = joins::check(
+        &joins::Machine {
+            machines,
+            lowered,
+            storage: &storage,
+            id,
+            types: &types,
+            graph: &graph,
+            context: &context,
+            relations: knowledge != Knowledge::LiteralIntervals,
+        },
+        tables,
+        &mut decided,
+    )?;
+    // Certificates next; a published clause is then decided from its exits.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_some() {
+            continue;
+        }
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
-            decided.push(None);
             continue;
         }
         let verdict = goal(
@@ -544,7 +462,7 @@ fn machine(
             )
             .map(Discharged::Certificate)
         });
-        decided.push(Some(verdict));
+        decided[index] = Some(verdict);
     }
     let mut verdicts: IdTable<ObligationId, Checked<Discharged>> = IdTable::default();
     for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
@@ -704,6 +622,214 @@ fn machine(
         verdicts: settled,
         uses,
         windows: closures,
+        weakened_joins,
+    })
+}
+
+/// Fills one machine's knowledge table from its lowered form: entry
+/// `requires`, result equations and field-read equations, branch
+/// conditions, dispatch bindings and callee guarantees.
+fn fill_knowledge(
+    machines: &[TerminalMachine],
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &mut MachineTables,
+    knowledge: Knowledge,
+    types: &IdTable<ValueId, ScalarType>,
+    storage: &places::Storage<'_>,
+) -> Checked<()> {
+    for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
+        // A clause over a field of a record formal is about what that field
+        // held at entry, which is a value when some operation names the
+        // field. One that names no such value states nothing here.
+        let stated = match substitute(proposition, &mut storage.at_entry(tables)) {
+            Ok(stated) => stated,
+            Err(Unbound::Unproved(_)) => continue,
+            Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
+        };
+        push_knowledge(
+            tables,
+            stated,
+            ProgramPoint::BlockEntry(lowered.entry),
+            Justification::EntryRequirement {
+                clause: position(clause, id)?,
+            },
+        );
+    }
+    for block in &lowered.blocks {
+        for operation in &block.operations {
+            if let Some(equation) = result_equation(id, operation, types)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+            // A field read's result is a fresh value; what it equals comes
+            // from the write log, not from the operation alone.
+            if let Some(equation) = storage.read_equation(tables, operation)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+            // And what the type of the storage it reads says of that value.
+            for premise in storage.read_premises(tables, operation)? {
+                push_knowledge(
+                    tables,
+                    premise,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+        }
+        // A conditional's condition holds on its true edge and fails on its
+        // false edge. Only a block that edge alone enters is dominated by it.
+        if let Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &block.terminator
+            && knowledge == Knowledge::All
+        {
+            for (edge, holds) in [(when_true.edge, true), (when_false.edge, false)] {
+                push_knowledge(
+                    tables,
+                    Proposition::Equal(
+                        ScalarTerm::value(*condition, ScalarType::Boolean),
+                        ScalarTerm::Boolean(holds),
+                    ),
+                    ProgramPoint::Edge(edge),
+                    Justification::BranchCondition { edge, holds },
+                );
+            }
+        }
+    }
+    // What each edge of a dispatch binds: its payload parameters, each
+    // equal to what the payload leaf holds. The row holds because that edge
+    // was taken and is available on it.
+    if knowledge == Knowledge::All {
+        for block in &lowered.blocks {
+            for (edge, equation) in storage.payload_equations(tables, block)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::Edge(edge),
+                    Justification::DispatchBinding { edge },
+                );
+            }
+        }
+    }
+    for invocation in tables.invocations.keys().collect::<Vec<_>>() {
+        let row = terminal_check_tables::row(
+            &tables.invocations,
+            invocation,
+            id,
+            Construct::Invocation(invocation),
+        )?;
+        // A call with no normal completion is a terminator. Its callee's
+        // guarantees "apply only on normal return" (calls_and_outcomes.md), and
+        // it has none, so it adds no knowledge.
+        let operation = match row.site {
+            InvocationSite::Operation(operation) => operation,
+            InvocationSite::InvokeNoNormal(_) => continue,
+            _ => {
+                return Err(refusal(
+                    RefusalReason::Unsupported,
+                    id,
+                    Construct::Invocation(invocation),
+                    "invocation outside an operation or a no-normal call",
+                ));
+            }
+        };
+        let callee = callee(id, invocation, &row.callee)?;
+        let actuals = scalar_actuals(&row.actuals);
+        let contract = &terminal_machine(machines, callee, id)?.contract;
+        for (clause, ensures) in contract.ensures.iter().enumerate() {
+            let proposition = substitute(
+                &ensures.proposition,
+                &mut ScalarActuals {
+                    actuals: &actuals,
+                    result: operation_result(lowered, operation),
+                    tables,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::AfterOperation(operation),
+                Justification::CalleeGuarantee {
+                    invocation,
+                    clause: position(clause, id)?,
+                },
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// What deciding one machine's obligations needs: value types, dominance,
+/// and the proposition context; filling the knowledge table on the way.
+pub(crate) struct Prepared {
+    pub(crate) types: IdTable<ValueId, ScalarType>,
+    pub(crate) graph: Graph,
+    pub(crate) context: PropositionContext,
+}
+
+/// Fills `tables.knowledge` from the lowered form and builds what deciding
+/// needs. Knowledge already present is kept: it is this machine's own.
+pub(crate) fn prepare(
+    machines: &[TerminalMachine],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    knowledge: Knowledge,
+) -> Checked<Prepared> {
+    let lowered = terminal_machine(machines, id, id)?;
+    let fill = tables.knowledge.is_empty();
+    let types = tables.values.map(|_, row| row.scalar_type);
+    // Before anything is decided: the rows must be the ones the lowered form
+    // owes, at its points, or deciding every row proves nothing (`minted`).
+    // A consumer re-checking a saved proof decides rows too, so it checks
+    // them the same way.
+    minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
+    let graph = Graph::new(id, lowered, tables)?;
+    if fill {
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            structural_types,
+            domains,
+            &graph,
+            tables,
+            &types,
+        )?;
+        storage.owed_are_minted(tables)?;
+        fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
+    }
+    let context = PropositionContext::from_value_types(
+        types
+            .iter()
+            .map(|(value, scalar_type)| (value, *scalar_type)),
+    )
+    .map_err(|_| {
+        refusal(
+            RefusalReason::Unsupported,
+            id,
+            Construct::Machine,
+            "value types do not form a proposition context",
+        )
+    })?;
+    Ok(Prepared {
+        types,
+        graph,
+        context,
     })
 }
 
@@ -907,10 +1033,15 @@ pub(crate) trait Bindings {
 
 /// A call's actuals standing for the callee's formals: the callee's `k`-th
 /// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
-/// actual.
-struct ScalarActuals<'a> {
-    actuals: &'a [ValueId],
-    tables: &'a MachineTables,
+/// actual. In a guarantee, the callee's result pseudo-value (the value after
+/// its scalar formals) is `result`, the value the call defines
+/// (calls_and_outcomes.md: "Normal guarantees refer to the actual result and
+/// appropriate parameter versions."). A `requires` has no result, and a
+/// clause naming one where none is given is refused.
+pub(crate) struct ScalarActuals<'a> {
+    pub(crate) actuals: &'a [ValueId],
+    pub(crate) result: Option<ValueId>,
+    pub(crate) tables: &'a MachineTables,
 }
 
 /// The caller's scalar actual a callee's scalar formal stands for.
@@ -939,7 +1070,20 @@ pub(crate) fn scalar_actual(
 
 impl Bindings for ScalarActuals<'_> {
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
-        scalar_actual(self.actuals, self.tables, id, scalar_type)
+        match self.result {
+            Some(result) if id.get() == self.actuals.len() as u64 + 1 => {
+                let row = self.tables.values.get(result).ok_or(Unbound::Unsupported(
+                    "call result is past the end of the caller's values",
+                ))?;
+                if row.scalar_type != scalar_type {
+                    return Err(Unbound::Unsupported(
+                        "call result type differs from the callee's",
+                    ));
+                }
+                Ok(ScalarTerm::value(result, scalar_type))
+            }
+            _ => scalar_actual(self.actuals, self.tables, id, scalar_type),
+        }
     }
 
     fn field(
@@ -1149,31 +1293,45 @@ fn goal(
         ObligationKind::DataDomain { operation, clause } => {
             storage.domain_goal(tables, operation, clause, concerns)
         }
-        ObligationKind::NormalGuarantee { clause, .. } => usize::try_from(clause)
-            .ok()
-            .and_then(|clause| lowered.contract.ensures.get(clause))
-            .map(|clause| clause.proposition.clone())
-            .ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    concerns,
-                    "machine has no such ensures clause",
-                )
-            }),
+        ObligationKind::NormalGuarantee { exit, clause, .. } => {
+            let clause = usize::try_from(clause)
+                .ok()
+                .and_then(|clause| lowered.contract.ensures.get(clause))
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        concerns,
+                        "machine has no such ensures clause",
+                    )
+                })?;
+            // On a return edge the result pseudo-value stands for the value
+            // that edge returns (state_contracts.md: "Synthetic `result`
+            // denotes the exact returned value").
+            Ok(match (&lowered.result, returned(lowered, exit)) {
+                (terminal_psi::TerminalMachineResult::Scalar(result), Some(value)) => {
+                    returned_for_result(&clause.proposition, result.id, value)
+                }
+                _ => clause.proposition.clone(),
+            })
+        }
         ObligationKind::PublishedGuarantee { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,
             "a published clause is decided from its exits, not proved",
         )),
+        ObligationKind::ArrivalInvariant { edge } => {
+            joins::arrival_goal(lowered, id, obligation, edge, tables)
+        }
+        ObligationKind::CrashCoverage { site, cause } => {
+            crashes::coverage_goal(lowered, id, obligation, site, cause)
+        }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
         | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::ArrivalInvariant { .. }
-        | ObligationKind::CrashCoverage { .. }
         | ObligationKind::WellFoundedness { .. }
         | ObligationKind::RankComparison { .. } => Err(refusal(
             RefusalReason::Unsupported,
@@ -1197,12 +1355,70 @@ fn decide(
     goal: Proposition,
     relations: bool,
 ) -> Checked<Evidence> {
-    let unproved = |cause: UnprovedCause, detail: String| Refusal {
+    let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
+    let mut prover = prove::Prover::new(
+        context,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
+        &tables.values,
+        relations,
+    );
+    let proof = prover.prove(&goal).map_err(|reason| {
+        // Classified by the goal's form, not by which search path failed
+        // last, so the outcome does not depend on search order.
+        let cause = if prove::has_rules_for(&goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        unproved(id, obligation, cause, reason.to_owned())
+    })?;
+    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Obligation(obligation),
+            "obligation identity is not an evidence identity",
+        )
+    })?;
+    let certificate = CertificateEnvelope {
+        identity,
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof,
+    };
+    verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+fn unproved(
+    id: MachineId,
+    obligation: ObligationId,
+    cause: UnprovedCause,
+    detail: String,
+) -> Refusal {
+    Refusal {
         reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
         detail,
-    };
+    }
+}
+
+/// The knowledge available where an obligation sits, split as the kernel
+/// takes it: assumptions and semantic axioms, with their rows.
+pub(crate) struct Hypotheses {
+    pub(crate) assumption_rows: Vec<KnowledgeId>,
+    pub(crate) axiom_rows: Vec<KnowledgeId>,
+    pub(crate) assumptions: Vec<Proposition>,
+    pub(crate) axioms: Vec<Proposition>,
+}
+
+pub(crate) fn hypotheses(
+    graph: &Graph,
+    tables: &MachineTables,
+    id: MachineId,
+    obligation: ObligationId,
+    point: ProgramPoint,
+) -> Checked<Hypotheses> {
     let mut assumption_rows = Vec::new();
     let mut axiom_rows = Vec::new();
     let mut assumptions = Vec::new();
@@ -1235,30 +1451,25 @@ fn decide(
             }
         }
     }
-    let mut prover = prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
-    let proof = prover.prove(&goal).map_err(|reason| {
-        // Classified by the goal's form, not by which search path failed
-        // last, so the outcome does not depend on search order.
-        let cause = if prove::has_rules_for(&goal) {
-            UnprovedCause::NoDerivation
-        } else {
-            UnprovedCause::NoRuleForGoalForm
-        };
-        unproved(cause, reason.to_owned())
-    })?;
-    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
-        refusal(
-            RefusalReason::ForeignIdentity,
-            id,
-            Construct::Obligation(obligation),
-            "obligation identity is not an evidence identity",
-        )
-    })?;
-    let certificate = CertificateEnvelope {
-        identity,
-        proof_system_marker: ProofSystemMarker::CURRENT,
-        proof,
-    };
+    Ok(Hypotheses {
+        assumption_rows,
+        axiom_rows,
+        assumptions,
+        axioms,
+    })
+}
+
+/// Has the kernel decide `certificate` for `goal` under `hypotheses`. The
+/// only acceptance path: an obligation is discharged exactly when this
+/// returns evidence.
+pub(crate) fn verify(
+    context: &PropositionContext,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: Proposition,
+    hypotheses: Hypotheses,
+    certificate: CertificateEnvelope,
+) -> Checked<Evidence> {
     let fact = verify_obligation(
         context,
         &Obligation {
@@ -1266,16 +1477,77 @@ fn decide(
             proposition: goal.clone(),
             class: ObligationClass::Derivable,
         },
-        &assumptions,
-        &axioms,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
-    .map_err(|error| unproved(UnprovedCause::KernelRefused, format!("kernel {error:?}")))?;
+    .map_err(|error| {
+        unproved(
+            id,
+            obligation,
+            UnprovedCause::KernelRefused,
+            format!("kernel {error:?}"),
+        )
+    })?;
     Ok(Evidence {
         goal,
-        assumptions: assumption_rows,
-        axioms: axiom_rows,
+        assumptions: hypotheses.assumption_rows,
+        axioms: hypotheses.axiom_rows,
         certificate,
         fact,
     })
+}
+
+/// The scalar value an operation defines, if any: a call's result value.
+pub(crate) fn operation_result(
+    lowered: &TerminalMachine,
+    operation: OperationId,
+) -> Option<ValueId> {
+    lowered
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|candidate| candidate.id == operation)
+        .and_then(|found| match &found.result {
+            terminal_psi::OperationResult::Scalar(declaration) => Some(declaration.id),
+            _ => None,
+        })
+}
+
+/// The value a `Return` terminator with this edge returns.
+fn returned(lowered: &TerminalMachine, exit: EdgeId) -> Option<ValueId> {
+    lowered
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::Return { edge, value, .. } if *edge == exit => Some(*value),
+            _ => None,
+        })
+}
+
+/// `clause` with the result pseudo-value `result` replaced by `value`, in
+/// the comparison and connective forms a clause over scalars has. Any other
+/// form is left as it is: it then still names the pseudo-value, which no
+/// knowledge row describes, so it is unproved and never wrongly accepted.
+fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) -> Proposition {
+    let term = |term: &ScalarTerm| match term {
+        ScalarTerm::Value { id, scalar_type } if *id == result => {
+            ScalarTerm::value(value, *scalar_type)
+        }
+        other => other.clone(),
+    };
+    let parts = |parts: &[Proposition]| {
+        parts
+            .iter()
+            .map(|part| returned_for_result(part, result, value))
+            .collect()
+    };
+    match clause {
+        Proposition::Equal(left, right) => Proposition::Equal(term(left), term(right)),
+        Proposition::LessThan(left, right) => Proposition::LessThan(term(left), term(right)),
+        Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(term(left), term(right)),
+        Proposition::Conjunction(conjuncts) => Proposition::Conjunction(parts(conjuncts)),
+        Proposition::Disjunction(disjuncts) => Proposition::Disjunction(parts(disjuncts)),
+        other => other.clone(),
+    }
 }

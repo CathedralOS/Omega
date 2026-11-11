@@ -1242,7 +1242,7 @@ use structure_elaboration::{RecordField, RecordType};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{ExactPlaceId, MachineTables};
-use terminal_psi::OperationKind;
+use terminal_psi::{Operation, OperationKind, OperationResult};
 
 fn point() -> ValueType {
     ValueType::Record(id(1))
@@ -1604,9 +1604,10 @@ fn different_values_on_different_arrivals_give_no_equation() {
     //     let c = a && !b;       // the `!b` block is one of two ways to the join
     //     p.x
     // }
-    // As lowered, the one write to `p.x` dominates the read. The subset has
-    // no store yet, so the arm's write is added to the log by hand: what the
-    // checker concludes must follow from the log and the graph alone.
+    // As lowered, the one write to `p.x` dominates the read. The source
+    // language has no statement inside the `!b` block, so a store there is
+    // added by hand: what the checker concludes must follow from the
+    // operations and the graph alone.
     let program = || {
         elaborate_places(vec![Shaped {
             parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
@@ -1636,9 +1637,9 @@ fn different_values_on_different_arrivals_give_no_equation() {
     // The constants 1 and 2 the literal was built with.
     let built = constants(&program());
     let (one, two) = (built[0], built[1]);
-    // What the read equals once `content` is also written to `place` after
-    // the arm's one operation.
-    let with_arm_write = |target: &[u64], content: Option<Content>| {
+    // What the read equals once `value` is also stored into the field
+    // `field` of `p` after the arm's one operation.
+    let with_arm_write = |stored: Option<(u64, ValueId)>| {
         let mut elaboration = program();
         let machine = &elaboration.module.machines[0];
         let OperationKind::EstablishRecord { .. } = machine.blocks[0].operations[2].kind else {
@@ -1661,30 +1662,29 @@ fn different_values_on_different_arrivals_give_no_equation() {
             .unwrap()
             .operations[0]
             .id;
-        let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
-        if let Some(content) = content {
-            let place = projected(tables, root, target);
-            let write = tables.writes.push(WriteRow {
+        if let Some((field, value)) = stored {
+            let tables = elaboration.tables.machines.get(id(1)).unwrap();
+            let place = projected(tables, root, &[field]);
+            store_by_hand(
+                &mut elaboration,
+                arm,
                 place,
-                at: ProgramPoint::AfterOperation(arm),
-                content,
-            });
-            tables.places.get_mut(place).unwrap().writes.push(write);
+                value,
+                field_store(root, field, value),
+            );
         }
         discharge(&mut elaboration).unwrap();
         let read = field_reads(&elaboration)[0];
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         read_equals(tables, read)
     };
-    assert_eq!(with_arm_write(&[], None), Some(one));
+    assert_eq!(with_arm_write(None), Some(one));
     // Another value on the arm: the two arrivals differ.
-    assert_eq!(with_arm_write(&[1], Some(Content::Value(two))), None);
+    assert_eq!(with_arm_write(Some((1, two))), None);
     // The same value on the arm: every arrival still supplies it.
-    assert_eq!(with_arm_write(&[1], Some(Content::Value(one))), Some(one));
+    assert_eq!(with_arm_write(Some((1, one))), Some(one));
     // A write to the sibling `p.y` is disjoint and changes nothing.
-    assert_eq!(with_arm_write(&[2], Some(Content::Value(two))), Some(one));
-    // Unknown new contents of the whole record overlap its field.
-    assert_eq!(with_arm_write(&[], Some(Content::Overwritten)), None);
+    assert_eq!(with_arm_write(Some((2, two))), Some(one));
 }
 
 #[test]
@@ -1800,21 +1800,61 @@ fn uses(result: &Discharge) -> Vec<Result<(), RefusalReason>> {
         .collect()
 }
 
-/// Adds one row to machine 1's write log by hand, at the normal
-/// continuation of `operation`.
-fn log_by_hand(
+/// Adds a store of `value` to machine 1 by hand, directly after the
+/// operation `after`: the store operation `kind` in the lowered form, and
+/// the row elaboration would log for it on `place`. The checker derives what
+/// is stored from the operations and refuses a log that says otherwise, so
+/// a store the source language cannot write has to be in both.
+fn store_by_hand(
     elaboration: &mut structure_elaboration::Elaboration,
+    after: OperationId,
     place: ExactPlaceId,
-    operation: OperationId,
-    content: Content,
+    value: ValueId,
+    kind: OperationKind,
 ) {
+    let machine = &mut elaboration.module.machines[0];
+    let fresh = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .map(|operation| operation.id.get())
+        .max()
+        .unwrap()
+        + 1;
+    let store = id::<OperationId>(fresh);
+    let (block, position) = machine
+        .blocks
+        .iter_mut()
+        .find_map(|block| {
+            let position = block
+                .operations
+                .iter()
+                .position(|operation| operation.id == after)?;
+            Some((block, position))
+        })
+        .unwrap();
+    block.operations.insert(
+        position + 1,
+        Operation::unsuspended(store, OperationResult::Unit, kind),
+    );
     let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
     let write = tables.writes.push(WriteRow {
         place,
-        at: ProgramPoint::AfterOperation(operation),
-        content,
+        at: ProgramPoint::AfterOperation(store),
+        content: Content::Value(value),
     });
     tables.places.get_mut(place).unwrap().writes.push(write);
+}
+
+/// `root.field = value`, for `store_by_hand`.
+fn field_store(root: PlaceId, field: u64, value: ValueId) -> OperationKind {
+    OperationKind::StructuralScalarFieldStore {
+        destination: root,
+        path: Vec::new(),
+        field: id(field),
+        value,
+        range_obligation: None,
+    }
 }
 
 /// The one operation of the block that holds nothing but an integer
@@ -1892,8 +1932,9 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
     //     p.x & q.x                      // a read and a read of the copy
     // }
     // The source language has no statement inside an arm, so the arm's
-    // store is added to the log by hand, on the arm's one operation: what
-    // the checker concludes must follow from the log and the graph alone.
+    // store is added by hand, after the arm's one operation: what the
+    // checker concludes must follow from the operations and the graph
+    // alone.
     let program = || {
         elaborate_places(vec![Shaped {
             parameters: vec![ScalarType::Boolean.into()],
@@ -1908,17 +1949,23 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
             ],
         }])
     };
-    let read_values = |arm_store: Option<Content>| {
+    let read_values = |arm_store: bool| {
         let mut elaboration = program();
-        let (arm, _) = arm_constant(&elaboration);
+        let (arm, in_arm) = arm_constant(&elaboration);
         let p = elaboration.module.machines[0].blocks[0].operations[2]
             .result
             .as_structural()
             .unwrap()
             .place;
-        if let Some(content) = arm_store {
+        if arm_store {
             let leaf = projected(elaboration.tables.machines.get(id(1)).unwrap(), p, &[1]);
-            log_by_hand(&mut elaboration, leaf, arm, content);
+            store_by_hand(
+                &mut elaboration,
+                arm,
+                leaf,
+                in_arm,
+                field_store(p, 1, in_arm),
+            );
         }
         let result = discharge(&mut elaboration).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));
@@ -1927,19 +1974,11 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
         (read_equals(tables, reads[0]), read_equals(tables, reads[1]))
     };
     let one = constants(&program())[0];
-    let (_, in_arm) = arm_constant(&program());
-    assert_eq!(read_values(None), (Some(one), Some(one)));
-    // The arm stores another value into `p.x` and then leaves the machine.
-    // Neither the read nor the copy in the continuation is reached by it:
-    // both still hold what the construction before the branch stored.
-    assert_eq!(
-        read_values(Some(Content::Value(in_arm))),
-        (Some(one), Some(one))
-    );
-    assert_eq!(
-        read_values(Some(Content::Overwritten)),
-        (Some(one), Some(one))
-    );
+    assert_eq!(read_values(false), (Some(one), Some(one)));
+    // The arm stores its own constant into `p.x` and then leaves the
+    // machine. Neither the read nor the copy in the continuation is reached
+    // by it: both still hold what the construction before the branch stored.
+    assert_eq!(read_values(true), (Some(one), Some(one)));
 }
 
 #[test]
@@ -2277,7 +2316,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // scalar local is established as zero. Every arm of this subset completes the machine, so "assigned on one
     // arm, read after the transition" cannot be written; the short-circuit
     // join is the one place two paths meet. The store on its `!b` path is
-    // added to the log by hand.
+    // added by hand.
     let program = |stored_before: bool| {
         let mut statements = vec![declare(2, data(GATED))];
         if stored_before {
@@ -2309,7 +2348,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             &constrained(),
         )
     };
-    let judged = |stored_before: bool, on_one_way: Option<Content>| {
+    let judged = |stored_before: bool, on_one_way: Option<ValueId>| {
         let mut elaboration = program(stored_before);
         let machine = &elaboration.module.machines[0];
         let home = machine.blocks[0]
@@ -2334,10 +2373,34 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             .unwrap();
         let negation = negation.id;
         let read = field_reads(&elaboration)[0];
-        if let Some(content) = on_one_way {
+        if let Some(value) = on_one_way {
             // `g.v`, the one leaf of the local (field identity 7).
             let place = projected(elaboration.tables.machines.get(id(1)).unwrap(), home, &[7]);
-            log_by_hand(&mut elaboration, place, negation, content);
+            store_by_hand(
+                &mut elaboration,
+                negation,
+                place,
+                value,
+                field_store(home, 7, value),
+            );
+            // A store into a `Gated` owes its clause, like the authored one.
+            let store = elaboration.module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .map(|operation| operation.id)
+                .max()
+                .unwrap();
+            let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+            tables
+                .obligations
+                .push(terminal_check_tables::obligations::ObligationRow {
+                    kind: ObligationKind::DataDomain {
+                        operation: store,
+                        clause: 0,
+                    },
+                    created_at: ProgramPoint::AfterOperation(negation),
+                });
         }
         let result = discharge(&mut elaboration).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
@@ -2345,7 +2408,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     };
     // Some u32 value for the hand-written row to store: the zero constant
     // the declaration logged, the first constant of either program.
-    let some_value = Content::Value(constants(&program(false))[0]);
+    let some_value = constants(&program(false))[0];
     // Nothing stored anywhere: only the gated zero reaches the read, so it
     // is unestablished.
     assert_eq!(judged(false, None).0, [Err(RefusalReason::Unestablished)]);
@@ -2353,10 +2416,6 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // because the other way supplies nothing established.
     assert_eq!(
         judged(false, Some(some_value)).0,
-        [Err(RefusalReason::Unestablished)]
-    );
-    assert_eq!(
-        judged(false, Some(Content::Overwritten)).0,
         [Err(RefusalReason::Unestablished)]
     );
     // Stored before the branch: established on both ways, and the read
@@ -4755,9 +4814,10 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
     //     take(s)
     // }
     // Every arm of this subset completes the machine, so the short-circuit
-    // join is the one place two paths meet. A whole write to `s` on its
-    // `!b` path is added to the log by hand: it closes the window on that
-    // way only.
+    // join is the one place two paths meet, and no source store can sit on
+    // one of its ways. A restoring `s.low = 1` on its `!b` path is added by
+    // hand, with the `DataDomain` obligation it owes: it proves `1 <= 9` and
+    // closes the window on that way only.
     let program = || {
         elaborate_over(
             vec![
@@ -4791,8 +4851,9 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
             &constrained(),
         )
     };
-    let judged = |replaced_on_one_way: bool| {
+    let judged = |restored_on_one_way: bool| {
         let mut elaboration = program();
+        let one = constants(&elaboration)[0];
         let operations = |select: fn(&OperationKind) -> bool| operations_of(&elaboration, select);
         let negation = operations(|kind| matches!(kind, OperationKind::BooleanNot { .. }))[0];
         let root = elaboration.module.machines[0]
@@ -4805,16 +4866,33 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
             .as_structural()
             .unwrap()
             .place;
-        let whole = *elaboration
-            .tables
-            .machines
-            .get(id(1))
-            .unwrap()
-            .roots
-            .get(root)
-            .unwrap();
-        if replaced_on_one_way {
-            log_by_hand(&mut elaboration, whole, negation, Content::Overwritten);
+        if restored_on_one_way {
+            // `s.low`, field identity 2.
+            let low = projected(elaboration.tables.machines.get(id(1)).unwrap(), root, &[2]);
+            store_by_hand(
+                &mut elaboration,
+                negation,
+                low,
+                one,
+                field_store(root, 2, one),
+            );
+            let store = elaboration.module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .map(|operation| operation.id)
+                .max()
+                .unwrap();
+            let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+            tables
+                .obligations
+                .push(terminal_check_tables::obligations::ObligationRow {
+                    kind: ObligationKind::DataDomain {
+                        operation: store,
+                        clause: 0,
+                    },
+                    created_at: ProgramPoint::AfterOperation(negation),
+                });
         }
         let result = discharge(&mut elaboration).unwrap();
         windows(&result)
@@ -4979,4 +5057,860 @@ fn a_store_that_does_not_restore_an_open_window_opens_no_second_one() {
             clause: 0
         }
     );
+}
+mod reuse {
+    // Saving a proof and reusing it: the consumer recomputes its goal and
+    // hypotheses from its own program; the saved evidence supplies only the
+    // certificate, and the kernel decides it. No search runs on reuse.
+    use super::*;
+    use crate::prove::SEARCHES;
+    use crate::{reverify, reverify_at_call};
+
+    fn searches() -> usize {
+        SEARCHES.with(std::cell::Cell::get)
+    }
+
+    /// `add(a, b) requires a <= bound, b <= 100 { return a + b }`.
+    fn add(bound: u128) -> Machine {
+        add_of_formals(vec![at_most(1, bound), at_most(2, 100)])
+    }
+
+    /// The saved certificate of `machine`'s first obligation of kind `select`.
+    fn saved(
+        machines: Vec<Machine>,
+        machine: u64,
+        select: impl Fn(&ObligationKind) -> bool,
+    ) -> (ObligationId, proof_admission::CertificateEnvelope) {
+        let (elaboration, result) = run(machines);
+        let (obligation, verdict) = verdicts(&elaboration, &result, machine, select)[0];
+        (obligation, certificate(verdict).certificate.clone())
+    }
+
+    #[test]
+    fn the_same_obligation_reverifies_without_search() {
+        // Shows: a saved proof is accepted for the same obligation of the same
+        // program, decided by the kernel against the consumer's own goal and
+        // hypotheses, and no prover is started.
+        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut consumer = lower(vec![add(10)]).unwrap();
+        let before = searches();
+        let evidence = reverify(&mut consumer, id(1), obligation, &certificate).unwrap();
+        assert_eq!(searches(), before, "reuse started a prover");
+        assert!(matches!(
+            evidence.fact.route,
+            AcceptedFactRoute::CertificateDerived { .. }
+        ));
+    }
+
+    #[test]
+    fn a_stale_proof_is_refused() {
+        // Shows: when the program changes so the goal differs (a guarantee
+        // `a <= 10` becomes `a <= 9`, still true under `a <= 5`), the old
+        // proof does not carry over: its conclusion is not the new goal.
+        let program = |bound| vec![guaranteeing(vec![at_most(1, 5)], at_most(1, bound))];
+        let (obligation, certificate) = saved(program(10), 1, guarantee);
+        let mut consumer = lower(program(9)).unwrap();
+        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        // The new program's own goal is provable; only the stale proof fails.
+        let (_, result) = run(program(9));
+        let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
+        assert!(verdicts.get(obligation).unwrap().is_ok());
+    }
+
+    #[test]
+    fn a_proof_whose_assumption_is_gone_is_refused() {
+        // Shows: the proof cited the entry `requires a <= 10`; without it the
+        // consumer has no such hypothesis and the kernel refuses the citation.
+        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut consumer = lower(vec![add_of_formals(vec![at_most(2, 100)])]).unwrap();
+        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+    }
+
+    #[test]
+    fn a_proof_for_another_obligation_is_refused() {
+        // Shows: two exact adds in one program; the first add's proof does not
+        // prove the second add's safety goal.
+        let program = || {
+            vec![Machine {
+                locals: vec![u32_type()],
+                requires: vec![at_most(1, 10)],
+                ..machine(
+                    vec![u32_type()],
+                    vec![
+                        Statement::Bind {
+                            slot: 1,
+                            value: strict(Strict::Add, slot(0, u32_type()), unsigned(1)),
+                        },
+                        returns(strict(Strict::Add, slot(1, u32_type()), unsigned(2))),
+                    ],
+                )
+            }]
+        };
+        let (elaboration, result) = run(program());
+        let safeties = verdicts(&elaboration, &result, 1, safety);
+        assert_eq!(safeties.len(), 2);
+        let first = certificate(safeties[0].1).certificate.clone();
+        let mut consumer = lower(program()).unwrap();
+        assert!(reverify(&mut consumer, id(1), safeties[1].0, &first).is_err());
+    }
+
+    #[test]
+    fn a_proof_from_another_machine_holds_only_where_goal_and_hypotheses_agree() {
+        // Shows: machines 2 and 3 have the same shape. Where machine 3 assumes
+        // more loosely (`a <= 100` instead of `a <= 10`), machine 2's proof is
+        // refused there. Where machine 3 is the same program, the proof is
+        // accepted, and that is correct: it proves machine 3's own goal from
+        // machine 3's own hypotheses, which are the same propositions over
+        // machine 3's own values; where it was found does not matter.
+        let program = |third: u128| {
+            let invoke = |callee| Statement::Evaluate(call(callee, vec![unsigned(1), unsigned(2)]));
+            vec![
+                machine(Vec::new(), vec![invoke(2), invoke(3), returns(unsigned(0))]),
+                add(10),
+                add(third),
+            ]
+        };
+        let (obligation, certificate) = saved(program(100), 2, safety);
+        let mut looser = lower(program(100)).unwrap();
+        assert!(reverify(&mut looser, id(3), obligation, &certificate).is_err());
+        let mut same = lower(program(10)).unwrap();
+        assert!(reverify(&mut same, id(3), obligation, &certificate).is_ok());
+    }
+
+    #[test]
+    fn a_guarantee_over_formals_reverifies_at_each_call_by_substitution() {
+        // Shows: `clamp(x) requires x <= 10 ensures x <= 11` is proved once,
+        // over its formal. At each call the consumer substitutes the actual
+        // into the guarantee, the requires and the certificate, and the kernel
+        // re-decides it with no search. A third call whose actual breaks the
+        // requires is refused: the instance holds only under the requires.
+        // This is substitution of actuals for formals, not type-parameter
+        // instantiation.
+        let clamp = Machine {
+            requires: vec![at_most(1, 10)],
+            ensures: vec![at_most(1, 11)],
+            ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+        };
+        let caller = Machine {
+            requires: vec![at_most(1, 3)],
+            ..machine(
+                vec![u32_type()],
+                vec![
+                    Statement::Evaluate(call(2, vec![slot(0, u32_type())])),
+                    Statement::Evaluate(call(2, vec![unsigned(7)])),
+                    returns(call(2, vec![unsigned(20)])),
+                ],
+            )
+        };
+        let (elaboration, result) = run(vec![caller, clamp]);
+        let (_, proved) = verdicts(&elaboration, &result, 2, guarantee)[0];
+        let saved = certificate(proved).certificate.clone();
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        let calls: Vec<_> = tables.invocations.keys().collect();
+        assert_eq!(calls.len(), 3);
+        let before = searches();
+        for call in &calls[..2] {
+            reverify_at_call(&elaboration, &result, id(1), *call, 0, &saved).unwrap();
+        }
+        assert_eq!(searches(), before, "reuse started a prover");
+        let refused = reverify_at_call(&elaboration, &result, id(1), calls[2], 0, &saved);
+        assert_eq!(
+            refused.unwrap_err().reason,
+            RefusalReason::Unproved(UnprovedCause::NoDerivation)
+        );
+    }
+
+    #[test]
+    #[ignore = "timing: run with --ignored --nocapture on a quiet host"]
+    fn finding_against_reusing_a_proof() {
+        // Wall time to find and check every proof (`discharge`) against
+        // re-verifying the saved ones (`reverify`), same `Instant` method,
+        // on the largest program these tests build. Both include lowering.
+        use std::time::Instant;
+        let program = || {
+            vec![
+                Machine {
+                    locals: vec![u32_type(); 4],
+                    requires: vec![at_most(1, 10), at_most(2, 10)],
+                    ..machine(
+                        vec![u32_type(), u32_type()],
+                        vec![
+                            Statement::Bind {
+                                slot: 2,
+                                value: strict(
+                                    Strict::Add,
+                                    slot(0, u32_type()),
+                                    slot(1, u32_type()),
+                                ),
+                            },
+                            Statement::Bind {
+                                slot: 3,
+                                value: strict(Strict::Multiply, slot(2, u32_type()), unsigned(3)),
+                            },
+                            Statement::Bind {
+                                slot: 4,
+                                value: strict(
+                                    Strict::Subtract,
+                                    slot(2, u32_type()),
+                                    slot(0, u32_type()),
+                                ),
+                            },
+                            Statement::Bind {
+                                slot: 5,
+                                value: call(2, vec![slot(1, u32_type())]),
+                            },
+                            guarded(
+                                compare(Strict::NotEqual, slot(1, u32_type()), unsigned(0)),
+                                strict(Strict::Divide, slot(3, u32_type()), slot(1, u32_type())),
+                            ),
+                            returns(strict(
+                                Strict::Add,
+                                slot(4, u32_type()),
+                                slot(5, u32_type()),
+                            )),
+                        ],
+                    )
+                },
+                Machine {
+                    requires: vec![at_most(1, 10)],
+                    ensures: vec![at_most(1, 11)],
+                    ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+                },
+            ]
+        };
+        const ROUNDS: u32 = 200;
+        let mut saved = Vec::new();
+        let mut obligations = 0;
+        let started = Instant::now();
+        for _ in 0..ROUNDS {
+            let mut elaboration = lower(program()).unwrap();
+            let result = discharge(&mut elaboration).unwrap();
+            saved.clear();
+            obligations = 0;
+            for (machine, discharged) in result.machines.iter() {
+                for (obligation, verdict) in discharged.verdicts.iter() {
+                    obligations += 1;
+                    if let Ok(Discharged::Certificate(evidence)) = verdict {
+                        saved.push((machine, obligation, evidence.certificate.clone()));
+                    }
+                }
+            }
+        }
+        let finding = started.elapsed();
+        let started = Instant::now();
+        for _ in 0..ROUNDS {
+            let mut elaboration = lower(program()).unwrap();
+            for (machine, obligation, certificate) in &saved {
+                reverify(&mut elaboration, *machine, *obligation, certificate).unwrap();
+            }
+        }
+        let reusing = started.elapsed();
+        eprintln!(
+            "timing rounds={ROUNDS} obligations={obligations} certificates={} discharge_total_us={} reverify_total_us={}",
+            saved.len(),
+            finding.as_micros(),
+            reusing.as_micros(),
+        );
+    }
+}
+
+mod generic_bodies {
+    // One generic body, checked once with its machine parameter rigid, then
+    // specialized to two implementations. The generic body's certificates
+    // are carried into each specialization and the kernel decides them
+    // again there; nothing searches on that path.
+    //
+    //     trait Step { machine apply(value: u32) -> u32
+    //                  requires value <= 10 ensures result <= 20; }
+    //     machine advance<const Selected: Step>(start: u32) -> u32
+    //         requires start <= 10 ensures result <= 21
+    //     { Selected::apply(start) + 1 }
+    use super::*;
+    use crate::prove::SEARCHES;
+    use crate::{Selection, reverify_specialization};
+
+    fn searches() -> usize {
+        SEARCHES.with(std::cell::Cell::get)
+    }
+
+    /// The result pseudo-value of a machine with one scalar formal.
+    fn result_at_most(value: u128) -> Proposition {
+        at_most(2, value)
+    }
+
+    /// A member of `Step`: one `u32` formal and the given contract and body.
+    fn member(requires: u128, ensures: u128, statements: Vec<Statement>) -> Machine {
+        Machine {
+            requires: vec![at_most(1, requires)],
+            ensures: vec![result_at_most(ensures)],
+            ..machine(vec![u32_type()], statements)
+        }
+    }
+
+    /// `Step::apply` itself: the contract and no body.
+    fn step() -> Machine {
+        member(10, 20, Vec::new())
+    }
+
+    /// `Double::apply(value) requires value <= 10 ensures result <= 20
+    /// { value + value }`: the requirement's own contract.
+    fn double() -> Machine {
+        let value = || slot(0, u32_type());
+        member(10, 20, vec![returns(strict(Strict::Add, value(), value()))])
+    }
+
+    /// `Shift::apply(value) requires value <= 12 ensures result <= 17
+    /// { value + 5 }`: it asks less and promises more than `Step::apply`.
+    fn shift() -> Machine {
+        member(
+            12,
+            17,
+            vec![returns(strict(
+                Strict::Add,
+                slot(0, u32_type()),
+                unsigned(5),
+            ))],
+        )
+    }
+
+    /// `Wide::apply(value) requires value <= 10 ensures result <= 25
+    /// { value + 15 }`: its guarantee is weaker than the requirement's.
+    fn wide() -> Machine {
+        member(
+            10,
+            25,
+            vec![returns(strict(
+                Strict::Add,
+                slot(0, u32_type()),
+                unsigned(15),
+            ))],
+        )
+    }
+
+    /// `advance(start) requires start <= 10 ensures result <= bound
+    /// { machine 2(start) + 1 }`. Machine 2 is the machine parameter: the
+    /// requirement in the generic form, the implementation in a
+    /// specialization.
+    fn advance(bound: u128) -> Machine {
+        Machine {
+            requires: vec![at_most(1, 10)],
+            ensures: vec![result_at_most(bound)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(strict(
+                    Strict::Add,
+                    call(2, vec![slot(0, u32_type())]),
+                    unsigned(1),
+                ))],
+            )
+        }
+    }
+
+    /// The conformance witness of an implementation: `Step::apply`'s
+    /// contract on a body that is one call of the implementation, machine 2.
+    fn witness() -> Machine {
+        member(10, 20, vec![returns(call(2, vec![slot(0, u32_type())]))])
+    }
+
+    /// Lowers `machines` as a generic check form whose machine 2 is rigid.
+    fn generic(machines: Vec<Machine>) -> structure_elaboration::Elaboration {
+        let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+        let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+        for machine in machines {
+            let parameters: Vec<ValueType> =
+                machine.parameters.into_iter().map(Into::into).collect();
+            bodies.push(Body {
+                slots: parameters.clone(),
+                statements: machine.statements,
+            });
+            signatures.push(Signature {
+                parameters,
+                result: Some(machine.result.into()),
+                requires: machine.requires,
+                ensures: machine.ensures,
+                crashes: CrashCeiling::DeclaredNone,
+            });
+        }
+        structure_elaboration::lower_generic(
+            id(1),
+            &bodies,
+            &signatures,
+            &IdTable::default(),
+            &[id(2)],
+        )
+        .unwrap()
+    }
+
+    /// The generic body checked once: every obligation of `advance` that
+    /// takes a certificate has one, found against `Step::apply`'s contract.
+    fn checked_once(bound: u128) -> (structure_elaboration::Elaboration, Discharge) {
+        let mut form = generic(vec![advance(bound), step()]);
+        let found = discharge(&mut form).unwrap();
+        (form, found)
+    }
+
+    /// Carries the generic body's certificates into `advance` specialized
+    /// to `implementation`, whose refinement proof is `refines`' witness.
+    fn carried(
+        bound: u128,
+        implementation: Machine,
+        refines: Machine,
+    ) -> (
+        structure_elaboration::Elaboration,
+        Vec<(ObligationId, Checked<Evidence>)>,
+        usize,
+    ) {
+        let (form, found) = checked_once(bound);
+        let (witnessed, refinement) = run(vec![witness(), refines]);
+        let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
+        let before = searches();
+        let verdicts = reverify_specialization(
+            &form,
+            &found,
+            id(1),
+            &mut consumer,
+            id(1),
+            &[Selection {
+                requirement: id(2),
+                witness: &witnessed,
+                refinement: &refinement,
+            }],
+        )
+        .unwrap();
+        let started = searches() - before;
+        (consumer, verdicts, started)
+    }
+
+    #[test]
+    fn the_generic_body_is_checked_against_the_requirement_alone() {
+        // Shows: with the machine parameter rigid, `advance` is proved from
+        // `Step::apply`'s contract: its call requirement, the add's safety
+        // and its guarantee each get a kernel-checked certificate. The
+        // requirement has no body, and its own guarantee is not decided.
+        let (form, found) = checked_once(21);
+        assert_eq!(form.requirements, vec![id(2)]);
+        assert!(form.module.machines[1].blocks.is_empty());
+        let all = verdicts(&form, &found, 1, |kind| {
+            !matches!(kind, ObligationKind::PublishedGuarantee { .. })
+        });
+        assert_eq!(all.len(), 3);
+        for (obligation, verdict) in all {
+            assert_kernel_checked(&form, 1, obligation, certificate(verdict));
+        }
+        for (_, verdict) in verdicts(&form, &found, 2, |_| true) {
+            assert_eq!(
+                verdict.as_ref().unwrap_err().reason,
+                RefusalReason::Unsupported
+            );
+        }
+        // A generic form is not a program: the route does not accept it.
+        assert!(matches!(
+            judge(Ok(generic(vec![advance(21), step()]))).unwrap(),
+            RouteVerdict::FallBack(_)
+        ));
+    }
+
+    #[test]
+    fn its_certificates_reverify_in_two_different_implementations() {
+        // Shows: the same three proofs, found once, are accepted by the
+        // kernel in `advance<Double>` and in `advance<Shift>`, against each
+        // specialization's own goals and hypotheses, with no prover started.
+        // `Shift` has another contract, so there the proofs are joined to
+        // its refinement proof: the specialization assumes `result <= 17`
+        // after the call, and must prove `start <= 12` before it.
+        for (implementation, refines) in [(double(), double()), (shift(), shift())] {
+            let (consumer, verdicts, started) = carried(21, implementation, refines);
+            assert_eq!(started, 0, "carrying a proof started a prover");
+            assert_eq!(verdicts.len(), 3);
+            for (obligation, verdict) in &verdicts {
+                assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+            }
+        }
+        // The two specializations do not assume the same thing after the
+        // call, so the carried proofs are not the same proof twice.
+        let after_call = |implementation: Machine, refines: Machine| {
+            let (consumer, _, _) = carried(21, implementation, refines);
+            let tables = consumer.tables.machines.get(id(1)).unwrap();
+            let (_, row) = tables
+                .knowledge
+                .iter()
+                .find(|(_, row)| matches!(row.justification, Justification::CalleeGuarantee { .. }))
+                .unwrap();
+            tables.propositions.get(row.proposition).unwrap().clone()
+        };
+        assert_ne!(after_call(double(), double()), after_call(shift(), shift()));
+    }
+
+    #[test]
+    fn a_body_that_only_holds_for_the_implementation_in_use_is_rejected() {
+        // Shows: `advance` promising `result <= 18` is true of the one use
+        // seen, `advance<Shift>`, because `Shift::apply` returns at most 17.
+        // Checked as a concrete program it is accepted. Checked as a generic
+        // body it is rejected: `Step::apply` promises only `result <= 20`
+        // (generics.md: "one consumer cannot authorize an otherwise invalid
+        // generic body"). There is then no proof to carry, and the
+        // specialization is refused without a search.
+        let (_, concrete) = run(vec![advance(18), shift()]);
+        assert!(
+            concrete
+                .machines
+                .get(id(1))
+                .unwrap()
+                .verdicts
+                .iter()
+                .all(|(_, verdict)| verdict.is_ok())
+        );
+        let (form, found) = checked_once(18);
+        let (_, refused) = verdicts(&form, &found, 1, guarantee)[0];
+        assert_eq!(
+            refused.as_ref().unwrap_err().reason,
+            RefusalReason::Unproved(UnprovedCause::NoDerivation)
+        );
+        let (_, carried, started) = carried(18, shift(), shift());
+        assert_eq!(started, 0);
+        let refusals: Vec<_> = carried
+            .iter()
+            .filter_map(|(_, verdict)| verdict.as_ref().err())
+            .collect();
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].reason,
+            RefusalReason::Unproved(UnprovedCause::NoDerivation)
+        );
+    }
+
+    #[test]
+    fn an_implementation_that_does_not_refine_the_requirement_is_refused() {
+        // Shows: `Wide::apply` promises `result <= 25`, which does not give
+        // `Step::apply`'s `result <= 20`. Its witness is unproved, so the
+        // generic proofs that rest on that guarantee have nothing to join
+        // to and are refused; the call requirement, which `Wide` does
+        // refine, still carries.
+        let (_, refinement) = run(vec![witness(), wide()]);
+        assert!(
+            refinement
+                .machines
+                .get(id(1))
+                .unwrap()
+                .verdicts
+                .iter()
+                .any(|(_, verdict)| verdict.is_err())
+        );
+        let (_, carried, started) = carried(21, wide(), wide());
+        assert_eq!(started, 0);
+        let refused = carried.iter().filter(|(_, verdict)| verdict.is_err());
+        assert_eq!(refused.count(), 2);
+    }
+
+    #[test]
+    fn a_refinement_proof_for_another_implementation_is_refused_by_the_kernel() {
+        // Shows: nothing about a carried proof is trusted. `Shift`'s
+        // refinement proof, offered for a specialization that really calls
+        // `Wide`, cites `result <= 17` after the call; that specialization
+        // assumes `result <= 25` there, and the kernel refuses the proof.
+        // The call requirement is refused too: the offered proof concludes
+        // `start <= 12`, and this call owes `Wide`'s `start <= 10`.
+        let (_, carried, _) = carried(21, wide(), shift());
+        let reasons: Vec<_> = carried
+            .iter()
+            .filter_map(|(_, verdict)| verdict.as_ref().err())
+            .map(|refusal| refusal.reason)
+            .collect();
+        assert_eq!(
+            reasons,
+            vec![RefusalReason::Unproved(UnprovedCause::KernelRefused); 3]
+        );
+    }
+}
+
+fn either(conjunction: bool, left: Expression, right: Expression) -> Expression {
+    expression(
+        ExpressionKind::ShortCircuit {
+            conjunction,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        Some(ScalarType::Boolean),
+    )
+}
+
+fn arrival(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::ArrivalInvariant { .. })
+}
+
+/// `when total > high || total < 3 -> 0; return total + (MAX - 9000)`.
+/// The add is safe exactly when `total <= 9000`, which only the guard's
+/// false edge says, through the `||` join's parameter.
+fn past_a_disjunction(high: u128) -> Machine {
+    let guard = either(
+        false,
+        compare(Strict::Greater, slot(0, u32_type()), unsigned(high)),
+        compare(Strict::Less, slot(0, u32_type()), unsigned(3)),
+    );
+    let sum = strict(
+        Strict::Add,
+        slot(0, u32_type()),
+        unsigned(u128::from(u32::MAX) - 9000),
+    );
+    machine(
+        vec![u32_type()],
+        vec![guarded(guard, unsigned(0)), returns(sum)],
+    )
+}
+
+#[test]
+fn a_branch_fact_on_a_join_parameter_reaches_its_use() {
+    let (elaboration, result) = run(vec![past_a_disjunction(9000)]);
+    // Both arrivals at the join establish its inferred predicate, each with
+    // kernel-checked evidence, and nothing was weakened.
+    let arrivals = verdicts(&elaboration, &result, 1, arrival);
+    assert_eq!(arrivals.len(), 2);
+    for (obligation, verdict) in arrivals {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    assert!(
+        result
+            .machines
+            .get(id(1))
+            .unwrap()
+            .weakened_joins
+            .is_empty()
+    );
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        tables
+            .knowledge
+            .values()
+            .filter(|row| matches!(row.justification, Justification::BlockInvariant { .. }))
+            .count(),
+        1
+    );
+    // The add on the guard's false edge is safe through the join: its
+    // certificate cites the join's predicate.
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    let evidence = certificate(verdict);
+    assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+    assert!(evidence.assumptions.iter().any(|row| matches!(
+        tables.knowledge.get(*row).unwrap().justification,
+        Justification::BlockInvariant { .. }
+    )));
+    // The twin that differs only in the guard's bound lets `total = 9001`
+    // reach the add, which then overflows: still unproved.
+    let (elaboration, result) = run(vec![past_a_disjunction(9001)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+    for (_, verdict) in verdicts(&elaboration, &result, 1, arrival) {
+        assert!(verdict.is_ok());
+    }
+}
+
+#[test]
+fn a_branch_fact_on_a_conjunction_join_bounds_its_arm() {
+    // when total <= 9000 && 3 <= total -> total + (MAX - 9000); return 0.
+    let guard = either(
+        true,
+        compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(9000)),
+        compare(Strict::LessOrEqual, unsigned(3), slot(0, u32_type())),
+    );
+    let sum = strict(
+        Strict::Add,
+        slot(0, u32_type()),
+        unsigned(u128::from(u32::MAX) - 9000),
+    );
+    let program = machine(
+        vec![u32_type()],
+        vec![guarded(guard, sum), returns(unsigned(0))],
+    );
+    let (elaboration, result) = run(vec![program]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+}
+
+fn crash_coverage(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::CrashCoverage { .. })
+}
+
+/// `when a < 10 -> crash Trap; return 0`, publishing `crashes` as given.
+fn crashing_below_ten(
+    routes: Vec<terminal_psi::CrashRouteBucket>,
+) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                source: nowhere(),
+            },
+            returns(unsigned(0)),
+        ],
+    });
+    signatures.push(Signature {
+        parameters: vec![u32_type().into()],
+        result: Some(u32_type().into()),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crashes: CrashCeiling::Authored(routes),
+    });
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+fn trap_when(
+    alternatives: Vec<terminal_psi::CrashRouteGuard>,
+) -> Vec<terminal_psi::CrashRouteBucket> {
+    vec![terminal_psi::CrashRouteBucket {
+        cause: semantic_vocabulary::CrashCause::Trap,
+        alternatives,
+    }]
+}
+
+fn below(value: u128) -> terminal_psi::CrashRouteGuard {
+    terminal_psi::CrashRouteGuard::Predicate(terminal_psi::CrashPredicateTerm::new(
+        Proposition::LessThan(
+            formal(1, u32_type()),
+            bound(u32_type(), IntegerValue::Unsigned(value)),
+        ),
+    ))
+}
+
+#[test]
+fn a_crash_site_is_covered_by_its_published_route() {
+    // An unconditional route covers the site; its guard is the path decision.
+    let (elaboration, result) =
+        crashing_below_ten(trap_when(vec![terminal_psi::CrashRouteGuard::Truth]));
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, crash_coverage)[..] else {
+        panic!("one crash site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // A route guarded by `a < 10` covers the site from the path decision.
+    let (elaboration, result) = crashing_below_ten(trap_when(vec![below(10)]));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, crash_coverage)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+}
+
+#[test]
+fn a_crash_site_outside_its_published_route_is_unproved() {
+    // A route guarded by `a < 5` does not cover `a = 7`, which reaches the crash.
+    let (elaboration, result) = crashing_below_ten(trap_when(vec![below(5)]));
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+    // A machine that publishes no route for the cause owes `Falsehood`.
+    let (elaboration, result) = crashing_below_ten(Vec::new());
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+}
+
+/// `ensures result <= limit` for a machine of one `u32` formal: the result
+/// pseudo-value is the value right after the formals.
+fn result_at_most(limit: u128) -> Proposition {
+    Proposition::LessOrEqual(
+        formal(2, u32_type()),
+        bound(u32_type(), IntegerValue::Unsigned(limit)),
+    )
+}
+
+#[test]
+fn an_exit_guarantee_is_about_the_value_that_exit_returns() {
+    // return 7, ensures result <= 7: proved; ensures result <= 6: refused.
+    let returning_seven = |limit| Machine {
+        ensures: vec![result_at_most(limit)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(7))])
+    };
+    let (elaboration, result) = run(vec![returning_seven(7)]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![returning_seven(6)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}
+
+#[test]
+fn a_callee_guarantee_on_its_result_reaches_the_caller() {
+    // callee(a) ensures result <= 10 { return 3 }
+    // caller(a) { return limited(callee(a)) }, limited(x) requires x <= 10.
+    let callee = Machine {
+        ensures: vec![result_at_most(10)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(3))])
+    };
+    let limited = Machine {
+        requires: vec![at_most(1, 10)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(0))])
+    };
+    let caller = machine(
+        vec![u32_type()],
+        vec![returns(call(3, vec![call(2, vec![slot(0, u32_type())])]))],
+    );
+    let (elaboration, result) = run(vec![caller, callee, limited]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    let evidence = certificate(verdict);
+    assert_kernel_checked(&elaboration, 1, obligation, evidence);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert!(evidence.assumptions.iter().any(|row| matches!(
+        tables.knowledge.get(*row).unwrap().justification,
+        Justification::CalleeGuarantee { .. }
+    )));
+}
+
+#[test]
+fn a_call_that_may_crash_is_covered_by_its_callers_route() {
+    // callee(a) crashes Trap { when a < 10 -> crash Trap; return a }
+    // caller(a) { return callee(a) }, publishing `crashes` as given: the call
+    // operation is the crash site.
+    let program = |caller_routes| {
+        let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+        let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+        bodies.push(Body {
+            slots: vec![u32_type().into()],
+            statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
+        });
+        signatures.push(Signature {
+            parameters: vec![u32_type().into()],
+            result: Some(u32_type().into()),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(caller_routes),
+        });
+        bodies.push(Body {
+            slots: vec![u32_type().into()],
+            statements: vec![
+                Statement::Arm {
+                    guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                    target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                    source: nowhere(),
+                },
+                returns(slot(0, u32_type())),
+            ],
+        });
+        signatures.push(Signature {
+            parameters: vec![u32_type().into()],
+            result: Some(u32_type().into()),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
+        });
+        let mut elaboration =
+            structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+                .unwrap();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result)
+    };
+    let operation_site = |kind: &ObligationKind| {
+        matches!(
+            kind,
+            ObligationKind::CrashCoverage {
+                site: terminal_check_tables::obligations::CrashSite::Operation(_),
+                ..
+            }
+        )
+    };
+    let (elaboration, result) = program(trap_when(vec![terminal_psi::CrashRouteGuard::Truth]));
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, operation_site)[..] else {
+        panic!("one call site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // A caller that publishes no route for the cause cannot let it through.
+    let (elaboration, result) = program(Vec::new());
+    assert_unproved(verdicts(&elaboration, &result, 1, operation_site)[0].1);
 }

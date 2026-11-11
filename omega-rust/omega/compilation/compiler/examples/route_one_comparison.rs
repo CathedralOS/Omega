@@ -200,7 +200,10 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     let for_verdict = elaboration.clone();
     let mut without_branches = elaboration.clone();
     let mut intervals_only = elaboration.clone();
+    let mut consumer = elaboration.clone();
+    let discharge_started = Instant::now();
     let discharged = discharge_with(&mut elaboration, Knowledge::All);
+    let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
         Ok(discharged) => discharged,
@@ -213,6 +216,26 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     };
     let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
     let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
+    // Re-verifying the saved certificates in a consumer elaborated from the
+    // same typed trees: goal and hypotheses recomputed, no search.
+    let reverify_started = Instant::now();
+    let mut reverified = 0_usize;
+    for (machine, result) in discharged.machines.iter() {
+        for (obligation, verdict) in result.verdicts.iter() {
+            if let Ok(lowered_discharge::Discharged::Certificate(evidence)) = verdict
+                && lowered_discharge::reverify(
+                    &mut consumer,
+                    machine,
+                    obligation,
+                    &evidence.certificate,
+                )
+                .is_ok()
+            {
+                reverified += 1;
+            }
+        }
+    }
+    let reverify_us = reverify_started.elapsed().as_micros();
     let held = |run: &Option<lowered_discharge::Discharge>, machine, obligation| {
         run.as_ref()
             .and_then(|run: &lowered_discharge::Discharge| run.machines.get(machine))
@@ -284,6 +307,8 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 Some(ObligationKind::NormalGuarantee { .. }) => "guarantee",
                 Some(ObligationKind::PublishedGuarantee { .. }) => "published",
                 Some(ObligationKind::DataDomain { .. }) => "domain",
+                Some(ObligationKind::ArrivalInvariant { .. }) => "arrival",
+                Some(ObligationKind::CrashCoverage { .. }) => "crash",
                 Some(_) => "other",
                 None => "missing",
             };
@@ -387,6 +412,11 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             ));
         }
     }
+    let weakened_joins: usize = discharged
+        .machines
+        .values()
+        .map(|machine| machine.weakened_joins.len())
+        .sum();
     // The route's own verdict, the one a router takes: an unproved obligation
     // rejects the program with a diagnostic, an unsupported one hands the
     // closure back to the current checker.
@@ -405,7 +435,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\twindows={opened}\tconsumed={consumed}\tclosed={closed}",
+        "{head}\troute={route}\troute_us={route_us}\tdischarge_us={discharge_us}\treverify_us={reverify_us}\treverified={reverified}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\twindows={opened}\tconsumed={consumed}\tclosed={closed}\tweakened_joins={weakened_joins}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

@@ -47,10 +47,12 @@ pub struct Outcome {
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
+    requirements: &[MachineId],
 ) -> Checked<IdTable<MachineId, Outcome>> {
     let mut walk = Walk {
         bodies,
         signatures,
+        requirements,
         computed: bodies.map(|_, _| State::Unvisited),
         causes: BTreeSet::new(),
     };
@@ -72,6 +74,8 @@ enum State {
 struct Walk<'b> {
     bodies: &'b IdTable<MachineId, Body>,
     signatures: &'b IdTable<MachineId, Signature>,
+    /// Machines that are a requirement's contract and have no body.
+    requirements: &'b [MachineId],
     computed: IdTable<MachineId, State>,
     /// Every cause a path of the body being walked may crash with.
     causes: BTreeSet<CrashCause>,
@@ -107,11 +111,20 @@ impl Walk<'_> {
         // A callee's walk runs inside this one, so the caller's causes are
         // set aside while it does.
         let callers_causes = std::mem::take(&mut self.causes);
-        let completes_normally = self.statements(machine, &body.statements);
+        // A requirement has no body to walk. Its member may return, and it
+        // may crash only as its authored ceiling says.
+        let completes_normally = if self.requirements.contains(&machine) {
+            Ok(true)
+        } else {
+            self.statements(machine, &body.statements)
+        };
         let causes = std::mem::replace(&mut self.causes, callers_causes);
         let completes_normally = completes_normally?;
         let crash_routes = match &signature.crashes {
             CrashCeiling::Authored(routes) => routes.clone(),
+            // A requirement that defers its crash routes to the selected
+            // member publishes none in the generic form (`lower_generic`).
+            CrashCeiling::Inferred if self.requirements.contains(&machine) => Vec::new(),
             CrashCeiling::Inferred => {
                 canonical::routes(causes.iter().map(|cause| (*cause, CrashRouteGuard::Truth)))
             }

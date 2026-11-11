@@ -141,12 +141,23 @@ struct Fact {
     axiom: Option<usize>,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// How many provers were started on this thread: the reuse tests assert
+    /// that re-verifying a saved proof starts none.
+    pub(crate) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) struct Prover<'a> {
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
     values: &'a IdTable<ValueId, ValueRow>,
     facts: Vec<Fact>,
+    /// The definitions transport substitutes: each proved `v == t` whose
+    /// subject `v` is a Boolean value, or whose definition is a literal, with
+    /// its proof.
+    equations: Vec<(Proposition, ProofNode)>,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
     /// Whether relations between values are searched (off only to measure
@@ -242,6 +253,42 @@ fn flip(equality: ProofNode) -> Result<ProofNode, Unproven> {
     ))
 }
 
+/// The facts transport may substitute: `v == t` for a Boolean value `v` (an
+/// operation result equation, a callee guarantee or a block invariant's
+/// definition of a join parameter) or for any value defined as a literal.
+/// A Boolean literal on the right is a branch fact, not a definition. The
+/// kernel keeps the first definition of each subject, as this does.
+fn definitions(facts: &[Fact]) -> Vec<(Proposition, ProofNode)> {
+    facts
+        .iter()
+        .filter(|fact| match &fact.proposition {
+            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
+                match definition {
+                    ScalarTerm::Boolean(_) => fact.axiom.is_some(),
+                    ScalarTerm::Integer { .. } => true,
+                    _ => subject.scalar_type() == ScalarType::Boolean,
+                }
+            }
+            _ => false,
+        })
+        .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
+        .collect()
+}
+
+/// `c == true` or `c == false` for a Boolean value `c`.
+fn is_branch_fact(proposition: &Proposition) -> bool {
+    matches!(
+        proposition,
+        Proposition::Equal(
+            ScalarTerm::Value {
+                scalar_type: ScalarType::Boolean,
+                ..
+            },
+            ScalarTerm::Boolean(_),
+        )
+    )
+}
+
 fn flatten(
     proposition: &Proposition,
     proof: ProofNode,
@@ -275,6 +322,8 @@ impl<'a> Prover<'a> {
         values: &'a IdTable<ValueId, ValueRow>,
         relations: bool,
     ) -> Self {
+        #[cfg(test)]
+        SEARCHES.with(|searches| searches.set(searches.get() + 1));
         let mut facts = Vec::new();
         for (index, assumption) in assumptions.iter().enumerate() {
             let proof = node(assumption.clone(), ProofRule::Assumption { index });
@@ -285,61 +334,32 @@ impl<'a> Prover<'a> {
             flatten(axiom, proof, Some(index), &mut facts);
         }
         // A branch fact `c == true` says what `c`'s comparison says. Transport
-        // it through the result equations of Boolean values and constants, so
+        // it through the definitions of Boolean values and constants, so
         // integer values stay values and their bounds stay findable; the
         // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let equations: Vec<(usize, &Proposition)> = axioms
-            .iter()
-            .enumerate()
-            .filter(|(_, axiom)| match axiom {
-                Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
-                    subject.scalar_type() == ScalarType::Boolean
-                        || matches!(
-                            definition,
-                            ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
-                        )
-                }
-                _ => false,
-            })
-            .collect();
+        let equations = definitions(&facts);
         if !equations.is_empty() {
-            for (index, assumption) in assumptions.iter().enumerate() {
-                let Proposition::Equal(
-                    ScalarTerm::Value { scalar_type, .. },
-                    ScalarTerm::Boolean(_),
-                ) = assumption
-                else {
-                    continue;
-                };
-                if *scalar_type != ScalarType::Boolean {
-                    continue;
-                }
+            let premises: Vec<(Proposition, ProofNode)> = facts
+                .iter()
+                .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
+                .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
+                .collect();
+            for (premise, proof) in premises {
                 let Ok(transported) = check_value_equality_denotation(
                     context,
-                    assumption,
-                    equations.iter().map(|(_, equation)| *equation),
+                    &premise,
+                    equations.iter().map(|(equation, _)| equation),
                 ) else {
                     continue;
                 };
-                if &transported == assumption {
+                if transported == premise {
                     continue;
                 }
                 let proof = node(
                     transported.clone(),
                     ProofRule::ValueEqualityTransport {
-                        premise: Box::new(node(
-                            assumption.clone(),
-                            ProofRule::Assumption { index },
-                        )),
-                        equalities: equations
-                            .iter()
-                            .map(|(axiom, equation)| {
-                                node(
-                                    (*equation).clone(),
-                                    ProofRule::SemanticAxiom { index: *axiom },
-                                )
-                            })
-                            .collect(),
+                        premise: Box::new(proof),
+                        equalities: equations.iter().map(|(_, proof)| proof.clone()).collect(),
                     },
                 );
                 flatten(&transported, proof, None, &mut facts);
@@ -351,12 +371,51 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            equations,
             bounds: (0..values.len())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
             relations,
             case_split: true,
         }
+    }
+
+    /// `goal` by `ValueEqualityTransport`: under the definitions the prover
+    /// holds, its denotation is `Truth`, or is the denotation of a fact. The
+    /// kernel recomputes both denotations from the same definitions.
+    fn by_transport(&self, goal: &Proposition) -> Option<ProofNode> {
+        if self.equations.is_empty() {
+            return None;
+        }
+        let denotation = |proposition: &Proposition| {
+            check_value_equality_denotation(
+                self.context,
+                proposition,
+                self.equations.iter().map(|(equation, _)| equation),
+            )
+            .ok()
+        };
+        let target = denotation(goal)?;
+        let premise = if target == Proposition::Truth {
+            primitive(Proposition::Truth, PrimitiveJudgment::Truth)
+        } else {
+            self.facts
+                .iter()
+                .find(|fact| fact.proposition == target)?
+                .proof
+                .clone()
+        };
+        Some(node(
+            goal.clone(),
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise),
+                equalities: self
+                    .equations
+                    .iter()
+                    .map(|(_, proof)| proof.clone())
+                    .collect(),
+            },
+        ))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -505,6 +564,15 @@ impl<'a> Prover<'a> {
     }
 
     fn prove_direct(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
+        let structural = self.prove_structural(goal);
+        if structural.is_ok() {
+            return structural;
+        }
+        self.by_transport(goal)
+            .ok_or(structural.err().unwrap_or("no proof"))
+    }
+
+    fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
             return Ok(fact.proof.clone());
         }

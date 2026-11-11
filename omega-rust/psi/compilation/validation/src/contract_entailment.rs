@@ -25755,9 +25755,9 @@ pub(crate) mod ranking_range {
                 _ => rank_coordinate(program, &mut engine, source_measure)?,
             };
             let rank = rank_value.value.clone();
-            let view_bound = match source_measure {
-                RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
-                _ => None,
+            let view_bound = match source_measure.fixed_view_bound() {
+                Some(limit) => Some(engine.normalize(limit)?),
+                None => None,
             };
             let source_range = member_call_range(program, &caller, entry, &mut engine)?;
             if !at_entry && let Some((floor, ceiling, inclusive)) = &source_range {
@@ -25856,7 +25856,9 @@ pub(crate) mod ranking_range {
             if callee.paired_subject.is_valid() {
                 destination_expressions.push(callee.paired_subject);
             }
-            if let RankingRangeMeasure::IncreasingTo { limit, .. } = destination_measure {
+            if let Some(limit) = destination_measure.fixed_view_bound()
+                && !destination_expressions.contains(&limit)
+            {
                 destination_expressions.push(limit);
             }
             if callee.range.is_valid()
@@ -25958,15 +25960,9 @@ pub(crate) mod ranking_range {
                 None => rank_coordinate(program, &mut engine, destination_measure)?,
             };
             let next_rank = next_rank_value.value.clone();
-            let pinned_view_bound = match (view_bound, destination_measure) {
-                (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
-                    Some((bound, engine.normalize(limit)?))
-                }
-                (None, RankingRangeMeasure::Distance { .. })
-                | (None, RankingRangeMeasure::Single(_))
-                | (None, RankingRangeMeasure::Computed { .. })
-                | (None, RankingRangeMeasure::Field { .. })
-                | (None, RankingRangeMeasure::SliceLength(_)) => None,
+            let pinned_view_bound = match (view_bound, destination_measure.fixed_view_bound()) {
+                (Some(bound), Some(limit)) => Some((bound, engine.normalize(limit)?)),
+                (None, None) => None,
                 _ => return None,
             };
             let destination_range = member_call_range(program, &callee, destination, &mut engine)?;
@@ -32607,6 +32603,28 @@ pub(crate) mod ranking_range {
         },
     }
 
+    impl RankingRangeMeasure {
+        /*
+            The bound a distance view climbs toward. `Nat::IncreasingTo(limit)`
+            names it as `limit`; `Nat::BoundedDistance` binds it as the second
+            subject, `upper`. Stage 05 emits the rank of either as
+            `MAX - lower`, which descends only while the bound stays put, so
+            every edge of the component must arrive with the bound it left
+            with. A call `second(index, limit - 1)` shrinks `upper - lower`
+            without moving `lower`; without this pin it counted as descent.
+        */
+        pub(crate) fn fixed_view_bound(self) -> Option<ExpressionHandle> {
+            match self {
+                Self::IncreasingTo { limit, .. } => Some(limit),
+                Self::Distance { upper, .. } => Some(upper),
+                Self::Single(_)
+                | Self::Computed { .. }
+                | Self::SliceLength(_)
+                | Self::Field { .. } => None,
+            }
+        }
+    }
+
     #[derive(Clone, Copy)]
     pub enum RankingRangePremises {
         RankInvariant,
@@ -33633,17 +33651,13 @@ pub(crate) mod ranking_range {
         let next_rank = next_rank_value.value.clone();
         let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
         let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
-        let pinned_view_bound = match measure {
-            RankingRangeMeasure::IncreasingTo { limit, .. } => {
+        let pinned_view_bound = match measure.fixed_view_bound() {
+            Some(limit) => {
                 let bound = engine.normalize(limit)?;
                 let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
                 Some((bound, next))
             }
-            RankingRangeMeasure::Distance { .. }
-            | RankingRangeMeasure::Single(_)
-            | RankingRangeMeasure::Computed { .. }
-            | RankingRangeMeasure::SliceLength(_)
-            | RankingRangeMeasure::Field { .. } => None,
+            None => None,
         };
         for (operator, left, right) in auxiliary
             .iter()
@@ -51971,28 +51985,22 @@ pub(crate) mod structural_judgment {
                 }
                 let left = left.into_semantic_value();
                 let right = right.into_semantic_value();
-                if right == value_predicates::boolean_term(true)
-                    && let StructuralTerm::MathematicalBinary {
-                        operator: BinaryOperator::And,
-                        left,
-                        right,
-                    } = &left
-                    && left.is_checked_predicate()
-                    && right.is_checked_predicate()
-                {
-                    self.intake_equation_with_purpose(
-                        *left.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    self.intake_equation_with_purpose(
-                        *right.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    return;
+                // A conjunction known true makes each operand true, whether it was
+                // authored in the contract or came back from unfolding a boolean
+                // machine named by it. Only `&&` equated with `true` splits: a false
+                // conjunction and either truth of `||` fix neither operand.
+                if let Some(conjunction) = self.true_conjunction_operands(&left, &right) {
+                    for operand in conjunction.operands {
+                        self.intake_equation_with_purpose(
+                            operand,
+                            value_predicates::boolean_term(true),
+                            depth + 1,
+                            purpose,
+                        );
+                    }
+                    if !conjunction.retained_as_premise {
+                        return;
+                    }
                 }
                 let logical_premise = match (&left, &right) {
                     (StructuralTerm::LogicalNot { .. }, truth)
@@ -77554,6 +77562,11 @@ pub(crate) mod structural_judgment {
             }
         }
 
+        pub(crate) struct TrueConjunction {
+            pub(crate) operands: [StructuralTerm; 2],
+            pub(crate) retained_as_premise: bool,
+        }
+
         impl StructuralJudge<'_> {
             pub(crate) fn boolean_equality_operand(
                 &self,
@@ -77590,6 +77603,50 @@ pub(crate) mod structural_judgment {
                     operand.clone(),
                     boolean_term(if equal { known } else { !known }),
                 ))
+            }
+
+            /// The operands of a conjunction equated with `true`. A mathematical
+            /// conjunction is fully replaced by its operands. An executable boolean
+            /// `&&` is also kept whole, because the integer reader builds its
+            /// premise worlds from retained boolean connectives.
+            pub(crate) fn true_conjunction_operands(
+                &self,
+                predicate: &StructuralTerm,
+                truth: &StructuralTerm,
+            ) -> Option<TrueConjunction> {
+                if boolean_value(truth) != Some(true) {
+                    return None;
+                }
+                match predicate {
+                    StructuralTerm::MathematicalBinary {
+                        operator: BinaryOperator::And,
+                        left,
+                        right,
+                    } if left.is_checked_predicate() && right.is_checked_predicate() => {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: false,
+                        })
+                    }
+                    StructuralTerm::ScalarBinary {
+                        references,
+                        operator: BinaryOperator::And,
+                        meaning,
+                        left,
+                        right,
+                    } if meaning.iter().all(|(primitive, domain)| {
+                        *primitive == PrimitiveType::Bool
+                            && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+                    }) && scalar_operand_is_observed(self.program, references[0], left)
+                        && scalar_operand_is_observed(self.program, references[1], right) =>
+                    {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: true,
+                        })
+                    }
+                    _ => None,
+                }
             }
 
             pub(crate) fn identity_equality_operands(

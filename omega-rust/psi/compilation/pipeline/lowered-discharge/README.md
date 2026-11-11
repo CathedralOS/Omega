@@ -15,7 +15,10 @@ Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
-it; [prove.rs](src/prove.rs) is the one prover.
+it, from the stores [places/log.rs](src/places/log.rs) derives from the
+operations; [prove.rs](src/prove.rs) is the one prover.
+[joins.rs](src/joins.rs) infers and checks join predicates;
+[crashes.rs](src/crashes.rs) states crash-site coverage.
 
 ## What it decides
 
@@ -23,8 +26,11 @@ it; [prove.rs](src/prove.rs) is the one prover.
 | --- | --- | --- |
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
-| `NormalGuarantee` | this machine's `ensures` clause at that position | the same, on the exit edge |
+| `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
+| `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
+| `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
+| `CrashCoverage` | the site guard's clauses (a `Crash` terminator's; a call site has none) and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none) | the same, before the crashing terminator or call |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
@@ -49,7 +55,11 @@ holds one value on every path to it (`OperationSemantics` of the read; see
 below), per `requires` clause of a data type that a read of established
 storage can state on its own value (`OperationSemantics` of the read; see
 [What a read learns from its type](#what-a-read-learns-from-its-type)), per
-callee `ensures` clause (`CalleeGuarantee`, after the call),
+callee `ensures` clause (`CalleeGuarantee`, after the call, with the
+callee's `result` replaced by the value the call defines;
+[calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts):
+"Normal guarantees refer to the actual result and appropriate parameter
+versions."),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
@@ -74,8 +84,10 @@ already carries every identity:
 | `PublishedGuarantee` | each `ensures` clause of the contract names its published identity | the entry block |
 | `NormalGuarantee` | every return terminator owes one per `ensures` clause, naming its own edge and the clause's published identity | that return edge |
 | `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
+| `CrashCoverage` | a `Crash` terminator owes one for its cause; an `InvokeNoNormal` terminator, or a `Call` or `CallUnit` with crash continuations, one per cause among them | the point before the terminator or the call |
+| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar arguments owes one for its edge | that edge |
 
-A row of the first four kinds that nothing owes is refused as well, and so is
+A row of the first four kinds, or of the last two, that nothing owes is refused as well, and so is
 a row owed twice. The point matters as much as the kind: it selects the
 knowledge a proof may use, so a row moved past a guard, or past its own call
 where the callee's `ensures` is already known, would be proved from facts
@@ -91,8 +103,63 @@ dominance is computed from the edge table.
 
 A disagreement is a defect of the route, not of the program: the refusal has
 reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
-accepted on it. The write log and the place table are not checked this way
-yet (finding 17).
+accepted on it.
+
+### The tables that say what storage holds
+
+A goal over a field is stated over the value its leaf holds, so a table that
+names another value, another place or another kind of value changes what is
+proved without touching an obligation row. Three tables say what storage
+holds, and none is taken on elaboration's word.
+
+**The write log is derived, then compared.** The walk below does not read
+`MachineTables::writes`. [places/log.rs](src/places/log.rs) derives every
+store from the operation that makes it (`Storage::stores`):
+
+| Operation | What it stores |
+| --- | --- |
+| `EstablishRecord` | each operand into its field of the fresh root: a scalar operand as that value, a record operand as what its source held |
+| `EstablishScalarCase`, `EstablishStructuralCase` | the fresh root established as `result_case`, then each payload operand as above |
+| `EstablishZeroedStructural` | the fresh root zeroed, then a zero constant into each scalar leaf of the zero value that has one |
+| `StructuralLeafCopy` | what its source held, into the fresh root |
+| `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | its value into exactly the leaf it names |
+| `EstablishPrimitiveLocal` | its operand, the zero a scalar local is constructed with, into the fresh home |
+| `StoreStructuralField` | what its source held, into the field it names |
+| a call with a record result | what the callee returned, into the fresh root |
+| a read, a case test, an operation over scalar values alone | nothing |
+
+Any other operation is refused as `Unsupported`: it may store somewhere, and
+an operation left out of the derivation would be a store nothing reaches. The
+log elaboration wrote must then list exactly these stores, per operation and
+in order (`Storage::log_is_stated`). A row with another value or place, a
+missing row, a row at another point and a row no operation makes are each
+refused.
+
+A zero establishment has no operand, so the zero of a leaf has a value
+identity only through a constant. Elaboration emits one zero constant per
+scalar leaf directly before the establishment, in leaf order, and that slot
+is where the derivation looks. A leaf whose slot holds anything else is zero
+with no value identity.
+
+**The place table must be one place per path** (`places_are_interned`). A
+table names a place by its identity: an invocation's record actual, the place
+of an entry content value, a write row. The walk reads that identity as a
+path, so each root's row must be its own, each projection must be listed by
+its parent under its own segment, a parent must come before its projections,
+and a parent's projections must be sorted with one per segment. Two paths
+that share a row would let one field's contents answer for another's.
+
+**The value table must be the lowered form's declarations**
+(`values_are_declared` in [minted.rs](src/minted.rs)). Each formal, the scalar
+result, each block parameter and each scalar operation result must have its
+declared type and the origin of what declares it. The type is what Terminal
+semantics states a goal over and what the kernel bounds a value by; the
+origin is what the payload judgment reads to learn which test a condition is
+the result of. The one row the lowered form does not declare is the content a
+formal's leaf held at entry. Such a value must be of a scalar leaf of a
+formal, with that leaf's declared type, and a place has at most one
+(`Storage::entry_contents_are_of_formals`). Exchanging two entry content
+values of one type renames them and proves nothing, so it is not refused.
 
 ## What a place holds
 
@@ -115,16 +182,16 @@ rows end a path and in what an edge can establish:
   part by two different record fields are disjoint; any other pair of sibling
   segments overlaps, and places under different roots do not. Later lanes
   extend this function (indices, referents) and add no second relation.
-- **Reaching.** Walking the graph back from the use, the last write to an
+- **Reaching.** Walking the graph back from the use, the last store into an
   overlapping place on each path is the one that reaches along it.
-  - `Content::Value(v)` on exactly the leaf supplies `v`.
-  - `Content::Overwritten` on the leaf or above it supplies contents with no
-    value identity, unless the operation at that row is one that moves
-    storage whole: a whole copy, a record operand of a literal, a record
-    stored into a field. Then the leaf holds what the matching leaf of the
-    operation's source held just before it, and the walk continues there.
-    The write log cannot say this (its `Content` has no "copied from"
-    variant), so the source is read from the operation.
+  - A store of the value `v` into exactly the leaf supplies `v`.
+  - A store into the leaf or above it that moves storage whole (a whole
+    copy, a record operand of a literal, a record stored into a field)
+    supplies what the matching leaf of its source held just before it, and
+    the walk continues there.
+  - A call's record result supplies what the callee returned, which has no
+    value identity here; any other overlapping store supplies contents with
+    no value identity.
   - A path that reaches the machine's entry with no write is supplied by the
     place's entry content when its root is a formal, and by nothing
     otherwise.
@@ -203,7 +270,7 @@ serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
 
-It is a structural judgment over the write log and the graph. It is not a
+It is a structural judgment over the stores and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
 prover.
 
@@ -221,7 +288,7 @@ The goal is the clause under the one substitution (`substitute`), with the
 names of the clause standing for what the place holds at the operation's
 normal continuation:
 
-- **A field** becomes the one value the write log says that leaf holds
+- **A field** becomes the one value the stores say that leaf holds
   there, found by the reaching walk: the operand of a construction, the
   zero constant of a zero establishment, the stored value for the written
   field, and for every other field the value that reached the store. For a
@@ -239,8 +306,8 @@ So the goal names values and literals only, and it is proved from the
 knowledge available before the operation
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
 "The obligation binds the initializer or replacement SSA value, never the
-old field contents."). The stored value enters the goal from the write-log
-row, not from a knowledge row, so the completed write contributes no fact to
+old field contents."). The stored value enters the goal from the store the
+operation makes, not from a knowledge row, so the completed write contributes no fact to
 its own proof. A field with no value identity at that point (what a call
 returned, a join of two different stores) or a case no structure decides
 leaves the clause unstated: the obligation is `Unproved`, with a detail that
@@ -571,20 +638,22 @@ subset needs, so the prover emits them directly.
    existing equality steps carry it: a bound on `v` bounds the read, and two
    reads of one leaf are related through the value they share. An unsigned
    `p.x - p.x` over a formal discharges with a `Judged` certificate.
-6. **Edge writes are refused, not placed.** The backward walk moves between
-   blocks. A write logged on one edge reaches only that edge's destination,
-   so a write at `ProgramPoint::Edge` that overlaps a use refuses the
-   machine until the slice that logs one teaches the walk about edges.
-7. **A copy's source is not in the write log.** `Content` cannot name a
-   source place, so the walk reads it from the operation at the row
-   (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
-   value of `StoreStructuralField`). An `Overwritten` row at any other
-   operation keeps its own meaning: contents with no value identity.
+6. **No store is on an edge.** Every store is derived from an operation and
+   takes effect at its normal continuation, and the backward walk moves
+   between blocks. A write row at `ProgramPoint::Edge` or at a block entry
+   is one no operation makes and is refused. The slice that stores on an
+   edge (a return into the result place, a transfer) has to give the walk
+   edges first.
+7. **The write log cannot say what the walk needs.** `Content` has no form
+   for a source place, for the case a construction established or for a
+   call's result, so those stores are all `Overwritten` in the log. The walk
+   reads the derived store (`Stored`), which says each of them, and the log
+   is only compared with it.
 8. **A scalar local with no initializer holds zero, here as in the current
    checker.** `let mut x: u32; f(x)` is accepted with `x == 0` known
-   (`local-without-initializer`). Elaboration logs the zero at the
-   establishing operation, as it does for a data local, and the walk needed
-   no change: the row is one more write that supplies the home. A scalar
+   (`local-without-initializer`). The establishing operation names the
+   zero as its operand, so the home's store is derived from it like any
+   other, and elaboration logs the same row. A scalar
    type that zero does not satisfy would be gated like a data type, but
    none is served: the reader refuses a constrained scalar type.
 
@@ -630,8 +699,8 @@ subset needs, so the prover emits them directly.
 14. **`Reached::Returned` tells a call's result from other unknown
     contents.** The walk could already say "contents with no value
     identity"; a read's type premise needs to know those contents arrived
-    established. It is read from the operation at the row, like a copy's
-    source, by matching the invocation table.
+    established. It is the derived store of an operation that is a call of
+    the module with a record result.
 15. **A requirement over a field of a record actual needs that field to
     hold one named value at the call.** `peek(make())` with
     `requires packet.first == 7` is unproved: what `make` returned has no
@@ -644,18 +713,15 @@ subset needs, so the prover emits them directly.
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
 
-17. **The write log is still taken on elaboration's word.** A read
-    equation, a `DataDomain` goal and a requirement over a field of a record
-    actual all name the value a `WriteRow` says a leaf holds. Rewriting one
-    row's `Content::Value` to another value of the machine turns a rejected
-    construction into an accepted one: in `make(v) -> Paired { neighbor: 17,
-    value: v }` with `1 <= value` unproved, logging `17` for `value` proves
-    the clause over `17`. The lowered operations state the same stores
-    (an operand of a construction, the value of a field store), so the log
-    can be derived here instead of read, which would also retire finding 7.
-    Value rows are in the same position; the one case tried, a formal typed
-    narrower than its declaration, was refused by Terminal semantics as
-    `Unsupported`.
+17. **A data type's `requires` clauses are still taken on elaboration's
+    word.** Terminal Psi's type declaration has no slot for them, so they
+    ride beside the module in `Elaboration::domains` and nothing in the
+    lowered form restates them. A clause weakened or dropped there weakens
+    or drops the `DataDomain` goal of every construction and store of that
+    type, and `owed_are_minted` counts against the same list. A machine's
+    `requires` and `ensures` are not in this position: they are in the
+    module's `MachineContract`. Closing it needs the clauses in the module,
+    or the typed trees as a second source at this check.
 
 ## Evidence seals
 
@@ -743,3 +809,177 @@ point of an invariant window; a program with such a use is
 `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
+
+## Reusing a saved proof (experiment)
+
+[reuse.rs](src/reuse.rs) is an experiment the owner asked to see before
+anything is built on it; no production path calls it. `reverify` takes a saved
+certificate for one obligation and has the kernel decide it for the goal and
+hypotheses the consumer computes from its own lowered program, through the same
+`verify` as `discharge`. It runs no search and cannot reach the prover. A stale
+proof, a missing assumption, or a proof attached to another obligation or
+machine fails because the kernel checks the certificate's conclusion against
+the consumer's goal and each citation against the consumer's own hypotheses.
+`reverify_at_call` moves a guarantee proved over a callee's formals to one
+call by substituting the actuals into the guarantee, the `requires` and the
+certificate; the call's own requirements must already be discharged there.
+That is substitution of actuals for formals, not type-parameter
+instantiation. Certificates have no byte form yet, so a saved proof lives in
+memory.
+
+## Generic bodies (experiment)
+
+A generic machine is proved once, against the contracts its parameters
+require, and each specialization of it re-checks those proofs instead of
+searching again. This section covers one kind of parameter, an
+implementation parameter such as `Selected satisfies Step`, whose body calls
+`Selected::apply(..)`. No production path calls any of it. Type and value
+parameters are not served; [what is missing](#what-the-lowered-form-does-not-carry)
+says why.
+
+The example the tests and the corpus fixture use:
+
+```omega
+trait Step {
+    machine apply(value: u32) -> u32 requires value <= 10 ensures result <= 20;
+}
+machine advance<Selected satisfies Step>(start: u32) -> u32
+requires start <= 10
+ensures result <= 21
+{ Selected::apply(start) + 1 }
+```
+
+In the tests `Double::apply` publishes the requirement's own contract and
+returns `value + value`, and `Shift::apply` asks less and promises more
+(`requires value <= 12 ensures result <= 17`) and returns `value + 5`. The
+corpus fixture selects `Shift` and `Hold`, which returns `value` and promises
+`result <= 10`, so that both of its uses satisfy a bound the requirement
+does not give.
+
+**The generic check form.** Elaboration lowers `advance` once with
+`Selected` rigid ([structure-elaboration](../structure-elaboration/README.md#generic-machines)):
+the requirement `Step::apply` is a machine of the module that has its
+formals, result and contract and no block, and the call through the
+parameter is an ordinary direct call of it. Nothing else is new. The call's
+`CallRequirement` obligations are the requirement's `requires`, and the
+knowledge after the call is the requirement's `ensures`, by the same rows as
+for any callee. `discharge` skips the requirement itself: its guarantees are
+each implementation's to prove, and their verdict is `Unsupported`, so `judge`
+never accepts a generic form as a program.
+
+**Refinement.** That an implementation may stand for the requirement is a
+proof too. Its statement is a conformance witness: a machine with the
+requirement's contract whose body is one call of the implementation. Its call
+requirements say the requirement's `requires` imply the implementation's; its
+guarantees say the implementation's `ensures` imply the requirement's.
+`discharge` proves it like any machine, once per implementation.
+
+**Carrying.** `reverify_specialization` takes the generic body's verdicts,
+one witness per selected implementation, and the concrete module in which the
+specialization calls the implementation directly. For each obligation of the
+specialization it computes the goal and the hypotheses from that module, as
+`reverify` does, and offers the kernel a proof assembled from the saved ones:
+
+- a value keeps its identity, because selecting an implementation changes
+  only which machine a call names (the function checks that the two
+  machines have the same values and calls, and refuses otherwise);
+- a hypothesis the generic proof cites becomes the specialization's row with
+  the same justification;
+- where the generic proof cites the requirement's guarantee after a call, the
+  specialization does not assume that: it assumes the implementation's
+  published guarantee. The citation is replaced by the witness's proof of the
+  requirement's clause, with the witness's formals renamed to the call's
+  actuals and its result to the call's result;
+- where the witness's proof cites the requirement's `requires`, the generic
+  body proved that at the call, and that proof is carried in its place;
+- the specialization's own call requirement is the implementation's
+  `requires`, and its proof is the witness's, moved the same way.
+
+The kernel decides the assembled proof through `verify`, the one acceptance
+path. Nothing about it is trusted, and nothing searches: `reuse.rs` cannot
+reach the prover, and the tests count prover starts.
+
+**What the tests show** (`tests.rs`, `generic_bodies`):
+
+| Test | Shows |
+| --- | --- |
+| `the_generic_body_is_checked_against_the_requirement_alone` | three certificates for `advance` from `Step::apply`'s contract; the requirement has no block; `judge` falls back on a generic form |
+| `its_certificates_reverify_in_two_different_implementations` | the same three proofs accepted in `advance<Double>` and `advance<Shift>`, no prover started, although the two specializations assume different things after the call |
+| `a_body_that_only_holds_for_the_implementation_in_use_is_rejected` | `advance` promising `result <= 18` is proved for `advance<Shift>` alone and refused as a generic body; the specialization then has nothing to carry and is refused without a search |
+| `an_implementation_that_does_not_refine_the_requirement_is_refused` | `Wide` (`ensures result <= 25`) has no refinement proof, so the proofs that rest on the guarantee are refused |
+| `a_refinement_proof_for_another_implementation_is_refused_by_the_kernel` | `Shift`'s witness offered for a specialization that calls `Wide` is refused by the kernel, three times |
+
+`compiler`'s example `generic_certificate_carry` runs the same three steps
+from source, on the typed trees of
+`tests/omega/run/generics/implementation_parameter_contract` and its fail
+twin. The twin differs only in the bound `advance` promises, `result <= 18`:
+a search over each of its two specializations alone proves that bound, and
+the generic check refuses it.
+
+### What the lowered form does not carry
+
+Read from the types, not built:
+
+- **A value of a rigid type.** A value row has a `ScalarType`, which is
+  `Boolean`, `Integer(sign, width)` or `IeeeFloat(format)`, and a place has a
+  declared `StructuralTypeId`. There is no row for a value whose type is a
+  parameter, so a body over `T` cannot be lowered once.
+- **An operation on it.** Terminal operations are selected per type
+  (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
+  comes from that type's range. One generic body has no single operation.
+- **A certificate that holds for every type.** `PropositionContext` takes a
+  concrete type per value, terms and rules name `ScalarType`, and the
+  integer rules depend on the width. Moving a certificate to another type
+  would have to rebuild it, and the correspondence of values and calls this
+  experiment relies on would no longer hold.
+- **A rigid value parameter** (`const N: u64`) has the same shape as a
+  formal with no argument; it was not tried.
+
+Limits of what was built:
+
+- Refinement is proved for `requires` and `ensures` only. A requirement that
+  leaves `crashes` to its member publishes no route in the generic form, so
+  the generic check decides nothing about crashes through that call; each
+  specialization's concrete module still reads the member's own routes.
+- The witness must be one call that passes its formals on, and its proofs may
+  cite only the two contracts.
+- Carrying is per machine. The route cannot yet judge the whole closure of
+  the fixture (its `main` ends in terminal calls), and `judge` does not use
+  carried proofs.
+- No timing was taken.
+
+## Facts across a join
+
+A branch fact holds on its edge only, and "A fact from one arm does not
+survive the join" (`fact_validity.md`). So after `transition total > 9000 ||
+total < 3`, the false edge says only that the `||` join's Boolean parameter
+`p` is `false`, and a use of `total <= 9000` there learned nothing. The
+specification's mechanism is a block predicate checked on every arrival
+before it justifies anything downstream (`fact_validity.md`, "Premise
+availability"; `control_flow.md`, "Equality relations"). [joins.rs](src/joins.rs)
+builds one per join, so no shape of join is special:
+
+- Lowering mints an `ArrivalInvariant` obligation per edge into a block with
+  parameters.
+- The predicate is inferred as the disjunction over arrivals of what each
+  arrival knows and the join does not, in the predicate's scope (formals and
+  the join's parameters): `p == a` with the argument `a` unfolded through the
+  Boolean and literal definitions on that edge, and each path fact
+  transported into its denotation. For the example: `(p == (9000 < total)
+  and 9000 < total) or (p == (total < 3) and total <= 9000)`.
+- Each arrival obligation is that predicate with `p` replaced by the edge's
+  argument, proved by the same prover and decided by the kernel. Only then is
+  the predicate a `BlockInvariant` knowledge row at the join's entry. If any
+  arrival is unproved, the predicate becomes `Truth` and the join is listed in
+  `MachineDischarge::weakened_joins`; a weaker predicate is still a valid one,
+  so this never rejects a program, but nothing downstream relies on the join.
+- At the use, the prover splits over the predicate's disjunction. In each
+  alternative `p == (...)` is a definition of `p`, so the branch fact `p ==
+  false` transports through it (`ValueEqualityTransport`, the existing rule)
+  into `total <= 9000`.
+
+The prover's transport now takes any proved definition of a Boolean value,
+not only an operation's result equation, and a goal whose transported
+denotation is `Truth` or a known fact closes by the same rule. A join on a
+cycle gets no predicate: cyclic cuts need induction, which this route does not
+do.

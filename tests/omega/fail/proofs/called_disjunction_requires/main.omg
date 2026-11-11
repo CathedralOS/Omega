@@ -1,0 +1,18 @@
+// Expected error: a disjunction that is known true fixes neither of its
+// operands. This is the twin of pass/proofs/called_conjunction_requires with
+// `||` in the body of `represents`, so `unique` holds no comparison it can
+// use and both conclusions are refused.
+data Pair [copy] { first: u8; last: u8; }
+data Frame [copy] { tag: u8; first: u8; last: u8; }
+
+machine represents<'view, 'value>(frame: &'view Frame, value: &'value Pair) -> bool
+reaches none terminates { frame.first == value.first || frame.last == value.last }
+
+machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left Pair, right: &'right Pair)
+reaches none terminates
+requires represents(frame, left)
+requires represents(frame, right)
+ensures left.first == right.first
+ensures left.last == right.last { }
+
+machine main() { }
