@@ -6838,6 +6838,7 @@ mod mathematical_signature {
                                 .iter()
                                 .map(|(domain, _)| *domain)
                                 .collect::<Vec<_>>(),
+                            self.level_binders.len() as u32 + self.generalized_levels,
                         )
                     }
                     .map_err(|error| {
@@ -7531,7 +7532,7 @@ mod mathematical_signature {
                                 "source induction requires a shared integer vocabulary".into(),
                             ));
                         };
-                        let proof = theory.predicate_from_assumptions(&mut self.arena, &mut self.declarations, goal, &assumptions)
+                        let proof = theory.predicate_from_assumptions(&mut self.arena, &mut self.declarations, goal, &assumptions, self.level_binders.len() as u32 + self.generalized_levels)
                 .map_err(|error| self.refuse(format!("source induction case arithmetic is unsupported: {error:?}")))?
                 .ok_or_else(|| self.refuse("source induction case has no checked derivation from its exact constraints and child hypotheses".into()))?;
                         let mut ty = goal;
@@ -10229,6 +10230,7 @@ mod mathematical_signature {
                                 &mut declarations,
                                 goal,
                                 &assumptions,
+                                0,
                             )
                             .unwrap()
                             .unwrap();

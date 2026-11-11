@@ -13389,31 +13389,30 @@ fail/facts/source_indexed_family_wrong_payload_carrier rejected 1391ms expected 
 	literal `7` is suffixed `i8` but lands in a `u64` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/facts/source_indexed_family_wrong_recursion_rank rejected 1027ms unexpected @ccdb99ca2214
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
-fail/facts/source_indexed_type_parameter_head_rejected rejected 1395ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_head_rejected rejected 9264ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 1153ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_call_result_rejected rejected 9313ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_const_name_rejected rejected 1191ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_const_name_rejected rejected 12084ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_field_rejected rejected 1172ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_field_rejected rejected 10934ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_local_rejected rejected 1225ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_local_rejected rejected 9074ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_match_join_rejected rejected 1158ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_match_join_rejected rejected 9607ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_other_machine_rejected rejected 1212ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_other_machine_rejected rejected 9192ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_other_state_rejected rejected 1190ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_other_state_rejected rejected 8443ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_parameter_rejected rejected 1310ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_parameter_rejected rejected 9504ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_through_target_body_rejected rejected 1233ms expected @7eee0bd20c4b
+fail/facts/source_indexed_type_parameter_through_target_body_rejected rejected 7836ms expected @048b4e1c1a50
 	source constructor predicate has no checked derivation yet
-fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected rejected 1651ms expected @7eee0bd20c4b
-	argument `evidence` for state `entry` expects `Vector<u64, 1, 7>`, got `named value`; expected carrier `generic(name(nominal\\(package-owner\\(32:37b5e21c5c143e8a141f43965e40f738560cfc1fa889e5ce1ed6c08ae3d6c422\\)\\,path\\(Vector\\)\\)),named(name(u64)),integer(1),integer(7))`, declared place carrier `generic(name(nominal\\(package-owner\\(32:37b5e21c5c143e8a141f43965e40f738560cfc1fa889e5ce1ed6c08ae3d6c422\\)\\,path\\(Vector\\)\\)),named(name(bool)),integer(1),integer(7))`
-	machine `vector_bound$specialized$8f1e221890b958c4$0$2705` state `entry` value call to `done` violates required fact `Length == 0 && Total == 0`: the instantiated fact is structurally false (`1 == 0 && 7 == 0`)
-fail/facts/source_indexed_type_parameter_wrong_value_fiber_rejected rejected 895ms expected @ccdb99ca2214
-	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
+fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected rejected 8944ms expected @048b4e1c1a50
+	argument `evidence` for state `bounded` expects `Vector<u64, 1, 7>`, got `named value`; expected carrier `generic(name(nominal\\(package-owner\\(32:8e7b36c6dda7136ef1f52ad20918eed64530f189e847aad1984541a5f886f186\\)\\,path\\(Vector\\)\\)),named(name(u64)),integer(1),integer(7))`, declared place carrier `generic(name(nominal\\(package-owner\\(32:8e7b36c6dda7136ef1f52ad20918eed64530f189e847aad1984541a5f886f186\\)\\,path\\(Vector\\)\\)),named(name(bool)),integer(1),integer(7))`
+fail/facts/source_indexed_type_parameter_wrong_value_fiber_rejected rejected 4448ms expected @048b4e1c1a50
+	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Total` conflicts: 8 [identity named(integer-const(8)); supplier unretained] versus const <expression> [identity named(integer-const(7)); supplier main]
 fail/facts/sret_aggregate_return_bound_through_call_result_rejected rejected 3622ms expected @911f6617ba9e
 	exact arithmetic in machine `probe` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/sret_aggregate_return_bound_through_const_name_rejected rejected 1576ms expected @911f6617ba9e
@@ -25673,17 +25672,17 @@ pass/facts/source_indexed_family_through_other_machine_exit checked 5488ms check
 pass/facts/source_indexed_family_through_other_state_exit checked 5635ms check-target:macos_arm64 @0be3713483e9
 pass/facts/source_indexed_family_through_parameter_exit checked 11366ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
 pass/facts/source_indexed_family_through_target_body_exit checked 5415ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_type_parameter_exit checked 11221ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_call_result_exit checked 5815ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_const_name_exit checked 5581ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_field_exit checked 5551ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_local_exit checked 5487ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_match_join_exit checked 11371ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_other_machine_exit checked 5634ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_other_state_exit checked 5531ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_parameter_exit checked 11316ms check-target:macos_arm64 terminal-inspections:match @6f9181f2497
-pass/facts/source_indexed_type_parameter_through_target_body_exit checked 5596ms check-target:macos_arm64 @6f9181f2497
-pass/facts/source_indexed_type_parameter_u64_payload_exit checked 5443ms check-target:macos_arm64 @6f9181f2497
+pass/facts/source_indexed_type_parameter_exit checked 62562ms check-target:macos_arm64 terminal-inspections:match @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_call_result_exit checked 25384ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_const_name_exit checked 29164ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_field_exit checked 28208ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_local_exit checked 29023ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_match_join_exit checked 57768ms check-target:macos_arm64 terminal-inspections:match @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_other_machine_exit checked 25361ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_other_state_exit checked 32492ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_parameter_exit checked 60323ms check-target:macos_arm64 terminal-inspections:match @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_through_target_body_exit checked 27192ms check-target:macos_arm64 @048b4e1c1a50
+pass/facts/source_indexed_type_parameter_u64_payload_exit checked 26717ms check-target:macos_arm64 @048b4e1c1a50
 pass/facts/sret_aggregate_return_bound_through_call_result_exit checked 6236ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_const_name_exit checked 6200ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/sret_aggregate_return_bound_through_field_exit checked 7333ms check-target:macos_arm64 @911f6617ba9e
