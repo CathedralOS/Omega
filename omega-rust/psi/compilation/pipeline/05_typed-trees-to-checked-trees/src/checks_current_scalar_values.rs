@@ -2643,28 +2643,28 @@ mod entry_fields {
                         }
                         continue;
                     }
-                    if let Some(carrier) = super::integer_carrier(self.program, reference) {
-                        if !path.is_empty() {
-                            self.fields.push(ScalarField::for_owner(
-                                parameter.symbol,
-                                CapturedScalarField {
-                                    path: path
-                                        .iter()
-                                        .map(|symbol| ScalarProjection::Field(*symbol))
-                                        .collect(),
-                                    carrier,
-                                    value: entry_value(
-                                        self.program,
-                                        reference,
-                                        path.last().copied(),
-                                        ScopedArithmeticValue::Atom {
-                                            identity,
-                                            unsigned: super::unsigned(carrier),
-                                        },
-                                    ),
-                                },
-                            ));
-                        }
+                    if let Some(carrier) = super::integer_carrier(self.program, reference)
+                        && !path.is_empty()
+                    {
+                        self.fields.push(ScalarField::for_owner(
+                            parameter.symbol,
+                            CapturedScalarField {
+                                path: path
+                                    .iter()
+                                    .map(|symbol| ScalarProjection::Field(*symbol))
+                                    .collect(),
+                                carrier,
+                                value: entry_value(
+                                    self.program,
+                                    reference,
+                                    path.last().copied(),
+                                    ScopedArithmeticValue::Atom {
+                                        identity,
+                                        unsigned: super::unsigned(carrier),
+                                    },
+                                ),
+                            },
+                        ));
                     }
                 }
                 let Some(frames) = frames else { continue };
