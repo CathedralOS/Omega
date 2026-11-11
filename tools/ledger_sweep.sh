@@ -18,7 +18,9 @@
 #
 # - N=40 gives about 440 fixtures a shard. Each invocation spends about six
 #   minutes rebuilding and verifying the runner before it checks anything, so
-#   small shards are mostly overhead (N=120 was). xtask also stops one runner
+#   small shards are mostly overhead (N=120 was). That rebuild was a Cargo
+#   freshness-method mismatch, fixed on 2026-11-11 (tools/testing.md); remeasure
+#   before choosing smaller shards. xtask also stops one runner
 #   at 1800 seconds, and 440 fixtures take 15 to 17 minutes, so much larger
 #   shards do not fit.
 # - jobs=6. Eight workers took the runner to 8 GB with no gain in speed, and
