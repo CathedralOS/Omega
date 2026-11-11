@@ -793,19 +793,7 @@ mod local_origins {
                 };
                 let (mut place, _) =
                     structural_origin(program, state, statement_index, &backing)?;
-                /*
-                    An element-anchored view (`&bytes[k] as &T`) addresses the
-                    collection from that element onward: its footprint can cover
-                    later elements, so the anchor element alone does not enclose
-                    it. The collection does. A range anchor already names the exact
-                    tiled extent and stays as it is.
-                */
-                while matches!(
-                    place.segments.last(),
-                    Some(facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. })
-                ) {
-                    place.segments.pop();
-                }
+                validation::completed_storage::widen_element_anchor(&mut place.segments);
                 return Some((place, OriginPrecision::Enclosing));
             }
             if source.representation.is_some() {
@@ -3833,9 +3821,7 @@ mod summary {
 pub(crate) use ceiling::linear_restoration_ceiling_regions;
 pub(crate) use ceiling::signature_ceiling_places;
 pub(crate) use local_origins::close_storage_places_over_aliases;
-pub(crate) use local_origins::{
-    close_storage_places_over_origins, close_storage_places_over_written_origins,
-};
+pub(crate) use local_origins::close_storage_places_over_written_origins;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
 pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referent_origin};

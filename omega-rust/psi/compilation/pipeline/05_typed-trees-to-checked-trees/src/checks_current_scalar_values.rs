@@ -5403,24 +5403,6 @@ impl<'program> CurrentScalarValues<'program> {
             }
         }
         for (field, preserved) in self.fields.iter_mut().zip(fields) {
-            if std::env::var_os("OMEGA_DBG").is_some() && field.value.is_some() {
-                eprintln!("DBG retire field owner={:?} path={:?} preserved={preserved} at={at:?}", field.owner, scalar_fields::source_path(&field.path));
-                if let (Some(at), Some(graph)) = (at, graph) {
-                    let mut cur = at;
-                    let mut n = 0;
-                    while cur.is_valid() && graph.storage_snapshots.is_valid(cur) && n < 12 {
-                        let ev = graph.storage_snapshots.get(cur);
-                        eprintln!("DBG   ev {cur:?} {:?}", ev.operation);
-                        if let checked_trees::FlowStorageOperation::Writes { contents, .. } = ev.operation {
-                            for r in graph.operand_referents.span_or_empty(contents) { eprintln!("DBG     writes root={:?} segs={:?}", r.root, graph.operand_referent_segments.span_or_empty(r.segments)); }
-                        }
-                        if let checked_trees::FlowStorageOperation::Store { destination, .. } = ev.operation {
-                            eprintln!("DBG     store root={:?} segs={:?}", destination.root, graph.operand_referent_segments.span_or_empty(destination.segments));
-                        }
-                        cur = ev.previous; n += 1;
-                    }
-                }
-            }
             if !preserved {
                 field.value = None;
             }

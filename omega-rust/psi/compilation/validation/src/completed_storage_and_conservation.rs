@@ -1185,7 +1185,11 @@ pub mod completed_storage {
                 {
                     return self.places(enclosing, &[]);
                 }
-                self.referents_or_loan(enclosing, &[], storage.referents)
+                let mut places = self.referents_or_loan(enclosing, &[], storage.referents)?;
+                for place in &mut places {
+                    super::widen_element_anchor(&mut place.segments);
+                }
+                Some(places)
             }
 
             fn referents_or_loan(
@@ -1283,6 +1287,22 @@ pub mod completed_storage {
             Some(output)
         }
     }
+    /*
+        A view formed at one element (`&bytes[k] as &T`) addresses the collection
+        from that element onward, so it may cover later elements: the anchor element
+        alone does not enclose its footprint, and a write recorded there would leave
+        facts about the later elements standing. The collection does enclose it. A
+        range anchor already names its exact tiled extent and is left unchanged.
+    */
+    pub fn widen_element_anchor(segments: &mut Vec<facts::PlaceSegment>) {
+        while matches!(
+            segments.last(),
+            Some(facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. })
+        ) {
+            segments.pop();
+        }
+    }
+
     pub use backing::{
         direct_referent_places, projectable_reference_places, reference_backing_places,
     };
