@@ -18,6 +18,13 @@
 //! checker accepted and the fixture harness then refused, or `none`); `route`
 //! is the elaboration result (`lowered`, `refused` with `reason`, `no-entry`,
 //! or `none` when there were no trees). `total` lines follow the fixtures.
+//!
+//! A fixture that binds no program entry keeps the stage `no-entry`, but the
+//! new route is still asked about it: each machine the fixture's own package
+//! declares is elaborated as a root of its own, and `roots` says how many.
+//! `judged` is `lowered_discharge::judge`'s verdict over every root, the one
+//! a router would take: `fallback` when any root is outside the route, else
+//! `rejected` when any root is, else `incomplete`, else `accepted`.
 //! This is a measuring tool, not a gate.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
@@ -58,6 +65,9 @@ struct Probed {
     current: &'static str,
     route: &'static str,
     reason: Option<String>,
+    /// How many roots the new route was asked about, and its verdict over
+    /// them; `None` when it was asked about none.
+    judged: Option<(usize, &'static str)>,
 }
 
 impl Probed {
@@ -69,6 +79,9 @@ impl Probed {
         if let Some(reason) = &self.reason {
             line.push_str("\treason=");
             line.push_str(reason);
+        }
+        if let Some((roots, judged)) = self.judged {
+            line.push_str(&format!("\troots={roots}\tjudged={judged}"));
         }
         line
     }
@@ -104,18 +117,32 @@ fn probe(main: &Path) -> Probed {
                     current: "none",
                     route: "none",
                     reason: None,
+                    judged: None,
                 };
             }
         };
+    let Some(entry) = frontier.entries.first().copied() else {
+        // No entry binds a closure, so every machine of the fixture's own
+        // package is a root of its own.
+        let roots = own_machines(&frontier.typed, fixture);
+        let (route, reason, judged) = judge_roots(&frontier.typed, &roots);
+        return Probed {
+            legacy: failed.unwrap_or_else(|| "no-entry\t-".to_owned()),
+            reached: "yes",
+            current,
+            route,
+            reason,
+            judged: Some((roots.len(), judged)),
+        };
+    };
+    let (_, _, judged) = judge_roots(&frontier.typed, &[entry]);
     let probed = |legacy: String, route, reason| Probed {
         legacy: failed.clone().unwrap_or(legacy),
         reached: "yes",
         current,
         route,
         reason,
-    };
-    let Some(entry) = frontier.entries.first().copied() else {
-        return probed("no-entry\t-".to_owned(), "no-entry", None);
+        judged: Some((1, judged)),
     };
     if std::env::var_os("STRUCTURE_ELABORATION_DUMP").is_some() {
         dump_transitions(&frontier.typed);
@@ -198,6 +225,75 @@ fn probe(main: &Path) -> Probed {
     probed(legacy, "lowered", None)
 }
 
+/// The machines declared by the fixture's own package. Report selection
+/// only.
+fn own_machines(typed: &typed_trees::TypedTrees, fixture: &Path) -> Vec<symbols::SymbolHandle> {
+    // The fixture is checked from a copy of the repository made for the
+    // session, so its files are told by the repository-relative tail of
+    // their package root: the fixture directory from `tests` on.
+    let Ok(fixture) = fixture.canonicalize() else {
+        return Vec::new();
+    };
+    let parts: Vec<_> = fixture.components().collect();
+    let Some(start) = parts.iter().rposition(|part| part.as_os_str() == "tests") else {
+        return Vec::new();
+    };
+    let tail: std::path::PathBuf = parts[start..].iter().collect();
+    typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            typed
+                .symbols
+                .symbol_provenance_source_span(machine.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| file.package_root.ends_with(&tail))
+        })
+        .map(|machine| machine.symbol)
+        .collect()
+}
+
+/// Elaborates and judges each root. Returns the elaboration result over all
+/// of them (`lowered`, or `refused` with the first refusal) and the route's
+/// verdict: an unsupported construct anywhere hands the whole compilation
+/// back, so `fallback` wins, then `rejected`, then `incomplete`.
+fn judge_roots(
+    typed: &typed_trees::TypedTrees,
+    roots: &[symbols::SymbolHandle],
+) -> (&'static str, Option<String>, &'static str) {
+    use lowered_discharge::RouteVerdict;
+    let mut refusal = None;
+    // defect, fallback, rejected, incomplete
+    let mut seen = [false; 4];
+    for root in roots {
+        let elaborated = structure_elaboration::elaborate(typed, *root);
+        if let (Err(refused), None) = (&elaborated, &refusal) {
+            refusal = Some(format!("{:?}: {}", refused.reason, refused.detail));
+        }
+        let slot = match lowered_discharge::judge(elaborated) {
+            Ok(RouteVerdict::Accepted(_)) => continue,
+            Err(_) => 0,
+            Ok(RouteVerdict::FallBack(_)) => 1,
+            Ok(RouteVerdict::Rejected { .. }) => 2,
+            Ok(RouteVerdict::Incomplete(_)) => 3,
+        };
+        seen[slot] = true;
+    }
+    let judged = match seen {
+        [true, ..] => "defect",
+        [_, true, ..] => "fallback",
+        [_, _, true, _] => "rejected",
+        [_, _, _, true] => "incomplete",
+        [false, false, false, false] if roots.is_empty() => "no-root",
+        [false, false, false, false] => "accepted",
+    };
+    match refusal {
+        Some(reason) => ("refused", Some(reason), judged),
+        None if roots.is_empty() => ("no-entry", None, judged),
+        None => ("lowered", None, judged),
+    }
+}
+
 /// Diagnostic only: each transition's guard and pattern handles, so a reader
 /// rule can be checked against what the typed trees actually hold.
 fn dump_transitions(typed: &typed_trees::TypedTrees) {
@@ -260,6 +356,7 @@ fn main() {
             current: "unknown",
             route: "unknown",
             reason: None,
+            judged: None,
         });
         println!("{argument}\t{}", probed.line());
         tally(&mut stages, probed.legacy.split('\t').next().unwrap_or(""));
