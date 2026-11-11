@@ -17,6 +17,19 @@ runs 45% of those stages' instrumented lines to check the bundled library, and t
 library is outside the subset. The owner can withdraw on that ground, or
 keep the route until the library enters the subset.
 
+**Corrected 2026-11-11.** Two things in this record no longer stand, and
+the numbers below are otherwise unchanged. The stop rule it judges has been
+replaced by [a four-condition gate](check_on_lowered_form.md#the-gate),
+because this record showed the rule could not be evaluated. And the last
+two sentences above read the specification wrongly: checking the whole
+bundled library on every compile is what the current pipeline does, not
+what a check must do. [Validation subjects](../../spec/build/validation_subjects.md)
+makes the library a dependency, checked only where a program demands it, so
+the route need not wait for "the library enters the subset"
+([the correction](check_on_lowered_form.md#the-library-is-a-dependency-not-a-subject)).
+"One route per obligation kind" is also
+[restated](check_on_lowered_form.md#one-meaning-per-obligation).
+
 The verdict, the evidence and its limits come first. How each number was
 taken comes after, with exact commits, hosts and commands. Estimates are
 labelled. Numbers quoted from another PR are attributed to it and were not

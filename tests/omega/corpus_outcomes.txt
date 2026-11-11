@@ -11739,23 +11739,23 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 1274ms expe
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/representation_agreement_through_call_result_rejected rejected 8746ms expected @089c0a150e63
+fail/facts/representation_agreement_through_call_result_rejected rejected 19047ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_const_name_rejected rejected 8422ms expected @089c0a150e63
+fail/facts/representation_agreement_through_const_name_rejected rejected 16890ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_field_rejected rejected 8318ms expected @089c0a150e63
+fail/facts/representation_agreement_through_field_rejected rejected 15792ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_local_rejected rejected 8705ms expected @089c0a150e63
+fail/facts/representation_agreement_through_local_rejected rejected 18067ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_match_join_rejected rejected 8383ms expected @089c0a150e63
+fail/facts/representation_agreement_through_match_join_rejected rejected 16968ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_machine_rejected rejected 7951ms expected @089c0a150e63
+fail/facts/representation_agreement_through_other_machine_rejected rejected 16879ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_state_rejected rejected 7912ms expected @089c0a150e63
+fail/facts/representation_agreement_through_other_state_rejected rejected 17973ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_parameter_rejected rejected 8588ms expected @089c0a150e63
+fail/facts/representation_agreement_through_parameter_rejected rejected 15545ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_target_body_rejected rejected 9468ms expected @26c39d0e6335
+fail/facts/representation_agreement_through_target_body_rejected rejected 15515ms expected @a5b92c4265f0
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
 fail/facts/required_output_path/call_result rejected 1037ms expected @a763a36a6498
 	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -19167,6 +19167,8 @@ fail/traits/applied_conformance_unrelated_result_region rejected 2349ms expected
 	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1515ms expected @ccdb99ca2214
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/traits/binder_call_without_member_contract rejected 11040ms expected @a5b92c4265f0
+	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 fail/traits/captured_const_contract_distinct_binders rejected 1767ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum
 fail/traits/computed_static_carrier rejected 347ms expected @3f59f4c9e33c+wt
@@ -19227,6 +19229,8 @@ fail/traits/default_member_shadowing_argument rejected 13523ms expected @32c7663
 fail/traits/default_row_foreign_captured_operand rejected 2168ms expected @07aa19d13db7
 	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+fail/traits/direct_member_unpromised_body rejected 8292ms expected @a5b92c4265f0
+	cannot prove published termination for machine `wrap`: its checked body reaches an operation without a usable termination guarantee; state `wrap::entry` statement 0 call 0 targets `Write::try_from::try_from` through `Write`, summary Some(NoGuarantee); source target `Write::try_from::try_from`, selected contract `try_from`, public requirement `TryFrom::try_from` NoGuarantee
 fail/traits/dyn_array_whole_missing_element rejected 1127ms expected @ccdb99ca2214
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
@@ -24803,15 +24807,15 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/representation_agreement_through_call_result_exit checked 11309ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_const_name_exit checked 18838ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_field_exit checked 18338ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_local_exit checked 11403ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_match_join_exit checked 11353ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_other_machine_exit checked 19698ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_other_state_exit checked 18054ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_parameter_exit checked 16434ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_target_body_exit checked 10683ms check-target:macos_arm64 @089c0a150e63
+pass/facts/representation_agreement_through_call_result_exit checked 23956ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_const_name_exit checked 21677ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_field_exit checked 21855ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_local_exit checked 21688ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_match_join_exit checked 22488ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_other_machine_exit checked 19587ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_other_state_exit checked 24395ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_parameter_exit checked 20054ms check-target:macos_arm64 @a5b92c4265f0
+pass/facts/representation_agreement_through_target_body_exit checked 21886ms check-target:macos_arm64 @a5b92c4265f0
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
@@ -28397,6 +28401,7 @@ pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-targ
 pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand_exit checked 6147ms check-target:macos_arm64 @07aa19d13db7
+pass/traits/direct_member_own_contract_exit checked 15680ms check-target:macos_arm64 @a5b92c4265f0
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
 pass/traits/dyn_finite_family_dispatch checked 6343ms @05a6f6af37ec+wt
 pass/traits/equatable_implementation_selection_exit checked 13184ms check-target:macos_arm64 @ccdb99ca2214
