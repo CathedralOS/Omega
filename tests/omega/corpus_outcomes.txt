@@ -3192,8 +3192,8 @@ fail/collections/vec_duplicate_cleanup rejected 13347ms expected @089c0a150e63
 	cannot use `vector` in machine `finish` state `entry` (statement 1) after `vector` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `vector` first
 fail/collections/vec_invalidated_loan_after_growth rejected 18200ms expected @089c0a150e63
 	state `grow` receives an owned value while local borrow `borrowed` is still active (borrowed at statement 6; its last use is at statement 8)
-fail/collections/wrapping_loop_increment_bound rejected 2224ms expected @ccdb99ca2214
-	cannot prove index `main.index` is within length 4 in fill::entry
+fail/collections/wrapping_loop_increment_bound rejected 7975ms expected @58155962c41e
+	cannot prove index `main.index` is non-negative (>= 0)
 fail/collections/wrapping_member_decrement_index_unproven rejected 2237ms expected @ccdb99ca2214
 	cannot prove index `stack.count` is within length 8 in take::entry
 fail/collections/wrapping_range_index_unproven rejected 17059ms expected @ccdb99ca2214
