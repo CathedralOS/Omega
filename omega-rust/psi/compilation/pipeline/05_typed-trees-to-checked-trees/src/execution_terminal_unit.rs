@@ -7076,6 +7076,18 @@ pub(crate) use types::{is_reference, strips_erased_parameter};
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarCalleeClosure;
 
+fn probe_rss_kb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| {
+            status
+                .lines()
+                .find(|line| line.starts_with("VmRSS:"))
+                .and_then(|line| line.split_whitespace().nth(1)?.parse().ok())
+        })
+        .unwrap_or(0)
+}
+
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -7180,7 +7192,15 @@ pub(crate) fn build_checked_unit_effect_plans(
         }
         let mut log = ChangeLog::default();
         let mut position = 0;
+        let mut probe_last = probe_rss_kb();
+        eprintln!("PROBE6 planning bodies={} rss={probe_last}", bodies.len());
         while let Some(&machine) = bodies.get(position) {
+            let probe_now = probe_rss_kb();
+            if probe_now > probe_last + 20_000 {
+                let previous = position.checked_sub(1).and_then(|p| bodies.get(p)).map(|m| m.name.as_str().to_owned()).unwrap_or_default();
+                eprintln!("PROBE6 after body {position} ({previous}) rss {probe_last} -> {probe_now} (+{} MB) domains={} cleanup?", (probe_now - probe_last) / 1024, shapes.domains.len());
+            }
+            probe_last = probe_now;
             let planned = match attempts[position].take() {
                 Some((base, planned, edits)) if log.admits(&edits, base) => {
                     log.record(&edits, position);
