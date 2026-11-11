@@ -23712,6 +23712,35 @@ pub(crate) mod write_frames {
             )?)
         }
 
+        /*
+            A builtin whole view `collection[..]` (or a window whose endpoints are
+            the declared extent) denotes exactly the collection's storage, so its
+            origins are the collection's: a fact stated about `&collection`, such as
+            a data `requires` over a field, is the same fact about the view. Any
+            other window selects part of the storage and keeps its own projection.
+        */
+        fn whole_view_collection(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            expression: ExpressionHandle,
+        ) -> Option<ExpressionHandle> {
+            let view = crate::reference_formation_source(program, expression)
+                .map_or(expression, |formation| formation.source);
+            let view = expression_table(program).peeled_expression_handle(view);
+            let (state, _, _) = caller_aliases::caller_statement_owner(
+                program,
+                machine,
+                caller_aliases::CallerWriteSite::Expression(view),
+            )?;
+            crate::value_custody::places::whole_collection_view_source(
+                program,
+                machine,
+                Some(state),
+                view,
+            )
+            .map(|collection| expression_table(program).peeled_expression_handle(collection))
+        }
+
         fn caller_isolated_initializer_origins<'program>(
             program: &'program dyn crate::CheckingInput,
             machine: &Machine,
@@ -23721,6 +23750,8 @@ pub(crate) mod write_frames {
             symbols: &TopLevelSymbols<'_>,
             stored: &[StoredLocalOrigins],
         ) -> Option<(Vec<FramePlaceOrigin>, &'program State, usize)> {
+            let expression =
+                whole_view_collection(program, machine, expression).unwrap_or(expression);
             let (state, _, index) = caller_aliases::caller_statement_owner(
                 program,
                 machine,
@@ -23869,6 +23900,9 @@ pub(crate) mod write_frames {
                 expression = formation.source;
             }
             expression = expression_table(program).peeled_expression_handle(expression);
+            if let Some(collection) = whole_view_collection(program, machine, expression) {
+                expression = collection;
+            }
             if expression_table(program).call_node(expression).is_some() {
                 let (state, _, index) = caller_aliases::caller_statement_owner(
                     program,
