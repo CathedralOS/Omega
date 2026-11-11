@@ -22,6 +22,30 @@ from `value < 100`. Remove the `requires` and the machine is rejected.
 Writing a contract does not make it true. An `ensures` on an empty body is an
 error, not an assumption.
 
+## What is always proved for you
+
+Every Omega compiler proves two kinds of fact without help: chains of
+comparisons, and arithmetic that fits because its operands are bounded.
+
+```omega
+machine get(items: &[u8], i: u64, n: u64) -> u8
+requires i < n
+requires n <= items.len
+{
+    items[i]             // i < n <= items.len
+}
+
+machine area(count: u32, size: u32) -> u32
+requires count <= 1000
+requires size <= 1000
+{
+    count * size         // at most 1,000,000
+}
+```
+
+Code that needs only these compiles everywhere. See
+[required automatic discharge](../spec/proofs/contracts.md#required-automatic-discharge).
+
 ## When the compiler cannot see it
 
 If a fact is true but the compiler cannot work it out, you have four choices:
