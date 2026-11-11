@@ -7537,6 +7537,16 @@ mod statement_transfer {
         name: Option<&str>,
         expression: ExpressionHandle,
     ) {
+        /*
+            A boolean local bound to another remembered guard local stands for
+            the same comparison. Stage 04 hoists `transition has_next { .. }`
+            into `__transition_subject = has_next`, so without following the
+            copy the arm never sees `next_index < entries.len`, and a nested
+            machine re-entering itself under that guard loses the bound.
+        */
+        let expression = super::expressions::expression_name(program, expression)
+            .and_then(|(source, source_name)| facts.boolean_guard_local(source, source_name))
+            .unwrap_or(expression);
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Binary(_) | ExpressionNode::Match(_)
