@@ -6886,6 +6886,20 @@ fn reference_origin_expansion_is_bounded(
     program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
+    reference_origin_expansion_bound(program, reference, false)
+}
+
+/*
+    `opaque_type_parameters` admits an unbound type parameter as a leaf that
+    expands no further. Only the opaque-aware inventory asks for that; every
+    other judgment still treats such a carrier as unbounded.
+*/
+fn reference_origin_expansion_bound(
+    program: &dyn CheckingInput,
+    reference: TypeReferenceHandle,
+    opaque_type_parameters: bool,
+) -> bool {
+    #[allow(clippy::too_many_arguments)]
     fn visit(
         program: &dyn CheckingInput,
         reference: TypeReferenceHandle,
@@ -6894,6 +6908,7 @@ fn reference_origin_expansion_is_bounded(
         leaves: &mut usize,
         scopes: &mut DeclarationScopes,
         scope: usize,
+        opaque_type_parameters: bool,
     ) -> Option<()> {
         *visits = visits.checked_add(1)?;
         if *visits > MAX_REFERENCE_ORIGIN_VISITS || depth > MAX_REFERENCE_ORIGIN_DEPTH {
@@ -6918,6 +6933,7 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 );
             }
             TypeReferenceNode::FixedArray {
@@ -6933,6 +6949,7 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 )?;
                 let element_leaves = leaves.checked_sub(before)?;
                 if element_leaves == 0 {
@@ -6953,9 +6970,17 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 );
             }
             _ => return Some(()),
+        }
+        if opaque_type_parameters
+            && let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(reference)
+            && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+        {
+            return Some(());
         }
         let (data, scope) = scopes.definition(program, reference, scope)?;
         for field in program.data_member_fields(program.data_members(data)) {
@@ -6968,6 +6993,7 @@ fn reference_origin_expansion_is_bounded(
                     leaves,
                     scopes,
                     scope,
+                    opaque_type_parameters,
                 )?;
             }
         }
@@ -6981,6 +7007,7 @@ fn reference_origin_expansion_is_bounded(
         &mut 0,
         &mut DeclarationScopes::default(),
         0,
+        opaque_type_parameters,
     )
     .is_some()
 }
@@ -7832,7 +7859,7 @@ pub fn declared_carrier_inventory(
         }
         Some(())
     }
-    if !reference_origin_expansion_is_bounded(program, reference) {
+    if !reference_origin_expansion_bound(program, reference, true) {
         return None;
     }
     let mut known = Vec::new();
