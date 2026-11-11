@@ -599,3 +599,108 @@ select.
 
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
+
+### Q12 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
+
+Decision name: `immutable-binding-exclusive-loan`.
+
+**Customer.** `tests/omega/fail/constraints/computed_local_value_invalidated`
+declares `let saved: u8 = 3 + 4;` without `mut`, calls
+`replace(&mut saved)` where `replace` writes `value = 8`, and returns
+`saved` under `ensures result == 7`. When the program runs the result is
+`8`. The fixture pins "ensures". The current checker accepts it
+(`mbx xtask corpus --filter` reports `rejected -> checked` at `a4dd6090e`),
+and it was already accepted at `5209eac45` (2026-11-03), the oldest commit in
+the fetched history. The same program with `let saved: u8 = 7;` is also
+accepted; with `let mut saved` both forms are rejected with the expected
+ensures diagnostic. The ledger row is recorded `checked` here, as main
+measures it at `11582c84f`.
+
+**Cause.** The checker holds two incompatible readings at once:
+
+- Admission lends a non-`mut` binding exclusively. Assignment rejects a bare
+  reassignment `saved = 8` ("not mutable in this state",
+  `omega-rust/psi/compilation/validation/src/places.rs`), but it admits field
+  writes to a non-`mut` local and admits `&mut saved`. At least 190 `pass/`,
+  `run/`, sample and library files lend a non-`mut` local with `&mut`
+  (for example `pass/facts/nominal_loan_backing_cleanup_through_local_exit`,
+  whose callee writes `room.count = 99`).
+- Value tracking treats a non-`mut` binding as never written.
+  `checks_current_scalar_values.rs` documents the flag as *"A by-value
+  binding declared without `mut`. No store or call can reach it: a write
+  needs a mutable place, and so does a `&mut` loan."* Exit-contract scalar
+  rosters (`is_scalar_roster_local` in `checks_contracts_exits.rs`) and about
+  fifty other sites rely on the same premise.
+
+Under either reading the customer is invalid, but the two readings reject it
+in different places, and the second reading is unsound while the first is
+admitted. Repairing only the value tracker flips this row and leaves the
+literal-initializer variant accepted through the other sites.
+
+**Gap.** These contracts were checked and are silent on whether `mut`
+governs exclusive lending:
+
+- [Ownership](wiki/spec/language/ownership.md): the access table gives
+  `&mut T` *"Exclusive observation and mutation"* and says nothing about the
+  binding the loan is formed from.
+- [Expressions](wiki/spec/language/expressions.md): *"mutable and write-only
+  lending require explicit `&mut` and `&write` expressions"*, and a mutable
+  subrange *"source must already permit exclusive access"*, without saying
+  whether a non-`mut` local permits it.
+- [Machines](wiki/spec/language/machines.md) shows `let mut counter` lent as
+  `&mut counter` but states no rule for a non-`mut` binding.
+
+**Question.**
+
+- **(a)** Does `mut` govern only bare reassignment, so `&mut` may lend any
+  owned local and the borrower may replace its whole value? Then every site
+  that treats a non-`mut` binding as unwritable must consult the binding's
+  exclusive loans, and the fixture is rejected by its ensures.
+- **(b)** Or does an exclusive loan require a `mut` binding? Then admission
+  rejects `&mut saved`, the fixture's pinned fragment changes to that
+  refusal, and the lending files above add `mut`.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q13 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
+
+Decision name: `unselected-synchronous-invocation-cycle`.
+
+**Customer.** `tests/omega/fail/capabilities/cyclic_synchronous_invocation`
+declares boundary traits `Alpha` and `Beta` whose requirements invoke each
+other, and providers `AlphaProvider::alpha_checked` and
+`BetaProvider::beta_checked` whose bodies call the other trait. It has no
+`build.omg`: no Build selects either provider and no program entry exists.
+Its header still says *"Both selected checked providers realize one direct
+synchronous edge"*. The fixture pins "cyclic synchronous `invokes` graph".
+The current checker accepts it (`rejected -> checked` at `a4dd6090e`), and
+`omega --check` already accepted it at `5209eac45` (2026-11-03). The ledger
+row read `rejected` from the unreachable stamp `@ccdb99ca2214`. It is recorded
+`checked` here, as main measures it at `11582c84f`.
+
+The selected case is already pinned with Builds that select both providers
+and bind an entry: `fail/capabilities/selected_synchronous_cycle`,
+`selected_synchronous_helper_cycle` and `selected_applied_synchronous_cycle`
+all reject with the same fragment on main.
+
+**Gap.** [Direct synchronous invocation](wiki/spec/language/effects.md#direct-synchronous-invocation)
+says *"Composition makes two checks ... The complete realized graph of
+possible edges, inventory included, is acyclic"* and *"A row that no
+selected provider uses is a broader ceiling, not an error."*
+[Callback registration](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
+says *"The direct synchronous invocation graph must be acyclic"* without
+naming whether the graph is the selected realization or every declared
+`satisfies` implementation. Build-owned selection means a program without a
+Build realizes no provider.
+
+**Question.**
+
+- **(a)** Is acyclicity a composition check on the selected realization
+  only? Then this program is valid, the fixture is stale (it predates
+  Build-owned selection), and it is retired or moved to `pass/`, since the
+  selected siblings keep the rejection pinned.
+- **(b)** Or must the checked bodies of every declared provider form an
+  acyclic `invokes` graph whether or not a Build selects them? Then the check
+  leaves backend provider planning and runs at source checking.
+
+Until answered the row stays as recorded and the checker is unchanged.
