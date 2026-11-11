@@ -2071,25 +2071,24 @@ pub mod trait_definition {
                         .iter()
                         .map(|reference| data_application(self, *reference))
                         .collect::<Option<Vec<_>>>()?;
-                    let arguments =
-                        applications
-                            .iter()
-                            .map(|application| {
-                                self.data_type_parameters(application.declaration)
-                    .iter()
-                    .zip(application.arguments)
-                    .map(|(parameter, actual)| {
-                        (
-                            parameter.symbol,
-                            crate::type_identity::IndexIdentityArgument::for_parameter(
-                                &parameter.kind,
-                                *actual,
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>();
+                    let arguments = applications
+                        .iter()
+                        .map(|application| {
+                            self.data_type_parameters(application.declaration)
+                                .iter()
+                                .zip(application.arguments)
+                                .map(|(parameter, actual)| {
+                                    (
+                                        parameter.symbol,
+                                        crate::type_identity::IndexIdentityArgument::for_parameter(
+                                            &parameter.kind,
+                                            *actual,
+                                        ),
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
                     let lifetimes = applications
                         .iter()
                         .map(|application| {
