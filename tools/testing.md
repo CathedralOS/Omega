@@ -1657,9 +1657,10 @@ container set up like a session and publishes the build directory, about
 SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
-session's first command. Measured on the same container: 3 s to restore, then
-25 s for `mbx build -p omega`, which reruns the `compiler` build script and
-recompiles 4 crates.
+session's first command. Measured on the same container with the archives CI
+published for commit `fd5aef2f7`: 14 s to restore both, then
+`mbx build -p omega` took 30 s in the primary checkout, where it reran the
+`compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 
 That holds only while the checkout's compiler sources match the published
 commit. A change to a foundation crate recompiles every workspace crate above

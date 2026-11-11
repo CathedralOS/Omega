@@ -106,7 +106,7 @@ restore() (
     git -C "$root" worktree add -q --detach "$dir" HEAD
   fi
   # Never unpack over a build: another restore or a session's own build owns it.
-  if [ -n "$(ls -A "$dir/target" 2>/dev/null)" ]; then
+  if [ -d "$dir/target" ] && [ -n "$(ls -A "$dir/target/")" ]; then
     echo "warm build: $slot kept, $dir/target already holds a build"
     return 0
   fi
@@ -131,6 +131,9 @@ restore() (
   cp "$manifest" "$stage/target/.warm-build.txt"
   # One rename publishes the whole build. It fails if a build appeared in the
   # meantime, and that build then stays untouched.
+  # mbx leaves `target` as a link into its cache. After its collector removes
+  # that directory the link dangles, and a rename cannot replace a link.
+  if [ -L "$dir/target" ] && [ ! -e "$dir/target" ]; then rm -f "$dir/target"; fi
   rmdir "$dir/target" 2>/dev/null || true
   mv -T "$stage/target" "$dir/target" 2>/dev/null ||
     fail "$slot: $dir/target appeared during the restore; left as it is"
@@ -147,10 +150,13 @@ session_start() {
   if command -v mbx >/dev/null && [ -z "$(mbx settings get gc.min_free_size 2>/dev/null)" ]; then
     mbx settings set gc.min_free_size 5GiB >/dev/null 2>&1 || true
   fi
+  # Both at once: each is a 270 MB download, and the session waits for this hook.
   local slot
   for slot in primary worker; do
-    restore "$slot" 2>&1 || echo "warm build: $slot not restored; the first build compiles everything"
+    { restore "$slot" 2>&1 ||
+      echo "warm build: $slot not restored; the first build compiles everything"; } &
   done
+  wait
   local stamp=$(primary_root)/.agents/worktree/worker-1/target/.warm-build.txt commit
   [ -f "$stamp" ] || return 0
   commit=$(manifest_value "$stamp" commit)
