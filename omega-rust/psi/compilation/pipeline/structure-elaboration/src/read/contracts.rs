@@ -18,7 +18,7 @@ use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{Unserved, refuse};
+use crate::{ClauseText, Piece, Unserved, refuse};
 
 /// What a contract clause may name: the formals, and the result pseudo-value
 /// only in a normal-return guarantee of a scalar machine.
@@ -208,6 +208,56 @@ impl Program<'_> {
             )
             .map(Proposition::Disjunction),
             _ => unserved("comparison"),
+        }
+    }
+
+    /// A clause's authored text, each formal left open by position, for
+    /// diagnostics (`names`). Rendered as `ExpressionTable::display_name`
+    /// renders the clause, so a message reads as the current checker's.
+    pub(super) fn clause_text(&self, slots: &[Slot], expression: ExpressionHandle) -> ClauseText {
+        let mut text = ClauseText::default();
+        self.write_clause_text(slots, expression, &mut text);
+        text
+    }
+
+    fn write_clause_text(
+        &self,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+        text: &mut ClauseText,
+    ) {
+        let table = &self.typed.expression_table;
+        if !expression.is_valid() {
+            return;
+        }
+        match table.expression(expression) {
+            ExpressionNode::Binary(binary) => {
+                self.write_clause_text(slots, binary.left, text);
+                text.push_text(" ");
+                text.push_text(binary.operator.display_name());
+                text.push_text(" ");
+                self.write_clause_text(slots, binary.right, text);
+            }
+            ExpressionNode::Unary(unary) => {
+                text.push_text(unary.operator.display_name());
+                self.write_clause_text(slots, unary.operand, text);
+            }
+            ExpressionNode::Member(member) => {
+                self.write_clause_text(slots, member.receiver, text);
+                text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
+                text.push_text(member.member.as_str());
+            }
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                match slots.iter().position(|slot| slot.symbol == path.symbol) {
+                    Some(position) => text.0.push(Piece::Formal(position)),
+                    None => text.push_text(&table.display_name(expression)),
+                }
+            }
+            _ => text.push_text(&table.display_name(expression)),
         }
     }
 
