@@ -3,7 +3,6 @@
 // `token`, so the return runs that nominal drop ("A"). `relay` moves its token
 // into a call before returning; the callee drops it ("B") and the return must
 // not drop it again.
-use omega::language::core::external_binding;
 
 // This fixture retains the existing reviewed finite byte-write assumption.
 // It does not strengthen the standard Console contract.
@@ -69,17 +68,8 @@ reaches Console
     let mut cell: i32 = byte;
     let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
 }
-windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "ExitProcess",
-        },
-    }
-}
-windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
-    satisfies Console::exit_process
-    via exit_process_binding();
+windows_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
 
 data Token dropped by drop_token { first: bool; }
 machine drop_token(token: &mut Token) reaches Console {

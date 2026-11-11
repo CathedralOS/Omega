@@ -546,8 +546,11 @@ than the one before it; on this count the lane does not show that yet.
 
 Not done from this plan's table: a record pattern and a directly authored
 payload member (the typed trees hold their fields as text; an upstream repair
-is in progress), clauses over `result`, and invariant windows (a store not
-shown to keep a clause hands the program back to the current checker).
+is in progress) and clauses over `result`. Invariant windows on data
+`requires` are judged since this run: a store not shown to keep a clause
+opens a window that each consumption point must close, and a gated local is
+established field by field
+([lowered-discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#invariant-windows)).
 
 ## Dependencies
 

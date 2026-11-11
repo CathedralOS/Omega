@@ -18,7 +18,7 @@ use psi::tokens::tokens;
 // completed member is retained at once, so a rejection keeps each member
 // before it; the item and its root are retained at the closing `}`.
 // `[public] boundary data Name [<generic parameters>] [properties];` leaves its
-// representation to a crossing: no members, and no `where` facts over fields
+// representation to a crossing: no members, and no `requires` facts over fields
 // it does not show.
 public machine Parser::parse_data(
     parser: &mut Parser,
