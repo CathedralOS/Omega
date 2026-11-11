@@ -18816,6 +18816,8 @@ fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected 
 fail/traits/default_row_foreign_captured_operand rejected 2168ms expected @07aa19d13db7
 	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
+fail/traits/direct_member_silent_contract rejected 40212ms expected @3d461306e4ec
+	cannot prove published termination for machine `wrap`: its checked body reaches an operation without a usable termination guarantee; state `wrap::entry` statement 0 call 0 targets `Write::try_from::try_from` through `Write`, summary Some(NoGuarantee); source target `Write::try_from::try_from`, selected contract `try_from`, public requirement `TryFrom::try_from` NoGuarantee
 fail/traits/dyn_array_whole_missing_element rejected 1127ms expected @ccdb99ca2214
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
 	machine `probe` state `entry` statement 2: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
@@ -18974,6 +18976,8 @@ fail/traits/float_contract_refinement_strict_endpoint rejected 3116ms expected @
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result < 0.5`; callers of the requirement assume it
 fail/traits/float_contract_refinement_wrong_subject rejected 3044ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
+fail/traits/forwarded_implementation_argument_other_map rejected 33287ms expected @3d461306e4ec
+	selected map disagrees with its supplying evidence bound
 fail/traits/generic_dyn_contract_wrong_context rejected 1051ms expected @ccdb99ca2214
 	argument `context` for state `read` expects `&Context`, got `named value`
 	argument `context` for conformance requirement `Reader::read` does not match the binder's trait arguments
@@ -27949,6 +27953,7 @@ pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-targ
 pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand_exit checked 6147ms check-target:macos_arm64 @07aa19d13db7
+pass/traits/direct_member_own_contract_exit checked 29781ms check-target:macos_arm64 @3d461306e4ec
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
 pass/traits/dyn_finite_family_dispatch checked 6343ms @05a6f6af37ec+wt
 pass/traits/equatable_implementation_selection_exit checked 13184ms check-target:macos_arm64 @ccdb99ca2214
@@ -27962,6 +27967,7 @@ pass/traits/finite_family_case_view_result_exit checked 8006ms check-target:maco
 pass/traits/finite_family_const_forwarding checked 2762ms check-target:macos_arm64 @a50253a693d8
 pass/traits/finite_family_uncalled_target checked 2779ms check-target:macos_arm64 @64d08af188aa
 pass/traits/float_contract_refinement_boundaries_exit checked 24656ms check-target:macos_arm64 @6b1c338126fa
+pass/traits/forwarded_implementation_argument_member_call_exit checked 29364ms check-target:macos_arm64 @3d461306e4ec
 pass/traits/generic_dyn_contract_inventory_exit checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_applied_contract_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/generic_map_captured_constant_local checked 2472ms @ccdb99ca2214
