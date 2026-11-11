@@ -13439,8 +13439,9 @@ fail/facts/static_callback_reach_captured_shadow rejected 6255ms expected @e219f
 	generic machine `choose` cannot bind `Operations` to conformance `Selected`: expected a complete `Getter` implementation with the instantiated trait arguments
 fail/facts/static_callback_reach_captured_unused rejected 6326ms expected @e219f82df288
 	machine argument `quiet` for `Selected` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-fail/facts/static_callback_reach_evidence_scope rejected 1091ms expected @ccdb99ca2214
-	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [Operations], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:c0958f5b7dc477d30d95f0f69e746eb3d2df0b1d64e08817a96d5d2e25ed3d58\\\\)\\\\,path\\\\(MarkerCode\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:c0958f5b7dc477d30d95f0f69e746eb3d2df0b1d64e08817a96d5d2e25ed3d58\\\\)\\\\,path\\\\(OtherMarkerCode\\\\)\\\\)))")
+fail/facts/static_callback_reach_evidence_scope rejected 2750ms expected @dbd0af26d678
+	machine `traverse` static argument 1 requires its declared binder kind, not an implementation
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [Operations], provider [no retained provider application], caller [], contextual demand false, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:fe71e4f8afb24fd141cb8c6e1f40c52464e9bc3d56d7f289779a446e32688a27\\\\)\\\\,path\\\\(MarkerCode\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:fe71e4f8afb24fd141cb8c6e1f40c52464e9bc3d56d7f289779a446e32688a27\\\\)\\\\,path\\\\(OtherMarkerCode\\\\)\\\\)))")
 fail/facts/static_callback_reach_private_helper rejected 2977ms expected @ccdb99ca2214
 	machine `note_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Console`
 fail/facts/static_callback_reach_recursive_component rejected 3090ms expected @ccdb99ca2214
@@ -22661,7 +22662,8 @@ pass/facts/case_dependent_default_domain_through_match_join_exit checked 12853ms
 pass/facts/case_dependent_default_domain_through_other_machine_exit checked 15809ms check-target:macos_arm64 @ff6d0a18a03d
 pass/facts/case_dependent_default_domain_through_other_state_exit checked 15405ms check-target:macos_arm64 @ff6d0a18a03d
 pass/facts/case_dependent_default_domain_through_parameter_exit checked 15490ms check-target:macos_arm64 @ff6d0a18a03d
-pass/facts/case_dependent_default_domain_through_target_body_exit checked 14941ms check-target:macos_arm64 @ff6d0a18a03d
+pass/facts/case_dependent_default_domain_through_target_body_exit incomplete 8747ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	`pick_named$specialized$4497254f4b4724b8$1$4780` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `pick_named$specialized$4497254f4b4724b8$1$4780::entry`
 pass/facts/case_match_payload_loan_through_call_result_exit checked 3702ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_const_name_exit checked 4210ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_field_exit checked 2597ms check-target:macos_arm64 @ccdb99ca2214
@@ -25248,7 +25250,8 @@ pass/facts/selected_scalar_initializer_through_parameter_exit checked 3602ms che
 pass/facts/selected_scalar_initializer_through_target_body_exit checked 5265ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/selected_value_application_through_call_result_exit checked 13240ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_const_name_exit checked 13244ms check-target:macos_arm64 @a3f86a99de08
-pass/facts/selected_value_application_through_field_exit checked 11946ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_field_exit rejected 2878ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	applied callable has an unrepresented static type operand
 pass/facts/selected_value_application_through_local_exit checked 11579ms check-target:macos_arm64 @0f36ecb1ab02
 pass/facts/selected_value_application_through_match_join_exit checked 11841ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_other_machine_exit checked 11822ms check-target:macos_arm64 @a3f86a99de08
@@ -25607,7 +25610,9 @@ pass/facts/static_callback_reach_captured_scope checked 77425ms check-target:mac
 pass/facts/static_callback_reach_captured_selection checked 74347ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
 pass/facts/static_callback_reach_captured_shadow checked 75792ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
 pass/facts/static_callback_reach_captured_unused checked 33038ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
-pass/facts/static_callback_reach_evidence_scope checked 11389ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
+pass/facts/static_callback_reach_evidence_scope rejected 6447ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @dbd0af26d678
+	machine `traverse` static argument 1 requires its declared binder kind, not an implementation
+	inspection main admission: [Diagnostic { severity: Error, message: "machine `traverse` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/facts/static_callback_reach_private_helper checked 10397ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_recursive_component checked 7483ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_recursive_terminal checked 8544ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
@@ -26429,7 +26434,8 @@ pass/generics/record_const_named_literal_equivalence rejected 2610ms check-targe
 pass/generics/runtime_applied_implementation_qualifier_exit checked 33360ms check-target:macos_arm64 @4815ea579d91
 pass/generics/runtime_borrowed_value_inference_exit checked 18921ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/generics/runtime_call_index_contract_result checked 5807ms @4a93353f8274+wt
-pass/generics/runtime_captured_map_borrowed_type checked 3944ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_captured_map_borrowed_type rejected 3340ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	realization contract lost its complete capture identity: selected=Selected, call_owner=main, region_supplier=main, lifetimes=[], captures=["<structural type>"], site=Invocation { specialization: 0, application: 0 }
 pass/generics/runtime_captured_map_const_body checked 12169ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/generics/runtime_captured_map_const_machine rejected 1249ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine argument `read` for `Selected` does not refine `Callback`: parameter 0 expects `&[u8; Count]`, got `&[u8; 3]`
@@ -26445,7 +26451,10 @@ pass/generics/runtime_captured_map_own_type_method checked 4105ms check-target:m
 pass/generics/runtime_captured_map_record_const checked 3652ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_shadowed_contract checked 3685ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_shadowed_method_body checked 3649ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_captured_map_two_method_tuples checked 6962ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
+pass/generics/runtime_captured_map_two_method_tuples rejected 5856ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @dbd0af26d678
+	machine `choose` static argument 1 requires its declared binder kind, not an implementation
+	machine `choose` static argument 1 requires its declared binder kind, not an implementation
+	inspection main admission: [Diagnostic { severity: Error, message: "machine `choose` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `choose` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/generics/runtime_captured_map_type_body checked 3660ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_case_qualified_reference_storage_exit checked 9295ms check-target:macos_arm64 @9af3eb514e16
 pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
@@ -26536,7 +26545,8 @@ pass/generics/runtime_inferred_index_generic_caller_exit rejected 4741ms check-t
 pass/generics/runtime_inferred_index_repeated_binder_exit checked 17435ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_inferred_index_statement_call_exit checked 11051ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_inferred_statement_lifetime_conformance_exit checked 16417ms check-target:macos_arm64 @4815ea579d91
-pass/generics/runtime_inherited_composite_requirement_exit checked 4276ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_inherited_composite_requirement_exit rejected 3516ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	normal call `forward` (Handle { arena_index: 13439, generation: 1 }) in machine `observe` state `entry` statement 2: completed result reference permissions are unavailable
 pass/generics/runtime_linear_constructor_instances_exit checked 11376ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/generics/runtime_local_value_index_observes_write_exit checked 9758ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_machine_equation_nested_boolean_exit checked 9392ms check-target:macos_arm64 @b23365ced206+wt
@@ -28512,7 +28522,8 @@ pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-ta
 pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/public_post_write_descriptor_guarantee_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/refined_borrowed_implementation_exit checked 11281ms check-target:macos_arm64 @0f36ecb1ab02
+pass/traits/refined_borrowed_implementation_exit rejected 3160ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	call `read` has an invalid argument correspondence: selected call has no exact applied public signature
 pass/traits/renamed_invocation_contract_binders checked 2489ms @ccdb99ca2214
 pass/traits/repeated_structural_capture_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/traits/requirement_evidence_renamed_regions_exit checked 12215ms check-target:macos_arm64 @b9975b628a04
@@ -28719,7 +28730,10 @@ run/calls/named_transition_zero_argument_guard_exit checked 5812ms check-target:
 run/calls/nested_case_terminal_process_exit checked 10410ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @602404d45977
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
-run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
+run/calls/nested_static_implementation_shadow rejected 2647ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
+	machine `middle` static argument 2 requires its declared binder kind, not an implementation
+	machine `middle` static argument 2 requires its declared binder kind, not an implementation
+	machine `middle` static argument 2 requires its declared binder kind, not an implementation
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/outcome_specific_selected_guarantee_exit checked 66263ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
