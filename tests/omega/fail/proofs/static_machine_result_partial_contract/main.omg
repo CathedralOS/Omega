@@ -9,9 +9,9 @@ requires machine Read(index: Nat) -> Observation;
 machine unproved<machine Read>(index: Nat)
 requires machine Read(index: Nat) -> Observation;
 requires
-    project<Read>(index) == Nat::Zero
+    core::Identity<Nat>(project<Read>(index), Nat::Zero)
 ensures
-    project<Read>(index) == Nat::Zero
+    core::Identity<Nat>(project<Read>(index), Nat::Zero)
 {
 }
 machine main() {}

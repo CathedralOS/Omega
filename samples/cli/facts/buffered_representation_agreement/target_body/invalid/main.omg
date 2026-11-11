@@ -94,13 +94,13 @@ machine read_frame<'frame, 'buffer>(source: &'frame Frame<'buffer>) -> Result<Pa
 trait BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.value == request.value
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64;
 }
 FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
-    ensures (result in Result::Ok) && result.value.value == request.value
+    ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64
     {
         let encoded: Result<Frame<'buffer>, Failure<'buffer>> =
@@ -130,7 +130,7 @@ machine selected_round_trip<'buffer, Selected satisfies BufferedRoundTrip<'buffe
     request: Request<'buffer>
 ) -> Result<Request<'buffer>, Failure<'buffer>>
 requires request.output.len >= 3u64
-ensures (result in Result::Ok) && result.value.value == request.value
+ensures (result in Result::Ok) && core::Identity<Pair>(result.value.value, request.value)
         && result.value.output.len >= 3u64
 { Selected::round_trip(request) }
 
@@ -143,16 +143,16 @@ data DeliveredResult<'buffer> {
 }
 boundary trait AnswerDelivery {
     machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer> reaches terminates
-    ensures result.answer == incoming;
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming);
 }
 FirstDelivery satisfies AnswerDelivery {
     machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer>
-    ensures result.answer == incoming
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming)
     { DeliveredResult { before: 71u64, answer: incoming, marker: 17u64, after: 73u64 } }
 }
 SecondDelivery satisfies AnswerDelivery {
     machine carry<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> DeliveredResult<'buffer>
-    ensures result.answer == incoming
+    ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result.answer, incoming)
     { DeliveredResult { before: 71u64, answer: incoming, marker: 29u64, after: 73u64 } }
 }
 
@@ -172,7 +172,7 @@ requires output.len >= 3u64
         Result::Ok { value as restored } -> consume(restored, expected, capacity, transport_ok)
     }
     machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool
-    requires restored.value == expected
+    requires core::Identity<Pair>(restored.value, expected)
     requires restored.output.len >= 3u64
     {
         let bytes: bool = restored.output[0u64] == 165u8
