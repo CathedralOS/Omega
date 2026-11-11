@@ -19154,6 +19154,8 @@ fail/traits/satisfies_bound_conformance_wrong_trait rejected 887ms expected @ccd
 	implementation `HostService` cannot bind implementation `Policy`: `RegistrarChooser` must select a complete `Decider` implementation with the instantiated trait arguments
 fail/traits/selection_row_contract_not_refined rejected 8610ms expected @e1baccf0876c
 	machine `decode_nonzero` realizes `Codec::decode` but requires `input > 0`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/traits/selection_row_law_other_operation rejected 25542ms expected @11c3b1370df7
+	machine `encode_positive` realizes `LawCodec::positive` but does not guarantee its `ensures encode(value) > 0`; callers of the requirement assume it
 fail/traits/self_type_retired rejected 660ms expected @ccdb99ca2214
 	trait `Area` state `area` parameter `shape` references unknown data type `Self`
 fail/traits/structural_array_crash_unproved_tail rejected 2336ms expected @ccdb99ca2214
@@ -28363,6 +28365,7 @@ run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:
 run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
+run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7
 run/traits/static_implementation_method_arguments checked 11135ms check-target:macos_arm64 @e08fd38eeab5
 run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214

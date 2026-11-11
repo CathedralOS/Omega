@@ -15284,8 +15284,7 @@ pub(crate) mod contract_refinement {
             None => {
                 let selecting = selecting.filter(|selecting| {
                     selecting.rows.iter().any(|row| {
-                        !row.source.owns_realization()
-                            && row.realization_machine == machine.symbol
+                        !row.source.owns_realization() && row.realization_machine == machine.symbol
                     })
                 })?;
                 (
