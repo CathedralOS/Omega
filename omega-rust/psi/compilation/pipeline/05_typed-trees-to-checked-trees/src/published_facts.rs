@@ -1436,8 +1436,25 @@ pub(crate) mod contextual_cleanup {
             hook_clause: ExpressionHandle,
             template_machine: SymbolHandle,
         ) -> Option<Pending> {
+            /*
+                `bound_clause` binds the clause in the hook's own parameter namespace
+                and then rebases every observation onto the dying place, which is
+                storage of `machine`. The entry projection below reads only those
+                rebased places, so the proposition is re-owned by the machine whose
+                invocation values it is about to name. Left under the hook's identity
+                it was refused as a foreign predicate, and no generic death edge
+                could publish its prerequisite to callers.
+            */
+            let owner = program.machine_by_symbol(machine)?;
+            let entry = validation::activation_target_state_index(program, owner, machine)?;
+            let predicate = BoundPredicate {
+                machine,
+                entry_state: program.machine_states(owner).get(entry)?.symbol,
+                expression: predicate.expression.clone(),
+                bindings: predicate.bindings.clone(),
+            };
             let consequence = boolean_predicates::entry_expression(
-                program, machine, state, statement, predicate,
+                program, machine, state, statement, &predicate,
             )?;
             Some(Pending {
                 machine,
