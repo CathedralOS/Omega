@@ -2,7 +2,7 @@
 // Negative control for expected_application_baseline.txt: this application
 // calls one of its own tests, so that test belongs to the application and its
 // Terminal program differs from the baseline's. The oracle records
-// `application-baseline:differs`, showing it detects retained test code.
+// `application-baseline-machines:differs`, showing it detects retained test code.
 trait Tests {
     machine arithmetic()
         crashes Trap;

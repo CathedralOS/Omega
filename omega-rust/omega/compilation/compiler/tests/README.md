@@ -56,10 +56,12 @@ fixtures must bind the running host; missing execution fails the oracle.
 `expected_application_baseline.txt` names a sibling fixture, relative to the
 fixture's directory, whose application is the same program without this
 fixture's test-group registration. The runner compiles both to Terminal products
-for the fixture's first bound target and compares their semantic modules:
-`application-baseline:same` shows registered test roots stayed out of the
-application, and `:differs` that the application retains code its baseline lacks.
-Terminal machines carry no source names, so this compares whole modules.
+for the fixture's first bound target and compares their Terminal machines:
+`application-baseline-machines:same` shows no registered test root joined the
+application's executable code, and `:differs` that the application retains
+machines its baseline lacks. `application-baseline-sections:` names every other
+module section that differs, without judging it. Terminal machines carry no
+source names, so the comparison is structural.
 
 `expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
 and independently constrain each engine's captured stream. Matching exits cannot
