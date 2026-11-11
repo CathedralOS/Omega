@@ -2069,8 +2069,11 @@ mod direct {
                         return left.member_symbol == right.member_symbol;
                     }
                     let measure = |member: &typed_trees::expression::TableMemberExpression| {
-                        let receiver =
-                            validation::expression_place_type_reference(self.program, member.receiver, &[])?;
+                        let receiver = validation::expression_place_type_reference(
+                            self.program,
+                            member.receiver,
+                            &[],
+                        )?;
                         validation::collection_operations::collection_measure_member(
                             self.program,
                             member,
