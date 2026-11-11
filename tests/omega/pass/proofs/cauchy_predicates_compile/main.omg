@@ -38,14 +38,14 @@ machine valid_convergence_point() -> Nat {
 
 machine unit_sequence_is_reflexive(precision: Nat, index: Nat)
 requires
-    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(precision), index), Nat::Zero)
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(precision), index)) == Nat::Zero
 ensures
-    core::Identity<Nat>(cauchy_at<unit_sample, immediate_modulus>(
+    (cauchy_at<unit_sample, immediate_modulus>(
         precision,
         index,
         index
-    ), Nat::Zero)
+    )) == Nat::Zero
 {
     cauchy_at_reflexive<unit_sample, immediate_modulus>(precision, index);
 }
@@ -56,20 +56,20 @@ machine unit_sequences_are_symmetric(
     right_index: Nat
 )
 requires
-    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(precision), left_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(precision), right_index), Nat::Zero),
-    core::Identity<Nat>(converges_together_at<unit_sample, unit_sample, immediate_modulus>(
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero,
+    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         precision,
         left_index,
         right_index
-    ), Nat::Zero)
+    )) == Nat::Zero
 ensures
-    core::Identity<Nat>(converges_together_at<unit_sample, unit_sample, immediate_modulus>(
+    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         precision,
         right_index,
         left_index
-    ), Nat::Zero)
+    )) == Nat::Zero
 {
     converges_together_at_symmetric<
         unit_sample,
@@ -85,36 +85,36 @@ machine unit_sequences_are_pointwise_transitive(
     right_index: Nat
 )
 requires
-    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(
+    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         add(precision, precision)
-    ), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(precision), left_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(precision), right_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(add(precision, precision)), left_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(add(precision, precision)), middle_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(immediate_modulus(add(precision, precision)), right_index), Nat::Zero),
-    core::Identity<Nat>(saturating_sub(
+    )) == Nat::Zero,
+    (saturating_sub(immediate_modulus(precision), left_index)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(precision), right_index)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(add(precision, precision)), left_index)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(add(precision, precision)), middle_index)) == Nat::Zero,
+    (saturating_sub(immediate_modulus(add(precision, precision)), right_index)) == Nat::Zero,
+    (saturating_sub(
         Nat::Succ { prev: Nat::Zero },
         (unit_sample(middle_index)).den
-    ), Nat::Zero),
-    core::Identity<Nat>(converges_together_at<unit_sample, unit_sample, immediate_modulus>(
+    )) == Nat::Zero,
+    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         add(precision, precision),
         left_index,
         middle_index
-    ), Nat::Zero),
-    core::Identity<Nat>(converges_together_at<unit_sample, unit_sample, immediate_modulus>(
+    )) == Nat::Zero,
+    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         add(precision, precision),
         middle_index,
         right_index
-    ), Nat::Zero)
+    )) == Nat::Zero
 ensures
-    core::Identity<Nat>(converges_together_at<unit_sample, unit_sample, immediate_modulus>(
+    (converges_together_at<unit_sample, unit_sample, immediate_modulus>(
         precision,
         left_index,
         right_index
-    ), Nat::Zero)
+    )) == Nat::Zero
 {
     converges_together_at_triangle_split<
         unit_sample,
