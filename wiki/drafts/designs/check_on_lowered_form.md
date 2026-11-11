@@ -727,11 +727,11 @@ overwrites; a rank premise across a pause.
   covers call occurrences only and depends on `checked-trees`, so `#2286`
   carries per-machine `MachineSources` over dense identities with explicit
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
-  remaining families is checked as each lane lands. First measurement, on
-  41% of `fail/`: [route one diagnostics](route_one_diagnostics.md). Where
-  the route rejects the defect it points at the right construct, but no
-  message states the failing condition, and most wrong-site rejections come
-  from one prover gap; nothing found yet is missing from the lowered form.
+  remaining families is checked as each lane lands. Measured on every
+  `fail/` fixture: [route one diagnostics](route_one_diagnostics.md). Where
+  the route rejects, 288 of 293 rejections name the defect's obligation at
+  its construct, but no message states the failing condition; the missing
+  part is mapping, not information the lowered form lacks.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
   premise of this record and is unmeasured. Condition 4 of
   [the gate](#the-gate) is the first measurement of it, on one scope.
