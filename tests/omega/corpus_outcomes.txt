@@ -1777,7 +1777,7 @@ fail/borrows/reference_array_shared_cohort_live_source_write rejected 2274ms exp
 	statement 2 mutates `source.second.value` while local borrow `messages` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_carrier_state_shared_write rejected 899ms expected @ccdb99ca2214
 	machine `write` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/borrows/reference_carrier_store_while_shared rejected 2308ms expected @ccdb99ca2214
+fail/borrows/reference_carrier_store_while_shared rejected 2218ms expected @00a39fc4e84c
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_join_escaping_alternative rejected 2285ms expected @ccdb99ca2214
 	machine `choose` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -1796,8 +1796,8 @@ fail/borrows/reference_result_case_payload_missing_premise rejected 24506ms expe
 	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/reference_selector_guard_rebound_index_rejected rejected 11180ms expected @b45dc4f7989c
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
-fail/borrows/region_store_live_sibling_reference rejected 9313ms unexpected regressed-from:checked @61d32e24eb90
-	statement 5 cannot resolve the complete borrowed destination of `slots[1..3]`: the stored descriptor has no current value source
+fail/borrows/region_store_live_sibling_reference rejected 2248ms expected regressed-from:checked @00a39fc4e84c
+	statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/replaced_descriptor_stale_pointee_fact rejected 727ms expected @cdaaea7fffc3
@@ -28088,8 +28088,7 @@ pass/slices/runtime_nested_stored_view_element_replacement_exit checked 2945ms c
 pass/slices/runtime_nested_stored_view_return_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 12724ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_view_candidate_backings_exit checked 3449ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_view_descriptor_reseat_exit rejected 2735ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	checked direct-reborrow suspension requires exactly one parent entry constraint
+pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5433ms check-target:macos_arm64 @00a39fc4e84c
 pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit checked 3310ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nonzero_window_result_snapshot_exit checked 3660ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_observed_window_extents_exit checked 3961ms check-target:macos_arm64 @ccdb99ca2214
