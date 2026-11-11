@@ -4905,16 +4905,16 @@ pass/filesystem/create_dir_all_symlink_kind_exit built 110387ms exit:0 @a92f1643
 pass/filesystem/cross_linux_value_syscalls checked 78811ms @a92f16431042
 pass/filesystem/dir_walk_wrappers_exit built 111195ms exit:70 @a92f16431042
 pass/filesystem/native_canonicalize built 106951ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_close built 45194ms @a92f16431042
-pass/filesystem/native_crud built 50372ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_errno built 49726ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_filetype built 50465ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_fs_workflow built 53524ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_blocks built 50358ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_ctime_dev built 51310ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_metadata_ino built 47786ms @a92f16431042
-pass/filesystem/native_metadata_nlink built 33977ms exit:0 stdout:match @a92f16431042
-pass/filesystem/native_read_dir_iter built 35097ms exit:0 stdout:match @a92f16431042
+pass/filesystem/native_close built 97307ms @d494050247cf
+pass/filesystem/native_crud built 89826ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_errno built 97659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_filetype built 67581ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_fs_workflow built 89395ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_metadata_blocks built 76897ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_metadata_ctime_dev built 64316ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_metadata_ino built 68201ms @d494050247cf
+pass/filesystem/native_metadata_nlink built 73217ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_read_dir_iter built 74639ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
 pass/filesystem/native_wrapper_write_all_result built 129871ms exit:0 stdout:match @a92f16431042
 pass/filesystem/portable_raw_family_capabilities_exit built 117205ms exit:0 @a92f16431042
 pass/filesystem/runtime_local_host_result_dispatch_exit built 33694ms exit:70 @a92f16431042
@@ -4926,10 +4926,10 @@ pass/filesystem/runtime_portable_metadata_exit built 142274ms exit:0 @a92f164310
 pass/filesystem/runtime_portable_permissions_exit built 139593ms exit:0 @a92f16431042
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 406143ms exit:0 @a92f16431042
 pass/filesystem/runtime_portable_zero_descriptor_exit built 136187ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_borrowed_directory_link_exit built 33958ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_borrowed_view_io_exit built 51424ms exit:0 stdout:match @a92f16431042
-pass/filesystem/runtime_posix_native_storage_bounds_exit built 45218ms exit:0 @a92f16431042
-pass/filesystem/runtime_posix_read_runtime_range_view_exit built 48588ms exit:0 stdout:match @a92f16431042
+pass/filesystem/runtime_posix_borrowed_directory_link_exit built 75679ms exit:0 interpreter-exit:0 interpreter:agrees @d494050247cf
+pass/filesystem/runtime_posix_borrowed_view_io_exit built 71903ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/runtime_posix_native_storage_bounds_exit built 80146ms exit:0 interpreter-exit:0 interpreter:agrees @d494050247cf
+pass/filesystem/runtime_posix_read_runtime_range_view_exit built 57432ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
 pass/filesystem/windows_canonicalize_exit built 150276ms exit:70 @a92f16431042
 pass/filesystem/windows_external_async_handle_exit built 95586ms @a92f16431042
 pass/filesystem/windows_lock_has_empty_reach checked 46271ms @a92f16431042
