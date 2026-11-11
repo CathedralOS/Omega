@@ -47,6 +47,42 @@ use terminal_check_tables::values::ValueRow;
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
+/// Whether this prover has rules for `goal`'s form at all, decided from the
+/// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
+/// conjunctions and disjunctions of covered parts, integer orders and
+/// equalities, and an arithmetic bound of an add, subtract or multiply
+/// against a literal. Anything else the prover can only take from an equal
+/// hypothesis, so a failure on it says nothing about the program: it is
+/// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
+/// `NoDerivation`.
+pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
+    match goal {
+        Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+            parts.iter().all(has_rules_for)
+        }
+        Proposition::LessOrEqual(left, _)
+        | Proposition::LessThan(left, _)
+        | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            let bounded = |term: &IntegerMathTerm| {
+                matches!(
+                    term,
+                    IntegerMathTerm::Add(..)
+                        | IntegerMathTerm::Subtract(..)
+                        | IntegerMathTerm::Multiply(..)
+                )
+            };
+            match (left, right) {
+                (term, IntegerMathTerm::IntegerLiteral(_))
+                | (IntegerMathTerm::IntegerLiteral(_), term) => bounded(term),
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Upper,
