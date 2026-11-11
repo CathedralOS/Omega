@@ -57,7 +57,7 @@ pub mod activation_storage {
             && program.data_type_parameters(data).is_empty()
             && data.generic_instance.is_none()
             && data.quotient.is_none()
-            && data.where_facts.is_empty()
+            && data.requires_facts.is_empty()
             && !data.zero_gated
             && data.properties.carry.is_none()
             && data.retired_identities.is_empty())
@@ -202,8 +202,8 @@ pub mod activation_storage {
             || rejected.identity.is_some()
             || !established.retired_payload_identities.is_empty()
             || !rejected.retired_payload_identities.is_empty()
-            || !established.where_facts.is_empty()
-            || !rejected.where_facts.is_empty()
+            || !established.requires_facts.is_empty()
+            || !rejected.requires_facts.is_empty()
             || !rejected.payload.is_empty()
         {
             return None;
@@ -673,7 +673,7 @@ pub mod atomic_fences {
             };
             if case.name.as_str() != name
                 || !case.payload.is_empty()
-                || !case.where_facts.is_empty()
+                || !case.requires_facts.is_empty()
             {
                 return None;
             }
@@ -900,7 +900,7 @@ pub mod atomic_operations {
                         language_semantics::Multiplicity::Affine
                     }
                 }
-                || !data.where_facts.is_empty()
+                || !data.requires_facts.is_empty()
                 || data.zero_gated
                 || data.quotient.is_some()
             {
@@ -933,7 +933,7 @@ pub mod atomic_operations {
                 let schema = custody.outcome_identity.cases().get(index)?;
                 let name = schema.case.name();
                 let payload = schema.payload;
-                if case.name.as_str() != name || !case.where_facts.is_empty() {
+                if case.name.as_str() != name || !case.requires_facts.is_empty() {
                     return None;
                 }
                 let fields = program.data_payload_fields(case);
@@ -3940,7 +3940,7 @@ pub mod data {
         members: &[DataMember],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let facts = program.proof_facts.span_or_empty(definition.where_facts);
+        let facts = program.proof_facts.span_or_empty(definition.requires_facts);
         validate_proof_facts(
             program,
             facts,
@@ -5251,7 +5251,7 @@ pub mod intrinsic_boundaries {
             || !program.data_type_parameters(data).is_empty()
             || data.generic_instance.is_some()
             || data.quotient.is_some()
-            || !data.where_facts.is_empty()
+            || !data.requires_facts.is_empty()
             || data.zero_gated
             || data.properties.carry.is_some()
             || data.properties.multiplicity == language_semantics::Multiplicity::Linear
@@ -5274,7 +5274,7 @@ pub mod intrinsic_boundaries {
         };
         if eof.name.as_str() != "Eof"
             || !eof.payload.is_empty()
-            || !eof.where_facts.is_empty()
+            || !eof.requires_facts.is_empty()
             || byte.name.as_str() != "Byte"
         {
             return None;
@@ -5294,7 +5294,7 @@ pub mod intrinsic_boundaries {
         {
             return None;
         }
-        crate::case_where_field_intervals(program, byte)?
+        crate::case_requires_field_intervals(program, byte)?
             .iter()
             .all(|(_, minimum, maximum)| {
                 minimum.is_none_or(|minimum| minimum <= 0)

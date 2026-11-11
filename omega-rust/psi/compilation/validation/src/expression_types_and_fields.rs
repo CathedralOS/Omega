@@ -1017,7 +1017,7 @@ pub mod expression_types {
             ) -> bool {
                 program
                     .proof_facts
-                    .span_or_empty(variant.where_facts)
+                    .span_or_empty(variant.requires_facts)
                     .iter()
                     .any(|fact| match fact.as_expression() {
                         Some(expression) => match expression_table(program).expression(*expression)

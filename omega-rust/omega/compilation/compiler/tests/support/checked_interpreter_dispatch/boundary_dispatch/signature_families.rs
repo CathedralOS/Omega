@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 pub(crate) use typed_trees::finite_family::FamilyProbe;
 
 /// Extract the explicit finite family declared by a generic requirement's
-/// signature `where` clause. See [`TypedTrees::finite_signature_family`].
+/// signature `requires` clause. See [`TypedTrees::finite_signature_family`].
 pub(crate) fn finite_signature_family(
     typed: &TypedTrees,
     signature: &typed_trees::signature::StateSignature,

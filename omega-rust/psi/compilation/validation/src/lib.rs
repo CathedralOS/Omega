@@ -1435,7 +1435,7 @@ pub mod native_locators {
     };
 }
 
-pub use declarations::data_queries::data_field_is_where_independent;
+pub use declarations::data_queries::data_field_is_requires_independent;
 pub use declarations::traits::conformance_applications;
 
 pub use queries::execution_projection;
@@ -1986,7 +1986,7 @@ pub use proof_contracts::contract_entailment::transparent_applications::{
     transparent_proposition_application_entailed,
 };
 pub use proof_contracts::default_domains::{
-    case_where_field_intervals, data_where_field_intervals, impossible_variant,
+    case_requires_field_intervals, data_requires_field_intervals, impossible_variant,
 };
 pub use proof_contracts::float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,

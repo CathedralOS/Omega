@@ -889,7 +889,7 @@ pub(crate) mod tests {
             generic_instance: Some(application),
             properties: Default::default(),
             quotient: None,
-            where_facts: HandleSpan::empty(),
+            requires_facts: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }));
         destination.extend_from(&source);
@@ -1069,7 +1069,7 @@ pub(crate) mod tests {
             generic_instance: Some(origin),
             properties: Default::default(),
             quotient: None,
-            where_facts: HandleSpan::empty(),
+            requires_facts: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }));
 
@@ -1123,7 +1123,7 @@ pub(crate) mod tests {
             generic_instance: None,
             properties: Default::default(),
             quotient: None,
-            where_facts: arena::HandleSpan::empty(),
+            requires_facts: arena::HandleSpan::empty(),
         }));
 
         let mut assembled = SyntaxTrees::new(Default::default());

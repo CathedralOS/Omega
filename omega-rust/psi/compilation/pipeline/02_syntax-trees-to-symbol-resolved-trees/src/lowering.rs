@@ -232,13 +232,13 @@ pub(crate) mod data {
             data_definition,
             lowerer.constant_selection.as_ref(),
         )?;
-        let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
+        let requires_facts = crate::lowering::domain::lower_proof_facts_excluding(
             lowerer,
             syntax_trees,
-            data_definition.where_facts,
+            data_definition.requires_facts,
             &type_equations,
         )?;
-        let zero_gated = !where_facts.is_empty();
+        let zero_gated = !requires_facts.is_empty();
 
         Ok(DataDefinition {
             symbol: SymbolHandle::invalid(),
@@ -274,7 +274,7 @@ pub(crate) mod data {
                     })
                     .transpose()?,
                 quotient,
-                where_facts,
+                requires_facts,
                 zero_gated,
                 retired_identities,
                 members,
@@ -505,13 +505,14 @@ terminates_guarantee: contract.terminates_guarantee,
                             .push((DeclaredTypeOrigin::Payload(handle), field.type_reference));
                     }
                 }
-                let where_facts = lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
+                let requires_facts =
+                    lower_proof_facts(lowerer, syntax_trees, variant.requires_facts)?;
                 Ok(DataMember::Variant(DataVariant {
                     identity: variant.identity,
                     symbol: SymbolHandle::invalid(),
                     name: lower_name(syntax_trees, &variant.name),
                     payload,
-                    where_facts,
+                    requires_facts,
                     retired_payload_identities: variant.retired_payload_identities.clone(),
                 }))
             }
@@ -4701,7 +4702,7 @@ pub(crate) mod wire {
         A codec view exists only for records the generated codec can check against
         the public wire requirement end to end. The view is withheld for any
         declaration carrying an obligation the codec cannot establish:
-        whole-record domain (`where` facts, which cover every `zero_gated` and
+        whole-record domain (`requires` facts, which cover every `zero_gated` and
         membership-gated carrier), declared properties, lifetime or type
         parameters, variant members, fields without `#n` identities, bodyless
         forms (quotient and opaque `boundary data` both lower with no members),
@@ -4713,7 +4714,7 @@ pub(crate) mod wire {
         if !definition.type_parameters.is_empty()
             || !definition.lifetime_parameters.is_empty()
             || definition.properties != DataProperties::default()
-            || !definition.where_facts.is_empty()
+            || !definition.requires_facts.is_empty()
             || definition.supply_mode != language_core::DataSupplyMode::CheckedShape
         {
             return;

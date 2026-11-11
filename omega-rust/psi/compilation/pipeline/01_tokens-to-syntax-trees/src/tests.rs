@@ -3124,7 +3124,7 @@ pub(crate) mod domains_and_transitions {
         let parsed = super::parse_source(source, "parse should succeed");
         let data = super::root_data(&parsed, "data root item");
 
-        assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
+        assert_eq!(parsed.items.proof_facts(data.requires_facts).len(), 2);
         assert_eq!(parsed.items.data_members(data.members).len(), 3);
     }
 
@@ -3148,13 +3148,15 @@ pub(crate) mod domains_and_transitions {
             .data_members(data.members)
             .iter()
             .map(|member| match member {
-                DataMember::Variant(variant) => parsed.items.proof_facts(variant.where_facts).len(),
+                DataMember::Variant(variant) => {
+                    parsed.items.proof_facts(variant.requires_facts).len()
+                }
                 _ => panic!("expected only variant members"),
             });
         assert_eq!(
             fact_counts.next(),
             Some(0),
-            "payload-less case without `where`"
+            "payload-less case without facts"
         );
         assert_eq!(fact_counts.next(), Some(0), "no case-local predicate copy");
         assert!(fact_counts.next().is_none());
@@ -4676,7 +4678,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_exact_asm_where_clobber_contracts() {
+    fn parses_exact_asm_clobber_contracts() {
         for block in [
             "asm clobbers none { hlt }",
             "asm clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
@@ -4695,7 +4697,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_asm_where_facts_at_entry_and_exit() {
+    fn parses_asm_requires_facts_at_entry_and_exit() {
         let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
         machine Main::main(main: &mut Main) {
@@ -7907,7 +7909,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("expected one equation");
                 };
@@ -7999,7 +8001,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("equation");
                 };

@@ -127,7 +127,7 @@ pub mod item {
             pub properties: DataProperties,
             pub quotient: Option<QuotientDefinition>,
             pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
-            pub where_facts: HandleSpan<ProofFact>,
+            pub requires_facts: HandleSpan<ProofFact>,
             pub members: HandleSpan<DataMember>,
         }
 
@@ -289,7 +289,7 @@ pub mod item {
             pub identity: Option<u64>,
             pub name: Identifier,
             pub payload: HandleSpan<DataField>,
-            pub where_facts: HandleSpan<ProofFact>,
+            pub requires_facts: HandleSpan<ProofFact>,
             pub retired_payload_identities: Vec<u64>,
         }
 

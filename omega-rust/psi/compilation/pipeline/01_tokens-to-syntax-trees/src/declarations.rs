@@ -510,7 +510,7 @@ pub(crate) mod data {
                         relation,
                         equivalence,
                     }),
-                    where_facts: HandleSpan::empty(),
+                    requires_facts: HandleSpan::empty(),
                     members: HandleSpan::empty(),
                 }),
                 input,
@@ -528,7 +528,7 @@ pub(crate) mod data {
             default_domain_facts.push_span(facts);
             input = rest;
         }
-        let where_facts = default_domain_facts.finish();
+        let requires_facts = default_domain_facts.finish();
         input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
         if input.at_integer() {
@@ -552,7 +552,7 @@ pub(crate) mod data {
                 properties,
                 cleanup_selection,
                 quotient: None,
-                where_facts,
+                requires_facts,
                 members,
             }),
             input,
@@ -594,7 +594,7 @@ pub(crate) mod data {
                 generic_instance: None,
                 properties,
                 quotient: None,
-                where_facts: HandleSpan::empty(),
+                requires_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
             },
             input,
@@ -825,7 +825,7 @@ pub(crate) mod data {
             "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
         ));
         }
-        let where_facts = HandleSpan::empty();
+        let requires_facts = HandleSpan::empty();
 
         input = if input.at_punctuation(PunctuationKind::Semicolon) {
             input.take_punctuation(PunctuationKind::Semicolon, ";")?
@@ -837,7 +837,7 @@ pub(crate) mod data {
                 identity,
                 name: case_name,
                 payload,
-                where_facts,
+                requires_facts,
                 retired_payload_identities,
             }),
             input,
