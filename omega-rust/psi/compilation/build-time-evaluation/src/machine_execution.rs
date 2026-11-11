@@ -1524,7 +1524,10 @@ pub(crate) mod admission {
                 if let BuildTimeValue::LayoutTarget(facts) = value {
                     facts.validate()?;
                     let symbol = program.type_reference_table.type_symbol(destination);
-                    if !program.core_layout_declaration(symbol, "LayoutTarget") {
+                    if !program.core_layout_declaration(
+                        symbol,
+                        language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
+                    ) {
                         return Err(
                     "compiler target context must arrive at the exact core LayoutTarget carrier"
                         .into(),
