@@ -689,3 +689,49 @@ fields are themselves shared references gives an argument that is
   reference fields, and the customer #2184 served needs another form.
 
 Until answered the row stays as recorded and the checker is unchanged.
+
+### Q14 - Which in-memory filesystem does a test group select, and what does it implement?
+
+Decision name: `test-group-virtual-filesystem`.
+
+**Customer.** [Requirement-based test groups](wiki/spec/build/testing.md)
+require a group that selects a private in-memory filesystem
+(`memory.service<Filesystem, MemoryFilesystem>()`) to run on both engines
+under its implementation acceptance, and `TASKS.md` item `BUILD-TEST-GROUPS`
+carries that acceptance. Registration, discovery, both-engine execution and
+the roster report are implemented; no provider exists for such a group to
+select.
+
+**Gap.** These contracts were checked and do not define the provider:
+
+- [Testing](wiki/spec/build/testing.md#group-configuration-and-authority):
+  *"Benign captured output and a private in-memory filesystem require no
+  approval ceremony, but are explicitly selected"*, and *"Operations supported
+  by the delegated virtual interface use that backing; real-only or otherwise
+  unavailable operations reject without a host fallback."* It names neither
+  the virtual interface nor which operations it supports.
+- [Chapter 23](wiki/language_guide/chapter_23_testing.md#services-and-fixtures)
+  spells the selection `service<Filesystem, MemoryFilesystem>`, but std's
+  filesystem slot is the boundary trait `FilesystemService`
+  (`source/library/std/filesystem.omg`), `Filesystem` is an empty data type,
+  and no `MemoryFilesystem` exists anywhere in `source/library`.
+- [Platform services](wiki/spec/build/platform_services.md) and
+  [provider selection](wiki/spec/build/provider_selection.md) define real
+  filesystem providers and root-delegated replacement, not a virtual backing's
+  path model, initial contents or per-test state.
+
+**Question.**
+
+- **(a)** Is the virtual filesystem a std provider for the whole
+  `FilesystemService` slot, with every operation implemented over private
+  per-invocation state (directories, metadata, permissions and enumeration
+  included)?
+- **(b)** Or is it a narrower declared virtual interface (for example content
+  read/write/create/exists only), where the other `FilesystemService`
+  operations reject before execution as unsupported by the backing?
+- In either case: which library owns it (`std` or a separate test-support
+  package), what its initial contents are, and whether the selection operand
+  names the `FilesystemService` slot or the guide's `Filesystem` type.
+
+Until answered, test groups run only without services, and
+`BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
