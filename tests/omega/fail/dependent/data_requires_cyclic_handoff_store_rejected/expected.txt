@@ -1,1 +1,1 @@
-machine `tail` state `entry` assignment stores a value not provably within its data's
+reading `pump` crosses an open default-domain invariant window
