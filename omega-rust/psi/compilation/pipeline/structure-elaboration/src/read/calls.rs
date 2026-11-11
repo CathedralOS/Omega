@@ -43,7 +43,10 @@ impl<'t> Program<'t> {
         // callee has no parameter left to apply (`machine_shape` refuses one
         // that has), so the application's arguments are already spent.
         let generated = self.typed.symbols.get(target).generated_from;
-        if generated.is_valid() && generated == application.registration_operation {
+        if generated.is_valid()
+            && generated == application.registration_operation
+            && self.selects_implementations_only(generated)
+        {
             return Ok(());
         }
         if !application.arguments.is_empty() || !application.selected_machine_arguments.is_empty() {
@@ -93,6 +96,29 @@ impl<'t> Program<'t> {
             }
         }
         Ok(())
+    }
+
+    /// Whether every generic parameter of `declared`, a machine or its entry
+    /// state, is an implementation parameter. Only such a declaration's
+    /// generated machines are read: selecting an implementation changes
+    /// which machine a call names and nothing else, while a type or value
+    /// argument changes the body's types and operations, which is the
+    /// generics lane's to serve.
+    fn selects_implementations_only(&self, declared: SymbolHandle) -> bool {
+        let owner = match self.typed.symbols.get(declared).kind {
+            SymbolKind::State => self.typed.symbols.get(declared).parent,
+            _ => declared,
+        };
+        self.typed.machine_by_symbol(owner).is_some_and(|machine| {
+            // An implementation parameter is a conformance bound; where
+            // the typed trees also list it as a parameter, its kind says so.
+            let parameters = self.typed.machine_type_parameters(machine);
+            (!parameters.is_empty() || !machine.conformance_bounds.is_empty())
+                && parameters.iter().all(|parameter| {
+                    parameter.kind == typed_trees::data::TypeParameterKind::Implementation
+                })
+                && machine.lifetime_parameters.is_empty()
+        })
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -308,6 +334,21 @@ impl<'t> Program<'t> {
         if dispatch.contract_signature.is_valid() || !dispatch.requirement.is_valid() {
             return unserved("requirement dispatch through a separate contract signature");
         }
+        // Only a call through a parameter: a member named through the
+        // implementation itself, `Double::apply(x)`, records no parameter
+        // and stays refused.
+        if !dispatch.evidence_parameter.is_valid() {
+            return unserved("static requirement dispatch");
+        }
+        // The author named the parameter's requirement child, and nothing
+        // rebound it.
+        match call.authored_call_binding {
+            Some(binding)
+                if binding.selected == binding.original
+                    && self.typed.symbols.get(binding.selected).parent
+                        == dispatch.evidence_parameter => {}
+            _ => return unserved("requirement dispatch not bound to its parameter"),
+        }
         // The member takes no static argument of its own.
         if call.authored_machine_application.is_valid() {
             let application = self
@@ -390,6 +431,14 @@ impl<'t> Program<'t> {
             {
                 return unserved("implementation parameter call with static arguments");
             }
+        }
+        // The author named this child of the parameter, and nothing rebound
+        // it.
+        match call.authored_call_binding {
+            Some(binding)
+                if binding.selected == call.target_symbol
+                    && binding.original == call.target_symbol => {}
+            _ => return unserved("implementation parameter call not bound to its requirement"),
         }
         let callee = self.requirement(requirement)?;
         let arguments = self

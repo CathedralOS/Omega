@@ -134,7 +134,12 @@ a machine whose only generic parameters are implementation parameters
   call; inside it, the call through the parameter targets the selected
   member and is read as a direct call of that member. Each such call is
   recorded in `Elaboration::selections` with the parameter, the trait, the
-  requirement and the member, all symbols.
+  requirement and the member, all symbols. Only a declaration whose
+  generic parameters are all implementation parameters has its generated
+  machines read; an application with a type or value argument is still
+  `call static application arguments`, and a member named through the
+  implementation itself (`Double::apply(x)`) is still `call static
+  requirement dispatch`.
 - **The generic check form**, by `elaborate_generic`. The declared machine
   is read with its parameters rigid: a call through one names the
   requirement, which becomes a machine with a signature, a contract and no
