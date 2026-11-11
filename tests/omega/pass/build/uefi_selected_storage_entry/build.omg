@@ -11,15 +11,7 @@ machine build(builder: &mut Build) {
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, cross_platform_cli);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, local_unchecked);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, alpha_bootstrap);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, linux_arm64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, linux_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, macos_arm64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, macos_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, windows_x86_64);
     Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, uefi_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, cross_platform_cli);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, local_unchecked);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, alpha_bootstrap);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_arm64);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_x86_64);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_arm64);
