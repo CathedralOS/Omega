@@ -2731,11 +2731,11 @@ fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 2390ms
 	cannot prove requires contract for call take_ascii from capture: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/copied_argument_inherited_membership_precedes_repair rejected 1723ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued in state `entry`
-fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 1885ms expected @ccdb99ca2214
+fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 16058ms expected @b7d6ad3ad515
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued) in state `entry`
-fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 1435ms expected @ccdb99ca2214
+fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 13292ms expected @b7d6ad3ad515
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued) in state `entry`
-fail/calls/copied_constructor_child_ensures_cannot_restore_mutated_source rejected 2487ms expected @ccdb99ca2214
+fail/calls/copied_constructor_child_ensures_cannot_restore_mutated_source rejected 12054ms expected @b7d6ad3ad515
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued) in state `entry`
 fail/calls/copied_nominal_argument_precedes_field_repair rejected 755ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 1: reading `gauge.<whole value>` crosses an open default-domain invariant window before data `Gauge` is established: the zeroed representation is not yet a `Gauge` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
@@ -2938,6 +2938,8 @@ fail/calls/returned_nested_record_written_field_rejected rejected 438ms expected
 	exact arithmetic in machine `observe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/calls/returned_record_fields_require_every_normal_path rejected 3391ms expected @ccdb99ca2214
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+fail/calls/routed_ensures_cannot_survive_later_statement_write rejected 6698ms expected @b7d6ad3ad515
+	cannot prove requires contract for call both from main: ticket in Ticket::Issued in state `entry`
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected rejected 15419ms expected @ccdb99ca2214
@@ -20728,6 +20730,7 @@ pass/calls/resultless_native_callback_compile checked 18398ms check-target:linux
 pass/calls/retained_receiver_argument_order_exit checked 17156ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/returned_nested_record_disjoint_field_move_exit checked 1391ms check-target:macos_arm64 @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:macos_arm64 @1e127a84987a
+pass/calls/routed_ensures_survives_later_statement_read checked 15120ms @b7d6ad3ad515
 pass/calls/runtime_affine_record_call_results_reused_exit checked 4248ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 17560ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_anonymous_result_local_namespace_exit checked 15404ms check-target:macos_arm64 @ccdb99ca2214
@@ -20763,7 +20766,7 @@ pass/calls/runtime_constructor_byte_predicate_snapshot_exit checked 6946ms check
 pass/calls/runtime_constructor_child_declared_membership_exit checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_child_equal_captures_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_child_inherited_captures_exit checked 4080ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_constructor_child_membership_snapshot_exit checked 3251ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_constructor_child_membership_snapshot_exit checked 26175ms check-target:macos_arm64 @b7d6ad3ad515
 pass/calls/runtime_constructor_child_named_state_captures_exit checked 3539ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_child_pure_calls_exit checked 3835ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_constructor_computed_field_exit checked 12278ms check-target:macos_arm64 @ccdb99ca2214
@@ -20835,7 +20838,7 @@ pass/calls/runtime_nested_case_argument_exit checked 12119ms check-target:macos_
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit checked 3898ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 3152ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_completed_operands_then_shared_borrow_exit checked 4140ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_nested_constructor_child_snapshots_exit checked 4869ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_nested_constructor_child_snapshots_exit checked 24260ms check-target:macos_arm64 @b7d6ad3ad515
 pass/calls/runtime_nested_continuation_exit checked 3702ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_local_field_store_exit checked 17484ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_receiver_guard_exit checked 16566ms check-target:macos_arm64 @ccdb99ca2214
