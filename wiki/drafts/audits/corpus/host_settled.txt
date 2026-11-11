@@ -1,0 +1,8 @@
+fail/build/installed_arrival_without_context timeout 120004ms
+fail/build/installed_arrival_wrong_controller timeout 120000ms
+pass/calls/runtime_composed_index_case_pool_transition_exit timeout 120000ms
+pass/calls/runtime_indexed_case_pool_transition_exit timeout 120000ms
+pass/filesystem/create_dir_all_symlink_kind_exit checked 74344ms check-target:macos_arm64
+pass/filesystem/cross_linux_value_syscalls checked 72668ms
+pass/filesystem/dir_walk_wrappers_exit checked 72818ms check-target:macos_arm64
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit timeout 120000ms
