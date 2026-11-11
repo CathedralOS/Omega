@@ -1579,29 +1579,21 @@ pub mod float_providers {
     };
     use symbols::SymbolHandle;
 
-    pub const SOURCE: &str = "float_provider.omg";
+    use language_core::sealed_intrinsics::SealedIntrinsic;
 
-    fn sealed(typed: &TypedTrees, symbol: SymbolHandle, path: &str, source: &str) -> bool {
-        typed
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|relative| relative == std::path::Path::new(source))
-            && typed
-                .normalized_hermetic_symbol_identity(symbol)
-                .is_ok_and(|identity| identity.strip_prefix("toolchain::") == Some(path))
-    }
-
+    /// Whether `machine` is a member of the sealed core `NativeFloats` map.
     pub fn is_catalog_declaration(typed: &TypedTrees, machine: &Machine) -> bool {
         typed
-            .symbol_toolchain_relative_path(machine.symbol)
-            .is_some_and(|relative| relative == std::path::Path::new(SOURCE))
-            && machine.name.as_str().starts_with("NativeFloats::")
+            .symbols
+            .sealed_declaration(machine.symbol, machine.name.as_str())
+            == Some(SealedIntrinsic::NativeFloatOperation)
     }
 
     /// Whether `symbol` is the sealed core `NativeFloats` catalog map. Only
     /// that map's plans realize canonical float operations from a target's
     /// declared realization table; a same-named map elsewhere is ordinary.
     pub fn is_sealed_catalog_map(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
-        sealed(typed, symbol, "NativeFloats", SOURCE)
+        typed.symbols.sealed_intrinsic(symbol) == Some(SealedIntrinsic::NativeFloatMap)
     }
 
     /// The public requirements the sealed map's authenticated members
@@ -1661,13 +1653,10 @@ pub mod float_providers {
         let primary = declarations
             .trait_definition_by_symbol(implementation.trait_symbol)
             .ok_or("the retained map has no exact primary trait declaration")?;
-        if !sealed(declarations, implementation.symbol, "NativeFloats", SOURCE)
-            || !sealed(
-                declarations,
-                primary.symbol,
-                "FloatNativeOperations",
-                SOURCE,
-            )
+        if declarations.symbols.sealed_intrinsic(implementation.symbol)
+            != Some(SealedIntrinsic::NativeFloatMap)
+            || declarations.symbols.sealed_intrinsic(primary.symbol)
+                != Some(SealedIntrinsic::NativeFloatOperationsTrait)
             || primary.is_boundary
             || !declarations.trait_type_parameters(primary).is_empty()
             || !primary.lifetime_parameters.is_empty()
@@ -1727,12 +1716,11 @@ pub mod float_providers {
             requirement_symbol,
         )
         .ok_or("the public requirement has no complete intrinsic signature")?;
-        if !sealed(
-            typed,
-            requirement_symbol,
-            &requirement.display(),
-            numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
-        ) {
+        if typed
+            .symbols
+            .sealed_declaration(requirement_symbol, &requirement.display())
+            != Some(SealedIntrinsic::FloatOperationRequirement)
+        {
             return Err("the public requirement is outside the sealed float catalog");
         }
         let meaning = typed
@@ -2232,24 +2220,10 @@ pub mod layout_storage {
             else {
                 return Ok(None);
             };
-            if machine.name.as_str().rsplit("::").next() != Some("layout_target_facts") {
+            if self.symbols.sealed_intrinsic(machine.symbol)
+                != Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts)
+            {
                 return Ok(None);
-            }
-            let source = self
-                .symbols
-                .symbol_source_span(machine.symbol)
-                .and_then(|span| self.symbols.source_file(span));
-            if source.is_none_or(|file| {
-                file.origin != source::SourceOrigin::Toolchain
-                    || file.path.strip_prefix(&file.package_root).ok()
-                        != Some(std::path::Path::new("layout.omg"))
-            }) {
-                return Ok(None);
-            }
-            if !self.sealed_layout_source(machine.symbol) {
-                return Err(
-                    "layout target snapshot source differs from the immutable compiler catalogue",
-                );
             }
             let invalid = "sealed layout target snapshot has an invalid declaration contract";
             let [state] = self.machine_states(machine) else {
@@ -2267,7 +2241,10 @@ pub mod layout_storage {
             let target = self.type_reference_table.type_symbol(*referee);
             let result = self.type_reference_table.type_symbol(state.return_type);
             if *access != language_semantics::ReferenceAccess::Shared
-                || !self.core_layout_declaration(target, "LayoutTarget")
+                || !self.core_layout_declaration(
+                    target,
+                    language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
+                )
                 || self.symbols.name(result) != "LayoutTargetFacts"
                 || self
                     .symbols
@@ -2306,26 +2283,21 @@ pub mod layout_storage {
             Ok(Some(result))
         }
 
-        fn sealed_layout_source(&self, symbol: SymbolHandle) -> bool {
-            self.symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| self.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.package_identity.is_none()
-                        && file.path.strip_prefix(&file.package_root).ok()
-                            == Some(std::path::Path::new("layout.omg"))
-                        && file.source.as_bytes() == language_core::layout_storage::SOURCE
-                })
-        }
-
-        pub fn core_layout_declaration(&self, symbol: SymbolHandle, name: &str) -> bool {
-            symbol.is_valid()
-                && self.symbols.name(symbol) == name
-                && self.sealed_layout_source(symbol)
-                && self.data_definition_by_symbol(symbol).is_some_and(|data| {
-                    data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-                })
+        /*
+            Whether `symbol` is the opaque core layout data the sealed
+            intrinsic catalog names as `data`.
+        */
+        pub fn core_layout_declaration(
+            &self,
+            symbol: SymbolHandle,
+            data: language_core::sealed_intrinsics::SealedIntrinsic,
+        ) -> bool {
+            self.symbols.sealed_intrinsic(symbol) == Some(data)
+                && self
+                    .data_definition_by_symbol(symbol)
+                    .is_some_and(|definition| {
+                        definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+                    })
         }
 
         pub fn layout_storage_arguments(
@@ -2349,8 +2321,10 @@ pub mod layout_storage {
             else {
                 return None;
             };
-            if !self.core_layout_declaration(*base_symbol, "LayoutStorage")
-                || !lifetime_arguments.is_empty()
+            if !self.core_layout_declaration(
+                *base_symbol,
+                language_core::sealed_intrinsics::SealedIntrinsic::LayoutStorageData,
+            ) || !lifetime_arguments.is_empty()
             {
                 return None;
             }
