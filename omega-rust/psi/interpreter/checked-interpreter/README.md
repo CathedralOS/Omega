@@ -1,32 +1,28 @@
 # Checked-tree interpreter
 
-Start at [interpreter.rs](src/interpreter.rs). It owns worker creation, entry
-selection, filesystem authority setup, execution, and result/evidence handling.
-The crate-root exports preserve the existing callers; `lib.rs` is module wiring.
+This evaluator runs build-time machines on checked and typed trees. It is
+migration debt: whole programs and the corpus oracle already run on
+`terminal-interpreter`, and the remaining build-time jobs move there under
+`UNIVERSAL-INTERPRETER-CLOSURE`. Do not add new callers.
 
-This Psi-owned source interpreter supports build-time evaluation and differential
-execution. Canonical portable execution belongs to `terminal-interpreter`.
+Start at [interpreter.rs](src/interpreter.rs)
+(`evaluate_prepared_build_time_machine`). It owns worker creation, entry
+selection, execution, and result/evidence handling. The crate-root exports
+preserve the existing callers; `lib.rs` is module wiring.
+
 [Semantic evaluation](../../../../wiki/spec/language/evaluation.md) and
 [build execution](../../../../wiki/spec/build/execution.md) retain distinct
 admission contracts. These entrypoints execute caller-admitted inputs; they do
-not replace those admission checks.
+not replace those admission checks. Constant and structured-return evaluation
+retain the machine's returned value; selected operators and private-layout
+receipts remain explicit inputs/outputs.
 
-The lifecycle keeps distinct result and authority paths:
-
-- `interpret_entry` executes a checked entry and returns process
-  output, an exit or error, and measured work.
-- Constant and structured-return evaluation retain the machine's returned value;
-  selected operators and private-layout receipts remain explicit inputs/outputs.
-- Observed argument evaluation returns final argument snapshots and build-log
-  observations under the pure build policy and optional resource sponsor.
-- Granted argument evaluation additionally configures explicit filesystem
-  authority and retains partial work/observations on evaluator failure.
-
-All paths retain the existing 256 MiB scoped-worker stack. Pure evaluation uses
-the constant-evaluation step ceiling; granted execution uses its full step
-ceiling. Result conversion and sponsor accounting happen before returning the
-corresponding result. Missing checked service bindings never select a different
-machine by name.
+All paths run on the 256 MiB scoped-worker stack under the constant-evaluation
+step ceiling. Result conversion and sponsor accounting happen before returning
+the corresponding result. Only the virtual filesystem is installed: no caller
+supplies host filesystem grants, clocks, standard input, boundary adapters or a
+target flags environment. Missing checked service bindings never select a
+different machine by name.
 
 Follow the operation into its subordinate owner:
 
@@ -37,14 +33,11 @@ Follow the operation into its subordinate owner:
   [program_values.rs](src/program_values.rs), and
   [build_machine.rs](src/build_machine.rs) bind entries, execute machines, and
   recover values from interpreter storage.
-- [filesystem.rs](src/filesystem.rs) and
-  [filesystem_real.rs](src/filesystem_real.rs) own path authority, metadata
-  layouts, operation-attempt vocabulary, call preparation, and the virtual and
-  physical providers.
-- [evaluation.rs](src/evaluation.rs) owns measured work, observations, included
-  sources, result/failure records, build-evaluation sponsor/usage exports, and
-  virtual clock bindings. Those records do not grant execution authority.
+- [filesystem.rs](src/filesystem.rs) owns path validation, metadata layouts,
+  operation-attempt vocabulary, call preparation, and the virtual provider.
+- [evaluation.rs](src/evaluation.rs) owns measured work, observations,
+  result/failure records, and build-evaluation sponsor/usage exports. Those
+  records do not grant execution authority.
 
-Focused coverage is in `tests/const_values.rs`, `tests/build_arguments.rs`, and
-`tests/resolved_state_execution.rs`, with filesystem preparation, output custody,
+Focused coverage is in `tests/`, with filesystem preparation, output custody,
 and sponsor unit tests beside their implementations.

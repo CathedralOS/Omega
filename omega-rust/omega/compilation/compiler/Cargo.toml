@@ -86,7 +86,6 @@ terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" 
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }

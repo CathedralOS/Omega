@@ -1,10 +1,8 @@
 /*
 Exact operator realizations and Build comparison execution settlement.
 
-Product calls retain their public requirements through Terminal Psi; the
-optional checked-source oracle prepares its own execution bindings in
-checked_interpreter_dispatch, while Product installation does not build that
-table.
+Product calls retain their public requirements through Terminal Psi, and
+Product installation does not build a comparison execution table.
 
 We settle comparison execution without importing runtime adapter dispatch or
 service grants. Build admission uses this same comparison producer before
