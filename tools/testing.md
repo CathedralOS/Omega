@@ -867,6 +867,44 @@ ls -l target/debug/omega                # inspect age; verify the producer recei
 OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
 ```
 
+When the compiler cannot prove a call's precondition, this trace reports which
+check stopped it and the values available then. `Requires` clauses declare those
+preconditions. Each checked alternative has an `observation` ID that connects its
+arguments, the values used in place of the callee's parameters, the check's
+result, and the same alternative's stored values and known equalities (called
+retained equations). Join records by these IDs rather than adjacent lines.
+
+Select the call with the existing structural trace switch:
+`OMEGA_STRUCT_TRACE='caller::path->callee::path@root_index:root_generation'`.
+Use the machine names and retained Symbol-root handle from that compiler's own
+trace; these identities can change between compilations. Ordinary values such
+as `1` keep the existing structural trace without selecting these additional
+`STRUCT call-consumer` records.
+
+A `phase=begin` record precedes the attempt to obtain the call's argument values.
+The `stage` records distinguish an early failure, a precondition proved from
+static types, and a reached precondition judgment. If no call entry was formed,
+its stored-value snapshot is labeled `source=pre-entry entry=none`. When there
+are several entries to check, each additional entry has a fresh ID linked by
+`parent_observation` and `entry_index`; its arguments, result and stored values
+use that ID. Selection covers complete authored `Requires` clauses for a
+specific callee state. Checks that stop before `CallRequirement::observe`,
+alternatives already marked unproven before `observe`, and unmatched or inherited
+preconditions remain outside this trace.
+
+The additional records are limited to 16 observations, 32 stored-value or
+equation rows per collection, and 4096 characters per record. Truncation is
+explicit, and `root_present=false` means the selected stored root was absent.
+Only equations that directly contain an observed argument or a retained value
+of the selected root are included. This is a subset of the known equalities;
+it does not follow indirect chains of equalities. Missing or clipped rows do
+not establish a missing fact.
+
+The trace reuses the original results without repeating a judgment, projection
+or preservation query, and it does not change the program's proof outcome.
+Retain the compiler and input identities and use the existing bounded runner;
+the ordinary structural trace is emitted alongside these records.
+
 An unbound or different producer cannot establish the current baseline. Earlier
 verified results retain their original producer and may remain applicable under
 main-change validation; binary age alone neither validates nor invalidates them. One wave

@@ -7572,6 +7572,7 @@ pub(crate) mod call_requirements {
         recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
     };
     use super::structural_judgment::normal_returns::OperationOperandDemand;
+    use super::structural_judgment::storage_effects::call_consumer_trace;
     use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
     use super::structural_prefix::PrefixObservation;
     use crate::CheckingInput;
@@ -8499,6 +8500,65 @@ pub(crate) mod call_requirements {
         pub(crate) fn is_inherited(&self) -> bool {
             self.inherited.is_some()
         }
+
+        fn begin_call_consumer_trace(
+            &self,
+            program: &dyn CheckingInput,
+            machine: &Machine,
+            state: &State,
+        ) -> Option<(usize, facts::PlaceRoot)> {
+            let (requested_caller, requested_callee, root_index, root_generation) =
+                crate::trace_flags::struct_call_consumer_selection()?;
+            let caller = program.machine_holding_state(self.state)?;
+            let callee = program.machine_holding_state(self.callee_owner)?;
+            if requested_caller != program.symbols.display_path(caller.symbol, "::")
+                || requested_callee != program.symbols.display_path(callee.symbol, "::")
+            {
+                return None;
+            }
+            let callee_state = program.state_in_machine(callee, self.callee_owner)?;
+            // An entry call also checks contracts declared on its machine.
+            // Select the same complete contract set as the call checker.
+            let owner =
+                super::specification_calls::SelectedCallContract::Concrete(callee, callee_state);
+            if !super::specification_calls::owner_contracts(program, &owner).any(|contract| {
+                contract.kind == SignatureContractKind::Requires
+                    && program.proof_facts.span_or_empty(contract.facts).iter().any(
+                        |fact| matches!(fact, typed_trees::domain::ProofFact::Expression(expression) if *expression == self.expression),
+                    )
+            }) {
+                return None;
+            }
+            let observation = call_consumer_trace::payload_observation()?;
+            let site = match self.call_site {
+                Some(crate::CallSite::Expression { expression, .. }) => {
+                    format!("expression:{expression:?}")
+                }
+                Some(crate::CallSite::Statement(call)) => format!("statement:{call:p}"),
+                Some(crate::CallSite::TransitionNamed {
+                    path, source_span, ..
+                }) => format!("transition-named:{path:p}:{source_span:?}"),
+                None => "none".to_owned(),
+            };
+            let context = format!(
+                "phase=begin program={program:p} caller={:?} requested_state={:?} observed_machine={:?} observed_state={:?} statement={} transition={} call_expression={:?} site={site} callee={:?} requirement={:?} arguments={:?}",
+                caller.symbol,
+                self.state,
+                machine.symbol,
+                state.symbol,
+                self.statement_index,
+                self.in_transition_target,
+                self.call_expression,
+                self.callee_owner,
+                self.expression,
+                self.arguments,
+            );
+            eprintln!("{}", call_consumer_trace::context(observation, context));
+            Some((
+                observation,
+                facts::PlaceRoot::Symbol(SymbolHandle::from_parts(root_index, root_generation)),
+            ))
+        }
     }
 
     impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
@@ -8567,6 +8627,7 @@ pub(crate) mod call_requirements {
                     &mut judge,
                 );
             }
+            let trace = self.begin_call_consumer_trace(program, machine, state);
             let entries = if self.call_expression.is_valid() {
                 let Some(entries) = judge.normal_operation_entries(
                     self.statement_index,
@@ -8575,6 +8636,12 @@ pub(crate) mod call_requirements {
                     environment,
                     (machine, state, state.return_type),
                 ) else {
+                    judge.trace_call_consumer_outcome(
+                        trace,
+                        "normal-operation-entries-none",
+                        format_args!("source=pre-entry entry=none"),
+                        &[],
+                    );
                     self.proven = false;
                     return;
                 };
@@ -8591,22 +8658,66 @@ pub(crate) mod call_requirements {
                     (machine, state, state.return_type),
                     self.call_site,
                 ) else {
+                    judge.trace_call_consumer_outcome(
+                        trace,
+                        "normal-argument-entries-none",
+                        format_args!("source=pre-entry entry=none operands={operands:?}"),
+                        &[],
+                    );
                     self.proven = false;
                     return;
                 };
                 entries
             };
+            if entries.is_empty() {
+                judge.trace_call_consumer_outcome(
+                    trace,
+                    "entries-empty",
+                    format_args!("source=pre-entry entry=none"),
+                    &[],
+                );
+            }
             let predicate_parameters = self
                 .inherited
                 .as_ref()
                 .map_or(&self.parameters[..], |predicate| {
                     predicate.parameters.as_slice()
                 });
-            for mut entry in entries {
+            let parent_trace = trace;
+            for (entry_index, mut entry) in entries.into_iter().enumerate() {
                 if !self.proven {
                     return;
                 }
+                let trace = parent_trace.and_then(|(observation, root)| {
+                    if entry_index == 0 {
+                        Some((observation, root))
+                    } else {
+                        call_consumer_trace::payload_observation()
+                            .map(|observation| (observation, root))
+                    }
+                });
+                if let Some((observation, _)) = trace {
+                    eprintln!(
+                        "{}",
+                        call_consumer_trace::event(
+                            observation,
+                            "entry",
+                            format_args!(
+                                "parent_observation={:?} entry_index={entry_index} entry_expression={:?} partial_arguments={:?}",
+                                parent_trace.map(|(observation, _)| observation),
+                                entry.expression,
+                                entry.arguments
+                            ),
+                        )
+                    );
+                }
                 let Some(observed_arguments) = entry.observed_arguments() else {
+                    entry.judge.trace_call_consumer_outcome(
+                        trace,
+                        "observed-arguments-none",
+                        format_args!("partial_arguments={:?}", entry.arguments,),
+                        &[],
+                    );
                     self.proven = false;
                     return;
                 };
@@ -8620,6 +8731,12 @@ pub(crate) mod call_requirements {
                         machine.symbol,
                         site,
                     ) else {
+                        entry.judge.trace_call_consumer_outcome(
+                            trace,
+                            "selected-contract-none",
+                            format_args!("observed={observed_arguments:?} partial_substitution={static_substitution:?}"),
+                            &observed_arguments,
+                        );
                         self.proven = false;
                         return;
                     };
@@ -8640,6 +8757,12 @@ pub(crate) mod call_requirements {
                             },
                         )
                     else {
+                        entry.judge.trace_call_consumer_outcome(
+                            trace,
+                            "scalar-substitution-none",
+                            format_args!("observed={observed_arguments:?} partial_substitution={static_substitution:?}"),
+                            &observed_arguments,
+                        );
                         self.proven = false;
                         return;
                     };
@@ -8651,6 +8774,12 @@ pub(crate) mod call_requirements {
                             site,
                         )
                     else {
+                        entry.judge.trace_call_consumer_outcome(
+                            trace,
+                            "applied-bindings-none",
+                            format_args!("observed={observed_arguments:?} partial_substitution={static_substitution:?} scalar_bindings={bindings:?}"),
+                            &observed_arguments,
+                        );
                         self.proven = false;
                         return;
                     };
@@ -8668,6 +8797,12 @@ pub(crate) mod call_requirements {
                                     machine.name
                                 );
                             }
+                            entry.judge.trace_call_consumer_outcome(
+                                trace,
+                                "machine-bindings-error",
+                                format_args!("reason={reason} observed={observed_arguments:?} partial_substitution={static_substitution:?} scalar_bindings={bindings:?}"),
+                                &observed_arguments,
+                            );
                             self.proven = false;
                             return;
                         }
@@ -8688,6 +8823,15 @@ pub(crate) mod call_requirements {
                 let mut substitution = static_substitution;
                 let subjects = if self.call_expression.is_valid() {
                     let Some(owner_machine) = program.machine(machine.symbol) else {
+                        entry.judge.trace_call_consumer_outcome(
+                            trace,
+                            "reference-owner-none",
+                            format_args!(
+                                "owner={:?} observed={observed_arguments:?} partial_substitution={substitution:?}",
+                                machine.symbol,
+                            ),
+                            &observed_arguments,
+                        );
                         self.proven = false;
                         return;
                     };
@@ -8703,12 +8847,32 @@ pub(crate) mod call_requirements {
                 };
                 let subjects = subjects.unwrap_or_default();
                 let Some(arguments) = observed_arguments.get(self.leading_operands..) else {
+                    entry.judge.trace_call_consumer_outcome(
+                        trace,
+                        "leading-operands-mismatch",
+                        format_args!(
+                            "leading={} observed={observed_arguments:?} partial_substitution={substitution:?}",
+                            self.leading_operands,
+                        ),
+                        &observed_arguments,
+                    );
                     self.proven = false;
                     return;
                 };
                 if self.parameters.len() != arguments.len()
                     || self.parameters.len() != self.arguments.len()
                 {
+                    entry.judge.trace_call_consumer_outcome(
+                        trace,
+                        "arity-mismatch",
+                        format_args!(
+                            "parameters={} observed_arguments={} authored_arguments={} observed={observed_arguments:?} partial_substitution={substitution:?}",
+                            self.parameters.len(),
+                            arguments.len(),
+                            self.arguments.len(),
+                        ),
+                        &observed_arguments,
+                    );
                     self.proven = false;
                     return;
                 }
@@ -8718,9 +8882,11 @@ pub(crate) mod call_requirements {
                     .zip(predicate_parameters)
                     .zip(arguments)
                 {
-                    let value = if self.call_expression.is_valid()
+                    let mut observation_kind = "direct";
+                    let observed = if self.call_expression.is_valid()
                         && crate::reference_shell(program, parameter.type_reference).is_some()
                     {
+                        observation_kind = "reference";
                         super::structural_terms::reference_argument_observation(
                             program,
                             parameter.type_reference,
@@ -8738,13 +8904,14 @@ pub(crate) mod call_requirements {
                                 }),
                         )
                     } else if self.call_expression.is_valid() {
+                        observation_kind = "owned";
                         entry
                             .judge
                             .owned_argument_observation(parameter.type_reference, value)
                     } else {
                         Some(value.clone())
                     };
-                    let Some(value) = value else {
+                    let Some(value) = observed else {
                         let mut expressions = Vec::new();
                         crate::queries::expression_traversal::collect_expression_tree(
                             program,
@@ -8759,6 +8926,12 @@ pub(crate) mod call_requirements {
                                         || path.head_symbol == predicate_parameter.symbol
                                 })
                         }) {
+                            entry.judge.trace_call_consumer_outcome(
+                                trace,
+                                "required-argument-observation-none",
+                                format_args!("kind={observation_kind} parameter={parameter:?} predicate_parameter={predicate_parameter:?} input={value:?} observed={observed_arguments:?} partial_substitution={substitution:?}"),
+                                &observed_arguments,
+                            );
                             self.proven = false;
                             return;
                         }
@@ -8776,23 +8949,33 @@ pub(crate) mod call_requirements {
                     type_context,
                     &type_substitution,
                 ) {
+                    entry.judge.trace_call_consumer_outcome(
+                        trace,
+                        "static-entailment-proven",
+                        format_args!("observed={observed_arguments:?} substitution={substitution:?} types={type_substitution:?}"),
+                        &observed_arguments,
+                    );
                     continue;
                 }
-                self.proven &= matches!(
-                    instantiated_selected_fact_judgment(
-                        program,
-                        &entry.judge,
-                        self.callee_owner,
-                        &requirement_parameters,
-                        self.expression,
-                        &substitution,
-                        &machine_substitution,
-                        &type_substitution,
-                        Some((machine, state)),
-                        false,
-                    ),
-                    StructuralJudgment::Proven,
+                let judgment = instantiated_selected_fact_judgment(
+                    program,
+                    &entry.judge,
+                    self.callee_owner,
+                    &requirement_parameters,
+                    self.expression,
+                    &substitution,
+                    &machine_substitution,
+                    &type_substitution,
+                    Some((machine, state)),
+                    false,
                 );
+                entry.judge.trace_call_consumer_outcome(
+                    trace,
+                    "judgment",
+                    format_args!("judgment={judgment:?} observed={observed_arguments:?} substitution={substitution:?} types={type_substitution:?} machines={machine_substitution:?}"),
+                    &observed_arguments,
+                );
+                self.proven &= matches!(judgment, StructuralJudgment::Proven);
             }
         }
     }
@@ -75229,7 +75412,371 @@ pub(crate) mod structural_judgment {
             stored_integer: Option<semantic_vocabulary::IntegerType>,
         }
 
+        // Call-consumer output owns its limits so tests can exercise the exact
+        // emitted contract without constructing a judge or replaying proof.
+        pub(crate) mod call_consumer_trace {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            const OBSERVATION_LIMIT: usize = 16;
+            pub(super) const ROW_LIMIT: usize = 32;
+            const CHARACTER_LIMIT: usize = 4096;
+
+            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+            pub(crate) enum Observation {
+                Payload(usize),
+                Limit,
+            }
+
+            pub(crate) fn next_observation() -> Option<Observation> {
+                static NEXT: AtomicUsize = AtomicUsize::new(0);
+                claim(&NEXT)
+            }
+
+            pub(crate) fn payload_observation() -> Option<usize> {
+                match next_observation() {
+                    Some(Observation::Payload(observation)) => Some(observation),
+                    Some(Observation::Limit) => {
+                        eprintln!("{}", limit());
+                        None
+                    }
+                    None => None,
+                }
+            }
+
+            pub(crate) fn event(
+                observation: usize,
+                stage: &str,
+                detail: std::fmt::Arguments<'_>,
+            ) -> String {
+                record(
+                    observation,
+                    "event",
+                    None,
+                    format!("stage={stage} {detail}"),
+                )
+            }
+
+            fn claim(next: &AtomicUsize) -> Option<Observation> {
+                let observation = next
+                    .try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+                        (next <= OBSERVATION_LIMIT).then(|| next + 1)
+                    })
+                    .ok()?;
+                Some(if observation < OBSERVATION_LIMIT {
+                    Observation::Payload(observation)
+                } else {
+                    Observation::Limit
+                })
+            }
+
+            pub(super) fn record(
+                observation: usize,
+                kind: &str,
+                index: Option<usize>,
+                text: String,
+            ) -> String {
+                let index = index.map_or_else(String::new, |index| format!(" index={index}"));
+                let truncated = text.chars().count() > CHARACTER_LIMIT;
+                format!(
+                    "STRUCT call-consumer observation={observation} kind={kind}{index} truncated={truncated} record={text:.CHARACTER_LIMIT$}"
+                )
+            }
+
+            pub(crate) fn context(observation: usize, text: String) -> String {
+                record(observation, "context", None, text)
+            }
+
+            pub(crate) fn limit() -> String {
+                format!(
+                    "STRUCT call-consumer observation={OBSERVATION_LIMIT} kind=limit observations={OBSERVATION_LIMIT} truncated=true"
+                )
+            }
+
+            pub(super) fn admit_row(matched: &mut usize) -> Option<usize> {
+                let index = *matched;
+                *matched += 1;
+                (index < ROW_LIMIT).then_some(index)
+            }
+
+            pub(super) fn snapshot(
+                observation: usize,
+                stored: usize,
+                metadata: std::fmt::Arguments<'_>,
+            ) -> String {
+                record(
+                    observation,
+                    "snapshot",
+                    Some(0),
+                    format!(
+                        "{metadata} root_present={} stored_count={stored}",
+                        stored != 0,
+                    ),
+                )
+            }
+
+            pub(super) fn end(
+                observation: usize,
+                stored: usize,
+                normal: usize,
+                captured: usize,
+                rewrites: usize,
+            ) -> String {
+                let truncated = [stored, normal, captured, rewrites]
+                    .iter()
+                    .any(|count| *count > ROW_LIMIT);
+                format!(
+                    "STRUCT call-consumer observation={observation} kind=end stored={stored} normal_equations={normal} captured_equations={captured} rewrites_or_identities={rewrites} row_limit={ROW_LIMIT} truncated={truncated}"
+                )
+            }
+
+            #[cfg(test)]
+            mod tests {
+                use super::*;
+
+                #[test]
+                fn emits_sixteen_payloads_one_limit_and_never_reuses_a_key() {
+                    let next = AtomicUsize::new(0);
+                    let mut payloads = Vec::new();
+                    let mut limits = Vec::new();
+                    for _ in 0..64 {
+                        match claim(&next) {
+                            Some(Observation::Payload(observation)) => {
+                                payloads.push(context(observation, "payload".to_owned()))
+                            }
+                            Some(Observation::Limit) => limits.push(limit()),
+                            None => {}
+                        }
+                    }
+                    assert_eq!(payloads.len(), 16);
+                    for (observation, record) in payloads.iter().enumerate() {
+                        assert!(record.starts_with(&format!(
+                            "STRUCT call-consumer observation={observation} kind=context "
+                        )));
+                    }
+                    assert_eq!(limits.len(), 1);
+                    assert_eq!(
+                        limits[0],
+                        "STRUCT call-consumer observation=16 kind=limit observations=16 truncated=true"
+                    );
+                    assert_eq!(next.load(Ordering::Relaxed), 17);
+                    assert_eq!(claim(&next), None);
+                }
+
+                #[test]
+                fn accounts_for_the_thirty_third_row_without_emitting_it() {
+                    for expected in [32, 33] {
+                        let mut matched = 0;
+                        let rows = (0..expected)
+                            .filter_map(|_| admit_row(&mut matched))
+                            .map(|index| {
+                                record(7, "normal-equation", Some(index), "equation".to_owned())
+                            })
+                            .collect::<Vec<_>>();
+                        assert_eq!(matched, expected);
+                        assert_eq!(rows.len(), 32);
+                        assert!(rows[31].contains("observation=7 kind=normal-equation index=31 "));
+                        let end = end(7, 0, matched, 0, 0);
+                        assert!(end.contains(&format!("normal_equations={expected} ")));
+                        assert!(end.ends_with(if expected == 33 {
+                            "truncated=true"
+                        } else {
+                            "truncated=false"
+                        }));
+                        for counts in [
+                            [expected, 0, 0, 0],
+                            [0, expected, 0, 0],
+                            [0, 0, expected, 0],
+                            [0, 0, 0, expected],
+                        ] {
+                            let summary = super::end(7, counts[0], counts[1], counts[2], counts[3]);
+                            assert!(summary.ends_with(if expected == 33 {
+                                "truncated=true"
+                            } else {
+                                "truncated=false"
+                            }));
+                        }
+                    }
+                }
+
+                #[test]
+                fn clips_at_4096_unicode_characters_without_splitting_utf8() {
+                    for characters in [4096, 4097] {
+                        let record = context(4, "é".repeat(characters));
+                        let (header, payload) = record.split_once(" record=").unwrap();
+                        assert!(header.contains("observation=4 kind=context "));
+                        assert!(header.ends_with(if characters == 4097 {
+                            "truncated=true"
+                        } else {
+                            "truncated=false"
+                        }));
+                        assert_eq!(payload.chars().count(), 4096);
+                        assert_eq!(payload, "é".repeat(4096));
+                    }
+                }
+
+                #[test]
+                fn early_outcome_keeps_its_key_and_partial_receiving_context() {
+                    let row = event(
+                        9,
+                        "required-argument-observation-none",
+                        format_args!(
+                            "kind=reference parameter=selected input=retained partial_substitution=partial"
+                        ),
+                    );
+                    assert_eq!(
+                        row,
+                        "STRUCT call-consumer observation=9 kind=event truncated=false record=stage=required-argument-observation-none kind=reference parameter=selected input=retained partial_substitution=partial"
+                    );
+                    let entry = event(
+                        10,
+                        "entry",
+                        format_args!("parent_observation=Some(9) entry_index=1"),
+                    );
+                    assert!(entry.contains("observation=10 kind=event "));
+                    assert!(entry.contains("parent_observation=Some(9) entry_index=1"));
+                }
+
+                #[test]
+                fn absent_root_has_an_explicit_snapshot_and_complete_end() {
+                    assert_eq!(
+                        snapshot(3, 0, format_args!("root=selected storage=retained")),
+                        "STRUCT call-consumer observation=3 kind=snapshot index=0 truncated=false record=root=selected storage=retained root_present=false stored_count=0",
+                    );
+                    assert_eq!(
+                        end(3, 0, 0, 0, 0),
+                        "STRUCT call-consumer observation=3 kind=end stored=0 normal_equations=0 captured_equations=0 rewrites_or_identities=0 row_limit=32 truncated=false",
+                    );
+                }
+            }
+        }
+
         impl StructuralJudge<'_> {
+            // Inspect retained data only: this trace must not ask a storage or
+            // projection query whose cache could change the observed judgment.
+            pub(crate) fn trace_call_consumer_outcome(
+                &self,
+                trace: Option<(usize, facts::PlaceRoot)>,
+                stage: &str,
+                detail: std::fmt::Arguments<'_>,
+                observed: &[super::StructuralTerm],
+            ) {
+                if let Some((observation, root)) = trace {
+                    eprintln!("{}", call_consumer_trace::event(observation, stage, detail));
+                    self.trace_call_consumer_snapshot(observation, root, observed);
+                }
+            }
+
+            pub(crate) fn trace_call_consumer_snapshot(
+                &self,
+                observation: usize,
+                root: facts::PlaceRoot,
+                observed: &[super::StructuralTerm],
+            ) {
+                let stored = self
+                    .stored_values
+                    .iter()
+                    .filter(|stored| stored.coordinate.root == root)
+                    .collect::<Vec<_>>();
+                let seeds = observed
+                    .iter()
+                    .chain(
+                        stored
+                            .iter()
+                            .flat_map(|stored| stored.entry.iter().chain(stored.current.iter())),
+                    )
+                    .collect::<Vec<_>>();
+                let relevant = |left: &super::StructuralTerm, right: &super::StructuralTerm| {
+                    seeds.iter().any(|seed| {
+                        super::super::structural_terms::term_contains(left, seed)
+                            || super::super::structural_terms::term_contains(right, seed)
+                    })
+                };
+                let emit = |kind: &str, index: usize, text: String| {
+                    eprintln!(
+                        "{}",
+                        call_consumer_trace::record(observation, kind, Some(index), text)
+                    );
+                };
+                eprintln!(
+                    "{}",
+                    call_consumer_trace::snapshot(
+                        observation,
+                        stored.len(),
+                        format_args!(
+                            "machine={:?} storage={:?} write_sequence={} root={root:?}",
+                            self.machine_symbol, self.storage_version, self.storage_write_sequence,
+                        ),
+                    )
+                );
+                for (index, stored) in stored
+                    .iter()
+                    .take(call_consumer_trace::ROW_LIMIT)
+                    .enumerate()
+                {
+                    emit(
+                        "stored",
+                        index,
+                        format!(
+                            "coordinate={:?} entry={:?} current={:?} selected_case={:?} completed_read={:?} anchors={:?} anchor_state={:?}",
+                            stored.coordinate,
+                            stored.entry,
+                            stored.current,
+                            stored.selected_case,
+                            stored.completed_read,
+                            stored.current_anchors,
+                            stored.anchor_state,
+                        ),
+                    );
+                }
+                let mut normal_count = 0;
+                for (left, right) in self.normal_guarantees.iter() {
+                    if relevant(left, right)
+                        && let Some(index) = call_consumer_trace::admit_row(&mut normal_count)
+                    {
+                        emit(
+                            "normal-equation",
+                            index,
+                            format!("left={left:?} right={right:?}"),
+                        );
+                    }
+                }
+                let mut captured_count = 0;
+                for equation in self.captured_result_equations.iter() {
+                    if relevant(&equation.left, &equation.right)
+                        && let Some(index) = call_consumer_trace::admit_row(&mut captured_count)
+                    {
+                        emit("captured-equation", index, format!("{equation:?}"));
+                    }
+                }
+                let mut rewrite_count = 0;
+                for (kind, (left, right)) in self
+                    .rewrites
+                    .iter()
+                    .map(|equation| ("scalar-rewrite", equation))
+                    .chain(
+                        self.rewrites
+                            .value_identities()
+                            .map(|equation| ("value-identity", equation)),
+                    )
+                {
+                    if relevant(left, right)
+                        && let Some(index) = call_consumer_trace::admit_row(&mut rewrite_count)
+                    {
+                        emit(kind, index, format!("left={left:?} right={right:?}"));
+                    }
+                }
+                eprintln!(
+                    "{}",
+                    call_consumer_trace::end(
+                        observation,
+                        stored.len(),
+                        normal_count,
+                        captured_count,
+                        rewrite_count,
+                    )
+                );
+            }
+
             pub(crate) fn enter_storage_scope(
                 &mut self,
                 entry: &State,
