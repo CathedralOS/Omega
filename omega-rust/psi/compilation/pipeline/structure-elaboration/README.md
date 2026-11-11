@@ -42,7 +42,8 @@ arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
 `||`; direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`
 and `crashes Abort` clauses with or without route guards over the formals;
-`crashes none` on a body that reaches no crash;
+`crashes none`; an integer `!=` in a clause, read as `a < b or b < a`, the
+form the kernel denotes a false integer equality by;
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
 of a machine that may return is an operation wherever it stands, and carries
 the callee's crash routes when it publishes any. A call of a machine with no
@@ -210,7 +211,7 @@ the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a `requires` on a case | `type data requires` |
-| a data `requires` clause that calls a machine, compares with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract inequality (no negated proposition)`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
+| a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
 | a constrained field type or a named domain | `type constrained` |
 | data that is not `[copy]`, or has a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
@@ -329,12 +330,13 @@ caller must cover; a narrower guard needs proof.
 An authored `crashes none` is not an omitted clause. It leaves no contract
 row, so the reader takes it from `Machine::declares_no_crash_route`, the fact
 stage 01 records where it parses the clause and stages 02 and 03 copy. Such a
-machine publishes no route and nothing is inferred for it. When its body can
-reach a crash by structure, from a `crash` statement or a callee's route, the
-closure is refused with ``contract `crashes none` on a body with a crash
-route``: effects.md says an explicit empty value "promises the empty value and
-rejects any body or selection that violates it", and keeping the promise
-would need each route disproved, which is the checker's work.
+machine publishes no route and nothing is inferred for it, whether or not its
+body can reach a crash by structure. effects.md says an explicit empty value
+"promises the empty value and rejects any body or selection that violates
+it": each crash site the body reaches owes coverage by no route, which
+[lowered-discharge](../lowered-discharge/README.md) proves only where the
+site is unreachable (`requires d != 0` against a `d == 0` guard) and rejects
+everywhere else.
 
 Stage 01 desugars `transition subject { arms }` into a `DispatchSubject`
 local, evaluated once, followed by one `Transition` statement per arm

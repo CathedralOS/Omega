@@ -30,7 +30,7 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
 | `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
-| `CrashCoverage` | the site guard's clauses (a `Crash` terminator's; a call site has none) and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none) | the same, before the crashing terminator or call |
+| `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
@@ -566,8 +566,13 @@ kernel's correlated unsigned subtract. A goal the direct search misses is
 split over a disjunctive fact (a disequality guard transports to `v < k or
 k < v`): each alternative proves the goal as a local assumption or
 contradicts what is known (`DisjunctionElimination`, contradiction
-elimination). Splits do not nest. A goal still unproved is tried last as a
-goal on an unreachable path: when an order fact known at the point
+elimination). Splits do not nest. An implication, the goal at a call
+that may crash, is proved by assuming its premise and proving its conclusion
+(`ImplicationIntroduction`): under a callee's route `d == 0`, the caller's
+`requires d != 0` (`d < 0 or 0 < d`) splits into two contradictions, and
+`Falsehood` follows. A goal still unproved is tried last as a
+goal on an unreachable path, and so is `Falsehood`, which a crash site owes
+when its machine publishes no route for its cause: when an order fact known at the point
 contradicts the bounds of its own endpoints (`requires count >= 10` under the
 guard `count < 5`), chaining the two gives a closed false relation between
 literals, whose denotation is `Falsehood`, and the goal follows

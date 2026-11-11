@@ -3636,6 +3636,11 @@ fail/contracts/replacement_call_child_false_snapshot rejected 2350ms expected @c
 	cannot prove ensures contract for exit from false_producer at statement 0: result == 9
 	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 9
 	cannot prove ensures contract for exit from install_interval at statement 1: pair.first.value == 9
+fail/contracts/requires_disequality_leaves_crash_route_open rejected 4265ms expected @c608e6488bb9
+	call from `divide` to `bad` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `divide` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+	call from `quotient` to `checked` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `quotient` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/contracts/returned_case_geometry_domain_exit rejected 2460ms expected @12dc24de59c1+wt
 	construction of `BootGeometryCheck` field `geometry` is not proven in domain `BootGeometry::Separated` in separate state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from separate, state entry, at statement 3: BootGeometryCheck::Ready.geometry requires BootGeometry::Separated

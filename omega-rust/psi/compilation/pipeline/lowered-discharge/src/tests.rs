@@ -5803,6 +5803,134 @@ fn a_crash_site_outside_its_published_route_is_unproved() {
     assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
 }
 
+/// `a != value` for the `u32` formal `a`, as the reader states an integer
+/// disequality: `a < value or value < a`.
+fn differs_from(value: u128) -> Proposition {
+    let a = formal(1, u32_type());
+    let literal = bound(u32_type(), IntegerValue::Unsigned(value));
+    Proposition::Disjunction(vec![
+        Proposition::LessThan(a.clone(), literal.clone()),
+        Proposition::LessThan(literal, a),
+    ])
+}
+
+/// `requires` as given, `when a == 0 -> crash Trap; return 0`, publishing no
+/// route (`crashes none`).
+fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
+                target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                source: nowhere(),
+            },
+            returns(unsigned(0)),
+        ],
+    });
+    signatures.push(Signature {
+        parameters: vec![u32_type().into()],
+        result: Some(u32_type().into()),
+        requires,
+        ensures: Vec::new(),
+        crashes: CrashCeiling::DeclaredNone,
+    });
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+#[test]
+fn a_requirement_rules_out_a_crash_site_whose_guard_contradicts_it() {
+    // `requires a != 0` makes the `a == 0` site unreachable, so `crashes
+    // none` holds: each alternative of the requirement contradicts the guard.
+    let (elaboration, result) = crashing_at_zero(vec![differs_from(0)]);
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, crash_coverage)[..] else {
+        panic!("one crash site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // So does `requires a >= 1`, an order fact the guard contradicts.
+    let (elaboration, result) = crashing_at_zero(vec![at_least(1, 1)]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, crash_coverage)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+}
+
+#[test]
+fn a_requirement_the_guard_does_not_contradict_leaves_the_crash_site_uncovered() {
+    // `requires a != 1` admits `a = 0`, which reaches the crash.
+    let (elaboration, result) = crashing_at_zero(vec![differs_from(1)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+    let (elaboration, result) = crashing_at_zero(Vec::new());
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+}
+
+/// `caller(a) requires .. crashes none { return callee(a) }` and
+/// `callee(a) crashes Trap a == 0 { when a == 0 -> crash Trap; return a }`.
+fn calling_a_zero_route(
+    requires: Vec<Proposition>,
+) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
+    });
+    signatures.push(Signature {
+        parameters: vec![u32_type().into()],
+        result: Some(u32_type().into()),
+        requires,
+        ensures: Vec::new(),
+        crashes: CrashCeiling::DeclaredNone,
+    });
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
+                target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                source: nowhere(),
+            },
+            returns(slot(0, u32_type())),
+        ],
+    });
+    signatures.push(Signature {
+        parameters: vec![u32_type().into()],
+        result: Some(u32_type().into()),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Predicate(
+            terminal_psi::CrashPredicateTerm::new(Proposition::Equal(
+                formal(1, u32_type()),
+                bound(u32_type(), IntegerValue::Unsigned(0)),
+            )),
+        )])),
+    });
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+#[test]
+fn a_callers_requirement_rules_out_the_callees_route() {
+    // The call crashes only when the callee's route `a == 0` holds of its
+    // actual, and the caller's `requires a != 0` contradicts that: the
+    // caller keeps `crashes none`.
+    let (elaboration, result) = calling_a_zero_route(vec![differs_from(0)]);
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, crash_coverage)[..] else {
+        panic!("one call site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // `requires a != 1` does not: `callee(0)` crashes.
+    let (elaboration, result) = calling_a_zero_route(vec![differs_from(1)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+}
+
 /// `ensures result <= limit` for a machine of one `u32` formal: the result
 /// pseudo-value is the value right after the formals.
 fn result_at_most(limit: u128) -> Proposition {

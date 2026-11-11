@@ -54,7 +54,8 @@ pub(crate) type Unproven = &'static str;
 
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
-/// conjunctions and disjunctions of covered parts, integer orders and
+/// conjunctions and disjunctions of covered parts, an implication whose
+/// conclusion is covered, integer orders and
 /// equalities, and an arithmetic bound of an add, subtract, multiply or
 /// left shift against a literal. Anything else the prover can only take from an equal
 /// hypothesis, so a failure on it says nothing about the program: it is
@@ -66,6 +67,8 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(has_rules_for)
         }
+        // The premise is only assumed; the conclusion is what is proved.
+        Proposition::Implication { conclusion, .. } => has_rules_for(conclusion),
         Proposition::LessOrEqual(left, _)
         | Proposition::LessThan(left, _)
         | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
@@ -442,6 +445,10 @@ impl<'a> Prover<'a> {
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    // Owed where nothing may happen: a crash site whose
+                    // machine publishes no route for its cause. It holds
+                    // only where what is known is contradictory.
+                    | Proposition::Falsehood
             )
         {
             return direct;
@@ -563,6 +570,34 @@ impl<'a> Prover<'a> {
         ))
     }
 
+    /// `premise => conclusion`: the kernel adds the premise as the next
+    /// assumption and checks the conclusion under it, as it does a split
+    /// alternative.
+    fn implication(
+        &mut self,
+        premise: &Proposition,
+        conclusion: &Proposition,
+        goal: &Proposition,
+    ) -> Result<ProofNode, Unproven> {
+        let mut assumptions = self.assumptions.to_vec();
+        assumptions.push(premise.clone());
+        let mut under = Prover::new(
+            self.context,
+            &assumptions,
+            self.axioms,
+            self.values,
+            self.relations,
+        );
+        under.case_split = self.case_split;
+        let body = under.prove(conclusion)?;
+        Ok(node(
+            goal.clone(),
+            ProofRule::ImplicationIntroduction {
+                body: Box::new(body),
+            },
+        ))
+    }
+
     fn prove_direct(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         let structural = self.prove_structural(goal);
         if structural.is_ok() {
@@ -652,8 +687,11 @@ impl<'a> Prover<'a> {
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
-            | Proposition::Implication { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => self.implication(premise, conclusion, goal),
         }
     }
 
