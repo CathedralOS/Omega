@@ -112,7 +112,6 @@ fn origins(
                 Some(ValueOrigin::BlockParameter { .. }) => "join",
                 Some(ValueOrigin::MachineResult) => "result",
                 Some(ValueOrigin::EntryContent { .. }) => "entry-content",
-                Some(ValueOrigin::MachineResult) => "result",
                 Some(ValueOrigin::Operation(operation)) => machine
                     .blocks
                     .iter()
