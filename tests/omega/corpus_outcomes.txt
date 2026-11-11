@@ -293,9 +293,23 @@ fail/arithmetic/ordinary_clamp_inverted_bounds rejected 77309ms expected @ab235e
 	cannot prove requires contract: machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
 fail/arithmetic/policy_operator_qualified_operand rejected 83586ms expected @30f59ac9a9ba
 	`+%` takes unqualified integer operands, but its left operand has type `u32 in Wrapping`; a suffixed operator neither reads nor removes a domain, so cast the domain away first
+fail/arithmetic/policy_operator_unpublished_division_trap rejected 58353ms expected @473aad8691ce
+	uncovered Trap crash in machine `guarded_quotient` state `entry` cast expression: Trapping `/` of `value as i32` and `divisor as i32` in `i32` traps when its divisor is zero or it divides the `i32` minimum by `-1`, and the published crash ceiling of machine `guarded_quotient` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `guarded_quotient` state `entry` return value: Trapping `/` of `value as i32` and `divisor as i32` in `i32` traps when its divisor is zero or it divides the `i32` minimum by `-1`, and the published crash ceiling of machine `guarded_quotient` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `guarded_rest` state `entry` cast expression: Trapping `%` of `value as u32` and `divisor as u32` in `u32` traps when its divisor is zero, and the published crash ceiling of machine `guarded_rest` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `guarded_rest` state `entry` return value: Trapping `%` of `value as u32` and `divisor as u32` in `u32` traps when its divisor is zero, and the published crash ceiling of machine `guarded_rest` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 fail/arithmetic/policy_operator_unpublished_trap rejected 92084ms expected @30f59ac9a9ba
 	uncovered Trap crash in machine `guarded_sum` state `entry` cast expression: Trapping `+` of `left as u64` and `right as u64` in `u64` traps when its result lies outside `u64`, and the published crash ceiling of machine `guarded_sum` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `guarded_sum` state `entry` return value: Trapping `+` of `left as u64` and `right as u64` in `u64` traps when its result lies outside `u64`, and the published crash ceiling of machine `guarded_sum` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/arithmetic/policy_operator_zero_divisor_unproven rejected 65190ms expected @473aad8691ce
+	partial wrapping division in machine `minimum_quotient` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial wrapping division in machine `minimum_quotient` state `entry` local `wrapped`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial wrapping remainder in machine `minimum_quotient` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial wrapping remainder in machine `minimum_quotient` state `entry` local `wrapped_rest`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial saturating division in machine `minimum_quotient` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial saturating division in machine `minimum_quotient` state `entry` local `clamped`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial saturating remainder in machine `minimum_quotient` state `entry` cast expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial saturating remainder in machine `minimum_quotient` state `entry` local `clamped_rest`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 785ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 2552ms expected @911f6617ba9e
@@ -5161,6 +5175,9 @@ fail/domains/view_field_store_literal_outside_domain rejected 1831ms expected @c
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/view_local_qualified_store_unproven rejected 11051ms expected @ccdb99ca2214
 	cannot prove the value assigned to `out_line` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/domains/wide_array_literal_membership_unproven rejected 7022ms expected @8916b8a2bc3d
+	construction value is not proven in domain `[u16; N]::Wide` in literal_wide state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from literal_wide at statement 0: [111, 109, 101, 7] requires [u16; N]::Wide
 fail/domains/write_only_bare_helper_cannot_erase_field_default rejected 2376ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
 fail/domains/write_only_declared_field_domain_requires_restoration rejected 1049ms expected @8fce926f9735
@@ -5235,17 +5252,16 @@ fail/drops/empty_array_owner_cleanup_prerequisite rejected 11322ms expected @ee4
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by drop_holder clause `holder.ready`
 fail/drops/erased_linear_subject_requires_disposition rejected 9413ms expected @b95657c2e953
 	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:1d38107c1746168199d9cc2f31a83a046b543681591af6301fe4a8cdcfdf953c\\)\\,path\\(Event\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
-fail/drops/fresh_qualified_storage_invalidated_before_cleanup rejected 8451ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$2e928c65ba61c82a$0$2663 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$a574f77a5e13dcbe$1$2666 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove default-domain field requirement for call drop$specialized$a574f77a5e13dcbe$1$2666 from main::entry: parameter value.capacity requires Capacity::Vacant
+fail/drops/fresh_qualified_storage_invalidated_before_cleanup rejected 147555ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call drop from main: envelope.capacity.active does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+	cannot prove default-domain field requirement for call drop from main::entry: parameter value.capacity requires Capacity::Vacant (declared field domain not proved)
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 10062ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish drop_token clause `token.value == 7`
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$5ae389475f33531d$0$2639 state entry after statement 1: token does not establish drop_token clause `token.value == 7`
-fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 13605ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$e3e89426798c3d4e$0$2647 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 9275ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$82cf7ff947990f69$0$2646 state entry after statement 0: value does not establish drop_token clause `token.value == 7`
+fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 60578ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: token.ready does not establish drop_token clause `token.ready && token.value == 7`
+fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 30642ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: token.value does not establish drop_token clause `token.value == 7`
 fail/drops/guarded_record_return_duplicate_move rejected 1944ms expected @ccdb99ca2214
 	cannot use `observation` in machine `choose` state `entry` (statement 2) after `observation` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `observation` first
 fail/drops/guarded_record_return_linear_debt rejected 1712ms expected @ccdb99ca2214
@@ -8072,8 +8088,8 @@ fail/facts/domain_selected_cleanup_distinct_const_applications_rejected rejected
 	conflicting dropped by machine applications on one owned subject
 fail/facts/domain_selected_cleanup_enclosing_generic_telescope_rejected rejected 9738ms expected @dfac2536232b
 	cannot prove automatic cleanup requires at selected edge from consume$specialized$70ce99873519de2a$0$2635 state entry after statement 0: keeper does not establish release_keeper$specialized$2190ffe39b24236e$0$2629 clause `keeper.code == 7`
-fail/facts/domain_selected_cleanup_erased_interface_rejected rejected 11295ms expected @dfac2536232b
-	cannot prove automatic cleanup requires at selected edge from forward$specialized$a00c54f0e7762794$0$2626 state entry after statement 0: value does not establish release_keeper clause `keeper.code == 7`
+fail/facts/domain_selected_cleanup_erased_interface_rejected rejected 58156ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: keeper.code does not establish release_keeper clause `keeper.code == 7`
 fail/facts/domain_selected_cleanup_erased_predicates_rejected rejected 2920ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from main: (keeper as Keeper).code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	construction value is not proven in domain `Keeper::Held` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
@@ -16353,18 +16369,12 @@ fail/ownership/nominal_constructor_child_second_transfer rejected 6663ms expecte
 	cannot use `receipt` in machine `main` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 6667ms expected @ee4dbb4b2d56
 	cannot use `first` in machine `main` state `entry` (statement 3) after `first` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/ownership/owned_content_projection_after_call_result rejected 67059ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$4daa56e32293bdbe$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$8e9b119b70f770d0$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$e6bd8929fe2857bc$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-fail/ownership/owned_content_projection_in_nested_field rejected 66914ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$a245ee05a96680b6$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$5496b69c912d57ba$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$62cb92f84263d19c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-fail/ownership/owned_content_projection_in_parameter rejected 77268ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$51e6992130f2afe2$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$bf82e9aebf7306fc$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$73b786778676d160$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+fail/ownership/owned_content_projection_after_call_result rejected 42620ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store changes logical conserved Content", gap: None })
+fail/ownership/owned_content_projection_in_nested_field rejected 41067ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store changes logical conserved Content", gap: None })
+fail/ownership/owned_content_projection_in_parameter rejected 42650ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "retire_owned", reason: "captured scalar store changes logical conserved Content", gap: None })
 fail/ownership/owned_operand_moves_earlier_argument_loan rejected 2530ms expected @ccdb99ca2214
 	state `conflict_code` receives owned `reordered` while an earlier argument in the same call still borrows it
 	state `direct` receives owned `first` while an earlier argument in the same call still borrows it
@@ -21486,14 +21496,9 @@ pass/drops/case_subject_root_cleanup checked 3719ms @ccdb99ca2214
 pass/drops/cleanup_machine_drop_shape checked 14416ms @ee4dbb4b2d56
 pass/drops/cleanup_owner_identity_application checked 13444ms @ee4dbb4b2d56
 pass/drops/conditional_return_cleanup checked 20177ms @ee4dbb4b2d56
-pass/drops/conditional_structural_return_cleanup_exit rejected 12540ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$7ea7f6cc34cd3a1a$0$2718 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from choose$specialized$07d5b79d3a6c19fe$0$2721 state entry after statement 1: missing second.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from choose$specialized$07d5b79d3a6c19fe$0$2721 state entry after statement 2: missing first.ready == true required by drop_token clause `token.ready`
+pass/drops/conditional_structural_return_cleanup_exit checked 60688ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/contextual_cleanup_exit checked 16807ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/contextual_core_drop_exit rejected 13618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$787479778e185cb2$0$2710 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$09d5e15e0710e924$0$2713 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
+pass/drops/contextual_core_drop_exit checked 144187ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/contextual_hook_cleanup checked 27320ms @ee4dbb4b2d56
 pass/drops/contextual_receiver_drop_exit checked 14312ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/copied_scalar_temporary_completion_exit checked 13674ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21506,16 +21511,10 @@ pass/drops/drop_hook_body checked 14214ms @ee4dbb4b2d56
 pass/drops/drop_owner_hooks checked 14287ms @ee4dbb4b2d56
 pass/drops/drop_requires_hook checked 15882ms @ee4dbb4b2d56
 pass/drops/erased_record_initializer_exit checked 89857ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/fresh_qualified_storage_after_unknown_call_exit rejected 12028ms check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$e6a0d39daeb9815a$0$2672 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$52aa07dfff395daa$1$2675 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$f657869e1924e4a8$2$2678 state entry after statement 0: value.value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+pass/drops/fresh_qualified_storage_after_unknown_call_exit checked 277575ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/lifetime_owner_drop_hook checked 15100ms @ee4dbb4b2d56
 pass/drops/ordered_teardown_body checked 14143ms @ee4dbb4b2d56
-pass/drops/owned_qualified_contextual_cleanup_exit rejected 77409ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$45a0de03122a06ce$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$038726970af09d79$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$453b300fedac3c8c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+pass/drops/owned_qualified_contextual_cleanup_exit checked 413805ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/projected_case_subject_root_cleanup_exit checked 14476ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/qualified_scalar_control_consumed_owner_exit checked 17060ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/reference_rebinding_preserves_pointee_exit checked 8814ms check-target:macos_arm64 @a55978ecf3a8
@@ -21549,13 +21548,8 @@ pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 11357ms check-ta
 pass/drops/runtime_generic_cleanup_owner_telescope_exit rejected 12904ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	statement 1 mutates `owner.left` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 1)
 	statement 2 mutates `owner.right` while local borrow `entry` is still active (borrowed at statement 2)
-pass/drops/runtime_generic_nominal_compound_prerequisite_exit rejected 10470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$af56659368b70312$0$2711 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$af56659368b70312$0$2711 state entry after statement 0: value does not establish drop_token clause `7 <= token.value && token.value <= 9`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$279a425af07d651c$0$2714 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$279a425af07d651c$0$2714 state entry after statement 0: value does not establish drop_token clause `7 <= token.value && token.value <= 9`
-pass/drops/runtime_generic_nominal_integer_prerequisite_exit rejected 8925ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$319a3cdceae44641$0$2649 state entry after statement 0: value does not establish drop_token clause `token.value == 7`
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 389579ms check-target:macos_arm64 @3bc30f59b201
+pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 88443ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/runtime_generic_reserved_construction_exit checked 10783ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 35233ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 86237ms check-target:macos_arm64 @911f6617ba9e
@@ -25594,15 +25588,16 @@ pass/filesystem/windows_namespace_rename_exit checked 310804ms check-target:wind
 pass/filesystem/windows_native_create_write_close_exit checked 327777ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_argument_failures_exit checked 327836ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_bounded_view_exit checked 326461ms check-target:windows_x86_64 @e1cfe02f1a9b
+pass/filesystem/windows_raw_breadth_exit checked 165953ms check-target:windows_x86_64 @f9b768d5065a
 pass/filesystem/windows_raw_canonical_path_exit checked 286713ms check-target:windows_x86_64 terminal-inspections:match @d79b5aa12a7c
 pass/filesystem/windows_raw_directory_count_exit checked 466128ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_directory_nth_exit checked 433584ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_file_control_exit checked 384589ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_hard_link_exit checked 472229ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_lock_exit checked 378123ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
+pass/filesystem/windows_raw_metadata_exit checked 257499ms check-target:windows_x86_64 terminal-inspections:match @f9b768d5065a
 pass/filesystem/windows_raw_positioned_io_exit checked 281790ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
-pass/filesystem/windows_raw_read_link_exit rejected 625286ms check-target:windows_x86_64 terminal-inspections:failed regressed-from:checked+check-target:windows_x86_64+terminal-inspections:match @e1cfe02f1a9b
-	inspection Main::main transport: Semantic(MalformedStructuralOperation { machine: "named-callable(path(nominal\\\\(package-owner\\\\(32:3d40852ed0efd8f62c09e692e27bf1f69266b16aac2b5667acff9c7b0ec69984\\\\)\\\\,path\\\\(Main::main\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(yes\\\\)\\\\,const\\\\(no\\\\)\\\\,ref-mut\\\\(named\\\\(name\\\\(nominal\\\\\\\\\\\\(package-owner\\\\\\\\\\\\(32:3d40852ed0efd8f62c09e692e27bf1f69266b16aac2b5667acff9c7b0ec69984\\\\\\\\\\\\)\\\\\\\\\\\\,path\\\\\\\\\\\\(Main\\\\\\\\\\\\)\\\\\\\\\\\\)\\\\)\\\\)\\\\)\\\\)),result-dispatch())", operation: OperationId(2), reason: "leaf copy memberships do not follow from every current payload source: source=PlaceId(1447), path=[], requested=StructuralTypeId(245)/[StructuralDomainId(4)]/[], current=None, history=[], phase=targets, machine_present=false" })
+pass/filesystem/windows_raw_read_link_exit checked 231038ms check-target:windows_x86_64 terminal-inspections:match @f9b768d5065a
 pass/filesystem/windows_wrapper_results_exit checked 311264ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/wrapper_lock_metadata_exit checked 323362ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/wrapper_open_with_exit checked 305050ms check-target:macos_arm64 @e1cfe02f1a9b
@@ -28121,6 +28116,7 @@ run/arithmetic/fixed_integer_operand_after_pressure checked 24359ms check-target
 run/arithmetic/fixed_integer_operand_join checked 10136ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/float_structural_initializer_selection checked 12514ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/pinned_dividend_across_console_calls checked 10070ms check-target:macos_arm64 @ccdb99ca2214
+run/arithmetic/policy_operator_division_matches_policy_domains checked 89555ms check-target:macos_arm64 @473aad8691ce
 run/arithmetic/policy_operators_match_policy_domains checked 103096ms check-target:macos_arm64 @30f59ac9a9ba
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 15123ms check-target:macos_arm64 @ccdb99ca2214
@@ -28287,6 +28283,7 @@ run/domains/structural_qualification_cast_transitions checked 9941ms check-targe
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/vacuous_tag_call_arguments checked 10514ms check-target:macos_arm64 @602404d45977
+run/domains/wide_array_literal_membership_exit checked 113188ms check-target:macos_arm64 @81e541ff8413
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214

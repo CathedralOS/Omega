@@ -14,7 +14,7 @@ Compilation and execution remain the flat product commands. Other tools use
 justify its name.
 
 ```text
-omega [--check] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
 omega run [--engine native|psi | --both] <root.omg>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -116,6 +116,16 @@ Analysis/recheck failures remain distinguishable from an edit-needed result.
 Without `--check`, report the applied edits after successful rechecking and
 commit. The rule produces no default-path compiler warning and does not make
 permitted redundant markers invalid.
+
+## Checker conformance
+
+`omega --check --floor-only <root.omg>` restricts automatic discharge to the
+[required automatic discharge](../proofs/contracts.md#required-automatic-discharge).
+Cited lemmas, branches and contracts work as usual. Each obligation that the
+ordinary run proves only with automation beyond the floor is reported with its
+location, so a project can confirm that every conforming checker accepts its
+sources. The option changes no accepted program's meaning and is not a Build
+setting.
 
 ## Independent stage validators
 
