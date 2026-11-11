@@ -697,16 +697,18 @@ worked around by adding to `terminal-check-tables`.
     produces. A plain integer field under a data `requires`, one-sided or
     two-sided, lowers with `range_obligation: None` in the current pipeline,
     so this slice mints no `OperationSafety` for a field.
-26. **Invariant windows are not built yet.**
+26. **Invariant windows mint nothing new here.**
     [Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
     "A write known to preserve the default domain keeps it established.
     Otherwise the write opens a window on the place ... The domain must be
-    proved again at the next consumption point". Discharge proves a store's
-    clauses where it can; a store not shown to keep one is refused as
-    `Unsupported`, so a program that breaks a clause with one store and
-    restores it with the next is judged by the current checker, never
-    rejected here. `ObligationKind::DomainDebt` is the conserved obligation
-    that will carry such a window; no lane mints it yet.
+    proved again at the next consumption point". The store's or zero
+    establishment's own `DataDomain` row is the window's identity, and
+    discharge finds the consumption points from the lowered form
+    ([lowered-discharge](../lowered-discharge/README.md#invariant-windows)).
+    `ObligationKind::DomainDebt` is not minted: it names a
+    `DomainSemanticId`, which a data `requires` clause does not have, and a
+    conserved row would need a disposition on every edge, which
+    `no_successor_dispositions` refuses today.
 27. **An entry `requires` may project a record formal; nothing may project
     `result` yet.** `requires p.first == 7` is read as a field term rooted
     at the formal's place (the `k`-th record formal is place `k + 1`), the

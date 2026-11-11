@@ -129,6 +129,12 @@ being added here.
   judgment of `lowered-discharge`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
   knowledge row justified as `Justification::DispatchBinding`.
+- **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
+  names its domain by a `DomainSemanticId`; a data `requires` clause has no
+  such identity (its clauses ride in `Elaboration::domains`, by type and
+  position). An invariant window on one is therefore the opening write's
+  `DataDomain` row, followed to its consumption points by
+  `lowered-discharge`, and not a conserved row here.
 
 ## Obligation kinds
 

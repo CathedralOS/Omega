@@ -24,13 +24,14 @@ it; [prove.rs](src/prove.rs) is the one prover.
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position | the same, on the exit edge |
-| `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)) | the same, before the operation |
+| `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
-(`MachineDischarge::uses`). Initialization: a use that some path reaches
+(`MachineDischarge::uses`), and it follows each invariant window to the
+points that consume it (`MachineDischarge::windows`). Initialization: a use that some path reaches
 with nothing established is refused. Payload access: a case payload named where
 its case is not established on every path is refused, and so is a dispatch
 with no edge for a declared case. All three are refused with reason
@@ -161,8 +162,9 @@ If some path supplies nothing, the use's verdict is a refusal with reason
 `Unestablished`, concerning that operation or edge.
 
 A local declared without an initializer is zero-constructed
-(`local-without-initializer`), so in an elaborated program the path that
-supplies nothing is the zeroed storage of a gated type, described next. The
+(`local-without-initializer`), so in an elaborated program every path
+supplies something: the zeros of the declaration, which are a value unless
+the type is gated, described next. The
 sentence "An unestablished local cannot be read"
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
 governs declared shared view locals, which the references lane owns and this
@@ -181,10 +183,17 @@ Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). The refusal then sits at the
 observation, not at the declaration, because "Zeroing storage is permitted
 independently of establishing a value.": the clause's verdict is
-`Discharged::Gated`, which rejects nothing by itself, and the walk answers
-`Unestablished` for whatever that declaration's rows supply, so every read,
-copy, argument and return they reach is refused. A store into a leaf
-supplies that leaf again.
+`Discharged::Window`, which rejects nothing by itself, and the declaration
+opens an initial-establishment window for that clause on the place
+([Invariant windows](#invariant-windows)). A store that proves the clause
+closes it, so `let mut g: Both; g.a = 3; g.b = 2; take(g)` is accepted when
+each store proves its field's clause. A use that observes a leaf the
+declaration zeroed while some clause's window is still open is
+`Unestablished`, with the declaration named beside it
+(`UnestablishedUse::declared`): `let mut g: Both; g.a = 3; take(g)` is
+refused at `take(g)`, because `g.b` is still the zero `1 <= b` fails on. A
+read of a leaf a store wrote observes that store, not zeroed storage, and is
+established as before.
 
 A scalar local declared without an initializer is zero-constructed by the
 same rule: elaboration logs the zero constant on its home at
@@ -238,10 +247,107 @@ leaves the clause unstated: the obligation is `Unproved`, with a detail that
 says which, never dropped and never assumed.
 
 A store whose written value is shown to keep its clauses discharges them
-there. One that is not shown to keep a clause would open an invariant window,
-which this route does not have yet: its verdict is `Unsupported`, so the
-whole closure goes back to the current checker and is never rejected for it
-(finding 12).
+there. One that is not shown to keep a clause opens an invariant window,
+described next; it is never refused at the store.
+
+### Invariant windows
+
+[Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
+"A write known to preserve the default domain keeps it established.
+Otherwise the write opens a window on the place, whose actual new contents
+remain available to ordinary flow reasoning. The domain must be proved again
+at the next consumption point". So `let mut s = Span { low: 1, high: 9 };
+s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
+`low <= high`, the second restores it, and only then is `s` consumed.
+
+- **Opening.** A store's `DataDomain` clause that is not proved over the
+  values the place holds after it, or a zero establishment's clause that
+  zero does not satisfy, opens one window: on the exact place of the type
+  that owns the clause (`s` for `Span`, `w.span` for a `Span` inside a
+  `Wrap`, each enclosing type separately), for that one clause. The
+  obligation is the window's identity; its verdict is `Discharged::Window`,
+  which keeps why the clause was not proved there. A construction makes a
+  value and opens nothing: its unproved clause is still `Unproved`.
+- **Preserving.** A store that writes no storage a clause names (the
+  places the one substitution meets in the clause, `Storage::untouched`)
+  keeps that clause as it was: `Discharged::Preserved`, no window and no
+  closing. A store that proves a clause over the place's values is a
+  restoring write ("Construction and every restoring write prove the owning
+  default-domain clauses"), and closes that clause's window on that place.
+  Any other store beneath an open place changes its contents and nothing
+  else.
+- **Open or closed.** The one reaching walk answers it: going back from a
+  point, the last row that is the opening write, a restoring store of the
+  same place and clause, or a write that replaces the place whole (to it or
+  above it) ends a path. The opening write supplies `Open`, the others
+  `Closed`, and a path that reaches the entry `Closed`. A window open on one
+  arrival is open at the join.
+- **Consumption points.** The list in the specification, mapped to what
+  this subset lowers:
+
+  | Specification | Lowered construct |
+  | --- | --- |
+  | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read beneath the place that takes a clause of its storage's type as a premise (`read_premises` not empty). A field read with no premise, a case test and a dispatch rely on nothing and consume nothing. |
+  | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). Borrows are refused by elaboration. |
+  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". Loans are refused by elaboration. |
+  | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
+
+  "A call need not close an unrelated domain window when its complete
+  access, effect and outcome contracts prove that it cannot observe or
+  expose the broken coupling ... Unknown access/effects are treated
+  conservatively." The tables hold no callee summary to prove that from
+  (`CheckTables::summaries` stays empty), so no call is treated as
+  unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
+  `same(7)`, as the current checker rejects it. Using the exception needs a
+  summary term for a callee's access and effects.
+
+  A window a zero establishment opened is consumed by every read under its
+  root that still observes a leaf of the window's place the declaration
+  zeroed, a field read included, and by no call or exit that does not read
+  it (zeroed storage holds no value a callee could observe, and "Failed
+  initial establishment instead creates no value"): "A zeroed storage representation can be
+  accessed as an established value only after its default-domain
+  obligations hold."
+- **Proved again.** At each consumption point the window reaches open, the
+  clause is stated by the same substitution over what the place holds there
+  (`Storage::consumptions`) and decided by the same `decide`, from the
+  knowledge dominating the point, under the window's obligation identity.
+  One `WindowUse` per (window, consumption point) holds the kernel's
+  evidence or the refusal. A consumption on an edge is proved at that edge;
+  any other before its operation.
+- **Rejected.** An unproved clause at a consumption point rejects the
+  program with both sites
+  ("An unclosed window rejects with both the opening write or storage cast
+  and the failing consumption point."): the `UnprovedObligation` carries the
+  opening write's site in `site` and the consumption point in `consumed`,
+  and its diagnostic is placed at the consumption. For a window a zero
+  establishment opened, the use is `Unestablished` instead and names the
+  declaration. Each open window is reported once, at the first consumption
+  point in program order that fails; the later ones keep their own
+  verdicts.
+- **No second window.** A store that does not prove a clause while that
+  clause's window on the same place is already open opens no window of its
+  own: the window stays open and names the store that opened it, as the
+  current checker's "a prior write left ... FALSE" does. Into zeroed
+  storage, a store that does not prove its clause keeps its own window,
+  because the leaf it wrote no longer holds the zero.
+
+A window lends nothing: no knowledge row is added for it, a read of a leaf
+the machine stored gets no type premise (as before), and a read of an
+arrived leaf that does take a premise is itself a consumption point, so it
+is accepted only where the open clause is proved again. That premise is of
+a clause naming only the one leaf it reads, which no store elsewhere can
+break.
+
+A window is a structural judgment plus a proof question, not a conserved
+obligation row. `ObligationKind::DomainDebt` names its domain by a
+`DomainSemanticId`, and a data `requires` clause has none: it lives in
+`Elaboration::domains` by type and position. Minting `DomainDebt` would also
+need a disposition on every edge, which elaboration does not lay yet (it
+refuses any conserved obligation at a no-successor edge) and this crate
+does not check. The `DataDomain` row of the opening write already names the
+type, the place (through its operation) and the clause, so the debt reuses
+its identity.
 
 ### What a read learns from its type
 
@@ -498,26 +604,22 @@ subset needs, so the prover emits them directly.
     a false edge, of a formal, of another case) are exercised by tests over
     closed bodies, not yet by a corpus program.
 
-11. **A gated declaration has a verdict that is neither a discharge nor a
-    refusal.** `Discharged::Gated` holds why the zero value's clause was not
-    proved. It exists because the specification puts the refusal at the
-    observation, and an `Unproved` verdict at the declaration would reject
-    `let mut g: Gated; g = Gated { .. };`, which the current checker
-    accepts. One over-refusal remains: after `g.a = 3;` on a gated two-field
-    type, the leaf no store reached is still supplied by the gated
-    declaration, so a use of `g` is `Unestablished` even when the clauses
-    hold of `(3, 0)`.
-12. **Invariant windows are not built yet.** A store may break a clause
-    and a later store restore it before the value is consumed
-    (dependent_values.md, "A write known to preserve the default domain
-    keeps it established. Otherwise the write opens a window on the place
-    ... The domain must be proved again at the next consumption point").
-    This route proves a store's clauses where it can and refuses the
-    closure as `Unsupported` where it cannot, so such a program is judged
-    by the current checker. The sentence "Terminal Psi opens no invariant
-    window on a field" in structural_access.md is about predicate-bearing
-    byte-view fields and does not govern data `requires`. The conserved
-    `DomainDebt` obligation is where a window will live.
+11. **A write that opens a window has a verdict that is neither a
+    discharge nor a refusal.** `Discharged::Window` holds why the clause
+    was not proved at the store or the zero establishment. The
+    specification puts the refusal at the consumption, and an `Unproved`
+    verdict at the write would reject `let mut g: Gated; g = Gated { .. };`
+    and `s.low = 12; s.high = 20;`, which the current checker accepts.
+12. **Invariant windows are judged, not handed back.** See
+    [Invariant windows](#invariant-windows). The sentence "Terminal Psi
+    opens no invariant window on a field" in structural_access.md is about
+    predicate-bearing byte-view fields and does not govern data `requires`.
+    Two consequences of the reaching walk: a window closed on one arrival
+    and open on another is open at the join, and when the two arrivals hold
+    different values the clause has no value to be stated over, so it is
+    unproved there. Every arm of this subset completes the machine, so the
+    only join is a short-circuit `&&`/`||`, where no store can be written;
+    no expressible program is over-refused by it today.
 13. **A payload parameter carries no clause of its type.** A dispatch edge
     binds a payload as a block parameter with no read operation, and the
     tables have no justification for "the type of the storage an edge bound
@@ -589,15 +691,21 @@ route's decision from. It discharges an elaborated closure and returns:
   certificate the kernel accepted and every use of storage is established,
   with the operation seals for Omega 00.
 - `Rejected`, for a use of storage: one `UnestablishedUse` per operation or
-  edge that some path reaches with nothing stored into what it reads, with
-  its source site. `reject_diagnostic()` gives `unestablished storage:
+  edge that some path reaches with nothing stored into what it reads, or
+  that observes the zeroed storage of a gated type, with its source site
+  and, for the latter, the declaration's. `reject_diagnostic()` gives `unestablished storage:
   <detail>`. One such use rejects the program even when every unproved
   obligation would only be `Incomplete`.
 - `Rejected`: one `UnprovedObligation` per obligation that was not, each with
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
   `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
-  no artifact. It says what was not proved and never that the obligation is
+  no artifact. A clause not proved again where an open invariant window is
+  consumed is one such entry with `consumed` set: `unproved obligation:
+  <kind> inside an open invariant window: a prior write left the clause
+  unproved and this use consumes the value before it is proved again:
+  <cause> (<detail>)`, placed at the consumption, with
+  `opening_diagnostic()` placed at the write. It says what was not proved and never that the obligation is
   false: "Failure to find a proof is not proof of falsehood"
   ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
   and "Unproved source contracts reject in Psi checking"
@@ -630,7 +738,8 @@ obligation's message with its outcome.
 
 `omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
 both checkers on corpus programs and prints one line per program, one per
-obligation and one per unestablished use of storage; a program with such a
-use is `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
+obligation, one per unestablished use of storage and one per consumption
+point of an invariant window; a program with such a use is
+`route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.

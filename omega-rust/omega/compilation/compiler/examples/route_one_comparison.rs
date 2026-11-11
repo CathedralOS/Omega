@@ -13,6 +13,10 @@
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
 //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
 //!     use <path> <machine> <operation or edge> unestablished <detail>
+//!     window <path> <machine> <opening obligation> <consumption point> <closed-..|open:..>
+//!
+//! A `diagnostic` for a value consumed inside an open invariant window
+//! carries `consumed at <site>` after the opening write's site.
 //!
 //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
 //! (one `diagnostic` line per unproved obligation and one `use` line per use
@@ -224,9 +228,38 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // rejection of the program, not a construct outside the subset.
     let mut uses = 0_usize;
     let mut unestablished = 0_usize;
-    let mut gated = 0_usize;
+    let mut opened = 0_usize;
+    let mut consumed = 0_usize;
+    let mut closed = 0_usize;
     for (machine, result) in discharged.machines.iter() {
         uses += result.uses.len();
+        for window in &result.windows {
+            consumed += 1;
+            let outcome = match &window.verdict {
+                Ok(evidence) => {
+                    closed += 1;
+                    match &evidence.fact.route {
+                        AcceptedFactRoute::CertificateDerived { acceptance, .. } => {
+                            match &acceptance.mathematical_core {
+                                MathematicalCoreDecision::Judged(_) => "closed-judged".to_owned(),
+                                MathematicalCoreDecision::Refused(family) => {
+                                    format!("closed-core-refused:{family}")
+                                }
+                            }
+                        }
+                        other => format!("unexpected-route:{other:?}"),
+                    }
+                }
+                Err(refusal) => format!("open:{:?}:{}", refusal.reason, one_line(&refusal.detail)),
+            };
+            lines.push(format!(
+                "window\t{}\t{}\t{}\t{:?}\t{outcome}",
+                main.display(),
+                machine.get(),
+                window.opened_by.get(),
+                window.at,
+            ));
+        }
         for refusal in result.unestablished() {
             unestablished += 1;
             lines.push(format!(
@@ -292,11 +325,15 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         "-".to_owned(),
                     )
                 }
-                // A zero establishment of a gated type: nothing is owed
-                // there, and each use its contents reach is unestablished.
-                Ok(lowered_discharge::Discharged::Gated(why)) => {
-                    gated += 1;
-                    ("gated".to_owned(), None, one_line(&why.detail))
+                // A store or zero establishment not shown to keep a clause:
+                // it opens an invariant window, owed at each consumption
+                // point the window reaches open (one `window` line each).
+                Ok(lowered_discharge::Discharged::Window(why)) => {
+                    opened += 1;
+                    ("window".to_owned(), None, one_line(&why.detail))
+                }
+                Ok(lowered_discharge::Discharged::Preserved) => {
+                    ("preserved".to_owned(), None, "-".to_owned())
                 }
                 Err(refusal) => {
                     let outcome = match refusal.reason {
@@ -368,7 +405,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
+        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\twindows={opened}\tconsumed={consumed}\tclosed={closed}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }
@@ -382,8 +419,19 @@ fn report(main: &Path, unproved: &[UnprovedObligation], outcome: &str, lines: &m
             }
             other => format!("{other:?}"),
         };
+        // An unclosed window names its consumption point beside the
+        // opening write.
+        let consumed = match entry.consumed {
+            Some(consumed) => match consumed.site {
+                structure_elaboration::SourceOrigin::Authored(span) => {
+                    format!("\tconsumed at bytes {}..{}", span.span.start, span.span.end)
+                }
+                other => format!("\tconsumed at {other:?}"),
+            },
+            None => String::new(),
+        };
         lines.push(format!(
-            "diagnostic\t{}\t{}\t{}\t{outcome}\t{site}\t{}",
+            "diagnostic\t{}\t{}\t{}\t{outcome}\t{site}{consumed}\t{}",
             main.display(),
             entry.machine.get(),
             entry.obligation.get(),
