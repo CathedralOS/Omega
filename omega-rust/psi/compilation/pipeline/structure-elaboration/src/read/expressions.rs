@@ -123,11 +123,15 @@ impl<'t> Program<'t> {
                     }
                 }
             }
+            ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
+                let (value, integer) = self.anonymous_value(id, handle, expected)?;
+                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
+            }
             ExpressionNode::Binary(binary) => {
                 // What an operand expects from outside: an arithmetic or shift
                 // result has its (value) operand's type, `&&`/`||` operands
                 // are Boolean, comparison operands expect nothing. An
-                // anonymous literal operand lands in its partner's type, so
+                // wholly anonymous operand lands in its partner's type, so
                 // its partner is read first; reading order is not evaluation
                 // order, which lowering takes from the operand positions.
                 let hint = match binary.operator {
@@ -163,7 +167,7 @@ impl<'t> Program<'t> {
                 {
                     return self.case_test(id, slots, binary.left, case, source);
                 }
-                let (left, right) = if self.anonymous_literal(binary.left) {
+                let (left, right) = if self.wholly_anonymous(binary.left) {
                     let right = self.expression(id, slots, binary.right, hint)?;
                     let partner = right.result.and_then(ValueType::scalar);
                     let left = self.expression(id, slots, binary.left, hint.or(partner))?;

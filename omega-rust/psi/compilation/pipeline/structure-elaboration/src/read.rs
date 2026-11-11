@@ -167,9 +167,12 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
 mod tests {
     use super::contracts::{ClauseScope, ResultTerm};
     use super::*;
+    use crate::body::ExpressionKind;
     use language_core::ReferenceAccess;
     use numerics::literals::{FloatFormat, IntegerLiteral};
-    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId};
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
+    };
     use symbols::{SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
     use typed_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
@@ -287,6 +290,81 @@ mod tests {
             right,
         });
         assert_eq!(refused(&typed, node), "expression case membership");
+    }
+
+    /// Wholly anonymous arithmetic is exact (numeric_values.md: anonymous
+    /// integer-literal division "is rational division, not truncation"). An
+    /// `i32` context gets `(2147483647 + 1) - 1` as the literal 2147483647,
+    /// where `i32` operations would overflow. `7 / 2` is `7/2`, which no
+    /// `i32` holds, so it is refused rather than truncated to 3; `(10 / 4) *
+    /// 2` is 5 but lands only through an `as`; and a value outside the
+    /// context's type and a remainder, which has no anonymous meaning, are
+    /// refused too.
+    #[test]
+    fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
+        let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let mut typed = TypedTrees::default();
+        let literal = |typed: &mut TypedTrees, value| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+        };
+        let binary = |typed: &mut TypedTrees, left, operator, right| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+        };
+        let (maximum, one) = (
+            literal(&mut typed, i64::from(i32::MAX)),
+            literal(&mut typed, 1),
+        );
+        let past = binary(&mut typed, maximum, BinaryOperator::Add, one);
+        let exact = binary(&mut typed, past, BinaryOperator::Subtract, one);
+        let (ten, four, two, seven) = (
+            literal(&mut typed, 10),
+            literal(&mut typed, 4),
+            literal(&mut typed, 2),
+            literal(&mut typed, 7),
+        );
+        let quarter = binary(&mut typed, ten, BinaryOperator::Divide, four);
+        let cancelled = binary(&mut typed, quarter, BinaryOperator::Multiply, two);
+        let half = binary(&mut typed, seven, BinaryOperator::Divide, two);
+        let outside = binary(&mut typed, maximum, BinaryOperator::Add, seven);
+        let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
+        let mut program = Program::new(&typed, false);
+        let read = |program: &mut Program<'_>, handle| {
+            program.expression(machine(), &[], handle, Some(i32_type))
+        };
+        let landed = read(&mut program, exact).unwrap();
+        assert!(matches!(
+            landed.kind,
+            ExpressionKind::Integer(IntegerValue::Signed(value)) if value == i128::from(i32::MAX)
+        ));
+        assert_eq!(landed.result, Some(ValueType::Scalar(i32_type)));
+        for (handle, expected) in [
+            (half, "expression fractional anonymous value"),
+            (
+                cancelled,
+                "expression anonymous value with a fractional intermediate",
+            ),
+            (outside, "expression anonymous value outside its type"),
+            (
+                remainder,
+                "expression anonymous operation without an exact meaning",
+            ),
+        ] {
+            let refusal = read(&mut program, handle).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.detail, expected);
+        }
     }
 
     /// `result` in a contract is taken by the owner identity stage 02

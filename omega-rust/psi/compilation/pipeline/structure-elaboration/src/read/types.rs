@@ -7,6 +7,7 @@ The type family of the reader: which typed-tree type is a scalar, by the
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
 use terminal_check_tables::{Checked, Construct};
+use typed_trees::closed_numeric;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -170,12 +171,87 @@ impl Program<'_> {
     /// An integer literal that stage 04 left without a landed type: it lands
     /// in the type its context expects (`wiki/spec/language/domains.md`,
     /// "Literals and expected types").
-    pub(super) fn anonymous_literal(&self, expression: ExpressionHandle) -> bool {
-        expression.is_valid()
-            && matches!(
-                self.typed.expression_table.expression(expression),
-                ExpressionNode::Integer(literal) if literal.landing().is_none()
-            )
+    /// Whether `expression` is wholly anonymous: an integer or decimal
+    /// literal no suffix landed, or a binary operation over two such
+    /// operands. numeric_values.md: "Decimal literals and wholly anonymous
+    /// arithmetic denote exact rationals", so such a tree has no carrier of
+    /// its own and lands, complete, in its context's type
+    /// (`anonymous_value`). Its partner in a binary operation is therefore
+    /// read first.
+    pub(super) fn wholly_anonymous(&self, expression: ExpressionHandle) -> bool {
+        let table = &self.typed.expression_table;
+        let mut pending = vec![expression];
+        while let Some(expression) = pending.pop() {
+            if !expression.is_valid() {
+                return false;
+            }
+            match table.expression(expression) {
+                ExpressionNode::Integer(literal) if literal.landing().is_none() => {}
+                ExpressionNode::Float(literal) if literal.landing().is_none() => {}
+                ExpressionNode::Binary(binary) => {
+                    pending.extend([binary.left, binary.right]);
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
+    /// The value a wholly anonymous binary tree lands as in `expected`.
+    /// numeric_values.md: anonymous integer-literal division "is rational
+    /// division, not truncation", and the tree keeps "exact rational
+    /// intermediates until landing requires an integral, in-range value".
+    /// So `7 / 2` is `7/2`, never an `i32` division by two that yields 3,
+    /// and `(2147483647 + 1) - 1` is an `i32` value although its
+    /// intermediate is not. The tree is evaluated exactly, by the same
+    /// typed-tree evaluator stage 05 lands it with, and only a value that is
+    /// an integer of `expected`, with no fractional intermediate, becomes a
+    /// literal. Every other tree is refused, so the current checker decides
+    /// the compilation: one whose operator has no anonymous meaning
+    /// (remainder, bitwise, shift, comparison: "Builtin remainder requires
+    /// integer operand meaning before folding"), one whose value or any
+    /// intermediate is fractional, and one outside `expected`.
+    pub(super) fn anonymous_value(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<(IntegerValue, IntegerType)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let typed = self.typed;
+        let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
+            typed,
+            expression,
+            &[],
+            &mut |expression| closed_numeric::has_anonymous_operator_meaning(typed, expression),
+        ) else {
+            return unserved("anonymous operation without an exact meaning");
+        };
+        let Some(value) = evaluated.value.to_integer_exact() else {
+            return unserved("fractional anonymous value");
+        };
+        // "integer landing requires an integral in-range result and
+        // explicit `as` when acknowledging fractional intermediates": `(7 /
+        // 2) * 2` is 7, but lands only through an `as`, which is outside the
+        // subset.
+        if evaluated.fractional_origin.is_valid() {
+            return unserved("anonymous value with a fractional intermediate");
+        }
+        let Some(ScalarType::Integer(integer)) = expected else {
+            return unserved("anonymous value without an expected integer type");
+        };
+        let value = match integer.sign() {
+            IntegerSign::Signed => value
+                .to_i64()
+                .map(|value| IntegerValue::Signed(i128::from(value))),
+            IntegerSign::Unsigned => value
+                .to_u64()
+                .map(|value| IntegerValue::Unsigned(u128::from(value))),
+        };
+        match value {
+            Some(value) if integer.admits(value) => Ok((value, integer)),
+            Some(_) | None => unserved("anonymous value outside its type"),
+        }
     }
 
     /// An integer literal's value and type: the type stage 04 landed it in,
