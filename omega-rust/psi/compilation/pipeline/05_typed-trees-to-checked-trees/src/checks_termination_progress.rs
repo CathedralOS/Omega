@@ -1417,6 +1417,10 @@ mod machine_summaries {
             call.call_ordinal,
         )
         .ok_or("checked progress call lost its exact source occurrence")?;
+        // A direct member's contract is its own header, not the requirement's.
+        if validation::direct_named_member(program, machine, site).is_some() {
+            return Ok(None);
+        }
         let target = site.target_symbol(program);
         let selected_application = match site {
             validation::CallSite::Expression { call, .. } => {
@@ -1460,11 +1464,36 @@ mod machine_summaries {
                 Some(program.state_signature_parameters(signature)),
             ));
         }
+        // A call that names a conformance member selects one closed
+        // implementation. The caller receives what that member's header
+        // publishes and nothing its body would let the checker derive: a
+        // member that omits `terminates` promises nothing, even if it halts.
+        if let Some(site) = find_call_site(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        ) && let Some((member, _)) = validation::direct_named_member(program, machine, site)
+        {
+            return Some((
+                SelectedCallProgress {
+                    guarantee: member
+                        .termination_plan
+                        .interface
+                        .published()
+                        .unwrap_or(&UNPUBLISHED_TERMINATION),
+                },
+                call_target_parameters(program, call.target_symbol),
+            ));
+        }
         Some((
             selected_call_summary(program, call.target_symbol, summaries)?,
             call_target_parameters(program, call.target_symbol),
         ))
     }
+
+    static UNPUBLISHED_TERMINATION: TerminationGuarantee = TerminationGuarantee::NoGuarantee;
 
     pub(crate) fn missing_call_guarantee_context(
         program: &dyn ::validation::CheckingInput,

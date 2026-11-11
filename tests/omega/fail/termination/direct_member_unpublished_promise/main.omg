@@ -1,0 +1,18 @@
+// `Echo::make` halts, but its header does not say so and `Maker::make`
+// promises nothing. A caller reads only the published contract of the member it
+// names, never that member's body, so `relay` cannot publish termination.
+trait Maker { machine make(source: u8) -> u8; }
+
+Echo satisfies Maker {
+    machine make(source: u8) -> u8 { source }
+}
+
+machine relay(value: u8) -> u8 reaches terminates { Echo::make(value) }
+
+machine echoes(value: u8) reaches terminates
+ensures Echo::make(value) == value { }
+
+machine main() {
+    let value: u8 = relay(3u8);
+    echoes(value);
+}

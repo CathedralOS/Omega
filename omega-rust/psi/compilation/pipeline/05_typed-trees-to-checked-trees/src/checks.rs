@@ -3613,11 +3613,7 @@ mod runtime_indices {
                 .map(|(parameter, argument)| {
                     (
                         parameter.symbol,
-                        if matches!(parameter.kind, TypeParameterKind::Type) {
-                            IndexIdentityArgument::TypeArgument(*argument)
-                        } else {
-                            IndexIdentityArgument::TypeReference(*argument)
-                        },
+                        IndexIdentityArgument::for_parameter(&parameter.kind, *argument),
                     )
                 })
                 .collect::<Vec<_>>();

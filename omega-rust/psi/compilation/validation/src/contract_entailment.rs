@@ -41895,6 +41895,28 @@ pub(crate) mod specification_calls {
         signature: &'program StateSignature,
     }
 
+    /// The conformance member a call names directly, as in
+    /// `WriteFirst::try_from(value)`, or `None` for a call through an evidence
+    /// binder or any other target.
+    ///
+    /// Such a call selects one closed implementation, so the caller receives
+    /// what that implementation's own header publishes. The trait requirement
+    /// it realizes may promise less (a requirement that omits `terminates`
+    /// promises nothing), and that silence describes selections still unknown,
+    /// not this one. Every consumer that would otherwise read the requirement
+    /// must ask here first.
+    pub fn direct_named_member<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<(&'program Machine, &'program State)> {
+        let caller = program
+            .machine_holding_state(caller)
+            .map_or(caller, |machine| machine.symbol);
+        direct_named_member_contract(program, caller, site)
+            .map(|member| (member.machine, member.state))
+    }
+
     fn direct_named_member_contract<'program>(
         program: &'program dyn crate::CheckingInput,
         caller: SymbolHandle,
@@ -82466,37 +82488,34 @@ pub(crate) mod structural_judgment {
                 .program
                 .machine_holding_state(lexical_owner)
                 .map_or(lexical_owner, |machine| machine.symbol);
-            let signature = crate::requirement_contract_signature(
+            // `selected_call_contract` answers a direct member with its own
+            // entry and every other selected call with the public signature.
+            // Asking the requirement first judged `WriteFirst::try_from` by a
+            // requirement that omits `terminates`, although the member's own
+            // header publishes it.
+            let direct_member = match super::specification_calls::selected_call_contract(
                 self.program,
                 lexical_owner,
-                &crate::CallSite::Expression {
-                    expression: Default::default(),
-                    call,
-                },
-            )
-            .map(|(_, signature)| signature)
-            .or_else(|| {
-                match super::specification_calls::selected_call_contract(
-                    self.program,
-                    lexical_owner,
-                    call,
-                ) {
-                    Some(super::specification_calls::SelectedCallContract::Signature(
-                        signature,
-                    )) => Some(signature),
-                    _ => None,
+                call,
+            ) {
+                Some(super::specification_calls::SelectedCallContract::Signature(signature)) => {
+                    return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                        self.program, signature,
+                    );
                 }
-            });
-            if let Some(signature) = signature {
-                return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program, signature,
-                );
-            }
-            if call.static_requirement_dispatch.is_some() {
+                Some(super::specification_calls::SelectedCallContract::Concrete(_, entry))
+                    if call.static_requirement_dispatch.is_some() =>
+                {
+                    Some(entry.symbol)
+                }
+                _ => None,
+            };
+            if direct_member.is_none() && call.static_requirement_dispatch.is_some() {
                 return false;
             }
-            let target =
-                super::structural_terms::structural_call_target(self.program, lexical_owner, call);
+            let target = direct_member.unwrap_or_else(|| {
+                super::structural_terms::structural_call_target(self.program, lexical_owner, call)
+            });
             let candidate = specification_application_candidate(
                 self.program,
                 self.machine_symbol,

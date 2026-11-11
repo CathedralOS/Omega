@@ -6684,6 +6684,55 @@ pub enum IndexIdentityArgument<'argument> {
     StaticArgument(&'argument crate::expression::StaticMachineArgument),
 }
 
+impl IndexIdentityArgument<'_> {
+    /// The one place that decides how a generic parameter's argument enters an
+    /// identity. A const, value or machine argument is an index operand. A
+    /// type, implementation or proposition argument names a declaration and is
+    /// written in type form. Every scope that substitutes an argument and every
+    /// query that reads one directly must ask here; when the two answered
+    /// separately, a selected implementation was written as a const name
+    /// through an evidence bound and as a named declaration at its own
+    /// conformance, so one application compared unequal to itself.
+    pub fn for_parameter(
+        kind: &crate::data::TypeParameterKind,
+        argument: TypeReferenceHandle,
+    ) -> Self {
+        use crate::data::TypeParameterKind;
+        match kind {
+            TypeParameterKind::Const { .. }
+            | TypeParameterKind::Value { .. }
+            | TypeParameterKind::Machine { .. } => Self::TypeReference(argument),
+            TypeParameterKind::Type
+            | TypeParameterKind::Implementation
+            | TypeParameterKind::Proposition { .. } => Self::TypeArgument(argument),
+        }
+    }
+
+    /// [`Self::for_parameter`] for a binder known only by its symbol, as the
+    /// substitutions of an applied scope are. An evidence binder declared on a
+    /// machine (`Encode satisfies ...`) has no row in the type-parameter
+    /// table; its symbol kind still says it selects an implementation, so it
+    /// takes the same role as an implementation parameter of a trait or data
+    /// declaration. Any other unlisted binder stays an index operand.
+    pub fn for_binder(
+        program: &TypedTrees,
+        binder: SymbolHandle,
+        argument: TypeReferenceHandle,
+    ) -> Self {
+        use crate::data::TypeParameterKind;
+        match program.data_type_parameter_by_symbol(binder) {
+            Some(parameter) => Self::for_parameter(&parameter.kind, argument),
+            None if binder.is_valid()
+                && program.symbols.get(binder).kind
+                    == symbols::SymbolKind::ConformanceParameter =>
+            {
+                Self::for_parameter(&TypeParameterKind::Implementation, argument)
+            }
+            None => Self::TypeReference(argument),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct AppliedTypeIdentityScope<'argument> {
     pub declaration: SymbolHandle,
@@ -6796,6 +6845,72 @@ pub fn applied_index_identity(
         TypeIdentityQualification::Ordinary,
         &[],
     )
+}
+
+/// Identity of the argument supplied for one generic parameter, in the role
+/// [`IndexIdentityArgument::for_parameter`] assigns to that parameter's kind.
+pub fn applied_parameter_argument_identity(
+    program: &TypedTrees,
+    kind: &crate::data::TypeParameterKind,
+    argument: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_parameter_argument_identity(
+        program,
+        kind,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+    )
+}
+
+/// Package-qualified form of [`applied_parameter_argument_identity`].
+pub fn portable_applied_parameter_argument_identity(
+    program: &TypedTrees,
+    kind: &crate::data::TypeParameterKind,
+    argument: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_parameter_argument_identity(
+        program,
+        kind,
+        argument,
+        lexical_owner,
+        scopes,
+        TypeIdentityQualification::PackageQualified,
+    )
+}
+
+fn qualified_applied_parameter_argument_identity(
+    program: &TypedTrees,
+    kind: &crate::data::TypeParameterKind,
+    argument: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    qualification: TypeIdentityQualification,
+) -> Option<NormalizedTypeIdentity> {
+    match IndexIdentityArgument::for_parameter(kind, argument) {
+        IndexIdentityArgument::TypeArgument(reference) => qualified_applied_type_identity(
+            program,
+            reference,
+            lexical_owner,
+            lexical_owner,
+            scopes,
+            qualification,
+            &[],
+        ),
+        operand => qualified_applied_index_identity(
+            program,
+            operand,
+            lexical_owner,
+            scopes,
+            qualification,
+            &[],
+        ),
+    }
 }
 
 pub fn portable_applied_index_identity(

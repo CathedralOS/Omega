@@ -1593,14 +1593,13 @@ pub mod trait_definition {
         pub(crate) mod regions {
             use super::AppliedTraitScope;
             use crate::TypedTrees;
-            use crate::data::TypeParameterKind;
             use crate::name::Identifier;
             use crate::type_identity::lifetime_parameter_identity;
             use crate::type_identity::{
                 AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-                applied_index_identity, applied_lifetime_identity, applied_type_identity,
-                local_trait_application_identity, portable_applied_index_identity,
-                portable_applied_lifetime_identity, portable_applied_type_identity,
+                applied_lifetime_identity, applied_parameter_argument_identity,
+                local_trait_application_identity, portable_applied_lifetime_identity,
+                portable_applied_parameter_argument_identity,
             };
             use symbols::SymbolHandle;
 
@@ -1766,23 +1765,13 @@ pub mod trait_definition {
                             let (reference, outer) =
                                 self.parameter_application(parameter.symbol)?;
                             let supplying = &scopes[..outer + preceding];
-                            if parameter.kind.is_const_or_value()
-                                || matches!(parameter.kind, TypeParameterKind::Machine { .. })
-                            {
-                                portable_applied_index_identity(
-                                    program,
-                                    IndexIdentityArgument::TypeReference(reference),
-                                    argument_owner,
-                                    supplying,
-                                )
-                            } else {
-                                portable_applied_type_identity(
-                                    program,
-                                    reference,
-                                    argument_owner,
-                                    supplying,
-                                )
-                            }
+                            portable_applied_parameter_argument_identity(
+                                program,
+                                &parameter.kind,
+                                reference,
+                                argument_owner,
+                                supplying,
+                            )
                         })
                         .collect::<Option<Vec<_>>>()?;
                     let lifetimes = self
@@ -1817,26 +1806,13 @@ pub mod trait_definition {
                             .trait_type_parameters(self.declaration)
                             .iter()
                             .find(|binder| binder.symbol == parameter)?;
-                        if matches!(
-                            binder.kind,
-                            TypeParameterKind::Const { .. }
-                                | TypeParameterKind::Value { .. }
-                                | TypeParameterKind::Machine { .. }
-                        ) {
-                            portable_applied_index_identity(
-                                program,
-                                IndexIdentityArgument::TypeReference(reference),
-                                self.argument_owner,
-                                &scopes[..outer],
-                            )
-                        } else {
-                            portable_applied_type_identity(
-                                program,
-                                reference,
-                                self.argument_owner,
-                                &scopes[..outer],
-                            )
-                        }
+                        portable_applied_parameter_argument_identity(
+                            program,
+                            &binder.kind,
+                            reference,
+                            self.argument_owner,
+                            &scopes[..outer],
+                        )
                     })
                 }
 
@@ -1888,23 +1864,13 @@ pub mod trait_definition {
                         .iter()
                         .find(|binder| binder.symbol == parameter)?;
                     self.with_identity_scopes(program, |scopes| {
-                        if binder.kind.is_const_or_value()
-                            || matches!(binder.kind, TypeParameterKind::Machine { .. })
-                        {
-                            applied_index_identity(
-                                program,
-                                IndexIdentityArgument::TypeReference(reference),
-                                self.argument_owner,
-                                &scopes[..outer],
-                            )
-                        } else {
-                            applied_type_identity(
-                                program,
-                                reference,
-                                self.argument_owner,
-                                &scopes[..outer],
-                            )
-                        }
+                        applied_parameter_argument_identity(
+                            program,
+                            &binder.kind,
+                            reference,
+                            self.argument_owner,
+                            &scopes[..outer],
+                        )
                     })
                 }
 
@@ -1926,18 +1892,11 @@ pub mod trait_definition {
                             self.substitutions[*start..end]
                                 .iter()
                                 .map(|(parameter, argument)| {
-                                    let is_type = program
-                                        .data_type_parameter_by_symbol(*parameter)
-                                        .is_some_and(|binder| {
-                                            binder.kind == TypeParameterKind::Type
-                                        });
                                     (
                                         *parameter,
-                                        if is_type {
-                                            IndexIdentityArgument::TypeArgument(*argument)
-                                        } else {
-                                            IndexIdentityArgument::TypeReference(*argument)
-                                        },
+                                        IndexIdentityArgument::for_binder(
+                                            program, *parameter, *argument,
+                                        ),
                                     )
                                 })
                                 .collect::<Vec<_>>()
@@ -1971,26 +1930,13 @@ pub mod trait_definition {
                                     return program
                                         .normalized_nominal_type_identity(parameter.symbol);
                                 };
-                                if matches!(
-                                    parameter.kind,
-                                    TypeParameterKind::Const { .. }
-                                        | TypeParameterKind::Value { .. }
-                                        | TypeParameterKind::Machine { .. }
-                                ) {
-                                    applied_index_identity(
-                                        program,
-                                        IndexIdentityArgument::TypeReference(reference),
-                                        self.argument_owner,
-                                        &scopes[..scope],
-                                    )
-                                } else {
-                                    applied_type_identity(
-                                        program,
-                                        reference,
-                                        self.argument_owner,
-                                        &scopes[..scope],
-                                    )
-                                }
+                                applied_parameter_argument_identity(
+                                    program,
+                                    &parameter.kind,
+                                    reference,
+                                    self.argument_owner,
+                                    &scopes[..scope],
+                                )
                             })
                             .collect::<Option<Vec<_>>>()?;
                         let lifetimes = self
@@ -2133,12 +2079,13 @@ pub mod trait_definition {
                     .iter()
                     .zip(application.arguments)
                     .map(|(parameter, actual)| {
-                        let actual = if parameter.kind == crate::data::TypeParameterKind::Type {
-                            crate::type_identity::IndexIdentityArgument::TypeArgument(*actual)
-                        } else {
-                            crate::type_identity::IndexIdentityArgument::TypeReference(*actual)
-                        };
-                        (parameter.symbol, actual)
+                        (
+                            parameter.symbol,
+                            crate::type_identity::IndexIdentityArgument::for_parameter(
+                                &parameter.kind,
+                                *actual,
+                            ),
+                        )
                     })
                     .collect::<Vec<_>>()
                             })

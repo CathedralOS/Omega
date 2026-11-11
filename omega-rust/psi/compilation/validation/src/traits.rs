@@ -7920,11 +7920,7 @@ pub(crate) mod trait_implementation_arguments {
             .map(|(parameter, argument)| {
                 (
                     parameter.symbol,
-                    if parameter.kind == TypeParameterKind::Type {
-                        IndexIdentityArgument::TypeArgument(*argument)
-                    } else {
-                        IndexIdentityArgument::TypeReference(*argument)
-                    },
+                    IndexIdentityArgument::for_parameter(&parameter.kind, *argument),
                 )
             })
             .collect::<Vec<_>>();
@@ -8177,8 +8173,9 @@ pub(crate) mod trait_implementation_arguments {
             let expected = scope
                 .portable_parameter_identity(typed, parameter.symbol)
                 .ok_or("trait implementation demand has an unresolved source argument")?;
-            let actual = typed_trees::type_identity::portable_applied_type_identity(
+            let actual = typed_trees::type_identity::portable_applied_parameter_argument_identity(
                 typed,
+                &parameter.kind,
                 selected.argument,
                 scope.argument_owner,
                 &[],

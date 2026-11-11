@@ -1456,7 +1456,9 @@ pub use declarations::traits::{
 };
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
-pub use proof_contracts::contract_entailment::specification_calls::invocation_is_fact_only;
+pub use proof_contracts::contract_entailment::specification_calls::{
+    direct_named_member, invocation_is_fact_only,
+};
 pub use proof_contracts::default_domains::case_predicate_expressions;
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{

@@ -1,0 +1,19 @@
+// A call that names a conformance member receives what that member's own
+// header publishes. `Maker::make` promises nothing about termination, so only
+// `Echo::make`'s authored `terminates` lets `relay` publish it and lets the
+// proof in `echoes` treat the call as a value.
+trait Maker { machine make(source: u8) -> u8; }
+
+Echo satisfies Maker {
+    machine make(source: u8) -> u8 reaches terminates { source }
+}
+
+machine relay(value: u8) -> u8 reaches terminates { Echo::make(value) }
+
+machine echoes(value: u8) reaches terminates
+ensures Echo::make(value) == value { }
+
+machine main() {
+    let value: u8 = relay(3u8);
+    echoes(value);
+}
