@@ -19197,9 +19197,9 @@ fail/termination/wrapping_subject_unguarded_decrement rejected 3339ms expected @
 fail/termination/zero_local_does_not_decrease_rank rejected 1874ms expected @ccdb99ca2214
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/testing/parameterized_test_is_not_runnable rejected 5601ms expected @0c44009f6e93
+fail/testing/parameterized_test_is_not_runnable rejected 6446ms expected @88a99972fd19
 	test `addition_is_correct` in group `Tests::arithmetic` is not runnable: its entry takes parameters, and no installed runner contract supplies them
-fail/testing/registered_group_failing_test_refuses_build rejected 7623ms expected @0c44009f6e93
+fail/testing/registered_group_failing_test_refuses_build rejected 8850ms expected @88a99972fd19
 	test `addition_is_correct` in group `Tests::arithmetic` failed on the Psi interpreter engine: crashed with Trap (target `windows_x86_64`)
 fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccdb99ca2214
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
@@ -28994,7 +28994,9 @@ run/state_owned_nested_borrow checked 71041ms check-target:macos_arm64 @c3cb68d5
 run/state_shared_nested_backing checked 28142ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_indexed_call_result_exit checked 65257ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_store_selector_snapshot_exit checked 54937ms check-target:macos_arm64 @c3cb68d51f3f
-run/testing/registered_group_runs_on_both_engines checked 6460ms check-target:macos_arm64 @0c44009f6e93
+run/testing/application_calling_test_differs_from_baseline checked 22428ms application-baseline-machines:differs application-baseline-sections:scalar_applications,identities,calling_abi_signatures,unoptimized_behavior,machines check-target:macos_arm64 @88a99972fd19
+run/testing/registered_group_application_baseline checked 6635ms check-target:macos_arm64 @88a99972fd19
+run/testing/registered_group_runs_on_both_engines checked 20529ms application-baseline-machines:same application-baseline-sections:scalar_applications,identities,calling_abi_signatures check-target:macos_arm64 @88a99972fd19
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
 run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7
