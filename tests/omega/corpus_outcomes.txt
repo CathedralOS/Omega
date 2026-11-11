@@ -25730,9 +25730,7 @@ pass/facts/static_callback_reach_captured_scope checked 77425ms check-target:mac
 pass/facts/static_callback_reach_captured_selection checked 74347ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
 pass/facts/static_callback_reach_captured_shadow checked 75792ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
 pass/facts/static_callback_reach_captured_unused checked 33038ms check-target:macos_arm64 terminal-inspections:match @e219f82df288
-pass/facts/static_callback_reach_evidence_scope rejected 6447ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @dbd0af26d678
-	machine `traverse` static argument 1 requires its declared binder kind, not an implementation
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `traverse` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/static_callback_reach_evidence_scope checked 22603ms check-target:macos_arm64 terminal-inspections:match @5708d93d2a13
 pass/facts/static_callback_reach_private_helper checked 10397ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_recursive_component checked 7483ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_recursive_terminal checked 8544ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
@@ -26571,10 +26569,7 @@ pass/generics/runtime_captured_map_own_type_method checked 4105ms check-target:m
 pass/generics/runtime_captured_map_record_const checked 3652ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_shadowed_contract checked 3685ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_shadowed_method_body checked 3649ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_captured_map_two_method_tuples rejected 5856ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @dbd0af26d678
-	machine `choose` static argument 1 requires its declared binder kind, not an implementation
-	machine `choose` static argument 1 requires its declared binder kind, not an implementation
-	inspection main admission: [Diagnostic { severity: Error, message: "machine `choose` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `choose` static argument 1 requires its declared binder kind, not an implementation", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/generics/runtime_captured_map_two_method_tuples checked 16843ms check-target:macos_arm64 terminal-inspections:match @5708d93d2a13
 pass/generics/runtime_captured_map_type_body checked 3660ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_case_qualified_reference_storage_exit checked 9295ms check-target:macos_arm64 @9af3eb514e16
 pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
@@ -28650,8 +28645,7 @@ pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-ta
 pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/public_post_write_descriptor_guarantee_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/refined_borrowed_implementation_exit rejected 3160ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
-	call `read` has an invalid argument correspondence: selected call has no exact applied public signature
+pass/traits/refined_borrowed_implementation_exit checked 11668ms check-target:macos_arm64 @5708d93d2a13
 pass/traits/renamed_invocation_contract_binders checked 2489ms @ccdb99ca2214
 pass/traits/repeated_structural_capture_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/traits/requirement_evidence_renamed_regions_exit checked 12215ms check-target:macos_arm64 @b9975b628a04
@@ -28858,10 +28852,7 @@ run/calls/named_transition_zero_argument_guard_exit checked 5812ms check-target:
 run/calls/nested_case_terminal_process_exit checked 10410ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @602404d45977
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
-run/calls/nested_static_implementation_shadow rejected 2647ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
-	machine `middle` static argument 2 requires its declared binder kind, not an implementation
-	machine `middle` static argument 2 requires its declared binder kind, not an implementation
-	machine `middle` static argument 2 requires its declared binder kind, not an implementation
+run/calls/nested_static_implementation_shadow checked 11504ms check-target:macos_arm64 @5708d93d2a13
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/outcome_specific_selected_guarantee_exit checked 66263ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

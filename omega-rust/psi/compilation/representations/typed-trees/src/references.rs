@@ -1269,6 +1269,9 @@ pub(crate) struct ProgramApplicationOccurrences {
     pub types: Vec<TypeOccurrence>,
     pub requirement_applications: Vec<TypeOccurrence>,
     pub conformance_applications: Vec<StaticMachineApplicationHandle>,
+    /// Every static application written in its own lexical owner, including
+    /// ordinary generic calls that bind evidence without a direct selection.
+    pub invocation_applications: Vec<StaticMachineApplicationHandle>,
 }
 
 pub(crate) fn collect_program_application_occurrences(
@@ -1277,10 +1280,12 @@ pub(crate) fn collect_program_application_occurrences(
     let mut occurrences = TypeOccurrences::default();
     visit_program(program, &mut occurrences);
     let conformance_applications = occurrences.conformance_applications(program);
+    let invocation_applications = occurrences.invocation_applications(program);
     ProgramApplicationOccurrences {
         types: occurrences.types,
         requirement_applications: occurrences.requirement_applications,
         conformance_applications,
+        invocation_applications,
     }
 }
 
@@ -1322,6 +1327,17 @@ impl TypeOccurrences {
         program
             .expression_table
             .static_machine_applications()
+            .filter_map(|(handle, source)| {
+                (source.conformance_selection.is_some() && self.applications.contains(&handle))
+                    .then_some(handle)
+            })
+            .collect()
+    }
+
+    fn invocation_applications(&self, program: &TypedTrees) -> Vec<StaticMachineApplicationHandle> {
+        program
+            .expression_table
+            .static_machine_applications()
             .filter_map(|(handle, _)| self.applications.contains(&handle).then_some(handle))
             .collect()
     }
@@ -1357,7 +1373,7 @@ impl TypedReferences for TypeOccurrences {
         for handle in [call.application(), call.selection_application()] {
             if handle.is_valid() {
                 let source = program.static_machine_application(handle);
-                if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
+                if source.lexical_owner == self.owner {
                     self.applications.insert(handle);
                 }
             }
