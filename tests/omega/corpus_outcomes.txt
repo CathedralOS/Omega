@@ -1070,10 +1070,8 @@ fail/borrows/aliased_forwarded_placed_views rejected 3973ms expected @ccdb99ca22
 	state `write_pair` receives `companion_view` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 4)
 	statement 3 creates local borrow `view` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 borrows `value` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/borrows/applied_provider_output_requires_backing rejected 5108ms expected @b31668d9a31f
-	machine `expression` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
-	machine `statement` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
-	machine `mixed_expression` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
+fail/borrows/applied_provider_output_requires_backing rejected 1791ms unexpected @47e50f0efd50
+	machine `statement` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
 fail/borrows/array_carried_reference_live_source_move rejected 3552ms expected @911f6617ba9e
 	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/array_carried_reference_live_source_write rejected 75264ms expected @911f6617ba9e
@@ -20229,11 +20227,16 @@ pass/borrows/runtime_copied_reference_conditional_nominal_backing_exit checked 1
 pass/borrows/runtime_copied_reference_conditional_structural_result_exit checked 10478ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/runtime_copyable_carrier_retirement_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 15418ms check-target:macos_arm64 @5c3171ba11d9
-pass/borrows/runtime_dependent_callback_window_byte_exit checked 8511ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_dependent_forwarded_window_exit checked 7982ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_dependent_window_byte_payload_exit checked 19900ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_dependent_window_image_sibling_exit checked 19285ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_dependent_window_region_disjoint_write_exit checked 18470ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/runtime_dependent_callback_window_byte_exit rejected 7851ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_forwarded_window_exit rejected 7051ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_byte_payload_exit rejected 7665ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_image_sibling_exit rejected 7077ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/borrows/runtime_dependent_window_region_disjoint_write_exit rejected 6803ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
 pass/borrows/runtime_descriptor_replacement_exit checked 3623ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 4224ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_discarded_reference_release_exit checked 17679ms check-target:macos_arm64 @ccdb99ca2214
@@ -26554,8 +26557,10 @@ pass/generics/runtime_const_extent_origin_exit checked 12212ms check-target:maco
 pass/generics/runtime_constructor_equation_binder_carriers_exit checked 6233ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_container_setter_matrix_exit checked 12336ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_copied_indexed_case_subject_exit checked 29481ms check-target:macos_arm64 @4815ea579d91
-pass/generics/runtime_dependent_callback_renamed_formals_exit checked 9523ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/runtime_dependent_window_parameter_index_exit checked 9523ms check-target:macos_arm64 @911f6617ba9e
+pass/generics/runtime_dependent_callback_renamed_formals_exit rejected 6781ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/generics/runtime_dependent_window_parameter_index_exit rejected 6769ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
 pass/generics/runtime_equation_constructor_selected_const_exit checked 8097ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_equation_named_array_actual_exit checked 7902ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_finite_recursive_reference_catalog_exit checked 6992ms check-target:macos_arm64 @911f6617ba9e
@@ -26606,7 +26611,8 @@ pass/generics/runtime_index_predicate_second_descriptor_exit checked 7657ms chec
 pass/generics/runtime_inferred_index_generic_caller_exit rejected 4741ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from relay$specialized$a56e9d136e86ccc0$0: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/generics/runtime_inferred_index_repeated_binder_exit checked 17435ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/runtime_inferred_index_statement_call_exit checked 11051ms check-target:macos_arm64 @911f6617ba9e
+pass/generics/runtime_inferred_index_statement_call_exit rejected 6388ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @47e50f0efd50
+	cannot prove requires contract for call consume_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
 pass/generics/runtime_inferred_statement_lifetime_conformance_exit checked 16417ms check-target:macos_arm64 @4815ea579d91
 pass/generics/runtime_inherited_composite_requirement_exit rejected 3516ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @dbd0af26d678
 	normal call `forward` (Handle { arena_index: 13439, generation: 1 }) in machine `observe` state `entry` statement 2: completed result reference permissions are unavailable
