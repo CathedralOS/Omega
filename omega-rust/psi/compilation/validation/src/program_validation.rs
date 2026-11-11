@@ -4705,7 +4705,7 @@ fn validate_machine_scalar_loan_handbacks(
         let statements = program.statement_table.statements(state.statement_nodes);
         for (statement_index, statement) in statements.iter().enumerate() {
             let mark = diagnostics.len();
-            crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+            crate::proof_contracts::contract_entailment::validate_loan_handbacks(
                 program,
                 machine,
                 state,

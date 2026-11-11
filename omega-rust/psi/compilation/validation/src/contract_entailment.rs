@@ -21187,7 +21187,7 @@ pub(crate) mod call_handbacks {
     use facts::PlaceSegment;
     use typed_trees::{machine::Machine, state::State};
 
-    pub(crate) fn validate_scalar_loan_handbacks(
+    pub(crate) fn validate_loan_handbacks(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
@@ -21213,10 +21213,8 @@ pub(crate) mod call_handbacks {
                 continue;
             };
             if !parameters.iter().any(|parameter| {
-                crate::reference_shell(program, parameter.type_reference).is_some_and(|shell| {
-                    shell.access.is_exclusive()
-                        && program.primitive_type_reference(shell.referee).is_some()
-                })
+                crate::reference_shell(program, parameter.type_reference)
+                    .is_some_and(|shell| shell.access.is_exclusive())
             }) {
                 continue;
             }
@@ -21253,11 +21251,10 @@ pub(crate) mod call_handbacks {
                 let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
                     continue;
                 };
-                if !shell.access.is_exclusive()
-                    || program.primitive_type_reference(shell.referee).is_none()
-                {
+                if !shell.access.is_exclusive() {
                     continue;
                 }
+                let scalar_referent = program.primitive_type_reference(shell.referee).is_some();
                 let sources = origins
                     .as_ref()
                     .and_then(|origins| origins.arguments.get(index + leading))
@@ -21302,10 +21299,22 @@ pub(crate) mod call_handbacks {
                         places.push(place);
                     }
                 }
-                for mut parent in places {
-                    let Some(PlaceSegment::Field { symbol }) = parent.segments.pop() else {
-                        continue;
-                    };
+                // The loaned place may sit below several data fields (`bag.cells[1]`,
+                // `outer.inner.x`); each enclosing owner's standing predicate must hold
+                // again for what the place holds when the loan ends.
+                let owners = places.into_iter().flat_map(|place| {
+                    (0..place.segments.len()).rev().filter_map(move |position| {
+                        match place.segments[position] {
+                            PlaceSegment::Field { symbol } => {
+                                let mut parent = place.clone();
+                                parent.segments.truncate(position);
+                                Some((parent, symbol, position + 1 == place.segments.len()))
+                            }
+                            _ => None,
+                        }
+                    })
+                });
+                for (parent, symbol, loaned_field) in owners {
                     let Some((definition, field)) = program.any_field_owner(symbol) else {
                         continue;
                     };
@@ -21336,6 +21345,7 @@ pub(crate) mod call_handbacks {
                     let mut encoded = parent.clone();
                     encoded.segments.push(PlaceSegment::Field { symbol });
                     let encoding_preserves = variant.is_none()
+                        && loaned_field
                         && program
                             .primitive_type_reference(shell.referee)
                             .zip(program.primitive_type_reference(field.type_reference))
@@ -21371,8 +21381,13 @@ pub(crate) mod call_handbacks {
                                 })
                         });
                     if !preserved {
+                        let referent = if scalar_referent {
+                            "scalar referent"
+                        } else {
+                            "referent"
+                        };
                         diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` cannot lend restricted field `{}` to `{}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+                        "machine `{}` cannot lend restricted field `{}` to `{}`: the selected {referent}'s normal-return guarantees do not preserve the field's standing predicate",
                         machine.name, field.name, program.symbols.name(site.target_symbol(program)),
                     )));
                     }
@@ -21919,7 +21934,7 @@ pub(crate) mod captured_predicates {
         Some(application)
     }
 }
-pub(crate) use call_handbacks::validate_scalar_loan_handbacks;
+pub(crate) use call_handbacks::validate_loan_handbacks;
 pub(crate) mod operand_fits {
     use super::structural_judgment::StructuralTerm;
     use super::structural_judgment::normal_returns::{
