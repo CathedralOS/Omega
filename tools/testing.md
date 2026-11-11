@@ -1375,6 +1375,64 @@ The first is the single repository-topology gate. The second is the currently
 closed bootstrap floor. There is deliberately no wrapper that pretends to run
 the whole chain.
 
+## Stage line coverage
+
+`cargo xtask stage-coverage` answers one question: how many lines of the
+checking stages does a program make the compiler run? It measures, it does not
+gate; nothing in CI calls it. Use it to compare a program against another, or
+one commit against another, when deciding what a change to the checker removes.
+
+```bash
+mbx xtask stage-coverage tests/omega/pass/build/conditional_root_binding < /dev/null
+mbx xtask stage-coverage --list fixtures.txt --json report.json < /dev/null
+```
+
+A program is a `main.omg` or a fixture directory holding one; `--list` reads
+one path per line and ignores blank lines and lines starting with `#`. The
+report has one row per program and, for more than one program, a row for the
+lines run by any of them:
+
+```
+| Lines | Exit | Psi 05 | validation | Psi 06 | All three |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Instrumented | | ... | ... | ... | ... |
+| Run by `tests/omega/pass/build/conditional_root_binding/main.omg` | 1 | ... | ... | ... | ... |
+```
+
+How to read it:
+
+- **A line is counted by source path.** Psi 05 is
+  `pipeline/05_typed-trees-to-checked-trees/`, validation is `validation/src/`
+  (not its `terminal-installation` or `representation-planning` subcrates) and
+  Psi 06 is `pipeline/06_checked-trees-to-lowered-psi/`, all under
+  `omega-rust/psi/compilation/`.
+- **Instrumented** lines are the lines that carry a coverage counter in this
+  build, which is fewer than the lines in the files. A line is **run** when its
+  counter is not zero.
+- **Exit** is the compiler's own exit code. A program that fails still gets a
+  row, because its count up to the failure is real; read the exit code before
+  comparing rows. A program rejected in checking never reaches Psi 06.
+- **Counts are comparable only within one build.** A different commit
+  instruments a different set of lines, so compare two commits by their run
+  counts and quote each commit's instrumented total beside them.
+
+The command builds `omega` with `-C instrument-coverage` at
+`CARGO_PROFILE_DEV_OPT_LEVEL=1` into its own `target/stage-coverage`, so it
+does not disturb the ordinary build cache. The first build is a full build of
+the compiler; `--build-only` does just that step, and `--target-dir` moves it.
+By default each program runs as `omega run --engine terminal <main.omg>`;
+arguments after `--` replace that, for example `-- --check`. Programs run one
+at a time, and each program's compiler output is kept under
+`target/stage-coverage/stage-coverage-profiles/<index>/`.
+
+It needs the `llvm-profdata` and `llvm-cov` that ship with the pinned
+toolchain, because the profile format changes between LLVM releases and a
+system `llvm-cov` usually cannot read it:
+
+```bash
+rustup component add llvm-tools
+```
+
 
 ## Full baseline
 

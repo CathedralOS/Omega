@@ -376,7 +376,7 @@ fn selected_fixture_count(
     Ok(count)
 }
 
-fn current_stamp(root: &Path) -> String {
+pub(crate) fn current_stamp(root: &Path) -> String {
     let rev = Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
         .current_dir(root)
