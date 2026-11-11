@@ -7372,15 +7372,30 @@ pub mod default_domains {
             let Some(assignment) = statement.as_assignment() else {
                 return;
             };
-            let resident_requirement = crate::atomic_assignment_carrier(program, assignment)
-                .and_then(|_| {
-                    super::requires_fact_intervals::stored_field_requires_interval(
+            let resident_requirement = match crate::atomic_assignment_carrier(program, assignment) {
+                Some(_) => super::requires_fact_intervals::stored_field_requires_interval(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                )
+                .map(|source_interval| {
+                    super::requires_fact_intervals::ResidentRequirement {
+                        source_interval,
+                        reinterpreted: false,
+                    }
+                }),
+                None => call_frames.and_then(|frames| {
+                    super::requires_fact_intervals::reinterpreted_view_store(
                         program,
                         machine,
                         state,
-                        assignment.target,
+                        frames,
+                        statement,
+                        statement_index,
                     )
-                });
+                }),
+            };
             let target = assignment.target;
             let value = assignment.value;
             let data_binding = program
@@ -7789,7 +7804,7 @@ pub mod default_domains {
             born_zero: bool,
             statement_index: usize,
             data_binding: Option<&str>,
-            resident_requirement: Option<crate::proof_contracts::arithmetic_domains::Interval>,
+            resident_requirement: Option<super::requires_fact_intervals::ResidentRequirement>,
         ) {
             if store.replaces_place
                 && let Some(spelling) = invariant_place_spelling(program, &store.destination)
@@ -7955,12 +7970,21 @@ pub mod default_domains {
             let resident_field = resident_requirement
                 .filter(|checked| {
                     whole_field
-                        && store.preserves_scalar_value
-                        && super::requires_fact_intervals::atomic_field_interval(
-                            program,
-                            place.definition,
-                            store.field,
-                        ) == Some(*checked)
+                        && if checked.reinterpreted {
+                            super::requires_fact_intervals::single_field_requires_interval(
+                                program,
+                                place.definition,
+                                store.field,
+                            )
+                            .is_some_and(|lender| lender.contains(checked.source_interval))
+                        } else {
+                            store.preserves_scalar_value
+                                && super::requires_fact_intervals::atomic_field_interval(
+                                    program,
+                                    place.definition,
+                                    store.field,
+                                ) == Some(checked.source_interval)
+                        }
                 })
                 .map(|_| store.field.symbol);
             let requirements = domain_requirements(program, place.definition, place.active_case);
@@ -12414,6 +12438,139 @@ pub mod default_domains {
                 .into_iter()
                 .find(|(symbol, _, _)| *symbol == field.symbol)
                 .map(|(_, low, high)| Interval { low, high })
+        }
+
+        /*
+            A store whose value the default-domain window cannot fold from the
+            lender's carrier, so the window instead trusts an interval proved
+            for the written value. `source_interval` is that interval in the
+            stored field's own carrier; `reinterpreted` marks a store whose
+            bits cross carriers, where the window's literal and symbol
+            tracking does not apply.
+        */
+        #[derive(Clone, Copy)]
+        pub(crate) struct ResidentRequirement {
+            pub(crate) source_interval: Interval,
+            pub(crate) reinterpreted: bool,
+        }
+
+        /*
+            Recasts spec, "Shared and mutable views": every value writable
+            through an immediately established mutable view must leave the
+            lender valid. When the view presents the stored scalar under
+            another integer carrier (`i32` storage seen as `u32`), the stored
+            bits do not carry the written number into the lender's carrier, so
+            the lender's window cannot fold the literal and stays open. The
+            written value's proved bounds are carried into the lender's
+            carrier only when every value in them has the same bits and the
+            same number in both carriers. A wrapping or unbounded value
+            translates to nothing and the lender's window stays open, so a
+            write the lender's `requires` would not admit is still refused.
+        */
+        pub(crate) fn reinterpreted_view_store(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            frames: &crate::CallFrameResolver<'_>,
+            statement: &typed_trees::statement::StatementNode,
+            statement_index: usize,
+        ) -> Option<ResidentRequirement> {
+            let assignment = statement.as_assignment()?;
+            let origins = frames.assignment_storage_origins(machine, statement).ok()?;
+            let [destination] = origins.destinations.as_slice() else {
+                return None;
+            };
+            if destination.collection_coarse || destination.recasts.is_empty() {
+                return None;
+            }
+            let scalar = destination
+                .scalar_storage_coordinate_result(program, state)
+                .ok()?;
+            if scalar.preserves_scalar_value || !scalar.preserves_primitive_bits {
+                return None;
+            }
+            let (low, high) =
+                crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    assignment.value,
+                )?;
+            same_number_interval(
+                Interval {
+                    low: Some(low),
+                    high: Some(high),
+                },
+                scalar.view_primitive,
+                scalar.source_primitive,
+            )
+            .map(|source_interval| ResidentRequirement {
+                source_interval,
+                reinterpreted: true,
+            })
+        }
+
+        fn same_number_interval(
+            view_interval: Interval,
+            view: typed_trees::types::PrimitiveType,
+            source: typed_trees::types::PrimitiveType,
+        ) -> Option<Interval> {
+            use crate::proof_contracts::arithmetic_domains::primitive_range;
+            if !view.is_fixed_integer()
+                || !source.is_fixed_integer()
+                || view.scalar_byte_size()? != source.scalar_byte_size()?
+            {
+                return None;
+            }
+            let interval = view_interval.intersect(primitive_range(view)?);
+            let (low, high) = interval.low.zip(interval.high)?;
+            let shared = primitive_range(view)?.intersect(primitive_range(source)?);
+            (shared.low.is_none_or(|minimum| low >= minimum)
+                && shared.high.is_none_or(|maximum| high <= maximum))
+            .then_some(interval)
+        }
+
+        /*
+            The interval that the `requires` facts reading `field` place on it,
+            when each such fact is a conjunction of literal bounds on `field`
+            alone. Unlike `data_requires_field_intervals`, a sibling's float
+            bound does not hide this field's interval; a fact relating `field`
+            to anything else leaves no interval.
+        */
+        pub(crate) fn single_field_requires_interval(
+            program: &dyn crate::CheckingInput,
+            definition: &DataDefinition,
+            field: &DataField,
+        ) -> Option<Interval> {
+            let fields = declared_data_fields(program, definition);
+            let mut interval = None;
+            for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
+                let read = super::place_queries::data_predicate_fields(program, definition, fact);
+                if !read.contains(&field.symbol) {
+                    continue;
+                }
+                if read != [field.symbol] {
+                    return None;
+                }
+                let rows = field_intervals(
+                    program,
+                    &fields,
+                    definition.symbol,
+                    std::slice::from_ref(fact),
+                )?;
+                for (symbol, low, high) in rows {
+                    if symbol != field.symbol {
+                        return None;
+                    }
+                    interval = Some(
+                        interval
+                            .unwrap_or(Interval::UNBOUNDED)
+                            .intersect(Interval { low, high }),
+                    );
+                }
+            }
+            interval
         }
 
         pub(crate) fn stored_field_requires_interval(

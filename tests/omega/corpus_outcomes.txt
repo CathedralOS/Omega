@@ -18293,6 +18293,8 @@ fail/recast/returned_recast_requires_declared_access rejected 731ms expected @cc
 	machine `widen` state `entry` terminal expression expects `&mut Header`, got `cast expression`
 fail/recast/returned_shared_view_cannot_lend_mutable rejected 19400ms expected @32c7663ba3ad
 	mutable argument `view` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/recast/runtime_mutable_equivalent_range_write_out_of_range rejected 2290ms expected @62697d5b5cca
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.value` (data `SignedBounded`) unproved; restore them first
 fail/recast/scalar_parameter_view_footprint_rejected rejected 1827ms expected @ccdb99ca2214
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
 fail/recast/shared_atomic_record_slice_requires_observation_protocol rejected 913ms expected @ccdb99ca2214
@@ -27901,14 +27903,8 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 22845ms chec
 	state `write_pairs` receives `main` as mutable more than once
 	state `write_pairs` receives `main` while local borrow `pairs` is still active (borrowed at statement 0; its last use is at statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 12865ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_mutable_equivalent_range_recast_exit rejected 15478ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	machine `Main::main` state `main` statement 7: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
-	machine `Main::main` state `main` statement 7: the next whole-value read of `main` occurs inside an OPEN invariant window: a prior write left data `SignedBounded`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 8 in machine `Main::main` state `main`: this write left the `requires` facts of `main.value` (data `SignedBounded`) unproved; restore them first
-pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 14313ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	machine `Main::main` state `main` statement 10: reading `context` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
-	machine `Main::main` state `main` statement 10: the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `SignedRecord`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	cannot complete a call at statement 11 in machine `Main::main` state `main`: this write left the `requires` facts of `context.source` (data `SignedRecord`) unproved; restore them first
+pass/recast/runtime_mutable_equivalent_range_recast_exit checked 21954ms check-target:macos_arm64 @62697d5b5cca
+pass/recast/runtime_mutable_equivalent_record_recast_exit checked 21997ms check-target:macos_arm64 @62697d5b5cca
 pass/recast/runtime_nested_record_byte_store_exit checked 11560ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
