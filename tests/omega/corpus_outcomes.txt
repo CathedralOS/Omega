@@ -3870,7 +3870,7 @@ fail/control_flow/selected_adapter_missing_rejected rejected 2876ms expected @ee
 	machine `Selector::select` state `select`: value call `select_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/control_flow/single_case_guarded_arm_nonexhaustive rejected 128ms expected @ccdb99ca2214
 	match over `Carried` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm
-fail/control_flow/state_result_differs_from_machine_result rejected 1250ms unexpected @ccdb99ca2214
+fail/control_flow/state_result_differs_from_machine_result rejected 2168ms expected @21493b27b263
 	machine `Main::main` state `main` terminal call to `checked` completes with its `i32` result, but the state returns `Unit`; a terminal machine call's normal result is its caller's result, so the two must match
 	machine `Main::main` state `main` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
 fail/control_flow/static_terminal_unit_linear_cleanup rejected 5177ms expected @ccdb99ca2214
@@ -3893,7 +3893,7 @@ fail/control_flow/transition_fall_through_bool rejected 13133ms expected @ccdb99
 fail/control_flow/transition_target_undeclared_state rejected 45131ms expected @898dd1bf8987
 	unreachable branch: the `true` arm of a transition in machine `Main::main` state `main` can never run; its guard contradicts the facts in force here: x >= 5
 	terminal call `vanished` does not select a declared machine entry or callable requirement
-fail/control_flow/transition_value_without_result rejected 1010ms unexpected @ccdb99ca2214
+fail/control_flow/transition_value_without_result rejected 2104ms expected @21493b27b263
 	machine `Counter::wipe` state `wipe` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
 	machine `step` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
 	machine `step` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
@@ -4655,8 +4655,9 @@ fail/domains/borrowed_record_domain_requires_qualified_input rejected 3997ms exp
 	cannot prove requires contract for call view from main: cell in Cell::Admitted in state `entry`
 fail/domains/borrowed_scalar_tag_wrong_index rejected 2062ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Coordinate:main::entry:call-2-0:Coordinate<9>==Coordinate<7>` is not established: actual `Coordinate<9>` and expected `Coordinate<7>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/domains/byte_predicate_declared_callee_crash rejected 1039ms unexpected @ccdb99ca2214
-	domain `[u8]::Utf8` predicate constant expression call argument `self` does not form parameter `bytes` of `valid_utf8`: actual [u8], required [u8; 4]
+fail/domains/byte_predicate_declared_callee_crash rejected 2533ms expected @21493b27b263
+	call from `main` to `valid_utf8` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `main` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/domains/byte_predicate_operand_callee_crash rejected 1922ms expected @ccdb99ca2214
 	call from `main` to `bytes` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/domains/call_requires_invalidated_by_mutation rejected 2171ms expected @ccdb99ca2214
@@ -18846,8 +18847,9 @@ fail/termination/bitwise_payload_no_rank_progress rejected 2005ms expected @ccdb
 	machine call cycle: `stuck` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/bitwise_payload_overflow rejected 616ms expected @ccdb99ca2214
 	exact arithmetic in machine `fold` state `entry` transition argument may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/termination/bounded_distance_inverted rejected 857ms unexpected @ccdb99ca2214
-	terminal call `walk` does not select a declared machine entry or callable requirement
+fail/termination/bounded_distance_inverted rejected 2466ms expected @21493b27b263
+	cannot prove the `terminates by` ranking for machine Main::walk: `terminates by (limit, index)` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the lower value climbs; write `terminates by (index, limit) -> Nat::BoundedDistance`
+	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/bounded_distance_moving_call_bound rejected 1874ms expected @ccdb99ca2214
 	machine call cycle: `first`, `second` -- rank range membership, selected view bounds, or nonincrease is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/bounded_distance_stalled_cursor_exit_state rejected 2104ms expected @ccdb99ca2214
@@ -18960,7 +18962,7 @@ fail/termination/joint_machine_call_cycle_stalled rejected 1990ms expected @ccdb
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/joint_rankless_finish_reenters_component rejected 2051ms unexpected @ccdb99ca2214
 	machine call cycle: `left`, `finish`, `right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/lexicographic_component_zero_step_rejected rejected 6432ms unexpected @583d51f8f4a3
+fail/termination/lexicographic_component_zero_step_rejected rejected 2504ms expected @21493b27b263
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/measure_field_arrival_contract rejected 4978ms expected @8ff88b9df484
 	cannot prove requires contract for call walk from walk: constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.remaining <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare && constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.limit (needs fact `countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -19075,9 +19077,9 @@ fail/termination/progress_selector_stale_contents rejected 98198ms expected @71d
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
 fail/termination/progress_selector_unknown_alternative rejected 73945ms expected @71d7a6330d0b
 	machine `select` derives progress premise `package:d1f490cb63352c7dd3aa77fd351a2b55957ab9107827ed2328dce2d9b384891e:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/proof_joint_machine_cycle_nondecreasing rejected 743ms unexpected @ccdb99ca2214
+fail/termination/proof_joint_machine_cycle_nondecreasing rejected 2465ms expected @21493b27b263
 	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
-fail/termination/proof_joint_machine_cycle_unmeasured rejected 923ms unexpected @ccdb99ca2214
+fail/termination/proof_joint_machine_cycle_unmeasured rejected 1584ms expected @21493b27b263
 	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: the proof component has no authored ranking entry
 fail/termination/quotient_result_rank_alternative_results rejected 1883ms expected @ccdb99ca2214
 	terminating machine countdown: cannot prove rank range `0..=9` for the rank produced by the selected view
@@ -21391,8 +21393,7 @@ pass/contracts/ensures_saturating_field_arithmetic_exit checked 12050ms check-ta
 pass/contracts/ensures_tail_forward checked 4857ms @ccdb99ca2214
 pass/contracts/ensures_wrapping_field_arithmetic_exit checked 13175ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/entry_case_replaced_before_call checked 2415ms @ccdb99ca2214
-pass/contracts/float_guard_disjoint_operand_write rejected 5456ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+pass/contracts/float_guard_disjoint_operand_write checked 6973ms check-target:macos_arm64 @21493b27b263
 pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
 pass/contracts/generic_branch_contract_contradiction_exit checked 8815ms check-target:macos_arm64 @6be568cdb4e5
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
@@ -21442,10 +21443,7 @@ pass/contracts/runtime_float_case_crash_guard_exit checked 13598ms check-target:
 pass/contracts/runtime_float_entry_relations_exit rejected 4967ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `same` to `invalid` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/contracts/runtime_float_field_crash_guard_exit checked 6178ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/runtime_float_fused_crash_guard_exit rejected 4940ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call from `ping` to `pong` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-	call from `pong` to `finish` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-	call from `pong` to `ping` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+pass/contracts/runtime_float_fused_crash_guard_exit checked 6955ms check-target:macos_arm64 @21493b27b263
 pass/contracts/runtime_float_indexed_crash_guard_exit checked 8065ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_float_nested_crash_guard_exit checked 6469ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6338ms check-target:macos_arm64 @ccdb99ca2214
