@@ -4473,7 +4473,7 @@ fail/dependent/data_requires_invalid_store rejected 2269ms expected @f78c2623a68
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `target` (data `Bounded<10>`) unproved; restore them first
 fail/dependent/data_requires_lower_bound rejected 727ms expected @ccdb99ca2214
 	data `Bounded<10>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/dependent/data_requires_return_beside_dead_crash rejected 7432ms expected @99f00a80baaa
+fail/dependent/data_requires_return_beside_dead_crash rejected 2413ms expected @07363a0cbb45
 	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `target` (data `Tally`) unproved; restore them first
 fail/dependent/data_requires_self_formation rejected 197ms expected @5c5c178f82c7
 	cannot prove requires contract for specification call `guarded` in data `Invalid` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
@@ -21749,7 +21749,7 @@ pass/dependent/collection_predicate_proved_element_store checked 62916ms @911f66
 pass/dependent/collection_predicate_terminal_rows_exit checked 39303ms check-target:macos_arm64 @4815ea579d91
 pass/dependent/collection_predicate_zero_initialized checked 6849ms @911f6617ba9e
 pass/dependent/data_requires_clauses_exit checked 3465ms check-target:macos_arm64 @ccdb99ca2214
-pass/dependent/data_requires_crash_abandons_window checked 9036ms @99f00a80baaa
+pass/dependent/data_requires_crash_abandons_window checked 2506ms @07363a0cbb45
 pass/dependent/data_requires_cyclic_handoff_walk_exit checked 5099ms check-target:macos_arm64 @ddc8d6fcecbc
 pass/dependent/data_where_antisymmetric_fields_compile checked 12772ms @911f6617ba9e
 pass/dependent/data_where_arithmetic_bound_compile checked 4395ms @911f6617ba9e
