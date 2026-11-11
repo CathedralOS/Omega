@@ -11,7 +11,7 @@
 //!
 //!     program <path> current=<accepted|rejected> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
-//!     diagnostic <path> <machine> <obligation> <message>
+//!     diagnostic <path> <machine> <obligation> <site> <message>
 //!
 //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
 //! (one `diagnostic` line per unproved obligation, the compile error the
@@ -111,6 +111,7 @@ fn origins(
                 Some(ValueOrigin::BlockParameter { .. }) => "join",
                 Some(ValueOrigin::MachineResult) => "result",
                 Some(ValueOrigin::EntryContent { .. }) => "entry-content",
+                Some(ValueOrigin::MachineResult) => "result",
                 Some(ValueOrigin::Operation(operation)) => machine
                     .blocks
                     .iter()
@@ -341,12 +342,18 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Ok(RouteVerdict::Accepted(_)) => "accepted",
         Ok(RouteVerdict::Rejected(unproved)) => {
             for entry in &unproved {
+                let diagnostic = entry.diagnostic();
+                let site = diagnostic.source_span.map_or_else(
+                    || format!("{:?}", entry.site),
+                    |span| format!("bytes {}..{}", span.span.start, span.span.end),
+                );
                 lines.push(format!(
-                    "diagnostic\t{}\t{}\t{}\t{}",
+                    "diagnostic\t{}\t{}\t{}\t{}\t{}",
                     main.display(),
                     entry.machine.get(),
                     entry.obligation.get(),
-                    one_line(&entry.diagnostic().message)
+                    site,
+                    one_line(&diagnostic.message)
                 ));
             }
             "rejected"
