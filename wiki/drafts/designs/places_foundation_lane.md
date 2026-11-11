@@ -439,6 +439,116 @@ membership rows and the two structural judgments (initialization and payload
 access). `prove.rs` does not change unless a kernel rule is missing, and a
 missing rule is reported as a finding, not worked around.
 
+## Gate run, 2026-11-11
+
+The lane's five slices are on `main` (`#2328`, `#2332`, `#2337`, `#2343`,
+`#2362`, with `#2356` for one justification). Run against the corpus slice
+above, they bring almost no corpus program to a verdict: 25 programs now
+lower whole, 5 are judged, and the 4 the two checkers agree on have no
+obligation at all. The tables and judgments are exercised by the programs
+written for each slice, not yet by the corpus.
+
+The run: `route_one_comparison` on `main` at `e125b2fc3`, built with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p compiler --example route_one_comparison`,
+over 619 fixtures in two shards on a cloud VM (Linux x86_64, 4 CPUs), 87
+minutes. The slice is the same selection as above and has grown from 608: 516
+in the nine `pass/` directories and `run/`, and 103 from `pass/facts` (every
+38th by name). No fixture panicked. The raw lines are in
+[places_foundation_lane_gate.tsv](places_foundation_lane_gate.tsv).
+
+| Current checker | New route | Fixtures |
+| --- | --- | ---: |
+| accepted | outside: elaboration refuses a construct, so the current checker decides | 479 |
+| accepted | no program entry | 68 |
+| rejected | not reached (a `pass/` or `run/` row that is red today) | 47 |
+| accepted | lowered whole, then discharge refuses the module | 20 |
+| accepted | accepted | 4 |
+| accepted | rejected | 1 |
+
+**Agreement.** Of the 5 judged programs, 4 agree. The disagreement is
+`run/calls/scalar_contract_route_exit`: "requires clause 1 of the called
+machine: no proof found from the facts available here (the bounds do not
+decide the comparison)", at bytes 744..756. It is the prover gap `#2305`
+recorded, so its class is "new route cannot prove a true obligation". None is
+"new route accepts something false". The 4 agreeing programs have no
+obligation and no use of storage.
+
+**Kernel-checked evidence on the corpus.** 7 certificate obligations, all in
+that one program: `OperationSafety` 3 of 3, `CallRequirement` 2 of 3,
+`NormalGuarantee` 1 of 1, each judged by the kernel core, none refused by
+it; 1 `PublishedGuarantee` held. No `DataDomain` obligation is minted on the
+corpus. On the programs written for the slices: `DataDomain` 20 of 23,
+`CallRequirement` 8 of 8, all judged (`#2362`).
+
+**First refusals** among the 479 the route does not serve:
+
+| Refusal | Fixtures |
+| --- | ---: |
+| `machine service reach` | 192 |
+| `type data with custody` | 111 |
+| `type fixed array` | 50 |
+| `type constrained` | 34 |
+| `type float` | 11 |
+| `parameter mutable parameter` | 9 |
+| `call receiver, requirement or coercion call` | 8 |
+| `type reference` | 8 |
+| `expression cast` | 7 |
+| `type generic data` | 6 |
+| other refusals, 5 or fewer fixtures each | 43 |
+
+The six refusals this plan set out to remove (`type nominal type`,
+`statement uninitialized local`, `expression match`, `expression member`,
+`expression projected name path`, `expression record literal`) are the first
+refusal of no fixture now.
+
+What the numbers say:
+
+- **Corpus data is not `[copy]`.** The lane serves plain copyable data only,
+  as scoped, and 111 fixtures stop at `type data with custody`: a record
+  without `[copy]` is affine
+  ([ownership](../../spec/language/ownership.md): "A record still requires an
+  explicit `[copy]` declaration; copyable fields do not change the affine
+  default"). That is the ownership lane's work and the largest refusal next
+  to this lane. The estimate above of 16 to 20 entering programs did not
+  hold: it was made by screening sources for borrows and brackets and missed
+  the affine default.
+- **20 programs lower whole and get no verdict**, for two reasons that
+  predate the lane: discharge refuses a no-normal invocation terminator
+  ("invocation outside an operation", 15) and a callee clause that names a
+  value that is not a formal (5). Closing those two would quadruple the
+  judged sample.
+- **`machine service reach` is unchanged** at 192: every program that prints.
+- **Rejections are not measured here.** The slice has no `fail/` fixture, and
+  the 47 rejected rows are red `pass/` and `run/` rows the route never
+  reached.
+
+Other measures. Decisions keyed on text: 0. Silent drops: 0. Routes per
+obligation kind: 1; initialization, payload access and dispatch coverage are
+one structural judgment each over one reaching walk. Check time: the current
+checker took 9,306.7 s over the 619 fixtures (at most 42.1 s for one; it
+includes discovery, review and Build execution); the new route took 42 ms
+over the 25 it lowered (at most 14 ms; elaboration and discharge only). The
+two are not the same work.
+
+Lines added per slice outside tests and READMEs (`structure-elaboration`,
+`lowered-discharge`, `terminal-check-tables`):
+
+| Slice | Lines |
+| --- | --- |
+| records, field reads, copies (`#2332`) | 1,955 / 441 / 0 |
+| stores, whole assignment, initialization (`#2337`) | 565 / 805 / 11 |
+| sums, dispatch, payload access (`#2343`) | 1,730 / 661 / 18 |
+| data `requires`, zero-established locals (`#2362`) | 510 / 1,200 / 26 |
+
+The cost is not falling: sums and data `requires` each cost about what
+records did. The design's stop rule asks for a later construct to cost less
+than the one before it; on this count the lane does not show that yet.
+
+Not done from this plan's table: a record pattern and a directly authored
+payload member (the typed trees hold their fields as text; an upstream repair
+is in progress), clauses over `result`, and invariant windows (a store not
+shown to keep a clause hands the program back to the current checker).
+
 ## Dependencies
 
 | PR | What this lane needs from it | If it does not land |
