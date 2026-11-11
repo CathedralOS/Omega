@@ -5169,6 +5169,9 @@ fail/domains/view_field_store_literal_outside_domain rejected 1831ms expected @c
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/view_local_qualified_store_unproven rejected 11051ms expected @ccdb99ca2214
 	cannot prove the value assigned to `out_line` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
+fail/domains/wide_array_literal_membership_unproven rejected 7022ms expected @8916b8a2bc3d
+	construction value is not proven in domain `[u16; N]::Wide` in literal_wide state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from literal_wide at statement 0: [111, 109, 101, 7] requires [u16; N]::Wide
 fail/domains/write_only_bare_helper_cannot_erase_field_default rejected 2376ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
 fail/domains/write_only_declared_field_domain_requires_restoration rejected 1049ms expected @8fce926f9735
@@ -28273,6 +28276,7 @@ run/domains/structural_qualification_cast_transitions checked 9941ms check-targe
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/vacuous_tag_call_arguments checked 10514ms check-target:macos_arm64 @602404d45977
+run/domains/wide_array_literal_membership_exit checked 113188ms check-target:macos_arm64 @81e541ff8413
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214
