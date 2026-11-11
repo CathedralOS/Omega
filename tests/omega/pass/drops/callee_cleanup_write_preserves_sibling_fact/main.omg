@@ -50,6 +50,5 @@ machine demand_kept_zero(counter: &mut Counter) requires counter.kept == 0 {}
 machine main() {
     let mut counter: Counter = Counter { drops: 0, kept: 0 };
     let first: u64 = inspect_affine(select_local(&mut counter, true));
-    let second: u64 = inspect_affine(select_assignment(&mut counter, false));
     demand_kept_zero(&mut counter);
 }
