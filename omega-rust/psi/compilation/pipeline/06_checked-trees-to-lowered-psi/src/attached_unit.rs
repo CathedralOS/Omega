@@ -293,6 +293,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect::<Vec<_>>();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &view_roster,
@@ -6293,6 +6294,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
@@ -9203,7 +9205,7 @@ pub(crate) mod inner {
                     next_value,
                 )?;
                 let erased_scalar_parameters =
-                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters)?
+                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters, true)?
                         .into_iter()
                         .map(|scalar_type| {
                             Ok(ValueDeclaration {
@@ -11420,6 +11422,7 @@ pub(crate) mod inner {
                 &declared_result,
                 &signature.erased_scalar_parameters,
                 &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &evaluation.structural_parameters,
@@ -13039,6 +13042,22 @@ pub(crate) mod inner {
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+            let caller_local_observations = structural_locals
+                .iter()
+                .filter_map(|local| {
+                    let facts::PlaceRoot::Symbol(symbol) = local.root else {
+                        return None;
+                    };
+                    local.argument.path.is_empty().then_some(
+                        crate::scalar_lowering::contracts::ContractLocalObservation {
+                            symbol,
+                            place: local.argument.place,
+                            structural_type: local.structural_type,
+                            access: local.argument.access,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
             let erased_arguments = erased_scalar_arguments
                 .iter()
                 .map(|argument| {
@@ -13057,6 +13076,7 @@ pub(crate) mod inner {
                             scalar_applications,
                             constant_values: &checked.typed.constant_recipe_closure.values,
                             parameters: caller_observation_parameters,
+                            locals: &caller_local_observations,
                             structural_types,
                             ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
                         },
@@ -13868,7 +13888,7 @@ pub(crate) mod inner {
             qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
             next_value: &mut u64,
         ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-            let carriers = lower_unit_scalar_parameter_types(parameters)?;
+            let carriers = lower_unit_scalar_parameter_types(parameters, false)?;
             let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
             let authored = checked.state_parameters(declaration);
             parameters
@@ -13917,13 +13937,21 @@ pub(crate) mod inner {
             Ok(declared)
         }
 
+        /*
+            Scalar parameters and erased scalar lanes both arrive in source
+            order. Runtime scalar parameters each own their authored position.
+            An erased record formal owns one lane per scalar leaf, so its
+            consecutive lanes share a position (`leaves_share_position`).
+        */
         pub(crate) fn lower_unit_scalar_parameter_types(
             parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+            leaves_share_position: bool,
         ) -> Result<Vec<ScalarType>, LoweringError> {
-            if parameters
-                .windows(2)
-                .any(|pair| pair[0].source_position >= pair[1].source_position)
-            {
+            if parameters.windows(2).any(|pair| {
+                pair[0].source_position > pair[1].source_position
+                    || (!leaves_share_position
+                        && pair[0].source_position == pair[1].source_position)
+            }) {
                 return unsupported("Unit scalar parameters are not in strict source order");
             }
             parameters

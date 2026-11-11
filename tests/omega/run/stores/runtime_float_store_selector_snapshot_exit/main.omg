@@ -9,7 +9,7 @@ machine produced(index: &mut i32 in Wrapping, value: i32) -> f64 {
     F64::from_i32(value)
 }
 
-public machine Main::main(application: &mut Main) reaches Console
+public machine main(application: &mut Main) reaches Console
 invokes Console
 blocks
 crashes Trap
@@ -41,12 +41,12 @@ crashes Trap
 }
 
 // The hosted entry takes no arrival parameters; it owns the program's
-// storage and passes it to `Main::main` explicitly.
+// storage and passes it to `main` explicitly.
 public machine entry_start() reaches Console
 invokes Console
 blocks
 crashes Trap
 {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

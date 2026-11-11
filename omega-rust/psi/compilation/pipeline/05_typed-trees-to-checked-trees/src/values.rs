@@ -789,6 +789,7 @@ mod evaluation {
     ) -> Option<(IntegerType, IntegerValue)> {
         match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+            | CheckedScalarExpression::StructuralLocalField { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. } => None,
             CheckedScalarExpression::StructuralParameterField {
                 observation,

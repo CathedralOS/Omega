@@ -162,10 +162,34 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate(expression)
+                | Statement::Store {
+                    value: expression, ..
+                } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
+                }
+                Statement::Declare { .. } => {}
+                // Exactly one arm runs and each completes the machine, so
+                // the dispatch completes normally when some arm does and
+                // nothing follows it.
+                Statement::Dispatch {
+                    subject,
+                    arms,
+                    default,
+                    ..
+                } => {
+                    if !self.expression(machine, subject)? {
+                        return Ok(normal);
+                    }
+                    for (_, target, _) in arms {
+                        normal |= self.target(machine, target)?;
+                    }
+                    if let Some((target, _)) = default {
+                        normal |= self.target(machine, target)?;
+                    }
+                    return Ok(normal);
                 }
                 Statement::Arm { guard, target, .. } => {
                     if let Some(guard) = guard
@@ -204,6 +228,38 @@ impl Walk<'_> {
             }
             ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
                 self.expression(machine, operand)
+            }
+            ExpressionKind::Field { base, .. }
+            | ExpressionKind::Payload { base, .. }
+            | ExpressionKind::IsCase { subject: base, .. } => self.expression(machine, base),
+            // One arm runs: the match completes when its subject does and
+            // some arm does, and every arm's causes are reachable.
+            ExpressionKind::Match {
+                subject,
+                arms,
+                default,
+            } => {
+                if !self.expression(machine, subject)? {
+                    return Ok(false);
+                }
+                let mut completes = false;
+                for (_, arm) in arms {
+                    completes |= self.expression(machine, arm)?;
+                }
+                if let Some(arm) = default {
+                    completes |= self.expression(machine, arm)?;
+                }
+                Ok(completes)
+            }
+            // Operands in authored order; the establishment itself cannot
+            // crash or fail to complete.
+            ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+                for (_, operand) in fields {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
             }
             ExpressionKind::Strict { left, right, .. } => {
                 Ok(self.expression(machine, left)? && self.expression(machine, right)?)

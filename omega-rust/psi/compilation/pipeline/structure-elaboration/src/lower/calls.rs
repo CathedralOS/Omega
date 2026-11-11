@@ -2,21 +2,74 @@
 The call family of lowering: invocation rows and their `CallRequirement`
 obligations, calls as operations, no-normal calls as terminators, and the
 crash continuations and `CrashCoverage` obligations of both.
+
+A record argument is passed by value: its expression is evaluated to a root
+nothing else names (`places::record`), the call takes that root whole and
+owned, and the root's home is retired on the edge into the call's
+continuation. Scalar and record arguments are evaluated in one left-to-right
+order (calls_and_outcomes.md: "Mixed scalar and structural operands share
+that order; they do not form two separately evaluated lists") and then
+travel in Terminal Psi's two lanes.
 */
 
-use semantic_vocabulary::{InvocationSite, MachineId, ObligationId, ScalarType, ValueId};
+use semantic_vocabulary::{InvocationSite, MachineId, ObligationId, PlaceId, ValueId};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalReason};
-use terminal_psi::{OperationKind, Terminator};
+use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Lowering, Value};
-use crate::body::{Expression, ExpressionKind};
+use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
 
+/// A call's evaluated arguments.
+struct Arguments {
+    /// In authored formal order, as the invocation row holds them.
+    actuals: Vec<Actual>,
+    /// The scalar lane: the values a callee clause's formals stand for.
+    scalars: Vec<ValueId>,
+    /// The structural lane: each record argument's root, whole and owned.
+    records: Vec<PlaceId>,
+}
+
+impl Arguments {
+    fn structural(&self) -> Vec<StructuralArgument> {
+        self.records
+            .iter()
+            .map(|root| StructuralArgument::whole(*root, StructuralAccess::Owned))
+            .collect()
+    }
+}
+
 impl Lowering<'_> {
+    /// Evaluates a call's arguments left to right.
+    fn arguments(&mut self, arguments: &[Expression]) -> Checked<Arguments> {
+        let mut evaluated = Arguments {
+            actuals: Vec::with_capacity(arguments.len()),
+            scalars: Vec::new(),
+            records: Vec::new(),
+        };
+        for argument in arguments {
+            match argument.result {
+                Some(ValueType::Record(_)) => {
+                    let root = self.record(argument)?;
+                    evaluated
+                        .actuals
+                        .push(Actual::Place(self.exact_root(root)?));
+                    evaluated.records.push(root);
+                }
+                Some(ValueType::Scalar(_)) | None => {
+                    let value = self.scalar(argument)?;
+                    evaluated.actuals.push(Actual::Value(value));
+                    evaluated.scalars.push(value);
+                }
+            }
+        }
+        Ok(evaluated)
+    }
+
     fn outcome(&self, callee: MachineId) -> Checked<&'_ Outcome> {
         terminal_check_tables::row(self.outcomes, callee, self.id, Construct::Machine)
     }
@@ -37,6 +90,12 @@ impl Lowering<'_> {
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_)
+            | ExpressionKind::Record { .. }
+            | ExpressionKind::Case { .. }
+            | ExpressionKind::Payload { .. }
+            | ExpressionKind::IsCase { .. }
+            | ExpressionKind::Match { .. }
+            | ExpressionKind::Field { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
@@ -54,19 +113,19 @@ impl Lowering<'_> {
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let mut actuals = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            actuals.push(self.scalar(argument)?);
-        }
-        let crash_continuations =
-            canonical::substituted_routes(&self.outcome(callee)?.crash_routes, &actuals, self.id)?;
+        let arguments = self.arguments(arguments)?;
+        let crash_continuations = canonical::substituted_routes(
+            &self.outcome(callee)?.crash_routes,
+            &arguments.scalars,
+            self.id,
+        )?;
         let site = self.current()?;
         let before = self.here()?;
         let edge = self.no_successor_edge(source)?;
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
             callee,
-            &actuals,
+            &arguments.actuals,
             before,
             source,
         )?;
@@ -84,10 +143,10 @@ impl Lowering<'_> {
             edge,
             static_reach_binding: None,
             callee,
-            arguments: actuals,
+            structural_arguments: arguments.structural(),
+            arguments: arguments.scalars,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: requirements,
             crash_continuations,
@@ -100,7 +159,7 @@ impl Lowering<'_> {
         &mut self,
         site: InvocationSite,
         callee: MachineId,
-        actuals: &[ValueId],
+        actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
     ) -> Checked<Vec<ObligationId>> {
@@ -111,7 +170,7 @@ impl Lowering<'_> {
         let invocation = self.tables.invocations.push(InvocationRow {
             site,
             callee: Callee::Machine(callee),
-            actuals: actuals.iter().copied().map(Actual::Value).collect(),
+            actuals: actuals.to_vec(),
             requirements: Vec::new(),
         });
         let mut requirements = Vec::with_capacity(clauses);
@@ -142,7 +201,7 @@ impl Lowering<'_> {
         &mut self,
         callee: MachineId,
         arguments: &[Expression],
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
         // A call is an operation only when its callee may return. One with
@@ -156,23 +215,23 @@ impl Lowering<'_> {
                 Unserved::Call("no-normal call inside an expression"),
             ));
         }
-        let mut actuals = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            actuals.push(self.scalar(argument)?);
-        }
+        let arguments = self.arguments(arguments)?;
         // A callee that may return and also publishes crash routes makes
-        // this operation a crash site: its routes, with each formal replaced
-        // by the actual at its position, are the call's crash continuations,
-        // and the site owes one `CrashCoverage` per surviving cause, as an
-        // `InvokeNoNormal` terminator does at its block.
-        let crash_continuations =
-            canonical::substituted_routes(&self.outcome(callee)?.crash_routes, &actuals, self.id)?;
+        // this operation a crash site: its routes, with each scalar formal
+        // replaced by the actual at its position, are the call's crash
+        // continuations, and the site owes one `CrashCoverage` per surviving
+        // cause, as an `InvokeNoNormal` terminator does at its block.
+        let crash_continuations = canonical::substituted_routes(
+            &self.outcome(callee)?.crash_routes,
+            &arguments.scalars,
+            self.id,
+        )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             callee,
-            &actuals,
+            &arguments.actuals,
             before,
             source,
         )?;
@@ -186,26 +245,72 @@ impl Lowering<'_> {
                 source,
             );
         }
-        let kind = match result {
-            Some(_) => OperationKind::Call {
-                callee,
-                arguments: actuals,
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                requirement_obligations: requirements,
-                crash_continuations,
-            },
-            None => OperationKind::CallUnit {
-                callee,
-                arguments: actuals,
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: requirements,
-                crash_continuations,
-            },
+        let structural_arguments = arguments.structural();
+        let scalars = arguments.scalars;
+        // Terminal Psi has one call operation per result lane, and the
+        // scalar-result form with no record argument is the plain `Call`.
+        let value = match result {
+            Some(ValueType::Scalar(scalar_type)) => {
+                let kind = if structural_arguments.is_empty() {
+                    OperationKind::Call {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                    }
+                } else {
+                    OperationKind::CallStructuralScalar {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                    }
+                };
+                self.emit(operation, Some(scalar_type), kind)?
+            }
+            None => self.emit(
+                operation,
+                None,
+                OperationKind::CallUnit {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                },
+            )?,
+            Some(ValueType::Record(record)) => {
+                let (root, exact) = self.produce(
+                    operation,
+                    record,
+                    OperationKind::CallStructuralWithScalarArguments {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                        selected_evidence: Vec::new(),
+                    },
+                )?;
+                self.unknown_contents(exact, operation)?;
+                Value::Record(root)
+            }
         };
-        self.emit(operation, result, kind)
+        if !arguments.records.is_empty() {
+            self.retire_homes(&arguments.records, source)?;
+        }
+        Ok(value)
     }
 }

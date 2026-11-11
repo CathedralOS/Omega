@@ -2,14 +2,16 @@
 
 This crate turns frozen typed trees into an unsealed Terminal Psi module and
 fills the [check tables](../../representations/terminal-psi/check-tables/README.md)
-that describe it, for route one's scalar subset. It is the second piece of
+that describe it, for route one's scalar subset and for plain data: records
+(literals, field reads, stores, whole copies) and sums (case literals, case
+tests, dispatch and `match` with payload bindings). It is the second piece of
 [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 it proves nothing, reads no checker fact, and mints every obligation the
 lowered form implies without discharging any. It is not wired into the
 default compile and replaces nothing yet.
 
 Start at [lib.rs](src/lib.rs) (`elaborate`). [read.rs](src/read.rs) resolves a
-machine's typed trees into the closed scalar body of [body.rs](src/body.rs);
+machine's typed trees into the closed body of [body.rs](src/body.rs);
 [outcome.rs](src/outcome.rs) then works out, callees first, whether each
 machine can complete normally and which crash routes it publishes;
 [lower.rs](src/lower.rs) turns each body into blocks, values, operations,
@@ -21,10 +23,14 @@ and `Slot`, and each family is a module beside it:
 [machine](src/read/machine.rs) (admission, signatures, the body driver),
 [types](src/read/types.rs), [contracts](src/read/contracts.rs),
 [statements](src/read/statements.rs), [expressions](src/read/expressions.rs),
-[calls](src/read/calls.rs) and [transitions](src/read/transitions.rs).
-`lower.rs` holds the `Lowering` state, the per-machine entry point and
+[calls](src/read/calls.rs), [transitions](src/read/transitions.rs) and
+[places](src/read/places.rs) (data declarations, record and case literals,
+member paths, case tests and patterns). `lower.rs` holds the `Lowering` state, the per-machine entry point and
 `finish`, beside [control](src/lower/control.rs) (blocks, edges, arms, crashes,
-returns), [operations](src/lower/operations.rs) and [calls](src/lower/calls.rs).
+returns), [operations](src/lower/operations.rs), [calls](src/lower/calls.rs)
+and [places](src/lower/places.rs) (roots, projections, the write log, record
+and case construction, field and payload reads, whole copies, the dispatch
+terminator).
 
 ## The subset
 
@@ -43,10 +49,92 @@ normal completion is served only in terminal position (an arm target or a
 call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference, record, slice, loop, recursion
+call inside an expression`, ...): a reference, slice, loop, recursion
 through a cycle, generic, callable value, suspension, assembly, cast, float,
 domain or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the closure refuses the whole closure.
+
+### Records
+
+A formal, a local, a result, a field and an argument may also be a
+copy-eligible plain record: a `data` declaration marked `[copy]` whose fields
+are builtin integers, `bool` or other such records. On such values the subset
+serves:
+
+- the record literal `R { a: x, b: y }`, the field read `r.a` and `r.a.b`,
+  and copying a record value (`let b = a;`, passing it by value, returning
+  it, moving it into a field of a literal);
+- a store into a field of a `mut` local, `r.a = x` and `r.a.b = x`, and the
+  replacement of a record field by a record, `l.from = p`;
+- whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
+- a local declared without an initializer, `let mut x: u32;` and
+  `let mut r: R;`, stored into later.
+
+`[copy]` is required, not inferred
+([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
+requires an explicit `[copy]` declaration; copyable fields do not change the
+affine default."). Plain data without it is affine, moves once, and belongs
+to the ownership lane (`type data with custody`).
+
+Formals are immutable here. A `mut` formal is refused where the signature is
+read (`parameter mutable parameter`), and a store through a `&mut` formal
+belongs to the references lane (`type reference`).
+
+### Sums
+
+A `data` declaration marked `[copy]` whose members are all cases is a sum,
+served wherever a record is: as a formal, a local, a result, a field or
+payload field, and an argument. A payload field is a builtin integer,
+`bool` or other such data. On sums the subset serves:
+
+- the case literal `S::C { p: x }`, `S::C {}` and `S::C`, and copying a sum
+  value;
+- the case test `s in S::C`, and `k == Kind::A` against a payload-free case,
+  which the typed trees hold as the same test;
+- `transition s { S::A { p } -> ..  S::B -> ..  _ -> .. }`, with payload
+  bindings, renames (`p as q`), waived fields (`p as _`) and `..`;
+- value-position `match` over a sum named by a slot or a path beneath one,
+  with scalar arms;
+- a local of sum type declared without an initializer. As for a record, it
+  holds nothing until something is stored
+  (`OWNER_QUESTIONS.md`, `local-without-initializer`).
+
+Whether a payload may be named where it is named is not decided here. It is
+the checker's payload judgment
+([lowered-discharge](../lowered-discharge/README.md#payload-access)), and so
+is the completeness of every dispatch it is handed.
+
+The rest of the places foundation lane
+(`wiki/drafts/designs/places_foundation_lane.md`) is refused by name until
+the slice that serves it:
+
+| Construct | Refusal detail |
+| --- | --- |
+| data with a `requires` | `type data requires` |
+| data that is not `[copy]`, or has a cleanup selection | `type data with custody` |
+| data with common fields beside its cases | `type mixed data` |
+| generic, quotient, zero-gated or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type zero-gated data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
+| a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
+| a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
+| `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
+| `let { a, b } = r;` | `statement record pattern binding` (finding 21) |
+| a directly authored payload member, `s.at` and `s.at = x` | `spelling member without a field symbol` (finding 20) |
+| a field of a data payload binding, `inner.x` | `spelling member without a field symbol`; from a closed body, `expression field read beneath a case payload` |
+| a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
+| `crash` in a case arm | `transition crash in a case arm` (finding 22) |
+| `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
+| a `match` arm with a guard or after the wildcard | `transition case arm with a guard`, `expression match arm after the wildcard` |
+| `s in S::C` whose right side names no case | `expression case membership` |
+| a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |
+| a clause that names a record formal or projects a formal or `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
+| `==` and `!=` between records or between two sum values | `expression operator on a record` |
+| a field or literal type the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol` |
+
+A named constant never reaches this crate as a name: stage 04 and build-time
+evaluation replace each use with the constant's materialized initializer, so a
+scalar constant arrives as an integer literal (as it did in route one) and a
+record constant as a record literal, and each is read as that literal. A name
+that still resolves to a constant is refused as `expression const`.
 
 ## How identity is fixed
 
@@ -56,6 +144,33 @@ refusal anywhere in the closure refuses the whole closure.
   used. A `Named` type with an invalid symbol is refused as a spelling; a
   declaration spelled `u32` is a different symbol and is refused as nominal.
   Integer literals take their type from the landing stage 04 recorded.
+- **Record types** are the `StructuralTypeId` minted for a `SymbolKind::Data`
+  symbol's declaration the first time a type names it, a nested record before
+  its owner. Nothing here reads a type's name, so data declared in another
+  package would take the same route through its symbol and declaration; no
+  program with such a type has been run through it yet.
+- **Fields** are a position in that declaration and a `StructuralFieldId`
+  minted with it, unique in the module. A literal's field and a member are
+  matched to the declaration by the field symbol stage 02 recorded
+  (`TableStructLiteralField::field_symbol`,
+  `TableMemberExpression::member_symbol`); one without a symbol is refused as
+  a spelling.
+- **Cases** are a position among the declaration's cases and a
+  `StructuralCaseId` minted with it, unique in the module. A case literal, a
+  pattern head and the right operand of a case test are matched to the
+  declaration by the case symbol; a payload field by its field symbol, as a
+  field is. A case of another type than its subject's is refused
+  ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#case-observation):
+  "Its case identity must belong to the exact selected sum type; matching
+  case spellings in another type supply no authority."). A member's
+  `case_variant` is a spelling and is never read.
+- **Text identities** exist in one place only. Terminal Psi's own type and
+  field declarations carry an interned text
+  (`StructuralTypeDeclaration::identity`), and `StructuralLeafCopy` names a
+  path segment by that interned index. The reader takes the texts from the
+  typed trees' own renderers (`normalized_nominal_type_identity`,
+  `DataField::member_identity`), lowering copies them into the module, and
+  nothing in this crate or the checker compares one.
 - **Names** are slots only when the path has one member and a valid symbol
   equal to a formal's or local's symbol. A name without a symbol is refused.
 - **`result`** in a contract is the result pseudo-value only through the name
@@ -63,10 +178,13 @@ refusal anywhere in the closure refuses the whole closure.
   it decides the name is the reserved result (`symbols.rs`,
   `assign_contract_call_symbols`). The owner must be the machine's one state,
   the clause an `ensures`, and the machine scalar. A name spelled `result`
-  with no recorded owner is refused as a spelling. The pseudo-value is value
-  `formals + 1` with `ValueOrigin::MachineResult`, so the module's
-  `TerminalMachineResult::Scalar`, its `ensures` propositions and the value
-  table name one identity.
+  with no recorded owner is refused as a spelling. The pseudo-value is the
+  value right after the scalar formals, with `ValueOrigin::MachineResult`, so
+  the module's `TerminalMachineResult::Scalar`, its `ensures` propositions
+  and the value table name one identity.
+- **Formals** travel in Terminal Psi's two lanes. The `k`-th scalar formal is
+  value `k + 1`, skipping record formals, and that is how a clause names it; a
+  record formal is a root place and has no value identity.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
@@ -127,10 +245,159 @@ must be last. An arm's target is a value, a terminal call (a call whose
 result completes the machine, [state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
 lowered as a call followed by a return) or Unit.
 
+Stage 01 writes dispatch over a sum the same way: a local that holds the
+subject, then one transition per arm guarded by `subject in case`, with every
+use of a payload binding replaced by the payload member of the subject it
+names. The reader takes the run of case arms over one subject, and the
+unguarded arm after them as the wildcard, as one dispatch. Lowering ends the
+block in one `StructuralCase` on the subject local's root, with one edge per
+declared case in declaration order, built from the declaration's case table:
+to the arm that names the case, else to the wildcard arm's block, which the
+uncovered cases share. A declared case with neither is refused there with
+reason `Unestablished`
+([patterns](../../../../../wiki/spec/language/patterns.md): "Every dispatch
+must cover the admitted subject. Missing runtime coverage is a compile
+error, not an implicit trap or fallthrough."). Each scalar payload field of
+an arm's case is one parameter of the arm's block
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+"Selected payload fields become scalar parameters on that case's edge before
+cleanup."), and a payload member inside the arm is that parameter. A data
+payload field is no parameter; using it copies it out with a
+`StructuralLeafCopy` whose path is the case and the field.
+
+Value-position `match` is the same terminator on the place the subject
+names, with no copy: each arm evaluates its value in its own block and jumps
+to a join whose one parameter is the result. An arm is an expression, so it
+rebinds no slot and stores nothing, and the result is the only thing that
+differs across the arrivals.
+
 Scalar locals are SSA values: a binding or assignment names the value the
-slot holds from then on. Every arm completes the machine, so the only joins
-are the short-circuit joins, and the lowered form has no structural places:
-the place, root and write tables are empty because the form implies none.
+slot holds from then on. Every transition arm completes the machine, so the
+only joins are the short-circuit joins and the join of a `match`. A machine with no record has no structural
+place, and its place, root and write tables are empty because the form
+implies none.
+
+## Places, roots and the write log
+
+A record value is storage, so lowering a record fills three tables in step
+with the Terminal Psi operations that create the storage
+([lower/places.rs](src/lower/places.rs)).
+
+**Roots.** One Terminal `PlaceId`, one `PlaceRow { origin: Root }` and one
+`roots` entry for each record formal (`StructuralPlaceKind::Parameter`), each
+operation that produces a record (`OperationResult`: a literal, a whole copy,
+a call with a record result) and a record machine's result place (`Result`).
+A record local has no place of its own: its slot holds the root its
+initializer, or the last whole value assigned to it, produced. A local
+declared without an initializer is the one local with a home of its own: the
+root of the operation that reserves its storage. `PlaceId`s are dense per
+machine, like every identity here.
+
+**Projections.** `r.a` is the row `(r, Segment::Field(a))`, found by binary
+search of the parent's sorted `children` and pushed only when absent, so a
+path is one `ExactPlaceId` however often it is used.
+
+**Writes.** Each row says what one operation stored and where, at
+`ProgramPoint::AfterOperation` of that operation. Lowering never asks what a
+place holds: answering that needs the graph, and the checker is the one that
+walks it.
+
+| Operation | What is logged |
+| --- | --- |
+| `EstablishRecord` | each scalar field `Content::Value(operand)`; each record field one `Content::Overwritten` on that field's place |
+| `EstablishScalarCase`, `EstablishStructuralCase` | one `Content::Overwritten` on the root, then each scalar payload field `Content::Value(operand)` and each data payload field one `Content::Overwritten`, on the place `Case` then `Field` |
+| `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | `Content::Value(stored)` on exactly the leaf it names |
+| `StoreStructuralField` (a record into a field) | one `Content::Overwritten` on that field's place |
+| `StructuralLeafCopy` | one `Content::Overwritten` on its fresh root |
+| a call with a record result | one `Content::Overwritten` on the root: the callee's values have no identity here |
+| `EstablishZeroedStructural`, `EstablishPrimitiveLocal` of a local with no initializer | nothing |
+
+No row says which case a root was established as: `Content` has no such
+form. The root's row says it has new contents, and the checker reads the
+case from the establishing operation at that row.
+
+`Content` has no variant for "what that other place held". So a whole copy,
+a record operand and a record stored into a field log only that the
+destination has new contents; the operation at the row's point names the
+source, and the checker resolves each leaf through it with the same walk it
+uses for a read. A sibling of a stored leaf gets no row and keeps its
+contents, and no row is ever edited, so what was known about an old value
+stays known.
+
+What a formal holds at entry is not a write. It is one value per scalar leaf
+with `ValueOrigin::EntryContent { place }`, minted the first time an
+operation names the leaf or a place above it and shared by every later use.
+No value is invented.
+
+**Stores.** `r.a.b = x` evaluates `x` and emits one
+`StructuralScalarFieldStore` whose path is the carrier `a` and whose field is
+the leaf `b`; a plain field has no declared range, so `range_obligation` is
+`None`. `l.from = p` constructs the value first (a literal is its own root, a
+local is copied whole) and replaces the field with one
+`StoreStructuralField`, never with member stores
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"A whole record assignment constructs its operands before replacing the
+destination through the ordinary structural replacement operation ... Root,
+field, and indexed destinations do not change construction semantics or
+decompose the assignment into member stores"). Whole assignment to a local,
+`r = R { ... }`, constructs the value and then the local names that root:
+this is what the current pipeline emits for a root destination, and it is
+the same rebinding a scalar assignment does. Stores go straight into the
+root a local names ("A whole, unqualified, claim-free owned record home
+(entry, block parameter, or completed establishment/call result) supplies
+write authority directly"); the current pipeline first moves a `mut` local
+into a block parameter, which this subset has no join to need.
+
+**Locals with no initializer.** `let mut r: R;` emits
+`EstablishZeroedStructural` and `let mut x: u32;` a zero constant and
+`EstablishPrimitiveLocal`, the operations the current pipeline emits, so the
+module runs. Neither logs a row: the storage is reserved and the checker
+treats a use that no store reaches on every path as unestablished
+([state contracts](../../../../../wiki/spec/language/state_contracts.md):
+"Uninitialized storage has no assumed zero."). The current checker instead
+treats both as holding zero; which reading the language means is
+`OWNER_QUESTIONS.md`, `local-without-initializer`. Such a scalar local is a
+storage home, written by `WriteOnlyPrimitiveStore` and read by
+`PrimitiveScalarRead`; every other scalar local stays an SSA value.
+
+**The Terminal Psi forms.** Operands of a literal are evaluated in authored
+order and the one `EstablishRecord` follows them with its roster in
+declaration order. A scalar field read is `ScalarStructuralField` (integers)
+or `BooleanStructuralField` (`bool`), naming the whole root, the carrier path
+by `StructuralFieldId` and the final field; neither holds text. A record used
+as a value is a root nothing else names: a literal or call is its own root, a
+local, formal or member path is copied whole by `StructuralLeafCopy`. A call
+takes each record argument whole and owned
+(`CallStructuralScalar`, `CallStructuralWithScalarArguments`, `CallUnit`) and
+is followed by a `Jump` into a continuation block whose `cleanup_actions`
+retire the consumed homes. A record result returns through
+`ReturnStructural`.
+
+**Cases.** A case literal evaluates its payload operands in authored order
+and then establishes once: `EstablishScalarCase` with no field for a case
+without payload, `EstablishStructuralCase` with the payload roster in
+declaration order otherwise, which are the operations the current pipeline
+emits. `s in S::C` is one `StructuralCaseMembership` on the sum in place. A
+scalar payload member outside a dispatch on its place is a
+`ScalarStructuralField` whose carrier ends in the one `Case` step.
+
+**Module declarations.** A module that names a record declares, once for the
+module, what the codec and the interpreter require: `structural_types` (one
+`Record` per record type, `copyable`, `Packed`, each field `Scalar` or
+`Structural`; one `Sum` per sum type with its cases and their payload
+fields), `identities` (the interned type, field and case texts), and
+`native_layouts` (one natural row per record and none per sum, with no
+policy, no realization and absent nominal identities). Each scalar type some local is homed in is
+declared after the records as a `PrimitiveScalar` type, with the identity the
+typed trees render for it. A scalar module with no such local declares none
+of them.
+
+The record flags (`copyable`, `no_code_affine_cleanup`, `descriptor_cleanup`,
+no linear claim) are the ones the current pipeline emits for the same plain
+`[copy]` record, checked by decoding its artifact. One column differs: the
+current pipeline sets `inline_carrier` on each scalar field to the primitive
+structural type of that scalar, and this route leaves it `None`. The
+interpreter loads and runs both.
 
 ## Obligations
 
@@ -148,8 +415,8 @@ the place, root and write tables are empty because the form implies none.
 obligation, indexed by the same identity and minted in lockstep with it.
 An origin is the authored span, or `Unpositioned` with the reason
 (`MachineEntry`, `ShortCircuitRight`, `ShortCircuitJoin`,
-`DispatchContinuation`, `ImplicitReturn`, or `SpanAbsent` when the typed
-tree's span is empty). It never borrows a neighbour's position.
+`DispatchContinuation`, `ImplicitReturn`, `ArgumentRetirement`, or
+`SpanAbsent` when the typed tree's span is empty). It never borrows a neighbour's position.
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depends on `checked-trees`.
 
@@ -219,3 +486,86 @@ worked around by adding to `terminal-check-tables`.
 10. **Every machine carries a reach row.** A machine with no reach holds
     `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
     row is refused.
+11. **A field read is `ScalarStructuralField`, not `PrimitiveScalarRead`.**
+    The lane plan's table names `PrimitiveScalarRead`; the specification
+    gives a static field path the other form
+    ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+    "A carrier with neither a runtime element nor a reference crossing keeps
+    the canonical `ScalarStructuralField` or `BooleanStructuralField` read."),
+    and it is what the current pipeline emits. It is also the form with no
+    text in it: its path is `CanonicalStructuralPathSegment::Field(StructuralFieldId)`.
+12. **`StructuralLeafCopy` of a member path needs the interned text index.**
+    Its path is `StructuralPathSegment::Field(TerminalIdentityIndex)`.
+    Lowering fills it from the field's own declaration row and compares
+    nothing. The checker needs the copy's source place, which no table row
+    can hold, and gets it by asking the lowered form to resolve the path
+    (`terminal_semantics::runtime_structural_field`); it compares no
+    identity itself.
+13. **The decoder requires a native layout row per record.** A module with a
+    record type and an empty `native_layouts` encodes and then fails to load
+    ("native layout catalog differs from the complete ordered record
+    inventory"). Lowering adds the natural row. Its nominal native identities
+    are absent: producing them is the native layout review's identity work,
+    which this route does not do.
+14. **The write log cannot say "copied from that place".** `Content` holds a
+    value, a reference, unknown contents or a hole, and `WriteRow` has no
+    source column. A whole copy therefore logs `Overwritten` and the checker
+    reads the source from the operation. A `Content` variant naming the
+    source `ExactPlaceId` would let the log stand alone; this lane adds no
+    such variant and reports the gap instead.
+15. **A return does not write the result place.** A record machine's result
+    place is a root with no log entry. The slice that states `result.field`
+    clauses logs the returned leaves on the return edge.
+16. **Record constants are served as literals, with no constant route.** The
+    typed trees hold each use as the materialized initializer, so there is
+    nothing left to refuse or to resolve.
+17. **A transition's payload bindings are block parameters, not reads.** The
+    lane plan's table gives "payload reads on the selected edge". The
+    specification gives a root sum's payload the other form
+    ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
+    "Selected payload fields become scalar parameters on that case's edge
+    before cleanup."; structural access: "producers read a root sum's
+    payload as parameters of its dispatch block"), and it is what the
+    current pipeline emits for `transition`.
+18. **Value `match` uses the dispatch terminator; the current pipeline does
+    not.** For `match` the current pipeline emits a chain of
+    `StructuralCaseMembership` tests and conditionals with payload reads
+    whose carrier ends in the case. This route emits one `StructuralCase`,
+    as the lane plan asks ("The same terminator; arms join with the result
+    as a block parameter"). Both forms run in the interpreter.
+19. **Where coverage is rejected today.** A `transition` over a sum that
+    misses a case never reaches this crate: stage 03 rejects it
+    (`equality_and_exhaustiveness.rs`, "match over `S` does not cover").
+    A `match` that misses a case, a pattern that names fewer than all
+    payload fields, and a partial record pattern are rejected by
+    `validation` (`validate_match_coverage`, `validate_for_subject`,
+    `validate_destructure_exhaustiveness`), which runs after the typed trees
+    this route reads are frozen. So this route decides the first two itself.
+20. **A directly authored payload member has no field symbol.** `s.at` and
+    `s.at = x` on a sum reach the typed trees as a member with a name and an
+    invalid `member_symbol`; so does a field of a data payload binding,
+    `inner.x`. Resolving one would mean comparing the name with the payload
+    fields' names, so each is refused as a spelling. The payload members
+    this route reads are the ones stage 01 substitutes for pattern bindings,
+    which carry the field symbol. Serving the rest needs the symbol recorded
+    where the member is typed.
+21. **A record pattern's field roster exists only as text.**
+    `let { x, y as _ } = p;` reaches the typed trees as a marker local named
+    `__destructure#x#y` followed by one ordinary field-read local per bound
+    field. Which fields the pattern mentions is in the marker's name and
+    nowhere else, and the current checker splits and compares it by spelling.
+    [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
+    requires the pattern to name every field, and accepting the marker
+    without checking that would accept `let { x } = p;`. It stays refused
+    until the marker carries its fields' symbols.
+22. **A crash inside a case arm has no exact site guard.** The guard is the
+    conjunction of the branch decisions before the crash, each a value equal
+    to a Boolean. Which case a dispatch selected is not a value, so the arm
+    is refused instead of given a wider guard.
+23. **Mixed data is refused.** A case literal of a type with common fields
+    beside its cases names none of them (`Token::Mark { kind: 2 }`), so what
+    they hold after construction is the zero-initialization question
+    `OWNER_QUESTIONS.md` records as `local-without-initializer`.
+24. **`ValueType::Record` and `RecordType` name records and sums.** A sum is
+    the same row with `cases` instead of `fields`; the names were kept so
+    the slices before this one read unchanged.

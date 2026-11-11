@@ -9,13 +9,19 @@ is no interval verdict, no admitted route and no assumption.
 (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one";
 `wiki/drafts/designs/stage_trust.md`, rule 2.)
 
-Per machine it does three things:
+Per machine it does four things:
 
 - Fills the `knowledge` table from the lowered form alone: each entry
   `requires` clause at the entry block, each operation's result equation on
-  its normal successor (Terminal semantics states it), and each callee
-  `ensures` clause, under the call's actuals, after the call. Nothing comes
-  from source shapes, names or any Psi 05 or validation fact.
+  its normal successor (Terminal semantics states it), each field read's
+  equation with the one value its place holds on every path to it (`places`,
+  the same walk a copy's leaves are resolved by),
+  and each callee `ensures` clause, under the call's actuals, after the call.
+  Nothing comes from source shapes, names or any Psi 05 or validation fact.
+- Judges initialization: every operation and terminator that reads storage
+  gets one verdict, `Unestablished` when some path to it stores nothing into
+  a scalar leaf it reads (`places`). It is a structural judgment over the
+  write log and the graph, not an obligation, so it has no certificate.
 - States each obligation's goal over Terminal values: an operation's safety
   goal is Terminal semantics' own canonical goal, a call requirement is the
   callee's `requires` clause under the call's actuals, a normal guarantee is
@@ -29,7 +35,14 @@ refused as `Unsupported`; elaboration mints none of them yet.
 */
 
 mod graph;
+mod places;
 mod prove;
+mod verdict;
+
+pub use verdict::{AcceptedClosure, RouteVerdict, UnestablishedUse, UnprovedObligation, judge};
+
+#[cfg(test)]
+pub(crate) use prove::has_rules_for;
 
 #[cfg(test)]
 mod tests;
@@ -48,6 +61,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{Justification, KnowledgeRow};
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, Refusal, RefusalReason,
+    UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
 use terminal_psi::{TerminalMachine, Terminator};
@@ -91,11 +105,36 @@ impl Discharged {
     }
 }
 
+/// One operation or terminator that reads storage, and whether what it
+/// reads is established there. The initialization judgment is structural: it
+/// has no obligation row, so its verdicts stand beside the obligations'.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageUse {
+    /// The operation, or for a terminator its edge.
+    pub at: Construct,
+    /// `Err` with reason `Unestablished` when some path to the use stores
+    /// nothing into a scalar leaf it reads: a compile error of the program.
+    pub verdict: Checked<()>,
+}
+
 /// One machine's result.
 #[derive(Debug, Clone)]
 pub struct MachineDischarge {
     /// One verdict per obligation row, indexed by the same `ObligationId`.
     pub verdicts: IdTable<ObligationId, Checked<Discharged>>,
+    /// One verdict per use of storage, in block and operation order, a
+    /// block's terminator last.
+    pub uses: Vec<StorageUse>,
+}
+
+impl MachineDischarge {
+    /// The uses of storage that are not established: each is a rejection of
+    /// the program by this route, as an `Unproved` obligation is.
+    pub fn unestablished(&self) -> impl Iterator<Item = &Refusal> {
+        self.uses
+            .iter()
+            .filter_map(|used| used.verdict.as_ref().err())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -201,7 +240,13 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                 "machine tables are past the end",
             )
         })?;
-        machines.push(machine(&module.machines, id, tables, knowledge)?);
+        machines.push(machine(
+            &module.machines,
+            &module.structural_types,
+            id,
+            tables,
+            knowledge,
+        )?);
     }
     Ok(Discharge { machines })
 }
@@ -241,6 +286,7 @@ fn terminal_machine(
 
 fn machine(
     machines: &[TerminalMachine],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
@@ -256,6 +302,7 @@ fn machine(
     }
     let types = tables.values.map(|_, row| row.scalar_type);
     let graph = Graph::new(id, lowered, tables)?;
+    let storage = places::Storage::new(id, lowered, structural_types, &graph, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         push_knowledge(
             tables,
@@ -269,6 +316,16 @@ fn machine(
     for block in &lowered.blocks {
         for operation in &block.operations {
             if let Some(equation) = result_equation(id, operation, &types)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+            // A field read's result is a fresh value; what it equals comes
+            // from the write log, not from the operation alone.
+            if let Some(equation) = storage.read_equation(tables, operation)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -299,6 +356,21 @@ fn machine(
             }
         }
     }
+    // What each edge of a dispatch binds: its payload parameters, each
+    // equal to what the payload leaf holds. The row holds because that edge
+    // was taken and is available on it.
+    if knowledge == Knowledge::All {
+        for block in &lowered.blocks {
+            for (edge, equation) in storage.payload_equations(tables, block)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::Edge(edge),
+                    Justification::DispatchBinding { edge },
+                );
+            }
+        }
+    }
     for invocation in tables.invocations.keys().collect::<Vec<_>>() {
         let row = terminal_check_tables::row(
             &tables.invocations,
@@ -315,7 +387,7 @@ fn machine(
             ));
         };
         let callee = callee(id, invocation, &row.callee)?;
-        let actuals = actuals(id, invocation, &row.actuals)?;
+        let actuals = scalar_actuals(&row.actuals);
         let contract = &terminal_machine(machines, callee, id)?.contract;
         for (clause, ensures) in contract.ensures.iter().enumerate() {
             let proposition =
@@ -391,7 +463,8 @@ fn machine(
             )),
         });
     }
-    Ok(MachineDischarge { verdicts })
+    let uses = storage.uses(tables)?;
+    Ok(MachineDischarge { verdicts, uses })
 }
 
 /// A published `ensures` clause holds when every `Destination::Return` edge
@@ -408,7 +481,7 @@ fn published(
 ) -> Checked<Discharged> {
     let unproved = |detail: &str| {
         refusal(
-            RefusalReason::Unproved,
+            RefusalReason::Unproved(UnprovedCause::ReturnDoesNotEstablish),
             id,
             Construct::Obligation(published),
             detail,
@@ -523,27 +596,25 @@ fn callee(
     }
 }
 
-fn actuals(
-    machine: MachineId,
-    invocation: terminal_check_tables::InvocationId,
-    actuals: &[Actual],
-) -> Checked<Vec<ValueId>> {
-    actuals
-        .iter()
-        .map(|actual| match actual {
-            Actual::Value(value) => Ok(*value),
-            Actual::Place(_) => Err(refusal(
-                RefusalReason::Unsupported,
-                machine,
-                Construct::Invocation(invocation),
-                "structural actual",
-            )),
-        })
-        .collect()
+/// A call's scalar lane: the actuals a callee clause's formals stand for.
+/// Elaboration numbers a machine's scalar formals apart from its record
+/// formals (the `k`-th scalar formal is its value `k + 1`), so a clause term
+/// is replaced by position in this lane. A record actual is a place and has
+/// no value identity; no clause term can name it, because elaboration refuses
+/// a clause that names or projects a record formal.
+fn scalar_actuals(actuals: &[Actual]) -> Vec<ValueId> {
+    let mut scalars = Vec::with_capacity(actuals.len());
+    for actual in actuals {
+        match actual {
+            Actual::Value(value) => scalars.push(*value),
+            Actual::Place(_) => {}
+        }
+    }
+    scalars
 }
 
-/// Replaces callee formal `i` (callee value `i + 1`) by the caller's actual
-/// `i`, in the clause forms elaboration produces. Any other form is refused:
+/// Replaces the callee's `k`-th scalar formal (callee value `k + 1`) by the
+/// caller's `k`-th scalar actual, in the clause forms elaboration produces. Any other form is refused:
 /// substituting under a construct this function does not know would be a
 /// silent change of meaning.
 fn substitute(
@@ -645,7 +716,7 @@ fn goal(
                 Construct::Invocation(invocation),
             )?;
             let callee = callee(id, invocation, &row.callee)?;
-            let actuals = actuals(id, invocation, &row.actuals)?;
+            let actuals = scalar_actuals(&row.actuals);
             let contract = &terminal_machine(machines, callee, id)?.contract;
             let clause = usize::try_from(clause)
                 .ok()
@@ -709,8 +780,8 @@ fn decide(
     goal: Proposition,
     relations: bool,
 ) -> Checked<Evidence> {
-    let unproved = |detail: String| Refusal {
-        reason: RefusalReason::Unproved,
+    let unproved = |cause: UnprovedCause, detail: String| Refusal {
+        reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
         detail,
@@ -739,6 +810,7 @@ fn decide(
             Justification::EntryRequirement { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {
                 assumption_rows.push(row);
@@ -747,11 +819,24 @@ fn decide(
         }
     }
     let mut prover = prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
-    let proof = prover
-        .prove(&goal)
-        .map_err(|reason| unproved(reason.to_owned()))?;
-    let identity = EvidenceIdentity::new(obligation.get())
-        .ok_or_else(|| unproved(String::from("evidence identity")))?;
+    let proof = prover.prove(&goal).map_err(|reason| {
+        // Classified by the goal's form, not by which search path failed
+        // last, so the outcome does not depend on search order.
+        let cause = if prove::has_rules_for(&goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        unproved(cause, reason.to_owned())
+    })?;
+    let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Obligation(obligation),
+            "obligation identity is not an evidence identity",
+        )
+    })?;
     let certificate = CertificateEnvelope {
         identity,
         proof_system_marker: ProofSystemMarker::CURRENT,
@@ -768,7 +853,7 @@ fn decide(
         &axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
-    .map_err(|error| unproved(format!("kernel {error:?}")))?;
+    .map_err(|error| unproved(UnprovedCause::KernelRefused, format!("kernel {error:?}")))?;
     Ok(Evidence {
         goal,
         assumptions: assumption_rows,

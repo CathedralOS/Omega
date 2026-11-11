@@ -11,6 +11,7 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::{Program, Slot};
+use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
 use crate::{Unserved, refuse};
 
@@ -159,8 +160,18 @@ impl Program<'_> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
-                let row = &scope.slots[slot];
-                let value = ValueId::new(slot as u64 + 1).ok_or_else(|| {
+                // A record formal is a place, not a value: a clause can only
+                // project it, which the member arm below refuses.
+                let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
+                    return unserved("record formal named whole in a clause");
+                };
+                // The `k`-th scalar formal is value `k + 1`
+                // (`Signature::parameters`).
+                let earlier = scope.slots[..slot]
+                    .iter()
+                    .filter(|formal| formal.value_type.scalar().is_some())
+                    .count();
+                let value = ValueId::new(earlier as u64 + 1).ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,
@@ -170,11 +181,15 @@ impl Program<'_> {
                 Ok((
                     ScalarTerm::Value {
                         id: value,
-                        scalar_type: row.scalar_type,
+                        scalar_type,
                     },
-                    row.scalar_type,
+                    scalar_type,
                 ))
             }
+            // `p.first == 7`, `result.count <= 5`: a clause term over the
+            // entry content of a formal's place or over the result root.
+            // Served by the slice that states clauses over places.
+            ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 Ok((
