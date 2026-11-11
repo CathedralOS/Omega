@@ -1215,6 +1215,7 @@ mod statement_nodes {
                             | BuildOperation::AssumedBindingContract
                             | BuildOperation::ServiceExclusion
                             | BuildOperation::ServiceAudit
+                            | BuildOperation::TestGroupRegistration
                             | BuildOperation::BoundaryAcceptance
                             | BuildOperation::WireCompatibilityRequest
                             | BuildOperation::RepresentationSelection
@@ -1480,6 +1481,19 @@ mod statement_nodes {
             .statement_path_members
             .span_or_empty(call.receiver)
             .to_vec();
+        let mut receiver_members = receiver_members;
+        // `owner.tests.group<Requirement>()` passes the Build's `tests` facet
+        // as a value (wiki/spec/build/testing.md), so its receiver keeps the
+        // member projection an ordinary `owner.tests` value has instead of the
+        // static path a statement call's receiver otherwise becomes.
+        let facet = (BuildOperation::from_call_target(call.target.as_str())
+            == Some(BuildOperation::TestGroupRegistration)
+            && receiver_members.len() >= 2
+            && receiver_members
+                .last()
+                .is_some_and(|member| member.as_str() == "tests"))
+        .then(|| receiver_members.pop())
+        .flatten();
         let receiver_span = receiver_members.first().map(|member| member.source_span());
         let expression_table = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
         let mut members = HandleSpan::empty();
@@ -1494,6 +1508,21 @@ mod statement_nodes {
                 ..Default::default()
             }))
         };
+        let (owner, receiver, facet_span) = match facet {
+            Some(facet) => {
+                let span = facet.source_span();
+                let projected = expression_table.insert(ExpressionNode::Member(
+                    symbol_resolved_trees::expression::TableMemberExpression {
+                        receiver,
+                        member_symbol: SymbolHandle::invalid(),
+                        member: facet,
+                        case_variant: None,
+                    },
+                ));
+                (receiver, projected, Some(span))
+            }
+            None => (ExpressionHandle::invalid(), receiver, None),
+        };
         let source_span = call.target.source_span();
         let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
             authored_call_binding: None,
@@ -1506,7 +1535,16 @@ mod statement_nodes {
             evidence_arguments: call.storage.evidence_arguments,
             operational_acknowledgement: call.storage.operational_acknowledgement,
         }));
-        for (handle, span) in [(receiver, receiver_span), (expression, Some(source_span))] {
+        let (owner_span, receiver_span) = if owner.is_valid() {
+            (receiver_span, facet_span)
+        } else {
+            (None, receiver_span)
+        };
+        for (handle, span) in [
+            (owner, owner_span),
+            (receiver, receiver_span),
+            (expression, Some(source_span)),
+        ] {
             if !handle.is_valid() {
                 continue;
             }

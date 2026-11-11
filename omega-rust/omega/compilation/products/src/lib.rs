@@ -47,7 +47,9 @@ pub use prepared_build::ProductSourceIdentity;
 mod prepared_source;
 pub mod publication;
 mod terminal_publication;
+mod test_products;
 pub use terminal_publication::ProductTerminalPublication;
+pub use test_products::{PendingTestProduct, TestRootIdentity};
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,

@@ -6438,6 +6438,11 @@ pub(crate) mod unit_returns {
                     1..=1,
                     1..=1,
                 ),
+                Some(BuildOperation::TestGroupRegistration) => (
+                    AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration,
+                    1..=1,
+                    1..=1,
+                ),
                 Some(BuildOperation::BoundaryAcceptance) => (
                     AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance,
                     1..=1,

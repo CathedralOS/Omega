@@ -1303,7 +1303,18 @@ pub(crate) mod expression {
                                 return Ok(lowered);
                             }
                             if let Some(program) = self.program {
-                                let namespace = if call.receiver.is_valid() {
+                                let facet =
+                                    crate::expressions::product_selections::test_group_facet(
+                                        program,
+                                        self.source,
+                                        call.receiver,
+                                        call.target_symbol,
+                                        call.target.as_str(),
+                                        call.arguments.len(),
+                                    );
+                                let namespace = if let Some(build) = facet {
+                                    build
+                                } else if call.receiver.is_valid() {
                                     match self.source.expression(call.receiver) {
                                         resolved::expression::ExpressionNode::Name(path) => {
                                             path.symbol
@@ -1357,18 +1368,20 @@ pub(crate) mod expression {
                                         call.target_symbol,
                                         call.target.as_str(),
                                         &call.machine_arguments,
-                                        call.arguments.len(),
+                                        call.arguments.len() + usize::from(facet.is_some()),
                                         call.evidence_arguments.len(),
                                         self.source.source_span(expression),
                                     )?
                                 {
-                                    let arguments = self
-                                        .source
-                                        .expression_handles(call.arguments)
-                                        .to_vec()
-                                        .into_iter()
-                                        .map(|argument| self.lower_value(argument))
-                                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                                    let arguments = match facet {
+                                        Some(_) => vec![call.receiver],
+                                        None => {
+                                            self.source.expression_handles(call.arguments).to_vec()
+                                        }
+                                    }
+                                    .into_iter()
+                                    .map(|argument| self.lower_value(argument))
+                                    .collect::<Result<Vec<_>, Diagnostic>>()?;
                                     return crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
