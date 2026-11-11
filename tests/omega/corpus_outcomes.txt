@@ -16105,15 +16105,17 @@ fail/layouts/placed_primitive_wrong_value rejected 2443ms expected @b43a5fa574e6
 	accessor read application: value type does not match the accessor's exact value type
 fail/layouts/placed_ram_mixed_callback rejected 94155ms expected @e8e0e531e729
 	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(19), operation OperationId(66), boundary BoundaryMachineId(30), arguments [StructuralArgument { place: PlaceId(201), path: [], access: SharedBorrow }])
-fail/layouts/placed_reference_results/overlapping_loans rejected 4514ms expected @ccdb99ca2214
+fail/layouts/placed_reference_results/overlapping_loans rejected 20093ms expected @4b6be19525a8
 	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `replace` receives `first_holder.view` while local borrow `second_holder` is still active (borrowed at statement 3; its last use is at statement 5)
 	statement 3 creates local borrow `second_holder` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
-	statement 3 borrows `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/layouts/placed_reference_results/stale_after_write rejected 3605ms expected @ccdb99ca2214
+	statement 3 borrows `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 3
+fail/layouts/placed_reference_results/stale_after_nested_write rejected 19931ms expected @4b6be19525a8
 	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/layouts/placed_reference_results/wrong_backing rejected 3871ms expected @ccdb99ca2214
+fail/layouts/placed_reference_results/stale_after_write rejected 18138ms expected @4b6be19525a8
+	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/layouts/placed_reference_results/wrong_backing rejected 18096ms expected @4b6be19525a8
 	machine `borrow_view` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 fail/layouts/placed_return_alternative_wrong_lifetime rejected 2546ms expected @ccdb99ca2214
 	machine `second_view` returns a view with lifetime `'a`, but no input borrows `'a`; annotate the input the view comes from, e.g. `buffer: &'a T`
@@ -26756,10 +26758,10 @@ pass/layouts/placed_primitive_returned_backing checked 4447ms check-target:macos
 pass/layouts/placed_primitive_stored_backing checked 4659ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_unused_valid checked 5047ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_ram_mixed_callback checked 118447ms @e8e0e531e729
-pass/layouts/placed_reference_results/forwarded checked 4722ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_reference_results/nested checked 4971ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_reference_results/returned checked 5093ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_reference_results/two_live checked 4345ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/placed_reference_results/forwarded checked 18428ms check-target:macos_arm64 @4b6be19525a8
+pass/layouts/placed_reference_results/nested checked 20072ms check-target:macos_arm64 @4b6be19525a8
+pass/layouts/placed_reference_results/returned checked 20531ms check-target:macos_arm64 @4b6be19525a8
+pass/layouts/placed_reference_results/two_live checked 18989ms check-target:macos_arm64 @4b6be19525a8
 pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match @b80d7416b671+wt
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214

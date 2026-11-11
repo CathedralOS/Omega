@@ -19112,6 +19112,33 @@ pub(crate) mod write_frames {
                     )
                 };
             }
+            /*
+                A view formation such as `Access::view_mut(value)` is a recast of
+                its backing spelled as a call. Its primitive callee has no body to
+                summarize, so the call route would name a fresh invocation result
+                that no write can reach back from. Carry the backing's origin with
+                the view recast, exactly as the `Cast` arm below does, so a write
+                through a view a helper returned invalidates the caller storage it
+                was formed over.
+            */
+            if matches!(
+                expression_table(program).expression(expression),
+                ExpressionNode::Call(_)
+            ) && let Some(formation) = crate::reference_formation_source(program, expression)
+                && formation.view_type.is_valid()
+            {
+                if expression_is_effectful_for_transparent_result(program, formation.source) {
+                    return None;
+                }
+                let mut origins = place_child!(formation.source)?;
+                for origin in &mut origins {
+                    origin
+                        .place
+                        .source
+                        .recast(program, formation.view_type, expression);
+                }
+                return (!origins.is_empty()).then_some(origins);
+            }
             let origins = match expression_table(program).expression(expression) {
                 ExpressionNode::Borrow(inner) => {
                     let mut origins = place_child!(inner.target)?;
