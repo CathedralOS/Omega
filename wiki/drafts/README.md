@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Required issuance choice](designs/required_issuance_choice.md): every
+  access plan states who may create values of its domain, with stock
+  `IssuedBy` policies and issuance shown in package review; delete when the
+  board item lands.
 - [Boundary slots as static implementations](designs/boundary_slot_implementation_views.md):
   a boundary trait that inherits an ordinary trait can be passed, named and
   stored as a static implementation of it, still routed through the slot;
