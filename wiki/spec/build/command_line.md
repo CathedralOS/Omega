@@ -14,7 +14,7 @@ Compilation and execution remain the flat product commands. Other tools use
 justify its name.
 
 ```text
-omega [--check] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
 omega run [--engine native|psi | --both] <root.omg>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -26,9 +26,25 @@ omega psi inspect --artifact <file>
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
-Package install/update retain their acquisition, review, resume and discard
-forms. Package audit retains project targets, details, offline and Build-input
-options. Inspection retains both source-machine and artifact forms.
+Package install and update have these acquisition, review, resume and discard
+forms:
+
+```text
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
+omega packages update [package-or-alias...] [--to <revision>]
+omega packages install --resume
+omega packages update --resume
+omega packages <install|update> --discard-review
+```
+
+`--as` selects the requester's alias for the dependency; the default is its
+declared name unchanged. `--resume` continues the same operation after its
+review document's `pending` decisions were edited to `accept` or `reject`, and
+`--discard-review` abandons it with accepted files unchanged. `--offline`
+restricts acquisition, resume and historical-source diagnostics to local
+sources and cached recorded Git pins; it skips no check and does not authorize
+a cached branch for a newly requested selection. Package audit retains project
+targets, details, offline and Build-input options. Inspection retains both source-machine and artifact forms.
 `omega --check` with no root inside a workspace checks every declared member
 as a [validation subject](validation_subjects.md). `--verify` withholds trust
 acceptance and re-verifies; it does not widen the subject set.
@@ -100,6 +116,16 @@ Analysis/recheck failures remain distinguishable from an edit-needed result.
 Without `--check`, report the applied edits after successful rechecking and
 commit. The rule produces no default-path compiler warning and does not make
 permitted redundant markers invalid.
+
+## Checker conformance
+
+`omega --check --floor-only <root.omg>` restricts automatic discharge to the
+[required automatic discharge](../proofs/contracts.md#required-automatic-discharge).
+Cited lemmas, branches and contracts work as usual. Each obligation that the
+ordinary run proves only with automation beyond the floor is reported with its
+location, so a project can confirm that every conforming checker accepts its
+sources. The option changes no accepted program's meaning and is not a Build
+setting.
 
 ## Independent stage validators
 

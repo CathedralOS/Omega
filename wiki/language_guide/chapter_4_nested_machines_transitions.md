@@ -1,8 +1,8 @@
 # Chapter 4: Nested machines and transitions
 
-A nested machine is an ordinary machine whose name is visible only inside its
-enclosing machine's scope. Nesting organizes code; it does not capture data or
-require another stack frame.
+A machine can declare helper machines inside itself, and a `transition` picks
+which one runs next. Together they are how Omega writes loops and state
+machines.
 
 ```omega
 machine countdown(remaining: u32) -> u32 {
@@ -23,17 +23,36 @@ machine countdown(remaining: u32) -> u32 {
 }
 ```
 
-The nonzero arm proves subtraction is valid. `done` is visible inside `step`,
-but not directly inside `countdown`. `step` is visible throughout
-`countdown`, including its earlier executable portion and inside `step`
-itself. Nesting has no fixed depth limit.
+`step` calls itself until `remaining` is zero. In the `_` arm the compiler
+knows `remaining` is not zero, so the subtraction is safe.
 
-The example shows control transfer, not a published termination promise.
-A cyclic machine promising termination supplies the ranking evidence described
-in [Chapter 9](chapter_9_proof_obligations.md). Runtime recursive cycles use
-constant-stack iteration; nesting depth does not decide stack consumption.
+## What nesting does
 
-## Calls resume; terminal calls complete
+Nesting only limits where a name is visible. `step` can be used anywhere in
+`countdown`; `done` only inside `step`. A machine's statements come first and
+its nested machines after.
+
+A nested machine is not a closure. It sees none of the enclosing machine's
+parameters or locals, so pass what it needs:
+
+```omega
+machine forward(value: Inventory) -> Inventory {
+    transition {
+        _ -> done(move value)
+    }
+
+    machine done(value: Inventory) -> Inventory {
+        value
+    }
+}
+```
+
+Enclosing generic parameters are the exception: they are compile-time context
+and stay in scope.
+
+## A call returns; a transition arm finishes
+
+An ordinary call comes back and the caller continues:
 
 ```omega
 machine answer() -> i32 {
@@ -48,8 +67,8 @@ machine answer() -> i32 {
 }
 ```
 
-The ordinary call to `base` returns to `answer`, which continues and produces
-42. A terminal call instead forwards the result:
+A transition arm is the last thing a machine does. The arm's value, or the
+result of the machine it calls, becomes the result of the whole machine:
 
 ```omega
 machine answer() -> i32 {
@@ -63,64 +82,13 @@ machine answer() -> i32 {
 }
 ```
 
-Here `answer` has no continuation after the call. In both examples `base`
-returns from its own invocation. It never returns directly from an arbitrary
-lexical ancestor. Every normal completion owes that invocation's result and
-postconditions; terminal forwarding must also satisfy the caller's contract.
+Because nothing is left to do after the arm, a machine that repeats through
+transition arms uses constant stack however many times it goes round.
 
-The executable portion comes first and declarations follow. A transition,
-a result expression, or ordinary Unit completion can end that portion. There
-is no requirement to manufacture a transition just to declare a helper.
-Executable statements cannot appear after the first nested declaration.
+## Choosing an arm
 
-## Explicit data, lexical names
-
-```omega
-machine forward(value: Inventory) -> Inventory {
-    transition {
-        _ -> done(move value)
-    }
-
-    machine done(value: Inventory) -> Inventory {
-        value
-    }
-}
-```
-
-There is no closure. Enclosing runtime parameters and locals are unavailable
-inside `done` unless passed as its explicit arguments. A mutable context is
-likewise an ordinary parameter: `machine advance(context: &mut Context, index:
-u64)` is called with `advance(&mut context, next_index)`.
-
-Enclosing generic/static declaration bindings remain lexical context, not a
-hidden runtime argument or captured activation. Shared helpers needed outside
-a nesting scope belong at the appropriate common declaration scope.
-
-A sibling can call another visible sibling, but cannot enter its private
-descendants. Calling a visible ancestor invokes its entry; it does not resume
-an enclosing activation. Qualification cannot bypass lexical visibility.
-
-Explicit arguments need not copy bytes. Storage planning may reuse homes while
-preserving exact values, loans and custody. Owned values still transfer once;
-dying values need their legal disposition. A final call cannot discard backing
-that its arguments still borrow.
-
-## Pass the required facts
-
-Every call proves the callee's requirements using its exact actual arguments.
-Live facts established by an enclosing entry may help prove them, but nesting
-does not restore those facts after a write invalidates them. A helper's body
-checks against its own contract, not whatever happened to be true at one caller.
-
-The [invocation specification](../spec/language/state_contracts.md) owns
-arrival substitution, mutation, return obligations and recursive proof use.
-Ordinary invariant and borrowed-storage restoration rules still apply at calls,
-terminal transfers and completion. Nesting introduces no scope for hiding
-unfinished restoration.
-
-## Data patterns and coverage
-
-A transition can destructure its saved subject:
+A transition with a subject tests its arms in order and runs the first that
+matches:
 
 ```omega
 transition header {
@@ -129,22 +97,28 @@ transition header {
 }
 ```
 
-Here `accept` and `reject` are visible machines with compatible result
-contracts. `version` binds the field; `ok: 0` contributes projected equality;
-`field as name` renames; `field as _` waives. Without `..`, every field must
-be mentioned. Adding a field then requires revisiting the pattern.
+`ok: 0` tests the field, `version` binds it, and `field as _` ignores one.
+Every field is mentioned unless the pattern ends in `..`, so adding a field
+later makes you revisit the pattern. The arms must cover every possible value;
+there is no silent fall-through. [Chapter 6](chapter_6_pattern_matching_dispatch.md)
+covers patterns in full.
 
-The subject evaluates once; extraction uses that value.
-[Pattern matching](chapter_6_pattern_matching_dispatch.md) explains ordered
-selection and coverage. An uncovered runtime possibility rejects rather than
-silently trapping. Complete finite case/Boolean coverage or a wildcard establishes
-coverage; arbitrary guard ladders need a fallback. An explicit `_ -> {}`
-completes with Unit and cannot satisfy a value-returning contract.
+## Facts go with the arguments
+
+Each call must establish the callee's `requires` from the arguments it
+passes. A nested machine is checked against its own contract, not against
+whatever happened to be true where it was called:
+
+```omega
+transition remaining {
+    0 -> done()
+    _ -> step(remaining - 1)     // here: remaining != 0
+}
+```
 
 ## Final calls, including suspension
 
-Assume `Storage::read(&mut storage)` returns `u32`, permits suspension but not
-blocking, and the reference satisfies its loan/carry requirements:
+An arm's call can be one that waits. The marker stays on the call:
 
 ```omega
 machine finish_read(storage: &mut Storage) -> u32
@@ -156,20 +130,12 @@ suspends
 }
 ```
 
-This invokes the call and completes with its result. If it parks,
-`finish_read` has not returned; no task is launched or detached. Completion
-still owes the result contract and cleanup.
+`finish_read` finishes when the read does. Nothing is started in the
+background. See [Chapter 18](chapter_18_concurrency.md).
 
-Nested helpers obey the same acknowledgement rules: if their contract
-permits suspension, their callers acknowledge it too. A future jump optimization
-does not remove source acknowledgements. Use `block` or `suspend block` when
-the selected call envelope requires them. See
-[terminal arm calls](../spec/language/state_contracts.md#terminal-calls-in-transition-arms)
-and [borrows across suspension](chapter_18_concurrency.md#borrow-values-across-a-wait).
+## Where next
 
-## Stack use
-
-Runtime cycles use tail transfers, so repeating a nested machine keeps stack use
-bounded. Ordinary calls can use another frame; the compiler calculates the
-storage required for the complete call graph. Nesting itself does not require
-an extra frame.
+[Chapter 5](chapter_5_expressions_evaluation.md) covers expressions. The
+complete rules are in
+[nested machines](../spec/language/machines.md#nested-machines-and-identity)
+and [contracts](../spec/language/state_contracts.md).

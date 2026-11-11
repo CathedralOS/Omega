@@ -696,6 +696,10 @@ pub(crate) mod contracts {
             pub return_type: syntax_trees::types::TypeReferenceHandle,
             pub admitted_same_stack_bytes: u64,
             pub same_stack_clause_span: Option<source::SourceSpan>,
+            /// The header wrote `crashes none`. That clause publishes no
+            /// contract row, so this is the only record that the empty crash
+            /// set was authored rather than omitted.
+            pub declares_no_crash_route: bool,
         }
 
         type RankedSubjects = (
@@ -1030,6 +1034,7 @@ pub(crate) mod contracts {
                     return_type,
                     admitted_same_stack_bytes,
                     same_stack_clause_span,
+                    declares_no_crash_route: crashes_none_declared,
                 },
                 input,
             ))

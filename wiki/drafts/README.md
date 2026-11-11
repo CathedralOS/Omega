@@ -148,6 +148,18 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Required issuance choice](designs/required_issuance_choice.md): every
+  access plan states who may create values of its domain, with stock
+  `IssuedBy` policies and issuance shown in package review; delete when the
+  board item lands.
+- [Boundary slots as static implementations](designs/boundary_slot_implementation_views.md):
+  a boundary trait that inherits an ordinary trait can be passed, named and
+  stored as a static implementation of it, still routed through the slot;
+  delete when the board item lands.
+- [Required automatic discharge](designs/required_automatic_discharge.md):
+  the obligations every checker proves unaided are order reasoning and range
+  propagation, with `--floor-only` to confirm sources need nothing more;
+  delete when the board item lands.
 - [Published write frames](designs/published_write_frames.md): the set of
   places a checked body may write is inferred and published as part of its
   contract, with no new syntax; delete when the board item lands.

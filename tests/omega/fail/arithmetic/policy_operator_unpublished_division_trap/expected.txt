@@ -1,0 +1,4 @@
+uncovered Trap crash in machine `guarded_quotient`
+traps when its divisor is zero or it divides the `i32` minimum by `-1`
+uncovered Trap crash in machine `guarded_rest`
+in `u32` traps when its divisor is zero, and the published crash ceiling

@@ -1,11 +1,9 @@
 # Chapter 12: Dependent types
 
-A contract can relate one runtime value to another. An index can be bounded by
-a slice's length, or a counter by a capacity stored beside it.
+A contract can relate one runtime value to another: an index to a length, a
+count to a capacity stored next to it. That is all "dependent" means here.
 
-## Dependent contracts
-
-A parameter's contract may name another parameter:
+## Between parameters
 
 ```omega
 machine get(items: &[u8], index: u64) -> u8
@@ -15,39 +13,10 @@ requires index < items.len
 }
 ```
 
-For this unsigned index, the contract supplies `index < items.len`. The caller
-proves it, perhaps using a visible guard, and the callee may rely on it. A
-runtime length is a witness already stored in the slice, not a const argument.
-This `requires` spelling is canonical; dependent bounds are not embedded in a
-parameter's scalar type. Results use `ensures` for the same reason.
+The bound is on `index`, in terms of `items`. The caller proves it, usually
+with a branch, and the body relies on it.
 
-Pre-state relationships must name a real binding or use `old(place)`. Equality
-in `requires` does not invent a snapshot variable. For example, the caller can
-pass a scalar snapshot explicitly:
-
-```omega
-data Counter { count: u32; cap: u32; }
-
-machine bump(counter: &mut Counter, before: u32)
-requires
-    counter.count == before
-    counter.count < counter.cap
-ensures
-    counter.count == before + 1
-{
-    counter.count = counter.count + 1;
-}
-```
-
-The strict bound also
-establishes representability of the increment. `old(place)` instead selects an
-existing structural place's callable-entry revision without copying an owned
-value; see [proof views](chapter_10_compile_time_proofs.md#refer-to-the-entry-value).
-
-## Dependent data
-
-Fields can witness one another. Their coupling belongs to the data's default
-domain, expressed with `requires`:
+## Between fields
 
 ```omega
 data MemoryMap
@@ -63,22 +32,17 @@ requires
 }
 ```
 
-Every observation must satisfy that domain. `embed` states the product bound in
-unbounded proof arithmetic; actual runtime offset computations still prove their
-own representability. The coupling does not execute a multiplication or exempt
-a runtime intermediate from ordinary arithmetic obligations.
+Every `MemoryMap` anyone can observe satisfies those three lines. `embed`
+states the product in unbounded arithmetic, so the invariant itself cannot
+overflow.
 
-This type is gated because zero does not satisfy `stride >= 40`. Zeroed backing
-may exist as storage but is not yet a `MemoryMap` value. Construction or checked
-qualification establishes the complete domain. A decoder proves only its checked
-conditions, not that firmware told the truth or that the bytes grant authority.
-
-Gating propagates through contained values. An explicit empty case can make an
-optional container zero-constructible without inventing an invalid payload:
+Zero is not a valid `MemoryMap`, since `stride >= 40` fails. Such a type has to
+be constructed with real values; zeroed storage is not yet one. When you need
+an "empty" slot, say so with a case:
 
 ```omega
 data Player
-requires health in 1..=100,
+requires health in 1..=100
 {
     health: i32;
 }
@@ -91,20 +55,9 @@ data PlayerSlot {
 data Team { roster: [PlayerSlot; 8]; }
 ```
 
-The zero case contains no `Player`; constructing `Filled` owes a valid one.
-Local or provisioned backing may likewise begin zeroed while gated fields remain
-inaccessible until established.
+A zeroed `Team` is eight `Empty` slots and contains no invalid `Player`.
 
-Mutating witnesses and dependents can open an
-[invariant window](chapter_11_invariant_windows.md), which must close before
-consumption. A live dependent borrow read-loans the witnesses required by its
-validity, so those witnesses cannot change while the view remains live. Optional
-facts about only some values belong in ordinary domains, not the default domain
-of every instance.
-
-## Fixed dimensions
-
-When dimensions are static, ordinary generics select a fixed shape:
+## Dimensions known at compile time
 
 ```omega
 data Matrix<const R: u64, const C: u64> {
@@ -112,18 +65,10 @@ data Matrix<const R: u64, const C: u64> {
 }
 ```
 
-A concrete `Matrix<3, 4>` has twelve cells after its layout and arithmetic
-obligations are checked. Static arguments enter application identity and need
-not be stored as runtime witnesses. [Generics](chapter_13_generics.md) explains
-those applications; runtime dimensions do not become const arguments by analogy.
+`Matrix<3, 4>` has twelve cells and stores neither number.
+[Chapter 13](chapter_13_generics.md) covers `const` parameters.
 
-## Runtime dimensions
-
-A slice stores its runtime length alongside a borrow of its elements. Use that
-length in ordinary contracts. Runtime-capable generic value parameters can
-retain similar relationships; see [Chapter 13](chapter_13_generics.md#runtime-capable-value-parameters).
-
-For row-major indexing, prove both coordinates and the backing extent:
+## Dimensions known at run time
 
 ```omega
 machine pixel(pixels: &[u8], width: u32, height: u32, x: u32, y: u32) -> u8
@@ -137,27 +82,13 @@ requires pixels.len == width * height
 }
 ```
 
-The dimension bounds keep the arithmetic inside `u32`. The coordinate bounds
-put the selected element inside `pixels`. If automatic checking needs help
-with a product relationship, cite a checked theorem as shown in [Chapter 10](chapter_10_compile_time_proofs.md).
-
-Foreign records may have a runtime stride as well as a length. Use the supplied
-stride to locate them, then establish alignment, representation, and valid
-contents before creating a typed view. [Chapter 20](chapter_20_memory_layout_abi.md)
-explains those additional requirements.
+The size bounds keep `y * width + x` inside `u32`. The coordinate bounds put
+it inside `pixels`.
 
 ## Facts across calls
 
-The practical frame rule is preserve-unless-written, at exact storage granularity:
-
-- Unreachable places retain their facts.
-- A shared loan excludes ordinary conflicting mutation. Synchronized mutation
-  retains its own contract and fact-invalidation rules.
-- Mutable or write-only access may invalidate facts about written places.
-- Exact outcome guarantees can preserve or establish facts after the call.
-
-The compiler works out which places a checked machine may write and publishes
-that with its contract. Nothing is written in the header:
+A call invalidates what you knew about storage it may write, and nothing else.
+The compiler works out which places a machine writes from its body:
 
 ```omega
 public machine set_time(entry: &mut Entry, time: u64) {
@@ -168,29 +99,17 @@ set_time(&mut e, 5);
 use(e.owner);        // facts about e.owner survive the call
 ```
 
-Because the frame is published, editing `set_time` to write `entry.owner` too
-is an interface change that dependents see, not a proof that breaks somewhere
-else without explanation. A generic machine's frame follows the callback it
-is given, so `apply<set_time>` writes what `set_time` writes.
+For a call with no body to inspect, such as a boundary operation or a machine
+held in a field, the compiler assumes everything handed over may be written.
+Two things keep that from costing you:
 
-A call with no body to inspect, through a runtime callable value or a boundary
-operation, uses the ceiling: everything the callee could write. Unknown is not
-an empty write set. Two things keep the loss small. Borrow only the needed
-field, `&mut entry.at`, which is the first choice. Or have the requirement
-state the end state, `ensures entry.owner == old(entry.owner)`, which gives
-the caller its value facts back. Operand evaluation contributes writes too.
-See [mutation frames](../spec/language/dependent_values.md#mutation-frames).
-Default-domain facts must be restored before consumption; that is not a promise
-that the value stayed unchanged.
+- Lend only what the callee needs: `&mut entry.at` instead of `&mut entry`.
+- Have the requirement say what is unchanged:
+  `ensures entry.owner == old(entry.owner)`.
 
-For example, an insertion helper taking `&mut Entries` cannot mutate an unrelated
-hasher merely because both are fields of a larger table. A helper receiving the
-whole table needs a checked frame or an explicit preservation guarantee to retain
-that precision. Entry/current comparisons use `old(place)` or a real pre-state
-binding, not a name introduced by an equality expression.
+## A loop that carries its bound
 
-The same requirements apply on every loop transfer. Here each step establishes
-the bound needed by the next:
+Each round must establish what the next round requires:
 
 ```omega
 machine clear(buffer: &mut [u8], remaining: u64)
@@ -213,31 +132,18 @@ terminates by remaining -> Nat::Descending
 }
 ```
 
-Start with `clear(buffer, buffer.len)`. The nonzero arm proves that the last
-remaining element is in bounds. Each cycle writes it, decreases `remaining`,
-and establishes the next invocation's requirements.
+Start it with `clear(buffer, buffer.len)`. The `false` arm knows
+`remaining > 0`, so `remaining - 1` is a valid index, and the next call's
+`requires` follows.
 
-## When the checker says no
+## When the compiler says no
 
-An unproved dependent use rejects with the missing relationship and its subject.
-For a descriptor view, that might be the absence of `i < count`, or a missing
-alignment or representation fact rather than a numeric bound.
+The error names the missing relationship, for example that `i < count` is not
+known. Add a `requires`, branch on the condition and handle the other side,
+call a validator that returns the value already checked, or cite a proof. The
+compiler does not insert a runtime check for you.
 
-Supply a contract, cite an appropriate proof, use an explicit guard with a handled
-false outcome, or call a validator/decoder whose success establishes the required
-fact. An `as` qualification uses established evidence; it is not a hidden
-validation call. Omega does not insert residual runtime checks to make an
-unproved refinement true.
+## Where next
 
-## Indexed domains
-
-A named domain can carry a static index too:
-
-```omega
-domain<T, const U: Unit> T::Quantity<U>;
-```
-
-A units library can use this to distinguish meters from seconds while retaining
-the underlying numeric representation. Conversion between units remains a
-library operation. [Indexed domains](../spec/language/domains.md#indexed-families)
-and [generic indices](chapter_13_generics.md) give the declaration rules.
+[Chapter 13](chapter_13_generics.md) covers generics. The complete rules are
+in [dependent values](../spec/language/dependent_values.md).

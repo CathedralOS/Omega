@@ -652,8 +652,8 @@ mod evidence_seal_tests {
         ScalarTerm, ScalarType,
     };
     use structure_elaboration::{
-        Body, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict, Target,
-        Unpositioned,
+        Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
+        Target, Unpositioned,
     };
     use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
@@ -715,6 +715,7 @@ mod evidence_seal_tests {
             result: Some(u32_type()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
         });
         let entry = MachineId::new(1).unwrap();
         let mut elaboration =
