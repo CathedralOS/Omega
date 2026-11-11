@@ -4681,11 +4681,11 @@ fail/domains/domain_alias_reports_atomic_requirement rejected 2329ms expected @c
 	cannot prove requires contract for call consume from Main::main: main.socket in Socket::Authenticated in state `main`
 fail/domains/domain_carrier_mismatch rejected 699ms expected @ccdb99ca2214
 	data `Main` field `value` uses `in Scanned`, but no `domain` named `Scanned` is declared for `i32` (domains are bound to their storage type)
-fail/domains/domain_cast_adds_present_domain rejected 22005ms expected @71d7a6330d0b
+fail/domains/domain_cast_adds_present_domain rejected 25524ms expected @22bc78f48dca
 	cast entry `+Km` adds domain `Km`, but the operand's type `i32[in Km, in Positive]` already carries `Km`; write `=Km` to keep it
-fail/domains/domain_cast_removes_absent_domain rejected 24482ms expected @71d7a6330d0b
+fail/domains/domain_cast_removes_absent_domain rejected 11515ms expected @22bc78f48dca
 	cast entry `-Km` names domain `Km`, but the operand's type `i32` does not carry `Km`; only `+Km` can name a domain the operand lacks
-fail/domains/domain_cast_unlisted_domain rejected 26808ms expected @71d7a6330d0b
+fail/domains/domain_cast_unlisted_domain rejected 10610ms expected @22bc78f48dca
 	domain cast leaves attached domain `Positive` unaccounted for: the operand's type `i32[in Km, in Positive]` carries `Positive`, so the cast names it as `=Positive` to keep it or `-Positive` to remove it
 fail/domains/domain_operator_competing_spelling_meanings rejected 2598ms expected @ccdb99ca2214
 	ambiguous operator spelling `+` has 2 viable candidates: `Quantity::Linear::add` owned by domain `Quantity::Linear`, `Quantity::Cyclic::add` owned by domain `Quantity::Cyclic`. The static operand-domain tuple does not uniquely select one -- narrow the binding's semantic qualification or choose a clearer operation.
@@ -27488,10 +27488,7 @@ pass/storage/computed_float_local_view_store_exit checked 6889ms check-target:ma
 pass/storage/forwarded_context_bounded_byte_field_exit checked 12905ms check-target:macos_arm64 @ccdb99ca2214
 pass/storage/forwarded_context_byte_field_cross_state_store_exit rejected 10593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove default-domain field requirement for call done from stamp::entry: parameter main.label requires [u8; N]::Utf8
-pass/storage/forwarded_context_byte_field_read_store_exit rejected 10390ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove default-domain field requirement for call step from shift::entry: parameter main.out requires [u8; N]::Utf8
-	cannot prove index `main.i` is within length 5 in shift::entry
-	cannot prove index `main.i` is within length 5 in shift::entry
+pass/storage/forwarded_context_byte_field_read_store_exit checked 79129ms check-target:macos_arm64 @22bc78f48dca
 pass/storage/large_zero_initialized_local_exit checked 17274ms check-target:macos_arm64 @9af3eb514e16
 pass/storage/runtime_alias_field_binary checked 2264ms @ccdb99ca2214
 pass/storage/runtime_alias_integer_write checked 2754ms @ccdb99ca2214
@@ -28225,7 +28222,7 @@ run/domains/checked_provider_issued_root checked 2944ms check-target:macos_arm64
 run/domains/completed_membership_after_earlier_guarantee rejected 2419ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`
 run/domains/current_record_predicate_captures checked 3127ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/domain_cast_accounting_exit checked 39000ms check-target:macos_arm64 @71d7a6330d0b
+run/domains/domain_cast_accounting_exit checked 26023ms check-target:macos_arm64 @22bc78f48dca
 run/domains/fixed_byte_array_content_observations_exit checked 4855ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_empty_observations_exit checked 3327ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_runtime_predicate_exit checked 2454ms check-target:macos_arm64 @ccdb99ca2214
@@ -28317,7 +28314,7 @@ run/layouts/placed_ram_capture_retirement checked 25544ms check-target:macos_arm
 run/layouts/placed_ram_capture_return checked 23929ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_original_backing incomplete 413458ms check-target:macos_arm64 @ff514b7f093c
 	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
-run/layouts/placed_ram_scalar_types checked 28056ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_scalar_types checked 86938ms check-target:macos_arm64 @22bc78f48dca
 run/layouts/placed_ram_stored_field_return incomplete 335250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
 	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214
