@@ -1,8 +1,7 @@
 # Chapter 14: Traits and runtime machine values
 
-A trait names machine requirements and declares the record that supplies them.
-An implementation is a checked value of that schema. Generic code receives the
-value explicitly; neither a type nor a nearby declaration selects it implicitly.
+A trait names required operations. An implementation is a checked record that
+supplies them, and generic code receives it explicitly.
 
 ## A trait and an implementation
 
@@ -73,43 +72,19 @@ WireCodec satisfies Codec<Message> {
 A row, `Trait::member = machine;`, uses a machine that already exists instead
 of wrapping it.
 
-## Ordinary fields and identity
+## Implementations are values
 
-A trait schema can also declare ordinary typed fields and declaration-level
-`requires` constraints, using the record forms. A `machine` member always stores
-a selection bound to its requirement, even if it returns nothing and has
-`ensures`. A field declared `evidence [erased]: P;` stores evidence of type `P`;
-its type decides identity, and `[erased]` removes runtime storage only. A
-constraint checks the assembled record; it is not another callable field.
+Traits can also declare ordinary fields and `requires` constraints. You can
+construct, pass and return their records like other values.
 
-For example, a resultless `machine positive(...) ensures ...;` stores the
-chosen machine. An explicitly typed strict-evidence field instead carries the
-established fact without retaining which machine was cited. Relevant witnesses
-retain their value identity. These are ordinary types, not law/lemma categories.
-Simple guarantees can live directly on the operation's `ensures` without a
-separate evidence field. The [general citation rule](../spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
-also applies to evidence initializers in ordinary records, checking all inputs,
-premises and exact selected operations.
+Two names for the same typed record mean the same implementation. To keep
+policies distinct, put the difference in a schema argument or ordinary field.
+An inline body declares a new machine, so it is a different selection even if
+its code looks the same.
 
-Two equal records of the same schema are one implementation, including empty
-and generic implementations. If `Choice<N>` constructs an empty `Tag`, its
-unused `N` does not distinguish `Choice<0>` from `Choice<8>`. If it constructs
-`Tag<N>`, the actual schema arguments do distinguish them. To distinguish two
-values of one schema deliberately, add an ordinary relevant field. There is no
-special brand keyword or hidden constructor identity. Projecting the same
-operations out of two differently tagged wrappers discards that distinction.
-
-Actual schema indices, selected machine applications and carried lifetime or
-ownership obligations remain significant even without runtime bytes. An inline
-member declares a new machine, so identical-looking inline bodies can still
-yield distinct selections. Names and proof/supply dependencies remain available
-for diagnostics and admission without becoming extra value identity.
-
-Ordinary fields do not become captured state. A callable using a policy's limit
-still takes that limit explicitly; calling a field supplies no implicit receiver.
-Construction establishes the constraints against the final selected operations,
-and replacing an operation must repair invalidated evidence before reuse. See
-[the complete record rules](../spec/language/conformances.md#implementations-are-operation-records).
+A `machine` member stores a selected machine; an evidence field stores a value
+of its declared mathematical type. See [record construction and identity](../spec/language/conformances.md#implementations-are-operation-records).
+Computed implementations can also be used as [Build providers](../spec/build/provider_selection.md#declaration-and-choice).
 
 ## Default bodies
 
@@ -144,23 +119,9 @@ boundary trait TimerInterrupt: InterruptService + Calling<X86InterruptPolicy> { 
 `requires Other<T>;` in the body and `: Other<T>` in the header mean the same
 thing.
 
-Inheritance contributes requirements and fields, not automatically merged parent
-implementation values. A diamond contributes one field for the same originating
-member. Distinct origins stay distinct even when their short names match.
-Construction supplies one final value for each field; use its originating
-declaration's qualified name when needed, such as `Base::encode: left.encode`.
-The projected selection must already have the required binding. Conflicting
-defaults need an explicit initializer, never a left-parent-wins rule. Evidence
-for an encoder discarded during construction does not certify the chosen one.
-
-## Computed providers
-
-Build's existing `Build::select_provider<Slot, Provider>(builder)` accepts a
-fully evaluated static record as `Provider`, not only a named implementation.
-An admitted compile-time factory can return it directly or through a `const`
-binding. The same schema, operation, constraint, target-realization and admission
-checks apply. Computing a record grants no authority; runtime-variable
-descriptors are not provider selectors. See [provider selection](../spec/build/provider_selection.md#declaration-and-choice).
+Inherited requirements are filled like other fields. When names collide, use
+the originating trait's qualified member name; parent order never picks a
+winner. See [inherited fields](../spec/language/conformances.md#construction-and-inherited-fields).
 
 ## Related types are parameters
 
