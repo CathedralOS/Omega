@@ -728,6 +728,7 @@ impl<'t> Program<'t> {
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);
+                value_exits(statement, &mut names.exits);
             }
         }
         Ok(Body {
@@ -759,6 +760,39 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
             }
         }
         Statement::Declare { .. } | Statement::Store { .. } | Statement::Evaluate(_) => {}
+    }
+}
+
+/// A value exit completes at its value expression's span rather than its
+/// arm's, so each one takes the statement position of the arm it ends
+/// (`MachineNames::exits`).
+fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
+    let arms: Vec<(&Target, SourceOrigin)> = match statement {
+        Statement::Arm { target, source, .. } => vec![(target, *source)],
+        Statement::Dispatch { arms, default, .. } => arms
+            .iter()
+            .map(|(_, target, source)| (target, *source))
+            .chain(default.iter().map(|(target, source)| (target, *source)))
+            .collect(),
+        Statement::Declare { .. }
+        | Statement::Bind { .. }
+        | Statement::Store { .. }
+        | Statement::Evaluate(_) => Vec::new(),
+    };
+    for (target, arm) in arms {
+        let (Target::Value(value), SourceOrigin::Authored(arm)) = (target, arm) else {
+            continue;
+        };
+        let SourceOrigin::Authored(span) = value.source else {
+            continue;
+        };
+        let position = exits
+            .iter()
+            .find(|(exit, _)| *exit == arm)
+            .map(|(_, position)| *position);
+        if let Some(position) = position {
+            exits.push((span, position));
+        }
     }
 }
 
