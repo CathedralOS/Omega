@@ -1836,7 +1836,10 @@ pub mod queries {
 
             Dispatch chooses among conformances and methods after this point, so
             every conformance of a reached trait and every method of a reached
-            data type stays.
+            data type stays. Operator resolution likewise chooses among every
+            operator and token-bound machine (a primitive `==` on `f32` selects
+            `Float::equal` by its token, not by a name the walker sees), so those
+            stay as candidates too.
         */
         pub fn project_subject_program(
             original: &TypedTrees,
@@ -1844,7 +1847,19 @@ pub mod queries {
             demanded: &[SymbolHandle],
         ) -> TypedTrees {
             let instances = instantiated_declarations(original);
-            let demanded = demanded.iter().copied().collect::<HashSet<_>>();
+            let mut demanded = demanded.iter().copied().collect::<HashSet<_>>();
+            demanded.extend(
+                original
+                    .operators()
+                    .iter()
+                    .chain(original.machine_token_bindings())
+                    .map(|operator| operator.symbol)
+                    .filter(|symbol| symbol.is_valid()),
+            );
+            let domains = original
+                .tables
+                .domain_definitions
+                .span_or_empty(original.roots.domain_definitions);
             // ponytail: keeps all conformances of a reached trait, not only the
             // selected ones. Narrow it once selection is known before checking.
             let children = original
@@ -1862,12 +1877,35 @@ pub mod queries {
                 // without a reference the walker follows, so a reached data
                 // type keeps its domains.
                 .chain(
-                    original
-                        .tables
-                        .domain_definitions
-                        .span_or_empty(original.roots.domain_definitions)
+                    domains
                         .iter()
                         .map(|domain| (domain.subject_symbol, domain.symbol)),
+                )
+                // A machine owned by a domain, such as its content projection
+                // `Granted::content`, names that domain only by its path in the
+                // same package; the checker finds it the same way. A reached
+                // domain keeps those machines.
+                .chain(
+                    original
+                        .machines()
+                        .iter()
+                        .filter(|machine| !machine.attached_data_symbol.is_valid())
+                        .filter_map(|machine| {
+                            let owner = machine.attached_data.as_ref()?.as_str();
+                            Some((machine, owner.rsplit("::").next().unwrap_or(owner)))
+                        })
+                        .flat_map(|(machine, owner)| {
+                            domains
+                                .iter()
+                                .filter(move |domain| {
+                                    let name = domain.name.as_str();
+                                    name.rsplit("::").next().unwrap_or(name) == owner
+                                        && original
+                                            .symbols
+                                            .same_symbol_source_package(machine.symbol, domain.symbol)
+                                })
+                                .map(move |domain| (domain.symbol, machine.symbol))
+                        }),
                 )
                 .collect::<Vec<_>>();
             project_declarations(
