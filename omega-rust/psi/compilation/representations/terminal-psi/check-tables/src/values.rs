@@ -34,6 +34,12 @@ pub enum ValueOrigin {
     /// An invocation formal. fact_validity.md: "Entry hypotheses bind exact
     /// invocation formals or structural entry paths".
     MachineParameter { position: u32 },
+    /// The machine's scalar result. `wiki/spec/terminal-psi/calls_and_outcomes.md`,
+    /// "Normal results": "Scalar | One typed value with a stable result
+    /// pseudo-value." No operation produces it: it is the value a
+    /// normal-return guarantee names as `result`, and on each normal exit it
+    /// stands for the value that exit returns.
+    MachineResult,
     /// A block parameter, bound by every arrival. control_flow.md: "Scalar
     /// arguments match the complete target telescope; their values may differ
     /// across arrivals."

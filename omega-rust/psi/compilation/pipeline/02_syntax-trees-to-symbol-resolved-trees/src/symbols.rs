@@ -523,6 +523,17 @@ mod contracts {
                         parameters.iter().map(|parameter| parameter.name.as_str()),
                     )
                 {
+                    // This is the one place the reserved result is told apart
+                    // from a parameter or local spelled `result`: the source
+                    // rule is a spelling, decided here once. Record the
+                    // decision as the contract owner's identity so later
+                    // stages need not repeat the spelling test; the symbol
+                    // stays invalid, as every existing reader expects.
+                    if let ExpressionNode::Name(resolved) =
+                        expression_table.expression_mut(expression)
+                    {
+                        resolved.reserved_result_of = state_symbol;
+                    }
                     return;
                 }
                 assign_name_symbol(

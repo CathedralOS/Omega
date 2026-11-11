@@ -93,7 +93,7 @@ refused as `Unsupported`, never accepted by default.
 | `OperationSafety` | question | [control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md): "Each partial operation still proves its own safety" |
 | `ArrivalInvariant` | question | control flow: "one obligation for every actual incoming edge" |
 | `NormalGuarantee` | question | control flow: "All normal returns ... must establish the published guarantees." |
-| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage" |
+| `CrashCoverage` | question | [calls and outcomes](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#crash): "proves every site guard ... and checks same-cause coverage". Its `CrashSite` is a block with a no-successor terminator ("closed causes on distinct no-successor terminators") or a call operation whose callee may return and crash ("Surviving crash routes are derived from the pinned callee contract using exact actuals") |
 | `WellFoundedness` | question | control flow: "a shared well-foundedness question" |
 | `RankComparison` | question | control flow: "comparison obligations for every internal edge" |
 

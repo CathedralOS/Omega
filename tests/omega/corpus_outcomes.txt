@@ -28214,6 +28214,8 @@ run/contracts/cyclic_record_writer checked 2871ms check-target:macos_arm64 @82df
 run/contracts/cyclic_terminal_result_producers checked 2330ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/nested_cyclic_copy_bound checked 2320ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/qualified_result_forwarding_exit checked 11151ms check-target:macos_arm64 @ccdb99ca2214
+run/contracts/scalar_crash_route_exit checked 9228ms check-target:macos_arm64 @1369884c3dda
+run/contracts/scalar_crash_route_trap checked 9536ms check-target:macos_arm64 @1369884c3dda
 run/contracts/target_family_forwarded_result checked 3320ms check-target:linux_x86_64 @ccdb99ca2214
 run/core/content_reunion checked 10649ms check-target:macos_arm64 @9eb8e12b2d53
 run/domains/byte_view_predicates_keep_selected_extent checked 2734ms check-target:macos_arm64 @ccdb99ca2214
