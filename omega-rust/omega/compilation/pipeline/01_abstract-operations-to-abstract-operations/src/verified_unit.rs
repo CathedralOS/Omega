@@ -1,10 +1,12 @@
 /*
   Verified Psi optimization-unit construction (`build_verified_psi_optimization_unit`,
-  `VerifiedPsiOptimizationUnit`, `VerifiedPsiOptimizationInput`).
+  `VerifiedPsiOptimizationUnit`).
 
-  Reconstructs and validates the mutable control-flow, value, ownership, and
-  fact representation (`PsiOptimizationUnit`) from an admitted Terminal module
-  before Omega 01 abstract rewrites run.
+  Omega 01 reconstructs and validates its mutable control-flow, value,
+  ownership, and fact representation (`PsiOptimizationUnit`) from the admitted
+  input Omega 00 hands it (`VerifiedPsiOptimizationInput`) before abstract
+  rewrites run. The input type lives in `verified-optimization-input`, so this
+  stage builds its own working form without depending on Omega 00.
 */
 mod error {
     use semantic_vocabulary::{MachineId, ObligationId, OperationId};
@@ -81,13 +83,9 @@ mod error {
 
 pub use error::VerifiedPsiOptimizationUnitBuildError;
 
-use abstract_operations::AbstractOperationPlan;
-use installation_evidence::InstalledAssumedBindingEvidence;
 use optimization_unit::{AcceptedObligationFact, PsiOptimizationUnit};
 use std::collections::BTreeSet;
-use terminal_installation::{
-    AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-};
+use verified_optimization_input::VerifiedPsiOptimizationInput;
 
 pub fn build_verified_psi_optimization_unit(
     input: VerifiedPsiOptimizationInput,
@@ -475,156 +473,9 @@ fn sealed_fingerprint(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedPsiOptimizationInput {
-    pub(crate) scalar_applications: Option<AdmittedScalarApplications>,
-    pub(crate) selected_program_entry_call: Option<crate::SelectedProgramEntryCall>,
-    pub(crate) plan: AbstractOperationPlan,
-    pub(crate) context: VerifiedPsiOptimizationContext,
-    pub(crate) admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
-    pub(crate) admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
-    pub(crate) admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
-    pub(crate) target_machine_selections: Option<AdmittedTargetMachineSelections>,
-    pub(crate) target_layout_selections: Option<AdmittedTargetLayouts>,
-    pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
-    pub(crate) external_requirement_applications:
-        Vec<effects::SelectedExternalRequirementApplication>,
-    pub(crate) selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
-    pub(crate) evidence: ObligationEvidence,
-}
-
-/// Where an input's obligation evidence came from.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ObligationEvidence {
-    /// Lowered from bytes: an artifact, or a module a cache rebuilt from bytes
-    /// (`CanonicalTerminalArtifact::from_bytes`). Terminal Psi's bytes carry
-    /// no evidence, so every accepted fact keeps the zero fingerprint. This is
-    /// never an error, and no seal can be attached to such an input.
-    ReadFromBytes,
-    /// Seals produced beside the exact in-memory module this input was
-    /// lowered from (`lower_module_with_evidence`). They are lost on any
-    /// byte round trip.
-    InMemory(Vec<terminal_codec::ObligationEvidenceSeal>),
-}
-
-impl VerifiedPsiOptimizationInput {
-    pub const fn evidence(&self) -> &ObligationEvidence {
-        &self.evidence
-    }
-
-    /// The seals Omega 00 checks before it fills accepted facts'
-    /// fingerprints; none for an input read from bytes.
-    pub fn evidence_seals(&self) -> &[terminal_codec::ObligationEvidenceSeal] {
-        match &self.evidence {
-            ObligationEvidence::ReadFromBytes => &[],
-            ObligationEvidence::InMemory(seals) => seals,
-        }
-    }
-
-    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
-        self.scalar_applications.as_ref()
-    }
-
-    pub fn selected_program_entry_call(&self) -> Option<&crate::SelectedProgramEntryCall> {
-        self.selected_program_entry_call.as_ref()
-    }
-    pub fn admitted_assumed_bindings(&self) -> &[InstalledAssumedBindingEvidence] {
-        &self.admitted_assumed_bindings
-    }
-
-    pub fn admitted_native_callbacks(&self) -> &[crate::AdmittedNativeCallbackArgument] {
-        self.admitted_native_callbacks.callbacks()
-    }
-
-    pub const fn admitted_installed_interrupts(
-        &self,
-    ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-        &self.admitted_installed_interrupts
-    }
-
-    pub fn into_lowering_facts(self) -> provider_admission::AdmittedLoweringFacts {
-        provider_admission::AdmittedLoweringFacts {
-            program_entry: self.selected_program_entry_call.as_ref().map(|call| {
-                provider_admission::LoweringEntryCall {
-                    boundary: call.boundary(),
-                    entry: call.entry(),
-                    source_signature: call.source_signature(),
-                }
-            }),
-            module: self.context.module,
-            assumed_bindings: self.admitted_assumed_bindings,
-            target_machine_selections: self.target_machine_selections,
-            native_callbacks: self.admitted_native_callbacks,
-            installed_interrupts: self.admitted_installed_interrupts,
-        }
-    }
-
-    pub const fn plan(&self) -> &AbstractOperationPlan {
-        &self.plan
-    }
-
-    pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
-        &self.context
-    }
-
-    pub fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
-        self.target_machine_selections.as_ref()
-    }
-
-    pub fn target_family_realizations(&self) -> &[effects::SelectedTargetFamilyRealization] {
-        &self.target_family_realizations
-    }
-
-    pub fn selected_provider_requirement_identities(&self) -> &terminal_psi::TerminalIdentityTable {
-        &self.selected_provider_requirement_identities
-    }
-
-    pub fn target_layout_selections(&self) -> Option<&AdmittedTargetLayouts> {
-        self.target_layout_selections.as_ref()
-    }
-
-    pub fn selected_calling_abi_identity(
-        &self,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration = selected_calling_boundary(
-            self.context.module(),
-            self.target_machine_selections(),
-            boundary,
-        )?;
-        self.context.module().calling_abi_identity(declaration)
-    }
-
-    pub fn target_family_member(
-        &self,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        target_family_member(
-            self.context.module(),
-            self.target_machine_selections(),
-            boundary,
-        )
-    }
-}
-
-pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
-
-pub(crate) use ::provider_admission::selected_calling_boundary;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedPsiOptimizationContext {
-    pub(crate) module: terminal_psi::TerminalModule,
-}
-
-impl VerifiedPsiOptimizationContext {
-    pub const fn module(&self) -> &terminal_psi::TerminalModule {
-        &self.module
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationUnit {
-    pub(crate) input: VerifiedPsiOptimizationInput,
-    pub(crate) unit: PsiOptimizationUnit,
+    input: VerifiedPsiOptimizationInput,
+    unit: PsiOptimizationUnit,
 }
 
 impl VerifiedPsiOptimizationUnit {
@@ -657,11 +508,11 @@ mod evidence_seal_tests {
     };
     use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
-    use super::VerifiedPsiOptimizationUnitBuildError;
-    use crate::{
-        ArtifactSections, ObligationEvidence, build_verified_psi_optimization_unit, lower_artifact,
-        lower_module_with_evidence,
+    use super::{VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit};
+    use terminal_psi_to_abstract_operations::{
+        ArtifactSections, lower_artifact, lower_module_with_evidence,
     };
+    use verified_optimization_input::{ObligationEvidence, VerifiedPsiOptimizationInput};
 
     fn u32_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
@@ -756,7 +607,7 @@ mod evidence_seal_tests {
     }
 
     fn fingerprints(
-        input: crate::VerifiedPsiOptimizationInput,
+        input: VerifiedPsiOptimizationInput,
     ) -> Result<Vec<[u8; 32]>, VerifiedPsiOptimizationUnitBuildError> {
         let (_, unit) = build_verified_psi_optimization_unit(
             input,
@@ -795,10 +646,9 @@ mod evidence_seal_tests {
         let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
         let mut changed = module.clone();
         changed.machines[0].contract.requires.pop();
-        assert!(matches!(
-            lower_module_with_evidence(&changed, evidence),
-            Err(crate::ArtifactLoweringError::EvidenceForAnotherModule)
-        ));
+        let refused = lower_module_with_evidence(&changed, evidence)
+            .expect_err("seals for another module are refused");
+        assert_eq!(format!("{refused:?}"), "EvidenceForAnotherModule");
     }
 
     #[test]
@@ -842,5 +692,297 @@ mod evidence_seal_tests {
             build(&module, vec![stray]),
             Err(VerifiedPsiOptimizationUnitBuildError::UnattachedEvidenceSeal { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+mod qualified_cleanup_receiving_tests {
+    use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
+    use terminal_psi::{
+        Operation, OperationKind, OperationResult, RecordFieldValue, StructuralAccess,
+        TerminalAffineCleanupAction, TerminalModule, Terminator,
+    };
+
+    fn independently_validate_ownership(module: TerminalModule) -> Result<(), String> {
+        let record = build_identity_optimization_execution_record(&module)
+            .expect("foundation-valid module has an identity record");
+        let artifact = CanonicalTerminalArtifact::from_parts(module, record, None)
+            .expect("foundation-valid mutation can be encoded");
+        let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("mutant must reach semantic validation after canonical admission");
+        let semantic_bytes = terminal_codec::encode_module(artifact.semantic_module())
+            .expect("admitted module re-encodes");
+        let input = terminal_psi_to_abstract_operations::lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic_bytes,
+            },
+        )
+        .expect("artifact lowering converts data; it does not prove issuance")
+        .into_optimization_artifact()
+        .into_optimization_input();
+        let verified = super::build_verified_psi_optimization_unit(
+            input,
+            psi_work::WorkSchedule::CURRENT.identity(),
+        )
+        .expect("construct exact unit before explicit semantic validation");
+        let (_, unit) = verified.into_parts();
+        let frontiers = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
+        .map_err(|error| format!("ownership reconstruction: {error:?}"))?;
+        let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
+            .map_err(|error| format!("ownership attachment: {error:?}"))?;
+        optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+            &unit,
+            &[],
+        )
+        .map_err(|error| format!("semantic ownership validation: {error:?}"))
+    }
+
+    #[test]
+    #[ignore = "explicit qualification supplies OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT"]
+    fn qualified_owned_cleanup_replays_transport_and_single_disposal() {
+        let path = std::env::var_os("OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT")
+            .expect("supply actual public CLI canonical output");
+        let bytes = std::fs::read(path).expect("read actual canonical bytes");
+        let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
+            .expect("independent canonical admission of actual artifact");
+        independently_validate_ownership(artifact.semantic_module().clone())
+            .expect("intact artifact must pass the explicit semantic validator");
+
+        for constructor_child in [true, false] {
+            let mut module = artifact.semantic_module().clone();
+            let selected = module
+                .machines
+                .iter()
+                .enumerate()
+                .find_map(|(machine_index, machine)| {
+                    let sources: Vec<_> = if constructor_child {
+                        machine
+                            .operations()
+                            .flat_map(|operation| match &operation.kind {
+                                OperationKind::EstablishRecord { fields }
+                                | OperationKind::EstablishStructuralCase { fields, .. } => fields
+                                    .iter()
+                                    .filter_map(|field| match &field.value {
+                                        RecordFieldValue::Structural(argument) => {
+                                            Some(argument.place)
+                                        }
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>(),
+                                _ => Vec::new(),
+                            })
+                            .collect()
+                    } else {
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| match &block.terminator {
+                                Terminator::Jump {
+                                    structural_arguments,
+                                    ..
+                                } => structural_arguments
+                                    .iter()
+                                    .map(|argument| argument.place)
+                                    .collect::<Vec<_>>(),
+                                _ => Vec::new(),
+                            })
+                            .collect()
+                    };
+                    sources.into_iter().find_map(|place| {
+                        let (operation, _) = machine.producing_operation(place)?;
+                        let result = operation.result.as_structural()?;
+                        (!result.qualifications.is_empty()).then_some((machine_index, operation.id))
+                    })
+                })
+                .expect("fixture has an actual qualified source at this transport boundary");
+            let producer = module.machines[selected.0]
+                .operation(selected.1)
+                .unwrap()
+                .kind
+                .direct_callee()
+                .expect("actual qualified source is a call result");
+            let terminal_psi::TerminalMachineResult::Structural(result) = &mut module
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id == producer)
+                .unwrap()
+                .result
+            else {
+                unreachable!()
+            };
+            assert!(!result.qualifications.is_empty());
+            result.qualifications.clear();
+            for machine in &mut module.machines {
+                for block in &mut machine.blocks {
+                    for operation in &mut block.operations {
+                        if operation.kind.direct_callee() == Some(producer) {
+                            let OperationResult::Structural(result) = &mut operation.result else {
+                                unreachable!()
+                            };
+                            result.qualifications.clear();
+                        }
+                    }
+                }
+            }
+            let reason = independently_validate_ownership(module).expect_err(
+                "deleted actual source membership cannot satisfy unchanged destinations",
+            );
+            assert_eq!(
+                reason,
+                "ownership reconstruction: VerifiedOptimizationUnitProjectionMismatch"
+            );
+            println!(
+                "weakened actual producer used by {} rejected at reported boundary: {reason}",
+                if constructor_child {
+                    "constructor-child"
+                } else {
+                    "owned-edge"
+                }
+            );
+        }
+
+        let mut module = artifact.semantic_module().clone();
+        let next_id = semantic_vocabulary::OperationId::new(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| machine.operations())
+                .map(|operation| operation.id.get())
+                .max()
+                .unwrap()
+                .checked_add(1)
+                .unwrap(),
+        )
+        .unwrap();
+        let (machine_index, parameter_index, block_index, read_index) = module.machines.iter()
+        .enumerate().find_map(|(mi, machine)| machine.structural_parameters.iter()
+            .enumerate().find_map(|(pi, parameter)| {
+                if parameter.access != StructuralAccess::SharedBorrow
+                    || parameter.qualifications.is_empty() { return None; }
+                machine.blocks.iter().enumerate().find_map(|(bi, block)|
+                    block.operations.iter().enumerate().find_map(|(oi, operation)|
+                        matches!(&operation.kind, OperationKind::ScalarStructuralField { source, .. }
+                            if *source == parameter.place).then_some((mi, pi, bi, oi))))
+            })).expect("fixture has an actual qualified scalar observer");
+        let observer = &mut module.machines[machine_index];
+        let observer_id = observer.id;
+        let parameter = &mut observer.structural_parameters[parameter_index];
+        let position = parameter.position as usize;
+        parameter.access = StructuralAccess::MutableBorrow;
+        parameter.qualifications.clear();
+        assert!(parameter.projected_qualifications.is_empty());
+        let block = &mut observer.blocks[block_index];
+        let read = &block.operations[read_index];
+        let value = read
+            .result
+            .as_scalar()
+            .expect("actual read has a scalar result")
+            .id;
+        let OperationKind::ScalarStructuralField {
+            source,
+            path,
+            field,
+        } = &read.kind
+        else {
+            unreachable!()
+        };
+        assert!(path.is_empty(), "actual observer reads a direct field");
+        let store = Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: next_id,
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: *source,
+                path: Vec::new(),
+                field: *field,
+                value,
+                range_obligation: None,
+            },
+        };
+        block.operations.insert(read_index + 1, store);
+        let mut calls = 0;
+        for machine in &mut module.machines {
+            for block in &mut machine.blocks {
+                for operation in &mut block.operations {
+                    if operation.kind.direct_callee() == Some(observer_id) {
+                        let arguments = operation.kind.structural_arguments_mut().unwrap();
+                        assert_eq!(arguments[position].access, StructuralAccess::SharedBorrow);
+                        arguments[position].access = StructuralAccess::MutableBorrow;
+                        calls += 1;
+                    }
+                }
+            }
+        }
+        assert!(calls > 0, "mutate real calls to the actual observer");
+        let reason = independently_validate_ownership(module)
+            .expect_err("unqualified mutable call must not retain opaque caller membership");
+        assert_eq!(
+            reason,
+            "ownership reconstruction: StructuralCallContractMismatch(OperationSite { machine: MachineId(1), block: BlockId(9), node: 0 })"
+        );
+        println!("mutating unqualified observer rejected: {reason}");
+
+        let mut module = artifact.semantic_module().clone();
+        let mut doubled = false;
+        for machine in &mut module.machines {
+            for block in &mut machine.blocks {
+                let rosters: Vec<_> = match &mut block.terminator {
+                    Terminator::Jump {
+                        cleanup_actions, ..
+                    } => vec![cleanup_actions],
+                    Terminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        vec![
+                            &mut when_true.cleanup_actions,
+                            &mut when_false.cleanup_actions,
+                        ]
+                    }
+                    Terminator::StructuralCase { cases, .. } => cases
+                        .iter_mut()
+                        .map(|case| &mut case.cleanup_actions)
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for actions in rosters {
+                    if let Some(action) = actions
+                        .iter()
+                        .find(|action| {
+                            matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                        })
+                        .cloned()
+                    {
+                        actions.push(action);
+                        doubled = true;
+                        break;
+                    }
+                }
+                if doubled {
+                    break;
+                }
+            }
+            if doubled {
+                break;
+            }
+        }
+        assert!(
+            doubled,
+            "fixture must contain a real residual cleanup action"
+        );
+        let reason = build_identity_optimization_execution_record(&module).expect_err(
+            "canonical uniqueness rejects duplicate actual residuals before semantic replay",
+        );
+        assert!(matches!(
+            &reason,
+            terminal_codec::PsiOptimizationExecutionRecordBuildError::Semantic(
+                terminal_codec::CodecError::NonCanonicalOrder(
+                    "partial affine residual discards are unique"
+                )
+            )
+        ));
+        println!("double cleanup rejected by canonical foundation: {reason:?}");
     }
 }

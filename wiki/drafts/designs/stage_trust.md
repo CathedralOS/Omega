@@ -27,9 +27,9 @@ Traced through the code at `457adf4a11f` (sites in
    never sees it (`proof/src/checker.rs`). Contract checks never produce an
    evidence object; they travel as a "source-checked" flag that lowering
    filters out.
-2. Omega 00 turns every obligation reference in the unit into an accepted
+2. Omega 01 turns every obligation reference in the unit into an accepted
    fact whose proof fingerprint is 32 zero bytes
-   (`00_terminal-psi-to-abstract-operations/src/optimization.rs`).
+   (`01_abstract-operations-to-abstract-operations/src/verified_unit.rs`).
 3. Attaching those facts checks the program identity, a hash of the fact's own
    fields, and duplicates (`optimization-unit/src/proof.rs`). Nothing else.
 4. Omega 01 deletes operations such as `x / x` and `x % x` when the fact is

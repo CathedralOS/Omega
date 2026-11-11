@@ -4,9 +4,7 @@
 use std::collections::BTreeSet;
 use std::time::Instant;
 
-use proof_admission::{
-    Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Term, TermArena, TermHandle,
-};
+use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, MathematicalCertificate, Term};
 use psi_compiler::{TerminalMachineSelection, TerminalProductionRequest, UnmeasuredProduction};
 use terminal_codec::{
     CanonicalTerminalArtifact, MathematicalProofActualError, decode_mathematical_certificate,
@@ -125,21 +123,6 @@ pub(super) fn produce(
     let citations = facts.indexed_citations.clone();
     let source_signature_terms = signature.arena.len();
     let source_signature_declarations = signature.declarations.len();
-    // Identify the actual used fixed distributive law in the trusted source
-    // signature, rather than assigning a guessed declaration position.
-    let distributive_positions = facts
-        .indexed_theorems
-        .iter()
-        .flat_map(|root| root.assumption_closure.iter().copied())
-        .filter(|position| {
-            signature
-                .declarations
-                .get(*position as usize)
-                .is_some_and(|declaration| {
-                    declaration.body.is_none() && distribute_add(&signature.arena, declaration.ty)
-                })
-        })
-        .collect::<BTreeSet<_>>();
     // Reuse the actual source Nil child, retained beneath the source Cons
     // constructor's child function. It is checked against the independently
     // retained closed carrier; no kernel witness is invented for this control.
@@ -448,14 +431,24 @@ pub(super) fn produce(
         "foreign nominal identity with unchanged certificate",
         |error| matches!(error, MathematicalProofActualError::SourceCarrierMismatch),
     )?;
-    let used_distribution = received
+    // Withdraw the grant of a law the transported root actually uses. A
+    // closed specialization proves its bound from numeral facts rather than
+    // the generic step's distributive law, so the control selects the used
+    // law from the root's own closure instead of assuming its shape.
+    let used_law = received
         .indexed_theorems
         .iter()
         .flat_map(|root| root.assumption_closure.iter().copied())
-        .find(|position| distributive_positions.contains(position))
-        .ok_or("source vector induction did not retain its used distributive law")?;
+        .find(|position| {
+            grants.contains(position)
+                && signature
+                    .declarations
+                    .get(*position as usize)
+                    .is_some_and(|declaration| declaration.body.is_none())
+        })
+        .ok_or("source vector induction did not retain a used granted law")?;
     let mut missing_grant = grants.clone();
-    if !missing_grant.remove(&used_distribution) {
+    if !missing_grant.remove(&used_law) {
         return Err("used law was not independently granted".into());
     }
     if !matches!(
@@ -467,9 +460,7 @@ pub(super) fn produce(
         ),
         Err(MathematicalProofActualError::UngrantedAssumptions(_))
     ) {
-        return Err(
-            "source indexed theorem accepted its missing used distributive-law grant".into(),
-        );
+        return Err("source indexed theorem accepted its missing used-law grant".into());
     }
     let mut changed_contract = received.clone();
     changed_contract.indexed_theorems[0]
@@ -495,10 +486,10 @@ pub(super) fn produce(
     let root = changed_closure
         .indexed_theorems
         .iter_mut()
-        .find(|root| root.assumption_closure.contains(&used_distribution))
+        .find(|root| root.assumption_closure.contains(&used_law))
         .unwrap();
     root.assumption_closure
-        .retain(|position| *position != used_distribution);
+        .retain(|position| *position != used_law);
     must_refuse(
         &changed_closure,
         expected,
@@ -512,7 +503,7 @@ pub(super) fn produce(
         .map(|root| root.certificate.len())
         .sum::<usize>();
     eprintln!(
-        "corpus_runner: indexed_family_transport artifact_bytes={} semantic_bytes={} source_arena_terms={} source_signature_declarations={} theorem_roots={} theorem_certificate_bytes={} carriers={} mathematical_actuals={} used_distribute_add={} decode_ms={decode_ms:.3} root_check_ms={root_ms:.3} root_check_steps={} actual_check_ms={actual_ms:.3} actual_check_steps={}",
+        "corpus_runner: indexed_family_transport artifact_bytes={} semantic_bytes={} source_arena_terms={} source_signature_declarations={} theorem_roots={} theorem_certificate_bytes={} carriers={} mathematical_actuals={} used_law={} decode_ms={decode_ms:.3} root_check_ms={root_ms:.3} root_check_steps={} actual_check_ms={actual_ms:.3} actual_check_steps={}",
         bytes.len(),
         artifact.semantic_bytes().len(),
         source_signature_terms,
@@ -521,7 +512,7 @@ pub(super) fn produce(
         certificate_bytes,
         received.mathematical_carriers.len(),
         actual_count,
-        used_distribution,
+        used_law,
         DEFAULT_CONVERSION_STEPS - root_budget.remaining(),
         DEFAULT_CONVERSION_STEPS - actual_budget.remaining()
     );
@@ -654,89 +645,6 @@ pub(super) fn is_mixed_application(term: &semantic_vocabulary::ProofTerm) -> boo
 
 // Recognize the exact fixed law in the trusted checked signature solely to
 // choose the dependency removed by the negative control. This grants nothing.
-fn distribute_add(arena: &TermArena, mut ty: TermHandle) -> bool {
-    let mut carrier = None;
-    for _ in 0..3 {
-        let Term::Pi { domain, codomain } = arena.get(ty) else {
-            return false;
-        };
-        let Some(head) = constant(arena, domain) else {
-            return false;
-        };
-        if carrier.is_some_and(|prior| prior != head) {
-            return false;
-        }
-        carrier = Some(head);
-        ty = codomain;
-    }
-    let Term::Id {
-        ty: domain,
-        left: lhs,
-        right: rhs,
-    } = arena.get(ty)
-    else {
-        return false;
-    };
-    if constant(arena, domain) != carrier {
-        return false;
-    }
-    let Some((mul, scale, sum)) = binary(arena, lhs) else {
-        return false;
-    };
-    let Some((add, left, right)) = binary(arena, sum) else {
-        return false;
-    };
-    if mul == add
-        || arena.get(scale) != Term::Variable(2)
-        || arena.get(left) != Term::Variable(1)
-        || arena.get(right) != Term::Variable(0)
-    {
-        return false;
-    }
-    let Some((rhs_add, left_product, right_product)) = binary(arena, rhs) else {
-        return false;
-    };
-    let Some((left_mul, left_scale, left_value)) = binary(arena, left_product) else {
-        return false;
-    };
-    let Some((right_mul, right_scale, right_value)) = binary(arena, right_product) else {
-        return false;
-    };
-    rhs_add == add
-        && left_mul == mul
-        && right_mul == mul
-        && arena.get(left_scale) == Term::Variable(2)
-        && arena.get(left_value) == Term::Variable(1)
-        && arena.get(right_scale) == Term::Variable(2)
-        && arena.get(right_value) == Term::Variable(0)
-}
-
-fn constant(arena: &TermArena, term: TermHandle) -> Option<u32> {
-    match arena.get(term) {
-        Term::Constant {
-            declaration,
-            levels,
-        } if levels.is_empty() => Some(declaration),
-        _ => None,
-    }
-}
-fn binary(arena: &TermArena, term: TermHandle) -> Option<(u32, TermHandle, TermHandle)> {
-    let Term::Apply {
-        function,
-        argument: right,
-    } = arena.get(term)
-    else {
-        return None;
-    };
-    let Term::Apply {
-        function,
-        argument: left,
-    } = arena.get(function)
-    else {
-        return None;
-    };
-    Some((constant(arena, function)?, left, right))
-}
 
 fn first_mathematical_actual_mut(
     module: &mut TerminalModule,
