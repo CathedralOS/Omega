@@ -11818,43 +11818,43 @@ fail/facts/required_output_path/parameter rejected 548ms expected @a763a36a6498
 	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/required_output_path/target_body rejected 653ms expected @a763a36a6498
 	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/resident_backing_call_result_missing_vacancy rejected 12040ms expected @089c0a150e63
+fail/facts/resident_backing_call_result_missing_vacancy rejected 16168ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_const_name_missing_vacancy rejected 11401ms expected @089c0a150e63
+fail/facts/resident_backing_const_name_missing_vacancy rejected 17744ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_field_missing_vacancy rejected 11816ms expected @089c0a150e63
+fail/facts/resident_backing_field_missing_vacancy rejected 17430ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_field_unrestored rejected 10622ms expected @089c0a150e63
+fail/facts/resident_backing_field_unrestored rejected 16283ms expected @5a8f7095a53b
 	cannot complete return from machine `restore_record` state `entry`: this write left the `requires` facts of `held` (data `Held`) unproved; restore them first
-fail/facts/resident_backing_generic_move_double_consume rejected 10716ms expected @089c0a150e63
+fail/facts/resident_backing_generic_move_double_consume rejected 18851ms expected @5a8f7095a53b
 	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/resident_backing_generic_move_wrong_index rejected 15075ms expected @089c0a150e63
+fail/facts/resident_backing_generic_move_wrong_index rejected 24690ms expected @5a8f7095a53b
 	index compatibility condition `index-equality:Resident:main::move_value::entry:call-0-0:Resident<WordPlacement, Word>==Resident<OtherPlacement, Word>` is not established: actual `Resident<WordPlacement, Word>` and expected `Resident<OtherPlacement, Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/facts/resident_backing_library_growth_missing_vacancy rejected 19500ms expected @089c0a150e63
+fail/facts/resident_backing_library_growth_missing_vacancy rejected 57649ms expected @5a8f7095a53b
 	cannot prove requires contract for call exercise from allocated: storage in Extent::Vacant in state `entry`
 	cannot prove initializer of `storage` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_local_missing_vacancy rejected 13468ms expected @089c0a150e63
+fail/facts/resident_backing_local_missing_vacancy rejected 15350ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_match_join_missing_vacancy rejected 12659ms expected @089c0a150e63
+fail/facts/resident_backing_match_join_missing_vacancy rejected 20390ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_other_machine_missing_vacancy rejected 13751ms expected @089c0a150e63
+fail/facts/resident_backing_other_machine_missing_vacancy rejected 21979ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_other_state_missing_vacancy rejected 13377ms expected @089c0a150e63
+fail/facts/resident_backing_other_state_missing_vacancy rejected 19273ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_parameter_missing_vacancy rejected 13287ms expected @089c0a150e63
+fail/facts/resident_backing_parameter_missing_vacancy rejected 21140ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_plain_ram_stale_field_rejected rejected 5390ms expected @7c05fde39892
+fail/facts/resident_backing_plain_ram_stale_field_rejected rejected 10136ms expected @5a8f7095a53b
 	cannot prove ensures contract for exit from check at statement 1: result == 17
 	cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label
-fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 26131ms expected @7c05fde39892
+fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 30495ms expected @5a8f7095a53b
 	cannot prove requires contract for call split_vacant_extent from exchange: 4 <= prefix.rest.length (needs fact `requested <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call merge_vacant_extents from exchange: embed(cell.length) + embed(element.rest.length) <= 18446744073709551615 (needs fact `embed(left.length) + embed(right.length) <= 18446744073709551615` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call merge_vacant_extents from exchange: cell.length == 0 || element.rest.length == 0 || embed(element.rest.base) == embed(cell.base) + embed(cell.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -11862,7 +11862,7 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 26131ms ex
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
-fail/facts/resident_backing_runtime_growth_swapped_source rejected 17760ms expected @089c0a150e63
+fail/facts/resident_backing_runtime_growth_swapped_source rejected 43246ms expected @5a8f7095a53b
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.base == original.base
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.length == original.length
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.replacement.base == replacement.base
@@ -11871,17 +11871,17 @@ fail/facts/resident_backing_runtime_growth_swapped_source rejected 17760ms expec
 	cannot prove ensures contract for exit from step at statement 3: result.original.length == original.length
 	cannot prove ensures contract for exit from step at statement 3: result.replacement.base == replacement.base
 	cannot prove ensures contract for exit from step at statement 3: result.replacement.length == replacement.length
-fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 12162ms expected @089c0a150e63
+fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 13901ms expected @5a8f7095a53b
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/resident_backing_runtime_loop_changed_arrival rejected 8586ms expected @e993f43ba966+wt
+fail/facts/resident_backing_runtime_loop_changed_arrival rejected 2377ms expected @5a8f7095a53b
 	cannot prove ensures contract for exit from carry at statement 1: result.first.base == first.base
 	cannot prove ensures contract for exit from carry at statement 1: result.second.base == second.base
-fail/facts/resident_backing_runtime_loop_wrong_origin rejected 12339ms expected @089c0a150e63
+fail/facts/resident_backing_runtime_loop_wrong_origin rejected 32837ms expected @5a8f7095a53b
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.base == first.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.length == first.length
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.base == second.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.length == second.length
-fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 27636ms expected @7c05fde39892
+fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 27870ms expected @5a8f7095a53b
 	construction value is not proven in domain `Extent::Granted` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Extent::Vacant` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	cannot prove ensures contract for exit from forward at statement 3: result.length == storage.length
@@ -11890,9 +11890,9 @@ fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected
 	cannot prove default-domain field requirement for return from forward at statement 3: Extent requires Extent::Granted
 	cannot prove default-domain field requirement for return from forward at statement 3: Extent requires Extent::Vacant
 	linear value `storage` reaches scope exit without being consumed or transferred in machine `forward` state `entry`
-fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 10728ms expected @089c0a150e63
+fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 20894ms expected @5a8f7095a53b
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/facts/resident_backing_target_body_missing_vacancy rejected 13082ms expected @089c0a150e63
+fail/facts/resident_backing_target_body_missing_vacancy rejected 16727ms expected @5a8f7095a53b
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
 fail/facts/result_cleanup_guarantees_through_call_result_rejected rejected 9458ms expected @ee4dbb4b2d56
@@ -15959,17 +15959,17 @@ fail/layouts/extent_descriptor_write_retires_mathematical_qualification rejected
 	cannot prove ensures contract for exit from preserve at statement 2: storage in Extent::Granted
 fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 2: storage in Extent::Registered
-fail/layouts/extent_view_exclusive_source_overlap rejected 8158ms expected @e9afae5fccb7
+fail/layouts/extent_view_exclusive_source_overlap rejected 2936ms expected @5a8f7095a53b
 	statement 1 reads `storage.length` while local borrow `outcome` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/layouts/extent_view_nested_record_predicate rejected 7999ms expected @e9afae5fccb7
+fail/layouts/extent_view_nested_record_predicate rejected 7831ms expected @5a8f7095a53b
 	nonresident access View cannot establish record predicates for `Inner`; independent content-validity evidence is required
-fail/layouts/extent_view_shared_cannot_mutate rejected 4714ms expected @e9afae5fccb7
+fail/layouts/extent_view_shared_cannot_mutate rejected 2398ms expected @5a8f7095a53b
 	argument `storage` for state `view_extent_mut` is declared `&mut` (`&mut Extent[in Granted]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/layouts/extent_view_unproved_field_domain rejected 7841ms expected @e9afae5fccb7
+fail/layouts/extent_view_unproved_field_domain rejected 9799ms expected @5a8f7095a53b
 	nonresident access View cannot establish field qualifications; independent content-validity evidence is required
-fail/layouts/extent_view_unproved_record_predicate rejected 8749ms expected @e9afae5fccb7
+fail/layouts/extent_view_unproved_record_predicate rejected 10453ms expected @5a8f7095a53b
 	nonresident access View cannot establish record predicates for `Word`; independent content-validity evidence is required
-fail/layouts/extent_view_unrelated_result_lifetime rejected 13273ms expected @e9afae5fccb7
+fail/layouts/extent_view_unrelated_result_lifetime rejected 9759ms expected @5a8f7095a53b
 	machine `attempt` returns a view borrowing input `right`, which is not permitted by the declared result lifetime relation
 fail/layouts/false_constant_layout_contract rejected 3746ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call impossible from program: size_of() < align_of()
@@ -24950,42 +24950,25 @@ pass/facts/required_output_path/other_machine checked 30078ms check-target:macos
 pass/facts/required_output_path/other_state checked 30367ms check-target:macos_arm64 @a763a36a6498
 pass/facts/required_output_path/parameter checked 29727ms check-target:macos_arm64 @a763a36a6498
 pass/facts/required_output_path/target_body checked 22634ms check-target:macos_arm64 @a763a36a6498
-pass/facts/resident_backing_call_result_exit rejected 18280ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_coexisting_exit rejected 18476ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_const_name_exit rejected 17099ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_field_exit rejected 17561ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_generic_move_cleanup_exit rejected 23997ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_generic_move_exit rejected 22226ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_local_exit rejected 19277ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_match_join_exit rejected 18270ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_other_machine_exit rejected 19855ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_other_state_exit rejected 17488ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_parameter_exit rejected 19526ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
+pass/facts/resident_backing_call_result_exit checked 24487ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_coexisting_exit checked 25613ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_const_name_exit checked 24533ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_field_exit checked 24546ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_generic_move_cleanup_exit checked 28229ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_generic_move_exit checked 27857ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_local_exit checked 24047ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_match_join_exit checked 23808ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_other_machine_exit checked 24516ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_other_state_exit checked 26211ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_parameter_exit checked 24826ms check-target:macos_arm64 @5a8f7095a53b
 pass/facts/resident_backing_plain_ram_exit rejected 4439ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
 	cannot prove default-domain field requirement for call check from main::entry: parameter pair requires Pair::Label
-pass/facts/resident_backing_runtime_cells_exit rejected 24587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_runtime_growth_exit rejected 40568ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_runtime_helper_loop_exit rejected 26615ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_runtime_loop_exit rejected 26184ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_runtime_reconstruction_loop_exit rejected 31657ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-pass/facts/resident_backing_target_body_exit rejected 17232ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
+pass/facts/resident_backing_runtime_cells_exit checked 32149ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_runtime_growth_exit checked 48084ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_runtime_helper_loop_exit checked 31168ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_runtime_loop_exit checked 30240ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 36912ms check-target:macos_arm64 @5a8f7095a53b
+pass/facts/resident_backing_target_body_exit checked 24904ms check-target:macos_arm64 @5a8f7095a53b
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 17591ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 18125ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/result_cleanup_guarantees_through_field_exit checked 13471ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26781,11 +26764,8 @@ pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content rejected 29716ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:match+terminal-inspections:match @7c05fde39892
 	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
 	inspection attempt admission: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(Unsupported(\\"domain establishment route names an absent trait\\"))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/layouts/extent_view_external_write rejected 29943ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:match+terminal-inspections:match @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
-	inspection attempt admission: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(Unsupported(\\"domain establishment route names an absent trait\\"))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/layouts/extent_view_preserves_grant_exit rejected 19174ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	terminal-artifact production failed: Lowering(Unsupported("domain establishment route names an absent trait"))
+pass/layouts/extent_view_external_write checked 21753ms terminal-runtime.attempt:match terminal-inspections:match @5a8f7095a53b
+pass/layouts/extent_view_preserves_grant_exit checked 25657ms check-target:macos_arm64 @5a8f7095a53b
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_alias_policy_exit checked 9415ms check-target:macos_arm64 @6d8ad13849e1
