@@ -1981,7 +1981,7 @@ mod last_uses {
     use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
     use symbols::SymbolHandle;
 
-    use super::tracker::StateLoanTracker;
+    use super::tracker::{LoanRetirement, StateLoanTracker};
     pub(crate) use usage::owner_path_overlaps_place_segments;
     use usage::{statement_uses_local_name, statement_uses_owner_path, statement_uses_symbol};
 
@@ -2294,12 +2294,29 @@ mod last_uses {
         loan_trackers: &[StateLoanTracker],
         loans: &mut arena::Arena<checked_trees::BorrowLoanFact>,
         loan_suppliers: &arena::Arena<arena::Handle<checked_trees::BorrowLoanFact>>,
+        retirements: &[LoanRetirement],
     ) {
         if loan_trackers.is_empty() {
             return;
         }
 
         let order = program.statement_table.admitted_execution_order(statements);
+        /*
+            A replaced carrier place holds a different value after its replacement
+            statement, so a later use of that place is a use of the replacing loan,
+            not of the retired one. Place-based uses therefore stop at retirement.
+            Explicit supplier lineage still extends a retired loan: a value already
+            detached from the place before the replacement keeps its backing live.
+        */
+        let place_use_counts = |handle: arena::Handle<checked_trees::BorrowLoanFact>,
+                                statement_index: usize| {
+            retirements
+                .iter()
+                .find(|retirement| retirement.loan == handle)
+                .is_none_or(|retirement| {
+                    !order.precedes(retirement.statement_index, statement_index)
+                })
+        };
 
         for borrow_call in borrow_calls {
             for access in argument_accesses.span_or_empty(borrow_call.accesses) {
@@ -2308,6 +2325,7 @@ mod last_uses {
                         continue;
                     }
                     if tracker.storage_owner == access.root
+                        && place_use_counts(tracker.handle, borrow_call.statement_index)
                         && owner_path_overlaps_place_segments(
                             program,
                             &tracker.owner_path,
@@ -2349,7 +2367,7 @@ mod last_uses {
                         &tracker.owner_path,
                     )
                 };
-                if used {
+                if used && place_use_counts(tracker.handle, statement_index) {
                     extend_last_use(
                         &order,
                         &mut loans.get_mut(tracker.handle).last_use_statement_index,
@@ -2407,6 +2425,7 @@ mod last_uses {
                     let alias_statement = loans.get(alias.handle).statement_index;
                     if !(order.precedes(carrier_statement, alias_statement)
                         || (temporary && carrier_statement == alias_statement))
+                        || !place_use_counts(carrier.handle, alias_statement)
                         || alias.place.root != carrier.storage_owner
                         || !owner_path_overlaps_place_segments(
                             program,
@@ -8616,7 +8635,7 @@ mod state {
     use super::last_uses::update_state_loan_last_uses;
     use super::loans::{StatementBorrowLoan, returned_value_loans, statement_borrow_loans};
     use super::roots::{append_state_writable_roots, mutable_parameter_count};
-    use super::tracker::StateLoanTracker;
+    use super::tracker::{LoanRetirement, StateLoanTracker};
 
     pub(super) struct BorrowFactArenas<'arenas> {
         pub(super) incoming_references: &'arenas mut Arena<ReferenceIdentity>,
@@ -8661,6 +8680,7 @@ mod state {
         let mut calls_span = HandleSpan::empty();
         let mut loans_span = HandleSpan::empty();
         let mut returned_loans_span = HandleSpan::empty();
+        let mut retirements = Vec::new();
         for (statement_index, statement) in program
             .statement_table
             .admitted_execution_statements(state.statement_nodes)
@@ -8810,9 +8830,11 @@ mod state {
                 program,
                 machine,
                 statement,
+                statement_index,
                 call_frames,
                 replacement.as_ref(),
                 &mut current_loans,
+                &mut retirements,
             );
             append_carrier_loans(
                 arenas,
@@ -8835,6 +8857,7 @@ mod state {
             state_loan_trackers,
             arenas.loans,
             arenas.loan_suppliers,
+            &retirements,
         );
 
         arenas.states.append(StateBorrowFact {
@@ -9119,21 +9142,39 @@ mod state {
         removes only the old leaves within that exact destination; earlier facts
         remain available to the flow lifetime ledger and already detached values.
     */
+    #[allow(clippy::too_many_arguments)]
     fn retire_replaced_carrier_loans(
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         statement: &StatementNode,
+        statement_index: usize,
         call_frames: Option<&CallFrameResolver<'_>>,
         replacement: Option<&super::loans::CarrierReplacement>,
         current: &mut Vec<StateLoanTracker>,
+        retirements: &mut Vec<LoanRetirement>,
     ) {
+        let mut retire = |current: &mut Vec<StateLoanTracker>,
+                          replaced: &dyn Fn(&StateLoanTracker) -> bool| {
+            current.retain(|loan| {
+                if !replaced(loan) {
+                    return true;
+                }
+                if loan.handle.is_valid() {
+                    retirements.push(LoanRetirement {
+                        loan: loan.handle,
+                        statement_index,
+                    });
+                }
+                false
+            });
+        };
         if let Some(effects) = call_frames.and_then(|frames| {
             frames
                 .stored_reference_fallthrough_effects(machine, statement)
                 .ok()
         }) {
-            current.retain(|loan| {
-                !effects.iter().any(|effect| {
+            retire(current, &|loan| {
+                effects.iter().any(|effect| {
                     !effect.may_select
                         && loan.storage_owner == PlaceRoot::Symbol(effect.destination.local_symbol)
                         && super::loans::place_path_covers_owner(
@@ -9145,8 +9186,8 @@ mod state {
             });
         }
         if let Some(replacement) = replacement {
-            current.retain(|loan| {
-                !replacement.replaces(program, loan.storage_owner, &loan.owner_path)
+            retire(current, &|loan| {
+                replacement.replaces(program, loan.storage_owner, &loan.owner_path)
             });
         }
     }
@@ -9422,6 +9463,17 @@ mod tracker {
     pub(super) struct RetainedBorrowSource {
         pub(super) loan: Handle<checked_trees::BorrowLoanFact>,
         pub(super) owner_symbol: SymbolHandle,
+    }
+
+    /*
+        The statement at which a carrier replacement removed a loan from the
+        active roster. Liveness reads it so a later use of the replaced place
+        cannot extend the retired loan or the loans that supplied it.
+    */
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) struct LoanRetirement {
+        pub(super) loan: Handle<checked_trees::BorrowLoanFact>,
+        pub(super) statement_index: usize,
     }
 
     #[derive(Clone, PartialEq, Eq)]
