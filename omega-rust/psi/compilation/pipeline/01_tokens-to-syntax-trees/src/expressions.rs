@@ -1168,7 +1168,7 @@ pub(crate) mod parse_postfix {
                 input = input.take_keyword(KeywordKind::As, "as")?;
                 if at_cast_entry(input) {
                     (expression, input) =
-                        parse_cast_entries(syntax_trees, expression, input, cast_source, false)?;
+                        parse_cast_entries(syntax_trees, expression, input, false)?;
                     continue;
                 }
                 let mut form = language_core::cast_form::CastForm::Value;
@@ -1256,7 +1256,7 @@ pub(crate) mod parse_postfix {
                         ));
                     }
                     (expression, input) =
-                        parse_cast_entries(syntax_trees, expression, input, cast_source, true)?;
+                        parse_cast_entries(syntax_trees, expression, input, true)?;
                 }
                 continue;
             }
@@ -1284,7 +1284,6 @@ pub(crate) mod parse_postfix {
         syntax_trees: &mut SyntaxTrees,
         mut expression: ExpressionHandle,
         mut input: Input<'tokens, 'source>,
-        cast_source: source::SourceSpan,
         after_carrier: bool,
     ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
         use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
@@ -1304,6 +1303,7 @@ pub(crate) mod parse_postfix {
                 )));
             }
             let entry_start = input;
+            let entry_source = input.current_source_span();
             let after_sign = match kind {
                 CastEntryKind::Add => input.take_punctuation(PunctuationKind::Plus, "+")?,
                 CastEntryKind::Remove => input.take_punctuation(PunctuationKind::Minus, "-")?,
@@ -1362,7 +1362,8 @@ pub(crate) mod parse_postfix {
                     after_carrier,
                 }),
             }));
-            exprs(syntax_trees).set_source_span(expression, cast_source);
+            // Each entry reports at its own sign, not at the shared `as`.
+            exprs(syntax_trees).set_source_span(expression, entry_source);
             first = false;
         }
         Ok((expression, input))

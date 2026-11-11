@@ -2549,6 +2549,89 @@ pub(crate) mod domain_cast_accounting {
             .map(|selection| selection.source_span())
     }
 
+    /* The declared type of an expression inside the machine state that owns this run. */
+    fn declared_type(
+        program: &TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let outermost = run[run.len() - 1].0;
+        let (_, machine, state) = owners.iter().find(|(owned, _, _)| *owned == outermost)?;
+        let machine = &program.machines()[*machine];
+        let state = &program.machine_states(machine)[*state];
+        let checking = validation::CheckingContext::new(program);
+        validation::expression_result_type_reference(&checking, machine, state, expression)
+    }
+
+    /*
+        `value as T +D`: the carrier cast in front of the entries takes an
+        operand with no domains (domains.md, "Carrier casts"). Without this
+        check the conversion would drop whatever `value` carried without any
+        entry naming it, which is the silent removal entries exist to end.
+    */
+    fn refuse_qualified_carrier_operand(
+        program: &TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+    ) -> Result<(), Diagnostic> {
+        let (first, first_cast, entry) = run[0];
+        if !entry.after_carrier {
+            return Ok(());
+        }
+        let Some(carrier_cast) = program.expression_table.cast_node(first_cast.value) else {
+            return Ok(());
+        };
+        let target = program.display_type_reference(carrier_cast.target_type);
+        let Some(converted) = declared_type(program, owners, run, carrier_cast.value) else {
+            if is_anonymous_literal(program, carrier_cast.value) {
+                return Ok(());
+            }
+            return Err(refuse(
+                program,
+                first,
+                format!(
+                    "cannot read the declared type of the value converted by `as {target}`; a carrier cast followed by domain entries takes an operand with no domains, so bind the operand to a `let` with its type first",
+                ),
+            ));
+        };
+        let (_, constraints) = flatten(program, converted);
+        let carried = constraints
+            .iter()
+            .filter_map(|constraint| match constraint {
+                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => None,
+                TypeConstraintNode::ArithmeticDomain(policy) => Some(policy.name().to_owned()),
+                TypeConstraintNode::Domain(domain) => Some(
+                    program
+                        .domain_definition(domain.symbol)
+                        .map_or_else(
+                            || domain.name.as_str().to_owned(),
+                            |definition| domain_label(program, definition),
+                        ),
+                ),
+                TypeConstraintNode::Named(name) => Some(name.as_str().to_owned()),
+            })
+            .collect::<Vec<_>>();
+        if carried.is_empty() {
+            return Ok(());
+        }
+        let removal = carried
+            .iter()
+            .map(|label| format!("-{label}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        Err(refuse(
+            program,
+            first,
+            format!(
+                "carrier cast `as {target}` converts a value whose type `{}` carries domain `{}`; a carrier cast takes an operand with no domains, so remove them by name first: `value as {removal} as {target} {}`",
+                program.display_type_reference_with_constraints(converted),
+                carried.join("`, `"),
+                entry_label(program, &first_cast),
+            ),
+        ))
+    }
+
     fn entry_label(program: &TypedTrees, cast: &TableCastExpression) -> String {
         expression_table(program)
             .name_path_string(cast.target_label)
@@ -2564,18 +2647,8 @@ pub(crate) mod domain_cast_accounting {
         run: &Run,
     ) -> Result<TypeReferenceHandle, Diagnostic> {
         let (first, first_cast, _) = run[0];
-        let outermost = run[run.len() - 1].0;
         let operand = first_cast.value;
-        let declared = owners
-            .iter()
-            .find(|(owned, _, _)| *owned == outermost)
-            .and_then(|(_, machine, state)| {
-                let machine = &program.machines()[*machine];
-                let state = &program.machine_states(machine)[*state];
-                let checking = validation::CheckingContext::new(program);
-                validation::expression_result_type_reference(&checking, machine, state, operand)
-            });
-        if let Some(reference) = declared {
+        if let Some(reference) = declared_type(program, owners, run, operand) {
             return Ok(reference);
         }
         let label = entry_label(program, &first_cast);
@@ -2803,6 +2876,7 @@ pub(crate) mod domain_cast_accounting {
     ) -> Result<(), Diagnostic> {
         let (first, first_cast, _) = run[0];
         let outermost = run[run.len() - 1].0;
+        refuse_qualified_carrier_operand(program, owners, run)?;
         let operand_type = operand_type(source, program, owners, run)?;
         if matches!(
             program.type_reference_table.type_reference(operand_type),
@@ -2888,6 +2962,22 @@ pub(crate) mod domain_cast_accounting {
             if entry.entry.kind == CastEntryKind::Add {
                 result.extend(entry.atoms.iter().cloned());
             }
+        }
+        // One arithmetic policy per type: `Wrapping & Saturating` has no single meaning for `+`.
+        let policies = result
+            .iter()
+            .filter(|(atom, _, _)| matches!(atom, Atom::Policy(_)))
+            .map(|(_, label, _)| format!("`{label}`"))
+            .collect::<Vec<_>>();
+        if policies.len() > 1 {
+            return Err(refuse(
+                program,
+                outermost,
+                format!(
+                    "domain cast would leave competing arithmetic policies {} on one type; remove one of them in the same cast",
+                    policies.join(" and "),
+                ),
+            ));
         }
         for (atom, label, _) in &result {
             let Atom::Declared(symbol, _) = atom else {
