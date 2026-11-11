@@ -119,8 +119,8 @@ pub struct MachineSources {
 }
 
 /// What one compilation asks to have judged. This is request information: the
-/// typed trees hold every package's declarations and do not say which package
-/// the request checks (`wiki/spec/build/validation_subjects.md`: "The subject
+/// typed trees also hold declarations of other packages and do not say which
+/// package the request checks (`wiki/spec/build/validation_subjects.md`: "The subject
 /// set is decided by the request, not by where source lives").
 #[derive(Debug, Clone, Copy)]
 pub struct Compilation<'a> {
@@ -182,7 +182,8 @@ pub enum Unserved {
     /// A completion rule of the machine body (a value machine that can fall
     /// off its last statement, a statement after an unconditional arm).
     Completion(&'static str),
-    /// A subject declaration the route does not judge: any kind other than a
+    /// A declaration the check claims and the route does not judge: a
+    /// subject declaration or a Build selection of any kind other than a
     /// machine or a plain data type, or one it cannot place in a package.
     Declaration(&'static str),
 }
@@ -239,8 +240,9 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// the Build's selections name, every declaration of its subject whether or
 /// not anything uses it, and the machines those call. The first entry is
 /// `MachineId` 1; the other entries, the selected machines, the subject's
-/// machines in declaration order and then callees follow in discovery order. Any refusal refuses the whole compilation, because a
-/// module missing a machine the check claims would be a silent drop.
+/// machines in declaration order and then callees follow in discovery order.
+/// Any refusal refuses the whole compilation, because a module missing a
+/// machine the check claims would be a silent drop.
 pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed);
     let first = MachineId::new(1).expect("1 is nonzero");

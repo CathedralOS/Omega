@@ -35,8 +35,8 @@ pub struct TypedFrontier {
     /// The package this check was asked to validate, as the checker's own
     /// library slice takes it. `None` for a source checked outside a package.
     /// A second checker needs it to know which declarations the check claims
-    /// (`wiki/spec/build/validation_subjects.md`); the trees hold every
-    /// package's declarations and do not say.
+    /// (`wiki/spec/build/validation_subjects.md`); the trees also hold
+    /// declarations of other packages and do not say.
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// The declarations the Build's selections name: selected providers and
     /// what each provides, layout-scope entries and chosen opaque
