@@ -291,6 +291,12 @@ fail/arithmetic/numeric_operand_abs_unrepresentable rejected 12572ms expected @1
 	machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
 fail/arithmetic/ordinary_clamp_inverted_bounds rejected 77309ms expected @ab235e9fbe19
 	cannot prove requires contract: machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
+fail/arithmetic/policy_operator_operand_types_rejected rejected 77655ms expected @a8253f299f08
+	`+%` needs both operands in one fixed-width integer carrier, found `u32` and `u64`; convert one operand explicitly
+	`+%` is a fixed-width integer operation, but its left operand has type `f64`
+	`+%` needs at least one integer-typed operand: a wholly anonymous calculation has no carrier to wrap, clamp or trap at
+	`+%` is a fixed-width integer operation, but its left operand has type `T`
+	`<<%` takes unqualified integer operands, but its count operand has type `u32 in Wrapping`; a suffixed operator neither reads nor removes a domain, so cast the domain away first
 fail/arithmetic/policy_operator_qualified_operand rejected 83586ms expected @30f59ac9a9ba
 	`+%` takes unqualified integer operands, but its left operand has type `u32 in Wrapping`; a suffixed operator neither reads nor removes a domain, so cast the domain away first
 fail/arithmetic/policy_operator_unpublished_trap rejected 92084ms expected @30f59ac9a9ba
