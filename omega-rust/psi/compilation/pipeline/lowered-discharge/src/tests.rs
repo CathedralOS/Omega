@@ -292,26 +292,20 @@ fn assert_unproved(verdict: &Checked<Discharged>) {
     );
 }
 
-/// A store whose written value is not shown to keep a clause is not a
-/// rejection: it would open an invariant window, which this route does not
-/// have yet, so the closure is handed back to the current checker.
-fn assert_opens_a_window(verdict: &Checked<Discharged>) {
-    let refusal = verdict
-        .as_ref()
-        .expect_err("the store's obligation must be refused");
-    assert_eq!(
-        refusal.reason,
-        RefusalReason::Unsupported,
-        "{}",
-        refusal.detail
-    );
+/// A store whose written value is not shown to keep a clause is neither a
+/// rejection nor a hand-back: it opens an invariant window, and the verdict
+/// keeps why the clause was not proved at the store. Returns that reason.
+fn assert_opens_a_window(verdict: &Checked<Discharged>) -> &Refusal {
+    let Ok(Discharged::Window(why)) = verdict else {
+        panic!("the store must open a window, found {verdict:?}");
+    };
     assert!(
-        refusal
-            .detail
-            .starts_with("a store that would open an invariant window"),
-        "{}",
-        refusal.detail
+        matches!(why.reason, RefusalReason::Unproved(_)),
+        "{:?}: {}",
+        why.reason,
+        why.detail
     );
+    why
 }
 
 fn add_of_formals(requires: Vec<Proposition>) -> Machine {
@@ -3474,11 +3468,19 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
         tables.obligations.get(owed[1].0).unwrap().created_at,
         ProgramPoint::AfterOperation(operation)
     );
-    // The twin that stores 12 does not keep the clause (12 <= 9): it would open a window.
+    // The twin that stores 12 does not keep the clause (12 <= 9): it opens a
+    // window. `s.high` reads one field and takes no clause as a premise, so
+    // it consumes nothing; the return ends the scope of `s`, which does.
     let (elaboration, result) = span_store(12);
     let owed = domains(&elaboration, &result);
-    assert!(owed[0].1.is_ok());
+    assert!(matches!(owed[0].1, Ok(Discharged::Certificate(_))));
     assert_opens_a_window(owed[1].1);
+    let [consumed] = windows(&result) else {
+        panic!("only the return consumes `s`: {:?}", windows(&result));
+    };
+    assert!(matches!(consumed.at, Construct::Edge(_)));
+    assert!(consumed.verdict.is_err());
+    assert_eq!(uses(&result), [Ok(())]);
 }
 
 #[test]
@@ -3514,17 +3516,10 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
     ]);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    let refusal = owed[0].1.as_ref().unwrap_err();
-    assert!(
-        refusal.reason == RefusalReason::Unsupported,
-        "{:?}",
-        refusal.reason
-    );
-    assert!(
-        refusal.detail.contains("no value identity"),
-        "{}",
-        refusal.detail
-    );
+    // The store is not shown to keep the clause, so it opens a window, and
+    // the window keeps the reason.
+    let why = assert_opens_a_window(owed[0].1);
+    assert!(why.detail.contains("no value identity"), "{}", why.detail);
 }
 
 /// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
@@ -3600,7 +3595,10 @@ fn a_nested_store_owes_the_clauses_of_every_type_that_contains_the_field() {
     let owed = domains(&elaboration, &result);
     let verdicts: Vec<bool> = owed.iter().map(|(_, verdict)| verdict.is_ok()).collect();
     // The inner literal, the outer literal, then the store's two.
-    assert_eq!(verdicts, [true, true, true, false]);
+    assert_eq!(verdicts, [true, true, true, true]);
+    assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
+    // The store opens a window on `w` for `Wrap`'s clause and none on
+    // `w.span`.
     assert_opens_a_window(owed[3].1);
 }
 
@@ -3715,7 +3713,7 @@ fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
     )]);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    let Ok(Discharged::Gated(why)) = owed[0].1 else {
+    let Ok(Discharged::Window(why)) = owed[0].1 else {
         panic!("the declaration's clause is gated, found {:?}", owed[0].1);
     };
     assert!(
@@ -3737,7 +3735,7 @@ fn zeroed_storage_of_a_gated_type_is_not_an_established_value() {
     )]);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 2);
-    assert!(matches!(owed[0].1, Ok(Discharged::Gated(_))));
+    assert!(matches!(owed[0].1, Ok(Discharged::Window(_))));
     assert_kernel_checked(&elaboration, 1, owed[1].0, certificate(owed[1].1));
     assert_eq!(uses(&result), [Ok(())]);
     // f() -> u32 { let mut g: Gated; g = Gated { v: 3 }; g.v }: the zeroed
@@ -3788,7 +3786,7 @@ fn every_data_domain_obligation_has_exactly_one_verdict() {
     assert_eq!(owed.len(), 4);
     assert!(matches!(owed[0].1, Ok(Discharged::Certificate(_))));
     assert_opens_a_window(owed[1].1);
-    assert!(matches!(owed[2].1, Ok(Discharged::Gated(_))));
+    assert!(matches!(owed[2].1, Ok(Discharged::Window(_))));
     assert!(matches!(owed[3].1, Ok(Discharged::Certificate(_))));
 }
 
@@ -4136,6 +4134,930 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
 }
 
 mod table_faults;
+
+// Invariant windows. dependent_values.md: "A write known to preserve the
+// default domain keeps it established. Otherwise the write opens a window on
+// the place, whose actual new contents remain available to ordinary flow
+// reasoning. The domain must be proved again at the next consumption point".
+
+use crate::WindowUse;
+
+/// The route accepts the closure; otherwise the verdict is the message.
+fn assert_accepted(elaboration: structure_elaboration::Elaboration) {
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Accepted(_)),
+        "the route must accept: {verdict:?}"
+    );
+}
+
+/// `take(v: T) -> u32 { 0 }` for the data type `record`.
+fn taker(record: u64) -> Shaped {
+    Shaped {
+        parameters: vec![data(record)],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(unsigned(0))],
+    }
+}
+
+/// `callee(argument)`, a `u32`.
+fn taking(callee: u64, argument: Expression) -> Expression {
+    of_type(
+        ExpressionKind::Call {
+            callee: id(callee),
+            arguments: vec![argument],
+        },
+        u32_type().into(),
+    )
+}
+
+/// Machine 1's operations of the kinds `select` picks, in program order.
+fn operations_of(
+    elaboration: &structure_elaboration::Elaboration,
+    select: impl Fn(&OperationKind) -> bool,
+) -> Vec<OperationId> {
+    elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| select(&operation.kind))
+        .map(|operation| operation.id)
+        .collect()
+}
+
+fn whole_copies(elaboration: &structure_elaboration::Elaboration) -> Vec<OperationId> {
+    operations_of(elaboration, |kind| {
+        matches!(kind, OperationKind::StructuralLeafCopy { .. })
+    })
+}
+
+fn scalar_stores(elaboration: &structure_elaboration::Elaboration) -> Vec<OperationId> {
+    operations_of(elaboration, |kind| {
+        matches!(kind, OperationKind::StructuralScalarFieldStore { .. })
+    })
+}
+
+fn windows(result: &Discharge) -> &[WindowUse] {
+    &result.machines.get(id(1)).unwrap().windows
+}
+
+/// The operation a `DataDomain` obligation of machine 1 names.
+fn owing(
+    elaboration: &structure_elaboration::Elaboration,
+    obligation: ObligationId,
+) -> OperationId {
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let ObligationKind::DataDomain { operation, .. } =
+        tables.obligations.get(obligation).unwrap().kind
+    else {
+        panic!("a data domain obligation");
+    };
+    operation
+}
+
+/// The three ways this subset passes a whole `Span` on, each after
+/// `let mut s = Span { low: 1, high: 9 }; s.low = 12;` and, when `restored`,
+/// `s.high = 20;`: a call argument, a whole read into another local and a
+/// return.
+fn span_consumers(restored: bool) -> Vec<Vec<Shaped>> {
+    let opened = |result: ValueType, consume: Vec<Statement>| {
+        let mut statements = vec![
+            bind(0, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+            store(0, &[0], unsigned(12)),
+        ];
+        if restored {
+            statements.push(store(0, &[1], unsigned(20)));
+        }
+        statements.extend(consume);
+        closed(vec![data(SPAN), data(SPAN)], result, statements)
+    };
+    vec![
+        vec![
+            opened(
+                u32_type().into(),
+                vec![returns(taking(2, place(0, data(SPAN))))],
+            ),
+            taker(SPAN),
+        ],
+        vec![opened(
+            u32_type().into(),
+            vec![
+                bind(1, place(0, data(SPAN))),
+                returns(read(place(1, data(SPAN)), 1)),
+            ],
+        )],
+        vec![opened(data(SPAN), vec![returns(place(0, data(SPAN)))])],
+    ]
+}
+
+#[test]
+fn a_window_a_later_store_restores_is_closed_before_the_value_is_consumed() {
+    // `s.low = 12` leaves `low <= high` unproved over (12, 9) and opens a
+    // window; `s.high = 20` proves it over (12, 20), which is a restoring
+    // write. The call, the whole read and the return then consume an
+    // established value: nothing is owed at them.
+    for machines in span_consumers(true) {
+        let mut elaboration = elaborate_over(machines, &constrained());
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        let owed = domains(&elaboration, &result);
+        assert_eq!(owed.len(), 3, "the construction and the two stores");
+        assert_opens_a_window(owed[1].1);
+        let (twelve, twenty) = {
+            let constants = constants(&elaboration);
+            (constants[2], constants[3])
+        };
+        let value = |value| ScalarTerm::value(value, u32_type());
+        assert_eq!(
+            certificate(owed[2].1).goal,
+            Proposition::LessOrEqual(value(twelve), value(twenty))
+        );
+        assert_kernel_checked(&elaboration, 1, owed[2].0, certificate(owed[2].1));
+        assert!(windows(&result).is_empty(), "{:?}", windows(&result));
+        assert!(
+            result
+                .machines
+                .get(id(1))
+                .unwrap()
+                .uses
+                .iter()
+                .all(|used| used.verdict.is_ok())
+        );
+        assert_accepted(fresh);
+    }
+}
+
+#[test]
+fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_use() {
+    // The same three programs without the restoring store: each consumes
+    // `s` while (12, 9) is what it holds.
+    for machines in span_consumers(false) {
+        let mut elaboration = elaborate_over(machines, &constrained());
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        let owed = domains(&elaboration, &result);
+        assert_opens_a_window(owed[1].1);
+        let store = scalar_stores(&elaboration)[0];
+        assert_eq!(owing(&elaboration, owed[1].0), store);
+        // Every one of them reads `s` whole by one copy, which is the first
+        // consumption point; the call that takes the copy and the return
+        // that ends the scope of `s` follow it, and none proves (12, 9).
+        let copy = whole_copies(&elaboration)[0];
+        let consumed = windows(&result);
+        assert_eq!(consumed[0].at, Construct::Operation(copy));
+        assert!(matches!(consumed.last().unwrap().at, Construct::Edge(_)));
+        for row in consumed {
+            assert_eq!(row.opened_by, owed[1].0);
+            let refused = row.verdict.as_ref().unwrap_err();
+            assert!(
+                matches!(refused.reason, RefusalReason::Unproved(_)),
+                "{:?}",
+                refused.reason
+            );
+        }
+        let RouteVerdict::Rejected {
+            unproved,
+            unestablished,
+        } = judge(Ok(fresh)).unwrap()
+        else {
+            panic!("a value consumed inside an open window must be rejected");
+        };
+        assert!(unestablished.is_empty(), "{unestablished:?}");
+        let [entry] = unproved.as_slice() else {
+            panic!("one rejection per open window: {unproved:?}");
+        };
+        // Both sites: the opening write is the obligation's own site, and
+        // the first failing consumption point is beside it.
+        assert_eq!(entry.obligation, owed[1].0);
+        assert_eq!(
+            entry.kind,
+            ObligationKind::DataDomain {
+                operation: store,
+                clause: 0
+            }
+        );
+        assert_eq!(entry.site, nowhere());
+        let consumption = entry.consumed.unwrap();
+        assert_eq!(consumption.at, Construct::Operation(copy));
+        assert_eq!(consumption.site, nowhere());
+        assert!(
+            entry.message().starts_with(
+                "unproved obligation: requires clause 1 of a data type inside an open invariant window"
+            ),
+            "{}",
+            entry.message()
+        );
+        assert!(entry.opening_diagnostic().is_some());
+    }
+}
+
+#[test]
+fn a_window_is_proved_again_at_its_consumption_point_from_what_flow_adds() {
+    // f(h: u32) -> u32 {
+    //     let mut s = Span { low: 1, high: 9 };
+    //     s.high = h;                 // `1 <= h` is not known here: a window
+    //     when 0 < h -> take(s);      // known under the guard: proved there
+    //     s.high = 9;                 // the other way restores it
+    //     0
+    // }
+    let program = |guard: bool| {
+        let consume = taking(2, place(1, data(SPAN)));
+        let mut statements = vec![
+            bind(1, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+            store(1, &[1], slot(0, u32_type())),
+        ];
+        if guard {
+            statements.push(guarded(
+                compare(Strict::Less, unsigned(0), slot(0, u32_type())),
+                consume,
+            ));
+            statements.push(store(1, &[1], unsigned(9)));
+            statements.push(returns(unsigned(0)));
+        } else {
+            statements.push(returns(consume));
+        }
+        let mut elaboration = elaborate_over(
+            vec![
+                Shaped {
+                    parameters: vec![u32_type().into()],
+                    locals: vec![data(SPAN)],
+                    result: u32_type().into(),
+                    requires: Vec::new(),
+                    statements,
+                },
+                taker(SPAN),
+            ],
+            &constrained(),
+        );
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result, fresh)
+    };
+    let (elaboration, result, fresh) = program(true);
+    let owed = domains(&elaboration, &result);
+    assert_opens_a_window(owed[1].1);
+    // Under the guard: the copy, the call and the arm's return; each is
+    // proved. Past the guard the restoring store closes the window before
+    // the other return.
+    let consumed = windows(&result);
+    assert_eq!(consumed.len(), 3, "{consumed:?}");
+    for row in consumed {
+        assert_eq!(row.opened_by, owed[1].0);
+        assert_kernel_accepted(
+            &elaboration,
+            1,
+            row.opened_by,
+            row.verdict.as_ref().unwrap(),
+        );
+    }
+    let consumed = &consumed[0];
+    assert_eq!(
+        consumed.at,
+        Construct::Operation(whole_copies(&elaboration)[0])
+    );
+    // The clause over what `s` holds at the copy: the literal's `1` and the
+    // stored formal. The certificate is issued under the window's own
+    // obligation and the kernel decides it again here.
+    let evidence = consumed.verdict.as_ref().unwrap();
+    let one = constants(&elaboration)[0];
+    assert_eq!(
+        evidence.goal,
+        Proposition::LessOrEqual(ScalarTerm::value(one, u32_type()), formal(1, u32_type()))
+    );
+    assert_kernel_accepted(&elaboration, 1, consumed.opened_by, evidence);
+    assert_accepted(fresh);
+    // Without the guard nothing proves `1 <= h` at the copy, the call or the
+    // return.
+    let (_, result, fresh) = program(false);
+    assert!(!windows(&result).is_empty());
+    assert!(windows(&result).iter().all(|row| row.verdict.is_err()));
+    assert!(matches!(
+        judge(Ok(fresh)).unwrap(),
+        RouteVerdict::Rejected { .. }
+    ));
+}
+
+/// `w.span`, a whole `Span`.
+fn span_of_wrap(slot: usize) -> Expression {
+    of_type(
+        ExpressionKind::Field {
+            base: Box::new(place(slot, data(WRAP))),
+            field: 0,
+        },
+        data(SPAN),
+    )
+}
+
+#[test]
+fn an_inner_and_an_outer_window_are_opened_and_consumed_independently() {
+    // `Wrap { span: Span, top } requires span.high <= top` around
+    // `Span requires low <= high`, from
+    // `let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };`.
+    let program = |path: &[usize], top: Option<u128>, consume: Expression| {
+        let mut statements = vec![
+            bind(
+                0,
+                literal_of(
+                    WRAP,
+                    vec![
+                        literal_of(SPAN, vec![unsigned(1), unsigned(9)]),
+                        unsigned(9),
+                    ],
+                ),
+            ),
+            store(0, path, unsigned(12)),
+        ];
+        if let Some(top) = top {
+            statements.push(store(0, &[1], unsigned(top)));
+        }
+        statements.push(returns(consume));
+        let mut elaboration = elaborate_over(
+            vec![
+                closed(vec![data(WRAP)], u32_type().into(), statements),
+                taker(SPAN),
+                taker(WRAP),
+            ],
+            &constrained(),
+        );
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result, fresh)
+    };
+    // `w.span.high = 12` keeps `Span` (1 <= 12) and opens a window on `w`
+    // for `Wrap` (12 <= 9). Copying `w.span` out reads a `Span`, which
+    // holds, and is no consumption of `w`'s window; the call and the return
+    // that follow it are.
+    let (elaboration, result, fresh) = program(&[0, 1], None, taking(2, span_of_wrap(0)));
+    let owed = domains(&elaboration, &result);
+    assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
+    assert_opens_a_window(owed[3].1);
+    let copy = Construct::Operation(whole_copies(&elaboration)[0]);
+    assert!(!windows(&result).is_empty());
+    assert!(windows(&result).iter().all(|row| row.at != copy));
+    assert!(windows(&result).iter().all(|row| row.verdict.is_err()));
+    assert!(matches!(
+        judge(Ok(fresh)).unwrap(),
+        RouteVerdict::Rejected { .. }
+    ));
+    // `w.top = 20` restores `Wrap` (12 <= 20) before anything consumes `w`.
+    let (_, result, fresh) = program(&[0, 1], Some(20), taking(2, span_of_wrap(0)));
+    assert!(windows(&result).is_empty(), "{:?}", windows(&result));
+    assert_accepted(fresh);
+    // Passing `w` on consumes it inside that window, first at its copy.
+    let (elaboration, result, _) = program(&[0, 1], None, taking(3, place(0, data(WRAP))));
+    let owed = domains(&elaboration, &result);
+    let consumed = &windows(&result)[0];
+    assert_eq!(consumed.opened_by, owed[3].0);
+    assert_eq!(
+        consumed.at,
+        Construct::Operation(whole_copies(&elaboration)[0])
+    );
+    assert!(consumed.verdict.is_err());
+    // `w.span.low = 12` opens a window on `w.span` for `Span` (12 <= 9) and
+    // keeps `Wrap` (9 <= 9). A whole read of `w.span` consumes it, and so
+    // does a whole read of `w`, which contains it.
+    for consume in [taking(2, span_of_wrap(0)), taking(3, place(0, data(WRAP)))] {
+        let (elaboration, result, fresh) = program(&[0, 0], None, consume);
+        let owed = domains(&elaboration, &result);
+        assert_opens_a_window(owed[2].1);
+        assert!(matches!(owed[3].1, Ok(Discharged::Certificate(_))));
+        let consumed = &windows(&result)[0];
+        assert_eq!(consumed.opened_by, owed[2].0);
+        assert_eq!(
+            consumed.at,
+            Construct::Operation(whole_copies(&elaboration)[0])
+        );
+        assert!(consumed.verdict.is_err());
+        assert!(matches!(
+            judge(Ok(fresh)).unwrap(),
+            RouteVerdict::Rejected { .. }
+        ));
+    }
+}
+
+#[test]
+fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
+    // `Paired { neighbor, value } requires value <= 255, 1 <= value`.
+    // f() -> u32 {
+    //     let mut p = Paired { neighbor: 1, value: 7 };
+    //     p.value = 0;       // keeps `value <= 255`, opens `1 <= value`
+    //     p.neighbor = 5;    // writes nothing either clause reads
+    //     take(p)
+    // }
+    let mut elaboration = elaborate_over(
+        vec![
+            closed(
+                vec![data(PAIRED)],
+                u32_type().into(),
+                vec![
+                    bind(0, literal_of(PAIRED, vec![unsigned(1), unsigned(7)])),
+                    store(0, &[1], unsigned(0)),
+                    store(0, &[0], unsigned(5)),
+                    returns(taking(2, place(0, data(PAIRED)))),
+                ],
+            ),
+            taker(PAIRED),
+        ],
+        &constrained(),
+    );
+    let fresh = elaboration.clone();
+    let result = discharge(&mut elaboration).unwrap();
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 6, "two clauses at each of three operations");
+    assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
+    assert_opens_a_window(owed[3].1);
+    // The sibling store proves `value <= 255` again over the `0` the place
+    // holds, which closes nothing of the other clause; and it leaves
+    // `1 <= value` exactly as unproved as it was, without opening a second
+    // window for it.
+    assert!(matches!(owed[4].1, Ok(Discharged::Certificate(_))));
+    assert!(matches!(owed[5].1, Ok(Discharged::Preserved)));
+    let stores = scalar_stores(&elaboration);
+    let RouteVerdict::Rejected {
+        unproved,
+        unestablished,
+    } = judge(Ok(fresh)).unwrap()
+    else {
+        panic!("the window is still open at the call");
+    };
+    assert!(unestablished.is_empty());
+    let [entry] = unproved.as_slice() else {
+        panic!("one window, one rejection: {unproved:?}");
+    };
+    assert_eq!(
+        entry.kind,
+        ObligationKind::DataDomain {
+            operation: stores[0],
+            clause: 1
+        },
+        "the write that opened it, not the sibling store"
+    );
+    assert_eq!(
+        entry.consumed.unwrap().at,
+        Construct::Operation(whole_copies(&elaboration)[0])
+    );
+}
+
+/// `constrained()` and three more types:
+///
+/// - `Both { a, b } requires 1 <= a, 1 <= b`, type 7, gated
+/// - `Half { a, b } requires 1 <= a`, type 8, gated
+/// - `Limits { a, b } requires a <= 5, 1 <= b`, type 9
+fn windowed() -> IdTable<StructuralTypeId, RecordType> {
+    let scalar = ValueType::Scalar(u32_type());
+    let field = |raw, spelled: &str| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type: scalar,
+    };
+    let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
+    let mut records = constrained();
+    records.push(RecordType {
+        identity: String::from("Both"),
+        fields: vec![field(10, "a"), field(11, "b")],
+        cases: Vec::new(),
+        requires: vec![at_least_one(10), at_least_one(11)],
+    });
+    records.push(RecordType {
+        identity: String::from("Half"),
+        fields: vec![field(12, "a"), field(13, "b")],
+        cases: Vec::new(),
+        requires: vec![at_least_one(12)],
+    });
+    records.push(RecordType {
+        identity: String::from("Limits"),
+        fields: vec![field(14, "a"), field(15, "b")],
+        cases: Vec::new(),
+        requires: vec![
+            Proposition::LessOrEqual(field_of_self(14), number(5)),
+            at_least_one(15),
+        ],
+    });
+    records
+}
+
+const BOTH: u64 = 7;
+const HALF: u64 = 8;
+const LIMITS: u64 = 9;
+
+#[test]
+fn a_field_read_that_takes_a_clause_as_a_premise_consumes_an_open_window() {
+    // f(p: Limits) -> u32 { let mut q = p; q.b = stored; bounded(q.a) }
+    // `q.a` is still what arrived in `p`, so its read carries `a <= 5`: it
+    // relies on the domain. With `q.b = 0` the window for `1 <= b` is open
+    // at that read, which therefore consumes it and is rejected; a read
+    // that lends nothing would not be.
+    let program = |stored: u128, field: usize| {
+        let mut elaboration = elaborate_over(
+            vec![
+                Shaped {
+                    parameters: vec![data(LIMITS)],
+                    locals: vec![data(LIMITS)],
+                    result: u32_type().into(),
+                    requires: Vec::new(),
+                    statements: vec![
+                        bind(1, place(0, data(LIMITS))),
+                        store(1, &[1], unsigned(stored)),
+                        returns(call(2, vec![read(place(1, data(LIMITS)), field)])),
+                    ],
+                },
+                bounded(),
+            ],
+            &windowed(),
+        );
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result, fresh)
+    };
+    // Established: the read is lent its clause and `bounded` follows.
+    let (elaboration, result, fresh) = program(3, 0);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(
+        read_premises(tables, observed),
+        [at_most_value(observed.1, 5)]
+    );
+    assert!(windows(&result).is_empty());
+    assert_accepted(fresh);
+    // Open: the same read is a consumption point, and nothing proves
+    // `1 <= 0` there.
+    let (elaboration, result, fresh) = program(0, 0);
+    let observed = field_reads(&elaboration)[0];
+    let consumed = &windows(&result)[0];
+    assert_eq!(consumed.at, Construct::Operation(observed.0));
+    assert!(consumed.verdict.is_err());
+    let RouteVerdict::Rejected { unproved, .. } = judge(Ok(fresh)).unwrap() else {
+        panic!("a read that relies on a broken domain must be rejected");
+    };
+    assert!(unproved.iter().any(|entry| {
+        entry
+            .consumed
+            .is_some_and(|consumed| consumed.at == Construct::Operation(observed.0))
+    }));
+    // Open, and the read is of the leaf this machine stored: it equals the
+    // stored `0`, is lent nothing, and consumes nothing. The call after it
+    // still does.
+    let (elaboration, result, _) = program(0, 1);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let observed = field_reads(&elaboration)[0];
+    assert_eq!(read_premises(tables, observed), []);
+    assert!(!windows(&result).is_empty());
+    assert!(
+        windows(&result)
+            .iter()
+            .all(|row| row.at != Construct::Operation(observed.0))
+    );
+}
+
+#[test]
+fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds() {
+    let program = |record: u64, stores: &[(usize, u128)], consume: bool| {
+        let mut statements = vec![declare(0, data(record))];
+        for (field, stored) in stores {
+            statements.push(store(0, &[*field], unsigned(*stored)));
+        }
+        statements.push(returns(if consume {
+            taking(2, place(0, data(record)))
+        } else {
+            read(place(0, data(record)), 0)
+        }));
+        let mut elaboration = elaborate_over(
+            vec![
+                closed(vec![data(record)], u32_type().into(), statements),
+                taker(record),
+            ],
+            &windowed(),
+        );
+        let fresh = elaboration.clone();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result, fresh)
+    };
+    // let mut g: Both; g.a = 3; g.b = 2; take(g): each store proves the
+    // clause of the field it writes, and after the second nothing of the
+    // declaration's debt is open.
+    let (elaboration, result, fresh) = program(BOTH, &[(0, 3), (1, 2)], true);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 6);
+    assert!(matches!(owed[0].1, Ok(Discharged::Window(_))));
+    assert!(matches!(owed[1].1, Ok(Discharged::Window(_))));
+    assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
+    assert!(matches!(owed[3].1, Ok(Discharged::Preserved)));
+    for position in [4, 5] {
+        assert_kernel_checked(
+            &elaboration,
+            1,
+            owed[position].0,
+            certificate(owed[position].1),
+        );
+    }
+    assert!(windows(&result).is_empty(), "{:?}", windows(&result));
+    assert!(uses(&result).iter().all(Result::is_ok));
+    assert_accepted(fresh);
+    // let mut g: Both; g.a = 3; take(g): `g.b` is still the zero the
+    // declaration left, and `1 <= b` does not hold of it.
+    let (elaboration, result, fresh) = program(BOTH, &[(0, 3)], true);
+    let copy = whole_copies(&elaboration)[0];
+    let declared = domains(&elaboration, &result)[1].0;
+    let [consumed] = windows(&result) else {
+        panic!("one consumption point: {:?}", windows(&result));
+    };
+    assert_eq!(consumed.opened_by, declared);
+    assert_eq!(consumed.at, Construct::Operation(copy));
+    assert_eq!(
+        consumed.verdict.as_ref().unwrap_err().reason,
+        RefusalReason::Unestablished
+    );
+    let RouteVerdict::Rejected {
+        unproved,
+        unestablished,
+    } = judge(Ok(fresh)).unwrap()
+    else {
+        panic!("a gated value used before it is established must be rejected");
+    };
+    assert!(unproved.is_empty(), "{unproved:?}");
+    let [used] = unestablished.as_slice() else {
+        panic!("exactly the copy is unestablished: {unestablished:?}");
+    };
+    assert_eq!(used.at, Construct::Operation(copy));
+    assert_eq!(used.declared, Some(nowhere()));
+    // The same two statements read `g.a` instead: the leaf observed is the
+    // stored one, not zeroed storage.
+    let (_, result, _) = program(BOTH, &[(0, 3)], false);
+    assert!(windows(&result).is_empty());
+    assert_eq!(uses(&result), [Ok(())]);
+    // let mut g: Half; g.a = 3; take(g): `Half` constrains `a` alone, so
+    // one store establishes it although `g.b` was never stored into.
+    let (_, result, fresh) = program(HALF, &[(0, 3)], true);
+    assert!(windows(&result).is_empty());
+    assert!(uses(&result).iter().all(Result::is_ok));
+    assert_accepted(fresh);
+    // let mut g: Half; take(g): used before any store.
+    let (_, result, fresh) = program(HALF, &[], true);
+    assert_eq!(
+        uses(&result).first(),
+        Some(&Err(RefusalReason::Unestablished))
+    );
+    assert!(matches!(
+        judge(Ok(fresh)).unwrap(),
+        RouteVerdict::Rejected { .. }
+    ));
+}
+
+#[test]
+fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
+    // f(a: bool, b: bool) -> u32 {
+    //     let mut s = Span { low: 1, high: 9 };
+    //     s.low = 12;            // opens a window
+    //     let c = a && !b;       // the `!b` block is one of two ways to the join
+    //     take(s)
+    // }
+    // Every arm of this subset completes the machine, so the short-circuit
+    // join is the one place two paths meet, and no source store can sit on
+    // one of its ways. A restoring `s.low = 1` on its `!b` path is added by
+    // hand, with the `DataDomain` obligation it owes: it proves `1 <= 9` and
+    // closes the window on that way only.
+    let program = || {
+        elaborate_over(
+            vec![
+                Shaped {
+                    parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
+                    locals: vec![data(SPAN), ScalarType::Boolean.into()],
+                    result: u32_type().into(),
+                    requires: Vec::new(),
+                    statements: vec![
+                        bind(2, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+                        store(2, &[0], unsigned(12)),
+                        bind(
+                            3,
+                            expression(
+                                ExpressionKind::ShortCircuit {
+                                    conjunction: true,
+                                    left: Box::new(slot(0, ScalarType::Boolean)),
+                                    right: Box::new(expression(
+                                        ExpressionKind::Not(Box::new(slot(1, ScalarType::Boolean))),
+                                        Some(ScalarType::Boolean),
+                                    )),
+                                },
+                                Some(ScalarType::Boolean),
+                            ),
+                        ),
+                        returns(taking(2, place(2, data(SPAN)))),
+                    ],
+                },
+                taker(SPAN),
+            ],
+            &constrained(),
+        )
+    };
+    let judged = |restored_on_one_way: bool| {
+        let mut elaboration = program();
+        let one = constants(&elaboration)[0];
+        let operations = |select: fn(&OperationKind) -> bool| operations_of(&elaboration, select);
+        let negation = operations(|kind| matches!(kind, OperationKind::BooleanNot { .. }))[0];
+        let root = elaboration.module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::EstablishRecord { .. }))
+            .unwrap()
+            .result
+            .as_structural()
+            .unwrap()
+            .place;
+        if restored_on_one_way {
+            // `s.low`, field identity 2.
+            let low = projected(elaboration.tables.machines.get(id(1)).unwrap(), root, &[2]);
+            store_by_hand(
+                &mut elaboration,
+                negation,
+                low,
+                one,
+                field_store(root, 2, one),
+            );
+            let store = elaboration.module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .map(|operation| operation.id)
+                .max()
+                .unwrap();
+            let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+            tables
+                .obligations
+                .push(terminal_check_tables::obligations::ObligationRow {
+                    kind: ObligationKind::DataDomain {
+                        operation: store,
+                        clause: 0,
+                    },
+                    created_at: ProgramPoint::AfterOperation(negation),
+                });
+        }
+        let result = discharge(&mut elaboration).unwrap();
+        windows(&result)
+            .iter()
+            .map(|consumed| consumed.verdict.is_ok())
+            .collect::<Vec<_>>()
+    };
+    // Open on both ways: consumed at the copy after the join, the call and
+    // the return, unproved at each.
+    assert_eq!(judged(false), [false, false, false]);
+    // Closed on one way only: still open at the join, and with different
+    // contents on the two arrivals the clause cannot even be stated.
+    assert_eq!(judged(true), [false, false, false]);
+}
+
+#[test]
+fn every_consumption_point_of_an_open_window_has_exactly_one_verdict() {
+    // f() -> u32 {
+    //     let mut s = Span { low: 1, high: 9 };
+    //     take(s);               // before the window: not a consumption of it
+    //     s.low = 12;            // opens it
+    //     let t = s;             // consumption point: a whole read
+    //     take(s);               // two: the copy, and the call
+    //     take(t);               // the copy of `t` is not one; the call is
+    //     s.high                 // one field, no premise: not one; the
+    // }                          // return that ends the scope of `s` is
+    let mut elaboration = elaborate_over(
+        vec![
+            closed(
+                vec![data(SPAN), data(SPAN), u32_type().into()],
+                u32_type().into(),
+                vec![
+                    bind(0, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+                    bind(2, taking(2, place(0, data(SPAN)))),
+                    store(0, &[0], unsigned(12)),
+                    bind(1, place(0, data(SPAN))),
+                    bind(2, taking(2, place(0, data(SPAN)))),
+                    bind(2, taking(2, place(1, data(SPAN)))),
+                    returns(read(place(0, data(SPAN)), 1)),
+                ],
+            ),
+            taker(SPAN),
+        ],
+        &constrained(),
+    );
+    let fresh = elaboration.clone();
+    let result = discharge(&mut elaboration).unwrap();
+    let owed = domains(&elaboration, &result);
+    let window = owed[1].0;
+    assert_opens_a_window(owed[1].1);
+    // The consumption points this test finds for itself: after the store,
+    // the whole copies of the literal's root, every call, and the return.
+    let lowered = &elaboration.module.machines[0];
+    let root = lowered
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishRecord { .. }))
+        .unwrap()
+        .result
+        .as_structural()
+        .unwrap()
+        .place;
+    let mut stored = false;
+    let mut expected = Vec::new();
+    for block in &lowered.blocks {
+        for operation in &block.operations {
+            match &operation.kind {
+                OperationKind::StructuralScalarFieldStore { .. } => stored = true,
+                OperationKind::StructuralLeafCopy { source, .. } if stored && *source == root => {
+                    expected.push(Construct::Operation(operation.id));
+                }
+                OperationKind::CallStructuralScalar { .. } if stored => {
+                    expected.push(Construct::Operation(operation.id));
+                }
+                _ => {}
+            }
+        }
+        if let Terminator::Return { edge, .. } = &block.terminator {
+            expected.push(Construct::Edge(*edge));
+        }
+    }
+    assert_eq!(expected.len(), 5);
+    let consumed = windows(&result);
+    assert_eq!(
+        consumed.iter().map(|row| row.at).collect::<Vec<_>>(),
+        expected,
+        "one verdict per consumption point, in program order, none skipped and none twice"
+    );
+    for row in consumed {
+        assert_eq!(row.opened_by, window);
+        assert!(matches!(
+            row.verdict.as_ref().unwrap_err().reason,
+            RefusalReason::Unproved(_)
+        ));
+    }
+    // Every use of storage keeps its own verdict beside them, and every
+    // obligation exactly one.
+    let machine = result.machines.get(id(1)).unwrap();
+    assert!(machine.uses.iter().all(|used| used.verdict.is_ok()));
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert!(tables.obligations.keys().eq(machine.verdicts.keys()));
+    // Rejected once, at the first failing consumption point.
+    let RouteVerdict::Rejected { unproved, .. } = judge(Ok(fresh)).unwrap() else {
+        panic!("consumptions inside an open window");
+    };
+    let [entry] = unproved.as_slice() else {
+        panic!("one rejection per open window: {unproved:?}");
+    };
+    assert_eq!(entry.consumed.unwrap().at, expected[0]);
+}
+
+#[test]
+fn a_store_that_does_not_restore_an_open_window_opens_no_second_one() {
+    // f() -> u32 {
+    //     let mut s = Span { low: 1, high: 9 };
+    //     s.low = 12;            // opens the window: 12 <= 9 unproved
+    //     s.high = 11;           // still unproved: the window stays open
+    //     take(s)                // consumed: one rejection, naming `s.low = 12`
+    // }
+    let mut elaboration = elaborate_over(
+        vec![
+            closed(
+                vec![data(SPAN)],
+                u32_type().into(),
+                vec![
+                    bind(0, literal_of(SPAN, vec![unsigned(1), unsigned(9)])),
+                    store(0, &[0], unsigned(12)),
+                    store(0, &[1], unsigned(11)),
+                    returns(taking(2, place(0, data(SPAN)))),
+                ],
+            ),
+            taker(SPAN),
+        ],
+        &constrained(),
+    );
+    let fresh = elaboration.clone();
+    let result = discharge(&mut elaboration).unwrap();
+    let owed = domains(&elaboration, &result);
+    assert_opens_a_window(owed[1].1);
+    // The second store keeps why it did not prove the clause, and opens
+    // nothing of its own.
+    assert_opens_a_window(owed[2].1);
+    // Every consumption point is the first window's.
+    assert!(!windows(&result).is_empty());
+    assert!(
+        windows(&result)
+            .iter()
+            .all(|row| row.opened_by == owed[1].0 && row.verdict.is_err())
+    );
+    // The clause is stated over what `s` holds at the copy: (12, 11).
+    let RouteVerdict::Rejected { unproved, .. } = judge(Ok(fresh)).unwrap() else {
+        panic!("the window is open at the call");
+    };
+    let [entry] = unproved.as_slice() else {
+        panic!("one rejection: {unproved:?}");
+    };
+    assert_eq!(
+        entry.kind,
+        ObligationKind::DataDomain {
+            operation: scalar_stores(&elaboration)[0],
+            clause: 0
+        }
+    );
+}
 mod reuse {
     // Saving a proof and reusing it: the consumer recomputes its goal and
     // hypotheses from its own program; the saved evidence supplies only the

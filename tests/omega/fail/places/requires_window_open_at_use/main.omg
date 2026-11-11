@@ -1,0 +1,15 @@
+// A store may break a data `requires` for a while: `span.low = 12` leaves
+// `low <= high` false over (12, 9), which opens an invariant window on
+// `span`. The next store makes it (12, 11), which is still false, so the
+// window is open when `width(span)` consumes the value: rejected.
+// The passing twin differs only in the second stored value.
+data Span [copy] requires low <= high { low: u32; high: u32; }
+
+machine width(span: Span) -> u32 { span.high }
+
+machine main() {
+    let mut span: Span = Span { low: 1, high: 9 };
+    span.low = 12;
+    span.high = 11;
+    let high: u32 = width(span);
+}
