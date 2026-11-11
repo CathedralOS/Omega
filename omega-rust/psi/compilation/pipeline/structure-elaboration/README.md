@@ -119,6 +119,39 @@ Which check judges these two when the route governs a Product compilation is
 undecided. Making them roots today would refuse every program with a bound
 entry, since neither is inside the lowered subset.
 
+### Generic machines
+
+One kind of generic machine is read, as an experiment for
+[the checker's generic bodies](../lowered-discharge/README.md#generic-bodies-experiment):
+a machine whose only generic parameters are implementation parameters
+(`Selected satisfies Step`), calling members through them
+(`Selected::apply(x)`). It is read in two forms.
+
+- **Its specializations**, by `elaborate`. Stage 04 closes each static
+  application `advance<Double>` by generating a machine for it, so the
+  typed trees already hold one closed machine per application. A call of
+  `advance<Double>` targets that generated machine and is read as a direct
+  call; inside it, the call through the parameter targets the selected
+  member and is read as a direct call of that member. Each such call is
+  recorded in `Elaboration::selections` with the parameter, the trait, the
+  requirement and the member, all symbols. Only a declaration whose
+  generic parameters are all implementation parameters has its generated
+  machines read; an application with a type or value argument is still
+  `call static application arguments`, and a member named through the
+  implementation itself (`Double::apply(x)`) is still `call static
+  requirement dispatch`.
+- **The generic check form**, by `elaborate_generic`. The declared machine
+  is read with its parameters rigid: a call through one names the
+  requirement, which becomes a machine with a signature, a contract and no
+  body (`Elaboration::requirements`, `lower_generic`). It lowers to a
+  machine with no block. A generic form is never sealed, encoded or run.
+
+`elaborate_witness` builds the statement that an implementation refines a
+requirement: the requirement's contract on a body that is one call of the
+implementation. `template_of` gives the declaration a generated machine came
+from. A type, value or callable parameter is still refused as `machine
+generic parameters` (findings 29 to 32).
+
 ### Records
 
 A formal, a local, a result, a field and an argument may also be a
@@ -708,4 +741,37 @@ worked around by adding to `terminal-check-tables`.
     `contract clause that projects a formal or result`: they need the
     returned leaves logged on the return edge (finding 14) and a result
     leaf stated as a value in the caller, which this slice does not do.
+29. **A machine generated for a static application keeps its declaration's
+    identities.** Stage 04 generates one machine per application of a
+    generic machine; its state symbol's `generated_from` is the declared
+    machine. The call's authored selection and binding still name the
+    declaration, and the generated machine's `ensures` clause still records
+    `result` against the declaration, because it shares the declaration's
+    clause trees. The reader accepts each where the symbol is the callee's
+    `generated_from` and refuses any other mismatch. Nothing is matched by
+    name.
+30. **A trait requirement is a bare signature, and its `crashes none` is
+    lost.** The typed trees hold a requirement as a `StateSignature`, not as
+    a machine, so the reader has a second entry to the one contract reader.
+    `declares_no_crash_route` exists on `Machine` only: a requirement that
+    wrote `crashes none` and one that wrote nothing are the same rows.
+    [Generics](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
+    gives them different meanings ("omitted `crashes` defers to its published
+    routes"; "`crashes none` admitting only crash-free members"). The reader
+    takes both as the deferral, which claims less, and the generic form then
+    decides nothing about crashes through that call. Repair belongs to the
+    stages that drop the flag (Psi 01 has it on the header), not here.
+31. **The declared machine's call through a parameter names a child of the
+    parameter.** In the generic declaration `Selected::apply(x)` targets a
+    state symbol under the parameter's symbol, with no requirement recorded
+    on the call. Which requirement it stands for is the typed trees' own
+    relation, `TypedTrees::evidence_requirement_declaration` (position among
+    the parameter's children against the trait's requirements); the reader
+    calls it and compares no name.
+32. **Terminal Psi cannot name an unselected requirement.** A call operation
+    holds a `MachineId`, and a `TerminalMachine` is blocks. The generic form
+    gives the requirement a `MachineId` and a machine with an empty block
+    list, which no validator, codec or interpreter may be handed. That keeps
+    the caller's obligations on the ordinary call rows; a later lane that
+    wants requirements out of `module.machines` needs a callee row for one.
 

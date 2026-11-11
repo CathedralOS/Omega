@@ -15251,6 +15251,10 @@ fail/generics/grouped_decimal_const_suffix_rejected rejected 200ms unexpected @c
 	cannot form specification operator `/` in closed const argument: no exact selected meaning
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpected @ccdb99ca2214
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/generics/implementation_parameter_contract_only_holds_for_selection rejected 6039ms expected @a0eb7649491b
+	cannot prove ensures contract for exit from advance at statement 0: result <= 18
+	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$0$4637 at statement 0: result <= 18
+	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$1$4640 at statement 0: result <= 18
 fail/generics/index_algebra_law_requires_identity rejected 7678ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/index_equality_foreign_algebra rejected 8524ms expected @c2cfe5f3dece+wt
@@ -28796,6 +28800,7 @@ run/facts/float_comparison_route_through_parameter_traps checked 5663ms check-ta
 run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
 run/float/folded_anonymous_operator_custody_exit checked 80180ms check-target:macos_arm64 @c3cb68d51f3f
+run/generics/implementation_parameter_contract checked 6970ms check-target:macos_arm64 @a0eb7649491b
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt
