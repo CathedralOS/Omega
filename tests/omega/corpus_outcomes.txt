@@ -27411,7 +27411,7 @@ pass/proofs/copied_descriptor_keeps_capture_extent checked 2816ms @ccdb99ca2214
 pass/proofs/core_identity_ieee_reflexivity_exit checked 16415ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @245a25f49fe9
 pass/proofs/declaration_call_requires checked 50241ms @b3bfe3d87507
 pass/proofs/declaration_constructed_data_identity checked 11911ms @089c0a150e63
-pass/proofs/declaration_predicate_calls_exit checked 7959ms check-target:macos_arm64 @911f6617ba9e
+pass/proofs/declaration_predicate_calls_exit checked 6410ms check-target:macos_arm64 @2e1278cd4d1c
 pass/proofs/declaration_synthesized_equality_value_context checked 14587ms check-target:macos_arm64 @089c0a150e63
 pass/proofs/declaration_view_call_requirement checked 3764ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/defined_proposition_premises checked 3151ms @ccdb99ca2214
