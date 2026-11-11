@@ -6280,19 +6280,14 @@ mod statements {
             });
             for &loan_handle in &live_loans {
                 let loan = facts.borrow.loans.get(loan_handle);
-                let held_writes = exiting_source
-                    .filter(|source| {
-                        local_loan_ends_before_successor(
-                            program,
-                            facts,
-                            state_flow,
-                            source,
-                            loan_handle,
-                            borrow_call,
-                            call_frames,
-                        )
-                    })
-                    .map(|_| {
+                // Leaving the source state, its local loan survives only through
+                // the successor parameters that carry it on, so the successor's
+                // held-run writes (the states that still receive that loan) are the
+                // exact interference footprint. A write after the last carrying
+                // state cannot reach the loan; a write while it is carried still
+                // conflicts. Returning calls keep the whole-run footprint because
+                // the loan stays live in the caller across the call.
+                let held_writes = exiting_source.map(|_| {
                         let captured = validation::CanonicalPlace {
                             root: loan.root,
                             segments: facts.borrow.loan_segments(loan).to_vec(),

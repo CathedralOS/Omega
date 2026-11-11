@@ -1,0 +1,45 @@
+// A shared aggregate view held in a local freezes `main.source` until its last
+// use, so the forwarded mutable owner cannot write that field while the view
+// is still read (wiki/spec/language/ownership.md#borrows-and-aliases).
+data Narrow
+requires signed_value >= 0 && signed_value <= 100,
+{
+    signed_value: i16;
+    enabled: bool;
+}
+
+data Wide
+requires unsigned_value <= 200,
+{
+    unsigned_value: u16;
+    active: bool;
+}
+
+data Main {
+    source: [Narrow; 2];
+}
+
+machine Main::main(main: &mut Main) {
+    main.source[0].signed_value = 7;
+    main.source[1].signed_value = 11;
+    let read: &[Wide] = &main.source as &[Wide];
+    transition read.len > 1 {
+        true -> inspect(main, read)
+        _ -> done(main)
+    }
+
+    machine inspect(main: &mut Main, read: &[Wide]) {
+    main.source[0].signed_value = 8;
+    transition read[0].unsigned_value == 7 {
+        true -> done(main)
+        _ -> done(main)
+    }
+    }
+
+    machine done(main: &mut Main) {}
+}
+
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
