@@ -54,11 +54,7 @@ pub mod assembly_services {
         pub(crate) fn new(program: &dyn crate::CheckingInput) -> Self {
             let mut services = Self::default();
             for definition in program.service_reaches.definitions() {
-                if program.symbol_toolchain_relative_path(definition.symbol)
-                    != Some(std::path::Path::new("assembly.omg"))
-                {
-                    continue;
-                }
+                let vocabulary = program.symbols.core_vocabulary(definition.symbol);
                 let Some(file) = program
                     .symbols
                     .symbol_source_span(definition.symbol)
@@ -66,17 +62,17 @@ pub mod assembly_services {
                 else {
                     continue;
                 };
-                let Ok(identity) = program.normalized_hermetic_symbol_identity(definition.symbol)
-                else {
-                    continue;
-                };
                 let context = match file.dependency_scope {
                     DependencyScope::Build => &mut services.build,
                     DependencyScope::Product => &mut services.product,
                 };
-                let selection = match identity.as_str() {
-                    "toolchain::MachineControl" => &mut context.machine_control,
-                    "toolchain::PortIo" => &mut context.port_io,
+                let selection = match vocabulary {
+                    Some(language_core::core_vocabulary::CoreVocabulary::MachineControlService) => {
+                        &mut context.machine_control
+                    }
+                    Some(language_core::core_vocabulary::CoreVocabulary::PortIoService) => {
+                        &mut context.port_io
+                    }
                     _ => continue,
                 };
                 if let Some(service) = program.service_reaches.id_for_symbol(definition.symbol) {
@@ -1240,13 +1236,8 @@ pub mod compiler_operations {
                 .service_reaches
                 .definition(*service)
                 .ok_or("descriptor operation MachineControl service has no declaration")?;
-            if program.symbol_toolchain_relative_path(definition.symbol)
-                != Some(std::path::Path::new("assembly.omg"))
-                || program
-                    .normalized_hermetic_symbol_identity(definition.symbol)
-                    .ok()
-                    .as_deref()
-                    != Some("toolchain::MachineControl")
+            if program.symbols.core_vocabulary(definition.symbol)
+                != Some(language_core::core_vocabulary::CoreVocabulary::MachineControlService)
             {
                 return Err(
                     "descriptor operation primitive must reach the exact core MachineControl service",
@@ -1393,41 +1384,21 @@ pub mod compiler_operations {
             let original = program
                 .machine_specialization(machine.symbol)
                 .map_or(machine.symbol, |application| application.template);
-            let path = program.symbol_toolchain_relative_path(original);
-            let code = path == Some(std::path::Path::new("code_segment.omg"));
-            let data = path == Some(std::path::Path::new("data_segment.omg"));
-            if !code && !data {
+            use language_core::core_vocabulary::SegmentSelectorOperation as Selector;
+            let Some(language_core::core_vocabulary::CoreVocabulary::SegmentSelector(selector)) =
+                program.symbols.core_vocabulary(original)
+            else {
                 return Ok(None);
-            }
-            let identity = program
-                .normalized_hermetic_symbol_identity(original)
-                .map_err(|_| "selector operation has no exact toolchain identity")?;
-            let operation = match (code, identity.as_str()) {
-                (true, "toolchain::reload_code_segment") => {
-                    SelectorOperation::Reload(SegmentReload::Code)
-                }
-                (true, "toolchain::read_code_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Code)
-                }
-                (false, "toolchain::reload_data_segments") => {
-                    SelectorOperation::Reload(SegmentReload::Data)
-                }
-                (false, "toolchain::read_data_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Data)
-                }
-                (false, "toolchain::read_extra_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Extra)
-                }
-                (false, "toolchain::read_stack_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Stack)
-                }
-                (false, "toolchain::read_fs_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Fs)
-                }
-                (false, "toolchain::read_gs_selector") => {
-                    SelectorOperation::Read(SegmentRegister::Gs)
-                }
-                _ => return Ok(None),
+            };
+            let operation = match selector {
+                Selector::ReloadCode => SelectorOperation::Reload(SegmentReload::Code),
+                Selector::ReadCode => SelectorOperation::Read(SegmentRegister::Code),
+                Selector::ReloadData => SelectorOperation::Reload(SegmentReload::Data),
+                Selector::ReadData => SelectorOperation::Read(SegmentRegister::Data),
+                Selector::ReadExtra => SelectorOperation::Read(SegmentRegister::Extra),
+                Selector::ReadStack => SelectorOperation::Read(SegmentRegister::Stack),
+                Selector::ReadFs => SelectorOperation::Read(SegmentRegister::Fs),
+                Selector::ReadGs => SelectorOperation::Read(SegmentRegister::Gs),
             };
             let original_machine = program
                 .machines()
@@ -1576,12 +1547,6 @@ pub mod compiler_operations {
         use typed_trees::signature::SignatureContractKind;
         use typed_trees::static_applications::StaticMachineBindingValue;
         use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-        const DECLARATIONS: &[u8] = language_core::static_interrupts::CORE_DECLARATIONS;
-        const INTERRUPT_DECLARATIONS: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../source/library/core/interrupt.omg"
-        ));
 
         #[derive(Debug, Clone, Copy)]
         pub struct StaticInterruptDeclaration {
@@ -1808,9 +1773,7 @@ pub mod compiler_operations {
                     require_core_data(
                         program,
                         acknowledgement_type,
-                        "interrupt.omg",
-                        "toolchain::InterruptAcknowledgement",
-                        INTERRUPT_DECLARATIONS,
+                        language_core::core_vocabulary::CoreVocabulary::InterruptAcknowledgement,
                     )?;
                     require_pending(program, machine, state, acknowledgement.symbol)?;
                     if operation == StaticInterruptOperation::Context {
@@ -1857,9 +1820,7 @@ pub mod compiler_operations {
                         require_core_data(
                             program,
                             state.return_type,
-                            "static_interrupt.omg",
-                            "toolchain::StaticInterruptCompletionPermit",
-                            DECLARATIONS,
+                            language_core::core_vocabulary::CoreVocabulary::StaticInterruptCompletionPermit,
                         )?;
                     }
                 }
@@ -1885,9 +1846,7 @@ pub mod compiler_operations {
                     require_core_data(
                         program,
                         permit.type_reference,
-                        "static_interrupt.omg",
-                        "toolchain::StaticInterruptCompletionPermit",
-                        DECLARATIONS,
+                        language_core::core_vocabulary::CoreVocabulary::StaticInterruptCompletionPermit,
                     )?;
                 }
             }
@@ -2005,41 +1964,17 @@ pub mod compiler_operations {
             }
         }
 
-        fn authenticate_source(
-            program: &dyn CheckingInput,
-            symbol: SymbolHandle,
-            bytes: &[u8],
-        ) -> Result<(), &'static str> {
-            let source = program
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| program.symbols.source_file(span))
-                .ok_or("static interrupt operation lost its core source")?;
-            if source.origin != source::SourceOrigin::Toolchain
-                || source.package_identity.is_some()
-                || source.source.as_bytes() != bytes
-            {
-                return Err(
-                    "static interrupt operation does not match the compiler's core declarations",
-                );
-            }
-            Ok(())
-        }
-
         fn require_core_data(
             program: &dyn CheckingInput,
             reference: TypeReferenceHandle,
-            path: &str,
-            identity: &str,
-            bytes: &[u8],
+            vocabulary: language_core::core_vocabulary::CoreVocabulary,
         ) -> Result<(), &'static str> {
             let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
             else {
                 return Err("installed helper requires its exact unqualified core token type");
             };
-            require_core_symbol(program, *symbol, path, identity)?;
-            authenticate_source(program, *symbol, bytes)?;
+            require_core_symbol(program, *symbol, vocabulary)?;
             let data = program
                 .data_definition_by_symbol(*symbol)
                 .ok_or("installed helper token lost its data declaration")?;
@@ -2059,16 +1994,9 @@ pub mod compiler_operations {
         fn require_core_symbol(
             program: &dyn CheckingInput,
             symbol: SymbolHandle,
-            path: &str,
-            identity: &str,
+            vocabulary: language_core::core_vocabulary::CoreVocabulary,
         ) -> Result<(), &'static str> {
-            if program.symbol_toolchain_relative_path(symbol) != Some(std::path::Path::new(path))
-                || program
-                    .normalized_hermetic_symbol_identity(symbol)
-                    .ok()
-                    .as_deref()
-                    != Some(identity)
-            {
+            if program.symbols.core_vocabulary(symbol) != Some(vocabulary) {
                 return Err("installed helper selected a different core declaration");
             }
             Ok(())
@@ -2103,10 +2031,8 @@ pub mod compiler_operations {
                     require_core_symbol(
                         program,
                         membership.domain_symbol,
-                        "interrupt.omg",
-                        "toolchain::InterruptAcknowledgement::Pending",
+                        language_core::core_vocabulary::CoreVocabulary::InterruptAcknowledgementPending,
                     )?;
-                    authenticate_source(program, membership.domain_symbol, INTERRUPT_DECLARATIONS)?;
                     let typed_trees::expression::ExpressionNode::Name(subject) =
                         program.expression_table.expression(membership.value)
                     else {
@@ -2154,14 +2080,12 @@ pub mod compiler_operations {
             require_core_symbol(
                 program,
                 *trait_definition,
-                "interrupt.omg",
-                "toolchain::InterruptAcknowledgementCompletion",
+                language_core::core_vocabulary::CoreVocabulary::InterruptAcknowledgementCompletion,
             )?;
             require_core_symbol(
                 program,
                 *requirement,
-                "interrupt.omg",
-                "toolchain::InterruptAcknowledgementCompletion::complete",
+                language_core::core_vocabulary::CoreVocabulary::InterruptAcknowledgementCompletionComplete,
             )?;
             if receiving_trait != trait_definition
                 || !receiving_arguments.is_empty()
@@ -2232,17 +2156,13 @@ pub mod compiler_operations {
             let original = program
                 .machine_specialization(machine.symbol)
                 .map_or(machine.symbol, |application| application.template);
-            if program.symbol_toolchain_relative_path(original)
-                != Some(std::path::Path::new("task_register.omg"))
-            {
-                return Ok(None);
-            }
-            let identity = program
-                .normalized_hermetic_symbol_identity(original)
-                .map_err(|_| "task-register declaration has no exact toolchain identity")?;
-            let activate = match identity.as_str() {
-                "toolchain::activate_task_register" => true,
-                "toolchain::read_task_register" => false,
+            let activate = match program.symbols.core_vocabulary(original) {
+                Some(language_core::core_vocabulary::CoreVocabulary::TaskRegister(
+                    language_core::core_vocabulary::TaskRegisterOperation::Activate,
+                )) => true,
+                Some(language_core::core_vocabulary::CoreVocabulary::TaskRegister(
+                    language_core::core_vocabulary::TaskRegisterOperation::Read,
+                )) => false,
                 _ => return Ok(None),
             };
             let declaration = program
