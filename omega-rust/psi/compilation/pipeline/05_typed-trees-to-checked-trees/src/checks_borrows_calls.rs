@@ -642,14 +642,42 @@ mod conflicts {
                             .lineage
                             .iter()
                             .all(|loan| child.lineage.contains(loan))
-                        && validation::owned_projection_type_reference(
+                        && owned_child_storage(
                             program,
                             reference.referee,
                             &child.place.segments[prefix..],
                         )
-                        .is_some()
                 })
             })
+    }
+
+    /*
+        Whether `segments` select storage the parent owns inline, crossing no
+        stored reference. A trailing range over an owned fixed array still selects
+        the parent's own elements (`&mut main.bytes[4] as &mut [Pair]` lends
+        `main.bytes[4..12]`), so it is as much a child as one element. A range is
+        accepted only as the last segment and only over a non-reference collection:
+        storage reached through a view or pointer never becomes an owned child.
+    */
+    fn owned_child_storage(
+        program: &dyn validation::CheckingInput,
+        parent: typed_trees::types::TypeReferenceHandle,
+        segments: &[facts::PlaceSegment],
+    ) -> bool {
+        let (prefix, range) = match segments.split_last() {
+            Some((
+                facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange,
+                prefix,
+            )) => (prefix, true),
+            _ => (segments, false),
+        };
+        let Some(collection) = validation::owned_projection_type_reference(program, parent, prefix)
+        else {
+            return false;
+        };
+        !range
+            || validation::reference_shell(program, collection).is_none()
+                && validation::collection_element_type_reference(program, collection).is_some()
     }
 }
 mod held_places {
