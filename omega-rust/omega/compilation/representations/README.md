@@ -21,13 +21,19 @@ tokens or replay evidence that a stage retains alongside it.
 | `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions from the allocation; Omega 07 encodes them. The Cargo package is still named `physical-instructions`. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | Omega 07–09 and backend emission share this family while retaining distinct program forms. |
 
-Two additional representation packages belong beneath their program families:
+Three additional representation packages belong beneath their program families:
 
+- [`abstract-operations/verified-input/`](abstract-operations/verified-input/src/lib.rs)
+  owns `VerifiedPsiOptimizationInput`, the admitted handoff from Omega 00 to
+  Omega 01: the lowered `AbstractOperationPlan`, its Terminal module, and the
+  target, provider, callback, interrupt and evidence selections admitted beside
+  it. Omega 00 produces it; Omega 01 and realization read it, so Omega 01 does
+  not depend on Omega 00.
 - [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, the reconstructible control-flow, value, ownership,
   and fact representation used for abstract-program rewrites and replay.
-  [Omega 00 builds it](../pipeline/00_terminal-psi-to-abstract-operations/src/optimization.rs);
-  [Omega 01 publishes an `AbstractOperationPlan`](../pipeline/01_abstract-operations-to-abstract-operations/src/publication.rs)
+  [Omega 01 builds it](../pipeline/01_abstract-operations-to-abstract-operations/src/verified_unit.rs)
+  from the verified input, [publishes an `AbstractOperationPlan`](../pipeline/01_abstract-operations-to-abstract-operations/src/publication.rs)
   and retains the unit for replay. It is a derived form, not another numbered
   boundary after abstract operations. Its
   [independent semantic checker](abstract-operations/optimization-unit/semantics/src/lib.rs)

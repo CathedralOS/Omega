@@ -134,10 +134,6 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[
         owner: PROVIDER_PLANNING,
         dependency: "omega-rust/psi/compilation/validation/representation-planning/selections",
     },
-    Allowance {
-        owner: "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations",
-        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-    },
 ];
 
 pub struct Rule {

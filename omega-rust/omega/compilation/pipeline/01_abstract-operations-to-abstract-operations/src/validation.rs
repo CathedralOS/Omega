@@ -16,14 +16,14 @@ pub(crate) mod context {
     pub(crate) use crate::ranked_cycles_validation as ranked_cycles;
 
     pub(crate) fn validate_verified_psi_context(
-        verified: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
+        verified: &crate::VerifiedPsiOptimizationUnit,
     ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
     {
         derive_context(verified.input(), verified.unit())
     }
 
     pub(crate) fn validate_transformed_psi_context(
-        input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+        input: &verified_optimization_input::VerifiedPsiOptimizationInput,
         unit: &PsiOptimizationUnit,
     ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
     {
@@ -31,7 +31,7 @@ pub(crate) mod context {
     }
 
     fn derive_context(
-        input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+        input: &verified_optimization_input::VerifiedPsiOptimizationInput,
         unit: &PsiOptimizationUnit,
     ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError>
     {
@@ -2164,12 +2164,11 @@ pub(crate) mod prephysical_manifest {
             bundle: OptimizationIdentityBundle,
             projection: ValidatedOptimizedAbstractPlanProjection,
         ) -> Result<PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError> {
-            let initial =
-                terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
-                    input.clone(),
-                    final_unit.work_schedule,
-                )
-                .map_err(|_| PrePhysicalOptimizationManifestError::InitialUnitProjection)?;
+            let initial = crate::build_verified_psi_optimization_unit(
+                input.clone(),
+                final_unit.work_schedule,
+            )
+            .map_err(|_| PrePhysicalOptimizationManifestError::InitialUnitProjection)?;
             Ok(PrePhysicalOptimizationManifest {
                 identity: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
                 stage: OptimizationManifestStage::PrePhysicalAbstractPlan,
@@ -2252,7 +2251,7 @@ pub(crate) mod prephysical_manifest {
         PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest, PsiOptimizationUnit,
         PsiTransformationLedger,
     };
-    use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
+    use verified_optimization_input::VerifiedPsiOptimizationInput;
 
     use crate::validation::ValidatedOptimizedAbstractPlanProjection;
 

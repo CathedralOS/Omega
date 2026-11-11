@@ -904,7 +904,7 @@ pub(crate) struct RankedCycleAdmission {
 }
 
 pub(crate) fn validate_exact_ranked_cycles(
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+    input: &verified_optimization_input::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
 ) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
     let snapshot =
