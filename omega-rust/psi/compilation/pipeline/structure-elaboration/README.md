@@ -54,6 +54,13 @@ through a cycle, generic, callable value, suspension, assembly, cast, float,
 domain or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the closure refuses the whole closure.
 
+The closure is every machine of the entry's package, not only what the entry
+calls, plus their callees: the current checker checks every declaration, so a
+defect in a machine nothing calls must still reach an obligation here. A
+machine belongs to the package by its checked source instance
+(`SymbolTable::same_symbol_source_package`); a library package's machine
+enters only as a callee.
+
 ### Records
 
 A formal, a local, a result, a field and an argument may also be a

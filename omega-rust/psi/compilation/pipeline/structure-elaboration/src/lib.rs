@@ -113,7 +113,8 @@ pub struct MachineSources {
     pub obligations: IdTable<ObligationId, SourceOrigin>,
 }
 
-/// The result of elaborating one entry machine and every machine it calls.
+/// The result of elaborating one entry machine, the other machines of its
+/// package, and every machine they call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
     /// Unsealed: no proof fields and no evidence. Its only declarations are
@@ -197,12 +198,32 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
     }
 }
 
-/// Elaborates `entry` and the closure of machines it calls, in discovery
-/// order: the entry is `MachineId` 1. Any refusal refuses the whole closure,
-/// because a module missing a callee would be a silent drop.
+/// Elaborates every machine the current checker would check for `entry`'s
+/// package, and every machine they call, in discovery order: the entry is
+/// `MachineId` 1, then the package's other machines in declaration order,
+/// then callees as their callers are read.
+///
+/// The package's machines are all of them, not only the entry's call
+/// closure, because the current checker checks every declaration: a defect
+/// in a machine nothing calls still rejects the program, so a route that
+/// lowered only what the entry reaches would accept it by never minting that
+/// obligation. A machine belongs to the package by its checked source
+/// instance (`SymbolTable::same_symbol_source_package`), never by its name;
+/// a library package's machine enters only as a callee. Any refusal refuses
+/// the whole closure, because a module missing a machine would be a silent
+/// drop.
 pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed);
+    let package = entry;
     let entry = program.machine(entry)?;
+    for declared in typed.machines() {
+        if typed
+            .symbols
+            .same_symbol_source_package(package, declared.symbol)
+        {
+            program.machine(declared.symbol)?;
+        }
+    }
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.

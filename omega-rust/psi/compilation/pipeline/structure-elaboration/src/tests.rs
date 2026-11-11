@@ -2557,3 +2557,91 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
     assert_eq!(module.native_layouts.records().count(), 1);
     terminal_codec::encode_module(module).unwrap();
 }
+
+/// A package of `main() {}` and a second machine that nothing calls, as typed
+/// trees with no source metadata, which model one package. `helper` sets the
+/// second machine's declaration fields.
+fn package_with_an_uncalled_machine(
+    helper: impl FnOnce(&mut typed_trees::machine::Machine),
+) -> (
+    typed_trees::TypedTrees,
+    symbols::SymbolHandle,
+    symbols::SymbolHandle,
+) {
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::machine::Machine;
+    use typed_trees::state::State;
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let children = builder.insert_children(
+        root,
+        [
+            (SymbolKind::Machine, SymbolNameRef::Static("main")),
+            (SymbolKind::State, SymbolNameRef::Static("main")),
+            (SymbolKind::Machine, SymbolNameRef::Static("helper")),
+            (SymbolKind::State, SymbolNameRef::Static("helper")),
+        ],
+    );
+    let [main, main_state, uncalled, uncalled_state] = [0, 1, 2, 3].map(|position| {
+        children
+            .handles()
+            .nth(position)
+            .expect("four children were inserted")
+    });
+    let mut typed = typed_trees::TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    for (symbol, state, shape) in [
+        (main, main_state, None),
+        (uncalled, uncalled_state, Some(helper)),
+    ] {
+        let mut machine = Machine {
+            symbol,
+            ..Machine::default()
+        };
+        if let Some(shape) = shape {
+            shape(&mut machine);
+        }
+        typed.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state,
+                ..State::default()
+            },
+        );
+        typed.push_machine(machine);
+    }
+    (typed, main, uncalled)
+}
+
+/// The current checker checks every declaration, so a machine the entry
+/// never calls is elaborated too, as its own `MachineId` after the entry:
+/// a defect in it reaches an obligation instead of going unminted.
+#[test]
+fn a_machine_the_entry_never_calls_is_elaborated() {
+    let (typed, main, uncalled) = package_with_an_uncalled_machine(|_| {});
+    let elaboration = crate::elaborate(&typed, main).unwrap();
+    assert_eq!(elaboration.machines.get(id(1)), Some(&main));
+    assert_eq!(elaboration.machines.get(id(2)), Some(&uncalled));
+    assert_eq!(elaboration.machines.len(), 2);
+    assert_eq!(elaboration.module.machines.len(), 2);
+    assert_eq!(elaboration.tables.machines.len(), 2);
+}
+
+/// Its twin: the uncalled machine is outside the subset, so the whole
+/// closure is refused as `Unsupported` and falls back to the current
+/// checker. It is never dropped while the entry lowers.
+#[test]
+fn an_uncalled_machine_outside_the_subset_refuses_the_closure() {
+    let (typed, main, _) = package_with_an_uncalled_machine(|machine| {
+        machine.body_is_present = false;
+    });
+    let refusal = crate::elaborate(&typed, main).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert_eq!(refusal.machine, id(2));
+    assert_eq!(refusal.detail, "machine no complete body");
+}

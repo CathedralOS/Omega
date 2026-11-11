@@ -9,7 +9,7 @@
 //! branch conditions, to count what branch facts buy. Each route is timed by
 //! wall clock around its own calls only. Tab-separated lines:
 //!
-//!     program <path> current=<accepted|rejected> current_us=<n> route=<..> route_us=<n> ...
+//!     program <path> current=<accepted|rejected|review-refused|stopped> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
 //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
 //!     use <path> <machine> <operation or edge> unestablished <detail>
@@ -21,8 +21,10 @@
 //! goal's form), `fallback` (an unsupported obligation hands the closure to
 //! the current checker) or `defect`.
 //!
-//! A program the current checker rejects has no typed trees here, so the new
-//! route cannot run on it (`route=unreached`). This is a measuring tool, not a
+//! The typed trees come from the typed-frontier seam, so a program the
+//! current checker rejects reaches the new route too (`current=rejected`);
+//! only one that stops before Psi 04 has none (`current=stopped`,
+//! `route=unreached`). This is a measuring tool, not a
 //! gate, and not part of the shipped CLI.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
@@ -30,6 +32,8 @@ mod fixture_package_inputs;
 
 use std::path::Path;
 use std::time::Instant;
+
+use fixture_package_inputs::FixtureFrontierCheck;
 
 use lowered_discharge::{Knowledge, RouteVerdict, UnprovedObligation, discharge_with, judge};
 use proof_admission::{AcceptedFactRoute, MathematicalCoreDecision};
@@ -151,50 +155,30 @@ fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
 }
 
 fn probe(main: &Path, lines: &mut Vec<String>) -> String {
+    // The typed-frontier seam returns the trees the current checker judged
+    // whether it accepted or rejected, so programs it rejects are compared
+    // too. Its time covers the same snapshot, discovery, review and check as
+    // `check_fixture`, plus one clone of the typed trees.
     let started = Instant::now();
-    let checked = (|| {
-        let snapshot = fixture_package_inputs::fixture_build_snapshot(main)?;
-        let discovered = fixture_package_inputs::discover_fixture(
-            main,
-            package_compilation::BuildExecutionInputs {
-                snapshot,
-                ..Default::default()
-            },
-        )?;
-        let target = discovered
-            .targets
-            .iter()
-            .find(|target| target.as_str() == "linux_x86_64")
-            .or_else(|| discovered.targets.first())
-            .cloned();
-        let profile = target::TargetProfile::from_omega_target_name(target.as_deref())
-            .map_err(|error| vec![error])?;
-        let mut prepared = fixture_package_inputs::review_fixture(
-            discovered,
-            &[profile],
-            compiler::CompilationProduct::Check,
-        )?;
-        fixture_package_inputs::check_fixture(
-            &mut prepared,
-            profile.target_name(),
-            Default::default(),
-        )
-    })();
+    let checked =
+        fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64");
     let current_us = started.elapsed().as_micros();
-    let checked = match checked {
-        Ok(checked) => checked,
-        Err(errors) => {
+    let (current, frontier) = match checked {
+        FixtureFrontierCheck::Accepted { frontier, .. } => ("accepted", frontier),
+        FixtureFrontierCheck::Rejected { frontier, .. } => ("rejected", frontier),
+        FixtureFrontierCheck::ReviewRefused { frontier, .. } => ("review-refused", frontier),
+        FixtureFrontierCheck::StoppedBeforeTypedFrontier(errors) => {
             return format!(
-                "current=rejected\tcurrent_us={current_us}\troute=unreached\t{}",
+                "current=stopped\tcurrent_us={current_us}\troute=unreached\t{}",
                 one_line(format!("{:?}", errors.first()))
             );
         }
     };
-    let head = format!("current=accepted\tcurrent_us={current_us}");
-    let Some(entry) = checked.build().config.program_roots().first().copied() else {
+    let head = format!("current={current}\tcurrent_us={current_us}");
+    let Some(entry) = frontier.entries.first().copied() else {
         return format!("{head}\troute=no-entry");
     };
-    let typed = &checked.source_inspection().program().typed;
+    let typed = &frontier.typed;
 
     let started = Instant::now();
     let elaborated = structure_elaboration::elaborate(typed, entry);

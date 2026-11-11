@@ -98,6 +98,16 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
+        // A symbol can name several machine rows (a template and its
+        // requirement, say). Reading only the first would leave the others
+        // unchecked with no row and no refusal.
+        if typed.machine_positions_for_symbol(symbol).len() > 1 {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("several declarations of one symbol"),
+            ));
+        }
         let machine = typed.machine_by_symbol(symbol).ok_or_else(|| {
             refuse(
                 id,
