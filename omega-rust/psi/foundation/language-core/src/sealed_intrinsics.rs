@@ -75,7 +75,7 @@ pub enum FixedImageOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SealedDeclaration {
+pub(crate) enum SealedDeclaration {
     /// Exactly this package-relative declaration path.
     Exact(&'static str),
     /// Any single-segment member directly under this owner path.
@@ -83,7 +83,7 @@ enum SealedDeclaration {
 }
 
 impl SealedDeclaration {
-    fn matches(self, declaration: &str) -> bool {
+    pub(crate) fn matches(self, declaration: &str) -> bool {
         match self {
             Self::Exact(path) => declaration == path,
             Self::MemberOf(owner) => declaration
