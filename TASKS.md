@@ -55,10 +55,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - Migrate the remaining `via` sites and delete `via` parsing. `TableFunction`/`VtableField` leaves (33 files, e.g. `std/targets/uefi_x86_64/handoff.omg`) need a typed table/field source form, and user-package `CompilerIntrinsic` leaves (7 files) have no catalog-admitted spelling.
-  - About 20 DllImport/Syscall fixtures still use `via`: ones without a `build.omg` (each needs a new file under the per-PR cap), and ones whose pinned fact is the realization itself (signature, exposure, own `requires`/`stack`); retire or restate those facts.
-  - Bind requirements of generic boundary traits (`Build::bind<Registrar::install>` rejects: "native binding requires a closed static boundary application").
-  - Move Windows `ProcessExit::exit_process` (`std/targets/windows_x86_64/process_exit_impl.omg`) off `via`; validate on a Windows host.
+  - Migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` `via` sites; delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
