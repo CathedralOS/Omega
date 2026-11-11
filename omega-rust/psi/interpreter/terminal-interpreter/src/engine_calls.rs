@@ -2185,6 +2185,7 @@ pub(crate) mod component_contents {
                 let declaration =
                     |identities: &mut TerminalIdentityTableBuilder, ordinal, identity, shape| {
                         StructuralTypeDeclaration {
+                            requires: Vec::new(),
                             quotient_carrier: None,
                             id: StructuralTypeId::new(offset + ordinal).unwrap(),
                             identity: identities.intern(identity),

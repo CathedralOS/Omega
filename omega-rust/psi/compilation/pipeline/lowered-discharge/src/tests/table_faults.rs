@@ -952,6 +952,46 @@ fn an_entry_content_of_storage_that_is_no_formal_is_refused() {
 }
 
 #[test]
+fn entry_content_values_that_exchange_their_leaves_are_refused() {
+    // f(p: Point) { bounded(p.x + p.y) }: the entry contents of `p.x` and
+    // `p.y` are both `u32`, so exchanging the leaves their rows name keeps
+    // every type and origin check satisfied. The lowered form declares
+    // neither value, so only their order says which leaf each belongs to.
+    let program = || {
+        elaborate_places(vec![
+            Shaped {
+                parameters: vec![point()],
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![returns(call(
+                    2,
+                    vec![strict(
+                        Strict::Add,
+                        read(place(0, point()), 0),
+                        read(place(0, point()), 1),
+                    )],
+                ))],
+            },
+            bounded(),
+        ])
+    };
+    let verdict = with_fault(program, |elaboration| {
+        let tables = entry_tables(elaboration);
+        let [x, y] = entry_values(tables)[..] else {
+            panic!("p.x and p.y each have an entry content value");
+        };
+        let held_by_x = value_mut(tables, x).origin;
+        let held_by_y = std::mem::replace(&mut value_mut(tables, y).origin, held_by_x);
+        value_mut(tables, x).origin = held_by_y;
+    });
+    assert_refused(
+        verdict,
+        "entry content values are not in the order of the leaves they belong to",
+    );
+}
+
+#[test]
 fn a_condition_restated_as_a_case_test_is_refused() {
     // f(s: Shape, flag: bool) { let t = s in Dot; when flag -> s.at; 0 }:
     // the arm names the payload of `Dot` under a guard that says nothing of
@@ -996,4 +1036,90 @@ fn a_condition_restated_as_a_case_test_is_refused() {
         judge(Ok(elaboration)),
         "a value row is not the value the lowered form declares under its identity",
     );
+}
+
+// The data `requires` clauses. They are the goal of every `DataDomain`
+// obligation and the premise a read of an arrived value learns from its
+// type, and they reach the discharge in a table beside the module
+// (`Elaboration::domains`). The module's own type declarations state them,
+// so the table must restate those exactly.
+
+/// `Elaboration::domains`' row for `structural_type`.
+fn clauses_mut(elaboration: &mut Elaboration, structural_type: u64) -> &mut Vec<Proposition> {
+    elaboration.domains.get_mut(id(structural_type)).unwrap()
+}
+
+const DOMAINS_DIFFER: &str =
+    "a data type's requires clauses are not the ones its declaration states";
+
+#[test]
+fn a_data_requires_clause_weakened_beside_the_module_is_refused() {
+    // `paired`'s construction leaves `1 <= value` unproved. With that clause
+    // replaced by one that holds of what is stored, every row has a
+    // certificate.
+    let verdict = with_fault(paired, |elaboration| {
+        clauses_mut(elaboration, PAIRED)[1] =
+            Proposition::LessOrEqual(field_of_self(9), number(4_096));
+    });
+    assert_refused(verdict, DOMAINS_DIFFER);
+}
+
+#[test]
+fn a_data_requires_clause_dropped_beside_the_module_with_its_obligation_is_refused() {
+    // The unproved clause and the row that owes it both gone: the count of
+    // owed rows agrees with the table, and only the declaration still states
+    // the clause.
+    let verdict = with_fault(paired, |elaboration| {
+        clauses_mut(elaboration, PAIRED).pop();
+        drop_last_obligations(entry_tables(elaboration), 1);
+    });
+    assert_refused(verdict, DOMAINS_DIFFER);
+}
+
+#[test]
+fn a_data_requires_clause_strengthened_beside_the_module_is_refused() {
+    // f(b: Bounded) -> u32 { tight(b.value) } where tight requires v <= 3.
+    // `b` arrived established, so the read learns `value <= 5`, which does
+    // not give `v <= 3`. A table that says `value <= 3` hands the read the
+    // premise the call needs.
+    let program = || {
+        elaborate_over(
+            vec![
+                Shaped {
+                    parameters: vec![data(BOUNDED)],
+                    locals: Vec::new(),
+                    result: u32_type().into(),
+                    requires: Vec::new(),
+                    statements: vec![returns(call(2, vec![read(place(0, data(BOUNDED)), 0)]))],
+                },
+                Shaped {
+                    requires: vec![at_most(1, 3)],
+                    ..bounded()
+                },
+            ],
+            &constrained(),
+        )
+    };
+    let verdict = with_fault(program, |elaboration| {
+        clauses_mut(elaboration, BOUNDED)[0] =
+            Proposition::LessOrEqual(field_of_self(1), number(3));
+    });
+    assert_refused(verdict, DOMAINS_DIFFER);
+}
+
+#[test]
+fn data_requires_clauses_moved_to_another_type_are_refused() {
+    // `Paired`'s clauses exchanged with `Gated`'s: the same number of rows,
+    // each a clause of some declaration, none of its own type's.
+    let verdict = with_fault(paired, |elaboration| {
+        let gated = std::mem::take(clauses_mut(elaboration, GATED));
+        let paired = std::mem::replace(clauses_mut(elaboration, PAIRED), gated);
+        *clauses_mut(elaboration, GATED) = paired;
+    });
+    assert_refused(verdict, DOMAINS_DIFFER);
+    // A row for a type the module does not declare.
+    let verdict = with_fault(paired, |elaboration| {
+        elaboration.domains.push(vec![Proposition::Truth]);
+    });
+    assert_refused(verdict, "a row of requires clauses names no declared type");
 }

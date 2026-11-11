@@ -1232,6 +1232,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: type_id(identity),
                 identity: identities.intern(&format!("graph::type{identity}")),
                 quotient_carrier: None,

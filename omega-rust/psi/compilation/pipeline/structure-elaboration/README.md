@@ -499,10 +499,12 @@ contract does not have: `self in S::C` and `||`. A clause is kept in
 a field is a field term over one root that stands for `self` and the dense
 field and case identities down to the field, and a case test is a
 case-membership proposition on such a path. Nothing proves or knows a clause
-in that form. The clauses travel beside the module in
-`Elaboration::domains`, because Terminal Psi's type declaration has no slot
-for them: the current pipeline proves them on checked trees and its Terminal
-module carries none.
+in that form. Each type's declaration in the module states its clauses
+(`StructuralTypeDeclaration::requires`), so they are encoded with the module
+and part of its identity; the current pipeline proves them on checked trees
+and its declarations state none. `Elaboration::domains` restates them by the
+type's identity for the checker, which refuses a table that differs from the
+declarations.
 
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it

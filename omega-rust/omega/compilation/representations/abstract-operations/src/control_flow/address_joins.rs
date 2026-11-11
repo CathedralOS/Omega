@@ -297,6 +297,7 @@ mod tests {
 
     fn catalog() -> Vec<StructuralTypeDeclaration> {
         let declaration = |raw, shape| StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,

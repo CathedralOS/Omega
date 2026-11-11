@@ -344,6 +344,12 @@ pub(crate) mod canonical_order {
             {
                 validate_canonical_proposition(refinement.predicate(), 0)?;
             }
+            // Authored order is the clauses' identity (a `DataDomain`
+            // obligation names its clause by position), so only each
+            // clause's own form is canonical, not their order.
+            for clause in &declaration.requires {
+                validate_canonical_proposition(clause, 0)?;
+            }
             let (fields, cases) = match &declaration.shape {
                 StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
                 StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
@@ -1607,6 +1613,7 @@ pub(crate) mod machine_wire {
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             });
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -2911,6 +2918,7 @@ mod reference_transport_tests {
                 abstract_opaque: false,
             });
         module.structural_types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
             id: StructuralTypeId::new(2).unwrap(),
             identity: TerminalIdentityIndex(2),
             quotient_carrier: None,
@@ -2962,6 +2970,7 @@ mod reference_transport_tests {
                 [],
             );
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: StructuralTypeId::new(3).unwrap(),
                 identity: TerminalIdentityIndex(3),
                 quotient_carrier: None,
@@ -3019,6 +3028,7 @@ mod reference_transport_tests {
             )
         };
         let carrier = StructuralTypeDeclaration {
+            requires: Vec::new(),
             id: StructuralTypeId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
@@ -4270,6 +4280,7 @@ mod normal_qualification_tests {
                 );
             }
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: type_id(position as u64 + 1),
                 identity: TerminalIdentityIndex(position as u32 + 4),
                 quotient_carrier: None,
@@ -4502,6 +4513,7 @@ mod global_descriptor_table_tests {
         });
         let carrier = StructuralTypeId::new(1).unwrap();
         module.structural_types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
             id: carrier,
             identity: TerminalIdentityIndex(3),
             quotient_carrier: None,
@@ -4640,6 +4652,7 @@ mod descriptor_operation_tests {
         ];
         for (index, shape) in shapes.into_iter().enumerate() {
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: StructuralTypeId::new(index as u64 + 1).unwrap(),
                 identity: TerminalIdentityIndex(index as u32 + 3),
                 quotient_carrier: None,

@@ -38,6 +38,9 @@ by the lowered form's own call operations and terminators.
 
 `DataDomain` rows are counted by `Storage::owed_are_minted`, which needs the
 place walk to know which clauses a write owes; their point is checked here.
+The clauses they are goals of come from a table beside the module
+(`Elaboration::domains`); `domains_are_declared` refuses that table unless it
+is the `requires` each type declaration of the module states.
 
 A disagreement is a defect of the route, not of the program, so it is a
 `ForeignIdentity` refusal: `judge` returns it as `Err` and nothing is
@@ -45,8 +48,8 @@ accepted on it.
 */
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, PsiSemanticId, ScalarType,
-    ValueId,
+    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition, PsiSemanticId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -55,8 +58,8 @@ use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, TerminalMachine,
-    TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::{refusal, semantics_refusal, terminal_machine};
@@ -608,4 +611,48 @@ impl Minted<'_> {
         }
         Ok(())
     }
+}
+
+/// Refuses a table of data `requires` clauses that is not the one the
+/// module's type declarations state. The clauses are the goals of every
+/// `DataDomain` obligation and the premises a read of established storage
+/// learns from its type, so a clause weakened, strengthened, dropped, added
+/// or moved to another type in the table would change what is proved for
+/// every construction, store and read of that type without touching the
+/// lowered form. The declaration is what the module carries into its
+/// encoding and identity; the table must restate it exactly, in authored
+/// order, since a `DataDomain` obligation names its clause by position.
+///
+/// A type the table has no row for is one whose declaration states none: a
+/// scalar local's primitive home, declared after the data types.
+pub(crate) fn domains_are_declared(
+    id: MachineId,
+    declarations: &[StructuralTypeDeclaration],
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+) -> Checked<()> {
+    let foreign = |detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            detail,
+        )
+    };
+    for (structural_type, _) in domains.iter() {
+        if !declarations
+            .iter()
+            .any(|declaration| declaration.id == structural_type)
+        {
+            return Err(foreign("a row of requires clauses names no declared type"));
+        }
+    }
+    for declaration in declarations {
+        let restated = domains.get(declaration.id).map_or(&[][..], Vec::as_slice);
+        if restated != declaration.requires.as_slice() {
+            return Err(foreign(
+                "a data type's requires clauses are not the ones its declaration states",
+            ));
+        }
+    }
+    Ok(())
 }

@@ -3446,6 +3446,7 @@ pub(crate) mod inner {
                     let id = structural_type_id(dense_identity(identity_ids.len())?);
                     identity_ids.push((identity_id, id));
                     declarations.push(StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
@@ -3882,6 +3883,7 @@ pub(crate) mod inner {
                     }
                 };
                 declarations.push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: plan.owns_linear_claim,
                     copyable: plan.copyable,
