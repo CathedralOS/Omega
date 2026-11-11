@@ -495,6 +495,8 @@ fail/asm/atomic_release_disposition_wrong_value rejected 2413ms expected @ccdb99
 fail/asm/atomic_release_disposition_wrong_width rejected 2007ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u32>(shared word.value,37)
 	linear value `ack` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
+fail/asm/atomic_release_two_hop_rebound_descriptor rejected 4471ms expected @7ffd2e963e9d
+	cannot prove ensures contract for exit from Confirmation::finish at statement 3: proposition:fact:atomic_release_written<AtomicU64,u64>(shared envelope.holder.word.value,1); no exact incoming reference origin for envelope
 fail/asm/backward_write_stale_ensures rejected 1791ms expected @ccdb99ca2214
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 2180ms expected @ccdb99ca2214
@@ -790,6 +792,8 @@ fail/atomics/atomic_record_shared_replacement rejected 5506ms expected @8d52a857
 	machine `reset` state `entry` assignment cannot write `word` because it is not mutable in this state (if `word` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/atomic_store_receive_ordering_rejected rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/atomics/atomic_store_under_exclusive_loan rejected 4608ms expected @7ffd2e963e9d
+	statement 2 mutates `cell.counter` while local borrow `exclusive` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/atomics/case_payload_non_event_write rejected 629ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/fence_authored_bodyless_lookalike rejected 38ms expected @ccdb99ca2214
@@ -1463,6 +1467,8 @@ fail/borrows/local_case_subject_carried_alias_write rejected 5930ms expected @91
 	statement 9 mutates `frame.items[1]` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 9)
 fail/borrows/local_descriptor_replacement_while_borrowed rejected 5256ms expected @923ef974b33c
 	statement 4 mutates `view` while local borrow `borrowed` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/local_loaned_field_write_beside_live_loan rejected 6107ms expected @2e348e6b2dca
+	statement 4 mutates `s.a` while local borrow `loaned` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 2174ms expected @ccdb99ca2214
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 1635ms expected @ccdb99ca2214
@@ -3028,8 +3034,8 @@ fail/capabilities/blocking_beneath_no_block_root rejected 1727ms expected @2fc40
 	machine `Main::main` omits `blocks` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 651ms expected @ccdb99ca2214
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
-fail/capabilities/callback_synchronous_registration_cycle rejected 17888ms unexpected @ccdb99ca2214
-	free Unit entry stack demand: TerminalStackCycle(MachineId(2))
+fail/capabilities/callback_synchronous_registration_cycle rejected 14500ms unexpected @bbcd76b6ba0a
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
 fail/capabilities/cyclic_synchronous_invocation rejected 3107ms expected @ccdb99ca2214
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 1444ms expected @ccdb99ca2214
@@ -3622,6 +3628,10 @@ fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 5201ms ex
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 5930ms expected @089c0a150e63
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
+fail/contracts/rankless_cycle_guarantee_cannot_cite_member rejected 7801ms expected @9fafe3f2b7ef
+	cannot prove ensures contract for exit from first at statement 1: result == 5
+	cannot prove ensures contract for exit from second at statement 1: result == 5
+	cannot prove ensures contract for exit from second at statement 2: result == 5
 fail/contracts/recurrent_call_prefix_requires_every_arrival rejected 2401ms expected @ccdb99ca2214
 	cannot prove requires contract for call inspect from inspect: addr::Bound == 18446744073709551616 && 2 <= 1 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/recursive_private_arrival_exit rejected 2447ms expected @7391b2ce665a
@@ -14412,23 +14422,23 @@ fail/facts/write_only_ieee_store_readback_through_parameter_rejected rejected 26
 	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_ieee_store_readback_through_target_body_rejected rejected 2633ms expected @ccdb99ca2214
 	machine `store` state `entry` reads write-only parameter `r`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_indexed_reborrow_through_call_result_rejected rejected 2000ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_call_result_rejected rejected 6693ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_const_name_rejected rejected 1168ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_const_name_rejected rejected 6680ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_field_rejected rejected 1437ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_field_rejected rejected 6811ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_local_rejected rejected 1046ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_local_rejected rejected 7400ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_match_join_rejected rejected 1491ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_match_join_rejected rejected 7784ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_other_machine_rejected rejected 1596ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_other_machine_rejected rejected 5925ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_other_state_rejected rejected 1650ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_other_state_rejected rejected 7404ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 1265ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 6375ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 1529ms expected @ccdb99ca2214
+fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 5730ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @c79bb8268163+wt
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
@@ -15767,8 +15777,8 @@ fail/host/console_byte_payload_above_byte rejected 13098ms expected @ccdb99ca221
 	data `ByteRead` case `Byte` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/console_byte_payload_negative rejected 13902ms expected @ccdb99ca2214
 	data `ByteRead` case `Byte` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 2149ms unexpected @ccdb99ca2214
-	machine `Main::main` state `main` statement 2: call stores a borrowed value without a complete destination/backing relation
+fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3815ms unexpected @bbcd76b6ba0a
+	machine `Main::main` state `main` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
 fail/host/macos_image_snapshot_wrong_extent rejected 26050ms expected @4815ea579d91
 	cannot prove requires contract for call macos_image_snapshot from main: pixels[..].len == 3 as u64 * 2 as u64 (needs fact `pixels.len == width as u64 * height as u64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `pixels[..].len == (3 as u64) * (2 as u64)`
 fail/host/process_exit_argument_requires_live_custody rejected 1634ms expected @ccdb99ca2214
@@ -17274,7 +17284,7 @@ fail/proofs/negated_guard_after_mutation rejected 2053ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from changed at statement 2: !selection.enabled || result == 1
 fail/proofs/nested_boolean_target_family_requires_agreement rejected 2299ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: relay() == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/nested_machine_computed_rank_preserving rejected 833ms expected @ccdb99ca2214
+fail/proofs/nested_machine_computed_rank_preserving rejected 5327ms expected @860ee26eb0c7
 	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/proofs/nested_machine_escaping_selection_rejected rejected 3076ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17546,11 +17556,11 @@ fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 2335ms expected
 	cannot prove requires contract for call observe from main: other == constructor:80:package:387bc50c285a4a6f651922c244ebfc7d36bdd3731f0b5b4672158a5326225aa8::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/runtime_case_guarantee_wrong_return rejected 1798ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
-fail/proofs/runtime_static_result_projection_effectful_citation rejected 12557ms expected @ccdb99ca2214
+fail/proofs/runtime_static_result_projection_effectful_citation rejected 61901ms expected @860ee26eb0c7
 	theorem citation `effectful_projection` must be effect-free; proof citations cannot declare or infer service reach, suspension, blocking, crashes, or mutable state
-fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 70175ms expected @ee4dbb4b2d56
+fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 60164ms expected @860ee26eb0c7
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
-fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 11842ms expected @ccdb99ca2214
+fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 59870ms expected @860ee26eb0c7
 	recursive proof machine `nonterminating_projection` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 fail/proofs/scalar_field_snapshot_after_alias_store rejected 5887ms expected regressed-from:checked @7a899fdd171e
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17581,13 +17591,13 @@ fail/proofs/selected_case_equality_does_not_establish_membership rejected 3559ms
 	cannot prove requires contract for call require_first from guarded: value == constructor:80:package:d29a6691d4aa6a9957a175d27f5d86a1e8200cd3557e5428c4404c14bd4a650c::Choice10:name:First (needs fact `value == Choice::First` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 7184ms expected @ee4dbb4b2d56
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/proofs/selected_specification_requires_false_result rejected 791ms expected @ccdb99ca2214
-	machine `identity` ensures contract proof fact `selected_identity<Modulus>(value) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/proofs/selected_specification_requires_missing_premise rejected 1121ms expected @e97ed21415d9
+fail/proofs/selected_specification_requires_false_result rejected 12200ms expected @860ee26eb0c7
+	machine `identity` ensures contract proof fact `core::Identity<Nat>(selected_identity<Modulus>(value), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/selected_specification_requires_missing_premise rejected 11624ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/selected_specification_requires_wrong_machine rejected 692ms expected @ccdb99ca2214
+fail/proofs/selected_specification_requires_wrong_machine rejected 12464ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/selected_specification_requires_wrong_subject rejected 1102ms expected @ccdb99ca2214
+fail/proofs/selected_specification_requires_wrong_subject rejected 10617ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/self_call_without_witness_not_denotational rejected 2124ms expected @ccdb99ca2214
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
@@ -17602,7 +17612,8 @@ fail/proofs/static_machine_result_effectful_contract rejected 5955ms expected @0
 	machine `unproved` ensures contract proof fact `core::Identity<Nat>(project<Read>(index), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
-fail/proofs/static_machine_result_partial_contract rejected 1840ms expected @ccdb99ca2214
+fail/proofs/static_machine_result_partial_contract rejected 5079ms expected @860ee26eb0c7
+	machine `unproved` ensures contract proof fact `core::Identity<Nat>(project<Read>(index), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 fail/proofs/static_machine_result_wrong_field rejected 759ms expected @ccdb99ca2214
@@ -18857,8 +18868,8 @@ fail/termination/joint_machine_call_cycle_stalled rejected 1990ms expected @ccdb
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/joint_rankless_finish_reenters_component rejected 2051ms unexpected @ccdb99ca2214
 	machine call cycle: `left`, `finish`, `right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/lexicographic_component_zero_step_rejected rejected 2176ms expected @ccdb99ca2214
-	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/lexicographic_component_zero_step_rejected rejected 6432ms unexpected @583d51f8f4a3
+	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/measure_field_arrival_contract rejected 4978ms expected @8ff88b9df484
 	cannot prove requires contract for call walk from walk: constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.remaining <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare && constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.spare <= constructor:83:package:a41cd37df33a9d050600cfa11630dabbc7bd82f50d8198710384e68b55bb1737::Countdown6:record17:common:name:limit15:countdown.limit21:common:name:remaining23:countdown.remaining - 117:common:name:spare1:0.limit (needs fact `countdown.remaining <= countdown.spare && countdown.spare <= countdown.limit` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/termination/measure_field_computed_limit_overflow rejected 4360ms expected @911f6617ba9e
@@ -18888,11 +18899,11 @@ fail/termination/nested_helper_record_measure_rank_not_decreasing rejected 4835m
 fail/termination/nested_helper_record_measure_result_equation_missing rejected 5645ms expected @a3ee79b58ff4
 	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/nested_helper_record_measure_result_equation_not_decreasing rejected 4158ms expected @a3ee79b58ff4
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/nested_helper_record_measure_result_equation_not_decreasing rejected 7298ms unexpected @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/nested_helper_record_measure_result_equation_wrong_subject rejected 4382ms expected @a3ee79b58ff4
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/nested_helper_record_measure_result_equation_wrong_subject rejected 5610ms unexpected @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_indexed_upper_rejected rejected 4231ms expected @6c0b29931314
 	machine call cycle: `count`, `forward`, `reduce` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -18919,8 +18930,7 @@ fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_alias_reset_after_descent rejected 751ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/private_stored_reference_rank_no_ambient_helper_bound rejected 344ms expected @5c5c178f82c7
-	exact arithmetic in machine `forward` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/termination/private_stored_reference_rank_no_ambient_helper_bound checked 11343ms @583d51f8f4a3
 fail/termination/private_stored_reference_rank_reset_after_descent rejected 742ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/private_stored_reference_rank_write_only rejected 350ms expected @5c5c178f82c7
@@ -19000,8 +19010,8 @@ fail/termination/rank_arrival_opaque_child_does_not_prove_subject_absent rejecte
 fail/termination/rank_arrival_opaque_operand_does_not_prove_subject_absent rejected 3512ms expected regressed-from:checked @d352d5e8e77e
 	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/rank_arrival_public_result_wrong_subject rejected 3235ms expected regressed-from:checked @d352d5e8e77e
-	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+fail/termination/rank_arrival_public_result_wrong_subject rejected 5298ms unexpected regressed-from:checked @583d51f8f4a3
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/rank_arrival_sibling_does_not_replace_subject rejected 3193ms unexpected regressed-from:checked @d352d5e8e77e
 	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
@@ -19049,8 +19059,8 @@ fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca221
 	machine call cycle: `greatest_common_divisor` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/requirement_witness_rejected rejected 10060ms expected @ccdb99ca2214
 	tests/omega/fail/termination/requirement_witness_rejected/main.omg:7:59: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
-fail/termination/retired_block_form rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
+fail/termination/retired_block_form rejected 3456ms unexpected @583d51f8f4a3
+	tests/omega/fail/termination/retired_block_form/main.omg:5:15: expected `;`, found identifier `remaining`
 fail/termination/retired_standalone_decreases rejected 7ms expected @ccdb99ca2214
 	tests/omega/fail/termination/retired_standalone_decreases/main.omg:4:1: a standalone `decreases` clause is retired (decision 23): attach the ranking witness to the guarantee as `terminates by <subjects> [-> View] [in <range>];`
 fail/termination/runtime_non_tail_call_cycle rejected 3102ms expected @ccdb99ca2214
@@ -19139,6 +19149,8 @@ fail/termination/wrapping_subject_unguarded_decrement rejected 3339ms expected @
 fail/termination/zero_local_does_not_decrease_rank rejected 1874ms expected @ccdb99ca2214
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/testing/registered_group_failing_test_refuses_build rejected 8807ms expected @557ef57441f8
+	test `addition_is_correct` in group `Tests::arithmetic` failed on the Psi interpreter engine: crashed with Trap (target `windows_x86_64`)
 fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccdb99ca2214
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 5081ms expected @911f6617ba9e
@@ -19258,6 +19270,8 @@ fail/traits/contract_proposition_distinct_declarations rejected 1823ms expected 
 	machine `Restricted::accept` realizes `Accept::accept` but requires `second::valid`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/contract_static_binder_not_shadowing_local rejected 838ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `demand` violates required fact `below<2>(value)`: the instantiated fact is structurally false
+fail/traits/crashes_none_requirement_member_crashes rejected 5538ms expected @a69c99f44f09
+	machine `Trapping::apply` satisfies `Step::apply`, which declares `crashes none`, but it publishes a crash route; a member of a `crashes none` requirement must be crash-free
 fail/traits/data_in_implementation_argument rejected 328ms expected @ccdb99ca2214
 	trait `Concrete` parent `Consumer` cannot bind implementation `Reader`: expected an explicitly named implementation, not a data argument
 fail/traits/data_subject_implementation_retired rejected 2ms expected @ccdb99ca2214
@@ -19925,8 +19939,8 @@ pass/atomics/runtime_mixed_common_atomic_cell_exit checked 7729ms check-target:m
 pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_projected_state_operands_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 16443ms check-target:macos_arm64 @ccdb99ca2214
-pass/atomics/runtime_stored_reference_atomic_events_exit checked 4038ms check-target:macos_arm64 @ccdb99ca2214
-pass/atomics/selected_reference_atomic_provider checked 3875ms check-target:linux_x86_64 @ccdb99ca2214
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 7162ms check-target:macos_arm64 @7ffd2e963e9d
+pass/atomics/selected_reference_atomic_provider checked 6946ms check-target:linux_x86_64 @7ffd2e963e9d
 pass/atomics/shared_receiver_atomic_store checked 16167ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/blocking_executor_custody_claims_compile checked 4916ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/runtime_selected_worker_body_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
@@ -20047,7 +20061,8 @@ pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-ta
 pass/borrows/explicit_lifetime_select checked 3214ms @ccdb99ca2214
 pass/borrows/fixed_array_reference_backing_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/fixed_array_reference_results_exit checked 8069ms check-target:macos_arm64 @af4614055bdd
-pass/borrows/foreign_output_captured_reference_exit checked 9150ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/foreign_output_captured_reference_exit rejected 6784ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	completed output has no captured lifetime-input receipt; completed output from `again` in machine `repeat`, state `entry` (Handle { arena_index: 2710, generation: 1 }), statement 0, call 0, loan Handle { arena_index: 14, generation: 1 }
 pass/borrows/foreign_output_copied_lifetime_last_use checked 2399ms @ccdb99ca2214
 pass/borrows/foreign_output_exclusive_anchor_exit checked 39004ms check-target:macos_arm64 @e8e0e531e729
 pass/borrows/foreign_output_nested_shared_input_exit checked 2541ms check-target:macos_arm64 @b3091681227f
@@ -20519,7 +20534,8 @@ pass/build/named_map_target_family_rows_exit checked 40091ms check-target:macos_
 pass/build/native_component_case_cycle checked 6940ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_case_loan_cycle checked 7041ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/native_component_reuse_foreign checked 6215ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/native_component_reuse_foreign rejected 13896ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
 pass/build/native_row_outranks_scoped_implementations_exit checked 13552ms check-target:macos_arm64 @4815ea579d91
 pass/build/nested_generated_dependency_dual_purpose checked 4792ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_provider_readiness checked 11097ms check-target:macos_arm64 @ccdb99ca2214
@@ -20611,7 +20627,8 @@ pass/calls/by_value_case_param_self_write_exit checked 21790ms check-target:maco
 pass/calls/call_local_reassign checked 4318ms @ccdb99ca2214
 pass/calls/callback_borrowed_record_entry checked 153166ms check-target:macos_arm64 @6e30f0a63175
 pass/calls/callback_borrowed_scalar_entry checked 134901ms check-target:macos_arm64 @6e30f0a63175
-pass/calls/callback_future_registration_cycle checked 22011ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/callback_future_registration_cycle rejected 28101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
 pass/calls/callback_mixed_formal_entry checked 241092ms check-target:macos_arm64 callback-telescope-controls:match terminal-inspections:match @6e30f0a63175
 pass/calls/callback_owned_float_record checked 127290ms check-target:macos_arm64 @6e30f0a63175
 pass/calls/callback_owned_float_record_packing checked 161744ms check-target:macos_arm64 @6e30f0a63175
@@ -20731,7 +20748,8 @@ pass/calls/owned_state_parameter_call_exit checked 15998ms check-target:macos_ar
 pass/calls/prefix_effectful_call checked 9472ms @7b4244a67630
 pass/calls/private_arrival_guarded_helper_range_exit checked 9944ms check-target:macos_arm64 @6f6402629925
 pass/calls/private_arrival_identity_return_range_exit checked 9976ms check-target:macos_arm64 @6f6402629925
-pass/calls/private_callback_call_closure checked 22551ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/private_callback_call_closure rejected 27291ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `macos_arm64`
 pass/calls/projected_receiver_callee checked 7606ms @911f6617ba9e
 pass/calls/qualified_record_call_result_field_exit checked 16957ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
@@ -20742,7 +20760,8 @@ pass/calls/requires_carrier_ceiling_vacuous checked 11756ms check-target:macos_a
 pass/calls/requires_machine_explicit_operational_closers_exit checked 1220ms check-target:macos_arm64 @45fb2a705c96
 pass/calls/requires_operand_flip_discharge checked 16267ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/result_overload_terminal_arm_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/resultless_native_callback_compile checked 18398ms check-target:linux_x86_64 @ccdb99ca2214
+pass/calls/resultless_native_callback_compile rejected 25829ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `linux_x86_64`
 pass/calls/retained_receiver_argument_order_exit checked 17156ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/returned_nested_record_disjoint_field_move_exit checked 1391ms check-target:macos_arm64 @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:macos_arm64 @1e127a84987a
@@ -20965,7 +20984,9 @@ pass/capabilities/derives_through_helper checked 3716ms check-target:macos_arm64
 pass/capabilities/external_leaf_binding_forms checked 3581ms check-target:macos_arm64 @ccdb99ca2214
 pass/capabilities/recursive_synchronous_invocations checked 16691ms check-target:macos_arm64 @4815ea579d91
 pass/capabilities/runtime_qualified_record_return_exit checked 4065ms check-target:macos_arm64 @ccdb99ca2214
-pass/capabilities/selected_applied_synchronous_chain_exit checked 5671ms check-target:macos_arm64 declared-invocation-controls:match terminal-inspections:match @de604282e098
+pass/capabilities/selected_applied_synchronous_chain_exit rejected 18896ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+declared-invocation-controls:match+terminal-inspections:match @583d51f8f4a3
+	machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+	inspection Main::main admission: [Diagnostic { severity: Error, message: "machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/capabilities/selected_synchronous_chain_exit checked 14585ms check-target:macos_arm64 @4815ea579d91
 pass/capabilities/selected_synchronous_helper_ceiling_exit checked 5570ms check-target:macos_arm64 declared-invocation-controls:match terminal-inspections:match @de604282e098
 pass/capabilities/sysv_small_aggregate_import_compile checked 52474ms check-target:linux_x86_64 @e8e0e531e729
@@ -21289,6 +21310,7 @@ pass/contracts/policy_field_ensures checked 3562ms @ccdb99ca2214
 pass/contracts/private_arrival_cases_exit checked 4374ms check-target:macos_arm64 @3cc4d80d3988
 pass/contracts/proof_fact_indexed_domain_application checked 11823ms @089c0a150e63
 pass/contracts/range_requires_discharge checked 3350ms @ccdb99ca2214
+pass/contracts/rankless_cycle_guarantee_holds_at_producers checked 7863ms @9fafe3f2b7ef
 pass/contracts/recurrent_call_prefix_preserves_model checked 3269ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/recursive_private_arrival_exit checked 3358ms check-target:macos_arm64 @7391b2ce665a
 pass/contracts/requires_narrow_ceiling_unproven checked 16071ms check-target:macos_arm64 @ccdb99ca2214
@@ -26030,15 +26052,15 @@ pass/facts/write_only_ieee_store_readback_through_other_machine_exit checked 597
 pass/facts/write_only_ieee_store_readback_through_other_state_exit checked 5919ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_ieee_store_readback_through_parameter_exit checked 6445ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_ieee_store_readback_through_target_body_exit checked 7695ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 3474ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 3266ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_field_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_local_exit checked 3596ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 4014ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_other_machine_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 3358ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 4143ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 4526ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/write_only_indexed_reborrow_through_call_result_exit checked 11894ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_const_name_exit checked 12382ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_field_exit checked 11884ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_local_exit checked 11940ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_match_join_exit checked 11802ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_other_machine_exit checked 11856ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 11762ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 11369ms check-target:macos_arm64 @2e348e6b2dca
+pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 15829ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @2e348e6b2dca
 pass/facts/write_only_match_join_through_call_result_exit checked 42871ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/write_only_match_join_through_const_name_exit checked 37490ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/write_only_match_join_through_field_exit checked 43846ms check-target:macos_arm64 @c79bb8268163+wt
@@ -26608,16 +26630,18 @@ pass/host/runtime_macos_image_snapshot_exit checked 179455ms check-target:macos_
 pass/host/runtime_native_scalar_reference_ingress_exit checked 4001ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_returned_scalar_field_reference_sibling_exit checked 64423ms check-target:macos_arm64 @e8e0e531e729
 pass/host/runtime_scalar_reference_backing_export_exit checked 70716ms check-target:linux_x86_64 @e8e0e531e729
-pass/host/runtime_semantic_gui_reach_exit checked 26552ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_semantic_gui_reach_exit rejected 27595ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @583d51f8f4a3
+	a value call to generic machine `macos_window_create` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+	argument `title` for state `macos_window_create` expects `&[u8; Count]`, got `indexed value`; expected carrier `ref(array(named(name(u8)),const-parameter(nominal\\(package-owner\\(32:3416f1fa8976bb34522dcbc03dc068368a50882e8bee6dd9dac36beef5116ce6\\)\\,path\\(macos_window_create::Count\\)\\))))`, declared place carrier `named(name(u8))`
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 22295ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 18172ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_windows_gui_argument_failures_exit checked 15063ms check-target:windows_x86_64 @ccdb99ca2214
-pass/host/scalar_reference_mixed_backing_foreign_export rejected 3491ms expected check-target:linux_x86_64 native-rejection:match @ccdb99ca2214
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(4)), operation: Some(OperationId(49)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
-pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 10375ms expected check-target:linux_x86_64 native-rejection:match @911f6617ba9e
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(25)), operation: Some(OperationId(261)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
-pass/host/scalar_reference_narrow_backing_foreign_export rejected 3974ms expected check-target:linux_x86_64 native-rejection:match @ccdb99ca2214
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(3)), operation: Some(OperationId(41)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/scalar_reference_mixed_backing_foreign_export rejected 7766ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
+	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
+pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 8108ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
+	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
+pass/host/scalar_reference_narrow_backing_foreign_export rejected 7717ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
+	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
 pass/host/std_clock_explicit_override_exit checked 8639ms check-target:macos_arm64 @b852a38544d0
 pass/host/std_clock_sleep_exit checked 11855ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/user32_window_procedure_registration checked 25394ms check-target:windows_x86_64 @17566023e3d8
@@ -27422,7 +27446,7 @@ pass/proofs/runtime_sequential_ranked_components_exit rejected 10212ms check-tar
 	cannot prove ensures contract for exit from descend at statement 2: result <= previous
 pass/proofs/runtime_sequential_relational_accumulator_exit rejected 10107ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 2: result <= previous
-pass/proofs/runtime_static_result_projection_citation_exit checked 13375ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/runtime_static_result_projection_citation_exit checked 63471ms check-target:macos_arm64 @860ee26eb0c7
 pass/proofs/runtime_two_state_accumulator_exit rejected 11911ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 1: result <= previous
 pass/proofs/scalar_copy_guard_const_forwarding checked 2207ms @ccdb99ca2214
@@ -27436,25 +27460,16 @@ pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:
 pass/proofs/selected_boolean_policy_attached_exit checked 3562ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_boolean_policy_exit checked 3545ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_map_law_application_exit checked 7701ms check-target:macos_arm64 @089c0a150e63
-pass/proofs/selected_specification_requires_composition rejected 1567ms regressed-from:checked @ccdb99ca2214
-	specification call `Right` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Left` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Second` is not denotational: the selected machine is not unconditionally terminating
-	specification call `First` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_exact rejected 2065ms regressed-from:checked @ccdb99ca2214
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_renamed rejected 1643ms regressed-from:checked @ccdb99ca2214
-	specification call `Choice` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_state rejected 8ms regressed-from:checked @ccdb99ca2214
-	tests/omega/pass/proofs/selected_specification_requires_state/main.omg:11:5: expected transition subject expression
+pass/proofs/selected_specification_requires_composition checked 16453ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_exact checked 18776ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_renamed checked 15986ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_state checked 14631ms @860ee26eb0c7
 pass/proofs/separated_range_result_exit checked 4035ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/short_circuit_rhs_entry_bound checked 3822ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/specification_case_exclusion_unique_payload checked 5321ms @ceec2d4e7d8b
 pass/proofs/static_machine_result_projection checked 2679ms @ccdb99ca2214
 pass/proofs/stride_pair_telescope checked 6824ms @d352d5e8e77e
-pass/proofs/structural_application_decreasing_actuals_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/structural_application_decreasing_actuals_exit checked 9748ms check-target:macos_arm64 @860ee26eb0c7
 pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit checked 20405ms check-target:macos_arm64 @4815ea579d91
@@ -27524,8 +27539,11 @@ pass/providers/finite_requirement_direct_provider_exit checked 10288ms check-tar
 pass/providers/finite_requirement_forwarded_const_exit checked 8474ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/float_operator_demands_its_provider_exit checked 11563ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/foreign_address_result_release_exit checked 17850ms check-target:linux_x86_64 @2be83686053c
-pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
-	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
+pass/providers/foreign_indirect_record_distinct_exit rejected 9088ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `AllocationProbe::statistics`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::allocate`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::release`, which the program entry reaches on target `linux_x86_64`
 pass/providers/foreign_indirect_record_relay_exit checked 19532ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_indirect_record_result_exit checked 19302ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_multiregister_result_exit checked 71755ms check-target:macos_arm64 @e8e0e531e729
@@ -27615,7 +27633,8 @@ pass/providers/runtime_provider_mutable_reference_exit checked 8033ms check-targ
 pass/providers/runtime_provider_mutable_reference_forward_exit checked 9729ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_owned_reference_exit checked 9887ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_alias_exit checked 8720ms check-target:linux_x86_64 @17566023e3d8
-pass/providers/runtime_provider_reference_allocation_exit checked 19158ms check-target:linux_x86_64 @b67195dbc8f8
+pass/providers/runtime_provider_reference_allocation_exit rejected 7085ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	machine `initialize_frame` state `entry` statement 3: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
 pass/providers/runtime_provider_reference_computed_exit checked 9439ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_deep_exit checked 8673ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_nested_exit checked 10042ms check-target:linux_x86_64 @17566023e3d8
@@ -28437,6 +28456,7 @@ pass/traits/conformance_unused_lifetime_scope_exit checked 3746ms check-target:m
 pass/traits/contract_call_captured_trait_static_argument_exit checked 4208ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_forwarded_static_arguments_exit checked 3312ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_proposition_alias_correspondence checked 2379ms @ccdb99ca2214
+pass/traits/crashes_none_requirement_member_exit checked 6953ms check-target:macos_arm64 @a69c99f44f09
 pass/traits/default_member_shadowing_exit checked 13711ms check-target:macos_arm64 @4815ea579d91
 pass/traits/default_row_captured_invocation_regions_exit checked 3251ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/default_row_domain_region_scopes checked 2185ms @ccdb99ca2214
@@ -28653,6 +28673,7 @@ run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @
 run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
 run/borrows/indexed_loan_element_write checked 75455ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/local_mut_borrow checked 80383ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/local_sibling_field_write_beside_live_loan checked 6723ms check-target:macos_arm64 @2e348e6b2dca
 run/borrows/mut_record_loan_member_access checked 62881ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/owned_array_view_establishment checked 3072ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/probe_shared_len checked 59658ms check-target:macos_arm64 @c3cb68d51f3f
@@ -28890,6 +28911,7 @@ run/state_owned_nested_borrow checked 71041ms check-target:macos_arm64 @c3cb68d5
 run/state_shared_nested_backing checked 28142ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_indexed_call_result_exit checked 65257ms check-target:macos_arm64 @c3cb68d51f3f
 run/stores/runtime_float_store_selector_snapshot_exit checked 54937ms check-target:macos_arm64 @c3cb68d51f3f
+run/testing/registered_group_runs_on_both_engines checked 8931ms check-target:macos_arm64 @557ef57441f8
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
 run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7

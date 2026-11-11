@@ -2684,7 +2684,7 @@ fn visit_data(
     if let Some(selection) = &data.cleanup_selection {
         visit_cleanup_selection(program, retained, selection);
     }
-    visit_proof_facts(program, retained, data.where_facts);
+    visit_proof_facts(program, retained, data.requires_facts);
     for member in program.data_members(data) {
         match member {
             crate::data::DataMember::Field(field) => {
@@ -2694,7 +2694,7 @@ fn visit_data(
                 for field in program.data_payload_fields(variant) {
                     visit_type_reference(program, retained, field.type_reference);
                 }
-                visit_proof_facts(program, retained, variant.where_facts);
+                visit_proof_facts(program, retained, variant.requires_facts);
             }
         }
     }
@@ -3219,6 +3219,14 @@ fn visit_statement(
         }
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
+            for field in program.expression_table.match_fields(local.pattern_fields) {
+                if field.field_symbol.is_valid() {
+                    visit_symbol(retained, field.field_symbol);
+                }
+            }
+            if local.pattern_subject.is_valid() {
+                visit_symbol(retained, local.pattern_subject);
+            }
         }
         StatementNode::Assignment(assignment) => {
             if retained.derived_declaration_references() {

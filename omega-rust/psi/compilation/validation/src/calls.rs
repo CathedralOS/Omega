@@ -581,14 +581,14 @@ pub(crate) mod argument_bounds {
         else {
             return;
         };
-        let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+        let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
             let dependent = program
                 .data_members(definition)
                 .iter()
                 .filter_map(|member| member.as_field())
                 .find(|source| source.symbol == field.field_symbol)
                 .is_none_or(|source| {
-                    !crate::declarations::data_queries::data_field_is_where_independent(
+                    !crate::declarations::data_queries::data_field_is_requires_independent(
                         program, definition, source,
                     )
                 });
@@ -6435,6 +6435,11 @@ pub(crate) mod unit_returns {
                 ),
                 Some(BuildOperation::ServiceAudit) => (
                     AuthoredDeclarationSelectionIntrinsic::BuildServiceAudit,
+                    1..=1,
+                    1..=1,
+                ),
+                Some(BuildOperation::TestGroupRegistration) => (
+                    AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration,
                     1..=1,
                     1..=1,
                 ),

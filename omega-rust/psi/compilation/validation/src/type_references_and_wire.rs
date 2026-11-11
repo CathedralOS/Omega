@@ -1601,7 +1601,7 @@ pub mod type_references {
                     .map(|definition| {
                         program
                             .proof_facts
-                            .span_or_empty(definition.where_facts)
+                            .span_or_empty(definition.requires_facts)
                             .iter()
                             .filter_map(typed_trees::domain::ProofFact::as_expression)
                             .copied()
@@ -2707,7 +2707,7 @@ pub mod type_references {
                     super::const_predicates::validate(
                         program,
                         definition,
-                        definition.where_facts,
+                        definition.requires_facts,
                         &declared_fields,
                         fields,
                         SymbolHandle::invalid(),
@@ -2778,7 +2778,7 @@ pub mod type_references {
                     super::const_predicates::validate(
                         program,
                         definition,
-                        definition.where_facts,
+                        definition.requires_facts,
                         &declared_fields,
                         fields,
                         variant.symbol,
@@ -2786,7 +2786,7 @@ pub mod type_references {
                     super::const_predicates::validate(
                         program,
                         definition,
-                        variant.where_facts,
+                        variant.requires_facts,
                         &declared_fields,
                         fields,
                         variant.symbol,
@@ -2896,7 +2896,7 @@ pub mod type_references {
                     "quotient data `{name}` has no compiler-verified canonical representative"
                 ));
             }
-            if !definition.where_facts.is_empty() {
+            if !definition.requires_facts.is_empty() {
                 return Err(format!(
                     "data `{name}` has default-domain facts whose index-site proof is not implemented"
                 ));

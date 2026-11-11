@@ -1070,7 +1070,7 @@ pub(crate) mod initializer_dependencies {
                     if let Some(application) = &definition.generic_instance {
                         self.queue_type(application);
                     }
-                    self.predicate_facts(definition.where_facts)?;
+                    self.predicate_facts(definition.requires_facts)?;
                 }
                 if let Some(quotient) = &definition.quotient {
                     self.queue_type(&quotient.carrier);
@@ -1084,7 +1084,7 @@ pub(crate) mod initializer_dependencies {
                         DataMember::Field(field) => self.queue_type(&field.type_reference),
                         DataMember::Variant(variant) => {
                             if self.purpose == super::DependencyPurpose::DeclarationReadiness {
-                                self.predicate_facts(variant.where_facts)?;
+                                self.predicate_facts(variant.requires_facts)?;
                             }
                             let fields = self.program.data_payload_fields(variant.payload);
                             if fields.len() != variant.payload.len() {

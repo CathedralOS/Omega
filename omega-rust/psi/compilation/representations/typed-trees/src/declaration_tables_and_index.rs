@@ -2080,6 +2080,19 @@ pub(crate) mod declaration_tables {
             rows.next().is_none().then_some((implementation, row))
         }
 
+        /// Whether `machine` is the inline member of a conformance row whose
+        /// requirement wrote `crashes none`.
+        pub fn realizes_crash_free_requirement(&self, machine: symbols::SymbolHandle) -> bool {
+            let Some((_, row)) = self.owned_conformance_realization(machine) else {
+                return false;
+            };
+            self.trait_definition_by_symbol(row.declaring_trait)
+                .and_then(|declaring| {
+                    self.trait_machine_signature_by_symbol(declaring, row.requirement)
+                })
+                .is_some_and(|requirement| requirement.declares_no_crash_route)
+        }
+
         pub fn owned_conformance_requirement_scope(
             &self,
             realization: symbols::SymbolHandle,
@@ -4816,11 +4829,15 @@ pub(crate) mod trait_and_machine_tables {
             anything fixes that ceiling: a public or bodyless declaration, an
             authored route, or `crashes none`. The last leaves no contract row
             to find, so a private body that wrote it is told from one that
-            omitted the clause by `declares_no_crash_route` alone.
+            omitted the clause by `declares_no_crash_route` alone. A member
+            that realizes a trait requirement which wrote `crashes none` is
+            held to that empty ceiling too: generics.md, "`crashes none`
+            admitting only crash-free members".
         */
         pub fn machine_publishes_crash_ceiling(&self, machine: &machine::Machine) -> bool {
             machine.is_public
                 || machine.declares_no_crash_route
+                || self.realizes_crash_free_requirement(machine.symbol)
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || self.machine_contracts(machine).iter().any(|contract| {
                     matches!(

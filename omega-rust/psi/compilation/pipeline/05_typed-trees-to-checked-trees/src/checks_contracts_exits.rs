@@ -6514,7 +6514,7 @@ mod scalars {
 
                 Comparisons against that window are decided by cancelling the shared
                 linear terms, then reading only the residual against parameter bounds or
-                an unwritten field's `where` facts.
+                an unwritten field's `requires` facts.
                 A negative dividend does not have this window: the product can sit
                 strictly above the dividend. Wrapping or saturating carriers are not
                 exact truncating division and stay on the interval path.
@@ -6556,7 +6556,7 @@ mod scalars {
             /*
                 A linear unknown. Two field spellings of the same root and member are one
                 atom even when their expression handles differ, so cancellation still sees
-                them. The retained place is only how the field's `where` interval is read.
+                them. The retained place is only how the field's `requires` interval is read.
             */
             #[derive(Clone, Copy)]
             enum LinearAtom {
@@ -6977,7 +6977,7 @@ mod scalars {
                 }
 
                 /*
-                    One field of a parameter, unread by this state. Its `where` facts are
+                    One field of a parameter, unread by this state. Its `requires` facts are
                     what every store preserves, so they bound the field here without
                     replaying a mutable arrival.
                 */

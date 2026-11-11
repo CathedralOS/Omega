@@ -2441,10 +2441,9 @@ mod summary {
     use validation::find_call_site;
     use validation::{
         CallFrameResolver, CallSite, CanonicalPlace, ContentsRequirement, LocalWriteOrigin,
-        assignment_stored_value_type, atomic_assignment_carrier, atomic_once_carrier,
-        canonical_place_type_reference, checking_thread_pool, find_state, has_contents,
-        place_is_atomic_storage, project_type_reference_from_segments, reference_shell,
-        storage_origin_types_match, transition_call_target,
+        assignment_stored_value_type, atomic_once_carrier, canonical_place_type_reference,
+        checking_thread_pool, find_state, has_contents, project_type_reference_from_segments,
+        reference_shell, storage_origin_types_match, transition_call_target,
     };
 
     use crate::flow::indexed_statements;
@@ -3277,9 +3276,8 @@ mod summary {
             let Some(assignment) = statement.as_assignment() else {
                 continue;
             };
-            let requires_exclusive_access = !(atomic_assignment_carrier(program, assignment)
-                .is_some()
-                && place_is_atomic_storage(program, machine, Some(state), assignment.target));
+            let requires_exclusive_access =
+                super::assignment_requires_exclusive_access(program, machine, state, assignment);
             let regions = local_origins::assignment_storage_regions(
                 program,
                 machine_symbol,
@@ -3815,6 +3813,23 @@ mod summary {
                 _ => true,
             })
     }
+}
+
+/*
+    A sealed atomic event on dedicated atomic storage uses shared access: a
+    shared loan of that cell authorizes it, while an exclusive or write-only
+    loan still excludes it. Every other assignment, including ordinary
+    replacement of an atomic cell, demands exclusive access. Call summaries and
+    the statement borrow check both read this one judgment.
+*/
+pub(crate) fn assignment_requires_exclusive_access(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> bool {
+    !(validation::atomic_assignment_carrier(program, assignment).is_some()
+        && validation::place_is_atomic_storage(program, machine, Some(state), assignment.target))
 }
 
 pub(crate) use ceiling::linear_restoration_ceiling_regions;

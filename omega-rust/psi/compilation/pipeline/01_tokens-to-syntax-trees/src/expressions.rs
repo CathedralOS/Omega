@@ -1440,7 +1440,6 @@ pub(crate) mod parse_postfix {
                 let path = *path;
                 let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
                 let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
-
                 Ok(TableCallExpression {
                     target_is_static: true,
                     receiver,
@@ -1472,6 +1471,7 @@ pub(crate) mod parse_postfix {
                 "call target must be a path or member access",
             )),
         }?;
+        let call = spell_test_group_facet(syntax_trees, call);
         let source = call.target.source_span();
         let expression = exprs(syntax_trees).insert(ExpressionNode::Call(call));
         exprs(syntax_trees).set_source_span(expression, source);
@@ -1869,6 +1869,53 @@ pub(crate) mod parse_postfix {
             },
             rest,
         ))
+    }
+
+    /*
+        `owner.tests.group<Requirement>()` registers a test group through the
+        Build's `tests` facet (wiki/spec/build/testing.md). The facet is a value
+        operand, so its receiver takes the same member projection an ordinary
+        `owner.tests` value does rather than the static path a dotted call
+        prefix otherwise becomes. Every other call keeps its parsed receiver.
+    */
+    fn spell_test_group_facet(
+        syntax_trees: &mut SyntaxTrees,
+        mut call: TableCallExpression,
+    ) -> TableCallExpression {
+        if call.target.as_str(syntax_trees) != "group"
+            || call.machine_arguments.is_empty()
+            || !call.receiver.is_valid()
+        {
+            return call;
+        }
+        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(call.receiver) else {
+            return call;
+        };
+        let path = *path;
+        let members = exprs_of(syntax_trees)
+            .identifier_path_members(path)
+            .to_vec();
+        let [.., facet] = members.as_slice() else {
+            return call;
+        };
+        if members.len() < 2 || facet.as_str(syntax_trees) != "tests" {
+            return call;
+        }
+        let facet = facet.clone();
+        let owner_path = syntax_trees
+            .expressions
+            .copy_identifier_path_prefix(path, members.len() - 1);
+        let owner = exprs(syntax_trees).insert(ExpressionNode::Name(owner_path));
+        let receiver = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: owner,
+            access_source_span: facet.source_span(),
+            member: facet.clone(),
+            case_variant: None,
+        }));
+        exprs(syntax_trees).set_source_span(receiver, facet.source_span());
+        call.receiver = receiver;
+        call.target_is_static = false;
+        call
     }
 
     pub(crate) fn call_path_target_and_receiver(

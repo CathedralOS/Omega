@@ -1496,7 +1496,8 @@ pub(crate) mod provider_selections {
             let Some(
                 operation @ (BuildOperation::ProviderSelection
                 | BuildOperation::AssumedBindingContract
-                | BuildOperation::ServiceAudit),
+                | BuildOperation::ServiceAudit
+                | BuildOperation::TestGroupRegistration),
             ) = BuildOperation::from_call_target(call.target.as_str())
             else {
                 return Ok(None);
@@ -1509,7 +1510,9 @@ pub(crate) mod provider_selections {
                 BuildOperation::ProviderSelection => {
                     self.provider_composition_case(arguments, frame)?
                 }
-                BuildOperation::AssumedBindingContract | BuildOperation::ServiceAudit => {
+                BuildOperation::AssumedBindingContract
+                | BuildOperation::ServiceAudit
+                | BuildOperation::TestGroupRegistration => {
                     let [builder] = arguments else {
                         return trap(format!(
                             "{} registration takes exactly the mutable Build argument",
@@ -1648,6 +1651,7 @@ pub(crate) mod root_bindings {
                     protocol,
                     Some(
                         "prepare"
+                            | "prepare_tests"
                             | "bind"
                             | "bind_description"
                             | "select"
@@ -1685,7 +1689,7 @@ pub(crate) mod root_bindings {
             };
             let requires_selecting_machine = binding.requires_lexical_subject();
             let preparation = protocol.and_then(|name| match name {
-                "prepare" => Some(true),
+                "prepare" | "prepare_tests" => Some(true),
                 name if name == operation => Some(false),
                 _ => None,
             });
@@ -1699,13 +1703,16 @@ pub(crate) mod root_bindings {
                 let [receiver_expression] = arguments else {
                     return trap("root binding requires one explicit Build argument");
                 };
+                let facet = protocol == Some("prepare_tests");
                 let receiver = self.eval_read_cell(*receiver_expression, frame)?;
                 let receiver = self.deref_cell(receiver);
-                if !self
-                    .root_build
-                    .as_ref()
-                    .is_some_and(|root| Cell::ptr_eq(root, &receiver))
-                {
+                // Test-group registration is prepared through the original
+                // Build's own `tests` facet cell, not a copy of its value.
+                let original = match self.root_build.as_ref() {
+                    Some(root) if facet => Some(self.field_cell(root, "tests")?),
+                    root => root.cloned(),
+                };
+                if !original.is_some_and(|root| Cell::ptr_eq(&root, &receiver)) {
                     return trap(
                         "root binding requires the current activation's original Build value",
                     );

@@ -442,3 +442,107 @@ field of a foreign table?
 
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
+
+### Q9 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+
+Decision name: `applied-provider-cycle-selection`.
+
+**Customer.** `ENTRY-CONTENT-ROOTS` on [TASKS.md](TASKS.md) accepts
+`pass/capabilities/*` through `omega run --both`.
+`tests/omega/pass/capabilities/selected_applied_synchronous_chain_exit`
+declares `FirstStage<const Phase: u64> satisfies Stage<Phase>`, whose `read`
+calls `Stage<2u64>::read()`, and `SecondStage<const Phase: u64> satisfies
+Stage<Phase>`, whose `read` returns 73. Build selects `FirstStage<1u64>` for
+`Stage<1u64>` and `SecondStage<2u64>` for `Stage<2u64>`. Neither requirement
+nor implementation states `terminates`. The product requirement is a staged
+provider chain where one application's provider calls another application of
+the same boundary.
+
+The ledger records the row `checked`, but on current `main` checking rejects
+it on every target: *"machine call cycle: `FirstStage::read` can re-enter
+itself through a selector call or boundary requirement call; termination
+across implementation selection is not yet ranked"*. Without selection,
+`FirstStage<2u64>` is a supplied implementation of `Stage<2u64>`, so
+`FirstStage<2u64>::read` → `Stage<2u64>::read` → `FirstStage<2u64>::read` is
+an unranked cycle; only the Build row for `Stage<2u64>` removes it.
+
+**Gap.** Two ratified passages give different answers:
+
+- [Provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
+  *"Psi checks every supplied implementation independently of target
+  selection."* `tests/omega/fail/termination/unselected_implementation_reentry_rejected`
+  pins that an unranked cycle through an unselected implementation rejects.
+  Read alone, this fixture rejects.
+- [Termination](wiki/spec/language/termination.md), checked dependency row:
+  *"Instantiate the exact selected operation's termination premises under its
+  actual argument substitution."* With
+  [generic selected requirements](wiki/spec/build/provider_selection.md#generic-selected-requirements)
+  (*"The selected generic member must implement the public contract for every
+  admitted application"*), read alone, only the selected `SecondStage<2u64>`
+  is called and there is no cycle.
+
+Neither says whether "supplied" ranges over every application a generic
+implementation could satisfy, or only the applications Build admits for it.
+
+**Question.**
+
+- **(a)** Does Psi's selection-independent cycle check include
+  `FirstStage<2u64>` as a supplier of `Stage<2u64>`, so the fixture rejects
+  and moves to `fail/` (or gains a ranking or `terminates` promise)?
+- **(b)** Or does the check range only over the applications Build admits for
+  each generic implementation, so the fixture is accepted and the call graph
+  must follow the exact closed application?
+
+Until answered the row is left red and the call graph is unchanged.
+
+### Q10 - May a nested helper's body rely on facts its caller holds at the call?
+
+Decision name: `nested-helper-caller-facts`.
+
+**Customer.** Private nested helpers in ranked loops, the ordinary way to split one
+machine's step into named parts. `tests/omega/fail/termination/private_stored_reference_rank_no_ambient_helper_bound`
+declares `count`, which branches on `remaining.child.count > 0` and on the `true`
+arm transitions to its nested helper `forward(remaining, counter)`. `forward`
+declares only `requires pending.child.count <= 7` and computes
+`pending.child.count - 1`. Its single arrival is that `true` arm, so the
+subtraction cannot underflow when the program runs. The fixture pins
+"exact arithmetic in machine `forward`"; the current checker accepts it, and the
+ledger records it `checked`. The file still carries the header "Expected exit: 0"
+and has no positive twin.
+
+**Gap.** Two ratified passages give different answers:
+
+- [State contracts](wiki/spec/language/state_contracts.md):
+  *"Live caller facts can discharge a nested helper's requirements; body
+  inference must justify any inferred private requirements on every arrival,
+  not grant them from lexical ancestry."* Read alone, `forward` has an inferred
+  private requirement `pending.child.count > 0`, which its only arrival
+  justifies, so the program is valid. [Assembly](wiki/spec/language/assembly.md)
+  says the same for blocks: *"admissible private contract inference can
+  discharge those goals ... but every actual incoming edge must justify any
+  inferred requirement. Public contracts cannot silently strengthen from one
+  implementation's body."*
+- [Machines](wiki/spec/language/machines.md#nested-machines-and-identity):
+  *"Nested contracts can use that static context and their own parameters, not
+  another invocation's local values or live facts."* Read alone, `forward` is
+  judged by its own contract, which does not bound the subtraction, so the
+  program rejects. #2317's lowered-form comparison classified 8 `pass/`/`run/`
+  programs as current-checker errors on this reading, among them
+  `runtime_boolean_divisor_state_exit`, `private_division_exact_pair_exit` and
+  `private_arrival_guarded_helper_range_exit`: each has a nested machine with
+  no `requires` that divides, multiplies or subtracts using its caller's path facts.
+
+Neither says whether a requirement inferred from a nested helper's body is part
+of "their own" contract, or is one of the caller's "live facts" the helper may
+not use.
+
+**Question.**
+
+- **(a)** May a private nested helper carry requirements inferred from its body,
+  each justified on every arrival? Then the fixture is a valid program and
+  moves to `pass/`, and the 8 programs stay accepted.
+- **(b)** Or is a nested helper judged only by its authored contract? Then the
+  fixture rejects, the 8 programs move to `fail/` or gain a `requires`, and the
+  state-contracts sentence on inferred private requirements needs narrowing.
+
+Until answered the row is left as recorded and the checker is unchanged.

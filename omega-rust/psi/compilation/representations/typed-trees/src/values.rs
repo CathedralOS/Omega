@@ -2293,6 +2293,17 @@ pub mod expression {
                 copied
             }
 
+            /// A record pattern's field roster: it names no expression, so
+            /// the rows copy as they stand.
+            pub fn copy_pattern_fields_from(
+                &mut self,
+                source: &ExpressionTable,
+                fields: HandleSpan<super::TableMatchField>,
+            ) -> HandleSpan<super::TableMatchField> {
+                let fields = source.match_fields(fields).to_vec();
+                self.insert_match_fields(fields)
+            }
+
             fn copy_destructure_pattern<RetainField>(
                 &mut self,
                 source: CopySource<'_>,

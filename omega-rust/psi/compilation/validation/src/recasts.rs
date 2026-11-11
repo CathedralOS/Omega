@@ -854,7 +854,7 @@ pub(crate) mod pending_views {
             let established = place.as_ref().is_some_and(|place| {
                 program
                     .proof_facts
-                    .span_or_empty(view.definition.where_facts)
+                    .span_or_empty(view.definition.requires_facts)
                     .iter()
                     .all(|fact| {
                         fact.as_expression().is_some_and(|predicate| {
@@ -1924,7 +1924,7 @@ pub(crate) mod recast_judgments {
             })
             .map(|mut facts| {
                 if let Some(interval) =
-                    crate::proof_contracts::default_domains::stored_field_where_interval(
+                    crate::proof_contracts::default_domains::stored_field_requires_interval(
                         program, machine, state, source,
                     )
                 {
@@ -2442,7 +2442,7 @@ pub(crate) mod record_eligibility {
                         let members = program.data_members(data);
                         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
                             || data.quotient.is_some()
-                            || !data.where_facts.is_empty()
+                            || !data.requires_facts.is_empty()
                             || data.zero_gated
                             || typed_trees::data::DataDefinition::shape_kind_from_members(members)
                                 != typed_trees::data::DataShapeKind::Record
@@ -2512,7 +2512,7 @@ pub(crate) mod record_eligibility {
             || !closed_record_generic_origin_is_eligible(program, instance)
             || instance.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || instance.quotient.is_some()
-            || !instance.where_facts.is_empty()
+            || !instance.requires_facts.is_empty()
             || instance.zero_gated
         {
             return None;
@@ -3430,12 +3430,12 @@ pub(crate) mod record_representation {
             return None;
         }
         let definition = program.closed_data_field_definition(semantic)?;
-        (!definition.where_facts.is_empty()
+        (!definition.requires_facts.is_empty()
             && program.type_multiplicity(semantic)
                 == language_semantics::Multiplicity::Unrestricted
             && program
                 .proof_facts
-                .span_or_empty(definition.where_facts)
+                .span_or_empty(definition.requires_facts)
                 .iter()
                 .all(|fact| fact.as_expression().is_some()))
         .then_some(definition)
@@ -3631,19 +3631,19 @@ pub(crate) mod record_representation {
         };
         let predicate_pending = budget.pending_predicate_owner
             == Some((semantic_data.symbol, semantic_data.generic_instance));
-        let where_bounds = if predicate_pending {
+        let requires_bounds = if predicate_pending {
             Some(Vec::new())
         } else {
-            crate::proof_contracts::default_domains::data_where_field_representation_bounds(
+            crate::proof_contracts::default_domains::data_requires_field_representation_bounds(
                 program,
                 semantic_data,
             )
         };
-        let Some(where_bounds) = where_bounds else {
+        let Some(requires_bounds) = requires_bounds else {
             visiting.remove(&symbol_identity);
             return None;
         };
-        if semantic_data.zero_gated && where_bounds.is_empty() && !predicate_pending {
+        if semantic_data.zero_gated && requires_bounds.is_empty() && !predicate_pending {
             visiting.remove(&symbol_identity);
             return None;
         }
@@ -3683,7 +3683,7 @@ pub(crate) mod record_representation {
                 }
                 None => field.symbol,
             };
-            let field_bounds = where_bounds
+            let field_bounds = requires_bounds
                 .iter()
                 .filter(|bound| bound.field() == semantic_field)
                 .copied()

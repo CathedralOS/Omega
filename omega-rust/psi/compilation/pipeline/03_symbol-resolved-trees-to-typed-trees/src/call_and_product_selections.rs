@@ -116,7 +116,17 @@ pub(crate) mod build_selections {
                     .with_source_span(source_span)
                 })
         };
-        let preparation = find("prepare")?;
+        // Test-group registration is authorized by the Build's own `tests`
+        // facet, the operand it was authored on; every other selection by the
+        // original Build value.
+        let preparation = find(match &request {
+            BuildSelectionRequest::Declaration(binding)
+                if binding.operation == BuildOperation::TestGroupRegistration =>
+            {
+                "prepare_tests"
+            }
+            _ => "prepare",
+        })?;
         let commit = find(operation)?;
         let value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
@@ -1859,6 +1869,59 @@ pub(crate) mod product_selections {
     };
     use symbols::JoinedPath;
 
+    /*
+        `builder.tests.group<Requirement>()` is the testing facet's spelling of
+        a designated Build registration (wiki/spec/build/testing.md). It shares
+        the one designated-operand carrier with `Build::<operation><…>(builder)`:
+        the `tests` facet becomes the one explicit argument and the Build
+        prelude data the namespace, so typing, checking, execution and admission
+        never see a second receiver-shaped route. A resolved user method keeps
+        ordinary resolution; only the unresolved toolchain spelling with no
+        ordinary arguments takes this route. Its preparation (`prepare_tests`)
+        is typed against `BuildTests` and authenticated by the evaluator as the
+        activation's original Build facet, never a copied or authored value.
+    */
+    pub(crate) fn test_group_facet(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        expressions: &symbol_resolved_trees::expression::ExpressionTable,
+        receiver: symbol_resolved_trees::expression::ExpressionHandle,
+        target: symbols::SymbolHandle,
+        name: &str,
+        ordinary_count: usize,
+    ) -> Option<symbols::SymbolHandle> {
+        use symbol_resolved_trees::expression::ExpressionNode;
+        if name != BuildOperation::TestGroupRegistration.authored_spelling()
+            || target.is_valid()
+            || ordinary_count != 0
+            || !receiver.is_valid()
+        {
+            return None;
+        }
+        let facet = match expressions.expression(receiver) {
+            ExpressionNode::Member(member) => {
+                member.case_variant.is_none() && member.member.as_str() == "tests"
+            }
+            ExpressionNode::Name(path) => {
+                path.members.count() >= 2
+                    && expressions
+                        .name_path_members(path.members)
+                        .last()
+                        .is_some_and(|member| member.as_str() == "tests")
+            }
+            _ => false,
+        };
+        if !facet {
+            return None;
+        }
+        source
+            .data_definitions
+            .iter()
+            .find(|data| {
+                data.name.as_str() == "Build" && source.symbols.is_build_prelude_symbol(data.symbol)
+            })
+            .map(|data| data.symbol)
+    }
+
     pub(crate) fn request(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         typed: &mut typed_trees::TypedTrees,
@@ -1934,6 +1997,7 @@ pub(crate) mod product_selections {
                 BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
+                BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",
