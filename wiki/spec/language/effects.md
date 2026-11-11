@@ -42,6 +42,24 @@ any nonempty derived service row. The keyword with no value is malformed.
 Omission requests inference and is distinct from an explicit empty clause. Reach does not count local mutation as a service,
 and empty reach promises neither termination nor absence of blocking or crashes.
 
+A derived reach that exceeds its ceiling rejects at the call that contributes
+the excess. The diagnostic names that call, the identities its requirement
+declares, and the ceiling. A boundary call contributes what its requirement
+declares and not the called trait's name, so a ceiling that names the slot
+does not cover its operations:
+
+```omega
+boundary trait WallClock: ClockOps<NoState> {}     // now: reaches TimeObservation
+
+machine stamp_now(entry: &mut Entry) reaches WallClock {
+    entry.at = WallClock::now(&mut none);    // Rejected: contributes TimeObservation.
+}
+```
+
+When the ceiling names the called trait and omits what the call contributes,
+the diagnostic says so and lists the identities to name: here,
+`reaches TimeObservation`.
+
 All machine clauses have no clause-ending semicolon. A following clause or body
 delimits the current clause. A bodyless declaration still has its final
 declaration semicolon: `machine call() reaches none suspends blocks;` ends one
