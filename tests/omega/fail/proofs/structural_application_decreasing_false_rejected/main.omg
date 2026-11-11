@@ -19,6 +19,9 @@ terminates by value
     }
 }
 machine closed_question()
-ensures collapse(Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }) == (Nat::Succ { prev: Nat::Zero })
+ensures core::Identity<Nat>(
+    collapse(Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }),
+    Nat::Succ { prev: Nat::Zero }
+)
 {}
 machine main() { closed_question(); }

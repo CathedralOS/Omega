@@ -2504,8 +2504,8 @@ fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833e
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
 	the selected composition retains crash cause Trap through machine `Trapping::check` (Terminal machine 3) declared here
-fail/build/retained_const_argument_out_of_carrier rejected 956ms expected @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "integer node `u8(257)` does not fit exact carrier `u8`", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/build/retained_const_argument_out_of_carrier rejected 4401ms expected @4a802009dabd
+	integer node `u8(257)` does not fit exact carrier `u8`
 fail/build/retained_domain_and_service_rows_invalid_index rejected 1077ms expected @ccdb99ca2214
 	cannot prove scalar result domain for return from @const-qualification-INDEX-0 at statement 0: Below
 fail/build/retired_assumed_binding_receiver rejected 3ms expected @ccdb99ca2214
@@ -6884,8 +6884,8 @@ fail/facts/case_where_equality_data_predicate_arithmetic_before_restore_rejected
 	exact arithmetic in machine `main` state `entry` local `unsafe_delta` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_where_equality_data_predicate_nested_payload_carriage_rejected rejected 2260ms expected @911f6617ba9e
 	exact arithmetic in machine `pair_width` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 910ms expected @563a0d1cc67a
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form named-domain membership: the logical data subject's own default domain is still pending admission", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 345, end: 349 } }), resolved_location: None })
+fail/facts/case_where_equality_data_predicate_nested_subject_domain_rejected rejected 1960ms expected @4a802009dabd
+	cannot form named-domain membership: the logical data subject's own default domain is still pending admission
 fail/facts/case_where_equality_data_predicate_partial_call_rejected rejected 2070ms expected @911f6617ba9e
 	cannot prove requires contract for specification call `needs_equal` in data `Interval` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 	exact arithmetic in machine `width` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -14978,8 +14978,8 @@ fail/generics/captured_map_wrong_capture_category rejected 268ms expected @ccdb9
 	conformance `Selected` parameter `Captured` requires a const argument, but `bool` has another static category
 fail/generics/closed_indexed_domain_mismatch rejected 1992ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Units::SECOND>==Quantity<Units::METER>` is not established: actual `Quantity<Units::SECOND>` and expected `Quantity<Units::METER>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/generics/closed_record_const_field_wrong_carrier rejected 23031ms expected @911f6617ba9e
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "closed const argument has an invalid construction: expected a canonical integer node for `u64`", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/generics/closed_record_const_field_wrong_carrier rejected 21627ms expected @4a802009dabd
+	closed const argument has an invalid construction: expected a canonical integer node for `u64`
 fail/generics/closed_requirement_const_callback_extent rejected 16380ms expected @32c7663ba3ad
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
@@ -15800,8 +15800,8 @@ fail/generics/type_index_distinct_binders rejected 1882ms expected @ccdb99ca2214
 fail/generics/type_index_wrong_telescope rejected 1700ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:exit-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/generics/typed_const_probe_false_extent_requires rejected 2605ms expected @69dce27d6ba1
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot prove requires contract for specification call `extent` in closed const argument: the instantiated fact is structurally false", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/generics/typed_const_probe_false_extent_requires rejected 1878ms expected @4a802009dabd
+	cannot prove requires contract for specification call `extent` in closed const argument: the instantiated fact is structurally false
 fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @c5cc3d874922+wt
 	const-generic application evaluation failed: constant invocation retains unhandled [Trap] routes at its concrete arguments
 fail/generics/typed_const_probe_unused_bad_scalar rejected 310ms expected @911f6617ba9e
@@ -16984,8 +16984,8 @@ fail/places/requires_window_open_at_use rejected 10579ms expected @3c2248e5b4af
 	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Span`) unproved; restore them first
 fail/ports/asm_port_in_missing_reach rejected 9548ms expected @8e3c139d8359
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
-fail/proofs/accepted_axiom_engine_veto rejected 7934ms expected @ccdb99ca2214
-	accepted boundary machine `false_axiom` claims `Nat == Nat`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
+fail/proofs/accepted_axiom_engine_veto rejected 17996ms expected @4a802009dabd
+	accepted boundary machine `false_axiom` claims `core::Identity<Nat>(Nat, Nat)`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
 fail/proofs/accumulator_guarantee_unbounded_formals rejected 13322ms expected @ccdb99ca2214
 	exact arithmetic in machine `climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `climb` state `entry` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -17034,9 +17034,9 @@ fail/proofs/case_call_wrong_subject rejected 801ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `empty_only` in machine `wrong_subject` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/changed_arrival_cannot_rebind_original_bound rejected 2310ms unexpected @ccdb99ca2214
 	cannot prove ensures contract for exit from wrong at statement 0: result <= count
-fail/proofs/citation_requires_bearing_rejected rejected 8298ms expected @ccdb99ca2214
-	machine `conditional_cite` cites `sym`, but the callee's requires fact `a == b` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
-	machine `conditional_cite` ensures contract proof fact `y == x` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/citation_requires_bearing_rejected rejected 18474ms expected @4a802009dabd
+	machine `conditional_cite` cites `sym`, but the callee's requires fact `core::Identity<Nat>(a, b)` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+	machine `conditional_cite` ensures contract proof fact `core::Identity<Nat>(y, x)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/collection_predicate_deferred_disjunction_false_rejected rejected 13034ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
 fail/proofs/completed_call_remainder_cast_bound rejected 38644ms expected @4815ea579d91
@@ -17106,8 +17106,8 @@ fail/proofs/declaration_call_requires rejected 850ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/declaration_identity_call_value_context rejected 127ms expected @e97ed21415d9
-	cannot compare against payload-bearing case `Choice::Cell` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChoiceEquality satisfies Equatable<Choice> { }` to synthesize structural equality
+fail/proofs/declaration_identity_call_value_context rejected 1883ms expected @4a802009dabd
+	cannot compare against payload-bearing case `Choice::Cell` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChoiceEquality satisfies Equatable<Choice> { }` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity
 fail/proofs/declaration_predicate_all_paths rejected 1791ms expected @ccdb99ca2214
 	construction value is not proven in domain `Bounded::Small` in choose state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from choose, state entry, at statement 2: Bounded requires Bounded::Small
@@ -17146,8 +17146,8 @@ fail/proofs/declaration_predicate_wrapping rejected 696ms expected @911f6617ba9e
 	data `Wrapped` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/proofs/declaration_predicate_wrapping_interval rejected 709ms expected @911f6617ba9e
 	data `Wrapped` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/proofs/declaration_synthesized_equality_missing_selection rejected 20322ms expected @b3bfe3d87507
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Packet` values with `==`: structural equality is synthesized only through a named implementation -- declare `PacketEquality satisfies Equatable<Packet> { }` to synthesize structural equality, or use `core::Identity<Packet>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/proofs/declaration_synthesized_equality_missing_selection rejected 2352ms expected @4a802009dabd
+	cannot compare `Packet` values with `==`: structural equality is synthesized only through a named implementation -- declare `PacketEquality satisfies Equatable<Packet> { }` to synthesize structural equality, or use `core::Identity<Packet>(left, right)` for mathematical identity
 fail/proofs/declaration_synthesized_equality_value_context rejected 48316ms expected @b3bfe3d87507
 	construction value is not proven in domain `Input::Incorrect` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove initializer of `invalid` in main is in domain `Input::Incorrect`; an annotation cannot establish routed qualification
@@ -17315,8 +17315,8 @@ fail/proofs/mathematical_negated_identity_unknown rejected 8559ms expected @87bc
 	cannot prove ensures contract for exit from arbitrary at statement 0: different<Pair>(left, right)
 fail/proofs/mathematical_negated_ieee_order rejected 4572ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from unjustified at statement 0: value <= 5.0
-fail/proofs/mathematical_nullary_constructor_mismatch rejected 10422ms expected @02e75d5a4d4d
-	cannot prove requires contract for call consume from main: is_first(constructor:80:package:71a4b64c821bb8ec118d399d636f0aa5e30d3d9e47ae177daab570d803aee161::Choice10:name:Other) (needs fact `is_first(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/mathematical_nullary_constructor_mismatch rejected 3118ms expected @4a802009dabd
+	cannot prove requires contract: machine `main` state `entry` value call to `consume` violates required fact `is_first(value)`: the instantiated fact is structurally false
 fail/proofs/mathematical_opaque_operation_source_meaning rejected 2193ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bad at statement 0: same()
 fail/proofs/mathematical_qualified_literal_argument rejected 324ms expected @ccdb99ca2214
@@ -17345,8 +17345,8 @@ fail/proofs/named_boolean_return_is_not_omitted rejected 3270ms expected @0d0c11
 	cannot prove requires contract for call demand from main: choose(true) == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/nat_exact_subtraction_requires_order rejected 1551ms expected @ccdb99ca2214
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/nat_metric_false_gap_zero rejected 671ms expected @ccdb99ca2214
-	machine `false_gap_zero` ensures contract proof fact `nat_gap(Nat, Nat) == Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/proofs/nat_metric_false_gap_zero rejected 3197ms expected @4a802009dabd
+	machine `false_gap_zero` ensures contract proof fact `core::Identity<Nat>(nat_gap(Nat, Nat), Nat)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/proofs/nat_nondescending_recursion_rejected rejected 8211ms expected @ccdb99ca2214
 	`spin(..)` cannot prove the measure `n` structurally decreases at this self-call: the call does not prove a strict predecessor of ranking subject `n`. Pass a case-payload subterm (`Nat::Succ { prev } -> .. spin(prev)`) or, for an integer measure, `n - 1` in the taken value of its dominating `n > 0` arm; a slice-length measure admits `items[1..]` under its own nonempty guard
 fail/proofs/nat_structural_disproof_refuted rejected 11348ms expected @26c39d0e6335
@@ -17361,8 +17361,8 @@ fail/proofs/nested_machine_computed_rank_preserving rejected 5327ms expected @86
 	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/proofs/nested_machine_escaping_selection_rejected rejected 3076ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/nested_machine_induction rejected 5727ms expected @089c0a150e63
-	machine `copy_identity` ensures contract proof fact `core::Identity<Branch>(copy_branch(value), Branch)` speaks about proof-only `Branch`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/nested_machine_induction rejected 3397ms expected @4a802009dabd
+	machine `copy_identity` ensures contract proof fact `core::Identity<Branch>(copy_branch(value), Branch)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/proofs/nested_machine_inferred_requirement rejected 10668ms expected @089c0a150e63
 	cannot prove requires contract for call same from forward: core::Identity(left, right) (needs fact `core::Identity<Branch>(left, right)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/nested_machine_proof_erasure_rejected rejected 10500ms expected @089c0a150e63
@@ -17697,8 +17697,8 @@ fail/proofs/store_selector_mutation_retires_bound rejected 1636ms expected @ccdb
 	cannot prove ensures contract for exit from wrong at statement 2: bounds.count <= bounds.limit; no exact incoming reference origin for bounds
 fail/proofs/strict_comparison_mutation_snapshot rejected 2859ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/structural_application_decreasing_false_rejected rejected 1236ms expected @ccdb99ca2214
-	machine `closed_question` ensures contract proof fact `collapse(Nat) == Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
+fail/proofs/structural_application_decreasing_false_rejected rejected 6181ms expected @4a802009dabd
+	machine `closed_question` ensures contract proof fact `core::Identity<Nat>(collapse(Nat), Nat)` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/proofs/structural_application_premise_false_rejected rejected 1510ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `bounded` violates required fact `selected(value) < 1 && value < 9`: the instantiated fact is structurally false (`3 < 1 && 3 < 9`)
 fail/proofs/structural_application_premise_unknown_rejected rejected 2877ms expected @ccdb99ca2214
@@ -18817,8 +18817,8 @@ fail/targets/target_machine_duplicate_rejected rejected 6723ms expected @ccdb99c
 	machine `Helper::pick` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/targets/unrealized_conformance_rejected rejected 2433ms expected @ccdb99ca2214
 	machine `Helper::value` state `value` does not satisfy trait `Predicate` machine `value`: expected return `bool`, got `u32`
-fail/targets/unrealized_family_signature_rejected rejected 932ms expected @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/targets/unrealized_family_signature_rejected rejected 1751ms expected @4a802009dabd
+	machine `Helper::value` has an incompatible signature for `uefi_x86_64` -- every target's body of one machine shares its signature; incompatible ordinary parameter relevance/calling shape or result
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 2417ms expected @ccdb99ca2214
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
 fail/tasks/task_runtime_provider_contract_narrowing rejected 1574ms expected @2fc408782574
@@ -19588,8 +19588,8 @@ fail/traits/implementation_value_region_mismatch rejected 12246ms expected @4815
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/traits/inherited_default_ambiguous rejected 631ms expected @ccdb99ca2214
 	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
-fail/traits/inherited_nominal_requirement_conflicting_parents rejected 178ms expected @f2c75870ebaf+wt
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "inherited nominal requirement has no unique declaring trait application", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/traits/inherited_nominal_requirement_conflicting_parents rejected 1955ms expected @4a802009dabd
+	inherited nominal requirement has no unique declaring trait application
 fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c75870ebaf+wt
 	declaring trait `Base` overloads requirement `value`; this is a source-compatibility break for signature-free requirement references
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
@@ -19691,18 +19691,21 @@ fail/traits/self_type_retired rejected 660ms expected @ccdb99ca2214
 	trait `Area` state `area` parameter `shape` references unknown data type `Self`
 fail/traits/structural_array_crash_unproved_tail rejected 2336ms expected @ccdb99ca2214
 	call from `inspect` to `incomplete` at statement 1 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
-fail/traits/structural_identity_distinct_values rejected 3582ms expected @ccdb99ca2214
+fail/traits/structural_identity_distinct_values rejected 3744ms expected @4a802009dabd
 	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
-fail/traits/structural_identity_exact_carrier rejected 646ms expected @ccdb99ca2214
-	machine `different_nominal` crashes contract data identity requires the same complete operand type, found `&Left` and `&Right`
-	cannot form specification operator `==` in machine `different_nominal` crashes contract: no exact selected meaning
-	machine `different_extent` crashes contract data identity requires the same complete operand type, found `&[u8; 2]` and `&[u8; 3]`
+fail/traits/structural_identity_exact_carrier rejected 3009ms expected @4a802009dabd
+	invalid mathematical application `right`: mathematical result does not preserve its declared carrier and policy
 fail/traits/structural_identity_executable_equality rejected 1289ms expected @ccdb99ca2214
 	call from `inspect` to `failed` at statement 1 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
 fail/traits/structural_identity_private_overwrite rejected 2060ms expected @ccdb99ca2214
 	call from `forward` to `relay` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
-fail/traits/structural_identity_rebound_reference rejected 1387ms expected @ccdb99ca2214
+fail/traits/structural_identity_rebound_reference rejected 2555ms expected @4a802009dabd
+	call from `inspect` to `leaf` at statement 2 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 2; publish a same-cause `crashes` route whose guard covers this site
+	call from `inspect` to `leaf` at statement 4 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 4; publish a same-cause `crashes` route whose guard covers this site
 	call from `inspect` to `leaf` at statement 5 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 5; publish a same-cause `crashes` route whose guard covers this site
 fail/traits/structural_identity_stale_requirement rejected 10220ms expected @089c0a150e63
 	cannot prove requires contract for call leaf from inspect: core::Identity(constructor:80:package:d58a468977abe965b70369a1a4c64697080809c06f28be169d66c665dc28c844::Packet6:record17:common:name:value10:left.value, constructor:80:package:d58a468977abe965b70369a1a4c64697080809c06f28be169d66c665dc28c844::Packet6:record17:common:name:value11:right.value) (needs fact `core::Identity<Packet>(Packet, Packet)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/trait_contract_undeclared_parameter_member rejected 641ms unexpected @ccdb99ca2214
@@ -27423,7 +27426,7 @@ pass/proofs/captured_entry_comparison_after_mutation checked 2621ms @ccdb99ca221
 pass/proofs/captured_scalar_field_observations checked 3299ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/case_call_premises checked 7444ms @9af3eb514e16
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
-pass/proofs/citation_requires_discharged checked 15694ms @ccdb99ca2214
+pass/proofs/citation_requires_discharged checked 34415ms @4a802009dabd
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 49311ms @911f6617ba9e
 pass/proofs/completed_call_remainder_cast_bound checked 28700ms @4815ea579d91
 pass/proofs/completed_guard_converted_snapshot checked 3463ms check-target:macos_arm64 @2cede9e14eca
@@ -27475,8 +27478,7 @@ pass/proofs/kernel_integer_subtract_bound checked 3041ms @ccdb99ca2214
 pass/proofs/kernel_integer_subtract_order checked 7030ms check-target:macos_arm64 @911f6617ba9e
 pass/proofs/kernel_theorem_certs checked 3229ms @ccdb99ca2214
 pass/proofs/kernel_theorem_equality_certificates checked 12209ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/lemma_requires_citation rejected 2807ms regressed-from:checked @ccdb99ca2214
-	machine `minus_swap` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
+pass/proofs/lemma_requires_citation checked 4203ms @4a802009dabd
 pass/proofs/loop_postcondition_after_element_store rejected 1977ms regressed-from:checked @ccdb99ca2214
 	cannot prove ensures contract for exit from retain at statement 0: result <= count
 pass/proofs/machine_parameterized_data_compile checked 2354ms @ccdb99ca2214
@@ -27491,7 +27493,7 @@ pass/proofs/mathematical_prepared_scalar_interval checked 3504ms @ccdb99ca2214
 pass/proofs/mutable_fixed_array_ensures_exact_product checked 3671ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/named_witness_static_trait_plural_compile checked 2838ms @ccdb99ca2214
 pass/proofs/nat_exact_subtraction_compile checked 2662ms @ccdb99ca2214
-pass/proofs/nat_metric_triangle_compile checked 2564ms @ccdb99ca2214
+pass/proofs/nat_metric_triangle_compile checked 4772ms @4a802009dabd
 pass/proofs/negative_disjunction_post_mutation_bound checked 3562ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 30491ms check-target:macos_arm64 @4815ea579d91
 pass/proofs/nested_machine_induction checked 13037ms @089c0a150e63
@@ -27590,7 +27592,7 @@ pass/proofs/selected_specification_requires_state checked 14631ms @860ee26eb0c7
 pass/proofs/separated_range_result_exit checked 4035ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/short_circuit_rhs_entry_bound checked 3822ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/specification_case_exclusion_unique_payload checked 5321ms @ceec2d4e7d8b
-pass/proofs/static_machine_result_projection checked 2679ms @ccdb99ca2214
+pass/proofs/static_machine_result_projection checked 3345ms @4a802009dabd
 pass/proofs/stride_pair_telescope checked 6824ms @d352d5e8e77e
 pass/proofs/structural_application_decreasing_actuals_exit checked 9748ms check-target:macos_arm64 @860ee26eb0c7
 pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-target:macos_arm64 @ccdb99ca2214
