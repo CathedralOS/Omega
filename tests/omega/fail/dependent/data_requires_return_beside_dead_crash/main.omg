@@ -1,0 +1,35 @@
+// Rejected. `corrupt` breaks `count <= len` with `target.count = 99`, then
+// both arms of a complete dispatch return with the window still open. The
+// trailing `crash Trap;` can never run. The checker used to accept this: any
+// crash statement in a state turned off the end-of-state "return" window check
+// (`domains_and_predicates.rs` `walk_state`). It now checks each returning row
+// of the dispatch where the row runs, and only a crash row that ends the
+// dispatch may abandon a window.
+//
+// Rule (wiki/spec/language/dependent_values.md, "Invariant windows"): the
+// domain "must be proved again at the next consumption point", and "return"
+// is one; "A crash may abandon an open window" covers only the crash outcome,
+// not the returns beside it.
+//
+// History: accepted by a compiler built at c118c914794 on omega-mac
+// (Jarods-Mac-mini.local), where `./target/debug/omega --check main.omg
+// < /dev/null` exited 0 with no diagnostic, and pinned under
+// `tests/omega/pending/dependent/` until the checker rejected it.
+//
+// Twin: the same program without `crash Trap;` and `crashes Trap` was already
+// rejected with the diagnostic in `expected.txt`. The opposite case, a state
+// whose only exit is a crash and which may leave the window open, is
+// `pass/dependent/data_requires_crash_abandons_window`.
+data Tally
+requires
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+machine corrupt(target: &mut Tally, ready: bool) crashes Trap {
+    target.count = 99;
+    transition ready { true -> {} false -> {} }
+    crash Trap;
+}
+machine main() {}

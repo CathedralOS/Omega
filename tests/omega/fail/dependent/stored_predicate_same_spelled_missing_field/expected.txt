@@ -1,1 +1,1 @@
-invariant window opened on `record` must close first
+this write left the `requires` facts of `record` (data `Pair`) unproved

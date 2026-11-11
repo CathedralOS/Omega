@@ -130,30 +130,11 @@ pub mod boundary_completions {
         requirement: SymbolHandle,
         console_adapter: bool,
     ) -> bool {
-        const CORE_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/process_exit.omg"
-        ));
-        const CONSOLE_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/console.omg"
-        ));
-        let (trait_name, source_path, source_bytes) = if console_adapter {
-            ("Console", "console.omg", CONSOLE_SOURCE)
+        use language_core::sealed_intrinsics::{HostedOperation, SealedIntrinsic};
+        let (trait_name, operation) = if console_adapter {
+            ("Console", HostedOperation::ConsoleExitProcess)
         } else {
-            ("ProcessExit", "process_exit.omg", CORE_SOURCE)
-        };
-        let exact_source = |symbol| {
-            program
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| program.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.path.strip_prefix(&file.package_root).ok()
-                            == Some(std::path::Path::new(source_path))
-                        && file.source.as_bytes() == source_bytes
-                })
+            ("ProcessExit", HostedOperation::ProcessExit)
         };
         if !requirement.is_valid()
             || !definition.is_boundary
@@ -161,7 +142,10 @@ pub mod boundary_completions {
             || definition.name.as_str() != trait_name
             || !definition.lifetime_parameters.is_empty()
             || !program.trait_type_parameters(definition).is_empty()
-            || !exact_source(definition.symbol)
+            || program
+                .symbols
+                .sealed_member_intrinsic(definition.symbol, "exit_process")
+                != Some(SealedIntrinsic::HostedRequirement(operation))
         {
             return false;
         }
@@ -172,7 +156,6 @@ pub mod boundary_completions {
         signatures.iter().any(|signature| {
             signature.symbol == requirement
                 && signature.name.as_str() == "exit_process"
-                && exact_source(signature.symbol)
                 && signature.lifetime_parameters.is_empty()
                 && program
                     .state_signature_type_parameters(signature)

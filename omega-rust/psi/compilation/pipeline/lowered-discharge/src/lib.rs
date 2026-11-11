@@ -52,6 +52,7 @@ yet.
 */
 
 mod crashes;
+mod describe;
 mod graph;
 mod joins;
 mod minted;

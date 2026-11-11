@@ -47,6 +47,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// What diagnostics call each machine's constructs, pushed with its
+    /// signature and completed as its body is read.
+    pub names: IdTable<MachineId, crate::MachineNames>,
     /// Every direct call read so far, as (caller, callee).
     calls: Vec<(MachineId, MachineId)>,
     /// Whether this is a generic check form: the entry's implementation
@@ -112,6 +115,7 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            names: IdTable::default(),
             calls: Vec::new(),
             rigid,
             requirements: Vec::new(),

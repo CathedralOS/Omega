@@ -606,6 +606,21 @@ An origin is the authored span, or `Unpositioned` with the reason
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depends on `checked-trees`.
 
+`Elaboration::names` ([names.rs](src/names.rs)) is what diagnostics call
+those constructs, because the lowered form carries identities and spans but
+no binder names. The reader records, per machine, its name (a template's for
+a generated specialization) and its state's, its formals' names, the
+authored text of each `requires` clause (in canonical position) and
+`ensures` clause with each formal left open, the binder each value
+expression's nodes land in (a local's name, or the return value) keyed by
+their spans, each call's argument text keyed by the call's span, and each
+exit's statement position keyed by its span (with the position of a unit
+body's fall-off exit). All of
+it comes from the typed trees' `Identifier`s and
+`ExpressionTable::display_name`, never from source text, and nothing in
+lowering or the checker decides anything from it. `lower_bodies` leaves it
+empty.
+
 ## What is reused from the current pipeline
 
 Pure helpers only: `numerics::integer_policy::integer_policy_bridge` (which

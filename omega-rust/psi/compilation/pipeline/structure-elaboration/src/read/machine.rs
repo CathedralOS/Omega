@@ -15,9 +15,12 @@ use typed_trees::statement::StatementNode;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
-use crate::body::{Body, CrashCeiling, Signature, Statement, Target, ValueType};
+use crate::body::{
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, ValueType,
+};
 use crate::canonical::{self, Repeated};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
+use source::SourceSpan;
 
 impl<'t> Program<'t> {
     fn next_identity(&self) -> Checked<MachineId> {
@@ -41,9 +44,10 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let signature = self.signature(id, symbol)?;
+        let (signature, names) = self.signature(id, symbol)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
+        self.names.push(names);
         Ok(id)
     }
 
@@ -71,9 +75,10 @@ impl<'t> Program<'t> {
                     Unserved::Machine("requirement that its trait does not declare"),
                 )
             })?;
-        let signature = self.requirement_signature(id, declared)?;
+        let (signature, names) = self.requirement_signature(id, declared)?;
         self.symbols.push(requirement);
         self.signatures.push(signature);
+        self.names.push(names);
         Ok(id)
     }
 
@@ -94,9 +99,10 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let signature = self.requirement_signature(id, declared)?;
+        let (signature, names) = self.requirement_signature(id, declared)?;
         self.symbols.push(symbol);
         self.signatures.push(signature);
+        self.names.push(names);
         self.requirements.push(id);
         Ok(id)
     }
@@ -251,7 +257,11 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
-    fn signature(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<Signature> {
+    fn signature(
+        &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<(Signature, MachineNames)> {
         let (machine, state) = self.declaration(id, symbol)?;
         self.machine_shape(id, machine)?;
         if !state.contracts.is_empty() {
@@ -261,7 +271,7 @@ impl<'t> Program<'t> {
                 Unserved::Contract("contracts on a state"),
             ));
         }
-        self.contract(
+        let (signature, mut names) = self.contract(
             id,
             state.symbol,
             state.parameters,
@@ -271,7 +281,15 @@ impl<'t> Program<'t> {
                 declares_no_crash_route: machine.declares_no_crash_route,
                 is_public: machine.is_public,
             },
-        )
+        )?;
+        // Diagnostics name the declaration the author wrote, not a clone
+        // stage 04 generated from it.
+        let authored = crate::template_of(self.typed, symbol)
+            .and_then(|template| self.typed.machine_by_symbol(template))
+            .unwrap_or(machine);
+        names.machine = authored.name.as_str().to_owned();
+        names.state = state.name.as_str().to_owned();
+        Ok((signature, names))
     }
 
     /// A trait requirement's signature and contract. The typed trees hold a
@@ -280,7 +298,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
-    ) -> Checked<Signature> {
+    ) -> Checked<(Signature, MachineNames)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
@@ -308,7 +326,7 @@ impl<'t> Program<'t> {
         if requirement.suspends || requirement.blocks {
             return unserved("suspends or blocks");
         }
-        self.contract(
+        let (signature, mut names) = self.contract(
             id,
             requirement.symbol,
             requirement.parameters,
@@ -317,7 +335,9 @@ impl<'t> Program<'t> {
             Declarer::Requirement {
                 declares_no_crash_route: requirement.declares_no_crash_route,
             },
-        )
+        )?;
+        names.machine = requirement.name.as_str().to_owned();
+        Ok((signature, names))
     }
 
     /// The formals, result and clauses of one callable. `owner` is the
@@ -331,7 +351,7 @@ impl<'t> Program<'t> {
         return_type: typed_trees::types::TypeReferenceHandle,
         contracts: arena::HandleSpan<typed_trees::signature::SignatureContract>,
         declared: Declarer,
-    ) -> Checked<Signature> {
+    ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
         let mut parameters = Vec::with_capacity(formals.len());
@@ -389,6 +409,8 @@ impl<'t> Program<'t> {
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut requires_text = Vec::new();
+        let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
         let mut crash_clauses = false;
         for contract in span(&typed.signature_contracts, contracts, id, "contract span")? {
@@ -403,12 +425,16 @@ impl<'t> Program<'t> {
             match contract.kind {
                 SignatureContractKind::Requires => {
                     for fact in facts {
-                        requires.push(self.clause(id, &required, self.fact(id, fact)?)?);
+                        let expression = self.fact(id, fact)?;
+                        requires.push(self.clause(id, &required, expression)?);
+                        requires_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        ensures.push(self.clause(id, &exit, self.fact(id, fact)?)?);
+                        let expression = self.fact(id, fact)?;
+                        ensures.push(self.clause(id, &exit, expression)?);
+                        ensures_text.push(self.clause_text(&slots, expression));
                     }
                 }
                 SignatureContractKind::EnsuresForResultCase { .. } => {
@@ -479,14 +505,40 @@ impl<'t> Program<'t> {
             // only crash-free members.
             (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
         };
+        let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
-        Ok(Signature {
-            parameters,
-            result,
-            requires,
-            ensures,
-            crashes,
-        })
+        // Each clause's text follows it into canonical order. A repeated
+        // clause was refused above, so each canonical clause is exactly one
+        // authored clause.
+        let requires_text = requires
+            .iter()
+            .map(|clause| {
+                authored
+                    .iter()
+                    .position(|candidate| candidate == clause)
+                    .and_then(|position| requires_text.get(position).cloned())
+                    .unwrap_or_default()
+            })
+            .collect();
+        let names = MachineNames {
+            formals: formals
+                .iter()
+                .map(|formal| formal.name.as_str().to_owned())
+                .collect(),
+            requires: requires_text,
+            ensures: ensures_text,
+            ..MachineNames::default()
+        };
+        Ok((
+            Signature {
+                parameters,
+                result,
+                requires,
+                ensures,
+                crashes,
+            },
+            names,
+        ))
     }
 
     fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
@@ -540,6 +592,10 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
+        let mut slot_names: Vec<String> = formals
+            .iter()
+            .map(|formal| formal.name.as_str().to_owned())
+            .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
             .zip(&signature.parameters)
@@ -551,6 +607,17 @@ impl<'t> Program<'t> {
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
+        if let Some(names) = self.names.get_mut(id) {
+            for (position, statement) in statements.iter().enumerate() {
+                if let StatementNode::Transition(transition) = statement {
+                    names.exits.push((transition.source_span, position));
+                }
+            }
+            names.fall_off = match statements.last() {
+                Some(StatementNode::Expression(_)) => statements.len() - 1,
+                _ => statements.len(),
+            };
+        }
         let mut body = Vec::with_capacity(statements.len());
         let mut completed = false;
         let mut position = 0;
@@ -599,6 +666,11 @@ impl<'t> Program<'t> {
                                 ));
                             }
                             completed = true;
+                            if let (Some(names), SourceOrigin::Authored(span)) =
+                                (self.names.get_mut(id), expression.source)
+                            {
+                                names.exits.push((span, position));
+                            }
                             Statement::Arm {
                                 guard: None,
                                 source: expression.source,
@@ -620,6 +692,7 @@ impl<'t> Program<'t> {
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local)?;
                     slots.push(slot);
+                    slot_names.push(local.name.as_str().to_owned());
                     statement
                 }
                 // A case arm starts a dispatch over a sum, which takes the
@@ -652,10 +725,124 @@ impl<'t> Program<'t> {
                 Unserved::Completion("value machine can fall off its end"),
             ));
         }
+        if let Some(names) = self.names.get_mut(id) {
+            for statement in &body {
+                bindings(statement, &slot_names, &mut names.bindings);
+                value_exits(statement, &mut names.exits);
+            }
+        }
         Ok(Body {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })
+    }
+}
+
+/// Every span of a value expression whose result a binder receives, with
+/// that binder (`MachineNames::bindings`): a whole-value binding receives
+/// its expression into the slot's name, and an arm's value is the return
+/// value. A guard, a store and an expression evaluated for effect have no
+/// binder.
+fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceSpan, Binder)>) {
+    match statement {
+        Statement::Bind { slot, value } => {
+            if let Some(name) = slot_names.get(*slot) {
+                spans(value, &Binder::Local(name.clone()), out);
+            }
+        }
+        Statement::Arm { target, .. } => target_spans(target, out),
+        Statement::Dispatch { arms, default, .. } => {
+            for (_, target, _) in arms {
+                target_spans(target, out);
+            }
+            if let Some((target, _)) = default {
+                target_spans(target, out);
+            }
+        }
+        Statement::Declare { .. } | Statement::Store { .. } | Statement::Evaluate(_) => {}
+    }
+}
+
+/// A value exit completes at its value expression's span rather than its
+/// arm's, so each one takes the statement position of the arm it ends
+/// (`MachineNames::exits`).
+fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
+    let arms: Vec<(&Target, SourceOrigin)> = match statement {
+        Statement::Arm { target, source, .. } => vec![(target, *source)],
+        Statement::Dispatch { arms, default, .. } => arms
+            .iter()
+            .map(|(_, target, source)| (target, *source))
+            .chain(default.iter().map(|(target, source)| (target, *source)))
+            .collect(),
+        Statement::Declare { .. }
+        | Statement::Bind { .. }
+        | Statement::Store { .. }
+        | Statement::Evaluate(_) => Vec::new(),
+    };
+    for (target, arm) in arms {
+        let (Target::Value(value), SourceOrigin::Authored(arm)) = (target, arm) else {
+            continue;
+        };
+        let SourceOrigin::Authored(span) = value.source else {
+            continue;
+        };
+        let position = exits
+            .iter()
+            .find(|(exit, _)| *exit == arm)
+            .map(|(_, position)| *position);
+        if let Some(position) = position {
+            exits.push((span, position));
+        }
+    }
+}
+
+fn target_spans(target: &Target, out: &mut Vec<(SourceSpan, Binder)>) {
+    if let Target::Value(value) = target {
+        spans(value, &Binder::ReturnValue, out);
+    }
+}
+
+fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Binder)>) {
+    if let SourceOrigin::Authored(span) = expression.source {
+        out.push((span, binder.clone()));
+    }
+    match &expression.kind {
+        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            for (_, field) in fields {
+                spans(field, binder, out);
+            }
+        }
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            spans(base, binder, out);
+        }
+        ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
+        ExpressionKind::Match {
+            subject,
+            arms,
+            default,
+        } => {
+            spans(subject, binder, out);
+            for (_, arm) in arms {
+                spans(arm, binder, out);
+            }
+            if let Some(default) = default {
+                spans(default, binder, out);
+            }
+        }
+        ExpressionKind::Strict { left, right, .. }
+        | ExpressionKind::ShortCircuit { left, right, .. } => {
+            spans(left, binder, out);
+            spans(right, binder, out);
+        }
+        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+            spans(operand, binder, out);
+        }
+        ExpressionKind::Call { arguments, .. } => {
+            for argument in arguments {
+                spans(argument, binder, out);
+            }
+        }
     }
 }
 

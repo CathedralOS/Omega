@@ -2705,6 +2705,7 @@ mod composed_control {
             facts: &CheckFacts,
             machine: &typed_trees::machine::Machine,
             states: Vec<CheckedComposedUnitControlStatePlan>,
+            declaration_requirements: Vec<checked_trees::CheckedDeclarationRequirementSet>,
         ) -> Result<CheckedComposedUnitControlMachinePlan, &'static str> {
             let body_qualifications =
                 super::super::types::body_structural_qualifications(program, facts, machine.symbol);
@@ -2738,6 +2739,7 @@ mod composed_control {
                     transitive: machine_reach.inferred_transitive,
                 },
                 states,
+                declaration_requirements,
             })
         }
     }

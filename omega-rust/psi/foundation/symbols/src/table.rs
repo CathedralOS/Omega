@@ -1386,6 +1386,24 @@ mod source_queries {
         }
 
         /*
+            The catalog row for `symbol` under the authored declaration path
+            its owning tree records (a machine's declared name, for example,
+            which keeps target-selected realizations in their source spelling).
+            The symbol's own file, origin and bytes still decide custody.
+        */
+        pub fn sealed_declaration(
+            &self,
+            symbol: SymbolHandle,
+            declaration: &str,
+        ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(symbol)?)?;
+            crate::sealed_intrinsic_at(file, declaration)
+        }
+
+        /*
             The catalog row for member `member` of the authored declaration
             `owner`. Specialized copies of a trait requirement carry no
             authored span or namespace of their own, so callers that hold one

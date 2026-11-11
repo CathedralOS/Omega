@@ -38,7 +38,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
-  - Static callable-selection atom, selection rows, structural identity, open/closed field contracts, one schema for static and runtime use.
+  - Finish callable selections, typed/erased fields, constraints, open/closed contracts and static/runtime materialization.
+  - Unify empty/generic record identity; migrate marker customers. Complete general evidence citation, explicit inherited fields and computed Build providers.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
@@ -55,14 +56,14 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - First **SEALED-INTRINSIC-CATALOG** (provider-planning custody to `language_core::sealed_intrinsics`; seal task/mask providers), then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
+  - First **SEALED-INTRINSIC-CATALOG** (catalog float `sealed`/layout snapshot checks; seal task/mask providers in `language_core::sealed_intrinsics`), then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
   - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
   Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q2](OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer)).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q1](OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer)).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
@@ -201,8 +202,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Requirement-based tests
 
-- **BUILD-TEST-GROUPS.** Implement the [testing contract](wiki/spec/build/testing.md) and [chapter 23](wiki/language_guide/chapter_23_testing.md) in `prelude.rs`, `configuration.rs`, `program.rs`, and `restricted_build_grants.rs`.
-  Acceptance: pure and virtual-filesystem test groups execute on both engines while application outputs exclude test-only roots.
+- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-virtual-filesystem` names that provider's interface and owning library.
+  Acceptance: a virtual-filesystem test group executes on both engines with fresh per-test state, and a child cannot widen it to the real filesystem.
 
 ## Checked boundary topology
 

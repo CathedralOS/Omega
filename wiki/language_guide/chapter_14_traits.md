@@ -72,6 +72,18 @@ WireCodec satisfies Codec<Message> {
 A row, `Trait::member = machine;`, uses a machine that already exists instead
 of wrapping it.
 
+Traits can also declare ordinary fields and `requires` constraints. You can
+construct, pass and return their records like other values.
+
+Two names for the same typed record mean the same implementation. To keep
+policies distinct, put the difference in a schema argument or ordinary field.
+An inline body declares a new machine, so it is a different selection even if
+its code looks the same.
+
+A `machine` member stores a selected machine; an evidence field stores a value
+of its declared mathematical type. See [record construction and identity](../spec/language/conformances.md#implementations-are-operation-records).
+Computed implementations can also be used as [Build providers](../spec/build/provider_selection.md#declaration-and-choice).
+
 ## Default bodies
 
 A trait machine with a body is a default. An implementation that leaves it
@@ -104,6 +116,10 @@ boundary trait TimerInterrupt: InterruptService + Calling<X86InterruptPolicy> { 
 
 `requires Other<T>;` in the body and `: Other<T>` in the header mean the same
 thing.
+
+Inherited requirements are filled like other fields. When names collide, use
+the originating trait's qualified member name; parent order never picks a
+winner. See [inherited fields](../spec/language/conformances.md#construction-and-inherited-fields).
 
 ## Related types are parameters
 
