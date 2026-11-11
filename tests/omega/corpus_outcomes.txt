@@ -18302,6 +18302,10 @@ fail/recast/reference_let_pun_requires_recast rejected 1862ms expected @ccdb99ca
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 917ms expected @8fce926f9735
 	machine `main` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/recast/returned_exclusive_view_capture_duplicates rejected 1753ms expected @3e93aa449723
+	statement 2 creates local borrow `again` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 2 reads `view` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
+	statement 3 mutates `again.left` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
 fail/recast/returned_recast_requires_declared_access rejected 731ms expected @ccdb99ca2214
 	machine `widen` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 	machine `widen` state `entry` terminal expression expects `&mut Header`, got `cast expression`
@@ -27880,15 +27884,7 @@ pass/recast/returned_qualification_preserves_representation_exit incomplete 7084
 	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 3
 pass/recast/returned_qualified_reference_exit incomplete 7176ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
 	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 1
-pass/recast/returned_same_type_view_capture_exit rejected 5450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `capture`, state `entry` (statement 2)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `roundtrip`, state `entry` (statement 3)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_from_old`, state `entry` (statement 1)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_twice`, state `entry` (statement 1)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_twice`, state `entry` (statement 3)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `carry_replacement`, state `entry` (statement 1)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `return_replacement_view`, state `entry` (statement 1)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `return_replacement_view`, state `entry` (statement 2)
+pass/recast/returned_same_type_view_capture_exit checked 4483ms check-target:macos_arm64 @3e93aa449723
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 23386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
 	statement 6 mutates `main.source` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 6)
