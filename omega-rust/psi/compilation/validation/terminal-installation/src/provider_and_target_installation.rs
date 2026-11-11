@@ -899,7 +899,6 @@ pub(crate) mod component_memberships {
 }
 
 pub(crate) mod target_families {
-    use terminal_codec::TerminalArtifactView;
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity};
 
     pub fn admitted_boundary_member(
