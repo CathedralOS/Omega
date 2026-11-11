@@ -789,6 +789,7 @@ mod evaluation {
     ) -> Option<(IntegerType, IntegerValue)> {
         match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+            | CheckedScalarExpression::StructuralLocalField { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. } => None,
             CheckedScalarExpression::StructuralParameterField {
                 observation,
@@ -1305,6 +1306,7 @@ pub(crate) mod float_predicates {
                     return None;
                 };
                 Some(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     operator,
                     left: *left,
                     right: *right,

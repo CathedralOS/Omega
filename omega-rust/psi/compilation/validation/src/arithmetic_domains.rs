@@ -19,7 +19,7 @@ pub(crate) mod atomic_observations {
             bounds = bounds.intersect(declared);
         }
         if let Some(stated) = state.and_then(|state| {
-            crate::proof_contracts::default_domains::stored_field_where_interval(
+            crate::proof_contracts::default_domains::stored_field_requires_interval(
                 program, machine, state, place,
             )
         }) {
@@ -162,7 +162,7 @@ pub(crate) mod declared_integer_facts {
             return;
         }
         active.push(reference);
-        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
             if let Some(expression) = fact.as_expression() {
                 contribute(
                     program,
@@ -433,7 +433,7 @@ pub(crate) mod declared_float_facts {
         }
         active.push(definition.symbol);
         if let Some(bounds) =
-            crate::proof_contracts::default_domains::data_where_field_representation_bounds(
+            crate::proof_contracts::default_domains::data_requires_field_representation_bounds(
                 program, definition,
             )
         {
@@ -2839,6 +2839,7 @@ pub(crate) mod dispatch_environments {
         match selection.condition {
             DispatchCondition::Equality { subject, pattern } => {
                 let comparison = TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: subject,
                     operator: BinaryOperator::Equal,
                     right: pattern,
@@ -5603,6 +5604,18 @@ pub(crate) mod expression_analysis {
             diagnostics: &mut Vec<Diagnostic>,
             decisions: &mut super::ArithmeticDecisions,
         ) -> Analysis {
+            // Preparation rewrites every suffixed policy operator onto
+            // policy-qualified operands. One that still carries its suffix
+            // here was never typed, and analyzing it as written would give
+            // it the bare Exact meaning, so it rejects instead.
+            if binary.policy != ArithmeticDomain::Exact {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the policy operator `{}{}` in {} was not typed against its operand carrier; a suffixed operator is supported only in executable machine code",
+                    arithmetic_operator_spelling(binary.operator),
+                    binary.policy.operator_suffix(),
+                    walk.owner,
+                )));
+            }
             let mut operation =
                 Operation::analyze_operands(walk, expression, binary, diagnostics, decisions);
             if !walk.builtin_binary(expression) {
@@ -5810,8 +5823,20 @@ pub(crate) mod expression_analysis {
             trap_predicates: &[IntegerTrapPredicate],
             primitive: PrimitiveType,
         ) -> String {
+            // An unsigned carrier has no negative one, so its quotient is
+            // always representable and only the zero divisor can trap.
+            let signed = primitive
+                .integer_bounds()
+                .is_some_and(|(minimum, _)| minimum < 0);
             trap_predicates
                 .iter()
+                .filter(|predicate| {
+                    signed
+                        || !matches!(
+                            predicate,
+                            IntegerTrapPredicate::SignedMinimumDividedByNegativeOne
+                        )
+                })
                 .map(|predicate| match predicate {
                     IntegerTrapPredicate::ResultOutsideCarrier => {
                         format!("its result lies outside `{}`", primitive_name(primitive))
@@ -11171,6 +11196,56 @@ pub(crate) mod guard_narrowing {
                 }
             }
 
+            /*
+                A value that dies inside the statement (the one an assignment
+                displaces, an unnamed temporary of an initializer) runs its
+                `dropped by` hook, which may store through exclusive references
+                the value held. Those places are neither the destination nor a
+                call's summary, so they are retired here. Without a resolver the
+                dying values cannot be named: a statement that builds or calls
+                anything then has an unknown footprint.
+            */
+            fn statement_cleanup_writes(
+                &self,
+                source: &State,
+                statement: &StatementNode,
+                value: ExpressionHandle,
+                environment: &mut ValueEnvironment,
+            ) {
+                match self.frames {
+                    Some(frames) => {
+                        let frame = frames.statement_cleanup_write_frame(self.machine, statement);
+                        match frame.complete_paths() {
+                            Some([]) => {}
+                            Some(paths) => {
+                                environment.invalidate_call_paths(self.program, Some(source), paths)
+                            }
+                            None => {
+                                environment.invalidate_unknown_writes(self.program, Some(source))
+                            }
+                        }
+                    }
+                    None => {
+                        if self.program.cleanup_selections().next().is_some()
+                            && crate::executable_subtree_any(
+                                self.program,
+                                value,
+                                typed_trees::SubtreeEdges::VALUES,
+                                |_, node| match node {
+                                    typed_trees::expression::ExpressionNode::Call(_)
+                                    | typed_trees::expression::ExpressionNode::StructLiteral(_) => {
+                                        typed_trees::SubtreeVisit::Found
+                                    }
+                                    _ => typed_trees::SubtreeVisit::Descend,
+                                },
+                            )
+                        {
+                            environment.invalidate_unknown_writes(self.program, Some(source));
+                        }
+                    }
+                }
+            }
+
             fn expression_effects(
                 &self,
                 source: &State,
@@ -11561,6 +11636,12 @@ pub(crate) mod guard_narrowing {
                                 local,
                                 environment,
                             );
+                            self.statement_cleanup_writes(
+                                source,
+                                statement,
+                                local.initial_value,
+                                environment,
+                            );
                             environment.invalidate_written_paths(std::slice::from_ref(&path));
                             environment.set(path.clone(), value.interval);
                             super::super::publish_slice_length(
@@ -11726,6 +11807,12 @@ pub(crate) mod guard_narrowing {
                             } else {
                                 environment.invalidate_unknown_writes(self.program, Some(source));
                             }
+                            self.statement_cleanup_writes(
+                                source,
+                                statement,
+                                assignment.value,
+                                environment,
+                            );
                             if destination_is_current {
                                 let path =
                                     self.bound_place(source, assignment.target).or_else(|| {
@@ -13207,7 +13294,7 @@ pub(crate) mod guard_narrowing {
                 let Some(definition) = parameter_record(program, parameter) else {
                     continue;
                 };
-                let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+                let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
                     continue;
                 };
                 for (symbol, low, high) in bounds {
@@ -18529,9 +18616,14 @@ pub(crate) mod live_integer_constraints {
                 Operand::Integer(literal, _) => {
                     literal.value_bignum().map(ScopedArithmeticValue::Integer)
                 }
+                // A value can only be observed after the operation that made
+                // it returned. An Exact operation was proved representable,
+                // and a Trapping one that returned did not trap, so both
+                // equal the mathematical result. A Wrapping or Saturating
+                // result may differ from it and stays an opaque atom.
                 Operand::Binary {
                     operator,
-                    domain: ArithmeticDomain::Exact,
+                    domain: ArithmeticDomain::Exact | ArithmeticDomain::Trapping,
                     operands,
                     ..
                 } if matches!(
@@ -21374,10 +21466,18 @@ pub(crate) mod ordered_values {
                     depth + 1,
                 )
             }
+            // Qualifying a value `in Trapping` changes which operations act
+            // on it later and leaves the value itself alone, so the cast
+            // observes its source like an Exact one. Wrapping and
+            // Saturating casts stay unobserved: nothing below reads their
+            // operations as mathematics.
             ExpressionNode::Cast(cast)
                 if !cast.form.is_recast()
                     && cast.semantic_domain.is_empty()
-                    && cast.domain == ArithmeticDomain::Exact =>
+                    && matches!(
+                        cast.domain,
+                        ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+                    ) =>
             {
                 let source = integer_meaning(program, machine, state, cast.value)?.0;
                 let target = program.primitive_type_reference(cast.target_type)?;
@@ -22282,7 +22382,7 @@ pub(crate) mod range_constraints {
         }
     }
 
-    pub(crate) fn check_where_interval_containment(
+    pub(crate) fn check_requires_interval_containment(
         program: &dyn CheckingInput,
         stated: Interval,
         value: IntegerValueObservation<'_>,
@@ -22708,7 +22808,9 @@ pub(crate) mod selected_scalar_intervals {
                 position,
                 primitive_type,
             } => (*primitive_type, source.binding(*position, *primitive_type)?),
-            Expression::ConstantApplication { .. } | Expression::ErasedParameter { .. } => {
+            Expression::ConstantApplication { .. }
+            | Expression::ErasedParameter { .. }
+            | Expression::StructuralLocalField { .. } => {
                 return None;
             }
             Expression::StorageRead {
@@ -25520,7 +25622,7 @@ pub(crate) mod total_specification {
             let mut prior_facts = Vec::new();
             validate_facts(
                 program,
-                program.proof_facts.span_or_empty(data.where_facts),
+                program.proof_facts.span_or_empty(data.requires_facts),
                 &format!("data `{}` default-domain predicate", data.name),
                 AbstractSpecificationBindings {
                     owner_symbol: data.symbol,
@@ -25550,7 +25652,7 @@ pub(crate) mod total_specification {
                     .collect::<Vec<_>>();
                 validate_facts(
                     program,
-                    program.proof_facts.span_or_empty(variant.where_facts),
+                    program.proof_facts.span_or_empty(variant.requires_facts),
                     &format!("data `{}` case `{}` predicate", data.name, variant.name),
                     AbstractSpecificationBindings {
                         owner_symbol: variant.symbol,
@@ -26808,7 +26910,7 @@ pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;
 pub(crate) use range_constraints::{
-    IntegerValueObservation, check_where_interval_containment, range_constraint_interval,
+    IntegerValueObservation, check_requires_interval_containment, range_constraint_interval,
 };
 pub(crate) use return_ranges::{call_return_type, validate_return_value_range};
 pub use stored_integer_writes::{

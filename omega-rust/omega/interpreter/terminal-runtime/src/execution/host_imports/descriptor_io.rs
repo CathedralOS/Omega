@@ -9,7 +9,9 @@ Views retain their exact live range and pointer/length ABI; mutable views allow
 fixed-extent writes without granting allocation tails or resizing.
 
 Descriptor 0 reads the finite replay stream. Descriptors 1 and 2 append to
-private output buffers. Matching-host filesystem delegation uses an owned guest
+private output buffers. Each keeps that meaning until the program closes it;
+the number then belongs to the delegated descriptor table, which reuses it for
+the next file exactly as the kernel would. Matching-host filesystem delegation uses an owned guest
 descriptor namespace and preserves kernel errors and partial transfers, with
 Linux VFS transfers capped at 0x7fff0000 bytes. Versioned Linux libc uses the
 same finite input, private output and captured backing with its size_t/ssize_t
@@ -469,8 +471,8 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 {
                     return self.result(-1);
                 }
-                if !matches!(*descriptor, 1 | 2)
-                    && let Some(filesystem) = &self.linux_filesystem
+                if let Some(filesystem) = &self.linux_filesystem
+                    && !(matches!(*descriptor, 1 | 2) && filesystem.models_standard(*descriptor))
                 {
                     let descriptor = i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
                     return self.result(filesystem.write(descriptor, &bytes[..count])?);
@@ -479,9 +481,10 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 Ok(result)
             }
             DescriptorOperation::Read => {
-                let linux_file = *descriptor != 0
-                    && matches!(self.contract.abi, DescriptorAbi::LinuxKernel)
-                    && self.linux_filesystem.is_some();
+                let linux_file = matches!(self.contract.abi, DescriptorAbi::LinuxKernel)
+                    && self.linux_filesystem.as_ref().is_some_and(|filesystem| {
+                        *descriptor != 0 || !filesystem.models_standard(*descriptor)
+                    });
                 if *descriptor != 0 && !linux_file {
                     if !matches!(self.contract.abi, DescriptorAbi::WindowsCrt) {
                         return Err(TerminalEffectRejection::new(

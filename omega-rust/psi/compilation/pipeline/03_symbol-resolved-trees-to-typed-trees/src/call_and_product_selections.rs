@@ -116,7 +116,17 @@ pub(crate) mod build_selections {
                     .with_source_span(source_span)
                 })
         };
-        let preparation = find("prepare")?;
+        // Test-group registration is authorized by the Build's own `tests`
+        // facet, the operand it was authored on; every other selection by the
+        // original Build value.
+        let preparation = find(match &request {
+            BuildSelectionRequest::Declaration(binding)
+                if binding.operation == BuildOperation::TestGroupRegistration =>
+            {
+                "prepare_tests"
+            }
+            _ => "prepare",
+        })?;
         let commit = find(operation)?;
         let value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
@@ -1859,6 +1869,59 @@ pub(crate) mod product_selections {
     };
     use symbols::JoinedPath;
 
+    /*
+        `builder.tests.group<Requirement>()` is the testing facet's spelling of
+        a designated Build registration (wiki/spec/build/testing.md). It shares
+        the one designated-operand carrier with `Build::<operation><…>(builder)`:
+        the `tests` facet becomes the one explicit argument and the Build
+        prelude data the namespace, so typing, checking, execution and admission
+        never see a second receiver-shaped route. A resolved user method keeps
+        ordinary resolution; only the unresolved toolchain spelling with no
+        ordinary arguments takes this route. Its preparation (`prepare_tests`)
+        is typed against `BuildTests` and authenticated by the evaluator as the
+        activation's original Build facet, never a copied or authored value.
+    */
+    pub(crate) fn test_group_facet(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        expressions: &symbol_resolved_trees::expression::ExpressionTable,
+        receiver: symbol_resolved_trees::expression::ExpressionHandle,
+        target: symbols::SymbolHandle,
+        name: &str,
+        ordinary_count: usize,
+    ) -> Option<symbols::SymbolHandle> {
+        use symbol_resolved_trees::expression::ExpressionNode;
+        if name != BuildOperation::TestGroupRegistration.authored_spelling()
+            || target.is_valid()
+            || ordinary_count != 0
+            || !receiver.is_valid()
+        {
+            return None;
+        }
+        let facet = match expressions.expression(receiver) {
+            ExpressionNode::Member(member) => {
+                member.case_variant.is_none() && member.member.as_str() == "tests"
+            }
+            ExpressionNode::Name(path) => {
+                path.members.count() >= 2
+                    && expressions
+                        .name_path_members(path.members)
+                        .last()
+                        .is_some_and(|member| member.as_str() == "tests")
+            }
+            _ => false,
+        };
+        if !facet {
+            return None;
+        }
+        source
+            .data_definitions
+            .iter()
+            .find(|data| {
+                data.name.as_str() == "Build" && source.symbols.is_build_prelude_symbol(data.symbol)
+            })
+            .map(|data| data.symbol)
+    }
+
     pub(crate) fn request(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         typed: &mut typed_trees::TypedTrees,
@@ -1934,6 +1997,7 @@ pub(crate) mod product_selections {
                 BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
+                BuildOperation::TestGroupRegistration => "one exact trait machine requirement operand",
                 BuildOperation::WireCompatibilityRequest =>
                     "four schema declaration operands and compatibility facts",
                 _ => "two bare declaration operands",
@@ -2030,6 +2094,7 @@ pub(crate) mod qualification_casts {
         program: &mut TypedTrees,
         expression_frontier: usize,
     ) -> Result<(), Diagnostic> {
+        super::domain_cast_accounting::account(source, program, expression_frontier)?;
         let sites = expression_table(program)
             .expression_entries()
             .filter_map(|(handle, expression)| {
@@ -2048,6 +2113,10 @@ pub(crate) mod qualification_casts {
 
         for (handle, cast) in sites {
             if cast.semantic_domain.is_empty() {
+                // An accounted policy entry already carries its exact result.
+                if cast.form.entry().is_some() {
+                    continue;
+                }
                 let result = if cast.domain == numerics::arithmetic::ArithmeticDomain::Exact {
                     Some(cast.target_type)
                 } else if let TypeReferenceNode::Named { symbol, .. } = program
@@ -2116,10 +2185,18 @@ pub(crate) mod qualification_casts {
                 .type_reference_table
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
+            // An entry's target already carries the kept domains; selection reads the carrier.
+            let carrier = if cast.form.entry().is_some() {
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(cast.target_type)
+            } else {
+                cast.target_type
+            };
             let matches = crate::type_reference::domain_constraints::select_domain_candidates(
                 source,
                 program,
-                cast.target_type,
+                carrier,
                 &name,
                 Some(authored_selection.source_span()),
                 SymbolHandle::invalid(),
@@ -2188,6 +2265,26 @@ pub(crate) mod qualification_casts {
                 continue;
             };
             let authored = *authored;
+            if let Some(entry) = authored.form.entry() {
+                /*
+                    Accounting fixed this entry's target and result. Only an
+                    added domain stays on the node, as the membership the cast
+                    establishes; a kept or removed one was named for the
+                    accounting and its selection is recorded above.
+                */
+                let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
+                else {
+                    continue;
+                };
+                if entry.kind == language_core::cast_form::CastEntryKind::Add {
+                    cast.semantic_domain_symbol = domain;
+                    cast.semantic_domain_id = semantic_id;
+                } else {
+                    cast.semantic_domain = arena::HandleSpan::empty();
+                    cast.semantic_domain_arguments = arena::HandleSpan::empty();
+                }
+                continue;
+            }
             let result_type = if let Some(declaration) = program.domain_definition(domain) {
                 let qualification = DomainConstraint {
                     name: declaration.name.clone(),
@@ -2222,6 +2319,838 @@ pub(crate) mod qualification_casts {
                 cast.target_type = result_type;
             }
         }
+        super::domain_cast_accounting::settle(program, expression_frontier);
         Ok(())
+    }
+}
+
+/*
+    Domain casts: `value as =Keep -Remove +Add` (domains.md, "Domain casts").
+
+    The parser leaves one entry node per named domain, innermost first. This
+    pass reads the run as the one simultaneous cast the source wrote: it finds
+    the operand's declared type, checks that the entries account for every
+    domain that type carries, and then gives each node the target and result an
+    ordinary qualification cast would have. A kept or removed domain becomes a
+    cast to the remaining set; an added one becomes the existing single-domain
+    addition over that set, so establishment, custody and lowering are the
+    paths every other cast already takes.
+*/
+pub(crate) mod domain_cast_accounting {
+    use crate::tables::expression_table;
+    use crate::type_reference::domain_constraints::{
+        normalize_domain_constraints_for_type, select_domain_candidates,
+        select_domain_candidates_where,
+    };
+    use diagnostics::Diagnostic;
+    use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+    use numerics::arithmetic::ArithmeticDomain;
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
+    use typed_trees::types::{
+        DomainConstraint, DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle,
+        TypeReferenceNode,
+    };
+
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    enum Atom {
+        Declared(SymbolHandle, language_semantics::SemanticDomainId),
+        Policy(ArithmeticDomain),
+    }
+
+    type Spelled = (Atom, String, Option<TypeConstraintNode>);
+
+    struct Member {
+        atom: Atom,
+        label: String,
+        node: Option<TypeConstraintNode>, // The operand type's own constraint, when it spells this domain.
+        attached: bool, // Listed by the type itself, not only implied as an ancestor.
+    }
+
+    struct Named {
+        handle: ExpressionHandle,
+        entry: CastEntry,
+        atoms: Vec<Spelled>,
+        label: String,
+    }
+
+    type Run = Vec<(ExpressionHandle, TableCastExpression, CastEntry)>;
+
+    fn is_new(handle: ExpressionHandle, frontier: usize) -> bool {
+        !usize::try_from(handle.arena_index()).is_ok_and(|index| index <= frontier)
+    }
+
+    fn entry_sites(
+        program: &TypedTrees,
+        frontier: usize,
+    ) -> Vec<(ExpressionHandle, TableCastExpression)> {
+        expression_table(program)
+            .expression_entries()
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Cast(cast) = expression else {
+                    return None;
+                };
+                (is_new(handle, frontier) && cast.form.entry().is_some()).then_some((handle, *cast))
+            })
+            .collect()
+    }
+
+    /* Every entry is an ordinary value cast once its run has been accounted for. */
+    pub(crate) fn settle(program: &mut TypedTrees, frontier: usize) {
+        for (handle, _) in entry_sites(program, frontier) {
+            if let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) {
+                cast.form = CastForm::Value;
+            }
+        }
+    }
+
+    pub(crate) fn account(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        frontier: usize,
+    ) -> Result<(), Diagnostic> {
+        let sites = entry_sites(program, frontier);
+        if sites.is_empty() {
+            return Ok(());
+        }
+        // A non-first entry's operand is the previous entry of the same run.
+        let inner: Vec<ExpressionHandle> = sites
+            .iter()
+            .filter(|(_, cast)| !cast.form.entry().is_some_and(|entry| entry.first))
+            .map(|(_, cast)| cast.value)
+            .collect();
+        let owners = owners(program, &sites);
+        let mut runs: Vec<Run> = Vec::new();
+        for (outermost, _) in sites.iter().filter(|(handle, _)| !inner.contains(handle)) {
+            let mut run = Vec::new();
+            let mut cursor = *outermost;
+            while let Some(cast) = program.expression_table.cast_node(cursor).copied() {
+                let Some(entry) = cast.form.entry() else {
+                    break;
+                };
+                run.push((cursor, cast, entry));
+                if entry.first {
+                    break;
+                }
+                cursor = cast.value;
+            }
+            run.reverse();
+            runs.push(run);
+        }
+        // Operands are allocated before the casts over them, so inner runs settle first.
+        runs.sort_by_key(|run| run[0].0.arena_index());
+        for run in runs {
+            account_run(source, program, &owners, &run)?;
+        }
+        Ok(())
+    }
+
+    fn owners(
+        program: &TypedTrees,
+        sites: &[(ExpressionHandle, TableCastExpression)],
+    ) -> Vec<(ExpressionHandle, usize, usize)> {
+        use typed_trees::signature::SignatureContractKind;
+        let mut owners = Vec::new();
+        for (machine_position, machine) in program.machines().iter().enumerate() {
+            for (state_position, state) in program.machine_states(machine).iter().enumerate() {
+                let mut roots = Vec::new();
+                for statement in program.statement_table.statements(state.statement_nodes) {
+                    roots.extend(
+                        program
+                            .tables
+                            .expression_roots(statement)
+                            .into_iter()
+                            .map(|(_, root)| root),
+                    );
+                }
+                for kind in [
+                    SignatureContractKind::Requires,
+                    SignatureContractKind::Ensures,
+                ] {
+                    roots.extend(
+                        program.contract_expressions(
+                            program
+                                .machine_contracts(machine)
+                                .iter()
+                                .chain(program.state_contracts(state)),
+                            kind,
+                        ),
+                    );
+                }
+                for root in roots {
+                    program.subtree_for_each(
+                        root,
+                        typed_trees::SubtreeEdges::STRUCTURAL,
+                        |handle, node| {
+                            if matches!(node, ExpressionNode::Cast(cast) if cast.form.entry().is_some())
+                                && sites.iter().any(|(site, _)| *site == handle)
+                                && !owners.iter().any(|(owned, _, _)| *owned == handle)
+                            {
+                                owners.push((handle, machine_position, state_position));
+                            }
+                        },
+                    );
+                }
+            }
+        }
+        owners
+    }
+
+    fn refuse(program: &TypedTrees, handle: ExpressionHandle, message: String) -> Diagnostic {
+        Diagnostic::error(message).with_source_span(expression_table(program).source_span(handle))
+    }
+
+    fn flatten(
+        program: &TypedTrees,
+        mut reference: TypeReferenceHandle,
+    ) -> (TypeReferenceHandle, Vec<TypeConstraintNode>) {
+        let mut layers = Vec::new();
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        {
+            layers.push(
+                program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .to_vec(),
+            );
+            reference = *base_type;
+        }
+        layers.reverse();
+        (reference, layers.into_iter().flatten().collect())
+    }
+
+    /* The domain whose path this domain's own path extends by one member. */
+    fn parent(program: &TypedTrees, domain: SymbolHandle) -> Option<SymbolHandle> {
+        let definition = program.domain_definition(domain)?;
+        typed_trees::domain::subject_membership_facts(program, definition)
+            .map(|membership| membership.domain_symbol)
+            .find(|candidate| {
+                *candidate != domain
+                    && program.domain_definition(*candidate).is_some_and(|parent| {
+                        definition
+                            .name
+                            .as_str()
+                            .strip_prefix(parent.name.as_str())
+                            .and_then(|rest| rest.strip_prefix("::"))
+                            .is_some_and(|leaf| !leaf.contains("::"))
+                    })
+            })
+    }
+
+    fn is_ancestor(program: &TypedTrees, ancestor: SymbolHandle, mut child: SymbolHandle) -> bool {
+        while let Some(next) = parent(program, child) {
+            if next == ancestor {
+                return true;
+            }
+            child = next;
+        }
+        false
+    }
+
+    fn implies(program: &TypedTrees, child: Atom, ancestor: Atom) -> bool {
+        matches!((child, ancestor), (Atom::Declared(child, _), Atom::Declared(ancestor, _))
+            if child != ancestor && is_ancestor(program, ancestor, child))
+    }
+
+    fn declared_atom(program: &TypedTrees, symbol: SymbolHandle) -> Option<(Atom, String)> {
+        let definition = program.domain_definition(symbol)?;
+        Some((
+            Atom::Declared(symbol, definition.semantic_id),
+            domain_label(program, definition),
+        ))
+    }
+
+    /* A domain as a cast entry spells it: its path under the carrier it is declared on. */
+    fn domain_label(
+        program: &TypedTrees,
+        definition: &typed_trees::domain::DomainDefinition,
+    ) -> String {
+        let name = definition.name.as_str();
+        name.strip_prefix(
+            program
+                .display_type_reference(definition.target_type)
+                .as_str(),
+        )
+        .and_then(|rest| rest.strip_prefix("::"))
+        .unwrap_or(name)
+        .to_owned()
+    }
+
+    fn declared_node(program: &TypedTrees, atom: Atom) -> Option<TypeConstraintNode> {
+        let Atom::Declared(symbol, _) = atom else {
+            return None;
+        };
+        let definition = program.domain_definition(symbol)?;
+        Some(TypeConstraintNode::Domain(DomainConstraint {
+            name: definition.name.clone(),
+            symbol,
+            ..DomainConstraint::default()
+        }))
+    }
+
+    fn is_anonymous_literal(program: &TypedTrees, mut expression: ExpressionHandle) -> bool {
+        loop {
+            match expression_table(program).expression(expression) {
+                ExpressionNode::Integer(_) | ExpressionNode::Float(_) => return true,
+                ExpressionNode::Unary(unary) => expression = unary.operand,
+                _ => return false,
+            }
+        }
+    }
+
+    fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<source::SourceSpan> {
+        expression_table(program)
+            .authored_selection_occurrences(handle)
+            .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+            .find(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::DomainMembership
+            })
+            .map(|selection| selection.source_span())
+    }
+
+    /* The declared type of an expression inside the machine state that owns this run. */
+    fn declared_type(
+        program: &TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let outermost = run[run.len() - 1].0;
+        let (_, machine, state) = owners.iter().find(|(owned, _, _)| *owned == outermost)?;
+        let machine = &program.machines()[*machine];
+        let state = &program.machine_states(machine)[*state];
+        let checking = validation::CheckingContext::new(program);
+        validation::expression_result_type_reference(&checking, machine, state, expression)
+    }
+
+    /*
+        `value as T +D`: the carrier cast in front of the entries takes an
+        operand with no domains (domains.md, "Carrier casts"). Without this
+        check the conversion would drop whatever `value` carried without any
+        entry naming it, which is the silent removal entries exist to end.
+    */
+    fn refuse_qualified_carrier_operand(
+        program: &TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+    ) -> Result<(), Diagnostic> {
+        let (first, first_cast, entry) = run[0];
+        if !entry.after_carrier {
+            return Ok(());
+        }
+        let Some(carrier_cast) = program.expression_table.cast_node(first_cast.value) else {
+            return Ok(());
+        };
+        let target = program.display_type_reference(carrier_cast.target_type);
+        let Some(converted) = declared_type(program, owners, run, carrier_cast.value) else {
+            if is_anonymous_literal(program, carrier_cast.value) {
+                return Ok(());
+            }
+            return Err(refuse(
+                program,
+                first,
+                format!(
+                    "cannot read the declared type of the value converted by `as {target}`; a carrier cast followed by domain entries takes an operand with no domains, so bind the operand to a `let` with its type first",
+                ),
+            ));
+        };
+        let (_, constraints) = flatten(program, converted);
+        let carried = constraints
+            .iter()
+            .filter_map(|constraint| match constraint {
+                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => None,
+                TypeConstraintNode::ArithmeticDomain(policy) => Some(policy.name().to_owned()),
+                TypeConstraintNode::Domain(domain) => {
+                    Some(program.domain_definition(domain.symbol).map_or_else(
+                        || domain.name.as_str().to_owned(),
+                        |definition| domain_label(program, definition),
+                    ))
+                }
+                TypeConstraintNode::Named(name) => Some(name.as_str().to_owned()),
+            })
+            .collect::<Vec<_>>();
+        if carried.is_empty() {
+            return Ok(());
+        }
+        let removal = carried
+            .iter()
+            .map(|label| format!("-{label}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        Err(refuse(
+            program,
+            first,
+            format!(
+                "carrier cast `as {target}` converts a value whose type `{}` carries domain `{}`; a carrier cast takes an operand with no domains, so remove them by name first: `value as {removal} as {target} {}`",
+                program.display_type_reference_with_constraints(converted),
+                carried.join("`, `"),
+                entry_label(program, &first_cast),
+            ),
+        ))
+    }
+
+    fn entry_label(program: &TypedTrees, cast: &TableCastExpression) -> String {
+        expression_table(program)
+            .name_path_string(cast.target_label)
+            .trim()
+            .to_owned()
+    }
+
+    /* The operand's declared type; an anonymous literal takes the carrier its domains are declared on. */
+    fn operand_type(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+    ) -> Result<TypeReferenceHandle, Diagnostic> {
+        let (first, first_cast, _) = run[0];
+        let operand = first_cast.value;
+        if let Some(reference) = declared_type(program, owners, run, operand) {
+            return Ok(reference);
+        }
+        let label = entry_label(program, &first_cast);
+        if !is_anonymous_literal(program, operand) {
+            return Err(refuse(
+                program,
+                first,
+                format!(
+                    "cannot read the declared type of the operand of `as {label}`; a domain cast accounts for the domains its operand's type carries, so bind the operand to a `let` with its type first",
+                ),
+            ));
+        }
+        for (handle, cast, _) in run {
+            if cast.semantic_domain.is_empty() {
+                continue;
+            }
+            let name = expression_table(program).name_path_string(cast.semantic_domain);
+            let candidates = select_domain_candidates_where(
+                source,
+                program,
+                &name,
+                authored_span(program, *handle),
+                SymbolHandle::invalid(),
+                |domain| !typed_trees::domain::has_generic_carrier(program, domain),
+            );
+            if let [domain] = candidates.as_slice() {
+                return Ok(domain.target_type);
+            }
+        }
+        Err(refuse(
+            program,
+            first,
+            format!(
+                "the literal in `as {label}` has no carrier that the named domain fixes; write the carrier first, as in `5 as i32 +Km`",
+            ),
+        ))
+    }
+
+    /* What the operand's type carries: its own constraints and each one's ancestors. */
+    fn carried(
+        program: &TypedTrees,
+        run: &Run,
+        constraints: &[TypeConstraintNode],
+        operand_display: &str,
+    ) -> Result<Vec<Member>, Diagnostic> {
+        let (first, first_cast, _) = run[0];
+        let mut members: Vec<Member> = Vec::new();
+        for constraint in constraints {
+            match constraint {
+                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => {}
+                TypeConstraintNode::ArithmeticDomain(policy) => members.push(Member {
+                    atom: Atom::Policy(*policy),
+                    label: policy.name().to_owned(),
+                    node: Some(constraint.clone()),
+                    attached: true,
+                }),
+                TypeConstraintNode::Domain(domain)
+                    if domain.subject == DomainConstraintSubject::Declared
+                        && domain.symbol.is_valid() =>
+                {
+                    let atom = Atom::Declared(domain.symbol, domain.semantic_id);
+                    match members.iter_mut().find(|member| member.atom == atom) {
+                        Some(member) => {
+                            member.attached = true;
+                            member.node = Some(constraint.clone());
+                        }
+                        None => members.push(Member {
+                            atom,
+                            label: program.domain_definition(domain.symbol).map_or_else(
+                                || domain.name.as_str().to_owned(),
+                                |definition| domain_label(program, definition),
+                            ),
+                            node: Some(constraint.clone()),
+                            attached: true,
+                        }),
+                    }
+                    let mut ancestor = parent(program, domain.symbol);
+                    while let Some(symbol) = ancestor {
+                        if let Some((atom, label)) = declared_atom(program, symbol)
+                            && !members.iter().any(|member| member.atom == atom)
+                        {
+                            members.push(Member {
+                                atom,
+                                label,
+                                node: None,
+                                attached: false,
+                            });
+                        }
+                        ancestor = parent(program, symbol);
+                    }
+                }
+                TypeConstraintNode::Domain(domain) => {
+                    return Err(refuse(
+                        program,
+                        first,
+                        format!(
+                            "`as {}` cannot yet account for the compiler-owned domain `{}` carried by `{operand_display}`",
+                            entry_label(program, &first_cast),
+                            domain.name,
+                        ),
+                    ));
+                }
+                TypeConstraintNode::Named(name) => {
+                    return Err(refuse(
+                        program,
+                        first,
+                        format!(
+                            "`as {}` cannot account for the unresolved constraint `{name}` carried by `{operand_display}`",
+                            entry_label(program, &first_cast),
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(members)
+    }
+
+    /* Which domains the entries name, each at most once. */
+    fn named_domains(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        run: &Run,
+        carrier: TypeReferenceHandle,
+    ) -> Result<Vec<Named>, Diagnostic> {
+        let mut named: Vec<Named> = Vec::new();
+        for (handle, cast, entry) in run {
+            let label = entry_label(program, cast);
+            let atoms: Vec<Spelled> = if cast.semantic_domain.is_empty() {
+                vec![(
+                    Atom::Policy(cast.domain),
+                    cast.domain.name().to_owned(),
+                    Some(TypeConstraintNode::ArithmeticDomain(cast.domain)),
+                )]
+            } else {
+                let name = expression_table(program).name_path_string(cast.semantic_domain);
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(cast.semantic_domain_arguments)
+                    .to_vec();
+                let candidates = select_domain_candidates(
+                    source,
+                    program,
+                    carrier,
+                    &name,
+                    authored_span(program, *handle),
+                    SymbolHandle::invalid(),
+                    &arguments,
+                );
+                let [domain] = candidates.as_slice() else {
+                    let reason = if candidates.is_empty() {
+                        "names no visible domain"
+                    } else {
+                        "names more than one visible domain"
+                    };
+                    return Err(refuse(
+                        program,
+                        *handle,
+                        format!(
+                            "cast entry `{label}` {reason} `{name}` of `{}`. A `+` or `-` after a cast always begins a domain entry; for arithmetic on the cast result, parenthesise the cast",
+                            program.display_type_reference(carrier),
+                        ),
+                    ));
+                };
+                if let Some(alias) = &domain.alias {
+                    // Naming an alias names its expansion.
+                    alias
+                        .constituents
+                        .iter()
+                        .filter_map(|constituent| declared_atom(program, constituent.domain_symbol))
+                        .map(|(atom, label)| (atom, label, None))
+                        .collect()
+                } else {
+                    let semantic_id = if arguments.is_empty() {
+                        domain.semantic_id
+                    } else {
+                        let instance = typed_trees::domain::indexed_domain_instance_name(
+                            program,
+                            domain,
+                            typed_trees::domain::index_parameters(program, domain),
+                            &arguments,
+                        )?;
+                        program.semantic_domains.intern(&instance)
+                    };
+                    vec![(
+                        Atom::Declared(domain.symbol, semantic_id),
+                        domain_label(program, domain),
+                        Some(TypeConstraintNode::Domain(DomainConstraint {
+                            name: domain.name.clone(),
+                            symbol: domain.symbol,
+                            arguments,
+                            ..DomainConstraint::default()
+                        })),
+                    )]
+                }
+            };
+            for (atom, domain_label, _) in &atoms {
+                if named
+                    .iter()
+                    .any(|earlier| earlier.atoms.iter().any(|(seen, _, _)| seen == atom))
+                {
+                    return Err(refuse(
+                        program,
+                        *handle,
+                        format!(
+                            "cast entry `{label}` names domain `{domain_label}` a second time in one cast; each domain appears exactly once, as `=`, `-` or `+`",
+                        ),
+                    ));
+                }
+            }
+            named.push(Named {
+                handle: *handle,
+                entry: *entry,
+                atoms,
+                label,
+            });
+        }
+        Ok(named)
+    }
+
+    fn account_run(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        owners: &[(ExpressionHandle, usize, usize)],
+        run: &Run,
+    ) -> Result<(), Diagnostic> {
+        let (first, first_cast, _) = run[0];
+        let outermost = run[run.len() - 1].0;
+        refuse_qualified_carrier_operand(program, owners, run)?;
+        let operand_type = operand_type(source, program, owners, run)?;
+        if matches!(
+            program.type_reference_table.type_reference(operand_type),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            return Err(refuse(
+                program,
+                first,
+                format!(
+                    "`as {}` applies to a reference; domain casts through a reference are not implemented yet (NAMED-DOMAIN-CASTS, mutable views)",
+                    entry_label(program, &first_cast),
+                ),
+            ));
+        }
+        let (carrier, constraints) = flatten(program, operand_type);
+        let operand_display = program.display_type_reference_with_constraints(operand_type);
+        let members = carried(program, run, &constraints, &operand_display)?;
+        let named = named_domains(source, program, run, carrier)?;
+
+        // Each entry against what the operand carries.
+        for entry in &named {
+            for (atom, domain_label, _) in &entry.atoms {
+                let carried = members.iter().any(|member| member.atom == *atom);
+                match entry.entry.kind {
+                    CastEntryKind::Add if carried => {
+                        return Err(refuse(
+                            program,
+                            entry.handle,
+                            format!(
+                                "cast entry `{}` adds domain `{domain_label}`, but the operand's type `{operand_display}` already carries `{domain_label}`; write `={domain_label}` to keep it",
+                                entry.label,
+                            ),
+                        ));
+                    }
+                    CastEntryKind::Keep | CastEntryKind::Remove if !carried => {
+                        return Err(refuse(
+                            program,
+                            entry.handle,
+                            format!(
+                                "cast entry `{}` names domain `{domain_label}`, but the operand's type `{operand_display}` does not carry `{domain_label}`; only `+{domain_label}` can name a domain the operand lacks",
+                                entry.label,
+                            ),
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let kind_of = |atom: Atom| {
+            named
+                .iter()
+                .find(|entry| entry.atoms.iter().any(|(named, _, _)| *named == atom))
+                .map(|entry| entry.entry.kind)
+        };
+        for member in &members {
+            if kind_of(member.atom).is_none() {
+                return Err(refuse(
+                    program,
+                    outermost,
+                    format!(
+                        "domain cast leaves attached domain `{label}` unaccounted for: the operand's type `{operand_display}` carries `{label}`, so the cast names it as `={label}` to keep it or `-{label}` to remove it",
+                        label = member.label,
+                    ),
+                ));
+            }
+        }
+        let has = |kind| named.iter().any(|entry| entry.entry.kind == kind);
+        if has(CastEntryKind::Remove) && has(CastEntryKind::Add) {
+            return Err(refuse(
+                program,
+                outermost,
+                "a cast that both removes and adds domains has no settled lowered form yet (NAMED-DOMAIN-CASTS, left open); write the removal and the addition as two casts, as in `(value as -A) as +B`".to_owned(),
+            ));
+        }
+
+        // The result set: a child never outlives its parent.
+        let mut result: Vec<Spelled> = members
+            .iter()
+            .filter(|member| kind_of(member.atom) == Some(CastEntryKind::Keep))
+            .map(|member| (member.atom, member.label.clone(), member.node.clone()))
+            .collect();
+        for entry in &named {
+            if entry.entry.kind == CastEntryKind::Add {
+                result.extend(entry.atoms.iter().cloned());
+            }
+        }
+        // One arithmetic policy per type: `Wrapping & Saturating` has no single meaning for `+`.
+        let policies = result
+            .iter()
+            .filter(|(atom, _, _)| matches!(atom, Atom::Policy(_)))
+            .map(|(_, label, _)| format!("`{label}`"))
+            .collect::<Vec<_>>();
+        if policies.len() > 1 {
+            return Err(refuse(
+                program,
+                outermost,
+                format!(
+                    "domain cast would leave competing arithmetic policies {} on one type; remove one of them in the same cast",
+                    policies.join(" and "),
+                ),
+            ));
+        }
+        for (atom, label, _) in &result {
+            let Atom::Declared(symbol, _) = atom else {
+                continue;
+            };
+            if let Some(parent) = parent(program, *symbol)
+                && let Some((parent_atom, parent_label)) = declared_atom(program, parent)
+                && !result.iter().any(|(member, _, _)| *member == parent_atom)
+            {
+                return Err(refuse(
+                    program,
+                    outermost,
+                    format!(
+                        "domain cast would leave `{label}` without its parent `{parent_label}`; a child domain travels with its ancestors, so keep or add `{parent_label}` as well, or remove `{label}`",
+                    ),
+                ));
+            }
+        }
+
+        /*
+            Give each entry the target and result of the ordinary cast it now
+            is. The running set starts at what the operand's type lists and
+            changes as each entry is applied. A type spells a child without
+            its ancestors, so an ancestor is spelled only while no listed
+            domain implies it.
+        */
+        let mut running: Vec<Spelled> = members
+            .iter()
+            .filter(|member| member.attached)
+            .map(|member| (member.atom, member.label.clone(), member.node.clone()))
+            .collect();
+        for entry in &named {
+            let before = spell(source, program, carrier, &running)?;
+            match entry.entry.kind {
+                CastEntryKind::Keep => {}
+                CastEntryKind::Remove => {
+                    for (atom, _, _) in &entry.atoms {
+                        running.retain(|(member, _, _)| member != atom);
+                    }
+                    for member in &members {
+                        if kind_of(member.atom) == Some(CastEntryKind::Keep)
+                            && !running.iter().any(|(listed, _, _)| {
+                                *listed == member.atom || implies(program, *listed, member.atom)
+                            })
+                        {
+                            running.push((member.atom, member.label.clone(), member.node.clone()));
+                        }
+                    }
+                }
+                CastEntryKind::Add => {
+                    for (atom, label, node) in &entry.atoms {
+                        running.retain(|(listed, _, _)| !implies(program, *atom, *listed));
+                        if !running
+                            .iter()
+                            .any(|(listed, _, _)| implies(program, *listed, *atom))
+                        {
+                            running.push((*atom, label.clone(), node.clone()));
+                        }
+                    }
+                }
+            }
+            let after = spell(source, program, carrier, &running)?;
+            let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(entry.handle)
+            else {
+                continue;
+            };
+            match entry.entry.kind {
+                CastEntryKind::Add => {
+                    cast.target_type = before;
+                    cast.result_type = after;
+                }
+                CastEntryKind::Keep | CastEntryKind::Remove => {
+                    cast.target_type = after;
+                    cast.result_type = after;
+                    cast.domain = ArithmeticDomain::Exact;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn spell(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        carrier: TypeReferenceHandle,
+        members: &[Spelled],
+    ) -> Result<TypeReferenceHandle, Diagnostic> {
+        if members.is_empty() {
+            return Ok(carrier);
+        }
+        if let [(Atom::Policy(policy), _, _)] = members
+            && let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(carrier)
+            && let Some(retained) = program
+                .type_reference_table
+                .find_arithmetic_result_type_reference(*symbol, *policy)
+        {
+            return Ok(retained);
+        }
+        let constraints = members
+            .iter()
+            .filter_map(|(atom, _, node)| node.clone().or_else(|| declared_node(program, *atom)))
+            .collect::<Vec<_>>();
+        let constraints = program.type_reference_table.insert_constraints(constraints);
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: carrier,
+                constraints,
+            });
+        normalize_domain_constraints_for_type(source, program, reference)?;
+        Ok(reference)
     }
 }

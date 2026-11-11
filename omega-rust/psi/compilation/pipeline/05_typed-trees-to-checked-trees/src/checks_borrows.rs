@@ -5473,8 +5473,8 @@ mod statements {
     use validation::find_state_in_machine;
 
     use crate::flow::{
-        StateMutationSummaryCache, StateReceiverReadCache, call_write_accesses,
-        statement_mutated_place,
+        StateMutationSummaryCache, StateReceiverReadCache, assignment_requires_exclusive_access,
+        call_write_accesses, statement_mutated_place,
     };
     use crate::published::labels::symbol_name;
 
@@ -5718,6 +5718,13 @@ mod statements {
                         bound_lookup,
                     );
                     if retained_debt == Some(true)
+                        || super::aliases::exclusive_carrier_cases(
+                            program,
+                            &facts.borrow,
+                            borrow_state,
+                            loan_handle,
+                            active_loan_handle,
+                        )
                         || (retained_debt.is_none()
                             && (compatibility.non_interfering
                                 || supplier_preserves_loan(
@@ -6011,9 +6018,15 @@ mod statements {
                 continue;
             };
 
-            let Some(_) = statement_node.as_assignment() else {
+            let Some(assignment) = statement_node.as_assignment() else {
                 continue;
             };
+            let access =
+                if assignment_requires_exclusive_access(program, machine, state, assignment) {
+                    checked_trees::BorrowAccessKind::Mutable
+                } else {
+                    checked_trees::BorrowAccessKind::Read
+                };
             let mut owned_frames = None;
             let frames = shared_call_frames_or(call_frames, program, &mut owned_frames);
             let binding_replacement = frames.is_some_and(|frames| {
@@ -6102,7 +6115,7 @@ mod statements {
                     facts,
                     loan_occurrences,
                     &destinations,
-                    &checked_trees::BorrowAccessKind::Mutable,
+                    &access,
                     loan_handle,
                     stated_premises,
                     bound_lookup,
@@ -7272,6 +7285,17 @@ mod access_sources {
             resolver at that receiver's own cut. The final field's address does not load
             its old pointer when the operation replaces that field. Captured projections
             also keep an index's evaluated coordinate when a later operand changes it.
+
+            A field or index suffix is appended to a receiver's backing only when that
+            backing names typed coordinates of the receiver's value. Two independent
+            judgments establish this. A reference receiver's backing qualifies when the
+            projectable roster retains it. An owned receiver's backing qualifies when it
+            is an exact home: the receiver's own owned place, reached without a
+            reference crossing, whose declared type is the receiver's type, or such a
+            home's typed projection. Without the second judgment `s.b = 0` on a local
+            `s` writes all of `s` and conflicts with a live loan of its sibling `s.a`.
+            A home whose type differs, such as a recast view of the same bytes, is not
+            exact, so `Viewed::field` still cannot name `Original::field`.
         */
         use crate::checks::borrows::loan_occurrences::LoanOccurrences;
         use arena::Handle;
@@ -7296,6 +7320,40 @@ mod access_sources {
                 replaces_descriptor,
                 &mut Vec::new(),
             )
+            .map(|addresses| addresses.into_iter().map(|address| address.alias).collect())
+        }
+
+        /* One resolved storage alternative and whether it is an exact typed home. */
+        struct Address {
+            alias: ResolvedAlias,
+            exact: bool,
+        }
+
+        /*
+            Whether `place` is the owned typed home of a value of `operand`'s type:
+            every prefix is owned storage and the place's declared type is the
+            operand's own type.
+        */
+        fn exact_home(
+            program: &dyn validation::CheckingInput,
+            operand: &FlowOperandFact,
+            place: &CapturedPlace,
+        ) -> bool {
+            !place.incoming_reference.is_valid()
+                && place.incoming_owner_path.is_empty()
+                && validation::canonical_owned_place_type_reference(
+                    program,
+                    operand.state_symbol,
+                    operand.statement_index,
+                    &validation::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments.clone(),
+                    },
+                )
+                .is_some_and(|declared| {
+                    program.normalized_type_identity(declared)
+                        == program.normalized_type_identity(operand.type_reference)
+                })
         }
 
         fn address(
@@ -7306,7 +7364,7 @@ mod access_sources {
             capture: Handle<FlowOperandFact>,
             replaces_descriptor: bool,
             ancestors: &mut Vec<Handle<FlowOperandFact>>,
-        ) -> Result<Vec<ResolvedAlias>, &'static str> {
+        ) -> Result<Vec<Address>, &'static str> {
             let control = &facts.flow.control;
             if !control.operands.is_valid(capture) || ancestors.contains(&capture) {
                 return Err("the completed storage address is missing or cyclic");
@@ -7329,7 +7387,16 @@ mod access_sources {
                     state,
                     capture,
                 )
-                .map(|backings| backings.places);
+                .map(|backings| {
+                    backings
+                        .places
+                        .into_iter()
+                        .map(|alias| Address {
+                            alias,
+                            exact: false,
+                        })
+                        .collect()
+                });
             }
             ancestors.push(capture);
             let result = project_address(
@@ -7353,7 +7420,7 @@ mod access_sources {
             capture: Handle<FlowOperandFact>,
             replaces_descriptor: bool,
             ancestors: &mut Vec<Handle<FlowOperandFact>>,
-        ) -> Result<Vec<ResolvedAlias>, &'static str> {
+        ) -> Result<Vec<Address>, &'static str> {
             let control = &facts.flow.control;
             let operand = control.operands.get(capture);
             let mut resolved = Vec::new();
@@ -7387,23 +7454,29 @@ mod access_sources {
                     &[],
                 );
                 for backing in backings {
-                    let mut projected = backing.place;
-                    if projectable.as_ref().is_some_and(|places| {
-                        places.iter().any(|place| {
-                            place.root == projected.root && place.segments == projected.segments
-                        })
-                    }) {
+                    let mut projected = backing.alias.place;
+                    let typed = backing.exact
+                        || projectable.as_ref().is_some_and(|places| {
+                            places.iter().any(|place| {
+                                place.root == projected.root && place.segments == projected.segments
+                            })
+                        });
+                    if typed {
                         projected.segments =
                             facts::project_captured_view_segments(&projected.segments, projection)
                                 .ok_or(
                                     "the captured address projection exceeds its receiver window",
                                 )?;
                     }
+                    let exact = typed && exact_home(program, operand, &projected);
                     append_distinct(
                         &mut resolved,
-                        ResolvedAlias {
-                            place: projected,
-                            lineage: backing.lineage,
+                        Address {
+                            alias: ResolvedAlias {
+                                place: projected,
+                                lineage: backing.alias.lineage,
+                            },
+                            exact,
                         },
                     );
                 }
@@ -7426,11 +7499,15 @@ mod access_sources {
                         ..Default::default()
                     };
                     if replaces_descriptor {
+                        let exact = exact_home(program, operand, &place);
                         append_distinct(
                             &mut resolved,
-                            ResolvedAlias {
-                                place,
-                                lineage: Vec::new(),
+                            Address {
+                                alias: ResolvedAlias {
+                                    place,
+                                    lineage: Vec::new(),
+                                },
+                                exact,
                             },
                         );
                     } else {
@@ -7441,11 +7518,20 @@ mod access_sources {
                             state,
                             operand.statement_index,
                             operand.constraints,
-                            place,
+                            place.clone(),
                         )
                         .ok_or("the completed address has no retained access lineage")?
                         {
-                            append_distinct(&mut resolved, backing);
+                            let exact = backing.lineage.is_empty()
+                                && backing.place == place
+                                && exact_home(program, operand, &place);
+                            append_distinct(
+                                &mut resolved,
+                                Address {
+                                    alias: backing,
+                                    exact,
+                                },
+                            );
                         }
                     }
                 }
@@ -7457,10 +7543,13 @@ mod access_sources {
             }
         }
 
-        fn append_distinct(resolved: &mut Vec<ResolvedAlias>, candidate: ResolvedAlias) {
-            if !resolved.iter().any(|previous| {
-                previous.place == candidate.place && previous.lineage == candidate.lineage
+        fn append_distinct(resolved: &mut Vec<Address>, candidate: Address) {
+            if let Some(previous) = resolved.iter_mut().find(|previous| {
+                previous.alias.place == candidate.alias.place
+                    && previous.alias.lineage == candidate.alias.lineage
             }) {
+                previous.exact &= candidate.exact;
+            } else {
                 resolved.push(candidate);
             }
         }
@@ -8324,7 +8413,13 @@ mod aliases {
         })
     }
 
-    fn exclusive_carrier_cases(
+    /*
+        Two loans saved in one carrier generation at payloads of different
+        cases of the same sum cannot be held together: the carrier holds one
+        case. The carrier is a named local or parameter, or the temporary home
+        of the expression that formed it, such as a call result.
+    */
+    pub(in crate::checks::borrows) fn exclusive_carrier_cases(
         program: &dyn validation::CheckingInput,
         borrow: &BorrowFacts,
         state: &StateBorrowFact,
@@ -8340,23 +8435,29 @@ mod aliases {
             if !same_carrier_generation(left, right) {
                 return None;
             }
-            let owner = left.storage_owner.as_symbol()?;
             let state = program.state_by_symbol(state.state_symbol)?;
-            let reference = validation::state_root_type(program, state, owner)?;
-            let left = crate::borrow::named_carrier_path(
-                program,
-                state,
-                owner,
-                reference,
-                borrow.owner_segments.span(left.owner_path)?,
-            )?;
-            let right = crate::borrow::named_carrier_path(
-                program,
-                state,
-                owner,
-                reference,
-                borrow.owner_segments.span(right.owner_path)?,
-            )?;
+            let carrier_path = |loan: &BorrowLoanFact| match loan.storage_owner {
+                facts::PlaceRoot::Symbol(owner) => crate::borrow::named_carrier_path(
+                    program,
+                    state,
+                    owner,
+                    validation::state_root_type(program, state, owner)?,
+                    borrow.owner_segments.span(loan.owner_path)?,
+                ),
+                facts::PlaceRoot::Expression(expression) => crate::borrow::carrier_path(
+                    program,
+                    validation::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        loan.statement_index,
+                        expression,
+                    )?,
+                    borrow.owner_segments.span(loan.owner_path)?,
+                ),
+                _ => None,
+            };
+            let left = carrier_path(left)?;
+            let right = carrier_path(right)?;
             for (left, right) in left.iter().zip(&right) {
                 if left != right {
                     return Some(matches!(

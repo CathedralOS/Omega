@@ -251,6 +251,7 @@ pub(crate) mod attached_unit {
                     &machine.result,
                     &signature.erased_scalar_parameters,
                     &crate::scalar_lowering::contracts::ContractViewNamespace {
+                        locals: &[],
                         scalar_applications: shared.scalar_applications,
                         constant_values: &checked.typed.constant_recipe_closure.values,
                         parameters: &view_roster,
@@ -10954,6 +10955,7 @@ pub(crate) mod attached_unit {
                 &state_values[position],
                 &state_erased[position],
                 &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications: catalogs.scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,

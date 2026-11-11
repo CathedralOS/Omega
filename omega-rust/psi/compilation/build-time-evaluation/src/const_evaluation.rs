@@ -195,9 +195,7 @@ pub(crate) mod const_applications {
             }
         }
         realize_folded_applications(typed, &published, domain);
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        crate::report_evaluation_diagnostics(&warnings)?;
         Ok(())
     }
 
@@ -425,7 +423,7 @@ pub(crate) mod const_applications {
         let template = typed.data_definition_by_symbol(base_symbol).cloned()?;
         if template.generic_instance.is_some()
             || template.quotient.is_some()
-            || !template.where_facts.is_empty()
+            || !template.requires_facts.is_empty()
             || template.zero_gated
             || !template.lifetime_parameters.is_empty()
             || typed
@@ -1645,7 +1643,7 @@ pub(crate) mod const_domain_facts {
             if data.generic_instance.is_none() {
                 continue;
             }
-            for fact in data.where_facts.handles() {
+            for fact in data.requires_facts.handles() {
                 let Some(membership) = typed.proof_facts.get(fact).as_membership() else {
                     continue;
                 };
@@ -1757,7 +1755,7 @@ pub(crate) mod const_domain_facts {
             .filter(|data| affected_data.contains(&data.symbol))
             .map(|data| {
                 let residual = typed
-                    .conjunctive_proof_facts(data.where_facts)
+                    .conjunctive_proof_facts(data.requires_facts)
                     .filter(|fact| {
                         fact.as_expression().is_none_or(|expression| {
                             !fact_expression::data_fact_is_static_true(typed, data, *expression)
@@ -1771,7 +1769,7 @@ pub(crate) mod const_domain_facts {
             let facts = typed.proof_facts.insert_many(residual);
             typed.data_definitions.for_each_mut(|_, data| {
                 if data.symbol == symbol {
-                    data.where_facts = facts;
+                    data.requires_facts = facts;
                 }
             });
         }
@@ -1782,7 +1780,7 @@ pub(crate) mod const_domain_facts {
             .filter(|data| {
                 typed
                     .proof_facts
-                    .span_or_empty(data.where_facts)
+                    .span_or_empty(data.requires_facts)
                     .iter()
                     .all(|fact| match fact {
                         ProofFact::Expression(expression) => {
@@ -1798,7 +1796,7 @@ pub(crate) mod const_domain_facts {
                             typed_trees::data::DataMember::Variant(variant) => Some(variant),
                             _ => None,
                         })
-                        .is_none_or(|variant| variant.where_facts.is_empty())
+                        .is_none_or(|variant| variant.requires_facts.is_empty())
             })
             .map(|data| data.symbol)
             .collect();
@@ -2366,9 +2364,7 @@ pub(crate) mod const_generic_calls {
                         ));
                     }
                 };
-                for warning in &evaluated.warnings {
-                    eprintln!("{warning}");
-                }
+                crate::report_evaluation_diagnostics(&evaluated.warnings)?;
                 syntax.type_references.retain_const_argument_normalization(
                     *argument,
                     reference,
@@ -4964,9 +4960,7 @@ pub(crate) mod range_endpoints {
                 return Err(round.diagnostics);
             }
         }
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        crate::report_evaluation_diagnostics(&warnings)?;
         Ok(())
     }
 

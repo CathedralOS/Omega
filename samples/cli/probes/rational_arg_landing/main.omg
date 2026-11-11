@@ -24,7 +24,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let anonymous: i32 = identity(7 / 2 * 2);
+    let anonymous: i32 = identity((7 / 2 * 2) as i32);
     let typed: i32 = identity(7i32 / 2 * 2);
     let wrapped: i32 = identity((18446744073709551615 + 1) - 18446744073709551609);
     transition anonymous == 7 && typed == 6 && wrapped == 7 {

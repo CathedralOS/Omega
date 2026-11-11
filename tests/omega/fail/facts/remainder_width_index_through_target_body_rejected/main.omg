@@ -5,9 +5,9 @@
 // Expected exit: 0
 machine measure(buckets: &[u8]) -> u64
 requires buckets.len > 0 && buckets.len < 100
-ensures result == buckets.len as u64 + 1
+ensures result == (buckets.len as u64) + 1
 {
-    buckets.len as u64 + 1
+    (buckets.len as u64) + 1
 }
 
 linux_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8

@@ -51,18 +51,18 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
-  - Declare per-target realization entries (catalog intrinsic, checked machine, unsupported) and bind the public float operators to them; delete `configure_float_defaults`/`configure_directed_fma_defaults` and the `NativeFloats` selection route while keeping differential-evidence identities and the checked-software route; profile remaining `select_provider` cost inside this item.
-  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions; an unsupported operation rejects naming operation and target; core's build program makes no float selections.
+  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
+  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - Resolve product requirements, infer `ForeignBinding` const lengths, migrate all `via` sites, and delete `via` parsing.
+  - First **SEALED-INTRINSIC-CATALOG** (provider-planning custody to `language_core::sealed_intrinsics`; seal task/mask providers), then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
-  - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
-  Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
+  - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
+  Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [landing](wiki/drafts/designs/explicit_integer_landing.md).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q2](OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer)).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
@@ -89,9 +89,17 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
-- **CASE-TYPE.** Implement the [case projection type](wiki/drafts/designs/case_projection_type.md).
+- **REQUIRED-AUTOMATIC-DISCHARGE.** Meet the [proof floor](wiki/drafts/designs/required_automatic_discharge.md) in both checkers; add `--floor-only`.
 
-- **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+- **PUBLISHED-WRITE-FRAMES.** Publish inferred [write frames](wiki/drafts/designs/published_write_frames.md) in interface identity.
+
+- **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate `Token`, samples and tests.
+
+- **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
+
+- **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture.
+
+- **INVOKES-ENTRY-CEILING.** Implement the [entry ceiling](wiki/drafts/designs/invokes_entry_ceiling.md); then strip plumbing rows.
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
@@ -129,17 +137,14 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Immediate product closure
 
-- **REQUIRES-UNIFICATION.** Implement [unified `requires` clauses](wiki/spec/language/state_contracts.md#requirement-clauses), migrate all sources, and delete `where` (`ClauseKind::Where`) in both compilers.
-  Acceptance: both compilers accept data/generic/callable/assembly `requires` forms, migrated sources pass `--both`, and `where` rejects.
+- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
+  Acceptance: the parser, resolver, typing and checking gates pass.
 
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `depend*` and `BuildInputs`/`BuildSource`/`BuildOutput`.
   Acceptance: root/dependency Builds, generators, and attenuated filesystem providers pass `omega run --both` with legacy Build paths deleted.
 
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representations](wiki/spec/layouts/plans.md#representation-applications), [aliases](wiki/spec/language/generics.md#transparent-type-aliases), [conversions](wiki/spec/layouts/codecs.md#representation-conversions), and [home layouts](wiki/drafts/designs/home_layout_optimization.md).
   Acceptance: 9-place alias, `FixedLayout<T>` ([region](samples/cli/facts/fixed_region_byte_roundtrip/README.md), [readback](samples/cli/facts/fixed_layout_reference_readback/README.md), [forwarding](samples/cli/facts/implementation_region_forwarding/README.md)), [agreement](samples/cli/facts/representation_agreement/README.md), niche/repair/recast controls pass `--both`.
-
-- **DATA-DECOMPOSITION.** Implement [separate data and case decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition) (`case as binding`, `let Pattern = expr;`) and retire flattened case patterns.
-  Acceptance: named and positional decomposition pass `omega run --both` across 9-place rows and reject twins with flattened patterns deleted.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** (covers **REFERENCE-LOCAL-BINDING-ROUTES**, **BORROWED-STORAGE-RESTORATION**, **MATCH-SELECTIVE-LOWERING**) Complete expression, reference-local, [borrowed window](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows) (`borrowed_windows.rs`), and [match](wiki/spec/language/patterns.md) (`match_dispatch.rs`, `address_joins.rs`) lowering.
   Acceptance: `scalar_tag_field_loan`, `recoverable_replacement_window`, `runtime_dutch_flag_partition_exit`, and `borrowed,window,carried_loan` pass `--both`.
@@ -213,11 +218,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
   Acceptance: `console_exit_process_exit` (warm `< 50%` cold), `bounded_activation`, Windows filesystem fixtures, `Independent` builds, and `blocking-executor` pass `--both`.
-
-## Connected scientific library
-
-- **W100-CONNECTED.** Complete `source/library/core/{matrix_layout,float_accuracy,complex,linear_algebra}.omg` and `samples/cli/scientific/w100/` through `omega run --both`.
-  Acceptance: those core modules and `samples/cli/scientific/w100/` execute via `omega run --both` against frozen mathematical oracles.
 
 ## P5 - Cathedral over general Omega primitives
 

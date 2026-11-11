@@ -285,6 +285,7 @@ pub(super) fn decode_type(
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
     Ok(StructuralTypeDeclaration {
+        requires: Vec::new(),
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
@@ -987,6 +988,7 @@ mod tests {
         let mut encodings = Vec::new();
         for copyable in [false, true] {
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -1015,6 +1017,7 @@ mod tests {
         let mut encodings = Vec::new();
         for owns_linear_claim in [false, true] {
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim,
                 no_code_affine_cleanup: false,
@@ -1048,6 +1051,7 @@ mod tests {
             Some(StructuralAccess::WriteOnlyBorrow),
         ] {
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -1080,6 +1084,7 @@ mod tests {
             ScalarTerm::boolean(true),
         );
         let declaration = StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
@@ -1123,6 +1128,7 @@ mod tests {
     #[test]
     fn retired_binding_carrier_tag_decodes_as_an_unknown_shape() {
         let record = StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -1191,6 +1197,7 @@ mod tests {
             (StructuralAccess::WriteOnlyBorrow, true),
         ] {
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -1276,6 +1283,7 @@ mod tests {
             Some(StructuralAccess::WriteOnlyBorrow),
         ] {
             let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,

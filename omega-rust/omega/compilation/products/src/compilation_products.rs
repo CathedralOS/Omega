@@ -41,6 +41,7 @@ pub struct PendingNativeProduct {
     pub rollback: OptimizationRollbackSettlement,
     pub subsystem: u16,
     pub settlement: CompileReportSettlement,
+    pub tests: Vec<crate::PendingTestProduct>, // Registered test roots, in roster order; run before this application succeeds.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

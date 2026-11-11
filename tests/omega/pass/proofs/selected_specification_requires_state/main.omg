@@ -1,15 +1,15 @@
 use omega::language::core::nat;
 machine selected_identity<machine Modulus>(value: Nat) -> Nat
-requires machine Modulus(value: Nat) -> Nat;
-requires (saturating_sub(Modulus(value), value)) == Nat::Zero
+requires machine Modulus(value: Nat) -> Nat terminates;
+requires core::Identity<Nat>(saturating_sub(Modulus(value), value), Nat::Zero)
 { value }
 machine state_identity<machine Choice>(input: Nat)
-requires machine Choice(value: Nat) -> Nat;
-requires (saturating_sub(Choice(input), input)) == Nat::Zero
+requires machine Choice(value: Nat) -> Nat terminates;
+requires core::Identity<Nat>(saturating_sub(Choice(input), input), Nat::Zero)
 {
-    transition checked(input)
+    transition { _ -> checked(input) }
     machine checked(subject: Nat)
-    requires (saturating_sub(Choice(subject), subject)) == Nat::Zero
-    requires selected_identity<Choice>(subject) == subject
+    requires core::Identity<Nat>(saturating_sub(Choice(subject), subject), Nat::Zero)
+    requires core::Identity<Nat>(selected_identity<Choice>(subject), subject)
     {}
 }

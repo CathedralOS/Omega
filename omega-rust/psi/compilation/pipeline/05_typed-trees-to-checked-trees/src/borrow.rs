@@ -1046,6 +1046,20 @@ pub(crate) mod accesses {
             })
             .flatten();
         for (position, argument) in arguments.iter().enumerate() {
+            /*
+                An erased parameter demands no executable value
+                (wiki/spec/proofs/mathematical_bindings.md), so its argument
+                forms no runtime read or loan. The receiving state likewise
+                installs no incoming-reference tracker for an erased formal;
+                recording an access here would demand a retained backing that
+                no runtime carrier can hold.
+            */
+            if parameters
+                .and_then(|rows| rows.get(position))
+                .is_some_and(|parameter| parameter.relevance.is_erased())
+            {
+                continue;
+            }
             let receiving_type = parameters
                 .and_then(|rows| rows.get(position))
                 .map(|parameter| parameter.type_reference)
@@ -4903,13 +4917,36 @@ mod loans {
             let mut output = Vec::new();
             for source in completed {
                 let selected = effects.iter().any(|effect| {
+                    let destination = &effect.destination.local_segments;
+                    // A fixed store installs exactly the loans its destination covers.
+                    // A store at a runtime-selected element (`slots[position]`) installs
+                    // a loan whose owner path holds `DynamicIndex` there. Coverage, which
+                    // decides retirement, never holds for that segment, so the new loan
+                    // is selected by the destination's shape: `DynamicIndex` stands for
+                    // the selected element, whose index expression belongs to the callee
+                    // frame. Loans the statement already carried in stay out either way.
+                    let installed = if effect.may_select {
+                        destination.len() <= source.owner_path.len()
+                            && source.owner_path.iter().zip(destination).all(
+                                |(owner, place)| match (owner, place) {
+                                    (
+                                        super::BorrowOwnerSegment::DynamicIndex,
+                                        facts::PlaceSegment::Index { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. },
+                                    ) => true,
+                                    _ => {
+                                        super::owner_segment_matches_place_segment(
+                                            program, owner, place,
+                                        ) == Some(true)
+                                    }
+                                },
+                            )
+                    } else {
+                        super::place_path_covers_owner(program, destination, &source.owner_path)
+                    };
                     source.storage_owner
                         == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && super::place_path_covers_owner(
-                            program,
-                            &effect.destination.local_segments,
-                            &source.owner_path,
-                        )
+                        && installed
                         && (!effect.may_select
                             || !incoming.iter().any(|entry| entry.handle == source.handle))
                 });
@@ -5553,6 +5590,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let mut incoming = statement_entry
                 .iter()
@@ -7481,6 +7519,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let contents = borrow_carrying_data_loans(
                 program,
@@ -7558,6 +7597,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
         let expression_loans = |expression| {
             let mut value = returned_value.clone();
@@ -7896,6 +7936,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
 
         let loans = binding_borrow_loans(
@@ -8566,7 +8607,7 @@ mod state {
     use validation::CallFrameResolver;
     use validation::borrow_contracts::retained_lifetime_owner_paths;
     use validation::peel_declared_constraints;
-    use validation::reference_result_custody::declared_carrier_references;
+    use validation::reference_result_custody::declared_carrier_inventory;
     use validation::reference_result_custody::input_carrier_type;
     use validation::reference_result_custody::origin_place_segments;
     use validation::reference_shell;
@@ -9190,10 +9231,21 @@ mod state {
             let Some(carrier) = carrier else {
                 continue;
             };
-            let Some(sources) = declared_carrier_references(program, carrier) else {
+            /*
+                Each known leaf is an incoming descriptor this state receives, so
+                it gets its entry tracker even beside an opaque type-parameter
+                field: `envelope.destination` in `Envelope<'s, M>` is as concrete
+                as in a record without `M`. An opaque field gets no tracker, which
+                is what the whole carrier got before. Nothing is lost by that: the
+                body sees such a field only as its parameter type, never as a
+                reference, so no descriptor read of it is formed here, and every
+                completeness judgment still uses `declared_carrier_references`,
+                which refuses a carrier with an opaque leaf.
+            */
+            let Some(inventory) = declared_carrier_inventory(program, carrier) else {
                 continue;
             };
-            for source in sources {
+            for source in inventory.known {
                 let Some(segments) =
                     origin_place_segments(program, carrier, source.path.iter().cloned())
                 else {

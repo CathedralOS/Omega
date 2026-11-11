@@ -26,7 +26,7 @@ mod boolean_requirements {
 
     /*
         A collection-predicate requirement over a field of the caller's argument
-        place is the same fact the place's data states in `where`; it stands at
+        place is the same fact the place's data states in `requires`; it stands at
         every call because calls are consumption points for invariant windows.
     */
     fn standing_domain_fact_proves_requirement(

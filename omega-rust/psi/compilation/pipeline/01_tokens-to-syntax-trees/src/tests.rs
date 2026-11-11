@@ -752,26 +752,38 @@ pub(crate) mod bindings_and_conformances {
     }
 
     #[test]
-    fn reference_rows_are_retired() {
+    fn selection_row_names_its_slot_and_the_existing_machine() {
         let source = r#"
         trait Ranked<Item> { machine rank_value(value: &Item) -> u32; }
         data Card { power: u32; }
-        machine Card::stable_rank_value(value: &Card) -> u32 { }
         PowerOrder satisfies Ranked<Card> {
-            Ranked::rank_value = Card::stable_rank_value;
+            Ranked::rank_value = ranking::stable_rank_value;
         }
     "#;
 
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let diagnostic = parse_syntax_trees(&tokens).expect_err("a reference row must reject");
-        assert!(
-            diagnostic
-                .message
-                .contains("reference row (`Trait::member = Existing::machine;`) is retired"),
-            "unexpected diagnostic: {}",
-            diagnostic.message
+        let parsed = super::parse_source(source, "a selection row should parse");
+        let conformance = super::root_conformance(&parsed, "conformance root item");
+        let [member] = parsed.items.conformance_members(conformance.members) else {
+            panic!("one retained conformance member");
+        };
+        let syntax_trees::item::ConformanceMember::Selection {
+            declaring_trait,
+            requirement,
+            target,
+        } = member
+        else {
+            panic!("the member is a selection row");
+        };
+        assert_eq!(declaring_trait.as_str(&parsed), "Ranked");
+        assert_eq!(requirement.as_str(&parsed), "rank_value");
+        assert_eq!(
+            parsed
+                .items
+                .identifier_path_members(*target)
+                .iter()
+                .map(|member| member.as_str(&parsed))
+                .collect::<Vec<_>>(),
+            ["ranking", "stable_rank_value"]
         );
     }
 
@@ -2493,34 +2505,74 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
-    fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+    fn record_pattern_marker_carries_its_field_roster() {
         let source = r#"
-        data Pair { left__value: i32; right: i32; }
+        data Pair { left__value: i32; right: i32; other: i32; }
         machine inspect(pair: Pair) {
-            let { left__value, right as _ } = pair;
+            let { left__value, right as _, other as renamed } = pair;
         }
     "#;
         let parsed = super::parse_source(source, "destructure should parse");
         let machine = super::root_machine(&parsed, "machine root item");
         let state = super::entry_state(&parsed, machine);
-        let marker = parsed
+        let locals = parsed
             .items
             .statements(state.statements)
             .iter()
-            .find_map(|handle| match parsed.statements.statement(*handle) {
-                StatementNode::LocalData(local)
-                    if local.name.as_str(&parsed).starts_with("__destructure#") =>
-                {
-                    Some(local)
-                }
+            .filter_map(|handle| match parsed.statements.statement(*handle) {
+                StatementNode::LocalData(local) => Some(local),
                 _ => None,
             })
-            .expect("destructure marker local");
+            .collect::<Vec<_>>();
+        let [marker, bound @ ..] = locals.as_slice() else {
+            panic!("the pattern leaves a marker local");
+        };
 
+        assert_eq!(marker.role, language_core::LocalBindingRole::RecordPattern);
         assert_eq!(
             marker.name.as_str(&parsed),
-            "__destructure#left__value#right",
-            "the internal delimiter must not split repeated underscores"
+            "__destructure",
+            "the marker's name encodes nothing"
+        );
+        let roster = parsed
+            .expressions
+            .match_fields(marker.pattern_fields)
+            .iter()
+            .map(|field| {
+                (
+                    field.member.as_str(&parsed),
+                    match &field.action {
+                        syntax_trees::expression::MatchFieldAction::Bind(binding) => {
+                            Some(binding.as_str(&parsed))
+                        }
+                        syntax_trees::expression::MatchFieldAction::Waive => None,
+                        syntax_trees::expression::MatchFieldAction::Equal(_) => {
+                            panic!("a let pattern compares nothing")
+                        }
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            roster,
+            [
+                ("left__value", Some("left__value")),
+                ("right", None),
+                ("other", Some("renamed")),
+            ],
+            "every named field is kept in authored order, waived ones included"
+        );
+        assert_eq!(
+            bound
+                .iter()
+                .map(|local| local.name.as_str(&parsed))
+                .collect::<Vec<_>>(),
+            ["left__value", "renamed"],
+            "only bound fields become value locals"
+        );
+        assert!(
+            bound.iter().all(|local| local.pattern_fields.is_empty()),
+            "only the marker carries a roster"
         );
     }
 
@@ -2859,6 +2911,21 @@ pub(crate) mod definitions_and_contracts {
                 .capability_contracts(quiet.contracts)
                 .is_empty()
         );
+        // With no contract row, the authored promise is kept as its own
+        // fact, so a later stage can tell it from an omitted clause.
+        assert!(quiet.declares_no_crash_route);
+        let omitted = super::parse_source(
+            "machine quiet() -> u64 { 7 }",
+            "an omitted crashes clause parses",
+        );
+        let omitted_quiet = omitted
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("quiet machine");
+        assert!(!omitted_quiet.declares_no_crash_route);
 
         for (rejected, message) in [
             (
@@ -3097,7 +3164,7 @@ pub(crate) mod domains_and_transitions {
         let parsed = super::parse_source(source, "parse should succeed");
         let data = super::root_data(&parsed, "data root item");
 
-        assert_eq!(parsed.items.proof_facts(data.where_facts).len(), 2);
+        assert_eq!(parsed.items.proof_facts(data.requires_facts).len(), 2);
         assert_eq!(parsed.items.data_members(data.members).len(), 3);
     }
 
@@ -3121,13 +3188,15 @@ pub(crate) mod domains_and_transitions {
             .data_members(data.members)
             .iter()
             .map(|member| match member {
-                DataMember::Variant(variant) => parsed.items.proof_facts(variant.where_facts).len(),
+                DataMember::Variant(variant) => {
+                    parsed.items.proof_facts(variant.requires_facts).len()
+                }
                 _ => panic!("expected only variant members"),
             });
         assert_eq!(
             fact_counts.next(),
             Some(0),
-            "payload-less case without `where`"
+            "payload-less case without facts"
         );
         assert_eq!(fact_counts.next(), Some(0), "no case-local predicate copy");
         assert!(fact_counts.next().is_none());
@@ -3973,6 +4042,105 @@ pub(crate) mod expression_stack {
         assert_eq!(parsed.display_expression_name(root.right), "c");
     }
 
+    /// A suffix chooses the policy of one operation and nothing else: every
+    /// suffixed form parses as its base operator with that operator's
+    /// precedence. A suffixed token's span covers its suffix; `>>` reads its
+    /// suffix from the next token, so its span stays the two `>`.
+    #[test]
+    fn policy_suffixes_keep_the_base_operator_and_record_its_policy() {
+        use numerics::arithmetic::ArithmeticDomain::{Exact, Saturating, Trapping, Wrapping};
+        let source = "a +% b *| c -! d /% e %| f <<! g >>% h >>| i >>! j >> k + l";
+        let (parsed, _) = parse_expression(source);
+        let actual: Vec<_> = parsed
+            .expressions
+            .iter_expressions()
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Binary(binary) = expression else {
+                    return None;
+                };
+                let span = parsed.expressions.source_span(handle).span;
+                Some((
+                    binary.operator,
+                    binary.policy,
+                    &source[span.start..span.end],
+                ))
+            })
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                (BinaryOperator::Multiply, Saturating, "*|"),
+                (BinaryOperator::Add, Wrapping, "+%"),
+                (BinaryOperator::Divide, Wrapping, "/%"),
+                (BinaryOperator::Modulo, Saturating, "%|"),
+                (BinaryOperator::Subtract, Trapping, "-!"),
+                (BinaryOperator::ShiftLeft, Trapping, "<<!"),
+                (BinaryOperator::ShiftRight, Wrapping, ">>"),
+                (BinaryOperator::ShiftRight, Saturating, ">>"),
+                (BinaryOperator::ShiftRight, Trapping, ">>"),
+                (BinaryOperator::Add, Exact, "+"),
+                (BinaryOperator::ShiftRight, Exact, ">>"),
+            ]
+        );
+    }
+
+    /// Lexing takes the longest operator, so only a space keeps a logical
+    /// negation apart from a trapping suffix; `>>` reads its suffix from the
+    /// adjacent token for the same reason.
+    #[test]
+    fn a_space_separates_a_negated_operand_from_a_trapping_suffix() {
+        use numerics::arithmetic::ArithmeticDomain::{Exact, Trapping};
+        for (source, policy, negated) in [
+            ("a +!b", Trapping, false),
+            ("a + !b", Exact, true),
+            ("a >>!b", Trapping, false),
+            ("a >> !b", Exact, true),
+        ] {
+            let (parsed, root) = parse_expression(source);
+            let ExpressionNode::Binary(binary) = parsed.expressions.expression(root) else {
+                panic!("binary root in `{source}`");
+            };
+            assert_eq!(binary.policy, policy, "{source}");
+            assert_eq!(
+                matches!(
+                    parsed.expressions.expression(binary.right),
+                    ExpressionNode::Unary(_)
+                ),
+                negated,
+                "{source}"
+            );
+        }
+    }
+
+    /// A constant is folded before any operand is typed, so a suffixed
+    /// operator rejects at its own token wherever the initializer nests it.
+    #[test]
+    fn a_constant_initializer_rejects_a_nested_policy_suffix() {
+        for source in [
+            "const WRAPPED: u32 = BASE +% BASE;",
+            "const TABLE: [u32; 2] = [1 +% 2, 3];",
+            "const CALLED: u32 = scale(BASE *| 2);",
+            "const SHIFTED: u32 = (BASE >>! 1);",
+            "data Buffer { bytes: [u8; SIZE +% 1]; }",
+        ] {
+            let tokens = Lexer::new(source).tokenize().expect("tokenize constant");
+            let error = crate::parse_syntax_trees(&tokens).expect_err("constant must reject");
+            assert!(
+                error
+                    .message
+                    .contains("is not available in a constant expression yet"),
+                "{source}: {}",
+                error.message
+            );
+            let span = error.source_span.span;
+            assert!(
+                matches!(&source[span.start..span.end], "+%" | "*|" | ">>"),
+                "{source}: error points at `{}`",
+                &source[span.start..span.end]
+            );
+        }
+    }
+
     #[test]
     fn membership_remains_a_separate_operand_grammar() {
         let (parsed, _) = parse_expression("a + b in First & Second | Third == c || d");
@@ -4550,7 +4718,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_exact_asm_where_clobber_contracts() {
+    fn parses_exact_asm_clobber_contracts() {
         for block in [
             "asm clobbers none { hlt }",
             "asm clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
@@ -4569,7 +4737,7 @@ pub(crate) mod inline_assembly {
     }
 
     #[test]
-    fn parses_asm_where_facts_at_entry_and_exit() {
+    fn parses_asm_requires_facts_at_entry_and_exit() {
         let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
         machine Main::main(main: &mut Main) {
@@ -7781,7 +7949,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("expected data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("expected one equation");
                 };
@@ -7873,7 +8041,7 @@ pub(crate) mod type_constraints {
                 let syntax_trees::item::Item::Data(data) = item else {
                     panic!("data");
                 };
-                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.where_facts)
+                let [ProofFact::Expression(fact)] = trees.items.proof_facts(data.requires_facts)
                 else {
                     panic!("equation");
                 };

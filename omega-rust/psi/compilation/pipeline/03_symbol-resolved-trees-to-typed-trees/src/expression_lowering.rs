@@ -144,6 +144,7 @@ pub(crate) mod expression {
             Some(
                 expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                     typed::expression::TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator,
                         right: case_reference,
@@ -181,7 +182,7 @@ pub(crate) mod expression {
                                 .data_definition_by_symbol(program.symbols.get(path.symbol).parent)
                                 .is_some_and(|definition| {
                                     definition.predicate_subject_symbol == path.symbol
-                                        && !definition.where_facts.is_empty()
+                                        && !definition.requires_facts.is_empty()
                                 });
                     }
                     typed::expression::ExpressionNode::SavedSubject(saved) => {
@@ -369,6 +370,7 @@ pub(crate) mod expression {
                 combined =
                     expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: combined,
                             operator: typed::expression::BinaryOperator::And,
                             right: fact,
@@ -406,12 +408,15 @@ pub(crate) mod expression {
             let members = lower_name_path_members_into_table(source, target, path.members);
             let member_symbols = lower_name_path_member_symbols_into_table(source, target, path);
 
-            typed::expression::TableNamePath::new(
-                members,
-                member_symbols,
-                path.head_symbol,
-                path.symbol,
-            )
+            typed::expression::TableNamePath {
+                reserved_result_of: path.reserved_result_of,
+                ..typed::expression::TableNamePath::new(
+                    members,
+                    member_symbols,
+                    path.head_symbol,
+                    path.symbol,
+                )
+            }
         }
 
         fn lower_name_path_member_symbols_into_table(
@@ -718,6 +723,7 @@ pub(crate) mod expression {
                         let condition = if case.is_some() {
                             let tag = self.target().insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: saved,
                                     operator: BinaryOperator::CaseMembership,
                                     right: head,
@@ -725,6 +731,7 @@ pub(crate) mod expression {
                             ));
                             self.target()
                                 .insert(ExpressionNode::Binary(TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: tag,
                                     operator: BinaryOperator::And,
                                     right: predicate,
@@ -846,6 +853,12 @@ pub(crate) mod expression {
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
+                /// Whether this expression runs in a machine body. Preparation
+                /// types a suffixed policy operator against its operands'
+                /// carrier and reads only executable statements, so every
+                /// other position rejects the suffix here instead of letting
+                /// it be checked as the bare Exact operator.
+                executable: bool,
                 lowered_expressions: Vec<(
                     resolved::expression::ExpressionHandle,
                     bool,
@@ -875,6 +888,7 @@ pub(crate) mod expression {
                         symbol_substitution,
                         equality_scope,
                         fact_position: false,
+                        executable: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
                     }
@@ -922,6 +936,11 @@ pub(crate) mod expression {
 
                 pub(crate) fn in_fact_position(mut self) -> Self {
                     self.fact_position = true;
+                    self
+                }
+
+                pub(crate) fn in_executable_code(mut self) -> Self {
+                    self.executable = true;
                     self
                 }
 
@@ -1065,6 +1084,16 @@ pub(crate) mod expression {
                     let resolved::expression::ExpressionNode::Binary(binary) = node else {
                         return self.lower_nonbinary_node(expression, node);
                     };
+                    if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
+                        && !self.executable
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "the policy operator `{}{}` is supported only in executable machine code; contracts and constant expressions cannot use a suffixed operator yet",
+                            binary.operator.display_name(),
+                            binary.policy.operator_suffix(),
+                        ))
+                        .with_source_span(self.source.source_span(expression)));
+                    }
                     self.lower_binary_node(binary)
                 }
 
@@ -1106,6 +1135,9 @@ pub(crate) mod expression {
                     ) {
                         self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Bool)?;
                     }
+                    // A suffixed operator keeps its policy on the node: the
+                    // operand carrier is not known yet, so preparation types
+                    // it once the whole program is lowered.
                     Ok(self
                         .target()
                         .insert(typed::expression::ExpressionNode::Binary(
@@ -1113,6 +1145,7 @@ pub(crate) mod expression {
                                 left,
                                 operator: lower_binary_operator(binary.operator),
                                 right,
+                                policy: binary.policy,
                             },
                         )))
                 }
@@ -1209,7 +1242,11 @@ pub(crate) mod expression {
                                 .target_trees
                                 .type_reference_table
                                 .insert_type_reference_handles(semantic_domain_arguments);
-                            if semantic_domain.is_empty() && !cast.form.is_recast() {
+                            // A domain entry has no carrier until its run is accounted for.
+                            if semantic_domain.is_empty()
+                                && !cast.form.is_recast()
+                                && cast.form.entry().is_none()
+                            {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     self.target_trees,
@@ -1266,7 +1303,18 @@ pub(crate) mod expression {
                                 return Ok(lowered);
                             }
                             if let Some(program) = self.program {
-                                let namespace = if call.receiver.is_valid() {
+                                let facet =
+                                    crate::expressions::product_selections::test_group_facet(
+                                        program,
+                                        self.source,
+                                        call.receiver,
+                                        call.target_symbol,
+                                        call.target.as_str(),
+                                        call.arguments.len(),
+                                    );
+                                let namespace = if let Some(build) = facet {
+                                    build
+                                } else if call.receiver.is_valid() {
                                     match self.source.expression(call.receiver) {
                                         resolved::expression::ExpressionNode::Name(path) => {
                                             path.symbol
@@ -1320,18 +1368,20 @@ pub(crate) mod expression {
                                         call.target_symbol,
                                         call.target.as_str(),
                                         &call.machine_arguments,
-                                        call.arguments.len(),
+                                        call.arguments.len() + usize::from(facet.is_some()),
                                         call.evidence_arguments.len(),
                                         self.source.source_span(expression),
                                     )?
                                 {
-                                    let arguments = self
-                                        .source
-                                        .expression_handles(call.arguments)
-                                        .to_vec()
-                                        .into_iter()
-                                        .map(|argument| self.lower_value(argument))
-                                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                                    let arguments = match facet {
+                                        Some(_) => vec![call.receiver],
+                                        None => {
+                                            self.source.expression_handles(call.arguments).to_vec()
+                                        }
+                                    }
+                                    .into_iter()
+                                    .map(|argument| self.lower_value(argument))
+                                    .collect::<Result<Vec<_>, Diagnostic>>()?;
                                     return crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
@@ -2412,8 +2462,55 @@ pub(crate) mod expression {
                 {
                     return declared_data_field(program, literal.type_symbol, member);
                 }
-                let receiver = declared_type(program, expressions, member.receiver, depth + 1)?;
-                declared_field(program, receiver, member)
+                match declared_type(program, expressions, member.receiver, depth + 1) {
+                    Some(receiver) => declared_field(program, receiver, member),
+                    None => selected_field(program, member.member_symbol),
+                }
+            }
+
+            /*
+                A member that already carries its field symbol names that
+                declaration whatever its receiver is. A case arm's payload
+                binding has no declared receiver type here, so a field read
+                through it (`inner.x`) reaches `Inner` by this route.
+            */
+            fn selected_field(
+                program: &resolved::SymbolResolvedTrees,
+                symbol: SymbolHandle,
+            ) -> Option<&DataField> {
+                if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Field {
+                    return None;
+                }
+                let owner = program.symbols.get(symbol).parent;
+                let data = match program.symbols.get(owner).kind {
+                    SymbolKind::Data => owner,
+                    SymbolKind::Variant => program.symbols.get(owner).parent,
+                    _ => return None,
+                };
+                let mut definitions = program
+                    .data_definitions
+                    .iter()
+                    .filter(|definition| definition.symbol == data);
+                let definition = definitions.next()?;
+                if definitions.next().is_some() || !exact_top_level_data_symbol(program, definition)
+                {
+                    return None;
+                }
+                let mut fields = program
+                    .data_members(definition.members)
+                    .iter()
+                    .flat_map(|node| match node {
+                        DataMember::Field(field) if owner == data => std::slice::from_ref(field),
+                        DataMember::Variant(variant) if variant.symbol == owner => {
+                            program.data_payload_fields(variant.payload)
+                        }
+                        _ => &[],
+                    })
+                    .filter(|field| {
+                        field.symbol == symbol && exact_field_symbol(program, owner, field)
+                    });
+                let field = fields.next()?;
+                fields.next().is_none().then_some(field)
             }
 
             fn declared_type<'program>(
@@ -2559,13 +2656,55 @@ pub(crate) mod expression {
                                 && exact_field_symbol(program, definition.symbol, field))
                             .then_some(field)
                         });
-                let field = fields.next()?;
+                let Some(field) = fields.next() else {
+                    return member
+                        .case_variant
+                        .is_none()
+                        .then(|| sole_payload_field(program, definition, member))
+                        .flatten();
+                };
                 if fields.next().is_some()
                     || (member.member_symbol.is_valid() && member.member_symbol != field.symbol)
                 {
                     return None;
                 }
                 Some(field)
+            }
+
+            /*
+                `shape.at` written without its case names a payload field only
+                when no common field and exactly one case declares that
+                spelling. The member then carries that field's symbol, whose
+                parent is the case, exactly as a record member carries its
+                field. A spelling two cases share stays unresolved here, and
+                whoever rejects or selects it today still does.
+            */
+            fn sole_payload_field<'program>(
+                program: &'program resolved::SymbolResolvedTrees,
+                definition: &resolved::data::DataDefinition,
+                member: &TableMemberExpression,
+            ) -> Option<&'program DataField> {
+                let mut selected = None;
+                for node in program.data_members(definition.members) {
+                    let DataMember::Variant(variant) = node else {
+                        continue;
+                    };
+                    for field in program.data_payload_fields(variant.payload) {
+                        if field.name.as_str() != member.member.as_str() {
+                            continue;
+                        }
+                        if selected.is_some() {
+                            return None;
+                        }
+                        selected = Some((variant, field));
+                    }
+                }
+                let (variant, field) = selected?;
+                (variant.symbol.is_valid()
+                    && program.symbols.get(variant.symbol).parent == definition.symbol
+                    && exact_field_symbol(program, variant.symbol, field)
+                    && (!member.member_symbol.is_valid() || member.member_symbol == field.symbol))
+                    .then_some(field)
             }
 
             fn inferred_capture_type<'program>(
@@ -2785,6 +2924,7 @@ pub(crate) mod expression {
                         _ => operand,
                     };
                     let equality = resolved::expression::TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: observed_operand(left),
                         operator: resolved::expression::BinaryOperator::Equal,
                         right: observed_operand(right),
@@ -2800,6 +2940,7 @@ pub(crate) mod expression {
                     Ok(Some(self.target().insert(
                         typed::expression::ExpressionNode::Binary(
                             typed::expression::TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left,
                                 operator: typed::expression::BinaryOperator::Equal,
                                 right,
@@ -3066,6 +3207,7 @@ pub(crate) mod expression {
                             self.target()
                                 .insert(typed::expression::ExpressionNode::Binary(
                                     typed::expression::TableBinaryExpression {
+                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                         left: equality,
                                         operator: typed::expression::BinaryOperator::Equal,
                                         right: negated,
@@ -3455,6 +3597,7 @@ pub(crate) mod expression {
                                 .target()
                                 .insert(typed::expression::ExpressionNode::Binary(
                                     typed::expression::TableBinaryExpression {
+                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                         left: left_value,
                                         operator: typed::expression::BinaryOperator::Equal,
                                         right: right_value,
@@ -3595,6 +3738,7 @@ pub(crate) mod expression {
                     self.target()
                         .insert(typed::expression::ExpressionNode::Binary(
                             typed::expression::TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left: place,
                                 operator: typed::expression::BinaryOperator::CaseMembership,
                                 right: case_reference,
@@ -3633,6 +3777,7 @@ pub(crate) mod expression {
                             .target()
                             .insert(typed::expression::ExpressionNode::Binary(
                                 typed::expression::TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: combined,
                                     operator,
                                     right: part,
@@ -3676,6 +3821,18 @@ pub(crate) mod expression {
                 .lower(expression)
         }
 
+        pub(crate) fn lower_executable_expression_handle_from_table(
+            program: &resolved::SymbolResolvedTrees,
+            source: &resolved::expression::ExpressionTable,
+            target: &mut typed::TypedTrees,
+            expression: resolved::expression::ExpressionHandle,
+            scope: Option<&EqualityScope>,
+        ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+                .in_executable_code()
+                .lower(expression)
+        }
+
         pub(crate) fn lower_expression_handle_from_table_in_fact_position(
             program: &resolved::SymbolResolvedTrees,
             source: &resolved::expression::ExpressionTable,
@@ -3710,6 +3867,28 @@ pub(crate) mod expression {
         }
     }
     pub(crate) use table::declared_receiver_method_target;
+
+    /// Lowers an expression a machine body evaluates. Only these may use a
+    /// suffixed policy operator.
+    pub(crate) fn lower_executable_expression_handle(
+        lowerer: &mut Lowerer,
+        expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let Lowerer {
+            typed_trees,
+            source_trees,
+            equality_scope,
+            ..
+        } = lowerer;
+        let source = &source_trees.tables.bodies.expressions;
+        table::lower_executable_expression_handle_from_table(
+            source_trees,
+            source,
+            typed_trees,
+            expression,
+            equality_scope.as_ref(),
+        )
+    }
 
     pub(crate) fn lower_expression_handle(
         lowerer: &mut Lowerer,

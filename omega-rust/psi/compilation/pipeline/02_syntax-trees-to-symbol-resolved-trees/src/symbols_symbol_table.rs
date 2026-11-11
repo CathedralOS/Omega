@@ -81,7 +81,7 @@ mod children {
                         },
                     ),
                 )
-                .chain((!data_definition.where_facts.is_empty()).then_some((
+                .chain((!data_definition.requires_facts.is_empty()).then_some((
                     SymbolKind::Parameter,
                     symbols::SymbolNameRef::Borrowed("$predicate_subject"),
                 ))),

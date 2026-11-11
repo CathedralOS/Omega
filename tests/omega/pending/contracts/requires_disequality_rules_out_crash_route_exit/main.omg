@@ -1,0 +1,59 @@
+// MUST be accepted; refused today by the current checker. Each machine that
+// writes `crashes none` here has a crash route only when its denominator is
+// zero, and its own `requires denominator != 0u64` rules that out:
+//
+// - `divide`'s own `true` arm runs `bad()`, which crashes, only when
+//   `denominator == 0u64`;
+// - `quotient` calls `checked`, whose published route is
+//   `crashes Trap denominator == 0u64`, with its own denominator.
+//
+// Rule (wiki/spec/language/effects.md): for each derived site guard `D`, the
+// same-cause published guards `C_i` must satisfy `D implies OR_i(C_i)`. With
+// no route published the right side is false, and the implication holds
+// because the requirement contradicts `D`.
+//
+// The checker on the lowered form (`lowered-discharge`) accepts this program;
+// `compiler/tests/lowered_route_subjects.rs` pins that. The current checker
+// reports, on linux_x86_64 at the commit that added this file, "call from
+// `divide` to `bad` at statement 1 call 0 has an uncovered Trap crash route"
+// and "call from `quotient` to `checked` at statement 0 call 0 has an
+// uncovered Trap crash route". It already accepts `quotient` when the
+// requirement is written `denominator >= 1u64`, and still refuses `divide`
+// then, although it warns that the arm can never run.
+//
+// Twin: `fail/contracts/requires_disequality_leaves_crash_route_open`
+// requires `denominator != 1u64`, which leaves both routes open.
+// Move to `pass/contracts/` with its golden row when the checker accepts it.
+// Expected exit: 0
+machine divide(numerator: u64, denominator: u64) -> u64
+requires denominator != 0u64
+crashes none
+{
+    transition denominator == 0u64 {
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine checked(numerator: u64, denominator: u64) -> u64
+crashes Trap denominator == 0u64
+{
+    transition denominator == 0u64 {
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine quotient(denominator: u64) -> u64
+requires denominator != 0u64
+crashes none
+{
+    checked(12u64, denominator)
+}
+machine main() reaches none crashes Trap {
+    let direct: u64 = divide(12u64, 3u64);
+    let called: u64 = quotient(3u64);
+    transition direct == called { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

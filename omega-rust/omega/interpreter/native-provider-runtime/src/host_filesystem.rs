@@ -2,50 +2,184 @@
 We execute Linux kernel filesystem operations over an instance-private guest
 descriptor table (`LinuxFilesystem`).
 
-The receiving runtime separately admits target, exact ABI, and delegation. Our
+The receiving runtime separately admits target, exact ABI, and delegation, then
+hands us one exact system call number with its operands already classified:
+directory and descriptor operands translate through the guest table, and
+buffers pass their own addresses (and lengths, for byte views). Our
 `libc::syscall` trampoline enters the selected kernel operation and translates
 its immediate thread-local `errno` back into Linux's negative-status convention.
 No Rust I/O error, retry loop, private worker descriptor, or modeled standard
-stream (`0..=2`) supplies a kernel result. When `close` fails after retiring the
-OS descriptor, we record a `None` tombstone so neither retries nor `OwnedFd`
-destructors can close a subsequently reused OS descriptor number.
+stream (`0..=2`) supplies a kernel result.
+
+A namespace may be rooted at a directory: `AT_FDCWD` then names that directory
+rather than this process's working directory, so concurrent instances in one
+process never resolve each other's relative paths. Absolute paths still name
+the host's namespace, exactly as they do for the native program.
+
+Guest descriptors 0, 1 and 2 begin as the instance's modeled standard streams,
+which the runtime serves without the host. Closing one retires that stream, as
+closing a real one does, and like POSIX the next descriptor this table hands out
+is the lowest free number, so a program that closes its input and opens a file
+receives descriptor 0 for that file.
+
+When `close` fails after retiring the OS descriptor, we record a `None`
+tombstone so neither retries nor `OwnedFd` destructors can close a subsequently
+reused OS descriptor number.
 */
 
 use std::{ffi::CStr, io};
 
-#[derive(Default)]
+/// The kernel's "relative to the working directory" directory operand.
+pub const LINUX_AT_FDCWD: i32 = -100;
+
+/// One classified system call operand, in kernel argument order.
+pub enum KernelOperand<'a> {
+    /// A directory operand: `AT_FDCWD` names the namespace root, any other
+    /// value a guest descriptor.
+    Directory(i32),
+    /// A guest descriptor.
+    Descriptor(i32),
+    /// A plain integer passed through unchanged (flags, modes, offsets, ids).
+    Value(i64),
+    /// A NUL-terminated path, passed by address.
+    Path(&'a CStr),
+    /// Caller bytes the kernel only reads, passed by address.
+    Input(&'a [u8]),
+    /// Caller bytes the kernel may write, passed by address.
+    Output(&'a mut [u8]),
+    /// A read-only byte view, passed as address and length.
+    InputView(&'a [u8]),
+    /// A writable byte view, passed as address and length.
+    OutputView(&'a mut [u8]),
+}
+
+/// What a successful nonnegative kernel status means.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum KernelResult {
+    /// The status is returned unchanged.
+    Status,
+    /// The status is a new OS descriptor, registered under a fresh guest number.
+    Descriptor,
+}
+
 pub struct LinuxFilesystem {
+    /// Which of descriptors 0, 1 and 2 still name the modeled standard streams.
+    modeled_standard: [bool; 3],
+    #[cfg(target_os = "linux")]
+    root: Option<std::os::fd::OwnedFd>,
     #[cfg(target_os = "linux")]
     descriptors: std::collections::BTreeMap<i32, Option<std::os::fd::OwnedFd>>,
 }
 
+impl Default for LinuxFilesystem {
+    fn default() -> Self {
+        Self {
+            modeled_standard: [true; 3],
+            #[cfg(target_os = "linux")]
+            root: None,
+            #[cfg(target_os = "linux")]
+            descriptors: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
 impl LinuxFilesystem {
-    pub fn open_at(
+    /// Whether `guest` still names its modeled standard stream rather than a
+    /// host descriptor (or nothing, once closed).
+    pub fn models_standard(&self, guest: i32) -> bool {
+        usize::try_from(guest)
+            .ok()
+            .and_then(|index| self.modeled_standard.get(index))
+            .copied()
+            .unwrap_or(false)
+    }
+
+    /// A namespace whose `AT_FDCWD` is `root` instead of the process directory.
+    pub fn rooted(root: &std::path::Path) -> io::Result<Self> {
+        #[cfg(target_os = "linux")]
+        {
+            let directory = std::fs::File::open(root)?;
+            if !directory.metadata()?.is_dir() {
+                return Err(io::Error::other(
+                    "filesystem namespace root is not a directory",
+                ));
+            }
+            Ok(Self {
+                root: Some(directory.into()),
+                ..Self::default()
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = root;
+            Err(unsupported())
+        }
+    }
+
+    /// Enter system call `number` with `operands` in kernel argument order.
+    pub fn call(
         &mut self,
-        directory: i32,
-        path: &CStr,
-        flags: i32,
-        mode: i32,
+        number: i64,
+        operands: &mut [KernelOperand<'_>],
+        result: KernelResult,
     ) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
             use std::os::fd::FromRawFd;
-            let directory = if directory == libc::AT_FDCWD {
-                directory
-            } else {
-                self.descriptor(directory)?
-            };
+            let mut arguments: Vec<libc::c_long> = Vec::with_capacity(6);
+            for operand in operands.iter_mut() {
+                match operand {
+                    KernelOperand::Directory(directory) => {
+                        arguments.push(libc::c_long::from(self.directory(*directory)?));
+                    }
+                    KernelOperand::Descriptor(descriptor) => {
+                        arguments.push(libc::c_long::from(self.descriptor(*descriptor)?));
+                    }
+                    KernelOperand::Value(value) => arguments.push(*value as libc::c_long),
+                    KernelOperand::Path(path) => arguments.push(path.as_ptr() as libc::c_long),
+                    KernelOperand::Input(bytes) => arguments.push(bytes.as_ptr() as libc::c_long),
+                    KernelOperand::Output(bytes) => {
+                        arguments.push(bytes.as_mut_ptr() as libc::c_long);
+                    }
+                    KernelOperand::InputView(bytes) => {
+                        arguments.push(bytes.as_ptr() as libc::c_long);
+                        arguments.push(bytes.len() as libc::c_long);
+                    }
+                    KernelOperand::OutputView(bytes) => {
+                        arguments.push(bytes.as_mut_ptr() as libc::c_long);
+                        arguments.push(bytes.len() as libc::c_long);
+                    }
+                }
+            }
+            if arguments.len() > 6 {
+                return Err(io::Error::other(
+                    "Linux system calls take at most six arguments",
+                ));
+            }
+            arguments.resize(6, 0);
+            let number = libc::c_long::try_from(number)
+                .map_err(|_| io::Error::other("system call number exceeds its carrier"))?;
             let status = kernel_status(unsafe {
-                libc::syscall(libc::SYS_openat, directory, path.as_ptr(), flags, mode)
+                libc::syscall(
+                    number,
+                    arguments[0],
+                    arguments[1],
+                    arguments[2],
+                    arguments[3],
+                    arguments[4],
+                    arguments[5],
+                )
             })?;
-            if status < 0 {
+            if status < 0 || result == KernelResult::Status {
                 return Ok(status);
             }
             let native = i32::try_from(status)
                 .map_err(|_| io::Error::other("kernel descriptor exceeds its native carrier"))?;
             let native = unsafe { std::os::fd::OwnedFd::from_raw_fd(native) };
-            let guest = (3..=i32::MAX)
-                .find(|guest| !self.descriptors.contains_key(guest))
+            let guest = (0..=i32::MAX)
+                .find(|guest| {
+                    !self.models_standard(*guest) && !self.descriptors.contains_key(guest)
+                })
                 .ok_or_else(|| {
                     io::Error::other("guest filesystem descriptor namespace exhausted")
                 })?;
@@ -54,122 +188,7 @@ impl LinuxFilesystem {
         }
         #[cfg(not(target_os = "linux"))]
         {
-            let _ = (directory, path, flags, mode);
-            Err(unsupported())
-        }
-    }
-
-    pub fn lseek(&self, descriptor: i32, offset: i64, whence: i32) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let descriptor = self.descriptor(descriptor)?;
-            kernel_status(unsafe { libc::syscall(libc::SYS_lseek, descriptor, offset, whence) })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (descriptor, offset, whence);
-            Err(unsupported())
-        }
-    }
-
-    pub fn unlinkat(&mut self, directory: i32, path: &CStr, flags: i32) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let directory = if directory == libc::AT_FDCWD {
-                directory
-            } else {
-                self.descriptor(directory)?
-            };
-            kernel_status(unsafe {
-                libc::syscall(libc::SYS_unlinkat, directory, path.as_ptr(), flags)
-            })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (directory, path, flags);
-            Err(unsupported())
-        }
-    }
-
-    pub fn mkdirat(&self, directory: i32, path: &CStr, mode: i32) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let directory = if directory == libc::AT_FDCWD {
-                directory
-            } else {
-                self.descriptor(directory)?
-            };
-            kernel_status(unsafe {
-                libc::syscall(libc::SYS_mkdirat, directory, path.as_ptr(), mode)
-            })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (directory, path, mode);
-            Err(unsupported())
-        }
-    }
-
-    pub fn stat_at(
-        &self,
-        directory: i32,
-        path: &CStr,
-        bytes: &mut [u8; 144],
-        flags: i32,
-    ) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let directory = if directory == libc::AT_FDCWD {
-                directory
-            } else {
-                self.descriptor(directory)?
-            };
-            kernel_status(unsafe {
-                libc::syscall(
-                    libc::SYS_newfstatat,
-                    directory,
-                    path.as_ptr(),
-                    bytes.as_mut_ptr(),
-                    flags,
-                )
-            })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (directory, path, bytes, flags);
-            Err(unsupported())
-        }
-    }
-
-    pub fn stat(&self, descriptor: i32, bytes: &mut [u8; 144]) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let descriptor = self.descriptor(descriptor)?;
-            kernel_status(unsafe { libc::syscall(libc::SYS_fstat, descriptor, bytes.as_mut_ptr()) })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (descriptor, bytes);
-            Err(unsupported())
-        }
-    }
-
-    pub fn directory_entries(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
-        #[cfg(target_os = "linux")]
-        {
-            let descriptor = self.descriptor(descriptor)?;
-            kernel_status(unsafe {
-                libc::syscall(
-                    libc::SYS_getdents64,
-                    descriptor,
-                    bytes.as_mut_ptr(),
-                    bytes.len(),
-                )
-            })
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = (descriptor, bytes);
+            let _ = (number, operands, result);
             Err(unsupported())
         }
     }
@@ -208,10 +227,17 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             use std::os::fd::IntoRawFd;
+            if self.models_standard(descriptor) {
+                // Closing a modeled stream retires it; the host never owned it.
+                self.modeled_standard[descriptor as usize] = false;
+                return Ok(0);
+            }
             self.descriptor(descriptor)?;
             let native = match self.descriptors.remove(&descriptor) {
                 Some(Some(native)) => native.into_raw_fd(),
-                None => -1,
+                // An unknown guest closes nothing: the kernel reports EBADF
+                // and no OS descriptor can have been retired.
+                None => return kernel_status(unsafe { libc::syscall(libc::SYS_close, -1) }),
                 Some(None) => unreachable!("descriptor rejected its tombstone"),
             };
             let status = kernel_status(unsafe { libc::syscall(libc::SYS_close, native) });
@@ -228,9 +254,21 @@ impl LinuxFilesystem {
     }
 
     #[cfg(target_os = "linux")]
+    fn directory(&self, guest: i32) -> io::Result<i32> {
+        use std::os::fd::AsRawFd;
+        if guest != LINUX_AT_FDCWD {
+            return self.descriptor(guest);
+        }
+        Ok(self
+            .root
+            .as_ref()
+            .map_or(libc::AT_FDCWD, |root| root.as_raw_fd()))
+    }
+
+    #[cfg(target_os = "linux")]
     fn descriptor(&self, guest: i32) -> io::Result<i32> {
         use std::os::fd::AsRawFd;
-        if (0..=2).contains(&guest) {
+        if self.models_standard(guest) {
             return Err(io::Error::other(
                 "filesystem delegation does not supply host standard streams",
             ));
@@ -268,47 +306,156 @@ fn unsupported() -> io::Error {
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
-    use super::LinuxFilesystem;
+    use super::{KernelOperand as Operand, KernelResult, LINUX_AT_FDCWD, LinuxFilesystem};
     use std::ffi::CString;
 
-    #[test]
-    fn directory_lifecycle_uses_private_descriptors() -> std::io::Result<()> {
+    fn scratch(label: &str) -> std::io::Result<std::path::PathBuf> {
         let directory = std::env::temp_dir().join(format!(
-            "omega-directory-{}-{}",
+            "omega-{label}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(std::io::Error::other)?
                 .as_nanos()
         ));
+        Ok(directory)
+    }
+
+    #[test]
+    fn directory_lifecycle_uses_private_descriptors() -> std::io::Result<()> {
+        let directory = scratch("directory")?;
         let path = CString::new(directory.as_os_str().as_encoded_bytes())?;
         let mut filesystem = LinuxFilesystem::default();
-        assert_eq!(filesystem.mkdirat(-100, &path, 0o700)?, 0);
-        assert_eq!(
-            filesystem.mkdirat(-100, &path, 0o700)?,
-            -i64::from(libc::EEXIST)
-        );
-        let descriptor = i32::try_from(filesystem.open_at(-100, &path, libc::O_DIRECTORY, 0)?)
-            .map_err(std::io::Error::other)?;
-        let mut metadata = [0u8; 144];
-        assert_eq!(filesystem.stat(descriptor, &mut metadata)?, 0);
-        let mut directory_metadata = [0u8; 144];
-        assert_eq!(
-            filesystem.stat_at(-100, &path, &mut directory_metadata, 0)?,
-            0
-        );
-        assert_eq!(&metadata[..24], &directory_metadata[..24]);
+        let mkdir = |filesystem: &mut LinuxFilesystem| {
+            filesystem.call(
+                libc::SYS_mkdirat,
+                &mut [
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&path),
+                    Operand::Value(0o700),
+                ],
+                KernelResult::Status,
+            )
+        };
+        assert_eq!(mkdir(&mut filesystem)?, 0);
+        assert_eq!(mkdir(&mut filesystem)?, -i64::from(libc::EEXIST));
+        let descriptor = i32::try_from(filesystem.call(
+            libc::SYS_openat,
+            &mut [
+                Operand::Directory(LINUX_AT_FDCWD),
+                Operand::Path(&path),
+                Operand::Value(i64::from(libc::O_DIRECTORY)),
+                Operand::Value(0),
+            ],
+            KernelResult::Descriptor,
+        )?)
+        .map_err(std::io::Error::other)?;
         let mut entries = [0u8; 512];
-        let moved = usize::try_from(filesystem.directory_entries(descriptor, &mut entries)?)
-            .map_err(std::io::Error::other)?;
-        assert!(moved > 0 && moved <= entries.len());
+        let moved = filesystem.call(
+            libc::SYS_getdents64,
+            &mut [
+                Operand::Descriptor(descriptor),
+                Operand::OutputView(&mut entries),
+            ],
+            KernelResult::Status,
+        )?;
+        assert!(moved > 0 && moved <= 512);
         assert_eq!(filesystem.close(descriptor)?, 0);
         assert_eq!(
-            filesystem.directory_entries(descriptor, &mut entries)?,
+            filesystem.call(
+                libc::SYS_getdents64,
+                &mut [
+                    Operand::Descriptor(descriptor),
+                    Operand::OutputView(&mut entries),
+                ],
+                KernelResult::Status,
+            )?,
             -i64::from(libc::EBADF)
         );
-        assert_eq!(filesystem.unlinkat(-100, &path, libc::AT_REMOVEDIR)?, 0);
+        assert_eq!(
+            filesystem.call(
+                libc::SYS_unlinkat,
+                &mut [
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&path),
+                    Operand::Value(i64::from(libc::AT_REMOVEDIR)),
+                ],
+                KernelResult::Status,
+            )?,
+            0
+        );
         assert!(!directory.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn closed_standard_input_frees_descriptor_zero_for_the_next_file() -> std::io::Result<()> {
+        let root = scratch("standard")?;
+        std::fs::create_dir(&root)?;
+        let mut filesystem = LinuxFilesystem::rooted(&root)?;
+        let name = CString::new("zero")?;
+        let open = |filesystem: &mut LinuxFilesystem| {
+            filesystem.call(
+                libc::SYS_openat,
+                &mut [
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&name),
+                    Operand::Value(i64::from(libc::O_CREAT | libc::O_RDWR)),
+                    Operand::Value(0o600),
+                ],
+                KernelResult::Descriptor,
+            )
+        };
+        assert_eq!(open(&mut filesystem)?, 3);
+        assert!(filesystem.models_standard(0));
+        assert_eq!(filesystem.close(0)?, 0);
+        assert!(!filesystem.models_standard(0));
+        assert_eq!(filesystem.close(0)?, -i64::from(libc::EBADF));
+        assert_eq!(open(&mut filesystem)?, 0);
+        assert_eq!(filesystem.write(0, b"zero")?, 4);
+        assert!(filesystem.models_standard(1));
+        std::fs::remove_dir_all(&root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn rooted_namespace_resolves_relative_paths_beneath_its_root() -> std::io::Result<()> {
+        let root = scratch("root")?;
+        std::fs::create_dir(&root)?;
+        let mut filesystem = LinuxFilesystem::rooted(&root)?;
+        let link = CString::new("link")?;
+        let target = CString::new("target-text")?;
+        assert_eq!(
+            filesystem.call(
+                libc::SYS_symlinkat,
+                &mut [
+                    Operand::Path(&target),
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&link),
+                ],
+                KernelResult::Status,
+            )?,
+            0
+        );
+        let mut read = [0u8; 4];
+        assert_eq!(
+            filesystem.call(
+                libc::SYS_readlinkat,
+                &mut [
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&link),
+                    Operand::OutputView(&mut read),
+                ],
+                KernelResult::Status,
+            )?,
+            4
+        );
+        assert_eq!(&read, b"targ");
+        assert_eq!(
+            std::fs::read_link(root.join("link"))?,
+            std::path::Path::new("target-text")
+        );
+        std::fs::remove_dir_all(&root)?;
         Ok(())
     }
 }

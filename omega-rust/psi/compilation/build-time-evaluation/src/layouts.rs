@@ -994,7 +994,7 @@ pub(crate) mod access_lifecycles {
             let Some(data) = program.data_definition_by_symbol(symbol) else {
                 continue;
             };
-            if !data.where_facts.is_empty() || data.zero_gated {
+            if !data.requires_facts.is_empty() || data.zero_gated {
                 return Err(format!(
                     "nonresident access View cannot establish record predicates for `{}`; independent content-validity evidence is required",
                     program.symbols.name(symbol),
@@ -2483,7 +2483,7 @@ pub(crate) mod access_views {
                         conformance_bounds: Vec::new(),
                         generic_instance: None,
                         properties: DataProperties::default(),
-                        where_facts: HandleSpan::empty(),
+                        requires_facts: HandleSpan::empty(),
                         members: HandleSpan::empty(),
                         quotient: None,
                     }));
@@ -2752,7 +2752,7 @@ pub(crate) mod access_views {
                     multiplicity: Multiplicity::Linear,
                     carry: None,
                 },
-                where_facts: HandleSpan::empty(),
+                requires_facts: HandleSpan::empty(),
                 members: HandleSpan::from_parts(first, count),
                 quotient: None,
             }));
@@ -2833,7 +2833,7 @@ pub(crate) mod access_views {
                         );
                         visit_facts(
                             syntax,
-                            syntax.items.proof_facts(data.where_facts),
+                            syntax.items.proof_facts(data.requires_facts),
                             &binders,
                             &mut deferred,
                         );
@@ -2940,6 +2940,8 @@ pub(crate) mod access_views {
                                     selected_owners,
                                     &mut deferred,
                                 ),
+                                // A selection row names an existing machine and has no body.
+                                ConformanceMember::Selection { .. } => {}
                             }
                         }
                     }
@@ -6450,7 +6452,7 @@ pub(crate) mod schema_reflection {
                         (field.name.to_string(), key)
                     }),
                 )?;
-                let payload_intervals = validation::case_where_field_intervals(typed, variant);
+                let payload_intervals = validation::case_requires_field_intervals(typed, variant);
                 let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
                     .map(|payload_index| {
                         let info = payload.get(payload_index).map(|field| {
@@ -6659,7 +6661,7 @@ pub(crate) mod schema_reflection {
             ));
         }
 
-        let field_intervals = validation::data_where_field_intervals(typed, data);
+        let field_intervals = validation::data_requires_field_intervals(typed, data);
         let mut fields = Vec::new();
         for member in typed.data_members(data) {
             let Some(field) = member.as_field() else {

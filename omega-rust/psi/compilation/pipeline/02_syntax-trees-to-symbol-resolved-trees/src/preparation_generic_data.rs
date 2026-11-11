@@ -1006,9 +1006,9 @@ mod discovery {
         pub(super) parameter_names: Vec<String>,
         pub(super) const_parameter_types: Vec<Option<TypeReferenceHandle>>,
         pub(super) cleanup_selection: Option<syntax_trees::expression::StaticMachineArgument>,
-        pub(super) where_facts: HandleSpan<ProofFact>,
+        pub(super) requires_facts: HandleSpan<ProofFact>,
         /*
-            The `where` facts that equate a type binder with known structure.
+            The `requires` facts that equate a type binder with known structure.
             Applying the template decides them; instances never carry them.
         */
         pub(super) type_equations: Vec<super::equations::TypeEquation>,
@@ -2134,10 +2134,10 @@ mod substitution {
                 }
                 variant.payload = HandleSpan::from_parts(first, count);
                 let mut copied_facts = HandleSpan::empty();
-                for fact in variant.where_facts.handles() {
+                for fact in variant.requires_facts.handles() {
                     copied_facts.push_contiguous(syntax.copy_proof_fact_from(snapshot, fact));
                 }
-                variant.where_facts = copied_facts;
+                variant.requires_facts = copied_facts;
                 if impossible_variants.contains(variant.name.as_str(syntax)) {
                     let witness = syntax.expressions.insert(ExpressionNode::Integer(
                         IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
@@ -2146,7 +2146,7 @@ mod substitution {
                     let fact = syntax
                         .items
                         .append_proof_fact(ProofFact::Expression(witness));
-                    variant.where_facts.push_contiguous(fact);
+                    variant.requires_facts.push_contiguous(fact);
                 }
                 DataMember::Variant(variant)
             }
@@ -3155,11 +3155,11 @@ mod synthesis {
                     parameter_names,
                     const_parameter_types,
                     cleanup_selection: definition.cleanup_selection.clone(),
-                    where_facts: definition.where_facts,
+                    requires_facts: definition.requires_facts,
                     type_equations: super::equations::classify_type_equations(
                         syntax,
                         definition_parameters,
-                        syntax.tables.items.proof_facts(definition.where_facts),
+                        syntax.tables.items.proof_facts(definition.requires_facts),
                     ),
                     members: definition.members,
                     properties: definition.properties,
@@ -3562,7 +3562,7 @@ mod synthesis {
         let mut first_fact = Handle::invalid();
         let mut fact_count = 0u32;
         for (offset, fact) in syntax_items(snapshot)
-            .proof_facts(base_info.where_facts)
+            .proof_facts(base_info.requires_facts)
             .iter()
             .enumerate()
         {
@@ -3609,12 +3609,12 @@ mod synthesis {
             warnings.truncate(fact_warning_start);
             let source = Handle::from_parts(
                 base_info
-                    .where_facts
+                    .requires_facts
                     .start()
                     .arena_index()
                     .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
                     .expect("proof fact source handle overflow"),
-                base_info.where_facts.start().generation(),
+                base_info.requires_facts.start().generation(),
             );
             let handle = syntax.copy_proof_fact_from(snapshot, source);
             let copied_root = match syntax.items.proof_fact(handle) {
@@ -3656,7 +3656,7 @@ mod synthesis {
                 );
             }
         }
-        let where_facts = HandleSpan::from_parts(first_fact, fact_count);
+        let requires_facts = HandleSpan::from_parts(first_fact, fact_count);
 
         let origin_arguments = syntax
             .tables
@@ -3718,7 +3718,7 @@ mod synthesis {
             generic_instance: Some(generic_instance),
             cleanup_selection,
             properties,
-            where_facts,
+            requires_facts,
             members: HandleSpan::from_parts(first, count),
             quotient: None,
         }));
@@ -4736,9 +4736,7 @@ fn normalize_generic_data_in_mode(
             .collect::<Vec<_>>();
         super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
         let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        report_preparation_diagnostics(warnings)?;
         return Ok(syntax);
     };
     let selection = ConstantSelection::with_retained_base(
@@ -4757,10 +4755,26 @@ fn normalize_generic_data_in_mode(
     let mut warnings = Vec::new();
     desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?;
     deduplicate_generic_warnings(&mut warnings);
+    report_preparation_diagnostics(warnings)?;
+    Ok(syntax)
+}
+
+/* Preparation collects const-argument landing diagnostics beside folded
+values. Warnings are printed; an error (implicit integer landing after a
+fractional intermediate) rejects instead of being printed and folded. */
+pub(super) fn report_preparation_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    let (errors, warnings): (Vec<_>, Vec<_>) =
+        diagnostics.into_iter().partition(Diagnostic::is_error);
     for warning in warnings {
         eprintln!("{warning}");
     }
-    Ok(syntax)
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /*

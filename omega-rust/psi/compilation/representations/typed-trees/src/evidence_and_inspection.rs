@@ -179,6 +179,14 @@ pub mod evidence {
         use std::collections::HashMap;
         use symbols::SymbolHandle;
 
+        /// One erased scalar lane: the field path below an erased binding (empty
+        /// for a primitive or a shared reference to one) and the leaf's type.
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct ErasedScalarLane {
+            pub fields: Vec<SymbolHandle>,
+            pub primitive_type: crate::types::PrimitiveType,
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofOnlyReason {
             Integer,
@@ -238,6 +246,11 @@ pub mod evidence {
                 if self.proof_only_mention(program, type_reference).is_some() {
                     return true;
                 }
+                // A record whose leaves all ride erased scalar lanes is carried
+                // there, leaf by leaf, and owns no contract-term position.
+                if !program.erased_scalar_lanes(type_reference).is_empty() {
+                    return false;
+                }
                 let mut visiting = Vec::new();
                 self.closed_contract_carrier(program, type_reference, &mut visiting)
             }
@@ -272,9 +285,7 @@ pub mod evidence {
                 };
                 let shape =
                     DataDefinition::shape_kind_from_members(program.data_members(definition));
-                if definition.supply_mode != language_core::DataSupplyMode::CheckedShape
-                    || definition.quotient.is_some()
-                    || !program.data_type_parameters(definition).is_empty()
+                if !program.closed_contract_nominal(definition)
                     || !matches!(
                         shape,
                         crate::data::DataShapeKind::Empty
@@ -282,18 +293,6 @@ pub mod evidence {
                             | crate::data::DataShapeKind::Enum
                             | crate::data::DataShapeKind::Mixed
                     )
-                    || program
-                        .plan_laid_layouts
-                        .iter()
-                        .any(|plan| plan.data_symbol == definition.symbol)
-                    || program
-                        .access_view_plans
-                        .iter()
-                        .any(|plan| plan.data_symbol == definition.symbol)
-                    || program
-                        .wire_schemas()
-                        .iter()
-                        .any(|schema| schema.name == definition.name)
                 {
                     return false;
                 }
@@ -3729,6 +3728,10 @@ pub mod inspection {
                     initial_value: Option<ExpressionSnapshot>,
                     type_is_inferred: bool,
                     relevance: &'static str,
+                    #[serde(skip_serializing_if = "Vec::is_empty")]
+                    pattern_fields: Vec<PatternFieldSnapshot>,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    pattern_subject: Option<String>,
                 },
                 Transition {
                     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -3806,6 +3809,15 @@ pub mod inspection {
                     proof_selectors: Vec<(String, String)>,
                 },
                 Wildcard,
+            }
+
+            /// One row of a record pattern's roster: the field as authored,
+            /// the declared field it resolved to, and whether it is bound.
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct PatternFieldSnapshot {
+                pub member: String,
+                pub field: Option<String>,
+                pub binding: Option<String>,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -4054,6 +4066,29 @@ pub mod inspection {
             initial_value: expression_snapshot_option(program, local.initial_value),
             type_is_inferred: local.type_is_inferred,
             relevance: super::declaration_snapshots::snapshot_binding_relevance(local.relevance),
+            pattern_fields: program
+                .expression_table
+                .match_fields(local.pattern_fields)
+                .iter()
+                .map(|field| PatternFieldSnapshot {
+                    member: field.member.as_str().to_owned(),
+                    field: field
+                        .field_symbol
+                        .is_valid()
+                        .then(|| program.symbols.name(field.field_symbol).to_owned()),
+                    binding: match &field.action {
+                        crate::expression::MatchFieldAction::Bind(binding) => {
+                            Some(binding.as_str().to_owned())
+                        }
+                        crate::expression::MatchFieldAction::Equal(_)
+                        | crate::expression::MatchFieldAction::Waive => None,
+                    },
+                })
+                .collect(),
+            pattern_subject: local
+                .pattern_subject
+                .is_valid()
+                .then(|| program.symbols.name(local.pattern_subject).to_owned()),
         },
         StatementNode::Transition(transition) => StatementSnapshot::Transition {
             patterns: program
@@ -5008,6 +5043,7 @@ pub mod inspection {
                 Intrinsic::BuildRepresentationSelection => ("build_representation_selection", None),
                 Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),
                 Intrinsic::BuildServiceAudit => ("build_service_audit", None),
+                Intrinsic::BuildTestGroupRegistration => ("build_test_group_registration", None),
                 Intrinsic::BuildOptimizationSelection => ("build_optimization_selection", None),
                 Intrinsic::BuildOptimizationReportRequest => {
                     ("build_optimization_report_request", None)

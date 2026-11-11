@@ -291,6 +291,12 @@ pub(crate) fn check_terminal_task_activations(
 pub(crate) struct SelectedCompileOutcome {
     pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
     pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
+    // Separately selected test roots over the same checked source, in roster
+    // order (wiki/spec/build/testing.md). Empty when no enabled group exists.
+    pub(crate) tests: Vec<(
+        compilation_products::TestRootIdentity,
+        Result<SelectedProductTarget, CompileFailure>,
+    )>,
 }
 
 impl SelectedCompileOutcome {
@@ -516,5 +522,6 @@ pub(crate) fn select_product_target(
             .and_then(|prepared| SelectedProductTarget::select(source, prepared))
             .map_err(CompileFailure::from),
         independent_components: source.computed_build_config.independent_components(),
+        tests: Vec::new(),
     }
 }

@@ -1,7 +1,9 @@
-// An erased &i32 witness whose referent is 7 discharges witness == 7 at keep without a runtime witness argument, read, storage or cleanup.
+// Erased primitive and record references discharge their value-7 requirements at keep without runtime witness arguments, reads, storage or cleanup.
 // Expected exit: 0
-machine keep(runtime: i32, witness [erased]: &i32) -> i32
-requires witness == 7 { runtime }
+data Witness { value: i32; }
+machine keep(runtime: i32, witness [erased]: &i32, record [erased]: &Witness) -> i32
+requires witness == 7
+requires record.value == 7 { runtime }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -34,7 +36,8 @@ X86Selected satisfies SelectedSelected {
         SelectedBodyCheck::require_tag(17u64);
         let runtime: i32 = match flag { true -> 41, false -> 42 };
         let value: i32 = 7;
-        keep(runtime, &value)
+        let record: Witness = Witness { value: 7 };
+        keep(runtime, &value, &record)
     }
 }
 
@@ -45,7 +48,8 @@ ArmSelected satisfies SelectedSelected {
         SelectedBodyCheck::require_tag(29u64);
         let runtime: i32 = match flag { true -> 41, false -> 42 };
         let value: i32 = 7;
-        keep(runtime, &value)
+        let record: Witness = Witness { value: 7 };
+        keep(runtime, &value, &record)
     }
 }
 

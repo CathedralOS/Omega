@@ -489,7 +489,6 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
- "checked-interpreter",
  "checked-trees",
  "compilation-products",
  "compiler-storage",
@@ -508,6 +507,7 @@ dependencies = [
  "layout",
  "layout-plans",
  "libc",
+ "lowered-discharge",
  "lowered-psi",
  "machine-code",
  "machine-emission",
@@ -1172,10 +1172,12 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 name = "lowered-discharge"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "proof-admission",
  "semantic-vocabulary",
  "structure-elaboration",
  "terminal-check-tables",
+ "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2490,6 +2492,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "language-core",
  "semantic-vocabulary",
  "source",
 ]
@@ -2716,6 +2719,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
+ "lowered-discharge",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2728,6 +2732,7 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
  "target",
  "target-operations",

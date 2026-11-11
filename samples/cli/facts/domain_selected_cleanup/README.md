@@ -139,7 +139,7 @@ Terminal interpreter exit 0 on Linux x86-64.
 | Production | Reject twin | Rejection |
 | --- | --- | --- |
 | enclosing generic telescope | [nested `consume` drops its code requirement](enclosing_generic_telescope/invalid/main.omg) | cleanup requires at the specialized `consume` edge |
-| erased interface | [`Held` drops `requires self.code == 7`](erased_interface/invalid/main.omg) | cleanup requires at the specialized `forward` edge |
+| erased interface | [`Held` drops `requires self.code == 7` and the caller passes code 6](erased_interface/invalid/main.omg) | contextual cleanup prerequisite at the caller's `forward` call |
 
 [`controls/missing_inherited_obligation`](controls/missing_inherited_obligation/main.omg)
 lets `Label` inherit `Held`'s cleanup selection while `Held` states no code

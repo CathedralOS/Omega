@@ -35,6 +35,7 @@
 #![forbid(unsafe_code)]
 
 pub use product::assumed_bindings;
+pub use product::test_groups;
 mod const_generic_expressions;
 mod const_initializers;
 pub(crate) mod build_time_evaluation {
@@ -853,6 +854,29 @@ pub use scalar_applications::{
     evaluate_scalar_applications_with_address_model,
 };
 mod syntax_probes;
+/* Build-time evaluation collects landing diagnostics beside its value.
+Warnings are printed for the author; an error (an implicit integer landing
+after a fractional intermediate, numeric_values.md) rejects the program, so
+no evaluator site may print it and continue with the folded value. */
+pub(crate) fn report_evaluation_diagnostics<'a>(
+    diagnostics: impl IntoIterator<Item = &'a diagnostics::Diagnostic>,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let mut errors = Vec::new();
+    for diagnostic in diagnostics {
+        if diagnostic.is_error() {
+            if !errors.contains(diagnostic) {
+                errors.push(diagnostic.clone());
+            }
+        } else {
+            eprintln!("{diagnostic}");
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
 pub(crate) mod unique {
     pub(crate) fn extend_unique<T: PartialEq>(
         target: &mut Vec<T>,

@@ -1,0 +1,84 @@
+name: Warm build
+
+# Publish main's compiler build so Claude Code cloud sessions start with a
+# built compiler instead of compiling it for 11 minutes on their 4-CPU
+# containers. Each job reproduces a session: Ubuntu 24.04, root, the checkout at
+# /home/user/Omega, tools installed by tools/agent_setup.sh. tools/warm_build.sh
+# explains the two slots and why the environment has to match.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One run at a time. GitHub keeps only the newest waiting push, so a busy main
+# still publishes instead of cancelling every build before it finishes.
+concurrency:
+  group: warm-build
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [primary, worker]
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: warm-build-linux-x86_64
+      SLOT: ${{ matrix.slot }}
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd gh
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the commit at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+          if [ "$SLOT" = worker ]; then
+            git -C /home/user/Omega worktree add -q --detach .agents/worktree/worker-1 "${{ github.sha }}"
+            echo "BUILD_DIR=/home/user/Omega/.agents/worktree/worker-1" >> "$GITHUB_ENV"
+          else
+            echo "BUILD_DIR=/home/user/Omega" >> "$GITHUB_ENV"
+          fi
+      - name: Set up the host as a session does
+        # From the checkout, so rustup resolves the pinned toolchain for every step.
+        run: cd /home/user/Omega && bash tools/agent_setup.sh
+      - name: Build the compiler
+        run: |
+          cd "$BUILD_DIR"
+          # A session is not a CI job. Cargo and mbx change their defaults when
+          # CI is set, and a build made under other defaults is not reused.
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS mbx build --locked -p omega < /dev/null
+          ./target/debug/omega --version
+      - name: Publish the build
+        run: |
+          cd "$BUILD_DIR"
+          bash tools/warm_build.sh pack "$SLOT" /tmp/warm
+          asset=$(sed -n 's/^asset=//p' "/tmp/warm/warm-build-$SLOT.txt")
+          # The archive goes up before the manifest that names it, so a session
+          # never reads a manifest whose archive is not there yet.
+          gh release upload "$TAG" "/tmp/warm/$asset" --clobber --repo "${{ github.repository }}"
+          gh release upload "$TAG" "/tmp/warm/warm-build-$SLOT.txt" --clobber --repo "${{ github.repository }}"
+          # Drop this slot's superseded archives and the retired v1 format's files.
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[].name' |
+            grep -E "^target-$SLOT-|^target-[0-9a-f]{12}\.tar|^warm-build\.json$" | grep -vx "$asset" |
+            while read -r old; do
+              gh release delete-asset "$TAG" "$old" --yes --repo "${{ github.repository }}"
+            done
+          # The description is written here so it never names a retired tool.
+          gh release edit "$TAG" --repo "${{ github.repository }}" --notes \
+            "Prebuilt omega target directories for cloud sessions, replaced on every push to main by .github/workflows/warm-build.yml. A session restores one with tools/warm_build.sh; the warm-build-<slot>.txt manifests name the commit each archive was built from."

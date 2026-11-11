@@ -3394,6 +3394,30 @@ pub(crate) mod scalar_leaf_semantics {
         }
     }
 
+    /// Value types read from declarations whose identities need not be
+    /// dense, sorted once and searched by binary search.
+    pub struct SortedValueTypes(Vec<(ValueId, ScalarType)>);
+
+    impl SortedValueTypes {
+        /// `None` when one value is declared twice.
+        pub fn new(mut rows: Vec<(ValueId, ScalarType)>) -> Option<Self> {
+            rows.sort_unstable_by_key(|(value, _)| *value);
+            if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return None;
+            }
+            Some(Self(rows))
+        }
+    }
+
+    impl ValueTypes for SortedValueTypes {
+        fn value_type(&self, value: ValueId) -> Option<ScalarType> {
+            self.0
+                .binary_search_by_key(&value, |(row, _)| *row)
+                .ok()
+                .map(|position| self.0[position].1)
+        }
+    }
+
     pub fn constant_goal_free_scalar_leaf(
         operation: &Operation,
         literals: &BTreeMap<ValueId, ScalarLeafLiteral>,
@@ -3848,6 +3872,7 @@ pub(crate) mod scalar_observations {
             let array = StructuralTypeId::new(2).unwrap();
             let reference = StructuralTypeId::new(3).unwrap();
             let declaration = |id, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id,
                 identity: TerminalIdentityIndex(id.get() as u32),
                 quotient_carrier: None,

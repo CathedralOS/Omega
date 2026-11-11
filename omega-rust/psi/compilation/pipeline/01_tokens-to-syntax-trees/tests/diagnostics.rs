@@ -30,7 +30,7 @@ fn retired_ranking_clauses_report_their_replacements() {
         ),
     ] {
         let message = parse_error_message(&format!("machine walk(remaining: u64) {clause} {{ }}"));
-        assert!(message.contains(retired), "{message}");
+        assert!(message.contains(retired), "{clause}: {message}");
         assert!(message.contains(replacement), "{message}");
     }
 }

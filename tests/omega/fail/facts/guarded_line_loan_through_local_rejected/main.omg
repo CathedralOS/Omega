@@ -23,7 +23,7 @@ machine main() crashes Trap {
         ReadOutcome::Invalid -> done()
     }
     machine observe(line: &[u8; 64], count: u64) {
-        transition (line[0] as u64 in Wrapping + count as u64 in Wrapping) == 42 {
+        transition ((line[0] as u64 in Wrapping) + count as u64 in Wrapping) == 42 {
             true -> done()
             false -> wrong()
         }

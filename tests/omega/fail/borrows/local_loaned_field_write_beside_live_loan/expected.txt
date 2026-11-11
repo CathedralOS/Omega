@@ -1,0 +1,1 @@
+mutates `s.a` while local borrow `loaned` is still active

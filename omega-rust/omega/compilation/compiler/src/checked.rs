@@ -23,6 +23,7 @@ mod package_compilation;
 mod package_review;
 mod product_batch;
 mod target_preparation;
+mod test_roots;
 
 pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
@@ -30,6 +31,9 @@ pub use artifacts::compile_timings::counters::{
 };
 pub use checking::compile_thread::{
     COMPILE_STACK_SIZE, run_on_compile_thread, spawn_compile_worker,
+};
+pub use checking::typed_frontier::{
+    CurrentCheckerVerdict, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
 };
 pub use checking::{
     BuildAdvance, CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,

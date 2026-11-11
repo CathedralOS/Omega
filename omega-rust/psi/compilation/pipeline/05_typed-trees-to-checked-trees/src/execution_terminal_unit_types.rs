@@ -475,7 +475,7 @@ mod scalar_fields {
             && program
                 .any_field_owner(field)
                 .is_some_and(|(definition, field)| {
-                    !validation::data_field_is_where_independent(program, definition, field)
+                    !validation::data_field_is_requires_independent(program, definition, field)
                 })
         {
             return true;
@@ -521,7 +521,7 @@ mod scalar_fields {
     }
 
     /*
-        The owner's interval-only `where` bound on `field`: the record's facts for
+        The owner's interval-only `requires` bound on `field`: the record's facts for
         a direct field, the selected case's facts for a payload field.
     */
     fn stated_field_interval(
@@ -530,7 +530,7 @@ mod scalar_fields {
     ) -> Option<(Option<i64>, Option<i64>)> {
         let (definition, _) = program.any_field_owner(field)?;
         let intervals = if program.data_field(definition, field).is_some() {
-            validation::data_where_field_intervals(program, definition)
+            validation::data_requires_field_intervals(program, definition)
         } else {
             let variant =
                 program
@@ -547,7 +547,7 @@ mod scalar_fields {
                         }
                         _ => None,
                     })?;
-            validation::case_where_field_intervals(program, variant)
+            validation::case_requires_field_intervals(program, variant)
         }?;
         intervals
             .into_iter()
@@ -1739,13 +1739,25 @@ mod parameters {
                     || is_source_evidence_carrier(program, parameter.type_reference))
             })
             .map(|(position, parameter)| {
-                Some(CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).ok()?,
-                    primitive_type: program
-                        .erased_scalar_observation_type(parameter.type_reference)?,
-                })
+                // One plan per erased scalar lane, in lane order: a record
+                // formal repeats its source position once for each leaf.
+                let lanes = program.erased_scalar_lanes(parameter.type_reference);
+                if lanes.is_empty() {
+                    return None;
+                }
+                let source_position = u32::try_from(position).ok()?;
+                Some(
+                    lanes
+                        .into_iter()
+                        .map(|lane| CheckedStructuralScalarParameterPlan {
+                            source_position,
+                            primitive_type: lane.primitive_type,
+                        })
+                        .collect::<Vec<_>>(),
+                )
             })
-            .collect()
+            .collect::<Option<Vec<_>>>()
+            .map(|plans| plans.into_iter().flatten().collect())
     }
 
     /*
@@ -2542,9 +2554,9 @@ mod shape_collector {
     use typed_trees::types::FixedArrayLength;
     use validation::ContentsRequirement;
     use validation::activation_claim_byte_carrier;
-    use validation::case_where_field_intervals;
+    use validation::case_requires_field_intervals;
     use validation::data_has_contents;
-    use validation::data_where_field_intervals;
+    use validation::data_requires_field_intervals;
     use validation::field_domains::domain_predicate_theory_is_complete;
     use validation::field_domains::domain_requires_provenance;
     use validation::has_contents;
@@ -3877,7 +3889,7 @@ mod shape_collector {
             }
             let shape_kind = DataDefinition::shape_kind_from_members(&members);
             let stated_intervals =
-                data_where_field_intervals(self.program, &data).unwrap_or_default();
+                data_requires_field_intervals(self.program, &data).unwrap_or_default();
             let stated = |field: &DataField| {
                 stated_intervals
                     .iter()
@@ -3906,7 +3918,7 @@ mod shape_collector {
                             if ::validation::impossible_variant(self.program, variant) {
                                 continue;
                             }
-                            let intervals = case_where_field_intervals(self.program, variant)
+                            let intervals = case_requires_field_intervals(self.program, variant)
                                 .unwrap_or_default();
                             let mut payload_fields = Vec::new();
                             for field in self.program.data_payload_fields(variant) {

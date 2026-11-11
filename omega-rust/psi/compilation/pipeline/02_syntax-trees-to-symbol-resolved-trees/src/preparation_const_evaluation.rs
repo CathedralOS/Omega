@@ -137,9 +137,12 @@ mod anonymous {
                     "integer const argument exceeds the signed/unsigned 64-bit envelope".to_owned()
                 })?;
             if let Some((origin, fractional_value)) = self.fractional {
-                warnings.push(Diagnostic::warning(format!(
-            "anonymous arithmetic preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{integer}`; type an operand if typed integer division was intended"
-        )).with_source_span(syntax.expressions.source_span(origin)));
+                // Implicit const-argument landing after a fractional
+                // intermediate rejects (numeric_values.md); an explicit
+                // `as` operand is not an anonymous argument at this layer.
+                warnings.push(Diagnostic::error(format!(
+                    "anonymous arithmetic with the exact fractional intermediate `{fractional_value}` cannot land implicitly as integer `{integer}`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended"
+                )).with_source_span(syntax.expressions.source_span(origin)));
             }
             Ok(value)
         }
@@ -2373,10 +2376,15 @@ mod facts {
                     return Ok(Some(None));
                 };
                 let mut warnings = Vec::new();
-                let selected = evaluate_index(indexed.index)?
+                let index = evaluate_index(indexed.index)?
                     .map(|value| value.into_integer(syntax, &mut warnings))
                     .transpose()?
-                    .flatten()
+                    .flatten();
+                // An index is an implicit integer landing too.
+                if let Some(error) = warnings.iter().find(|warning| warning.is_error()) {
+                    return Err(error.message.clone());
+                }
+                let selected = index
                     .and_then(|value| usize::try_from(value).ok())
                     .and_then(|index| values.get(index));
                 Ok(Some(selected))
@@ -2418,8 +2426,8 @@ mod facts {
                     _ => None,
                 })
         });
-        if definition.where_facts.is_empty()
-            && variant.is_none_or(|variant| variant.where_facts.is_empty())
+        if definition.requires_facts.is_empty()
+            && variant.is_none_or(|variant| variant.requires_facts.is_empty())
         {
             return Ok(());
         }
@@ -2471,12 +2479,12 @@ mod facts {
             .collect::<Vec<_>>();
         for (facts, fields, label) in [
             (
-                definition.where_facts,
+                definition.requires_facts,
                 common_fields.as_slice(),
                 "default-domain",
             ),
             (
-                variant.map_or(HandleSpan::empty(), |variant| variant.where_facts),
+                variant.map_or(HandleSpan::empty(), |variant| variant.requires_facts),
                 active_fields.as_slice(),
                 "case",
             ),
@@ -3435,7 +3443,7 @@ mod facts {
             }
             visiting.push(data.name.source_span());
             let value_facts = super::super::template_type_equation_offsets(syntax, data, selection)
-                .map_or(true, |offsets| offsets.len() != data.where_facts.len());
+                .map_or(true, |offsets| offsets.len() != data.requires_facts.len());
             let requires_proof = value_facts
                 || syntax.tables.items.data_members(data.members).iter().any(
                     |member| match member {
@@ -3446,7 +3454,7 @@ mod facts {
                             selection,
                         ),
                         DataMember::Variant(variant) => {
-                            !variant.where_facts.is_empty()
+                            !variant.requires_facts.is_empty()
                                 || syntax_items(syntax)
                                     .data_payload_fields(variant.payload)
                                     .iter()

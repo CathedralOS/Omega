@@ -3,7 +3,7 @@
 // Invalid: width is one greater than the view length, so the remainder may equal the length. Place: parameter. The width arrives as an explicit parameter.
 // Expected exit: 0
 machine pick(value: u64, buckets: &[u8], width: u64) -> u8
-requires buckets.len > 0 && buckets.len < 100 && width == buckets.len as u64 + 1
+requires buckets.len > 0 && buckets.len < 100 && width == (buckets.len as u64) + 1
 {
     buckets[value % width]
 }

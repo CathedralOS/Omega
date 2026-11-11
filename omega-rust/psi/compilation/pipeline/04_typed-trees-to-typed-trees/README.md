@@ -88,3 +88,43 @@ whole-program scans. Selected graphs are copied through staging and then into
 their destination; generated names and evidence still allocate. Shared source
 payloads retain their existing owners. Compiler behavior is qualified through
 the ordinary corpus route, not a synthetic specialization-only program builder.
+
+## Policy operators
+
+[Policy operator typing](src/policy_operators.rs) runs first in every
+preparation entrance. A suffixed operator such as `a +% b` arrives from typing
+as its base operation with the chosen policy on the node, because the operand
+carrier is not known until the whole program is typed. This pass reads the
+carrier and rewrites the operation as the same operator on operands cast into
+the matching policy domain, with the result cast back to the plain carrier.
+Checking, lowering and both engines therefore see only the policy-qualified
+arithmetic they already implement; there is no second definition of wrapping,
+saturating or trapping arithmetic.
+
+Typing admits a suffixed operator only in executable statements, which are
+what this pass walks. The policy stays on the node until it is rewritten, so
+a cloned or projected program keeps it, and checking rejects any suffixed
+operation that reaches it instead of treating it as the bare Exact operator.
+
+This rewrite is scaffolding for the order the design record sets. Its step 5
+inverts the definition: `omega::core` declares the policy domains' operators
+through the suffixed forms, and the suffixed operation becomes the primitive
+this pass currently spells with casts.
+
+## Record pattern rosters
+
+`let { a, b as _ } = subject;` reaches this stage as a marker local
+(`LocalBindingRole::RecordPattern`) whose roster holds one row per field the
+author named, bound or waived, still only as spelled. The last preparation
+step, [`record_patterns::prepare`](src/lib.rs), resolves each roster against
+the subject's declared record, which only now is settled for specialized
+bodies too: every row receives the symbol of the field it names
+(`TableMatchField::field_symbol`) and the marker the record's own symbol
+(`TableLocalData::pattern_subject`). A row naming no field, or a spelling two
+fields share, stays without a symbol, and a subject that is not a plain record
+leaves the roster unresolved.
+
+Checking (`validation`'s `validate_destructure_exhaustiveness`) and
+[structure-only elaboration](../structure-elaboration/README.md) then decide
+coverage from those symbols alone; neither reads a row's spelling, and the
+marker's name encodes nothing.

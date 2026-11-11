@@ -129,24 +129,14 @@ pub(crate) fn prepare_permission_events(
         inputs,
     ) {
         Some(scratch) => scratch,
-        None => {
-            let prepared_walks = prepare_walks(
-                program,
-                facts,
-                &state_flows,
-                mutation_summaries,
-                call_frames,
-            );
-            walk_states_serially(
-                program,
-                facts,
-                claim_outcomes,
-                mutation_summaries,
-                call_frames,
-                &state_flows,
-                prepared_walks,
-            )
-        }
+        None => walk_states_serially(
+            program,
+            facts,
+            claim_outcomes,
+            mutation_summaries,
+            call_frames,
+            &state_flows,
+        ),
     };
     let PermissionWalkScratch {
         mut permission_events,
@@ -294,6 +284,19 @@ fn prepare_walks<'program>(
 /*
     Walk every state in roster order on `facts` itself. Each state's control
     row takes its storage-transfer span right after that state's walk.
+
+    Each state's walk is prepared just before it is walked, not all at once:
+    every prepared walk holds its case exclusions and conservation answers, and
+    holding all of them for a large program (the psi product package's 2,135
+    states, about 2.7 GB) pushed `omega update` past a 15 GB host. Preparing
+    late reads the same facts. A walk writes only `flow.ownership`, the
+    `qualifications.content` body tables (`CheckFactsWalk` hands out nothing
+    else mutably) and, after it, its own state row's `storage_transfers`.
+    Preparation reads none of those: it reads the control rows' calls,
+    statements, operands and retirements, the flow contexts, `borrow`,
+    `operators` and the content plans and conservation plans, which no walk
+    changes. Each prepared walk depends only on its own state, so preparing a
+    one-state slice gives the same answer as preparing the whole roster.
 */
 fn walk_states_serially<'program>(
     program: &'program dyn ::validation::CheckingInput,
@@ -302,12 +305,19 @@ fn walk_states_serially<'program>(
     mutation_summaries: &MutationSummaries,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     state_flows: &[StateFlow],
-    prepared_walks: Vec<PreparedStateWalk>,
 ) -> PermissionWalkScratch<'program> {
     let mut scratch = PermissionWalkScratch::default();
-    for (position, ((state_handle, state_flow), prepared)) in
-        state_flows.iter().zip(prepared_walks).enumerate()
-    {
+    for (position, state_entry) in state_flows.iter().enumerate() {
+        let (state_handle, state_flow) = state_entry;
+        let prepared = prepare_walks(
+            program,
+            facts,
+            std::slice::from_ref(state_entry),
+            mutation_summaries,
+            call_frames,
+        )
+        .pop()
+        .expect("one prepared walk per state");
         scratch.claim_identities.begin_state(position);
         let Some(storage_transfers) = walk_state(
             program,
@@ -346,8 +356,6 @@ struct StateWalkedApart {
     claim_identities: ClaimIdentityAllocator,
     cleanup_dispositions: ContextualCleanupFacts,
     consulted: ClaimOutcomePreparation,
-    /* Every claim-outcome map the walk looked up (`record_map_reads`). */
-    map_reads: Vec<symbols::SymbolHandle>,
     crossed: bool,
 }
 
@@ -452,7 +460,7 @@ impl PermissionWalkMemory {
             .into_iter()
             .map(|state| {
                 claim_outcomes
-                    .reads_unchanged(&summaries, &state.map_reads, &state.consulted)
+                    .reads_unchanged(&summaries, &state.consulted)
                     .then_some(state)
             })
             .collect();
@@ -641,7 +649,6 @@ fn walk_states_apart<'program>(
             claim_identities,
             cleanup_dispositions: _,
             consulted,
-            map_reads: _,
             crossed: _,
         } = state;
         facts.flow.ownership.adopt_additional_pages(ownership_pages);
@@ -692,7 +699,7 @@ fn walk_state_apart<'program>(
         ..PermissionWalkScratch::default()
     };
     scratch.claim_identities.begin_state(position);
-    let (storage_transfers, map_reads) = super::claim_outcomes::record_map_reads(|| {
+    let storage_transfers = {
         let shared_flow = &shared.flow;
         let shared_content = &shared.qualifications.content;
         let mut facts = CheckFactsWalk {
@@ -736,7 +743,7 @@ fn walk_state_apart<'program>(
             state_flow,
             prepared,
         )
-    });
+    };
     let crossed = worker.ownership.walk_guard.crossed();
     worker.ownership.walk_guard = checked_trees::WalkGuard::default();
     let ownership_pages = worker
@@ -761,7 +768,6 @@ fn walk_state_apart<'program>(
         claim_identities,
         cleanup_dispositions,
         consulted: worker.claim_outcomes.take_consulted(),
-        map_reads,
         crossed,
     }
 }

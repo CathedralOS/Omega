@@ -16,7 +16,7 @@ machine sum(counter: &mut u64, total: u64, remaining: u64) -> u64 reaches Schedu
     requires remaining > 0
     {
         let seen: u64 = suspend Scheduler::advance(remaining);
-        counter = (counter as u64 in Wrapping + 1) as u64;
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
         let next: u64 = ((total as u64 in Wrapping) + (seen as u64 in Wrapping)) as u64;
         transition { _ -> suspend sum(counter, next, remaining - 1) }
     }

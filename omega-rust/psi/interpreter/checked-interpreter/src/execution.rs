@@ -296,75 +296,11 @@ pub(crate) mod assignments {
     }
 }
 
-pub(crate) mod boundary_adapter_dispatch {
+pub(crate) mod selected_realization_dispatch {
     use crate::interpreter::evaluator::{
         EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value, trap,
     };
     impl<'program> Evaluator<'program> {
-        pub(crate) fn try_selected_named_call(
-            &mut self,
-            receiver_symbol: SymbolHandle,
-            target_symbol: SymbolHandle,
-            machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-            arguments: &[ExpressionHandle],
-            source: Option<validation::CallSite<'_>>,
-            frame: &mut Frame,
-        ) -> EvalResult<Option<Value>> {
-            if receiver_symbol.is_valid()
-                && let Some(dispatch) = self.selected_boundary_adapter(
-                    receiver_symbol,
-                    target_symbol,
-                    machine_arguments,
-                )
-            {
-                return self
-                    .run_boundary_adapter(dispatch, arguments, source, frame)
-                    .map(Some);
-            }
-            self.try_operator_application(
-                target_symbol,
-                ExpressionHandle::invalid(),
-                arguments,
-                frame,
-            )
-        }
-
-        pub(crate) fn selected_boundary_adapter(
-            &self,
-            receiver: SymbolHandle,
-            requirement: SymbolHandle,
-            machine_arguments: &[typed_trees::expression::StaticMachineArgument],
-        ) -> Option<checked_trees::CheckedBoundaryAdapterDispatch> {
-            let requirement = self
-                .program
-                .closed_requirement_application(requirement)
-                .map_or(requirement, |application| application.template);
-            self.boundary_adapter_dispatch
-                .iter()
-                .filter(|dispatch| {
-                    dispatch.receiver == receiver && dispatch.requirement == requirement
-                })
-                .find(|dispatch| {
-                    dispatch.family_tuple.is_empty()
-                        || machine_arguments
-                            .iter()
-                            .map(|argument| self.program.static_const_argument_identity(argument))
-                            .collect::<Option<Vec<_>>>()
-                            .is_some_and(|tuple| tuple.as_slice() == dispatch.family_tuple.as_ref())
-                })
-                .cloned()
-        }
-
-        pub(crate) fn run_boundary_adapter(
-            &mut self,
-            dispatch: checked_trees::CheckedBoundaryAdapterDispatch,
-            arguments: &[ExpressionHandle],
-            source: Option<validation::CallSite<'_>>,
-            frame: &mut Frame,
-        ) -> EvalResult<Value> {
-            self.run_selected_realization(dispatch.realization_state, arguments, source, frame)
-        }
-
         pub(crate) fn run_selected_realization(
             &mut self,
             realization_state: SymbolHandle,
@@ -792,11 +728,6 @@ pub(crate) mod host_dispatch {
                     "Build binding protocol requires source-issued designated product operands",
                 );
             }
-            if let Some(value) =
-                self.try_virtual_clock_operation(target_symbol, arguments, frame)?
-            {
-                return Ok(Some(value));
-            }
             let intrinsic_method = self.exact_console_intrinsic_host_method(target_symbol);
             if intrinsic_method.is_none()
                 && self.boundary_trait_requirement(target_symbol).is_none()
@@ -830,95 +761,6 @@ pub(crate) mod host_dispatch {
                 .to_vec();
             self.serve_host_operation(operation, call.target_symbol, &arguments, frame)
                 .map(Some)
-        }
-
-        pub(crate) fn try_virtual_clock_operation(
-            &mut self,
-            requirement: SymbolHandle,
-            arguments: &[ExpressionHandle],
-            frame: &mut Frame,
-        ) -> EvalResult<Option<Value>> {
-            let Some(binding) = self
-                .virtual_clock_bindings
-                .iter()
-                .find(|binding| binding.matches_target(requirement))
-                .cloned()
-            else {
-                return Ok(None);
-            };
-            self.host_boundary_touched = true;
-            if arguments.len() != binding.operands.len() {
-                return unsupported(
-                    "virtual wait argument count differs from its binding".to_owned(),
-                );
-            }
-            let mut values = Vec::with_capacity(arguments.len());
-            for (argument, primitive) in arguments.iter().zip(&binding.parameter_types) {
-                values.push(self.eval_expression_with_destination(
-                    *argument,
-                    Some(*primitive),
-                    frame,
-                )?);
-            }
-            let mut milliseconds = 0;
-            for (value, operand) in values.iter().zip(&binding.operands) {
-                let Value::Int(integer) = value else {
-                    return unsupported("virtual wait expects integer operands".to_owned());
-                };
-                match operand {
-                    crate::VirtualClockOperand::Milliseconds => {
-                        let crate::VirtualClockOperation::Wait {
-                            maximum_milliseconds,
-                            ..
-                        } = binding.operation
-                        else {
-                            return unsupported(
-                                "virtual clock read has a duration operand".to_owned(),
-                            );
-                        };
-                        if *integer < 0 || *integer > maximum_milliseconds {
-                            return unsupported(
-                                "virtual wait duration is outside its finite range".to_owned(),
-                            );
-                        }
-                        milliseconds = *integer;
-                    }
-                    crate::VirtualClockOperand::ExactInteger(expected) if *integer != *expected => {
-                        return unsupported(
-                            "virtual clock requires its exact capability operand".to_owned(),
-                        );
-                    }
-                    crate::VirtualClockOperand::ExactInteger(_)
-                    | crate::VirtualClockOperand::Ignored => {}
-                }
-            }
-            let value = match binding.operation {
-                crate::VirtualClockOperation::Wait { result, .. } => {
-                    self.advance_virtual_clock(milliseconds)?;
-                    match result {
-                        crate::VirtualClockResult::Unit => Value::Unit,
-                        crate::VirtualClockResult::Integer(_) => Value::Int(0),
-                    }
-                }
-                crate::VirtualClockOperation::Read {
-                    units_per_millisecond,
-                    ..
-                } => {
-                    let scaled = self
-                        .virtual_ticks
-                        .checked_mul(units_per_millisecond)
-                        .ok_or_else(|| {
-                            Halt::Unsupported("virtual clock read overflowed".to_owned())
-                        })?;
-                    if scaled < 0 {
-                        return unsupported(
-                            "virtual clock read cannot return negative elapsed time".to_owned(),
-                        );
-                    }
-                    Value::Int(scaled)
-                }
-            };
-            Ok(Some(value))
         }
 
         pub(crate) fn advance_virtual_clock(&mut self, milliseconds: i64) -> EvalResult<()> {
@@ -1945,21 +1787,14 @@ pub(crate) mod statements_and_calls {
                     path, arguments, ..
                 } => {
                     let members = self.program.statement_table.name_path_members(path.members);
-                    let (name, receiver_members) = members
+                    let (name, _) = members
                         .split_last()
                         .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
                     let state_name = name.as_str();
-                    let receiver_symbol = if receiver_members.len() == 1 {
-                        path.head_symbol
-                    } else {
-                        SymbolHandle::invalid()
-                    };
-                    if let Some(value) = self.try_selected_named_call(
-                        receiver_symbol,
+                    if let Some(value) = self.try_operator_application(
                         path.symbol,
-                        &[],
+                        ExpressionHandle::invalid(),
                         self.program.statement_table.expression_handles(*arguments),
-                        None,
                         frame,
                     )? {
                         return Ok(TransitionDecision::Value(value));
@@ -2019,12 +1854,10 @@ pub(crate) mod statements_and_calls {
                     frame,
                 );
             }
-            if let Some(value) = self.try_selected_named_call(
-                call.receiver_symbol,
+            if let Some(value) = self.try_operator_application(
                 call.target_symbol,
-                &call.machine_arguments,
+                ExpressionHandle::invalid(),
                 statement_table(self.program).expression_handles(call.arguments),
-                Some(validation::CallSite::Statement(call)),
                 frame,
             )? {
                 return Ok(value);
@@ -2043,13 +1876,10 @@ pub(crate) mod statements_and_calls {
                         "popfq image operand did not evaluate to an integer".to_owned(),
                     ));
                 };
-                let Some(environment) = self.x86_flags.as_mut() else {
-                    return Err(Halt::Unsupported(
+                let _ = image;
+                return Err(Halt::Unsupported(
                     "popfq requires an explicitly supplied target flags environment in Terminal execution".to_owned(),
                 ));
-                };
-                environment.restore_arithmetic_bits(image as u64);
-                return Ok(Value::Unit);
             }
             if AsmFenceKind::from_intrinsic_name(call.target.as_str()).is_some()
                 || AsmInterruptControlKind::from_intrinsic_name(call.target.as_str()).is_some()
@@ -2201,8 +2031,8 @@ pub(crate) mod states_and_transitions {
     use super::normal_cleanup::CompletionBoundary;
     use crate::build_time::observe_build_time_value;
     use crate::interpreter::evaluator::{
-        BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, CheckedTrees,
-        DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
+        BTreeMap, BuildEvaluationSponsor, CALL_DEPTH_BUDGET, Cell, CellMeter, DataDefinition,
+        DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
         FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
         PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
         TypedTrees, Value, ambient_step_budget, expression_table, statement_table, trap,
@@ -2241,11 +2071,8 @@ pub(crate) mod states_and_transitions {
                 product_declarations: program,
                 checked: None,
                 operator_facts: None,
-                boundary_adapter_dispatch: &[],
-                selected_product_float_comparisons: None,
                 selected_build_time_operators: &[],
                 selected_build_time_machine_bodies: &[],
-                x86_flags: None,
                 semantic_float_evaluation: false,
                 stdout: Vec::new(),
                 stderr: Vec::new(),
@@ -2263,7 +2090,6 @@ pub(crate) mod states_and_transitions {
                 stdin,
                 stdin_cursor: 0,
                 virtual_ticks: 0,
-                virtual_clock_bindings: Vec::new(),
                 virtual_live_windows: std::collections::HashSet::new(),
                 virtual_window_next: 0,
                 virtual_files: BTreeMap::new(),
@@ -2281,9 +2107,7 @@ pub(crate) mod states_and_transitions {
                     .into_iter()
                     .collect(),
                 virtual_errno: 0,
-                real_fs: None,
                 rooted_build_paths_required: false,
-                build_included_sources: Vec::new(),
                 output_obligations: Vec::new(),
                 output_receipts: Vec::new(),
                 output_obligation_paths: BTreeMap::new(),
@@ -2293,8 +2117,6 @@ pub(crate) mod states_and_transitions {
                 filesystem_operation_attempts: Vec::new(),
                 filesystem_logical_handles: FilesystemLogicalHandles::default(),
                 filesystem_live_handle_leases: BTreeMap::new(),
-                filesystem_observation_path_bytes: 0,
-                filesystem_observation_evidence_bytes: 0,
                 filesystem_observation_resource_halt: None,
                 filesystem_operation_attempt_stack: Vec::new(),
                 private_layout_placements: Vec::new(),
@@ -2306,13 +2128,6 @@ pub(crate) mod states_and_transitions {
                 call_depth: 0,
                 guard_depth: 0,
             }
-        }
-
-        pub(crate) fn new_checked(checked: &'program CheckedTrees, stdin: &'program [u8]) -> Self {
-            let mut evaluator = Self::new(&checked.typed, stdin);
-            evaluator.checked = Some(checked);
-            evaluator.operator_facts = Some(&checked.facts.operators);
-            evaluator
         }
 
         pub(crate) fn tick(&mut self) -> EvalResult<()> {
@@ -2381,63 +2196,6 @@ pub(crate) mod states_and_transitions {
                 .ok_or_else(|| {
                     Halt::Resource("filesystem operation-attempt accounting overflowed".to_owned())
                 })
-        }
-
-        pub(crate) fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {
-            let entry_machine = self
-                .find_machine_by_name(entry_machine_name)
-                .ok_or_else(|| {
-                    Halt::Unsupported(format!("no entry machine `{entry_machine_name}`"))
-                })?;
-            self.run_resolved_entry(entry_machine)
-        }
-
-        pub(crate) fn run_entry_symbol(
-            &mut self,
-            entry_machine_symbol: SymbolHandle,
-        ) -> EvalResult<()> {
-            let entry_machine = self
-                .find_machine_by_symbol(entry_machine_symbol)
-                .ok_or_else(|| {
-                    Halt::Unsupported(
-                        "the selected program entry is not a machine in the checked program"
-                            .to_owned(),
-                    )
-                })?;
-            self.run_resolved_entry(entry_machine)
-        }
-
-        fn run_resolved_entry(&mut self, entry_machine: &'program Machine) -> EvalResult<()> {
-            let entry_machine_name = entry_machine.name.as_str();
-            let entry_state = self.machine_entry_state(entry_machine).ok_or_else(|| {
-                Halt::Unsupported(format!(
-                    "entry machine `{entry_machine_name}` has no executable state"
-                ))
-            })?;
-
-            let arguments = self.entry_arrival_arguments(entry_machine, entry_state)?;
-            let returned = self.run_state_collect(entry_machine, entry_state, arguments)?;
-            if let Some(value) = returned
-                && let Some(code) = value.as_int()
-            {
-                return Err(Halt::Exit(code as i32));
-            }
-            Ok(())
-        }
-
-        fn entry_arrival_arguments(
-            &mut self,
-            entry_machine: &Machine,
-            entry_state: &'program State,
-        ) -> EvalResult<Vec<EvaluatedArgument>> {
-            if let Some(parameter) = self.program.state_parameters(entry_state).first() {
-                return unsupported(format!(
-                    "entry machine `{}` parameter `{}` has no installed arrival value",
-                    entry_machine.name.as_str(),
-                    parameter.name.as_str()
-                ));
-            }
-            Ok(Vec::new())
         }
 
         pub(crate) fn run_build_time_machine(

@@ -202,17 +202,6 @@ pub(crate) mod evaluator {
         pub(crate) fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
             Err(Halt::Trap(message.into()))
         }
-
-        pub(crate) fn filesystem_sponsor_halt<T>(
-            error: crate::FilesystemSponsorError,
-        ) -> EvalResult<T> {
-            let message = format!("filesystem staging sponsor rejected operation: {error}");
-            if error.is_limit_exceeded() {
-                Err(Halt::Resource(message))
-            } else {
-                Err(Halt::Trap(message))
-            }
-        }
     }
 
     pub(crate) mod scalar_numerics {
@@ -414,7 +403,6 @@ pub(crate) mod evaluator {
     pub(crate) use crate::value::{Reference, ReferenceProjection, ReferenceStorage};
     pub(crate) use crate::{
         BuildEvaluationSponsor, EvaluationUsage, FilesystemEvaluationHaltKind,
-        FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
         FilesystemGrantRootIdentity, FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput,
         FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
         FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
@@ -467,7 +455,7 @@ pub(crate) mod evaluator {
         STAT_OUTPUT_BYTES, synthetic_handle_fd,
     };
     pub(crate) use halts::Halt;
-    pub(crate) use halts::{EvalResult, filesystem_sponsor_halt, trap, unsupported};
+    pub(crate) use halts::{EvalResult, trap, unsupported};
     pub(crate) use numerics::float_representation::{
         binary32_from_bits as interpreter_f32_from_bits,
         binary32_to_bits as interpreter_f32_to_bits,
@@ -490,7 +478,6 @@ pub(crate) mod evaluator {
 
     pub(crate) const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
     pub(crate) const CALL_DEPTH_BUDGET: u32 = 512;
-    pub(crate) const MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES: usize = 256 * 1024 * 1024;
     pub(crate) const MAX_DIRECTORY_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
     pub(crate) const MAX_DIRECTORY_ENTRY_NAME_BYTES: usize = 255;
 
@@ -539,15 +526,10 @@ pub(crate) mod evaluator {
         pub(crate) product_declarations: &'program TypedTrees,
         pub(crate) checked: Option<&'program CheckedTrees>,
         pub(crate) operator_facts: Option<&'program CheckedOperatorFacts>,
-        pub(crate) boundary_adapter_dispatch:
-            &'program [checked_trees::CheckedBoundaryAdapterDispatch],
-        pub(crate) selected_product_float_comparisons:
-            Option<&'program [checked_trees::CheckedSelectedFloatComparisonExecution]>,
         pub(crate) selected_build_time_operators:
             &'program [crate::SelectedBuildTimeBinaryOperator],
         pub(crate) selected_build_time_machine_bodies:
             &'program [crate::SelectedBuildTimeMachineBody],
-        pub(crate) x86_flags: Option<language_core::inline_assembly::X86FlagsEnvironment>,
         pub(crate) semantic_float_evaluation: bool,
         pub(crate) stdout: Vec<u8>,
         pub(crate) stderr: Vec<u8>,
@@ -567,7 +549,6 @@ pub(crate) mod evaluator {
         pub(crate) stdin: &'program [u8],
         pub(crate) stdin_cursor: usize,
         pub(crate) virtual_ticks: i64,
-        pub(crate) virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
         pub(crate) virtual_live_windows: std::collections::HashSet<i64>,
         pub(crate) virtual_window_next: i64,
         pub(crate) virtual_files: BTreeMap<Vec<u8>, Vec<u8>>,
@@ -583,9 +564,7 @@ pub(crate) mod evaluator {
         pub(crate) virtual_flocks: BTreeMap<Vec<u8>, i32>,
         pub(crate) virtual_char_devices: std::collections::BTreeSet<Vec<u8>>,
         pub(crate) virtual_errno: i32,
-        pub(crate) real_fs: Option<crate::interpreter::evaluator::filesystem::real::RealFs>,
         pub(crate) rooted_build_paths_required: bool,
-        pub(crate) build_included_sources: Vec<crate::BuildIncludedSource>,
         pub(crate) output_obligations: Vec<crate::BuildOutputObligation>,
         pub(crate) output_receipts: Vec<crate::BuildOutputReceipt>,
         pub(crate) output_obligation_paths: BTreeMap<(FilesystemGrantRootIdentity, Vec<u8>), usize>,
@@ -600,8 +579,6 @@ pub(crate) mod evaluator {
             crate::FilesystemLogicalHandleIdentity,
             BuildEvaluationLiveFilesystemHandleLease,
         >,
-        pub(crate) filesystem_observation_path_bytes: usize,
-        pub(crate) filesystem_observation_evidence_bytes: usize,
         pub(crate) filesystem_observation_resource_halt: Option<String>,
         pub(crate) filesystem_operation_attempt_stack: Vec<usize>,
         pub(crate) private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
@@ -691,17 +668,6 @@ pub(crate) mod evaluator {
         }
     }
 
-    impl Evaluator<'_> {
-        pub(crate) fn error_outcome(self, message: String) -> crate::evaluation::InterpretOutcome {
-            crate::evaluation::InterpretOutcome::error(
-                message,
-                self.stdout,
-                self.stderr,
-                self.usage,
-            )
-        }
-    }
-
     pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
         &tables.expression_table
     }
@@ -715,15 +681,10 @@ pub(crate) mod evaluator {
     }
 }
 
-use crate::interpreter::evaluator::filesystem::real::RealFs;
-use crate::{
-    BuildTimeOperationEvaluation, EvaluationUsage, FilesystemAccess, FilesystemMetadataLayout,
-    InterpretOutcome, SelectedBuildTimeBinaryOperator,
-};
+use crate::{BuildTimeOperationEvaluation, SelectedBuildTimeBinaryOperator};
 use build_time_values::BuildTimeValue;
-use checked_trees::CheckedTrees;
 pub use evaluation_error::{BuildMachineEvaluationError, UnavailableStaticInput};
-use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, ambient_step_budget};
+use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -749,34 +710,6 @@ fn run_with_interpreter_stack<Output: Send>(
             .expect("spawn interpreter worker thread")
             .join()
     })
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct InterpretOptions<'bindings> {
-    pub boundary_adapters: &'bindings [checked_trees::CheckedBoundaryAdapterDispatch],
-    pub float_comparisons: &'bindings [checked_trees::CheckedSelectedFloatComparisonExecution],
-    pub machine_bodies: &'bindings [SelectedBuildTimeMachineBody],
-    pub x86_flags: Option<u64>,
-    pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
-    pub filesystem: FilesystemAccess,
-    pub filesystem_metadata_layout: FilesystemMetadataLayout,
-}
-
-pub fn interpret_entry(
-    checked: &CheckedTrees,
-    entry: BuildMachineEntry<'_>,
-    stdin: &[u8],
-    options: InterpretOptions<'_>,
-) -> InterpretOutcome {
-    run_with_interpreter_stack(|| interpret_on_current_thread(checked, entry, stdin, options))
-        .unwrap_or_else(|_| {
-            InterpretOutcome::error(
-                "interpreter thread panicked",
-                Vec::new(),
-                Vec::new(),
-                EvaluationUsage::empty(ambient_step_budget()),
-            )
-        })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -996,115 +929,6 @@ fn evaluate_structured_return(
             "build-time evaluator thread panicked".to_owned(),
         ))
     })
-}
-
-fn interpret_on_current_thread(
-    checked: &CheckedTrees,
-    entry: BuildMachineEntry<'_>,
-    stdin: &[u8],
-    options: InterpretOptions<'_>,
-) -> InterpretOutcome {
-    let mut evaluator = Evaluator::new_checked(checked, stdin);
-    evaluator.boundary_adapter_dispatch = options.boundary_adapters;
-    evaluator.selected_product_float_comparisons = Some(options.float_comparisons);
-    if let Err(message) =
-        SelectedBuildTimeMachineBody::validate_all(&checked.typed, options.machine_bodies)
-    {
-        return evaluator.error_outcome(message);
-    }
-    evaluator.selected_build_time_machine_bodies = options.machine_bodies;
-    evaluator.x86_flags = match options.x86_flags {
-        Some(image) => match language_core::inline_assembly::X86FlagsEnvironment::new(image) {
-            Ok(environment) => Some(environment),
-            Err(error) => return evaluator.error_outcome(error.to_string()),
-        },
-        None => None,
-    };
-    if checked
-        .facts
-        .operators
-        .has_crash_qualified_uses(&checked.typed)
-    {
-        return evaluator.error_outcome(
-            "selected operator crash invocations have no checked execution support".to_owned(),
-        );
-    }
-    for (position, binding) in options.virtual_clock_bindings.iter().enumerate() {
-        let validity = binding.validate_for(checked).and_then(|()| {
-            if options.virtual_clock_bindings[..position]
-                .iter()
-                .any(|earlier| earlier.overlaps(binding))
-            {
-                Err("virtual wait requirement has duplicate bindings")
-            } else {
-                Ok(())
-            }
-        });
-        if let Err(message) = validity {
-            return evaluator.error_outcome(message.to_owned());
-        }
-    }
-    evaluator.virtual_clock_bindings = options.virtual_clock_bindings;
-    evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
-    match options.filesystem {
-        FilesystemAccess::Virtual => {}
-        FilesystemAccess::RealUnscoped => {
-            evaluator.real_fs = Some(
-                RealFs::new(None, None).expect("unscoped filesystem has no grant configuration"),
-            );
-        }
-        FilesystemAccess::RealScoped(grants) => {
-            let filesystem = match RealFs::new(Some(grants), None) {
-                Ok(filesystem) => filesystem,
-                Err(message) => {
-                    return evaluator.error_outcome(message.to_owned());
-                }
-            };
-            evaluator.real_fs = Some(filesystem);
-        }
-        FilesystemAccess::CapturedScoped {
-            inputs,
-            grants,
-            sponsor,
-        } => match RealFs::with_captured_inputs(grants, sponsor, inputs) {
-            Ok(filesystem) => evaluator.real_fs = Some(filesystem),
-            Err(message) => {
-                return evaluator.error_outcome(message.to_owned());
-            }
-        },
-        FilesystemAccess::RealScopedSponsored { grants, sponsor } => {
-            let filesystem = match RealFs::new(Some(grants), Some(sponsor)) {
-                Ok(filesystem) => filesystem,
-                Err(message) => {
-                    return evaluator.error_outcome(message.to_owned());
-                }
-            };
-            evaluator.real_fs = Some(filesystem);
-        }
-    }
-    let result = match entry {
-        BuildMachineEntry::Name(entry_machine_name) => evaluator.run_entry(entry_machine_name),
-        BuildMachineEntry::Symbol(entry_machine_symbol) => {
-            evaluator.run_entry_symbol(entry_machine_symbol)
-        }
-    };
-    evaluator.finish_cell_usage();
-    let usage = evaluator.usage;
-    match result {
-        Ok(()) => InterpretOutcome::exited(0, evaluator.stdout, evaluator.stderr, usage),
-        Err(Halt::Exit(code)) => {
-            InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr, usage)
-        }
-        Err(Halt::Crash(cause, site)) => {
-            InterpretOutcome::crashed(cause, site, evaluator.stdout, evaluator.stderr, usage)
-        }
-        Err(Halt::StaticInputUnavailable(input)) => evaluator.error_outcome(input.to_string()),
-        Err(Halt::Unsupported(message))
-        | Err(Halt::Trap(message))
-        | Err(Halt::Resource(message)) => {
-            InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr, usage)
-        }
-    }
 }
 
 fn build_time_result_custody(values: &[build_time_values::BuildTimeValue]) -> Option<(u64, u64)> {

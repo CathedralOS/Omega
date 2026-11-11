@@ -440,7 +440,7 @@ pub mod data {
         pub properties: DataProperties,
         pub cleanup_selection: Option<crate::domain::CleanupSelection>,
         pub quotient: Option<QuotientDefinition>,
-        pub where_facts: HandleSpan<crate::domain::ProofFact>,
+        pub requires_facts: HandleSpan<crate::domain::ProofFact>,
         pub zero_gated: bool,
         pub retired_identities: Vec<u64>,
         pub members: HandleSpan<DataMember>,
@@ -462,7 +462,7 @@ pub mod data {
                 properties: DataProperties::default(),
                 cleanup_selection: None,
                 quotient: None,
-                where_facts: HandleSpan::empty(),
+                requires_facts: HandleSpan::empty(),
                 zero_gated: false,
                 retired_identities: Vec::new(),
                 members: HandleSpan::empty(),
@@ -782,7 +782,7 @@ pub mod data {
         pub symbol: SymbolHandle,
         pub name: Identifier,
         pub payload: HandleSpan<DataField>,
-        pub where_facts: HandleSpan<crate::domain::ProofFact>,
+        pub requires_facts: HandleSpan<crate::domain::ProofFact>,
         pub retired_payload_identities: Vec<u64>,
     }
 }
@@ -1612,6 +1612,59 @@ pub mod float_providers {
             .symbol_toolchain_relative_path(machine.symbol)
             .is_some_and(|relative| relative == std::path::Path::new(SOURCE))
             && machine.name.as_str().starts_with("NativeFloats::")
+    }
+
+    /// Whether `symbol` is the sealed core `NativeFloats` catalog map. Only
+    /// that map's plans realize canonical float operations from a target's
+    /// declared realization table; a same-named map elsewhere is ordinary.
+    pub fn is_sealed_catalog_map(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
+        sealed(typed, symbol, "NativeFloats", SOURCE)
+    }
+
+    /// The public requirements the sealed map's authenticated members
+    /// satisfy, in declaration order. Each target's realization table binds
+    /// these; product and Build programs keep them as boundary roots because
+    /// no Build selection names them any more.
+    pub fn catalog_realization_requirements(typed: &TypedTrees) -> Vec<SymbolHandle> {
+        catalog_members(typed)
+            .into_iter()
+            .map(|(_, requirement)| requirement)
+            .fold(Vec::new(), |mut requirements, requirement| {
+                if !requirements.contains(&requirement) {
+                    requirements.push(requirement);
+                }
+                requirements
+            })
+    }
+
+    /// The sealed map together with the requirements above. A Build
+    /// activation's checked projection keeps both so the target realization
+    /// table can supply float operations a Build program reaches.
+    pub fn catalog_realization_declarations(typed: &TypedTrees) -> Vec<SymbolHandle> {
+        let mut declarations = Vec::new();
+        for (map, requirement) in catalog_members(typed) {
+            for symbol in map.into_iter().chain([requirement]) {
+                if !declarations.contains(&symbol) {
+                    declarations.push(symbol);
+                }
+            }
+        }
+        declarations
+    }
+
+    fn catalog_members(typed: &TypedTrees) -> Vec<(Option<SymbolHandle>, SymbolHandle)> {
+        typed
+            .machines
+            .iter()
+            .filter(|(_, machine)| is_catalog_declaration(typed, machine))
+            .filter_map(|(_, machine)| {
+                let (requirement, _) = authenticate_intrinsic_member(typed, machine).ok()?;
+                let map = typed
+                    .owned_conformance_realization(machine.symbol)
+                    .map(|(implementation, _)| implementation.symbol);
+                Some((map, requirement))
+            })
+            .collect()
     }
 
     pub fn authenticate_intrinsic_member(

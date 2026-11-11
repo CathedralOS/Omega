@@ -6,6 +6,10 @@ name: Repository lint
 # errors in tests, examples and sample drivers landed behind it. It now also
 # runs on pull requests and in the merge queue, so `workspace-clippy` can be a
 # required check. A warm run takes about 5 minutes.
+#
+# The `pull_request` trigger covers pushes only. `lint-when-mergeable.yml`
+# dispatches this workflow when a pull request's base changes to `main` or it
+# is marked ready and its head has no `workspace-clippy` run yet.
 on:
   pull_request:
     branches: [main]

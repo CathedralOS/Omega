@@ -53,7 +53,7 @@ pub mod data_queries {
             })
     }
 
-    pub fn data_field_is_where_independent(
+    pub fn data_field_is_requires_independent(
         program: &dyn crate::CheckingInput,
         definition: &typed_trees::data::DataDefinition,
         field: &typed_trees::data::DataField,
@@ -67,12 +67,12 @@ pub mod data_queries {
                     .data_payload_fields(variant)
                     .iter()
                     .any(|payload| payload.symbol == field.symbol)
-                    .then(|| program.proof_facts.span_or_empty(variant.where_facts))
+                    .then(|| program.proof_facts.span_or_empty(variant.requires_facts))
             })
             .unwrap_or(&[]);
         program
             .proof_facts
-            .span_or_empty(definition.where_facts)
+            .span_or_empty(definition.requires_facts)
             .iter()
             .chain(case_facts)
             .all(|fact| {
@@ -382,7 +382,7 @@ pub mod definition_facts {
         let data_facts = program
             .data_definitions()
             .iter()
-            .map(|data| program.proof_facts.span_or_empty(data.where_facts).len())
+            .map(|data| program.proof_facts.span_or_empty(data.requires_facts).len())
             .sum::<usize>();
         domain_facts + data_facts
     }
@@ -430,7 +430,7 @@ pub mod definition_facts {
     fn append_data_definition_facts(program: &dyn crate::CheckingInput, facts: &mut FactPlan) {
         for data in program.data_definitions() {
             let mut refs = HandleSpan::empty();
-            for fact_handle in proof_fact_handles(data.where_facts) {
+            for fact_handle in proof_fact_handles(data.requires_facts) {
                 let proof_fact = program.proof_facts.get(fact_handle);
                 let dependencies = data_fact_dependency_places(program, facts, data, proof_fact);
                 let place = append_data_proof_fact_place(program, facts, data, proof_fact);
@@ -3144,7 +3144,7 @@ pub mod transitions {
             caller_machine: &Machine,
             caller_state: &State,
             callee_machine: &Machine,
-            callee_state: &State,
+            completed_reference: TypeReferenceHandle,
             target: typed_trees::statement::TransitionTargetHandle,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
@@ -3155,7 +3155,7 @@ pub mod transitions {
                 .statically_refined_transition_type_reference(target, caller_state.return_type);
             let (Some(expected), Some(actual)) = (
                 shape(program, expected_reference),
-                shape(program, callee_state.return_type),
+                shape(program, completed_reference),
             ) else {
                 return;
             };
@@ -3177,7 +3177,7 @@ pub mod transitions {
                 caller_machine.name,
                 caller_state.name,
                 callee_machine.name,
-                spelling(program, callee_state.return_type),
+                spelling(program, completed_reference),
             )));
         }
 
@@ -3299,12 +3299,36 @@ pub mod transitions {
                 && owner.symbol != current_machine.symbol
                 && let Some(current_state) = current_state
             {
+                /*
+                    A canonical float operation completes with its operands'
+                    arithmetic policy, not with the bare carrier its declaration
+                    names: `value * 3.0f32` over a `Trapping` operand is an
+                    `f32 in Trapping`. The checked type of the call expression
+                    already carries that adapter, so it is the terminal result
+                    here. Operands whose policies disagree yield no checked
+                    type, and the declared carrier is compared instead.
+                */
+                let completed =
+                    crate::machine_calls::calls::selected_float_operation_retains_argument_policy(
+                        program,
+                        owner.symbol,
+                    )
+                    .then(|| {
+                        crate::value_custody::expression_types::expression_result_type_reference(
+                            program,
+                            current_machine,
+                            current_state,
+                            *expression,
+                        )
+                    })
+                    .flatten()
+                    .unwrap_or(state.return_type);
                 terminal_results::validate(
                     program,
                     current_machine,
                     current_state,
                     owner,
-                    state,
+                    completed,
                     target,
                     diagnostics,
                 );
@@ -3332,7 +3356,7 @@ pub mod transitions {
                     current_machine,
                     current_state,
                     owner,
-                    state,
+                    state.return_type,
                     target,
                     diagnostics,
                 );

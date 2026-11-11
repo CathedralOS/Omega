@@ -338,8 +338,9 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::*;
     use crate::provider_plan::{
-        BoundaryCallingPlanCommitment, ProviderBinding, ProviderPlan, ProviderPlanRow,
-        ServiceCallingApplication, ServiceCallingPlan, ServiceMethod, ServiceReceiverApplication,
+        BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderBinding, ProviderPlan,
+        ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
+        ServiceReceiverApplication,
     };
     use semantic_vocabulary::{CallingAbiIdentity, CallingOperandKind, CallingStaticOperand};
 
@@ -457,6 +458,7 @@ mod tests {
                         commitment: BoundaryCallingPlanCommitment::from_digest(
                             [index as u8 + 17; 32],
                         ),
+                        promise: BoundaryCallingPlanPromise::from_digest([index as u8 + 41; 32]),
                     },
                 });
         }

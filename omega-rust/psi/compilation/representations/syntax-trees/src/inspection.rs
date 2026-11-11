@@ -454,7 +454,8 @@ pub mod snapshot {
                 },
                 ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
                     left: Box::new(snapshot_expression_handle(syntax_trees, binary.left)),
-                    operator: snapshot_binary_operator(binary.operator),
+                    operator: snapshot_policy_operator(binary.operator, binary.policy)
+                        .unwrap_or_else(|| snapshot_binary_operator(binary.operator)),
                     right: Box::new(snapshot_expression_handle(syntax_trees, binary.right)),
                 },
                 ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
@@ -467,6 +468,11 @@ pub mod snapshot {
                     arithmetic_domain: cast.domain.name(),
                     form: match cast.form {
                         language_core::cast_form::CastForm::Value => "value",
+                        language_core::cast_form::CastForm::Entry(entry) => match entry.kind {
+                            language_core::cast_form::CastEntryKind::Keep => "entry_keep",
+                            language_core::cast_form::CastEntryKind::Remove => "entry_remove",
+                            language_core::cast_form::CastEntryKind::Add => "entry_add",
+                        },
                         language_core::cast_form::CastForm::Recast(access) => match access {
                             language_core::ReferenceAccess::Shared => "recast_shared",
                             language_core::ReferenceAccess::Mutable => "recast_mutable",
@@ -663,6 +669,43 @@ pub mod snapshot {
             }
         }
 
+        /// A suffixed policy operator snapshots under its own name, so two
+        /// parsers that disagree about a suffix do not compare equal.
+        fn snapshot_policy_operator(
+            operator: BinaryOperator,
+            policy: numerics::arithmetic::ArithmeticDomain,
+        ) -> Option<&'static str> {
+            use numerics::arithmetic::ArithmeticDomain;
+            Some(match (operator, policy) {
+                (BinaryOperator::Add, ArithmeticDomain::Wrapping) => "add_wrapping",
+                (BinaryOperator::Add, ArithmeticDomain::Saturating) => "add_saturating",
+                (BinaryOperator::Add, ArithmeticDomain::Trapping) => "add_trapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Wrapping) => "subtract_wrapping",
+                (BinaryOperator::Subtract, ArithmeticDomain::Saturating) => "subtract_saturating",
+                (BinaryOperator::Subtract, ArithmeticDomain::Trapping) => "subtract_trapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Wrapping) => "multiply_wrapping",
+                (BinaryOperator::Multiply, ArithmeticDomain::Saturating) => "multiply_saturating",
+                (BinaryOperator::Multiply, ArithmeticDomain::Trapping) => "multiply_trapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Wrapping) => "divide_wrapping",
+                (BinaryOperator::Divide, ArithmeticDomain::Saturating) => "divide_saturating",
+                (BinaryOperator::Divide, ArithmeticDomain::Trapping) => "divide_trapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Wrapping) => "modulo_wrapping",
+                (BinaryOperator::Modulo, ArithmeticDomain::Saturating) => "modulo_saturating",
+                (BinaryOperator::Modulo, ArithmeticDomain::Trapping) => "modulo_trapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Wrapping) => "shift_left_wrapping",
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Saturating) => {
+                    "shift_left_saturating"
+                }
+                (BinaryOperator::ShiftLeft, ArithmeticDomain::Trapping) => "shift_left_trapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Wrapping) => "shift_right_wrapping",
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Saturating) => {
+                    "shift_right_saturating"
+                }
+                (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => "shift_right_trapping",
+                _ => return None,
+            })
+        }
+
         fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
             match operator {
                 BinaryOperator::Add => "add",
@@ -719,6 +762,33 @@ pub mod snapshot {
             )
         }
 
+        /// One pattern's field roster, for a dispatch arm or a record
+        /// pattern's marker local alike.
+        pub(crate) fn snapshot_match_fields(
+            syntax_trees: &SyntaxTrees,
+            fields: arena::HandleSpan<crate::expression::TableMatchField>,
+        ) -> Vec<MatchFieldSnapshot> {
+            syntax_trees
+                .expressions
+                .match_fields(fields)
+                .iter()
+                .map(|field| MatchFieldSnapshot {
+                    component: (field.component == language_core::PatternComponent::Case)
+                        .then_some("case"),
+                    member: snapshot_identifier(syntax_trees, &field.member),
+                    action: match &field.action {
+                        MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
+                            binding: snapshot_identifier(syntax_trees, binding),
+                        },
+                        MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
+                            value: Box::new(snapshot_expression_handle(syntax_trees, *value)),
+                        },
+                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
+                    },
+                })
+                .collect()
+        }
+
         pub(crate) fn snapshot_match_pattern(
             syntax_trees: &SyntaxTrees,
             pattern: MatchPattern,
@@ -735,28 +805,7 @@ pub mod snapshot {
                         ))
                     }),
                     head: Box::new(snapshot_expression_handle(syntax_trees, pattern.head)),
-                    fields: syntax_trees
-                        .expressions
-                        .match_fields(pattern.fields)
-                        .iter()
-                        .map(|field| MatchFieldSnapshot {
-                            component: (field.component == language_core::PatternComponent::Case)
-                                .then_some("case"),
-                            member: snapshot_identifier(syntax_trees, &field.member),
-                            action: match &field.action {
-                                MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
-                                    binding: snapshot_identifier(syntax_trees, binding),
-                                },
-                                MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
-                                    value: Box::new(snapshot_expression_handle(
-                                        syntax_trees,
-                                        *value,
-                                    )),
-                                },
-                                MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
-                            },
-                        })
-                        .collect(),
+                    fields: snapshot_match_fields(syntax_trees, pattern.fields),
                     has_rest: pattern.has_rest,
                     guard: pattern
                         .guard
@@ -845,7 +894,7 @@ pub mod snapshot {
                 #[serde(skip_serializing_if = "Option::is_none")]
                 quotient: Option<QuotientSnapshot>,
                 #[serde(skip_serializing_if = "Vec::is_empty")]
-                where_facts: Vec<ProofFactSnapshot>,
+                requires_facts: Vec<ProofFactSnapshot>,
                 members: Vec<DataMemberSnapshot>,
             },
             TypeAlias {
@@ -1009,6 +1058,11 @@ pub mod snapshot {
                 declaring_trait: IdentifierSnapshot,
                 requirement_ordinal: usize,
                 declaration: Box<ItemSnapshot>,
+            },
+            Selection {
+                declaring_trait: IdentifierSnapshot,
+                requirement: IdentifierSnapshot,
+                target: Vec<IdentifierSnapshot>,
             },
         }
 
@@ -1226,6 +1280,18 @@ pub mod snapshot {
                                     &Item::Machine(machine.clone()),
                                 )),
                             },
+                            ConformanceMember::Selection {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => ConformanceMemberSnapshot::Selection {
+                                declaring_trait: snapshot_identifier(syntax_trees, declaring_trait),
+                                requirement: snapshot_identifier(syntax_trees, requirement),
+                                target: snapshot_identifier_slice(
+                                    syntax_trees,
+                                    syntax_trees.items.identifier_path_members(*target),
+                                ),
+                            },
                         })
                         .collect(),
                 },
@@ -1284,7 +1350,7 @@ pub mod snapshot {
                             }
                         }),
                     }),
-                    where_facts: snapshot_proof_facts(syntax_trees, value.where_facts),
+                    requires_facts: snapshot_proof_facts(syntax_trees, value.requires_facts),
                     members: syntax_trees
                         .items
                         .data_members(value.members)
@@ -2002,6 +2068,8 @@ pub mod snapshot {
                 initial_value: ExpressionSnapshot,
                 is_mutable: bool,
                 relevance: &'static str,
+                #[serde(skip_serializing_if = "Vec::is_empty")]
+                pattern_fields: Vec<super::expression_and_type_snapshots::MatchFieldSnapshot>,
             },
             Transition {
                 #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -2334,6 +2402,10 @@ pub mod snapshot {
                     initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
                     is_mutable: value.is_mutable,
                     relevance: super::item_snapshots::snapshot_binding_relevance(value.relevance),
+                    pattern_fields: super::expression_and_type_snapshots::snapshot_match_fields(
+                        syntax_trees,
+                        value.pattern_fields,
+                    ),
                 },
                 StatementNode::Transition(value) => StatementSnapshot::Transition {
                     patterns: syntax_trees
@@ -2447,7 +2519,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(
                     syntax_trees
                         .items
@@ -2487,7 +2559,7 @@ pub mod snapshot {
                             carry: None,
                         },
                         quotient: None,
-                        where_facts: Vec::new(),
+                        requires_facts: Vec::new(),
                         members: vec![super::DataMemberSnapshot::Field {
                             identity: None,
                             name: super::IdentifierSnapshot {
@@ -2536,7 +2608,7 @@ pub mod snapshot {
                     identity: Some(3),
                     name: Identifier::generated("Certified"),
                     payload: arena::HandleSpan::from_parts(payload, 1),
-                    where_facts: arena::HandleSpan::empty(),
+                    requires_facts: arena::HandleSpan::empty(),
                     retired_payload_identities: Vec::new(),
                 }));
             syntax_trees.push_root_item(Item::Data(DataDefinition {
@@ -2550,7 +2622,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(member, 1),
             }));
 
@@ -2597,7 +2669,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: Default::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
             }));
 
             let snapshot = syntax_trees.snapshot();
