@@ -150,8 +150,11 @@ fn lower_records(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &IdTable<semantic_vocabulary::StructuralTypeId, crate::body::RecordType>,
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
-    let declared = crate::lower::places::declare(id(1), records)?;
-    crate::lower::machine(id(1), &body, signatures, outcomes, &declared.records)
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(body);
+    let declared = crate::lower::places::declare(id(1), records, &bodies)?;
+    let body = bodies.get(id(1)).unwrap();
+    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -183,6 +186,9 @@ fn assert_module_and_tables_agree(machine: &TerminalMachine, tables: &MachineTab
             | Terminator::ReturnUnit { edge, .. }
             | Terminator::Crash { edge, .. }
             | Terminator::InvokeNoNormal { edge, .. } => vec![*edge],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.edge).collect()
+            }
             other => panic!("unexpected terminator {other:?}"),
         })
         .collect::<Vec<_>>();
@@ -1200,10 +1206,12 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(1, "x", ValueType::Scalar(u32_type())),
             field(2, "y", ValueType::Scalar(u32_type())),
         ],
+        cases: Vec::new(),
     });
     records.push(RecordType {
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
+        cases: Vec::new(),
     });
     records
 }
@@ -1449,11 +1457,11 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
 }
 
 #[test]
-fn a_whole_copy_carries_each_leaf_content_into_the_fresh_root() {
+fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     // f(a: u32, p: Point) -> u32 {
-    //     let q = Point { x: a, y: 7 };  let r = q;   // values carried
-    //     let s = p;                                   // entry contents
-    //     let t = g();  let u = t;                     // unknown contents
+    //     let q = Point { x: a, y: 7 };  let r = q;   // a copy of values
+    //     let s = p;                                   // of entry contents
+    //     let t = g();  let u = t;                     // of unknown contents
     //     r.x
     // }
     let body = Body {
@@ -1537,48 +1545,37 @@ fn a_whole_copy_carries_each_leaf_content_into_the_fresh_root() {
         [q, formal, t]
     );
     let after = |position: usize| ProgramPoint::AfterOperation(operations[position].id);
-    // `r` holds exactly the values `q` was established with.
-    assert_eq!(
-        written(&tables, projected(&tables, r, &[1])),
-        [(Content::Value(a), after(2))]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, r, &[2])),
-        [(Content::Value(seven), after(2))]
-    );
-    // `s` holds the formal's entry contents: one value per leaf, each minted
-    // for its own leaf of the formal and never written there.
-    let entry_content = |field| {
+    // Lowering does not say what a copy's leaves hold: it would have to
+    // ask what the source holds at that point, which only the graph answers
+    // (the checker resolves it; `lowered-discharge`, `places`). Each copy
+    // logs one row on its fresh root, and its operation names the source.
+    let root = |place| *tables.roots.get(place).unwrap();
+    let _ = (a, seven);
+    for (copy, position) in [(r, 2), (s, 3), (u, 5)] {
+        assert_eq!(
+            written(&tables, root(copy)),
+            [(Content::Overwritten, after(position))]
+        );
+        for (_, leaf) in &tables.places.get(root(copy)).unwrap().children {
+            assert!(written(&tables, *leaf).is_empty());
+        }
+    }
+    // Copying the formal names its storage, so each of its leaves has its
+    // one entry content value, minted for that leaf and never written there.
+    for field in [1, 2] {
         let leaf = projected(&tables, formal, &[field]);
         assert!(written(&tables, leaf).is_empty());
-        let mut values = tables
+        let values = tables
             .values
             .iter()
             .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: leaf });
-        let (value, _) = values.next().unwrap();
-        assert!(values.next().is_none());
-        value
-    };
+        assert_eq!(values.count(), 1);
+    }
+    // A call's record result has no value identity: nothing is invented.
     assert_eq!(
-        written(&tables, projected(&tables, s, &[1])),
-        [(Content::Value(entry_content(1)), after(3))]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, s, &[2])),
-        [(Content::Value(entry_content(2)), after(3))]
-    );
-    // A call's record result has no value identity, and neither does a copy
-    // of it: nothing is invented for either.
-    assert_eq!(
-        written(&tables, *tables.roots.get(t).unwrap()),
+        written(&tables, root(t)),
         [(Content::Overwritten, after(4))]
     );
-    for field in [1, 2] {
-        assert_eq!(
-            written(&tables, projected(&tables, u, &[field])),
-            [(Content::Overwritten, after(5))]
-        );
-    }
     // The read names `r`'s root directly; a local has no place of its own.
     assert!(matches!(
         &operations[6].kind,
@@ -1680,18 +1677,24 @@ fn a_projected_record_is_copied_out_by_its_path() {
         panic!("copy");
     };
     assert_eq!((*source, path.len()), (formal, 1));
-    // The copy carries the entry content of each leaf beneath `l.to`.
+    // The copy logs one row on its fresh root; its operation names the
+    // source place by root and path. Naming `l.to` mints the entry content
+    // of each leaf beneath it.
     let copy = produced(copied);
+    assert_eq!(
+        written(&tables, *tables.roots.get(copy).unwrap()),
+        [(
+            Content::Overwritten,
+            ProgramPoint::AfterOperation(copied.id)
+        )]
+    );
     for field in [1, 2] {
         let from = projected(&tables, formal, &[4, field]);
-        let [(Content::Value(value), _)] = written(&tables, projected(&tables, copy, &[field]))[..]
-        else {
-            panic!("one value per leaf");
-        };
-        assert_eq!(
-            tables.values.get(value).unwrap().origin,
-            ValueOrigin::EntryContent { place: from }
-        );
+        let values = tables
+            .values
+            .iter()
+            .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: from });
+        assert_eq!(values.count(), 1);
     }
 }
 
@@ -1737,4 +1740,820 @@ fn a_module_with_records_declares_them_and_encodes() {
     .unwrap();
     assert!(scalar.module.structural_types.is_empty());
     assert_eq!(scalar.module.native_layouts.records().count(), 0);
+}
+
+fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
+    Statement::Store {
+        slot,
+        path: path.to_vec(),
+        value,
+        source: nowhere(),
+    }
+}
+
+fn declare(slot: usize, home: Option<&str>) -> Statement {
+    Statement::Declare {
+        slot,
+        home: home.map(str::to_owned),
+        source: nowhere(),
+    }
+}
+
+#[test]
+fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
+    // f() -> u32 {
+    //     let p = Point { x: 1, y: 2 };
+    //     let mut l = Line { from: p, to: p };
+    //     l.from.x = 5;
+    //     l.to = p;
+    //     l.from.x
+    // }
+    let body = Body {
+        slots: vec![point(), line()],
+        statements: vec![
+            bind(0, literal(vec![(0, integer(1)), (1, integer(2))], point())),
+            bind(
+                1,
+                literal(vec![(0, place(0, point())), (1, place(0, point()))], line()),
+            ),
+            store(1, &[0, 0], integer(5)),
+            store(1, &[1], place(0, point())),
+            returns(member(
+                member(place(1, line()), 0, point()),
+                0,
+                u32_type().into(),
+            )),
+        ],
+    };
+    let (machine, tables) = lower_places(body, vec![shaped(Vec::new(), Some(u32_type().into()))]);
+    let operations = &block(&machine, 1).operations;
+    let kinds: Vec<_> = operations
+        .iter()
+        .map(|operation| match &operation.kind {
+            OperationKind::IntegerConstant { .. } => "constant",
+            OperationKind::EstablishRecord { .. } => "establish",
+            OperationKind::StructuralLeafCopy { .. } => "copy",
+            OperationKind::StructuralScalarFieldStore { .. } => "store",
+            OperationKind::StoreStructuralField { .. } => "replace",
+            OperationKind::ScalarStructuralField { .. } => "read",
+            other => panic!("unexpected operation {other:?}"),
+        })
+        .collect();
+    // The stored value is evaluated before its store, and the record value
+    // is constructed (here copied whole) before it replaces the field.
+    assert_eq!(
+        kinds,
+        [
+            "constant",
+            "constant",
+            "establish",
+            "copy",
+            "copy",
+            "establish",
+            "constant",
+            "store",
+            "copy",
+            "replace",
+            "read"
+        ]
+    );
+    let l = produced(&operations[5]);
+    let five = operations[6].result.scalar().unwrap().id;
+    let after = |position: usize| ProgramPoint::AfterOperation(operations[position].id);
+    // `l.from.x = 5`: the path is the carrier `from`, the field the leaf
+    // `x`, and a plain field carries no range obligation.
+    assert!(matches!(
+        &operations[7].kind,
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            value,
+            range_obligation: None,
+        } if *destination == l && path.len() == 1 && *field == id(1) && *value == five
+    ));
+    assert!(matches!(
+        operations[7].result,
+        terminal_psi::OperationResult::Unit
+    ));
+    // One row, on exactly `l.from.x`. Its sibling `l.from.y` is not even a
+    // place yet, and `l.from` keeps the one row its construction wrote.
+    assert_eq!(
+        written(&tables, projected(&tables, l, &[3, 1])),
+        [(Content::Value(five), after(7))]
+    );
+    let from = projected(&tables, l, &[3]);
+    assert_eq!(tables.places.get(from).unwrap().children.len(), 1);
+    assert_eq!(written(&tables, from), [(Content::Overwritten, after(5))]);
+    // `l.to = p`: the ordinary structural replacement of the field by an
+    // already constructed root, not member stores. Its row says only that
+    // `l.to` has new contents; the operation names where they came from.
+    let copied = produced(&operations[8]);
+    assert!(matches!(
+        &operations[9].kind,
+        OperationKind::StoreStructuralField {
+            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            destination,
+            path,
+            field: Some(field),
+            value,
+        } if *destination == l && path.is_empty() && *field == id(4)
+            && value.place == copied && value.path.is_empty()
+    ));
+    let to = projected(&tables, l, &[4]);
+    assert_eq!(
+        written(&tables, to),
+        [
+            (Content::Overwritten, after(5)),
+            (Content::Overwritten, after(9))
+        ]
+    );
+    assert!(tables.places.get(to).unwrap().children.is_empty());
+    // No store mints an obligation.
+    assert!(tables.obligations.is_empty());
+}
+
+#[test]
+fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
+    // f(a: u32) -> u32 { let mut p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
+    let body = Body {
+        slots: vec![u32_type().into(), point()],
+        statements: vec![
+            bind(1, literal(vec![(0, integer(1)), (1, integer(2))], point())),
+            bind(
+                1,
+                literal(
+                    vec![
+                        (0, member(place(1, point()), 1, u32_type().into())),
+                        (1, slot(0, u32_type())),
+                    ],
+                    point(),
+                ),
+            ),
+            returns(member(place(1, point()), 0, u32_type().into())),
+        ],
+    };
+    let (machine, tables) = lower_places(
+        body,
+        vec![shaped(vec![u32_type().into()], Some(u32_type().into()))],
+    );
+    let operations = &block(&machine, 1).operations;
+    let (first, second) = (produced(&operations[2]), produced(&operations[4]));
+    assert_ne!(first, second);
+    // The operand `p.y` reads the old root, before the new one exists.
+    let old_y = operations[3].result.scalar().unwrap().id;
+    assert!(matches!(
+        &operations[3].kind,
+        OperationKind::ScalarStructuralField { source, field, .. }
+            if *source == first && *field == id(2)
+    ));
+    // The new root's leaves hold exactly the constructed operands.
+    let after = ProgramPoint::AfterOperation(operations[4].id);
+    assert_eq!(
+        written(&tables, projected(&tables, second, &[1])),
+        [(Content::Value(old_y), after)]
+    );
+    assert_eq!(
+        written(&tables, projected(&tables, second, &[2])),
+        [(Content::Value(id(1)), after)]
+    );
+    // From the assignment on, the local names the new root.
+    assert!(matches!(
+        &operations[5].kind,
+        OperationKind::ScalarStructuralField { source, field, .. }
+            if *source == second && *field == id(1)
+    ));
+    // Nothing was written to the old root after its construction.
+    assert_eq!(written(&tables, projected(&tables, first, &[1])).len(), 1);
+}
+
+#[test]
+fn a_local_declared_without_an_initializer_reserves_storage_and_logs_nothing() {
+    // f() -> u32 {
+    //     let mut x: u32;  let mut p: Point;
+    //     x = 3;  p.x = x;
+    //     x
+    // }
+    let body = || Body {
+        slots: vec![u32_type().into(), point()],
+        statements: vec![
+            declare(0, Some("named(name(u32))")),
+            declare(1, None),
+            store(0, &[], integer(3)),
+            store(1, &[0], slot(0, u32_type())),
+            returns(slot(0, u32_type())),
+        ],
+    };
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(body());
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    signatures.push(shaped(Vec::new(), Some(u32_type().into())));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let machine = &elaboration.module.machines[0];
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let operations = &block(machine, 1).operations;
+    let kinds: Vec<_> = operations
+        .iter()
+        .map(|operation| match &operation.kind {
+            OperationKind::IntegerConstant { .. } => "constant",
+            OperationKind::EstablishPrimitiveLocal { .. } => "home",
+            OperationKind::EstablishZeroedStructural {} => "zeroed",
+            OperationKind::WriteOnlyPrimitiveStore { .. } => "write",
+            OperationKind::PrimitiveScalarRead { .. } => "read",
+            OperationKind::StructuralScalarFieldStore { .. } => "store",
+            other => panic!("unexpected operation {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            "constant", "home", "zeroed", "constant", "write", "read", "store", "read"
+        ]
+    );
+    let (x, p) = (produced(&operations[1]), produced(&operations[2]));
+    // The scalar home has the primitive structural type declared after the
+    // two records, and the module with it still encodes.
+    let home = operations[1]
+        .result
+        .as_structural()
+        .unwrap()
+        .structural_type;
+    assert_eq!(home, id(3));
+    assert!(matches!(
+        elaboration.module.structural_types[2].shape,
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
+            if scalar_type == u32_type()
+    ));
+    terminal_codec::encode_module(&elaboration.module).unwrap();
+    // Neither declaration writes a row: the zero the module stores so that
+    // it runs is not content the checker may rely on.
+    let three = operations[3].result.scalar().unwrap().id;
+    let x_root = *tables.roots.get(x).unwrap();
+    assert_eq!(
+        written(tables, x_root),
+        [(
+            Content::Value(three),
+            ProgramPoint::AfterOperation(operations[4].id)
+        )]
+    );
+    assert!(written(tables, *tables.roots.get(p).unwrap()).is_empty());
+    // Each use of `x` is a fresh read of its home, and the store into `p.x`
+    // stores that read's value.
+    let read = operations[5].result.scalar().unwrap().id;
+    assert!(matches!(
+        &operations[5].kind,
+        OperationKind::PrimitiveScalarRead { source, path } if *source == x && path.is_empty()
+    ));
+    assert_eq!(
+        written(tables, projected(tables, p, &[1])),
+        [(
+            Content::Value(read),
+            ProgramPoint::AfterOperation(operations[6].id)
+        )]
+    );
+    assert_eq!(tables.writes.len(), 2);
+    // A scalar home with no type identity cannot be declared.
+    let mut nameless: IdTable<MachineId, Body> = IdTable::default();
+    nameless.push(Body {
+        statements: vec![declare(0, None), returns(integer(1))],
+        ..body()
+    });
+    let refusal = crate::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert_eq!(
+        refusal.detail,
+        "spelling scalar home without a type identity"
+    );
+}
+
+// Sums by structure. `Shape` is type 2 beside `Point`: `Dot(at: u32)` is case
+// 1 with field 3, `Pair(l: u32, r: u32)` case 2 with fields 4 and 5,
+// `Boxed(inner: Point)` case 3 with field 6, and `Empty` case 4.
+
+use semantic_vocabulary::StructuralCaseId;
+use terminal_check_tables::RefusalReason;
+use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+
+use crate::body::CaseType;
+
+const DOT: usize = 0;
+const PAIR: usize = 1;
+const BOXED: usize = 2;
+const EMPTY: usize = 3;
+
+fn shape() -> ValueType {
+    ValueType::Record(id(2))
+}
+
+fn sums() -> IdTable<StructuralTypeId, RecordType> {
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let case = |raw, spelled: &str, fields| CaseType {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        fields,
+    };
+    let scalar = ValueType::Scalar(u32_type());
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        identity: String::from("Point"),
+        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
+        cases: Vec::new(),
+    });
+    records.push(RecordType {
+        identity: String::from("Shape"),
+        fields: Vec::new(),
+        cases: vec![
+            case(1, "Dot", vec![field(3, "at", scalar)]),
+            case(
+                2,
+                "Pair",
+                vec![field(4, "l", scalar), field(5, "r", scalar)],
+            ),
+            case(3, "Boxed", vec![field(6, "inner", point())]),
+            case(4, "Empty", Vec::new()),
+        ],
+    });
+    records
+}
+
+fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
+    of_type(ExpressionKind::Case { case, fields }, shape())
+}
+
+fn payload(base: Expression, case: usize, field: usize, result: ValueType) -> Expression {
+    of_type(
+        ExpressionKind::Payload {
+            base: Box::new(base),
+            case,
+            field,
+        },
+        result,
+    )
+}
+
+fn is_case(subject: Expression, case: usize) -> Expression {
+    of_type(
+        ExpressionKind::IsCase {
+            subject: Box::new(subject),
+            case,
+        },
+        ScalarType::Boolean.into(),
+    )
+}
+
+fn try_lower_sums(
+    body: Body,
+    signatures: Vec<Signature>,
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
+    let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
+    let mut outcome_table: IdTable<MachineId, Outcome> = IdTable::default();
+    for signature in signatures {
+        signature_table.push(signature);
+        outcome_table.push(returns_normally());
+    }
+    lower_records(body, &signature_table, &outcome_table, &sums())
+}
+
+fn lower_sums(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
+    let lowered = try_lower_sums(body, signatures).unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    (lowered.machine, lowered.tables)
+}
+
+/// The place reached from root `root` by `segments`, which must be interned.
+fn projected_by(tables: &MachineTables, root: PlaceId, segments: &[Segment]) -> ExactPlaceId {
+    let mut place = *tables.roots.get(root).unwrap();
+    for segment in segments {
+        let children = &tables.places.get(place).unwrap().children;
+        let found = children
+            .binary_search_by_key(segment, |(segment, _)| *segment)
+            .unwrap();
+        place = children[found].1;
+    }
+    place
+}
+
+fn case_segment(raw: u64) -> Segment {
+    Segment::Case(id::<StructuralCaseId>(raw))
+}
+
+fn field_segment(raw: u64) -> Segment {
+    Segment::Field(id::<StructuralFieldId>(raw))
+}
+
+#[test]
+fn a_case_literal_evaluates_its_operands_in_authored_order_then_establishes_once() {
+    // make() -> Shape { Shape::Pair { r: g(), l: 3 } }: `r`'s operand is
+    // authored first, so the call runs before the constant, and the one
+    // establishment follows both with its roster in declaration order.
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(case_of(
+            PAIR,
+            vec![(1, call(2, Vec::new(), Some(u32_type()))), (0, integer(3))],
+        ))],
+    };
+    let (machine, tables) = lower_sums(
+        body,
+        vec![
+            shaped(Vec::new(), Some(shape())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+    );
+    let entry = block(&machine, 1);
+    let [called, constant, established] = entry.operations.as_slice() else {
+        panic!("three operations");
+    };
+    assert!(matches!(called.kind, OperationKind::Call { .. }));
+    let r = called.result.scalar().unwrap().id;
+    let l = constant.result.scalar().unwrap().id;
+    let OperationKind::EstablishStructuralCase {
+        result_case,
+        fields,
+    } = &established.kind
+    else {
+        panic!("case establishment");
+    };
+    assert_eq!(*result_case, id(2));
+    let roster: Vec<_> = fields
+        .iter()
+        .map(|field| match field.value {
+            RecordFieldValue::Scalar {
+                value,
+                range_obligation: None,
+            } => (field.field, value),
+            _ => panic!("plain scalar initializer"),
+        })
+        .collect();
+    assert_eq!(roster, [(id(4), l), (id(5), r)]);
+    // The root is written whole, then each payload leaf with its operand,
+    // all at the establishment. No row names the case: the operation does.
+    let root = produced(established);
+    let after = ProgramPoint::AfterOperation(established.id);
+    assert_eq!(
+        written(&tables, projected_by(&tables, root, &[])),
+        [(Content::Overwritten, after)]
+    );
+    let leaf = |field| projected_by(&tables, root, &[case_segment(2), field_segment(field)]);
+    assert_eq!(written(&tables, leaf(4)), [(Content::Value(l), after)]);
+    assert_eq!(written(&tables, leaf(5)), [(Content::Value(r), after)]);
+    assert_eq!(tables.writes.len(), 3);
+
+    // A case without payload is `EstablishScalarCase` with no field, and
+    // one row on its root.
+    let (machine, tables) = lower_sums(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(case_of(EMPTY, Vec::new()))],
+        },
+        vec![shaped(Vec::new(), Some(shape()))],
+    );
+    let [established] = block(&machine, 1).operations.as_slice() else {
+        panic!("one operation");
+    };
+    assert!(matches!(
+        &established.kind,
+        OperationKind::EstablishScalarCase { result_case, fields }
+            if *result_case == id(4) && fields.is_empty()
+    ));
+    assert_eq!(tables.writes.len(), 1);
+}
+
+/// `weigh(s: Shape) -> u32 { transition s { arms } }` over the formal.
+fn weigh(arms: Vec<(usize, Expression)>, default: Option<Expression>) -> Body {
+    let arm = |value: Expression| (Target::Value(value), nowhere());
+    Body {
+        slots: vec![shape()],
+        statements: vec![Statement::Dispatch {
+            subject: place(0, shape()),
+            arms: arms
+                .into_iter()
+                .map(|(case, value)| (case, Target::Value(value), nowhere()))
+                .collect(),
+            default: default.map(arm),
+            source: nowhere(),
+        }],
+    }
+}
+
+fn weighs() -> Vec<Signature> {
+    vec![shaped(vec![shape()], Some(u32_type().into()))]
+}
+
+#[test]
+fn a_dispatch_lists_every_declared_case_and_binds_scalar_payloads_as_block_parameters() {
+    // transition s { Pair { l, r } -> r   Dot { at } -> at   _ -> 0 }
+    let scalar = ValueType::Scalar(u32_type());
+    let subject = || place(0, shape());
+    let (machine, tables) = lower_sums(
+        weigh(
+            vec![
+                (PAIR, payload(subject(), PAIR, 1, scalar)),
+                (DOT, payload(subject(), DOT, 0, scalar)),
+            ],
+            Some(integer(0)),
+        ),
+        weighs(),
+    );
+    let entry = block(&machine, 1);
+    assert!(entry.operations.is_empty(), "the subject is not copied");
+    let Terminator::StructuralCase {
+        source,
+        path,
+        cases,
+    } = &entry.terminator
+    else {
+        panic!("dispatch");
+    };
+    assert_eq!(*source, id::<PlaceId>(1));
+    assert!(path.is_empty());
+    // One edge per declared case, in declaration order, whatever order the
+    // arms were authored in; the cases no arm names share the wildcard's
+    // block.
+    let roster: Vec<_> = cases
+        .iter()
+        .map(|edge| (edge.case, edge.target, edge.payload_fields.clone()))
+        .collect();
+    let (pair, dot, rest) = (id::<BlockId>(2), id::<BlockId>(3), id::<BlockId>(4));
+    assert_eq!(
+        roster,
+        [
+            (id(1), dot, vec![id(3)]),
+            (id(2), pair, vec![id(4), id(5)]),
+            (id(3), rest, Vec::new()),
+            (id(4), rest, Vec::new()),
+        ]
+    );
+    // Each scalar payload field is one parameter of its arm's block, and
+    // the arm's value is that parameter: no read is emitted.
+    for (arm, bound, returned) in [(pair, 2, 1), (dot, 1, 0)] {
+        let arm = block(&machine, arm.get());
+        assert_eq!(arm.parameters.len(), bound);
+        assert!(arm.operations.is_empty());
+        let parameter = arm.parameters[returned].id;
+        assert_eq!(
+            tables.values.get(parameter).unwrap().origin,
+            ValueOrigin::BlockParameter {
+                block: arm.id,
+                position: returned as u32,
+            }
+        );
+        assert!(matches!(
+            arm.terminator,
+            Terminator::Return { value, .. } if value == parameter
+        ));
+    }
+    assert!(block(&machine, rest.get()).parameters.is_empty());
+
+    // A declared case with no arm and no wildcard is a compile error of
+    // the program, reported where the roster is built.
+    let missing = try_lower_sums(
+        weigh(
+            vec![(PAIR, integer(1)), (DOT, integer(2)), (BOXED, integer(3))],
+            None,
+        ),
+        weighs(),
+    )
+    .unwrap_err();
+    assert_eq!(missing.reason, RefusalReason::Unestablished);
+    assert_eq!(
+        missing.detail,
+        "a dispatch selects no arm for a declared case"
+    );
+    // A wildcard no case reaches would never be lowered: refused by name.
+    let dead = try_lower_sums(
+        weigh(
+            vec![
+                (PAIR, integer(1)),
+                (DOT, integer(2)),
+                (BOXED, integer(3)),
+                (EMPTY, integer(4)),
+            ],
+            Some(integer(5)),
+        ),
+        weighs(),
+    )
+    .unwrap_err();
+    assert_eq!(dead.reason, RefusalReason::Unsupported);
+    assert_eq!(dead.detail, "transition wildcard arm that no case reaches");
+}
+
+#[test]
+fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
+    // f(s: Shape) -> u32 { (match s { Dot { at } -> at, _ -> 7 }) & 1 }
+    let scalar = ValueType::Scalar(u32_type());
+    let matched = of_type(
+        ExpressionKind::Match {
+            subject: Box::new(place(0, shape())),
+            arms: vec![(DOT, payload(place(0, shape()), DOT, 0, scalar))],
+            default: Some(Box::new(integer(7))),
+        },
+        scalar,
+    );
+    let (machine, tables) = lower_sums(
+        Body {
+            slots: vec![shape()],
+            statements: vec![returns(strict(
+                Strict::BitwiseAnd,
+                matched,
+                integer(1),
+                u32_type(),
+            ))],
+        },
+        weighs(),
+    );
+    assert!(matches!(
+        block(&machine, 1).terminator,
+        Terminator::StructuralCase { .. }
+    ));
+    // Blocks: 2 the `Dot` arm, 3 the wildcard arm, 4 the join.
+    let join = block(&machine, 4);
+    let [result] = join.parameters.as_slice() else {
+        panic!("one result parameter");
+    };
+    assert_eq!(
+        tables.values.get(result.id).unwrap().origin,
+        ValueOrigin::BlockParameter {
+            block: join.id,
+            position: 0,
+        }
+    );
+    let arrival = |raw| match &block(&machine, raw).terminator {
+        Terminator::Jump {
+            target, arguments, ..
+        } => {
+            assert_eq!(*target, join.id);
+            arguments.clone()
+        }
+        other => panic!("an arm jumps to the join, found {other:?}"),
+    };
+    // The `Dot` arm passes its payload parameter, the wildcard its constant.
+    assert_eq!(arrival(2), [block(&machine, 2).parameters[0].id]);
+    let seven = block(&machine, 3).operations[0].result.scalar().unwrap().id;
+    assert_eq!(arrival(3), [seven]);
+    // What follows the match runs in the join and uses its parameter.
+    assert!(matches!(
+        join.operations.last().unwrap().kind,
+        OperationKind::IntegerBitwiseAnd { left, .. } if left == result.id
+    ));
+}
+
+#[test]
+fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_the_case() {
+    // f(s: Shape) -> u32 { transition s in Shape::Dot { true -> s.at } 9 }
+    let scalar = ValueType::Scalar(u32_type());
+    let (machine, _) = lower_sums(
+        Body {
+            slots: vec![shape()],
+            statements: vec![
+                Statement::Arm {
+                    guard: Some(is_case(place(0, shape()), DOT)),
+                    target: Target::Value(payload(place(0, shape()), DOT, 0, scalar)),
+                    source: nowhere(),
+                },
+                returns(integer(9)),
+            ],
+        },
+        weighs(),
+    );
+    let [test] = block(&machine, 1).operations.as_slice() else {
+        panic!("one operation");
+    };
+    assert!(matches!(
+        &test.kind,
+        OperationKind::StructuralCaseMembership { source, path, case }
+            if *source == id::<PlaceId>(1) && path.is_empty() && *case == id(1)
+    ));
+    // Outside a dispatch on that place the payload is read, and the read's
+    // carrier is the one `Case` step.
+    let [read] = block(&machine, 2).operations.as_slice() else {
+        panic!("one read");
+    };
+    assert!(matches!(
+        &read.kind,
+        OperationKind::ScalarStructuralField { source, path, field }
+            if *source == id::<PlaceId>(1)
+                && path.as_slice() == [CanonicalStructuralPathSegment::Case(id(1))]
+                && *field == id(3)
+    ));
+}
+
+#[test]
+fn a_data_payload_is_copied_out_by_its_case_and_field() {
+    // f(s: Shape) -> Point { transition s { Boxed { inner } -> inner  _ -> .. } }
+    let (machine, _) = lower_sums(
+        Body {
+            slots: vec![shape()],
+            statements: vec![Statement::Dispatch {
+                subject: place(0, shape()),
+                arms: vec![(
+                    BOXED,
+                    Target::Value(payload(place(0, shape()), BOXED, 0, point())),
+                    nowhere(),
+                )],
+                default: Some((
+                    Target::Value(literal(vec![(0, integer(0)), (1, integer(0))], point())),
+                    nowhere(),
+                )),
+                source: nowhere(),
+            }],
+        },
+        vec![shaped(vec![shape()], Some(point()))],
+    );
+    // A data payload field is no block parameter; the arm copies it whole.
+    let arm = block(&machine, 2);
+    assert!(arm.parameters.is_empty());
+    let [copy] = arm.operations.as_slice() else {
+        panic!("one copy");
+    };
+    let OperationKind::StructuralLeafCopy { source, path } = &copy.kind else {
+        panic!("whole copy");
+    };
+    // Root 1 is the formal, root 2 the machine's result place.
+    assert_eq!(*source, id::<PlaceId>(1));
+    assert!(matches!(
+        path.as_slice(),
+        [StructuralPathSegment::Case(case), StructuralPathSegment::Field(_)] if *case == id(3)
+    ));
+}
+
+#[test]
+fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
+    let scalar = ValueType::Scalar(u32_type());
+    // A crash inside a case arm: its site guard could not state the case.
+    let crash = try_lower_sums(
+        Body {
+            slots: vec![shape()],
+            statements: vec![Statement::Dispatch {
+                subject: place(0, shape()),
+                arms: vec![(DOT, Target::Crash(CrashCause::Trap), nowhere())],
+                default: Some((Target::Value(integer(0)), nowhere())),
+                source: nowhere(),
+            }],
+        },
+        weighs(),
+    )
+    .unwrap_err();
+    assert_eq!(crash.reason, RefusalReason::Unsupported);
+    assert_eq!(crash.detail, "transition crash in a case arm");
+    // A field read through a data payload would put the `Case` step inside
+    // the read's carrier.
+    let inner = payload(place(0, shape()), BOXED, 0, point());
+    let beneath = try_lower_sums(
+        Body {
+            slots: vec![shape()],
+            statements: vec![returns(member(inner, 0, scalar))],
+        },
+        weighs(),
+    )
+    .unwrap_err();
+    assert_eq!(beneath.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        beneath.detail,
+        "expression field read beneath a case payload"
+    );
+}
+
+#[test]
+fn a_module_with_a_sum_declares_its_cases_and_encodes() {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![returns(case_of(DOT, vec![(0, slot(0, u32_type()))]))],
+    });
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    signatures.push(shaped(vec![u32_type().into()], Some(shape())));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &sums()).unwrap();
+    let module = &elaboration.module;
+    let StructuralTypeShape::Sum { cases } = &module.structural_types[1].shape else {
+        panic!("a sum");
+    };
+    let declared: Vec<_> = cases
+        .iter()
+        .map(|case| {
+            (
+                case.id,
+                case.fields.iter().map(|field| field.id).collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        declared,
+        [
+            (id(1), vec![id(3)]),
+            (id(2), vec![id(4), id(5)]),
+            (id(3), vec![id(6)]),
+            (id(4), Vec::new()),
+        ]
+    );
+    // The decoder wants a layout row per record and none per sum.
+    assert_eq!(module.native_layouts.records().count(), 1);
+    terminal_codec::encode_module(module).unwrap();
 }

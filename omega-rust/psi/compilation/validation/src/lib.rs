@@ -47,6 +47,7 @@ pub(crate) mod contract_entailment;
 mod declarations_core;
 mod domains_and_predicates;
 pub(crate) mod effect_inference;
+pub mod erased_actuals;
 mod expression_types_and_fields;
 mod float_and_mathematical_contracts;
 mod frozen_program_and_queries;

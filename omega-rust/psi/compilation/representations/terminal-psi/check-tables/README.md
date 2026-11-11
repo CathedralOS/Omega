@@ -66,12 +66,19 @@ value row.
 
 ## What a lane may add
 
-A construct-family lane changes this crate in exactly two places:
+A construct-family lane changes this crate in exactly two places (a closed
+`RefusalReason` variant, cited the same way, is the one further addition a
+lane has made):
 
 - **An obligation kind:** a variant of `obligations::ObligationKind`, whose doc
   comment quotes the specification sentence that creates it, and a row in the
   table below.
 - **A summary term:** a field of `edges::Summary`, cited the same way.
+
+A justification (`values::Justification`) is neither. A lane does not add or
+reuse one for a second meaning: a new reason a knowledge row can hold is a
+change to this contract, made in a pull request of its own whose variant
+quotes the specification sentence it stands for, as the existing ones do.
 
 A lane never adds a table, a second identity for an existing concept, a map
 keyed by an identity, or a field holding a name, a printed expression, a path
@@ -82,6 +89,43 @@ Every checking step returns `Checked<T>`: a row, or a `Refusal` carrying a
 closed `RefusalReason`, the machine and the lowered `Construct` it concerns.
 There is no way to return "nothing". A construct the lane does not serve is
 refused as `Unsupported`, never accepted by default.
+
+Three reasons are verdicts about the program and the rest are about the
+checker. `Unproved` means an obligation's evidence did not check.
+`Unestablished` means a place is read, copied, passed or returned on a path
+on which nothing was stored into it
+([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"An unestablished local cannot be read"); it is a structural judgment over the
+write log and the graph, with no obligation row and no certificate, and the
+places foundation lane added it as a reason, not as a table. The lane's two
+structural judgments over a sum report through the same reason: a case
+payload named where its case is not established on every path
+(structural_access.md: "Each `Case` step requires source admission to
+establish the selected case for the same root and prefix at the read's
+observation epoch"), and a dispatch that has no edge for a declared case
+([patterns](../../../../../../wiki/spec/language/patterns.md): "Missing
+runtime coverage is a compile error, not an implicit trap or fallthrough").
+`Unsupported`
+means the checker does not serve the construct and says nothing about the
+program.
+
+## What the tables cannot say yet
+
+Each was met by a lane, reported, and read from the lowered form instead of
+being added here.
+
+- **Where a copy's contents came from.** `Content` has no "what that other
+  place held". A whole copy logs `Overwritten` and the checker reads the
+  source from the operation at the row.
+- **Which case a construction established.** No `Content` form names a
+  case, so a case literal logs `Overwritten` on its root and the checker
+  reads `result_case` from the establishing operation at the row.
+- **That a sum holds a case on an edge.** A `StructuralCase` terminator has
+  no Boolean value, and knowledge names values only, so the case selected on
+  one of its edges is not a knowledge row. It lives in the structural payload
+  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  (each payload parameter equals the value its payload leaf holds) and is a
+  knowledge row justified as `Justification::DispatchBinding`.
 
 ## Obligation kinds
 

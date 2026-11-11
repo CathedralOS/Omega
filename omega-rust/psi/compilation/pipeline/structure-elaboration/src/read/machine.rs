@@ -207,6 +207,7 @@ impl<'t> Program<'t> {
                 symbol: formal.symbol,
                 value_type,
                 assignable: false,
+                homed: false,
             });
         }
         let result = self.result_type(id, state.return_type)?;
@@ -387,12 +388,14 @@ impl<'t> Program<'t> {
                 symbol: formal.symbol,
                 value_type: *value_type,
                 assignable: false,
+                homed: false,
             })
             .collect();
         let statements = typed.statement_table.statements(state.statement_nodes);
         let mut body = Vec::with_capacity(statements.len());
         let mut completed = false;
-        for (position, statement) in statements.iter().enumerate() {
+        let mut position = 0;
+        while let Some(statement) = statements.get(position) {
             if completed {
                 return Err(refuse(
                     id,
@@ -451,6 +454,15 @@ impl<'t> Program<'t> {
                     slots.push(slot);
                     statement
                 }
+                // A case arm starts a dispatch over a sum, which takes the
+                // whole run of arms and completes the machine.
+                StatementNode::Transition(transition) if self.case_arm(transition) => {
+                    let (dispatch, taken) =
+                        self.dispatch(id, &slots, &statements[position..], signature.result)?;
+                    completed = true;
+                    position += taken.saturating_sub(1);
+                    dispatch
+                }
                 StatementNode::Transition(transition) => {
                     let (guard, target) =
                         self.transition(id, &slots, transition, signature.result)?;
@@ -463,6 +475,7 @@ impl<'t> Program<'t> {
                 }
             };
             body.push(read);
+            position += 1;
         }
         if !completed && signature.result.is_some() {
             return Err(refuse(

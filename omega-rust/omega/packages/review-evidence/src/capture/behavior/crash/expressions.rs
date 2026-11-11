@@ -127,6 +127,7 @@ fn project_scalar_expression(
         CheckedScalarExpression::ConstantApplication { .. } => return None,
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => return None,
+        CheckedScalarExpression::StructuralLocalField { .. } => return None,
         CheckedScalarExpression::ImplementationSelection { .. } => return None,
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {

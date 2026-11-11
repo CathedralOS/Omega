@@ -8250,27 +8250,35 @@ fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 5040ms exp
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4931ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from invoke_selected: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_call_result_rejected rejected 12357ms expected @b95657c2e953
+fail/facts/erased_reference_contract_through_call_result_rejected rejected 24147ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_const_name_rejected rejected 10455ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_const_name_rejected rejected 27825ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_field_rejected rejected 11239ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_field_rejected rejected 31888ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_local_rejected rejected 11316ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: holder.record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_local_rejected rejected 22164ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `witness == 7`
-fail/facts/erased_reference_contract_through_match_join_rejected rejected 12477ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_match_join_rejected rejected 28968ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_machine_rejected rejected 10700ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_machine_rejected rejected 29456ms expected @8348dcc8506e
 	cannot prove requires contract for call relay from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_state_rejected rejected 10192ms expected @b95657c2e953
+	cannot prove requires contract for call record_relay from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_state_rejected rejected 19169ms expected @8348dcc8506e
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_parameter_rejected rejected 11957ms expected @b95657c2e953
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_parameter_rejected rejected 23883ms expected @8348dcc8506e
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_target_body_rejected rejected 10243ms expected @b95657c2e953
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_target_body_rejected rejected 21536ms expected @8348dcc8506e
+	cannot prove requires contract for call keep from X86Selected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep from ArmSelected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep_record from record_X86Selected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
+	cannot prove requires contract for call keep_record from record_ArmSelected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
 fail/facts/exact_integer_narrowing_through_call_result_rejected rejected 1637ms expected @ccdb99ca2214
 	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/exact_integer_narrowing_through_const_name_rejected rejected 1635ms expected @ccdb99ca2214
@@ -17924,6 +17932,8 @@ fail/relevance/erased_mutable_parameter rejected 838ms expected @ccdb99ca2214
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
 fail/relevance/erased_parameter_runtime_read rejected 903ms expected @ccdb99ca2214
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_record_mutable_formal_actual rejected 15678ms expected @8348dcc8506e
+	machine `relay::entry` cannot pass this argument as erased record `record` of `keep`: field `value` has no exact value at the call; a `mut` or `const` parameter has no entry place whose field the call can observe
 fail/relevance/erased_reference_distinct_subject rejected 2745ms expected regressed-from:checked @4710c3c8595b
 	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/erased_reference_mutable_formal rejected 748ms expected @ccdb99ca2214
@@ -22859,15 +22869,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 6222ms chec
 pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 6383ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 6385ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 6311ms check-target:macos_arm64 @281c0d530cb7
-pass/facts/erased_reference_contract_through_call_result_exit checked 14796ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_const_name_exit checked 16776ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_field_exit checked 13038ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_local_exit checked 15476ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_match_join_exit checked 13436ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_other_machine_exit checked 12476ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_other_state_exit checked 13803ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_parameter_exit checked 13878ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_target_body_exit checked 15867ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_call_result_exit checked 44610ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_const_name_exit checked 47094ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_field_exit checked 45147ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_local_exit checked 48910ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_match_join_exit checked 46832ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_other_machine_exit checked 37074ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_other_state_exit checked 27284ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_parameter_exit checked 34596ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_target_body_exit checked 38583ms check-target:macos_arm64 @8348dcc8506e
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_field_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
@@ -28114,62 +28124,62 @@ pass/wire/wire_retired_field checked 4022ms @ccdb99ca2214
 pass/write_only/returned_destination_transport_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
 pass/write_only/state_forwarded_scalar_store_exit checked 13290ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/anonymous_comparison_with_typed_operators checked 6136ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/disjoint_pressure_regions checked 34824ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/fixed_input_reused_across_calls checked 10309ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/fixed_integer_operand_after_call checked 9579ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/fixed_integer_operand_after_pressure checked 24359ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/fixed_integer_operand_join checked 10136ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/float_structural_initializer_selection checked 12514ms check-target:macos_arm64 @ccdb99ca2214
-run/arithmetic/pinned_dividend_across_console_calls checked 10070ms check-target:macos_arm64 @ccdb99ca2214
+run/arithmetic/disjoint_pressure_regions checked 120086ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/fixed_input_reused_across_calls checked 99175ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/fixed_integer_operand_after_call checked 90828ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/fixed_integer_operand_after_pressure checked 169374ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/fixed_integer_operand_join checked 123234ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/float_structural_initializer_selection checked 141671ms check-target:macos_arm64 @c3cb68d51f3f
+run/arithmetic/pinned_dividend_across_console_calls checked 71356ms check-target:macos_arm64 @c3cb68d51f3f
 run/arithmetic/policy_operator_division_matches_policy_domains checked 89555ms check-target:macos_arm64 @473aad8691ce
-run/arithmetic/policy_operators_match_policy_domains checked 103096ms check-target:macos_arm64 @30f59ac9a9ba
+run/arithmetic/policy_operators_match_policy_domains checked 116124ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/call_result_mutable_window_field_exit checked 15123ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/call_result_mutable_window_field_exit checked 73850ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/computed_element_view_state_extent checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/conditional_disjoint_field_loans_exit checked 25391ms check-target:macos_arm64 @a4f3937d72ab
+run/borrows/conditional_disjoint_field_loans_exit checked 109257ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/direct_runtime_index_write checked 11454ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/dynamic_ancestor_static_byte_child_exit checked 10424ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/direct_runtime_index_write checked 81522ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/dynamic_ancestor_static_byte_child_exit checked 74848ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
-run/borrows/indexed_loan_element_write checked 49683ms check-target:macos_arm64 @911f6617ba9e
-run/borrows/local_mut_borrow checked 10253ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/mut_record_loan_member_access checked 10447ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/indexed_loan_element_write checked 75455ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/local_mut_borrow checked 80383ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/mut_record_loan_member_access checked 62881ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/owned_array_view_establishment checked 3072ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/probe_shared_len checked 9928ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/probe_shared_len checked 59658ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/proved_window_index_replacement checked 10259ms check-target:macos_arm64 @b95657c2e953
 run/borrows/qualified_owner_views checked 3479ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/recast_mut_borrow checked 10713ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/reference_local_binding_routes checked 10799ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/reference_result_call_binding checked 11484ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/recast_mut_borrow checked 89330ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/reference_local_binding_routes checked 92696ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/reference_result_call_binding checked 82324ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/returned_descriptor_entry_snapshot checked 3272ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/returned_element_from_offset_view checked 2915ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/returned_image_nested_arrival checked 1013ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_image_nested_field checked 1382ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/returned_indexed_case_descriptor_field checked 3331ms check-target:macos_arm64 @8fce926f9735
-run/borrows/runtime_index_bounded_borrow checked 65385ms check-target:macos_arm64 @911f6617ba9e
+run/borrows/runtime_index_bounded_borrow checked 73878ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/runtime_index_scalar_write_descriptor_result checked 2881ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_field_borrow checked 11214ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_indexed_read checked 9912ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_local_borrow checked 9392ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_recast_borrow checked 9622ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_record_loan_member_read checked 9917ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/shared_runtime_index_borrow checked 45512ms check-target:macos_arm64 @911f6617ba9e
+run/borrows/shared_field_borrow checked 80631ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/shared_indexed_read checked 80194ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/shared_local_borrow checked 49788ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/shared_recast_borrow checked 103626ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/shared_record_loan_member_read checked 58471ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/shared_runtime_index_borrow checked 111163ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/stored_case_reference_state checked 3276ms check-target:macos_arm64 @8fce926f9735
 run/borrows/stored_subview_identity checked 3763ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/stored_subview_nested_call_result checked 3209ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/stored_subview_repeated_updates checked 3256ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/terminal_case_completed_observation checked 1837ms check-target:macos_arm64 @49e92b4199eb
 run/borrows/transition_guard_descriptor_fallthrough checked 10286ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/transition_shared_borrow checked 10573ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/transition_shared_borrow checked 70825ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/affine_call_local_field_exit checked 5915ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/anonymous_shared_borrow_operands incomplete 3301ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `main::entry`, statement 0
 run/calls/byte_literal_expression_values checked 2708ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/call_result_ascii_prefix_literal_exit checked 6834ms check-target:macos_arm64 @911f6617ba9e
 run/calls/call_result_ascii_prefix_literal_mismatch checked 6559ms check-target:macos_arm64 @911f6617ba9e
-run/calls/fixed_dividend_across_console_calls checked 10121ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/fixed_dividend_across_console_calls checked 170024ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/indexed_case_successor_exit checked 2663ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/named_transition_f32_destination_single_rounding_exit checked 10170ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/named_transition_scalar_borrow_arguments_exit checked 6020ms check-target:macos_arm64 @ccdb99ca2214
@@ -28181,7 +28191,7 @@ run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @6
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/outcome_specific_selected_guarantee_exit checked 10482ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/outcome_specific_selected_guarantee_exit checked 66263ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
@@ -28190,11 +28200,11 @@ run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-t
 run/calls/outcome_specific_selected_guarantee_inputs_exit rejected 6914ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_nested_exit checked 23839ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/outcome_specific_selected_guarantee_nested_exit checked 78318ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/outcome_specific_selected_guarantee_result_exit rejected 7362ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_variants_exit checked 10037ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/outcome_specific_selected_guarantee_variants_exit checked 75509ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/owned_literal_call_operands checked 2565ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_exit checked 3003ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_plain_exit checked 3007ms check-target:macos_arm64 @ccdb99ca2214
@@ -28202,31 +28212,31 @@ run/calls/qualified_ancestor_reference_forwarding_exit checked 3625ms check-targ
 run/calls/qualified_atomic_operation_names checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/qualified_literal_return_exit checked 2852ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/recursive_machine_transition_scalar_arguments_exit checked 4449ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/resultless_scalar_parameters checked 9529ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/resultless_scalar_parameters checked 61712ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
 run/calls/returned_reference_case_write_then_view_exit checked 2962ms check-target:macos_arm64 @8fce926f9735
-run/calls/runtime_float_distinct_operand_calls_exit checked 24724ms check-target:macos_arm64 @a4f3937d72ab
-run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 23451ms check-target:macos_arm64 @a4f3937d72ab
+run/calls/runtime_float_distinct_operand_calls_exit checked 81034ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/runtime_float_normalized_operand_single_evaluation_exit checked 106206ms check-target:macos_arm64 @c3cb68d51f3f
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/scalar_contract_route_exit checked 2744ms check-target:macos_arm64 @d2accacf8da6
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
-run/calls/static_boundary_terminal_arguments checked 2950ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/table_report_call_survival checked 10101ms check-target:macos_arm64 @ccdb99ca2214
-run/contained_health_loop_command_branch checked 54750ms check-target:macos_arm64 @911f6617ba9e
+run/calls/static_boundary_terminal_arguments checked 37830ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/table_report_call_survival checked 80055ms check-target:macos_arm64 @c3cb68d51f3f
+run/contained_health_loop_command_branch checked 150212ms check-target:macos_arm64 @c3cb68d51f3f
 run/contracts/captured_bound_unused_mutation checked 2645ms check-target:macos_arm64 @ccdb99ca2214
 run/contracts/cyclic_mixed_conjunction checked 2775ms check-target:macos_arm64 @82dfb1c33a86
 run/contracts/cyclic_record_writer checked 2871ms check-target:macos_arm64 @82dfb1c33a86
 run/contracts/cyclic_terminal_result_producers checked 2330ms check-target:macos_arm64 @e73e8464a94b
 run/contracts/nested_cyclic_copy_bound checked 2320ms check-target:macos_arm64 @e73e8464a94b
-run/contracts/qualified_result_forwarding_exit checked 11151ms check-target:macos_arm64 @ccdb99ca2214
+run/contracts/qualified_result_forwarding_exit checked 75964ms check-target:macos_arm64 @c3cb68d51f3f
 run/contracts/scalar_crash_route_exit checked 9228ms check-target:macos_arm64 @1369884c3dda
 run/contracts/scalar_crash_route_trap checked 9536ms check-target:macos_arm64 @1369884c3dda
 run/contracts/target_family_forwarded_result checked 3320ms check-target:linux_x86_64 @ccdb99ca2214
 run/core/content_reunion checked 10649ms check-target:macos_arm64 @9eb8e12b2d53
 run/domains/byte_view_predicates_keep_selected_extent checked 2734ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/checked_provider_issued_field checked 3646ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/checked_provider_issued_root checked 2944ms check-target:macos_arm64 @ccdb99ca2214
+run/domains/checked_provider_issued_field checked 47288ms check-target:macos_arm64 @c3cb68d51f3f
+run/domains/checked_provider_issued_root checked 37617ms check-target:macos_arm64 @c3cb68d51f3f
 run/domains/completed_membership_after_earlier_guarantee rejected 2419ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`
 run/domains/current_record_predicate_captures checked 3127ms check-target:macos_arm64 @ccdb99ca2214
@@ -28266,7 +28276,7 @@ run/domains/qualified_fixed_byte_array_geometry_exit checked 9339ms check-target
 run/domains/qualified_fixed_byte_array_nested_zero_exit checked 2806ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_optimized_exit checked 3034ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_owned_parameter_exit checked 2925ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/qualified_fixed_byte_array_plain_copy_exit checked 9859ms check-target:macos_arm64 @ccdb99ca2214
+run/domains/qualified_fixed_byte_array_plain_copy_exit checked 88337ms check-target:macos_arm64 @c3cb68d51f3f
 run/domains/qualified_fixed_byte_array_record_loan_exit checked 3729ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_runtime_store_exit checked 3645ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_selected_view_return_exit checked 3330ms check-target:macos_arm64 @ccdb99ca2214
@@ -28291,15 +28301,15 @@ run/domains/wide_array_literal_membership_exit checked 113188ms check-target:mac
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214
-run/dyn_finite_family_correlated checked 74721ms check-target:linux_x86_64 @05a6f6af37ec+wt
-run/dyn_finite_family_owned_carrier checked 56761ms check-target:linux_x86_64 @ee4dbb4b2d56
-run/dyn_finite_family_runtime_dispatch checked 63916ms check-target:macos_arm64 @05a6f6af37ec+wt
+run/dyn_finite_family_correlated checked 122299ms check-target:linux_x86_64 @c3cb68d51f3f
+run/dyn_finite_family_owned_carrier checked 139651ms check-target:linux_x86_64 @c3cb68d51f3f
+run/dyn_finite_family_runtime_dispatch checked 83625ms check-target:macos_arm64 @c3cb68d51f3f
 run/facts/double_indexed_rmw_through_call_result_traps checked 2756ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_const_name_traps checked 2851ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_field_traps checked 3154ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_local_traps checked 2970ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_match_join_traps checked 2670ms check-target:macos_arm64 @ccdb99ca2214
-run/facts/double_indexed_rmw_through_other_machine_traps checked 2747ms check-target:macos_arm64 @ccdb99ca2214
+run/facts/double_indexed_rmw_through_other_machine_traps checked 35490ms check-target:macos_arm64 @c3cb68d51f3f
 run/facts/double_indexed_rmw_through_other_state_traps checked 2509ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_parameter_traps checked 2893ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_target_body_traps checked 2634ms check-target:macos_arm64 @ccdb99ca2214
@@ -28308,12 +28318,12 @@ run/facts/float_comparison_route_through_const_name_traps checked 5773ms check-t
 run/facts/float_comparison_route_through_field_traps checked 5062ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/float_comparison_route_through_local_traps checked 5391ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/float_comparison_route_through_match_join_traps checked 5151ms check-target:macos_arm64 @ccdb99ca2214
-run/facts/float_comparison_route_through_other_machine_traps checked 5837ms check-target:macos_arm64 @ccdb99ca2214
+run/facts/float_comparison_route_through_other_machine_traps checked 48711ms check-target:macos_arm64 @c3cb68d51f3f
 run/facts/float_comparison_route_through_other_state_traps checked 6125ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/float_comparison_route_through_parameter_traps checked 5663ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
-run/float/folded_anonymous_operator_custody_exit checked 12880ms check-target:macos_arm64 @ccdb99ca2214
+run/float/folded_anonymous_operator_custody_exit checked 80180ms check-target:macos_arm64 @c3cb68d51f3f
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt
@@ -28327,8 +28337,8 @@ run/layouts/placed_ram_stored_field_return incomplete 335250ms check-target:maco
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_distinct_fields checked 3994ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_nested_array checked 3272ms check-target:macos_arm64 @ccdb99ca2214
-run/nested_mut_alias_assignment_return checked 10439ms check-target:macos_arm64 @ccdb99ca2214
-run/ownership/claim_correspondence_all_returns checked 11326ms check-target:macos_arm64 @ee4dbb4b2d56
+run/nested_mut_alias_assignment_return checked 78722ms check-target:macos_arm64 @c3cb68d51f3f
+run/ownership/claim_correspondence_all_returns checked 61055ms check-target:macos_arm64 @c3cb68d51f3f
 run/ownership/content_transform_case_alias checked 9322ms check-target:macos_arm64 @089c0a150e63
 run/ownership/content_transform_case_parent checked 8490ms check-target:macos_arm64 @089c0a150e63
 run/ownership/content_transform_empty_array checked 8699ms check-target:macos_arm64 @089c0a150e63
@@ -28338,18 +28348,18 @@ run/ownership/content_transform_inactive_payload checked 8224ms check-target:mac
 run/ownership/declared_record_selected_exit_disposal checked 3773ms check-target:macos_arm64 @ccdb99ca2214
 run/ownership/linear_result_crash_ceiling checked 10080ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/linear_result_guarded_terminal_call checked 10066ms check-target:macos_arm64 @ee4dbb4b2d56
-run/ownership/owned_parameter_member_moves_exit checked 9919ms check-target:macos_arm64 @ccdb99ca2214
-run/ownership/owned_parameter_narrow_member_moves_exit checked 9899ms check-target:macos_arm64 @ccdb99ca2214
+run/ownership/owned_parameter_member_moves_exit checked 56390ms check-target:macos_arm64 @c3cb68d51f3f
+run/ownership/owned_parameter_narrow_member_moves_exit checked 85762ms check-target:macos_arm64 @c3cb68d51f3f
 run/ownership/selected_owned_constructor_moves checked 9735ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/sequence_owned_local_cleanup checked 7242ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/temporary_case_observation checked 2886ms check-target:macos_arm64 @ccdb99ca2214
 run/ownership/temporary_projected_copy_argument checked 2888ms check-target:macos_arm64 @ccdb99ca2214
 run/ownership/temporary_projected_value_residual checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 run/proofs/embed_collection_length_exit checked 3330ms check-target:macos_arm64 @ccdb99ca2214
-run/proofs/quotient_copy_paths checked 11349ms check-target:macos_arm64 @26c39d0e6335
-run/providers/module_named_float_conversion_family_exit checked 335066ms check-target:macos_arm64 @72a0af2d293d
+run/proofs/quotient_copy_paths checked 76008ms check-target:macos_arm64 @c3cb68d51f3f
+run/providers/module_named_float_conversion_family_exit checked 60285ms check-target:macos_arm64 @c3cb68d51f3f
 run/providers/target_applicable_provider_closure checked 110569ms check-target:macos_arm64 @d68d95fa82f8
-run/providers/target_family_provider_boundary_identity_exit checked 11036ms check-target:macos_arm64 @ccdb99ca2214
+run/providers/target_family_provider_boundary_identity_exit checked 45736ms check-target:macos_arm64 @c3cb68d51f3f
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
 run/ranges/borrowed_case_payload_bound checked 2823ms check-target:macos_arm64 @02f650a3c5b1
 run/ranges/guarded_case_payload_identity checked 2333ms check-target:macos_arm64 @2c185c80180f
@@ -28358,7 +28368,7 @@ run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm6
 run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
 run/slices/call_result_mutable_window_exit checked 13584ms check-target:macos_arm64 @ff514b7f093c
 run/slices/computed_record_window checked 15666ms check-target:macos_arm64 @ff514b7f093c
-run/slices/disjoint_local_state_windows checked 9954ms check-target:macos_arm64 @ccdb99ca2214
+run/slices/disjoint_local_state_windows checked 76853ms check-target:macos_arm64 @c3cb68d51f3f
 run/slices/edge_window_owned_backing checked 3548ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/folded_window_endpoint_effects checked 1208ms check-target:macos_arm64 @e5a7f19e3929
 run/slices/matched_computed_window_end checked 3476ms check-target:macos_arm64 @ccdb99ca2214
@@ -28366,16 +28376,16 @@ run/slices/matched_record_window_lower_bound checked 2924ms check-target:macos_a
 run/slices/mutable_window_call_argument checked 2693ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/returned_record_fixed_array_window checked 3473ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/returned_record_parameter_length checked 2713ms check-target:macos_arm64 @ccdb99ca2214
-run/state_owned_nested_borrow checked 3200ms check-target:macos_arm64 @ccdb99ca2214
-run/state_shared_nested_backing checked 2950ms check-target:macos_arm64 @ccdb99ca2214
-run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:macos_arm64 @72a0af2d293d
-run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
+run/state_owned_nested_borrow checked 71041ms check-target:macos_arm64 @c3cb68d51f3f
+run/state_shared_nested_backing checked 28142ms check-target:macos_arm64 @c3cb68d51f3f
+run/stores/runtime_float_indexed_call_result_exit checked 65257ms check-target:macos_arm64 @c3cb68d51f3f
+run/stores/runtime_float_store_selector_snapshot_exit checked 54937ms check-target:macos_arm64 @c3cb68d51f3f
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/selection_row_existing_machines checked 11572ms check-target:macos_arm64 @e1baccf0876c
 run/traits/selection_row_law_selected_operation checked 43036ms check-target:macos_arm64 @11c3b1370df7
 run/traits/static_implementation_method_arguments checked 11135ms check-target:macos_arm64 @e08fd38eeab5
 run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
-run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
-run/variant_record_normalization_repeats checked 305495ms check-target:linux_x86_64 @e1cfe02f1a9b
+run/variant_decimal_runtime_division checked 45944ms check-target:linux_x86_64 @c3cb68d51f3f
+run/variant_record_normalization_repeats checked 54720ms check-target:linux_x86_64 @c3cb68d51f3f
 fail/domains/private_constructor_unguarded_arrival rejected 1878ms expected @563a0d1cc67a
 	data `Bounded` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value

@@ -11,7 +11,7 @@ requires value > 0 && value <= 255 {
     Console::write_byte(((value % value) + 48) as i32);
     Console::write_byte(10);
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     let observed: ByteRead = block Console::read_byte();
     transition observed {
         ByteRead::Byte { value } -> bounded(main, value)
@@ -34,5 +34,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

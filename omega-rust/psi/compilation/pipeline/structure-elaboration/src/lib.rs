@@ -33,8 +33,9 @@ parameter.
 A record value is storage. A record formal, and every operation that
 produces a record (a literal, a whole copy, a call), is a root place; a
 member path is a projection of one, interned on first use; and every
-establishment is logged leaf by leaf in the forward write log
-(`lower/places.rs`). A machine with no record has no structural place, and
+establishment and store is logged in the forward write log as what that one
+operation stored (`lower/places.rs`). A local declared without an initializer
+is reserved storage with no content until a store reaches it. A machine with no record has no structural place, and
 its place, root and write tables stay empty.
 
 Gaps found against the contract are listed in the crate README, "Findings".
@@ -47,8 +48,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement,
-    Strict, Target, ValueType,
+    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
+    Statement, Strict, Target, ValueType,
 };
 pub use outcome::Outcome;
 
@@ -83,6 +84,8 @@ pub enum Unpositioned {
     ShortCircuitJoin,
     /// The block a guarded arm falls through to when its guard is false.
     DispatchContinuation,
+    /// The join block of a value-position `match` and the jumps into it.
+    MatchJoin,
     /// The Unit completion after a unit machine's last statement.
     ImplicitReturn,
     /// The block a call continues in after the edge that retires the homes
@@ -239,8 +242,8 @@ pub fn lower_bodies(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records)?;
-    if !records.is_empty() {
+    let declared = lower::places::declare(entry, records, bodies)?;
+    if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;
         module.native_layouts = declared.native_layouts;

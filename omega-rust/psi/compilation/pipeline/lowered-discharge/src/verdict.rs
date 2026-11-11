@@ -9,8 +9,9 @@ it is given and fills evidence only where a seal arrives, so a module with an
 undischarged obligation must never reach it: Omega 00 would accept that
 obligation with no evidence. `RouteVerdict` therefore has no variant for a
 partly proved closure. A closure is either accepted with every obligation
-discharged by the kernel, rejected with one diagnostic per unproved
-obligation, left incomplete because the prover has no rule for some goal's
+discharged by the kernel and every use of storage established, rejected with
+one diagnostic per unproved obligation and per unestablished use, left
+incomplete because the prover has no rule for some goal's
 form, or handed back whole to Psi 05 and 06 because the route does not
 serve some construct in it (`RefusalReason::Unsupported`; the design: "falling
 back to Psi 05 and 06 on any `RefusalReason::Unsupported`").
@@ -42,6 +43,13 @@ route cannot judge whole is the current checker's to decide. That is not a
 weaker check; Psi 05 and 06 still judge the closure. Any other refusal is a
 defect of the route itself (an identity that does not resolve) and is
 returned as `Err`; a router must not accept the program on it.
+
+A use of storage that some path reaches with nothing stored into it
+(`RefusalReason::Unestablished`) is a compile error of the same standing as an
+unproved obligation, but it is a structural judgment with no obligation row,
+so a rejection carries the two lists side by side. One such use makes the
+verdict `Rejected` even when every unproved obligation is merely incomplete:
+the program fails a checking rule whatever the prover could or could not do.
 */
 
 use diagnostics::Diagnostic;
@@ -60,9 +68,14 @@ pub enum RouteVerdict {
     /// the kernel accepted. `seals` are the operation obligations' evidence
     /// for Omega 00.
     Accepted(Box<AcceptedClosure>),
-    /// The program is rejected: one entry per obligation the prover could not
-    /// discharge, in machine and obligation order. Never empty.
-    Rejected(Vec<UnprovedObligation>),
+    /// The program is rejected. `unproved` has one entry per obligation the
+    /// prover could not discharge, in machine and obligation order;
+    /// `unestablished` one per use of storage that some path reaches with
+    /// nothing stored into it. At least one of the two is not empty.
+    Rejected {
+        unproved: Vec<UnprovedObligation>,
+        unestablished: Vec<UnestablishedUse>,
+    },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
     /// program neither way. Every entry's cause is
@@ -120,6 +133,38 @@ impl UnprovedObligation {
     }
 }
 
+/// One use of storage that is not established on every path to it.
+/// `wiki/spec/terminal-psi/structural_access.md`: "An unestablished local
+/// cannot be read".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnestablishedUse {
+    pub machine: MachineId,
+    /// The operation, edge or block that uses the storage.
+    pub at: Construct,
+    /// Where that construct arises in the source. `None` only when
+    /// elaboration itself refused the closure, so no source correspondence
+    /// exists to look the construct up in; a position is never guessed.
+    pub site: Option<SourceOrigin>,
+    /// The judgment's own account. Diagnostic text only.
+    pub detail: String,
+}
+
+impl UnestablishedUse {
+    /// The message, opening with a stable part corpus expectations can match.
+    pub fn message(&self) -> String {
+        format!("unestablished storage: {}", self.detail)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
+            Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        }
+    }
+}
+
 /// The obligation kind as a diagnostic names it. Clause positions count from
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
@@ -166,6 +211,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         Err(refused) => return fall_back_or_defect(refused),
     };
     let mut unproved = Vec::new();
+    let mut unestablished = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         let tables = terminal_check_tables::row(
             &elaboration.tables.machines,
@@ -210,6 +256,44 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 detail: refused.detail.clone(),
             });
         }
+        for used in &result.uses {
+            let Err(refused) = &used.verdict else {
+                continue;
+            };
+            if refused.reason != RefusalReason::Unestablished {
+                return fall_back_or_defect(refused.clone());
+            }
+            let site = match used.at {
+                Construct::Operation(operation) => sources.operations.get(operation),
+                Construct::Edge(edge) => sources.edges.get(edge),
+                Construct::Block(block) => sources.blocks.get(block),
+                Construct::Machine
+                | Construct::Value(_)
+                | Construct::Place(_)
+                | Construct::Obligation(_)
+                | Construct::Invocation(_) => None,
+            };
+            let site = site.copied().ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    used.at,
+                    "a use of storage has no source correspondence",
+                )
+            })?;
+            unestablished.push(UnestablishedUse {
+                machine,
+                at: used.at,
+                site: Some(site),
+                detail: refused.detail.clone(),
+            });
+        }
+    }
+    if !unestablished.is_empty() {
+        return Ok(RouteVerdict::Rejected {
+            unproved: without_restated_clauses(unproved),
+            unestablished,
+        });
     }
     if !unproved.is_empty() {
         // Classified after restated clauses are dropped: a published clause
@@ -220,7 +304,10 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             if unproved.iter().all(|entry| entry.cause.is_incomplete()) {
                 RouteVerdict::Incomplete(unproved)
             } else {
-                RouteVerdict::Rejected(unproved)
+                RouteVerdict::Rejected {
+                    unproved,
+                    unestablished: Vec::new(),
+                }
             },
         );
     }
@@ -238,6 +325,18 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
 fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
     match refused.reason {
         RefusalReason::Unsupported => Ok(RouteVerdict::FallBack(refused)),
+        // Elaboration or discharge refused the closure outright because some
+        // storage is used unestablished: a rejection of the program, with no
+        // source correspondence to look its construct up in.
+        RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
+            unproved: Vec::new(),
+            unestablished: vec![UnestablishedUse {
+                machine: refused.machine,
+                at: refused.concerns,
+                site: None,
+                detail: refused.detail,
+            }],
+        }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved
         | RefusalReason::Conflict

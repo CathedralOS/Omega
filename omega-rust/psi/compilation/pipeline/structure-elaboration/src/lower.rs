@@ -98,6 +98,8 @@ pub(crate) fn machine(
         current: None,
         point: None,
         slots: vec![None; body.slots.len()],
+        selected: Vec::new(),
+        slot_types: &body.slots,
         published: Vec::new(),
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
@@ -215,8 +217,10 @@ struct Lowering<'a> {
     entry_contents: Vec<Option<ValueId>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
-    /// completes the machine and short-circuit joins rejoin their own
-    /// branch, so the path to a statement is one sequence.
+    /// completes the machine, and a short-circuit or `match` rejoins its
+    /// own branches, so the path to a statement is one sequence. A case a
+    /// dispatch selected is not such a decision and is not here; see
+    /// `selected`.
     path: Vec<Proposition>,
     tables: MachineTables,
     sources: MachineSources,
@@ -226,6 +230,12 @@ struct Lowering<'a> {
     /// The program point after the last thing emitted in `current`.
     point: Option<ProgramPoint>,
     slots: Vec<Option<Bound>>,
+    /// The dispatch arms the open block lies in, outermost first: for a case
+    /// arm the sum it selected on, the case, and the block parameter each
+    /// scalar payload field arrived as.
+    selected: Vec<places::Chosen>,
+    /// The declared type of each slot, as the body states it.
+    slot_types: &'a [ValueType],
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
@@ -284,6 +294,15 @@ impl Lowering<'_> {
         self.slots.get_mut(slot).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
+            concerns: Construct::Machine,
+            detail: String::from("slot is past the end of this body"),
+        })
+    }
+
+    fn slot_type(&self, slot: usize) -> Checked<ValueType> {
+        self.slot_types.get(slot).copied().ok_or(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine: self.id,
             concerns: Construct::Machine,
             detail: String::from("slot is past the end of this body"),
         })
