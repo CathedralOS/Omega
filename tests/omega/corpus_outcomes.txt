@@ -16486,8 +16486,8 @@ fail/modules/nontransitive_file_machine_import rejected 950ms unexpected @ccdb99
 fail/modules/package_qualified_scalar_access_denied rejected 7344ms expected @234ea171ee6e
 	placed primitive application does not select its exact plan-issued field operation
 	accessor write application for `Accessor<Access<StablePlacement,Value>,number>` with value `u64`: the access plan does not permit this operation
-fail/modules/packaged_structured_const_wrong_carrier rejected 1093ms unexpected @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "indexed-domain selected constant has canonical type `named(name(nominal\\\\(package-owner\\\\(32:e7c3bc3e4620222cf979d50d772f27fdaca17ff3531dd5cc50e17992df595c71\\\\)\\\\,path\\\\(ImpostorToken\\\\)\\\\)))`, expected `named(name(nominal\\\\(package-owner\\\\(32:d2b6f355532dc469c2b68bea58ac6901de02e35fdd1e7331c50b938ccbdaa53d\\\\)\\\\,path\\\\(Token\\\\)\\\\)))`", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/modules/packaged_structured_const_wrong_carrier rejected 3569ms unexpected @d25b32be7ef5
+	indexed-domain selected constant has canonical type `named(name(nominal\\(package-owner\\(32:73ac633db1bab965705a838b39101f3552707996fd184d8b52107a94e60da16a\\)\\,path\\(ImpostorToken\\)\\)))`, expected `named(name(nominal\\(package-owner\\(32:438a63fefb346799973816de00b204308a5932eb5c6459edec8ddddccebba3b4\\)\\,path\\(Token\\)\\)))`
 fail/modules/private_generic_dependency rejected 3717ms expected @ccdb99ca2214
 	package `private_generic_dependency` (79d8483c0c9e8f8edaba91f5750b0890756e9aa4815205b4d64c51952fd3da6f) selects private machine `values::Window::range`
 fail/modules/runtime_fixed_array_index rejected 345ms expected @3f59f4c9e33c+wt
@@ -26592,8 +26592,8 @@ pass/generics/runtime_computed_selected_call_once_exit checked 9992ms check-targ
 pass/generics/runtime_computed_selected_token_once_exit checked 8624ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_const_container_methods_exit checked 73684ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_const_data_array_length_exit checked 12374ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_const_data_machine_call_exit rejected 6944ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `*` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 502, end: 503 } }), resolved_location: None })
+pass/generics/runtime_const_data_machine_call_exit rejected 15412ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d25b32be7ef5
+	exact arithmetic in closed const argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `table_size(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 pass/generics/runtime_const_data_multiple_instances_exit checked 12362ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_const_data_symbolic_expression_exit checked 30322ms check-target:macos_arm64 @602404d45977
 pass/generics/runtime_const_data_where_fact_exit checked 68180ms check-target:macos_arm64 @71d7a6330d0b
