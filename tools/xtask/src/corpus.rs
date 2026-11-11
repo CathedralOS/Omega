@@ -435,7 +435,6 @@ pub fn observe(
     shard: &str,
     native_target: Option<&str>,
     interpret: bool,
-    checked_interpreter: bool,
     check_sites: bool,
     evidence: &Path,
 ) -> Result<String, String> {
@@ -457,7 +456,6 @@ pub fn observe(
         .env_remove("OMEGA_CORPUS_SHARD")
         .env_remove("OMEGA_CORPUS_NATIVE")
         .env_remove("OMEGA_CORPUS_INTERPRET")
-        .env_remove("OMEGA_CORPUS_CHECKED_INTERPRETER")
         .env_remove("OMEGA_CORPUS_NATIVE_TARGET");
     if !shard.is_empty() {
         command.env("OMEGA_CORPUS_SHARD", shard);
@@ -469,9 +467,6 @@ pub fn observe(
     }
     if interpret {
         command.env("OMEGA_CORPUS_INTERPRET", "1");
-    }
-    if checked_interpreter {
-        command.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
     }
     if check_sites {
         command.env("OMEGA_COMPILER_CHECK_SITES", "1");
@@ -531,7 +526,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut native = false;
     let mut native_target: Option<String> = None;
     let mut interpret = false;
-    let mut checked_interpreter = false;
     let mut list_pinned = false;
     let mut sweep = std::env::var("OMEGA_CORPUS_SWEEP").is_ok_and(|v| !v.is_empty());
     let mut golden: Option<PathBuf> = None;
@@ -550,10 +544,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             "--record" => record = true,
             "--native" => native = true,
             "--interpret" => interpret = true,
-            "--checked-interpreter" => {
-                interpret = true;
-                checked_interpreter = true;
-            }
             "--both" => {
                 native = true;
                 interpret = true;
@@ -617,21 +607,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let golden_path = golden.unwrap_or_else(|| {
         let tests_omega = root.join("tests/omega");
         if native && interpret {
-            let prefix = if checked_interpreter {
-                "corpus_checked_both"
-            } else {
-                "corpus_both"
-            };
-            tests_omega.join(format!("{prefix}_{target}.txt"))
+            tests_omega.join(format!("corpus_both_{target}.txt"))
         } else if native {
             tests_omega.join(format!("corpus_native_{target}.txt"))
         } else if interpret {
-            let name = if checked_interpreter {
-                "corpus_checked_interpreted.txt"
-            } else {
-                "corpus_interpreted.txt"
-            };
-            tests_omega.join(name)
+            tests_omega.join("corpus_interpreted.txt")
         } else {
             tests_omega.join("corpus_outcomes.txt")
         }
@@ -692,7 +672,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         &shard,
         native.then_some(target),
         interpret,
-        checked_interpreter,
         false,
         &evidence,
     )

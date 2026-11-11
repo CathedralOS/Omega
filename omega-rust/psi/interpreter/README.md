@@ -3,7 +3,7 @@
 These independent engines execute target-neutral representations:
 
 - [Checked interpreter](checked-interpreter/src/interpreter.rs): checked-tree
-  reference execution, also used by build-time evaluation.
+  evaluation of build-time machines, pending migration to Terminal Psi.
 - [Terminal interpreter](terminal-interpreter/README.md): execution of a verified
   Terminal Psi artifact.
 
