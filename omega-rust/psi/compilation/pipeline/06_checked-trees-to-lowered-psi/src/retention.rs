@@ -1725,12 +1725,11 @@ pub(crate) mod closed_reach_applications {
                 .ok_or(LoweringError::Unsupported(
                     "closed reach contract has an unknown service",
                 ))?;
-            let identity = identities.intern(
-                &crate::shared::terminal_identities::service_declaration_identity(
-                    checked,
-                    definition.symbol,
-                )?,
-            );
+            let identity = crate::shared::terminal_identities::service_declaration_identity(
+                identities,
+                checked,
+                definition.symbol,
+            )?;
             let existing = module
                 .services
                 .iter()

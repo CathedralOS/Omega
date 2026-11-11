@@ -4692,14 +4692,16 @@ pub(crate) mod inner {
                                 "Unit closure references an unknown checked service",
                             ),
                         )?;
-                        let identity = service_declaration_identity(checked, definition.symbol)?;
+                        let identity =
+                            service_declaration_identity(identities, checked, definition.symbol)?;
                         Ok((*service, definition, identity))
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-            selected_definitions.sort_by(|left, right| left.2.cmp(&right.2));
+            selected_definitions
+                .sort_by(|left, right| identities.text(left.2).cmp(&identities.text(right.2)));
             if selected_definitions
                 .iter()
-                .any(|(_, _, identity)| identity.is_empty())
+                .any(|(_, _, identity)| identities.text(*identity).is_none_or(str::is_empty))
                 || selected_definitions
                     .windows(2)
                     .any(|pair| pair[0].2 == pair[1].2)
@@ -4725,7 +4727,7 @@ pub(crate) mod inner {
                     parents.dedup();
                     Ok(ServiceDeclaration {
                         id: lookup_service_id(&service_ids, source)?,
-                        identity: identities.intern(&identity),
+                        identity,
                         parents,
                     })
                 })
