@@ -124,7 +124,10 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
    passes"` history prose). Commit all code and fixture files before running
    `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
    never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
-   or a `fail/` row as `unexpected`.
+   or a `fail/` row as `unexpected`. A regression that already exists on
+   `main` is bad news the ledger must hold: record it from a PR that changes
+   only corpus ledgers and Markdown
+   ([who may record a regression](tools/testing.md#who-may-record-a-regression)).
 6. **Stop rule: decline the patch that would add another carrier.** If your fix
    would add another carrier, case or per-place branch for a mechanism that
    already has one, stop. Write a cluster report in the claim note and your

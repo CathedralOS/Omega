@@ -87,6 +87,12 @@ the five checks below fail:
 
 ### Point 3: Golden File Diff Audit (`tests/omega/corpus_outcomes.txt` & `corpus_both_*.txt`)
 Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
+- **Red rows belong only to an observation-only PR:** The two rules below hold
+  for every PR that changes anything besides corpus ledgers and Markdown. A PR
+  that changes only those may record regressions already on `main`
+  ([who may record a regression](../../../tools/testing.md#who-may-record-a-regression));
+  check that each such row was measured on a clean base checkout and attributed,
+  and that a lost `pass/`/`run/` success carries `regressed-from:`.
 - **Every `pass/` and `run/` row in the diff must be `checked` or `built`:**
   Never allow a worker to record a `pass/` or `run/` fixture as `rejected` just
   to satisfy `cargo xtask check-rules` (for example, recording `pass/facts/<fact>/target_body`
@@ -99,7 +105,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 - **Clean `@<sha>` commit stamps (no `+wt`):**
   Every recorded row must be stamped against a clean committed tree (`@<sha>`),
   never a dirty worktree (`@<sha>+wt`).
-- **Zero `regressed-from:` markers** introduced.
+- **Zero `regressed-from:` markers** introduced outside an observation-only PR.
 
 ### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & `tests/omega/` diff)
 - **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
