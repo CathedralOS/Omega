@@ -11610,23 +11610,23 @@ fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected reje
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `bytes.len >= 5 && bytes.len <= 5`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `bytes.len >= 5 && bytes.len <= 5`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `bytes.len >= 5 && bytes.len <= 5`
-fail/facts/recast_parent_restoration_through_call_result_rejected rejected 802ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 6998ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_const_name_rejected rejected 955ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 7584ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_field_rejected rejected 1816ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_field_rejected rejected 6443ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_local_rejected rejected 1674ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_local_rejected rejected 7432ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_match_join_rejected rejected 5816ms expected @21213f5ea3d3
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 7088ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 986ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 7495ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_other_state_rejected rejected 889ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 6859ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_parameter_rejected rejected 869ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 5411ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1542ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 5016ms expected @556b2632972d
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/call_result/my_library/values.omg: captured entry is absent: my_library
@@ -24827,24 +24827,15 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/recast_parent_restoration_through_call_result_exit rejected 8020ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_const_name_exit rejected 7836ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_field_exit rejected 8453ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(74))
-pass/facts/recast_parent_restoration_through_local_exit rejected 7878ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_match_join_exit rejected 9161ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_other_machine_exit rejected 8727ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_other_state_exit rejected 7208ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_parameter_exit rejected 8096ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
-pass/facts/recast_parent_restoration_through_target_body_exit rejected 8293ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
+pass/facts/recast_parent_restoration_through_call_result_exit checked 10357ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_const_name_exit checked 10403ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_field_exit checked 10397ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_local_exit checked 10217ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_match_join_exit checked 9719ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 9321ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_other_state_exit checked 9397ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_parameter_exit checked 10680ms check-target:macos_arm64 @556b2632972d
+pass/facts/recast_parent_restoration_through_target_body_exit checked 9753ms check-target:macos_arm64 @556b2632972d
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
