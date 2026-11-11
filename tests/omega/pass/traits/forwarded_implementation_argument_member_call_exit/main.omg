@@ -1,0 +1,34 @@
+// Expected exit: 0
+// A generic machine receives one implementation and a second implementation
+// whose trait application names the first. Calling a member of the second must
+// accept the map that was declared over that same first implementation.
+trait Reading {
+    machine read(value: u8) -> u8;
+}
+Plain satisfies Reading {
+    machine read(value: u8) -> u8 { value }
+}
+Other satisfies Reading {
+    machine read(value: u8) -> u8 { value }
+}
+
+trait Doubling<Reader satisfies Reading> {
+    machine twice(value: u8) -> u8;
+}
+PlainDoubling satisfies Doubling<Plain> {
+    machine twice(value: u8) -> u8 { Plain::read(Plain::read(value)) }
+}
+
+machine apply<Reader satisfies Reading, Double satisfies Doubling<Reader>>(value: u8) -> u8 {
+    Double::twice(value)
+}
+
+machine main() crashes Trap {
+    let got: u8 = apply<Plain, PlainDoubling>(7u8);
+    transition got == 7u8 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

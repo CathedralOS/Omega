@@ -6473,6 +6473,16 @@ pub(crate) mod substitution {
             );
         }
         match program.type_reference_table.type_reference(reference) {
+            // A named implementation is a declaration, not a constant. Written
+            // directly as a trait argument it is identified as a nominal, so an
+            // implementation that arrives here through a binder keeps that same
+            // identity. Otherwise one map compared with itself would differ
+            // only in whether it was forwarded.
+            TypeReferenceNode::Named { symbol, .. }
+                if program.conformance_by_symbol(*symbol).is_some() =>
+            {
+                normalize_type_reference(program, reference, context)
+            }
             TypeReferenceNode::Named { symbol, name } => {
                 index_name(program, *symbol, name.as_str(), context)
             }
