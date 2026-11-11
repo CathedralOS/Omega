@@ -3532,8 +3532,7 @@ mod scalar_targets {
     */
     use super::{
         CarryPolicy, CheckFacts, CheckedUnitEffectMachinePlan,
-        CheckedUnitEffectOperationPlan as OperationPlan, MachineSupplyMode, SignatureContractKind,
-        SymbolHandle,
+        CheckedUnitEffectOperationPlan as OperationPlan, MachineSupplyMode, SymbolHandle,
     };
     use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
@@ -3755,18 +3754,9 @@ mod scalar_targets {
                 || plan.structural_result.is_some()
                 || plan.contract_report_fingerprint != contract.report_fingerprint
                 || plan.contract_commitment != contract.commitment
-                || program
-                    .machine_contracts(machine)
-                    .iter()
-                    .chain(program.state_contracts(state))
-                    .any(|contract| {
-                        !matches!(
-                            contract.kind,
-                            SignatureContractKind::Crashes { .. }
-                                | SignatureContractKind::Requires
-                                | SignatureContractKind::Ensures
-                        ) || contract.binding.is_some()
-                    })
+                || !crate::execution::terminal_unit::types::checked_machine_signature_has_plan(
+                    program, facts, machine, state,
+                )
                 || !validation::scalar_result_contract_is_represented(program, state.return_type)
             {
                 return None;
