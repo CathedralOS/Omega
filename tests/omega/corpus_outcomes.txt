@@ -11509,23 +11509,23 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 1274ms expe
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/representation_agreement_through_call_result_rejected rejected 8746ms expected @089c0a150e63
+fail/facts/representation_agreement_through_call_result_rejected rejected 19204ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_const_name_rejected rejected 8422ms expected @089c0a150e63
+fail/facts/representation_agreement_through_const_name_rejected rejected 15110ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_field_rejected rejected 8318ms expected @089c0a150e63
+fail/facts/representation_agreement_through_field_rejected rejected 17362ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_local_rejected rejected 8705ms expected @089c0a150e63
+fail/facts/representation_agreement_through_local_rejected rejected 16338ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_match_join_rejected rejected 8383ms expected @089c0a150e63
+fail/facts/representation_agreement_through_match_join_rejected rejected 15367ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_machine_rejected rejected 7951ms expected @089c0a150e63
+fail/facts/representation_agreement_through_other_machine_rejected rejected 16556ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_other_state_rejected rejected 7912ms expected @089c0a150e63
+fail/facts/representation_agreement_through_other_state_rejected rejected 18184ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_parameter_rejected rejected 8588ms expected @089c0a150e63
+fail/facts/representation_agreement_through_parameter_rejected rejected 16578ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
-fail/facts/representation_agreement_through_target_body_rejected rejected 9468ms expected @26c39d0e6335
+fail/facts/representation_agreement_through_target_body_rejected rejected 15972ms expected @5346f203025c
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
 fail/facts/required_output_path/call_result rejected 1037ms expected @a763a36a6498
 	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -18423,6 +18423,8 @@ fail/termination/default_order_ambiguous rejected 3383ms expected @898dd1bf8987
 fail/termination/default_order_declared_measure_not_inferred rejected 3475ms expected @898dd1bf8987
 	cannot infer a ranking for `terminates by card` in machine Main::weaken: `Card` has no builtin well-founded order -- declared measures are never selected implicitly; select one with `terminates by card -> Card::PowerOrder`
 	machine call cycle: `Main::weaken` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/direct_member_unpublished_promise rejected 8456ms expected @5346f203025c
+	cannot prove published termination for machine `relay`: its checked body reaches an operation without a usable termination guarantee; state `relay::entry` statement 0 call 0 targets `Echo::make::make` through `Echo`, summary Some(NoGuarantee); source target `Echo::make::make`, selected contract `Maker::make`, public requirement `Maker::make` NoGuarantee
 fail/termination/distance_constant_bound_past_bound rejected 3508ms expected @898dd1bf8987
 	cannot prove the `terminates by` ranking for machine Main::walk
 	machine call cycle: `Main::walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -24358,15 +24360,15 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/representation_agreement_through_call_result_exit checked 11309ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_const_name_exit checked 18838ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_field_exit checked 18338ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_local_exit checked 11403ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_match_join_exit checked 11353ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_other_machine_exit checked 19698ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_other_state_exit checked 18054ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_parameter_exit checked 16434ms check-target:macos_arm64 @089c0a150e63
-pass/facts/representation_agreement_through_target_body_exit checked 10683ms check-target:macos_arm64 @089c0a150e63
+pass/facts/representation_agreement_through_call_result_exit checked 21864ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_const_name_exit checked 18927ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_field_exit checked 21284ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_local_exit checked 19497ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_match_join_exit checked 18827ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_other_machine_exit checked 21102ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_other_state_exit checked 18952ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_parameter_exit checked 20757ms check-target:macos_arm64 @5346f203025c
+pass/facts/representation_agreement_through_target_body_exit checked 22631ms check-target:macos_arm64 @5346f203025c
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
@@ -27662,6 +27664,7 @@ pass/termination/custom_ranking_order_compile checked 2938ms @ccdb99ca2214
 pass/termination/declared_selector_repeated_reads checked 6396ms check-target:macos_arm64 @d0dc0a825502
 pass/termination/default_order_nat_countdown_compile checked 2487ms @ccdb99ca2214
 pass/termination/default_order_slice_length_compile checked 7702ms @7b4244a67630
+pass/termination/direct_member_published_promise checked 13409ms @5346f203025c
 pass/termination/distance_conjunction_guard_exit checked 13452ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/distance_constant_bound_exit checked 11728ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/external_result_ranked_arrival_compile checked 2175ms @ccdb99ca2214
