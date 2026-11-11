@@ -14,7 +14,9 @@ requires value == 17
     value
 }
 
-linux_x86_64 machine apply(chosen: i64, spare: i64) -> i64 {
+linux_x86_64 machine apply(chosen: i64, spare: i64) -> i64
+requires chosen == 17
+{
     let joined: i64 = match choose() {
         true -> spare
         false -> chosen
@@ -22,7 +24,9 @@ linux_x86_64 machine apply(chosen: i64, spare: i64) -> i64 {
     read_origin(joined)
 }
 
-linux_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
+linux_arm64 machine apply(chosen: i64, spare: i64) -> i64
+requires chosen == 17
+{
     let joined: i64 = match choose() {
         true -> spare
         false -> chosen
@@ -30,7 +34,9 @@ linux_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
     read_origin(joined)
 }
 
-macos_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
+macos_arm64 machine apply(chosen: i64, spare: i64) -> i64
+requires chosen == 17
+{
     let joined: i64 = match choose() {
         true -> spare
         false -> chosen
@@ -38,7 +44,9 @@ macos_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
     read_origin(joined)
 }
 
-windows_x86_64 machine apply(chosen: i64, spare: i64) -> i64 {
+windows_x86_64 machine apply(chosen: i64, spare: i64) -> i64
+requires chosen == 17
+{
     let joined: i64 = match choose() {
         true -> spare
         false -> chosen
