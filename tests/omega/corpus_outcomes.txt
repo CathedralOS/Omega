@@ -3709,9 +3709,7 @@ fail/contracts/saved_float_guard_after_write rejected 3939ms expected @ccdb99ca2
 fail/contracts/scalar_copy_guard_after_selector_write rejected 14285ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from inspect: main.items[selected] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from inspect: main.items[selected] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/scalar_copy_guard_after_source_restore rejected 16955ms expected @ccdb99ca2214
-	cannot prove requires contract for call bounded from inspect: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call bounded from inspect: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/scalar_copy_guard_after_source_restore checked 28074ms @1454826b5aed
 fail/contracts/scalar_copy_guard_after_source_write rejected 14271ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from inspect: main.items[selector] >= 48 (needs fact `main.items[selector] >= 48` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from inspect: main.items[selector] <= 49 (needs fact `main.items[selector] <= 49` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -16054,8 +16052,7 @@ fail/layouts/fixed_layout_imported_private_policy_rejected rejected 20477ms expe
 	package PackageKeyIdentity([131, 251, 102, 11, 100, 19, 32, 195, 34, 215, 119, 159, 45, 191, 170, 85, 65, 235, 216, 38, 71, 115, 18, 139, 47, 38, 254, 244, 131, 160, 35, 13]) selects private conformance `values::PairLayout`
 fail/layouts/fixed_layout_overridden_invalid_policy_rejected rejected 462ms expected @2ba727eefb59+wt
 	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
-fail/layouts/fixed_layout_policy_borrowed_content rejected 2240ms expected @dc9835be2e64
-	specification call `policy` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/layouts/fixed_layout_policy_borrowed_content checked 12173ms @1454826b5aed
 fail/layouts/fixed_layout_policy_guarantee rejected 2698ms expected @dc9835be2e64
 	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)
 fail/layouts/fixed_layout_reference_descriptor_rejected rejected 14314ms expected @4815ea579d91
@@ -16261,10 +16258,8 @@ fail/layouts/unselected_ordinary_provider_body_type rejected 11500ms expected @4
 	machine `LinuxX8664LayoutDemandLayout::demand_layout` state `demand_layout` local `impossible` stores a boolean into a `u64` local, which holds a numeric value
 fail/layouts/unselected_ordinary_provider_crash_ceiling rejected 33719ms expected @4815ea579d91
 	machine `LinuxX8664LayoutDemandLayout::demand_layout` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
-fail/layouts/unselected_target_callback_layout_underflow rejected 1307ms expected @2ba727eefb59+wt
-	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/layouts/unselected_target_helper_layout_underflow rejected 3490ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
+fail/layouts/unselected_target_callback_layout_underflow checked 13243ms @1454826b5aed
+fail/layouts/unselected_target_helper_layout_underflow checked 12791ms @1454826b5aed
 fail/layouts/unselected_target_layout_contract rejected 4334ms unexpected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call impossible from scoped: size_of() == 0
 fail/layouts/unused_generic_concrete_integer_at_requires_fit rejected 2574ms expected @ccdb99ca2214

@@ -585,3 +585,107 @@ The question:
 Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
+
+### Q12 - May a guard on one copy bound a place restored from another copy of the same version?
+
+Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
+
+**Customer.** `tests/omega/fail/contracts/scalar_copy_guard_after_source_restore`
+reads `main.items[selector]` twice, into `copied` and `saved`, with no write
+between the reads. It then writes `0` to that element, writes `saved` back,
+and branches on `copied >= 48 && copied <= 49`. The `true` arm calls
+`bounded`, which requires `main.items[selector]` to lie in `48..=49`. When the
+program runs the requirement always holds: both copies hold the value the
+element had before the two writes, and the element holds that value again.
+The fixture pins "cannot prove requires contract". The current checker
+accepts it (`mbx xtask corpus --filter` reports `rejected -> checked` at
+`c507708a7a`), and the ledger row is recorded `checked` here. The fixture
+was last edited on 2026-10-27, before the decision below.
+
+**Gap.** The ratified text reads as describing this exact program:
+
+- [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md#restored-scalar-values):
+  *"For integer copies `copied` and `saved` of that same version, their
+  equality survives later writes to the original storage. A restoring store
+  of `saved` introduces an equality for the new storage version at its
+  captured destination. A guard on `copied` can then prove bounds on a later
+  read of that version."*
+- [State contracts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value)
+  (named decision `restored-scalar-value-facts`, ratified 2026-11-02):
+  *"Writing the saved value back establishes a new equality between the
+  current contents of that exact destination and the saved value. A
+  subsequent guard on the copy may therefore justify a requirement on the
+  restored contents."*
+
+Read together, the program is valid and the fixture contradicts the
+specification. Only the state-contracts sentence says "the copy" in the
+singular. It could be read as admitting only a guard on `saved` itself, not
+on a second copy of the same version.
+
+**Question.**
+
+- **(a)** Does a guard on any integer copy of the restored version justify
+  the requirement, as the fact-validity text says? Then the program is valid.
+  The fixture moves to `pass/` or is retired, and the checker is unchanged.
+- **(b)** Or does only a guard on the copy that was written back justify it?
+  Then the fact-validity sentence narrows and the checker must stop relating
+  `copied` to the restored element.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q13 - May a denotational call observe a record with shared reference fields through a shared reference?
+
+Decision name: `shared-observation-denotational-content`.
+
+**Customer.** `tests/omega/fail/layouts/fixed_layout_policy_borrowed_content`
+declares `data Payload [copy] { left: &u64; value: u64; right: u64; }` and
+lays it out with a `FixedLayout` policy. Its `validate` machine publishes
+`ensures policy(result, storage, expected)`, where `storage` is
+`&LayoutStorage<Payload, Policy>` and `policy` reads only `storage.value`.
+The fixture's header says *"A layout cannot make a borrowed field into a
+repeatable proof value"*. It pins "the application carries forbidden
+denotational content". The current checker accepts it (`rejected -> checked`
+at `c507708a7a`), and the ledger row is recorded `checked` here. The layout plays
+no part: the same program with `storage: &Payload` is also accepted.
+
+**Cause.** #2184 (`4a194ff149`, 2026-11-09) made shared reference arguments
+use a separate `SharedObservation` content rule in
+`omega-rust/psi/compilation/validation/src/proof_contracts_core.rs`. That
+rule follows a readable reference field inside the shared referent instead
+of refusing it: *"The enclosing shared loan permits reads through these
+fields; their actual observations still retain storage and backing
+identity."* Before #2184 the argument went through the value-observation
+rule, which refuses every reference field. That refusal is the diagnostic the
+fixture pins. Slices of reference-bearing elements still refuse under the new
+rule (`fail/facts/computed_subslice_extent_nested_reference_elements_rejected`).
+
+**Gap.** These contracts were checked and do not say whether such content is
+admissible:
+
+- [Contracts](wiki/spec/proofs/contracts.md): *"A call interpreted
+  denotationally needs a checked observation-free, reach-free, crash-free,
+  terminating invocation"*, and repeated pure comparisons share a denotation
+  only for *"exact unchanged arguments"*; *"observation-dependent inputs ...
+  invalidate that reasoning"*.
+- [Invocation admission](wiki/spec/language/evaluation.md#invocation-admission)
+  lists the admission axes. None of them mentions reference fields reached
+  through a shared argument.
+- [Ownership](wiki/spec/language/ownership.md): *"Shared reference and
+  borrowed-view fields may occur in `[copy]` data ... Copying the record
+  duplicates its shared loan carriers, not its referents"*. This rule is about
+  copying, not proof use.
+
+Neither text says whether reading through a shared loan into a record whose
+fields are themselves shared references gives an argument that is
+"unchanged" and free of observations for a specification call.
+
+**Question.**
+
+- **(a)** Are readable reference fields inside a shared referent admissible
+  denotational content, as the checker has held since #2184? Then the
+  fixture is a valid program and moves to `pass/` or is retired.
+- **(b)** Or does any reference field in a denotational argument carry
+  forbidden content? Then the shared-observation rule stops following
+  reference fields, and the customer #2184 served needs another form.
+
+Until answered the row stays as recorded and the checker is unchanged.
