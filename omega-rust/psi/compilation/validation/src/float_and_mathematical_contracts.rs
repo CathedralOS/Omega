@@ -73,12 +73,11 @@ pub mod float_projection_bindings {
                 if result_primitive != target
                     || crate::reserved_result_owner(program, result).map(|owner| owner.0)
                         != Some(operator.symbol)
-                    || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    || !candidate.relation.relates_meanings(
                         program,
                         operator.symbol,
                         candidate.expression,
-                        language_core::OperatorSpelling::Equal,
-                        &[Some(meaning_type), Some(meaning_type)],
+                        meaning_type,
                     )
                 {
                     return None;
@@ -157,10 +156,81 @@ pub mod float_projection_bindings {
 
         pub(crate) struct ConversionEqualityCandidate<'program> {
             expression: ExpressionHandle,
+            relation: FloatLawRelation,
             result: ExpressionHandle,
             conversion: &'program typed_trees::expression::TableCallExpression,
             selected: Option<&'program OperatorDefinition>,
             semantic: &'static FloatSemanticOperation,
+        }
+
+        /*
+            The core library states a float law in one of two forms. A law whose
+            subjects are scalars (`bool`, a class, an integer) uses the builtin
+            `==`. A law whose subjects are `FloatMeaning` values uses the sealed
+            `core::Identity<FloatMeaning>(left, right)`, because a mathematical
+            meaning has no executable equality. Every recognizer of a float law
+            reads it through this one reader, so a law keeps its role in either
+            form instead of silently losing it when the library respells it.
+        */
+        #[derive(Clone, Copy)]
+        pub(super) enum FloatLawRelation {
+            BuiltinEquality,
+            MeaningIdentity(TypeReferenceHandle),
+        }
+
+        pub(super) fn float_law_subjects(
+            program: &dyn crate::CheckingInput,
+            law: ExpressionHandle,
+        ) -> Option<(FloatLawRelation, [ExpressionHandle; 2])> {
+            if let Some(equality) = expression_table(program).binary_node(law) {
+                return (equality.operator == BinaryOperator::Equal).then_some((
+                    FloatLawRelation::BuiltinEquality,
+                    [equality.left, equality.right],
+                ));
+            }
+            let call = expression_table(program).call_node(law)?;
+            let identity = crate::proof_contracts::mathematical_applications::identity_application(
+                program, call,
+            )
+            .ok()?;
+            Some((
+                FloatLawRelation::MeaningIdentity(identity.carrier),
+                identity.subjects,
+            ))
+        }
+
+        impl FloatLawRelation {
+            /*
+                Whether this law relates two values of the exact `meaning_type`.
+                The identity form must name the toolchain's own `FloatMeaning` as
+                its carrier. An identity over any other type says nothing about
+                float meanings and is refused here rather than read as one.
+            */
+            pub(super) fn relates_meanings(
+                self,
+                program: &dyn crate::CheckingInput,
+                owner: symbols::SymbolHandle,
+                law: ExpressionHandle,
+                meaning_type: TypeReferenceHandle,
+            ) -> bool {
+                match self {
+                    Self::BuiltinEquality => {
+                        typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            program,
+                            owner,
+                            law,
+                            language_core::OperatorSpelling::Equal,
+                            &[Some(meaning_type), Some(meaning_type)],
+                        )
+                    }
+                    Self::MeaningIdentity(carrier) => {
+                        super::is_exact_toolchain_float_meaning_type(program, carrier)
+                            && super::is_exact_toolchain_float_meaning_type(program, meaning_type)
+                            && program.normalized_type_identity(carrier)
+                                == program.normalized_type_identity(meaning_type)
+                    }
+                }
+            }
         }
 
         fn scan_conversion_equalities<'program, R>(
@@ -179,16 +249,11 @@ pub mod float_projection_bindings {
                 program,
                 program.operator_contracts(operator),
             ) {
-                let Some(equality) = expression_table(program).binary_node(expression) else {
+                let Some((relation, [left, right])) = float_law_subjects(program, expression)
+                else {
                     continue;
                 };
-                if equality.operator != BinaryOperator::Equal {
-                    continue;
-                }
-                for (result, converted) in [
-                    (equality.left, equality.right),
-                    (equality.right, equality.left),
-                ] {
+                for (result, converted) in [(left, right), (right, left)] {
                     let Some(conversion) = expression_table(program).call_node(converted) else {
                         continue;
                     };
@@ -197,6 +262,7 @@ pub mod float_projection_bindings {
                     };
                     if let Some(verdict) = judge(&ConversionEqualityCandidate {
                         expression,
+                        relation,
                         result,
                         conversion,
                         selected,
@@ -269,6 +335,7 @@ pub mod float_projection_bindings {
                         FloatSemanticKernel::ToIntegerExact
                             | FloatSemanticKernel::ToIntegerSaturating
                     )
+                    || !matches!(candidate.relation, FloatLawRelation::BuiltinEquality)
                     || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                         program,
                         operator.symbol,
@@ -340,16 +407,12 @@ pub mod float_projection_bindings {
                 program,
                 program.operator_contracts(operator),
             ) {
-                let Some(equality) = expression_table(program).binary_node(expression) else {
+                let Some((relation, [left, right])) =
+                    super::conversion_contracts::float_law_subjects(program, expression)
+                else {
                     continue;
                 };
-                if equality.operator != BinaryOperator::Equal {
-                    continue;
-                }
-                for (result, meaning) in [
-                    (equality.left, equality.right),
-                    (equality.right, equality.left),
-                ] {
+                for (result, meaning) in [(left, right), (right, left)] {
                     let Some(result_call) = expression_table(program).call_node(result) else {
                         continue;
                     };
@@ -372,12 +435,11 @@ pub mod float_projection_bindings {
                     if primitive != target
                         || crate::reserved_result_owner(program, *result_value).map(|owner| owner.0)
                             != Some(operator.symbol)
-                        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        || !relation.relates_meanings(
                             program,
                             operator.symbol,
                             expression,
-                            language_core::OperatorSpelling::Equal,
-                            &[Some(projection.return_type), Some(projection.return_type)],
+                            projection.return_type,
                         )
                     {
                         continue;
