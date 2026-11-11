@@ -3028,8 +3028,8 @@ fail/capabilities/blocking_beneath_no_block_root rejected 1727ms expected @2fc40
 	machine `Main::main` omits `blocks` from its published contract, but its body may block
 fail/capabilities/boundary_qualification_subject_rejected rejected 651ms expected @ccdb99ca2214
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
-fail/capabilities/callback_synchronous_registration_cycle rejected 17888ms unexpected @ccdb99ca2214
-	free Unit entry stack demand: TerminalStackCycle(MachineId(2))
+fail/capabilities/callback_synchronous_registration_cycle rejected 14500ms unexpected @bbcd76b6ba0a
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
 fail/capabilities/cyclic_synchronous_invocation rejected 3107ms expected @ccdb99ca2214
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 1444ms expected @ccdb99ca2214
@@ -15767,8 +15767,8 @@ fail/host/console_byte_payload_above_byte rejected 13098ms expected @ccdb99ca221
 	data `ByteRead` case `Byte` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/host/console_byte_payload_negative rejected 13902ms expected @ccdb99ca2214
 	data `ByteRead` case `Byte` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 2149ms unexpected @ccdb99ca2214
-	machine `Main::main` state `main` statement 2: call stores a borrowed value without a complete destination/backing relation
+fail/host/descriptor_read_guarded_prefix_without_admitted_abi rejected 3815ms unexpected @bbcd76b6ba0a
+	machine `Main::main` state `main` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
 fail/host/macos_image_snapshot_wrong_extent rejected 26050ms expected @4815ea579d91
 	cannot prove requires contract for call macos_image_snapshot from main: pixels[..].len == 3 as u64 * 2 as u64 (needs fact `pixels.len == width as u64 * height as u64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `pixels[..].len == (3 as u64) * (2 as u64)`
 fail/host/process_exit_argument_requires_live_custody rejected 1634ms expected @ccdb99ca2214
@@ -20047,7 +20047,8 @@ pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-ta
 pass/borrows/explicit_lifetime_select checked 3214ms @ccdb99ca2214
 pass/borrows/fixed_array_reference_backing_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/fixed_array_reference_results_exit checked 8069ms check-target:macos_arm64 @af4614055bdd
-pass/borrows/foreign_output_captured_reference_exit checked 9150ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/foreign_output_captured_reference_exit rejected 6784ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	completed output has no captured lifetime-input receipt; completed output from `again` in machine `repeat`, state `entry` (Handle { arena_index: 2710, generation: 1 }), statement 0, call 0, loan Handle { arena_index: 14, generation: 1 }
 pass/borrows/foreign_output_copied_lifetime_last_use checked 2399ms @ccdb99ca2214
 pass/borrows/foreign_output_exclusive_anchor_exit checked 39004ms check-target:macos_arm64 @e8e0e531e729
 pass/borrows/foreign_output_nested_shared_input_exit checked 2541ms check-target:macos_arm64 @b3091681227f
@@ -20519,7 +20520,8 @@ pass/build/named_map_target_family_rows_exit checked 40091ms check-target:macos_
 pass/build/native_component_case_cycle checked 6940ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_case_loan_cycle checked 7041ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/native_component_reuse_foreign checked 6215ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/native_component_reuse_foreign rejected 13896ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
 pass/build/native_row_outranks_scoped_implementations_exit checked 13552ms check-target:macos_arm64 @4815ea579d91
 pass/build/nested_generated_dependency_dual_purpose checked 4792ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_provider_readiness checked 11097ms check-target:macos_arm64 @ccdb99ca2214
@@ -20611,7 +20613,8 @@ pass/calls/by_value_case_param_self_write_exit checked 21790ms check-target:maco
 pass/calls/call_local_reassign checked 4318ms @ccdb99ca2214
 pass/calls/callback_borrowed_record_entry checked 153166ms check-target:macos_arm64 @6e30f0a63175
 pass/calls/callback_borrowed_scalar_entry checked 134901ms check-target:macos_arm64 @6e30f0a63175
-pass/calls/callback_future_registration_cycle checked 22011ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/callback_future_registration_cycle rejected 28101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
 pass/calls/callback_mixed_formal_entry checked 241092ms check-target:macos_arm64 callback-telescope-controls:match terminal-inspections:match @6e30f0a63175
 pass/calls/callback_owned_float_record checked 127290ms check-target:macos_arm64 @6e30f0a63175
 pass/calls/callback_owned_float_record_packing checked 161744ms check-target:macos_arm64 @6e30f0a63175
@@ -20731,7 +20734,8 @@ pass/calls/owned_state_parameter_call_exit checked 15998ms check-target:macos_ar
 pass/calls/prefix_effectful_call checked 9472ms @7b4244a67630
 pass/calls/private_arrival_guarded_helper_range_exit checked 9944ms check-target:macos_arm64 @6f6402629925
 pass/calls/private_arrival_identity_return_range_exit checked 9976ms check-target:macos_arm64 @6f6402629925
-pass/calls/private_callback_call_closure checked 22551ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/private_callback_call_closure rejected 27291ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `macos_arm64`
 pass/calls/projected_receiver_callee checked 7606ms @911f6617ba9e
 pass/calls/qualified_record_call_result_field_exit checked 16957ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/recursive_terminal_block_acknowledgement_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
@@ -20742,7 +20746,8 @@ pass/calls/requires_carrier_ceiling_vacuous checked 11756ms check-target:macos_a
 pass/calls/requires_machine_explicit_operational_closers_exit checked 1220ms check-target:macos_arm64 @45fb2a705c96
 pass/calls/requires_operand_flip_discharge checked 16267ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/result_overload_terminal_arm_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/resultless_native_callback_compile checked 18398ms check-target:linux_x86_64 @ccdb99ca2214
+pass/calls/resultless_native_callback_compile rejected 25829ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `linux_x86_64`
 pass/calls/retained_receiver_argument_order_exit checked 17156ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/returned_nested_record_disjoint_field_move_exit checked 1391ms check-target:macos_arm64 @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:macos_arm64 @1e127a84987a
@@ -27524,8 +27529,11 @@ pass/providers/finite_requirement_direct_provider_exit checked 10288ms check-tar
 pass/providers/finite_requirement_forwarded_const_exit checked 8474ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/float_operator_demands_its_provider_exit checked 11563ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/foreign_address_result_release_exit checked 17850ms check-target:linux_x86_64 @2be83686053c
-pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
-	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
+pass/providers/foreign_indirect_record_distinct_exit rejected 9088ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	no provider is selected for boundary requirement `AllocationProbe::statistics`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::exit_with`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::allocate`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `AllocationProbe::release`, which the program entry reaches on target `linux_x86_64`
 pass/providers/foreign_indirect_record_relay_exit checked 19532ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_indirect_record_result_exit checked 19302ms check-target:linux_x86_64 @2be83686053c
 pass/providers/foreign_multiregister_result_exit checked 71755ms check-target:macos_arm64 @e8e0e531e729
@@ -27615,7 +27623,8 @@ pass/providers/runtime_provider_mutable_reference_exit checked 8033ms check-targ
 pass/providers/runtime_provider_mutable_reference_forward_exit checked 9729ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_owned_reference_exit checked 9887ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_alias_exit checked 8720ms check-target:linux_x86_64 @17566023e3d8
-pass/providers/runtime_provider_reference_allocation_exit checked 19158ms check-target:linux_x86_64 @b67195dbc8f8
+pass/providers/runtime_provider_reference_allocation_exit rejected 7085ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
+	machine `initialize_frame` state `entry` statement 3: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
 pass/providers/runtime_provider_reference_computed_exit checked 9439ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_deep_exit checked 8673ms check-target:linux_x86_64 @17566023e3d8
 pass/providers/runtime_provider_reference_nested_exit checked 10042ms check-target:linux_x86_64 @17566023e3d8
