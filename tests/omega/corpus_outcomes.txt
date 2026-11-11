@@ -19057,8 +19057,8 @@ fail/traits/float_contract_refinement_strict_endpoint rejected 3116ms expected @
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result < 0.5`; callers of the requirement assume it
 fail/traits/float_contract_refinement_wrong_subject rejected 3044ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
-fail/traits/forwarded_implementation_argument_other_map rejected 33287ms expected @3d461306e4ec
-	selected map disagrees with its supplying evidence bound
+fail/traits/forwarded_implementation_argument_other_map rejected 6116ms expected @4317e4240582
+	generic machine `apply` cannot bind `Double` to conformance `PlainDoubling`: expected a complete `Doubling` implementation with the instantiated trait arguments
 fail/traits/generic_dyn_contract_wrong_context rejected 1051ms expected @ccdb99ca2214
 	argument `context` for state `read` expects `&Context`, got `named value`
 	argument `context` for conformance requirement `Reader::read` does not match the binder's trait arguments
