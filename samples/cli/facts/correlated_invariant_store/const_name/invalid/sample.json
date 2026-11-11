@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "not provably within its data's `where` facts"
+    "not provably within its data's `requires` facts"
   ]
 }
