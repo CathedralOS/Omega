@@ -22,7 +22,7 @@
       "Bash(python3 tools/corpus_gate.py:*)",
       "Bash(python3 tools/sample_native_gate.py:*)",
       "Bash(python3 tools/test_affected.py:*)",
-      "Bash(python3 tools/warm_build.py wait)",
+      "Bash(bash tools/warm_build.sh restore:*)",
       "Bash(bash tools/agent_setup.sh)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -39,8 +39,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/tools/warm_build.py session-start",
-            "async": true
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/tools/warm_build.sh session-start",
+            "timeout": 180
           }
         ]
       }
