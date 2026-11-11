@@ -13350,12 +13350,18 @@ pub mod default_domains {
         let mut poisoned_paths: Vec<String> = Vec::new();
         let mut call_established: Vec<String> = Vec::new();
         let mut inherited_windows: Vec<InvariantWindow> = entry_windows.to_vec();
-        let mut has_explicit_crash = false;
+        // A state is left through its transition rows or by running off the end
+        // of its statements, and each exit is judged by its own kind: a return
+        // must find every `requires` window closed, a crash may abandon one.
+        // `left_by_crash` records that a crash row ended the dispatch, so nothing
+        // after it runs and the end of the list is not a return. `return_refused`
+        // keeps a state whose arms all return from repeating one diagnostic per
+        // arm.
+        let mut left_by_crash = false;
+        let mut return_refused = false;
+        let statements = program.statement_table.statements(state.statement_nodes);
 
-        for (statement_ordinal, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
+        for (statement_ordinal, statement) in statements.iter().enumerate() {
             scan_statement_reads(
                 program,
                 machine,
@@ -13604,11 +13610,15 @@ pub mod default_domains {
                     seed_transported_initializer(program, local, &mut tracked);
                 }
                 StatementNode::Transition(transition) => {
-                    if matches!(
+                    let is_crash_row = matches!(
                         transition.exit,
                         typed_trees::statement::TransitionExit::Crash(_)
-                    ) {
-                        has_explicit_crash = true;
+                    );
+                    if is_crash_row {
+                        left_by_crash |= crate::declarations::transitions::admitted_dispatch_ends(
+                            transition,
+                            statements.get(statement_ordinal + 1),
+                        );
                         if record_crash_sites {
                             let mut open_data = tracked
                                 .iter()
@@ -13681,12 +13691,29 @@ pub mod default_domains {
                             active_callees,
                         );
                     }
+                    // An ordinary row of a state with no sibling-state edge
+                    // leaves the machine, so it is a return and is checked
+                    // here, where the row runs. Waiting for the end of the list
+                    // would let a later crash row answer for it.
+                    if exit_is_terminal && !is_crash_row && !left_by_crash && !return_refused {
+                        let reported = diagnostics.len();
+                        refuse_open_windows(
+                            &tracked,
+                            &inherited_windows,
+                            machine,
+                            state,
+                            None,
+                            "return",
+                            diagnostics,
+                        );
+                        return_refused = diagnostics.len() > reported;
+                    }
                 }
                 _ => {}
             }
         }
 
-        if exit_is_terminal && !has_explicit_crash {
+        if exit_is_terminal && !left_by_crash && !return_refused {
             refuse_open_windows(
                 &tracked,
                 &inherited_windows,
