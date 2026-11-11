@@ -2225,8 +2225,7 @@ struct Ledger;
     #[test]
     fn pending_pin_promotes_only_to_the_same_fail_place() {
         assert_eq!(
-            pending_promotion_path("tests/omega/pending/dependent/example/expected.txt")
-                .as_deref(),
+            pending_promotion_path("tests/omega/pending/dependent/example/expected.txt").as_deref(),
             Some("tests/omega/fail/dependent/example/expected.txt")
         );
         assert_eq!(
