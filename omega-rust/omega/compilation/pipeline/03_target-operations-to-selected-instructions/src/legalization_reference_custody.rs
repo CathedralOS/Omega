@@ -5584,17 +5584,11 @@ fn call_results(
             if !access_covers(source.access, result_access) {
                 return Err(invalid());
             }
-            if reference_source_type(function, custody, types, source)
+            let suffix = reference_source_type(function, custody, types, source)
                 .and_then(|root| {
-                    terminal_semantics::reference_origin_type(types.iter(), root, &binding.suffix)
+                    binding.projected_origin_suffix(types.iter(), root, expected, result_access)
                 })
-                .is_none_or(|endpoint| {
-                    binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && endpoint != expected
-                })
-            {
-                return Err(invalid());
-            }
+                .ok_or_else(|| invalid())?;
             let mut leaf = if transfers_existing {
                 let Some((StructuralPathSegment::Referent, carrier_path)) =
                     source.path.split_last()
@@ -5617,7 +5611,7 @@ fn call_results(
                 }
             } else {
                 let (root, parents) = normalized_source(function, custody, types, source)?;
-                let root = root.projected_family(&binding.suffix, binding.extent);
+                let root = root.projected_family(&suffix, binding.extent);
                 let (backing, backing_parents) = descriptor_backing::capture(
                     function,
                     custody,

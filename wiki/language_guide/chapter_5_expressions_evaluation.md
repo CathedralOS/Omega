@@ -185,13 +185,19 @@ let bad: i32 = (7 / 2) as i32;            // Rejected: 3.5 is not an integer.
 let duration_ms: u32 = ((1 / 3 + 1 / 6) * 1000) as u32;   // 500
 ```
 
-If a formula passes through a fraction on its way to an integer, the compiler
+If a formula passes through a fraction on its way to a computational integer, the compiler
 makes you choose: give an operand a type to get integer arithmetic, or cast
 the whole formula with `as` to keep the exact math. `as` never truncates or
 rounds.
 
-Integer `/` and `%` truncate toward zero: `-7 / 2` is `-3` and `-7 % 2` is
-`-1`.
+For integer computation without a finite width, use `i` or nonnegative `u`:
+`7i / 2i` is `3i`, and `-7i % 2i` is `-1i`. Conversion with `as i` or
+`as u` preserves the value and changes the computational carrier explicitly.
+
+Use `embed` to enter mathematical arithmetic. `embed(7i32) / 2` is exact
+rational `7/2`; `embed(7i32 / 2)` instead embeds the integer quotient `3`.
+Named `integer::quotient` and `integer::remainder` remain available in
+mathematical expressions. See [numeric conversions and division](../spec/language/numeric_values.md#unbounded-computational-integers).
 
 ## Converting between numbers
 

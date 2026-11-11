@@ -84,9 +84,12 @@ mixing compatible machines from different named implementations is permitted
 unless a published record predicate or explicit evidence relates them. Field
 completeness is not a proof of cross-operation laws, matching allocators, or a
 shared implementation identity. Such relationships must be stated and proved.
-Static trait laws do not appear on a record that does not carry them; a trait's
-[schema](conformances.md#implementations-are-operation-records) carries its laws
-as fields, and construction proves them.
+Static trait guarantees do not appear on a record that does not carry them.
+A trait's [schema](conformances.md#implementations-are-operation-records) has
+selected callable fields for its machine requirements, ordinary values for its
+explicitly typed evidence fields, and validity obligations for its constraints.
+Construction checks each according to its declared type. No resultless machine
+member is silently converted into proof-irrelevant evidence.
 
 Callable addresses do not automatically supply executable equality, ordering,
 hashing, or proof identity. Ordinary conformance synthesis needs its published
@@ -110,11 +113,13 @@ consumer taking the record as a static parameter calls the selected declaration
 under its exact published contract, with reach, suspension, blocking, crash,
 termination, carry and result relations projected per selected field.
 
-The same record schema may be materialized at runtime, where each field is the
-callable descriptor described above. Materialization requires every selection's
-static arguments closed and a finite published envelope; an open generic family
-has no descriptor. [Implementations](conformances.md#implementations-are-operation-records)
-are records of these selections.
+The same record schema may be materialized at runtime, where each callable field
+is the descriptor described above and ordinary fields retain their ordinary
+representation. Erased fields contribute no runtime storage. Materialization
+requires every selection's static arguments closed and a finite published
+envelope; an open generic family has no descriptor.
+[Implementations](conformances.md#implementations-are-operation-records)
+are records of these selections and their explicitly declared ordinary fields.
 
 ## Static and runtime selection
 

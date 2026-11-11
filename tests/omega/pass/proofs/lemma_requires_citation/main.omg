@@ -7,24 +7,24 @@
 use omega::language::core::nat;
 boundary machine unit_right(a: Nat) -> Nat
 ensures
-    (a) == (add(a, Nat::Zero {}));
+    core::Identity<Nat>(a, add(a, Nat::Zero {}));
 machine minus(a: Nat, b: Nat) -> Nat {
     transition { _ -> (a) }
 }
 machine minus_swap(a: Nat, b: Nat, c: Nat) -> Nat
 requires
-    (a) == (add(b, Nat::Zero {}))
+    core::Identity<Nat>(a, add(b, Nat::Zero {}))
 ensures
-    (minus(a, c)) == (minus(b, c))
+    core::Identity<Nat>(minus(a, c), minus(b, c))
 {
     unit_right(b);
     transition { _ -> (minus(a, c)) }
 }
 machine cite_with_requires(x: Nat, y: Nat, z: Nat) -> Nat
 requires
-    (x) == (add(y, Nat::Zero {}))
+    core::Identity<Nat>(x, add(y, Nat::Zero {}))
 ensures
-    (minus(x, z)) == (minus(y, z))
+    core::Identity<Nat>(minus(x, z), minus(y, z))
 {
     _ = minus_swap(x, y, z);
     transition { _ -> (minus(x, z)) }

@@ -67,143 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
-
-Decision name: `operation-record-source-forms`.
-
-**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md) is a
-human-set priority item, and `OWNED-ACTIVATIONS` is sequenced after it. Its
-acceptance list in
-[operation-record implementations](wiki/drafts/designs/operation_record_implementations.md#acceptance)
-(ratified 2026-11-09 as documentation) names four behaviors that an author
-must be able to write: *"a branded pair is two"*, *"a stored theorem selection
-yields two"*, *"conflicting parents reject without an explicit choice"*, and *"A
-computed record offered to Build is checked for slots, realization and
-admission"*. The product requirement is the one the design states: a library
-that reuses existing machines in an implementation, and that keeps two policies
-with identical selections apart on purpose, without forwarding members.
-Implementation of the decided parts (selection rows, structural identity,
-static callable selections, the schema as a record type) is proceeding; these
-four acceptance cases cannot be written as programs.
-
-**Gap.** Contracts checked and found silent on the source form:
-
-- [Conformances](wiki/spec/language/conformances.md#implementations-are-operation-records):
-  *"a deliberately distinct policy carries an explicit brand"*. No section of
-  `conformances.md`, `machine_values.md`, `domains.md` or
-  [chapter 14](wiki/language_guide/chapter_14_traits.md) gives a declaration,
-  field or clause that is a brand, or says how a brand enters identity.
-- The same section: *"A strict proof is irrelevant, a stored theorem selection
-  retains its declaration identity"*. Traits declare laws today as resultless
-  `machine name(...) ensures ...;` requirements
-  (`source/library/core/algebra.omg`). Nothing says which source form makes a
-  law field a strict proof and which makes it a stored selection, so a row
-  `Trait::law = some_lemma;` has no defined sort.
-- The same section: *"a diamond duplicates nothing and conflicting selections
-  need an explicit choice"*. A diamond has one originating requirement and so
-  one slot; the text does not say what a conflict is in that case or how the
-  choice is written. Qualified rows (`Left::set = a; Right::set = b;`) already
-  separate same-named requirements of different origins.
-- The same section and
-  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
-  *"Build may consume a computed record"*. `Build::select_provider<Slot,
-  Provider>(builder)` takes a named implementation as a static argument. The
-  text does not say whether a `const` record of the schema is admissible as
-  `Provider` or whether another Build operation is meant.
-
-**Questions for Zac.**
-
-- **(a) Brand:** What is a brand in source: a field of the schema, a clause on
-  the `satisfies` block, a declared marker type, or an ordinary relevant field
-  the author adds? Does it take part in identity as a relevant field value?
-- **(b) Law evidence:** Is `Trait::law = lemma;` a strict proof, so identity
-  ignores which lemma was cited, with a separate form for a stored theorem
-  selection? If so, what is that form?
-- **(c) Explicit choice:** Is the choice a qualified row naming the parent
-  whose selection wins, and is a conflict two parent implementations selecting
-  different machines for one originating requirement?
-- **(d) Computed record to Build:** Is a `const` value of the schema admissible
-  wherever `select_provider` takes a named implementation, checked for slots,
-  realization and admission as today?
-
-One reading the implementer applies meanwhile, stated so it can be corrected:
-structural identity unifies two all-row `satisfies` blocks with the same
-selections, and does not unify a block with an inline member body with any
-other, because *"An inline body still declares a new machine"*.
-
-### Q2 - Does explicit landing apply at a proof-level Int peer?
-
-Decision name: `explicit-landing-proof-int-peer`.
-
-An anonymous calculation whose exact history holds a fractional intermediate,
-used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
-in an `ensures` clause), lands as a mathematical integer. Should it reject like
-a fixed-integer destination, and if so how does an author acknowledge it?
-
-- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-  makes implicit integer landing an error and names `as T` with an integer
-  destination `T` as the acknowledgement; it does not say whether the
-  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
-- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
-  lists "proof integer peers" in its sweep and also says "proof-level
-  mathematical operations retain their rules".
-- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
-  program: the contract prover then cannot show the divisor nonzero
-  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
-
-Until answered, the compiler rejects every fixed-integer implicit landing and
-keeps the proof-`Int` peer as a warning.
-
-### Q3 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
-
-Decision name: `implementation-telescope-identity`.
-
-**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md)
-(human-set priority) requires structural identity: *"Two names for the same
-selections are one implementation"*. Selection rows landed in `#2315`; the next
-step unifies implementations by their selections. Library and corpus code
-relies today on implementations that select nothing: 283 `.omg` files declare an
-empty `Name satisfies Trait {}` block as a marker, and
-`tests/omega/fail/traits/implementation_value_own_const_mismatch` pins that
-`Holder<Choice<ZERO>>` is not `Holder<Choice<EIGHT>>` for
-`Choice<const Value: u64> satisfies Tag {}`. The product requirement is a
-marker or phantom-indexed implementation that keeps two uses apart at compile
-time, which those sources already express.
-
-**Gap.** Two ratified passages of
-[conformances](wiki/spec/language/conformances.md) give different answers and
-neither names this case:
-
-- Before the operation-record section: *"The telescope participates in every
-  concrete application's identity. Adding, removing, or reordering type, const,
-  or static-machine binders breaks existing applications"*. Read alone,
-  `Choice<ZERO>` and `Choice<EIGHT>` differ.
-- [Implementations are operation records](wiki/spec/language/conformances.md#implementations-are-operation-records):
-  *"Identity is the schema application plus its canonical relevant field
-  values. A name creates no identity and grants no authority: two names for
-  one value are one implementation"*. The schema application of both is `Tag`
-  and neither has a field, so read alone they are one value, and so are any
-  two empty implementations of one trait.
-
-The same section says *"a deliberately distinct policy carries an explicit
-brand"*, whose spelling is the subject of `operation-record-source-forms`
-above, so the marker implementations cannot be migrated to brands yet.
-
-**Questions for Zac.**
-
-- **(a)** Is an implementation's own telescope application part of its identity
-  under the operation-record rule even when no selected field mentions the
-  binder, so `Choice<ZERO>` and `Choice<EIGHT>` stay distinct?
-- **(b)** Are two differently named, non-generic, empty implementations of one
-  trait one value, or does an implementation with no selections keep the
-  identity of its declaration until brands exist?
-
-Reading applied meanwhile, stated so it can be corrected: structural identity
-unifies only non-generic implementations that have at least one row and whose
-rows are all selection rows. Empty and generic implementations keep their
-current declaration-and-argument identity.
-
-### Q4 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
 
 Decision name: `unproved-goal-form-publication`.
 
@@ -239,7 +103,7 @@ has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
 
-### Q5 - May a Build program select a provider for a requirement it declares itself?
+### Q2 - May a Build program select a provider for a requirement it declares itself?
 
 Decision name: `build-declared-requirement-provider`.
 
@@ -273,7 +137,7 @@ The question:
 
 Until answered the fixture stays red and the compiler selects nothing.
 
-### Q6 - Who approves a new rule in the proof kernel?
+### Q3 - Who approves a new rule in the proof kernel?
 
 Decision name: `kernel-rule-admission`.
 
@@ -311,7 +175,7 @@ The question:
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
 
-### Q7 - May a caller rely on what a callee's body returns beyond its `ensures`?
+### Q4 - May a caller rely on what a callee's body returns beyond its `ensures`?
 
 Decision name: `callee-result-body-summary`.
 
@@ -395,7 +259,7 @@ false`, from both arms returning `false`) reach its callers when the callee's
 Under (c) the current checker's acceptance of this fixture is an error, and
 the fixture moves to `fail/` or gains `ensures result == false`.
 
-### Q8 - What source form binds a boundary requirement to a field of a foreign function table?
+### Q5 - What source form binds a boundary requirement to a field of a foreign function table?
 
 Decision name: `native-table-field-binding`.
 
@@ -443,7 +307,7 @@ field of a foreign table?
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
 
-### Q9 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q6 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -495,7 +359,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q10 - May a nested helper's body rely on facts its caller holds at the call?
+### Q7 - May a nested helper's body rely on facts its caller holds at the call?
 
 Decision name: `nested-helper-caller-facts`.
 
@@ -547,7 +411,7 @@ not use.
 
 Until answered the row is left as recorded and the checker is unchanged.
 
-### Q11 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q8 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -586,7 +450,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q12 - May a guard on one copy bound a place restored from another copy of the same version?
+### Q9 - May a guard on one copy bound a place restored from another copy of the same version?
 
 Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
 
@@ -633,7 +497,7 @@ on a second copy of the same version.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q13 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q10 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -690,7 +554,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q14 - Which in-memory filesystem does a test group select, and what does it implement?
+### Q11 - Which in-memory filesystem does a test group select, and what does it implement?
 
 Decision name: `test-group-virtual-filesystem`.
 

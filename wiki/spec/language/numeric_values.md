@@ -166,14 +166,111 @@ launder that dependency into cross-target reproducibility. Hardware exceptions
 remain masked; signaling-state APIs do not promise an ambient hardware trap or
 replace Omega's result-based `Trapping` policy.
 
+## Unbounded computational integers
+
+Named decision: `unbounded-computational-integers`, settled 2026-11-11.
+`i` admits every signed integer and `u` every nonnegative integer, with literals
+such as `7i` and `7u`. They are concrete types, not anonymous numbers, inferred
+finite widths, or placeholders for an unselected storage layout. Their value
+domains and operations do not change when a realization is chosen. An expected
+`i32` result cannot reinterpret `7i` as an `i32` literal.
+
+| Operation | `i` | `u` |
+| --- | --- | --- |
+| `+`, `*` | Exact integer result, without numerical overflow. | Exact nonnegative integer result, without upper overflow. |
+| `-` | Exact signed difference. | Requires right <= left. |
+| `/` | Integer quotient, truncating toward zero. | Nonnegative integer quotient. |
+| `%` | Remainder corresponding to that quotient. | Corresponding nonnegative remainder. |
+| Division or remainder by zero | Must be excluded before formation. | Must be excluded before formation. |
+
+Unary negation on `i` gives the signed result. On `u` it must establish that
+the result remains nonnegative; convert to `i` before requesting a negative
+result. A cast after an invalid subtraction or negation cannot repair it.
+
+Core computational arithmetic requires the same typed carrier on both sides;
+an anonymous operand can land in that carrier. Thus `7i + 2` has type `i`,
+while `7i + 2u` and `7i32 + 2i` require an explicit carrier choice.
+Nonintegral anonymous operands cannot land in `i` or `u`. This introduces no
+automatic widening or signed/unsigned arithmetic promotion.
+
+### Computational conversions
+
+`as i` and `as u` are exact, value-preserving computational conversions.
+Every computational integer can convert to `i`; conversion to `u` requires
+nonnegativity. Conversion from `i` or `u` to a bounded carrier proves the
+destination's range and ordinary validity obligations. These conversions never
+round, truncate, wrap or saturate. Source qualifications and authority retain
+the ordinary [cast rules](domains.md#domain-casts).
+
+Converting a bounded value to `i` or `u` removes its finite numerical bound
+without changing subsequent integer computation into rational arithmetic.
+`embed` instead projects a computational integer into mathematical `Int`,
+including unsigned inputs with their nonnegativity facts. It preserves the
+value already computed, not the meaning of operator tokens after projection.
+Direct embedding of bounded integers needs no intermediate `i` or `u`.
+This settlement does not add a general mathematical-to-computational conversion.
+In particular, a cast cannot manufacture an executable computation of an
+arbitrary mathematical value.
+
+### Realization and word operations
+
+Admitted static evaluation and specifications use the same numerical meaning.
+Executable uses additionally need an admitted realization and its resource,
+effect, failure, custody and calling contracts. An implementation may use fixed
+storage for a computation only with checked correctness for its admitted inputs;
+it cannot silently narrow `i` or `u`, wrap a result, or approximate with floats.
+Resource exhaustion uses the applicable bounded-evaluation outcome, not a
+different numerical type or meaning.
+
+There is no implicit wrap modulus, finite maximum, or backend-selected width
+for `i` or `u`. Fixed-width rotations, leading-zero counts, complement, shifts
+and policy operators do not automatically extend to them. Unbounded bitwise and
+shift operations need separately specified contracts. Runtime big-integer storage,
+allocation, copying, cleanup and ABI support remain separate delivery work.
+Arbitrary finite widths such as `i200` are also a separate proposal, not layouts
+that redefine the value domain of `i`.
+
+## Mathematical division
+
+Named decision: `mathematical-exact-division`, settled 2026-11-11.
+Core mathematical `/` on `Nat`, `Int` and `Rat` denotes exact rational division.
+Its result is always `Rat`, including when the particular quotient is integral.
+Each mathematical integer operand is admitted through its checked exact inclusion
+into rational arithmetic. An anonymous operand contributes its completed exact
+rational value directly; it is not first forced into `Int` or `Nat`.
+The divisor must be nonzero before formation, including for symbolic operands.
+
+Consequently, `embed(7u32) / 2` denotes rational `7/2`, and
+`embed(6u32) / 2` denotes rational `3` with the same result type.
+`embed(7u32) / 0.5` denotes rational `14`. Neither an expected integer result
+nor a proof context selects truncating division. Computational-to-mathematical
+crossings remain explicit through `embed`.
+
+This specifies `/`'s operand combinations, not a universal promotion system.
+Other mathematical operators, parameters, fields, generic applications and
+branch joins follow their declared signatures. Unsupported combinations reject;
+checking must not invent an inclusion or retry a different arithmetic meaning.
+An already typed `Rat` retains its type through folding and needs explicit
+value-preserving narrowing before an integer-only use, even when known integral.
+Such narrowing proves integrality, and nonnegativity for `Nat`; its focused
+public API and broader mathematical conversions are separate from this decision.
+
+The rational interface must have one source-visible `Rat` type, exact denotation,
+checked integer inclusions and stable result types. This does not select a
+primitive rational carrier, normalize a library representation by compiler fiat,
+or approve a full constructor/accessor API. Representation invariants, quotient
+versus canonical-record design and correspondence with the existing library
+`Rat` require their own checked account. There is no implicit runtime rational
+materialization or unchecked bridge to the library's `IntPair` representation.
+
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through
 storage, call arguments, terminal transfers, and returns. An incompatible
 destination rejects rather than erasing the suffix. Anonymous numeric arguments
 land at the selected explicit parameter; an implicit receiver does not shift that
-pairing. Anonymous fixed-integer expressions retain exact rational intermediates
-until landing requires an integral, in-range value.
+pairing. Anonymous calculations retain exact rational intermediates until their
+destination checks the completed value.
 
 Landing selects a carrier and never a domain. A literal bound for a qualified
 destination is cast like any other value, as in `5 as +Km`, under
@@ -183,10 +280,13 @@ Decimal literals and wholly anonymous arithmetic denote exact rationals.
 Anonymous integer-literal division is rational division, not truncation:
 the destination checks or rounds the completed value, never selects its
 intermediate operations. Float landing rounds once to the selected format;
-integer landing requires an integral in-range result and explicit `as` when
-acknowledging fractional intermediates, as specified below. Mixing an already-typed
-operand with an anonymous operand first lands the latter for that typed
-operation. This introduces no runtime rational arithmetic.
+computational integer landing requires an integral result, destination range
+where bounded, and explicit `as` when acknowledging fractional intermediates.
+Mathematical integer landing requires final integrality and nonnegativity for
+`Nat`, without that acknowledgment. An already typed operand selects its
+operation's declared admission rules: computational arithmetic lands an anonymous
+peer in its carrier, while mathematical `/` admits its exact rational value.
+This introduces no runtime rational arithmetic.
 
 Landed `f32` and `f64` values do not implicitly change format at scalar
 destinations. Named values, fields, indexes, call results, and cast outputs retain
@@ -199,16 +299,18 @@ destination, including when an intermediate division is fractional. Retained
 range bounds and contract expressions obey the same formation requirement.
 Declared operators and proof-level mathematical terms retain their own rules.
 
-Landing chooses a representation once. A suffix lands its literal at that
+Landing chooses a semantic type once, independently of storage realization.
+A suffix lands its literal at that
 occurrence; a contract comparison obtains its destination from a typed operand
 or the owning callable's declared result, not a verifier guess. Parentheses,
 constant folding, and evaluation during compilation do not move the landing
 boundary. Ordinary machine parameters remain landing boundaries even during
 semantic evaluation. No fold may make a landed value anonymous again.
 
-An exact rational can be represented by an unbounded numerator and positive
-denominator, with common factors removed and zero represented by `0/1`. Nested
-arithmetic needs no nested rational carrier or runtime rational evaluator. Anonymous division
+An evaluator's internal exact rational can use an unbounded numerator and
+positive denominator, with common factors removed and zero represented by `0/1`.
+That does not specify the source-visible `Rat` representation. Nested arithmetic
+needs no nested rational carrier or runtime rational evaluator. Anonymous division
 by zero has no numeric value, including in proofs or comparisons. No destination
 policy supplies one. Nor can a Saturating, Wrapping, or Trapping destination
 truncate an anonymous fraction or repair an out-of-range initial value.
@@ -216,18 +318,26 @@ truncate an anonymous fraction or repair an out-of-range initial value.
 ### Fractional-intermediate diagnostics
 
 Integer landing of a fractional final value rejects with its exact value and
-destination type. The diagnostic explains that typing an operand requests
-integer division; typing only the destination does not.
+destination type. The diagnostic explains that typing a computational integer
+operand requests integer quotient; typing only the destination does not.
 
+Named decision: `explicit-landing-proof-int-peer`, settled 2026-11-11.
 An authored anonymous calculation with a fractional intermediate rejects at an
-implicit integer landing, even when its final value is integral and in range.
+implicit computational integer landing, including `i` and `u`, even when its
+final value is integral and fits any bounded destination.
 The diagnostic identifies the fractional origin, exact final value and integer
 destination. Suggest `as` around the complete anonymous expression to request
 exact mathematical evaluation followed by integer landing, or typing an operand
 if integer arithmetic was intended. A destination annotation alone does not
 acknowledge the fractional intermediate.
 
-`as T` applied to an anonymous expression, with an integer destination `T`,
+Mathematical `Int` and `Nat` destinations instead accept an anonymous expression
+whose final exact value is integral, with nonnegativity additionally required for
+`Nat`. Fractional history does not require acknowledgment there. This follows
+the destination type wherever mathematical terms are admitted, not the presence
+of `ensures`. Already typed rationals still require explicit exact narrowing.
+
+`as T` applied to an anonymous expression, with a computational integer destination `T`,
 explicitly lands its complete operand. Evaluate that operand as exact anonymous
 arithmetic, then prove final integrality, representability and the target's
 ordinary predicate and authority obligations. Fractional intermediates inside
@@ -251,13 +361,15 @@ calculation when that is what should land. A cast around an enclosing result
 does not bypass earlier landing boundaries at machine arguments or typed
 operations, nor make already-typed values anonymous again.
 
-The trigger is an actual fractional intermediate, not comparison with a
+The trigger at a computational landing is an actual fractional intermediate, not comparison with a
 hypothetical truncating evaluation. Retain its source origin through
 simplification: cancellation cannot erase the acknowledgement requirement.
 Decimal spelling grants no exemption; `5` and `5.0` denote the same number.
 Already-typed integer division and floating landing do not trigger this rule.
 Existing exact carrier coercions retain their rules. This is an admission
-error, with no warning-suppression escape.
+error, with no warning-suppression escape. Once admitted, the resulting value
+has ordinary typed identity: fractional source history is an admission obligation,
+not an extra component of integer identity or downstream arithmetic.
 
 ## Arithmetic and comparisons
 
@@ -297,8 +409,8 @@ and leaves its operands and result unqualified.
 
 ### Integer equality and order
 
-Builtin fixed-integer comparisons use exact mathematical integer values
-(`mixed-integer-comparison`). The operands may differ in width, signedness, or
+Builtin computational-integer comparisons, including `i` and `u`, use exact
+mathematical integer values (`mixed-integer-comparison`). The operands may differ in width, signedness, or
 both. `<`, `<=`, `>`, `>=`, `==`, and `!=` apply the corresponding integer
 relation to those values and return `bool`. They require no common operand
 carrier, implicit cast, or representability of either value in the other
@@ -328,6 +440,8 @@ declared for its exact type or is cast first. It does not override a selected
 domain/user operation or grant mixed float, address, or Boolean comparisons.
 Arithmetic policies govern computation of the operands, not a reinterpretation
 of their resulting values when builtin integer comparison is selected.
+This does not implicitly embed a computational operand for comparison with a
+mathematical operand; that crossing remains explicit.
 
 Contracts, constant evaluation, checked and Terminal interpretation, optimization,
 and native execution must use this same relation. Terminal normalization and
@@ -407,8 +521,10 @@ primitive's predicate above, including a zero divisor and an out-of-range shift
 count, and it contributes that route to its machine's
 [crash contract](effects.md#guarded-crashes) like any other Trapping operation.
 Path facts that disprove the predicate remove the route. On normal return the
-result equals the exact mathematical result of the unsuffixed operation, and
-that equality is an established fact about the result.
+result equals the operation-specific mathematical denotation of the unsuffixed
+primitive, and that equality is an established fact about the result. Integer
+division uses truncating quotient, not mathematical rational `/`; see the
+[proof correspondence](../proofs/contracts.md#total-arithmetic).
 
 The suffixed forms are compiler-owned integer primitives. A `machine`
 declaration cannot bind one, floats have no suffixed forms, and no
@@ -452,8 +568,13 @@ type an anonymous `%`. Its diagnostic requests a typed operand using supported
 source spelling, not a destination annotation or hypothetical Euclidean helper.
 Already-typed incompatible operands retain ordinary resolution rules.
 
-This includes builtin proof `Int`, whose quotient truncates toward zero with no
-width bound. For nonzero divisor `b`, integer quotient `q` and remainder `r` obey:
+Computational `/` on bounded integers and `i`/`u` denotes truncating quotient.
+Mathematical `/` instead follows [exact division](#mathematical-division).
+Integer quotient and remainder remain explicitly available on mathematical
+integers through `integer::quotient` and `integer::remainder`. Their contracts
+use integer operands, require a nonzero divisor, and preserve the rounding
+convention below; their checked mathematical API is distinct from runtime
+realization. For nonzero divisor `b`, quotient `q` and remainder `r` obey:
 
 ```text
 a = q*b + r
@@ -461,10 +582,18 @@ a = q*b + r
 r = 0 or sign(r) = sign(a)
 ```
 
-Thus an `Int` value `-7` divided by `2` gives `-3` with remainder `-1`. A negative
+Thus integer quotient of `-7` by `2` gives `-3` with remainder `-1`. A negative
 divisor changes the quotient sign, not the dividend-sign remainder convention.
-Both operations require a nonzero divisor. An anonymous rational quotient is
-not this `q`; proof algebra retains the selected operand kinds and operations.
+Both operations require a nonzero divisor. Exact rational division is not this
+`q`; proof algebra retains the selected operand kinds and operation identities.
+Mathematical `%` remains integer remainder with this convention: `Nat % Nat`
+produces `Nat`, and `Int % Int` produces `Int`. Other typed combinations need
+their declared signatures; this does not add general mathematical promotion. A rational
+operand is not implicitly narrowed, even if its value is integral. An anonymous
+operand with integral final value can land without fractional-history
+acknowledgment at a mathematical integer parameter or `%` operand. A wholly
+anonymous `%` still needs an integer anchor; an integer parameter of a named
+quotient/remainder call supplies its ordinary destination.
 The library's constructed `IntPair` is a distinct nominal type, not builtin
 `Int`, and these rules grant neither its operators nor a runtime representation
 to proof-only values.
@@ -488,6 +617,9 @@ Euclidean-remainder warning: the untyped operation rejects.
 
 ### Shift counts
 
+These word-operation rows apply to fixed-width carriers. They do not infer a
+width or extend shift/bitwise operations to `i` or `u`.
+
 | Policy | Count law |
 | --- | --- |
 | Exact | Prove `0 <= count < value_width` before formation. |
@@ -503,7 +635,7 @@ The suffixed shifts take the matching row: `<<%` and `>>%` reduce the count,
 out-of-range count. A right shift cannot overflow its value, so `>>|` means the
 same as `>>`; it exists to keep the suffix set uniform.
 
-Integer bitwise AND, OR, XOR, and complement preserve their signed/unsigned
+Fixed-width integer bitwise AND, OR, XOR, and complement preserve their signed/unsigned
 carrier and are total at its width; complement includes the full two's-complement
 width of a signed carrier. They do not acquire Boolean bounds. Bitwise operations
 themselves add no overflow-policy requirement; nested and surrounding arithmetic still owes

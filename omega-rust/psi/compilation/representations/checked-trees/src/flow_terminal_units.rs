@@ -37,11 +37,44 @@ pub(crate) mod composed_unit_control_plans {
         pub contract_service_reach: ServiceReachPlan,
         pub service_reach: ServiceReachSummary,
         pub states: Vec<CheckedComposedUnitControlStatePlan>,
+        /*
+            The closed `requires` clauses that parameter data declarations
+            impose on a state's arrival, stored once per distinct set. Every
+            state of one machine usually takes the same parameters, so its
+            declaration rows are identical; a large record such as a parser
+            carries hundreds of them, and a copy per state multiplied each
+            plan by its state count. A state names its set by
+            `declaration_requires`.
+        */
+        pub declaration_requirements: Vec<CheckedDeclarationRequirementSet>,
+    }
+
+    /* One distinct set of declaration-imposed state requirements; see above. */
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedDeclarationRequirementSet {
+        pub clauses: Vec<ClosedScalarContractValue>,
     }
 
     impl CheckedComposedUnitControlMachinePlan {
         pub fn state_position(&self, state: SymbolHandle) -> Option<usize> {
             state_position(&self.states, state)
+        }
+
+        /*
+            The closed clauses a state's arrival must satisfy beyond its
+            authored rows: its parameters' declaration requirements, in the
+            order the declarations state them, or none when the state names no
+            set. Checking interns every set a state names in this same plan,
+            and lowering consumes the plan without re-checking it, so the
+            index always resolves.
+        */
+        pub fn declaration_requirements(
+            &self,
+            state: &CheckedComposedUnitControlStatePlan,
+        ) -> &[ClosedScalarContractValue] {
+            state.declaration_requires.map_or(&[], |set| {
+                &self.declaration_requirements[set as usize].clauses
+            })
         }
 
         pub fn successor_position(
@@ -213,7 +246,14 @@ pub(crate) mod composed_unit_control_plans {
         pub parameter_storage: Vec<crate::flow::terminal::CheckedUnitParameterStoragePlan>,
         pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
         pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
+        /* The state's authored `requires` rows. */
         pub requires: Vec<CheckedStateContractRequirement>,
+        /*
+            The machine's declaration requirement set this state's arrival
+            also satisfies, after `requires`; see
+            `CheckedComposedUnitControlMachinePlan::declaration_requirements`.
+        */
+        pub declaration_requires: Option<u32>,
         pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
         pub operations: Vec<CheckedUnitEffectOperationPlan>,
         pub place_loans: Vec<crate::flow::terminal::CheckedPlaceLoanPlan>,
