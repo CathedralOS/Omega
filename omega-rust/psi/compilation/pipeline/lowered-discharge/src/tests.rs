@@ -4028,3 +4028,5 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let (elaboration, result) = reading(Vec::new());
     assert_unproved(verdicts_of(&elaboration, &result)[0].1);
 }
+
+mod table_faults;
