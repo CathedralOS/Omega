@@ -2586,19 +2586,42 @@ pub(crate) mod primitive_storage {
                                 argument.access,
                             )?;
                             if view.is_none() && self.reference_byte_region(&carrier)?.is_none() {
-                                self.scalar_field_at_carrier(carrier, view, field_path, expected)?
-                                    .map(|observed| observed.cell)
+                                // A field lent under another scalar carrier keeps its own
+                                // stored carrier; the loan reads and writes through the
+                                // admitted representation view of that storage.
+                                let stored = terminal_semantics::runtime_structural_field(
+                                    self.structural_types().values(),
+                                    carrier.structural_type,
+                                    field_path,
+                                )
+                                .and_then(|field| field.field_type.scalar_type())
+                                .filter(|stored| {
+                                    terminal_semantics::scalar_reference_view_admits(
+                                        parameter.access,
+                                        *stored,
+                                        expected,
+                                    )
+                                })
+                                .unwrap_or(expected);
+                                self.scalar_field_at_carrier(carrier, view, field_path, stored)?
+                                    .map(|observed| (observed.cell, stored))
                             } else {
                                 None
                             }
                         } else {
                             None
                         };
-                        if let Some(field) = field {
+                        if let Some((field, stored)) = field {
                             (
-                                PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(
-                                    field,
-                                )),
+                                PrimitiveStorage {
+                                    endpoint: PrimitiveStorageEndpoint::ScalarField(field),
+                                    encoding: (stored != expected).then_some(
+                                        PrimitiveStorageEncoding {
+                                            source: stored,
+                                            view: expected,
+                                        },
+                                    ),
+                                },
                                 expected,
                                 parameter.access == StructuralAccess::SharedBorrow,
                             )
@@ -3815,29 +3838,29 @@ pub(crate) mod primitive_storage {
                     field: field.id,
                 });
             }
-            let shape = if shared_view {
-                field.field_type.shared_observation_shape()
+            let access = if shared_view {
+                StructuralAccess::SharedBorrow
             } else {
                 let types = self.structural_types();
                 let expected = types.declaration(&view.structural_type)?;
-                let selected = field
-                    .field_type
-                    .borrowed_presentation_type(StructuralAccess::MutableBorrow, Some(expected))
-                    .and_then(|leaf| leaf.leaf_declaration(types.values()))
-                    .ok_or_else(malformed)?;
+                let selected = terminal_semantics::borrowed_field_presentation(
+                    &field.field_type,
+                    StructuralAccess::MutableBorrow,
+                    Some(expected),
+                )
+                .and_then(|leaf| leaf.leaf_declaration(types.values()))
+                .ok_or_else(malformed)?;
                 if selected.id != view.structural_type {
                     return Err(malformed());
                 }
-                Some(selected.shape.clone())
+                StructuralAccess::MutableBorrow
             };
-            let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) = shape
+            let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) =
+                field.field_type.shared_observation_shape()
             else {
                 return Err(malformed());
             };
-            if stored_type != scalar_type
-                && !(shared_view
-                    && terminal_semantics::scalar_reference_view_is_total(stored_type, scalar_type))
-            {
+            if !terminal_semantics::scalar_reference_view_admits(access, stored_type, scalar_type) {
                 return Err(malformed());
             }
             let cell = StructuralScalarRuntimeField {

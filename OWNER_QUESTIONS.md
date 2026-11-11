@@ -67,30 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Does explicit landing apply at a proof-level Int peer?
-
-Decision name: `explicit-landing-proof-int-peer`.
-
-An anonymous calculation whose exact history holds a fractional intermediate,
-used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
-in an `ensures` clause), lands as a mathematical integer. Should it reject like
-a fixed-integer destination, and if so how does an author acknowledge it?
-
-- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
-  makes implicit integer landing an error and names `as T` with an integer
-  destination `T` as the acknowledgement; it does not say whether the
-  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
-- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
-  lists "proof integer peers" in its sweep and also says "proof-level
-  mathematical operations retain their rules".
-- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
-  program: the contract prover then cannot show the divisor nonzero
-  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
-
-Until answered, the compiler rejects every fixed-integer implicit landing and
-keeps the proof-`Int` peer as a warning.
-
-### Q2 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+### Q1 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
 
 Decision name: `unproved-goal-form-publication`.
 
@@ -126,7 +103,7 @@ has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
 
-### Q3 - May a Build program select a provider for a requirement it declares itself?
+### Q2 - May a Build program select a provider for a requirement it declares itself?
 
 Decision name: `build-declared-requirement-provider`.
 
@@ -160,7 +137,7 @@ The question:
 
 Until answered the fixture stays red and the compiler selects nothing.
 
-### Q4 - Who approves a new rule in the proof kernel?
+### Q3 - Who approves a new rule in the proof kernel?
 
 Decision name: `kernel-rule-admission`.
 
@@ -198,7 +175,7 @@ The question:
 Until answered no kernel rule is added and the seven programs stay unproved
 on the new route. The current checker still accepts them.
 
-### Q5 - May a caller rely on what a callee's body returns beyond its `ensures`?
+### Q4 - May a caller rely on what a callee's body returns beyond its `ensures`?
 
 Decision name: `callee-result-body-summary`.
 
@@ -282,7 +259,7 @@ false`, from both arms returning `false`) reach its callers when the callee's
 Under (c) the current checker's acceptance of this fixture is an error, and
 the fixture moves to `fail/` or gains `ensures result == false`.
 
-### Q6 - What source form binds a boundary requirement to a field of a foreign function table?
+### Q5 - What source form binds a boundary requirement to a field of a foreign function table?
 
 Decision name: `native-table-field-binding`.
 
@@ -330,7 +307,7 @@ field of a foreign table?
 Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
 cannot delete its parser.
 
-### Q7 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q6 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -382,7 +359,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q8 - May a nested helper's body rely on facts its caller holds at the call?
+### Q7 - May a nested helper's body rely on facts its caller holds at the call?
 
 Decision name: `nested-helper-caller-facts`.
 
@@ -434,7 +411,7 @@ not use.
 
 Until answered the row is left as recorded and the checker is unchanged.
 
-### Q9 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q8 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -473,7 +450,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q10 - May a guard on one copy bound a place restored from another copy of the same version?
+### Q9 - May a guard on one copy bound a place restored from another copy of the same version?
 
 Decision name: `restored-scalar-value-facts` (scope of the copy that is guarded).
 
@@ -520,7 +497,7 @@ on a second copy of the same version.
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q11 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q10 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -577,7 +554,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q12 - Which in-memory filesystem does a test group select, and what does it implement?
+### Q11 - Which in-memory filesystem does a test group select, and what does it implement?
 
 Decision name: `test-group-virtual-filesystem`.
 
@@ -622,3 +599,108 @@ select.
 
 Until answered, test groups run only without services, and
 `BUILD-TEST-GROUPS` keeps only its virtual-filesystem acceptance.
+
+### Q12 - May `&mut` lend a binding declared without `mut`, and may the borrower replace its value?
+
+Decision name: `immutable-binding-exclusive-loan`.
+
+**Customer.** `tests/omega/fail/constraints/computed_local_value_invalidated`
+declares `let saved: u8 = 3 + 4;` without `mut`, calls
+`replace(&mut saved)` where `replace` writes `value = 8`, and returns
+`saved` under `ensures result == 7`. When the program runs the result is
+`8`. The fixture pins "ensures". The current checker accepts it
+(`mbx xtask corpus --filter` reports `rejected -> checked` at `a4dd6090e`),
+and it was already accepted at `5209eac45` (2026-11-03), the oldest commit in
+the fetched history. The same program with `let saved: u8 = 7;` is also
+accepted; with `let mut saved` both forms are rejected with the expected
+ensures diagnostic. The ledger row is recorded `checked` here, as main
+measures it at `11582c84f`.
+
+**Cause.** The checker holds two incompatible readings at once:
+
+- Admission lends a non-`mut` binding exclusively. Assignment rejects a bare
+  reassignment `saved = 8` ("not mutable in this state",
+  `omega-rust/psi/compilation/validation/src/places.rs`), but it admits field
+  writes to a non-`mut` local and admits `&mut saved`. At least 190 `pass/`,
+  `run/`, sample and library files lend a non-`mut` local with `&mut`
+  (for example `pass/facts/nominal_loan_backing_cleanup_through_local_exit`,
+  whose callee writes `room.count = 99`).
+- Value tracking treats a non-`mut` binding as never written.
+  `checks_current_scalar_values.rs` documents the flag as *"A by-value
+  binding declared without `mut`. No store or call can reach it: a write
+  needs a mutable place, and so does a `&mut` loan."* Exit-contract scalar
+  rosters (`is_scalar_roster_local` in `checks_contracts_exits.rs`) and about
+  fifty other sites rely on the same premise.
+
+Under either reading the customer is invalid, but the two readings reject it
+in different places, and the second reading is unsound while the first is
+admitted. Repairing only the value tracker flips this row and leaves the
+literal-initializer variant accepted through the other sites.
+
+**Gap.** These contracts were checked and are silent on whether `mut`
+governs exclusive lending:
+
+- [Ownership](wiki/spec/language/ownership.md): the access table gives
+  `&mut T` *"Exclusive observation and mutation"* and says nothing about the
+  binding the loan is formed from.
+- [Expressions](wiki/spec/language/expressions.md): *"mutable and write-only
+  lending require explicit `&mut` and `&write` expressions"*, and a mutable
+  subrange *"source must already permit exclusive access"*, without saying
+  whether a non-`mut` local permits it.
+- [Machines](wiki/spec/language/machines.md) shows `let mut counter` lent as
+  `&mut counter` but states no rule for a non-`mut` binding.
+
+**Question.**
+
+- **(a)** Does `mut` govern only bare reassignment, so `&mut` may lend any
+  owned local and the borrower may replace its whole value? Then every site
+  that treats a non-`mut` binding as unwritable must consult the binding's
+  exclusive loans, and the fixture is rejected by its ensures.
+- **(b)** Or does an exclusive loan require a `mut` binding? Then admission
+  rejects `&mut saved`, the fixture's pinned fragment changes to that
+  refusal, and the lending files above add `mut`.
+
+Until answered the row stays as recorded and the checker is unchanged.
+
+### Q13 - Does a cyclic `invokes` graph between unselected providers reject a program with no Build?
+
+Decision name: `unselected-synchronous-invocation-cycle`.
+
+**Customer.** `tests/omega/fail/capabilities/cyclic_synchronous_invocation`
+declares boundary traits `Alpha` and `Beta` whose requirements invoke each
+other, and providers `AlphaProvider::alpha_checked` and
+`BetaProvider::beta_checked` whose bodies call the other trait. It has no
+`build.omg`: no Build selects either provider and no program entry exists.
+Its header still says *"Both selected checked providers realize one direct
+synchronous edge"*. The fixture pins "cyclic synchronous `invokes` graph".
+The current checker accepts it (`rejected -> checked` at `a4dd6090e`), and
+`omega --check` already accepted it at `5209eac45` (2026-11-03). The ledger
+row read `rejected` from the unreachable stamp `@ccdb99ca2214`. It is recorded
+`checked` here, as main measures it at `11582c84f`.
+
+The selected case is already pinned with Builds that select both providers
+and bind an entry: `fail/capabilities/selected_synchronous_cycle`,
+`selected_synchronous_helper_cycle` and `selected_applied_synchronous_cycle`
+all reject with the same fragment on main.
+
+**Gap.** [Direct synchronous invocation](wiki/spec/language/effects.md#direct-synchronous-invocation)
+says *"Composition makes two checks ... The complete realized graph of
+possible edges, inventory included, is acyclic"* and *"A row that no
+selected provider uses is a broader ceiling, not an error."*
+[Callback registration](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
+says *"The direct synchronous invocation graph must be acyclic"* without
+naming whether the graph is the selected realization or every declared
+`satisfies` implementation. Build-owned selection means a program without a
+Build realizes no provider.
+
+**Question.**
+
+- **(a)** Is acyclicity a composition check on the selected realization
+  only? Then this program is valid, the fixture is stale (it predates
+  Build-owned selection), and it is retired or moved to `pass/`, since the
+  selected siblings keep the rejection pinned.
+- **(b)** Or must the checked bodies of every declared provider form an
+  acyclic `invokes` graph whether or not a Build selects them? Then the check
+  leaves backend provider planning and runs at source checking.
+
+Until answered the row stays as recorded and the checker is unchanged.

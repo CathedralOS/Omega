@@ -1,2 +1,2 @@
-cannot prove requires contract for call consume from main
-needs fact `is_first(value)` here
+violates required fact `is_first(value)`
+the instantiated fact is structurally false

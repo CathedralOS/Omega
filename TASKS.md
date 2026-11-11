@@ -63,8 +63,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
   Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q1](OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer)).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [integer arithmetic](wiki/drafts/designs/computational_and_mathematical_integers.md).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Implement `i`/`u`, exact math `/`, quotient/remainder and checked bridges; migrate existing integer-proof fixtures under the design's controls.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
 

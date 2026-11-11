@@ -5,7 +5,7 @@ use omega::language::core::nat_metric;
 
 machine false_gap_zero()
 ensures
-    (nat_gap(Nat::Zero, Nat::Succ { prev: Nat::Zero })) == Nat::Zero
+    core::Identity<Nat>(nat_gap(Nat::Zero, Nat::Succ { prev: Nat::Zero }), Nat::Zero)
 {
 }
 
