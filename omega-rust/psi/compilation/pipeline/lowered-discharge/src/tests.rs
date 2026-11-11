@@ -4641,3 +4641,295 @@ mod generic_bodies {
         );
     }
 }
+
+fn either(conjunction: bool, left: Expression, right: Expression) -> Expression {
+    expression(
+        ExpressionKind::ShortCircuit {
+            conjunction,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        Some(ScalarType::Boolean),
+    )
+}
+
+fn arrival(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::ArrivalInvariant { .. })
+}
+
+/// `when total > high || total < 3 -> 0; return total + (MAX - 9000)`.
+/// The add is safe exactly when `total <= 9000`, which only the guard's
+/// false edge says, through the `||` join's parameter.
+fn past_a_disjunction(high: u128) -> Machine {
+    let guard = either(
+        false,
+        compare(Strict::Greater, slot(0, u32_type()), unsigned(high)),
+        compare(Strict::Less, slot(0, u32_type()), unsigned(3)),
+    );
+    let sum = strict(
+        Strict::Add,
+        slot(0, u32_type()),
+        unsigned(u128::from(u32::MAX) - 9000),
+    );
+    machine(
+        vec![u32_type()],
+        vec![guarded(guard, unsigned(0)), returns(sum)],
+    )
+}
+
+#[test]
+fn a_branch_fact_on_a_join_parameter_reaches_its_use() {
+    let (elaboration, result) = run(vec![past_a_disjunction(9000)]);
+    // Both arrivals at the join establish its inferred predicate, each with
+    // kernel-checked evidence, and nothing was weakened.
+    let arrivals = verdicts(&elaboration, &result, 1, arrival);
+    assert_eq!(arrivals.len(), 2);
+    for (obligation, verdict) in arrivals {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    assert!(
+        result
+            .machines
+            .get(id(1))
+            .unwrap()
+            .weakened_joins
+            .is_empty()
+    );
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        tables
+            .knowledge
+            .values()
+            .filter(|row| matches!(row.justification, Justification::BlockInvariant { .. }))
+            .count(),
+        1
+    );
+    // The add on the guard's false edge is safe through the join: its
+    // certificate cites the join's predicate.
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    let evidence = certificate(verdict);
+    assert_kernel_accepted(&elaboration, 1, obligation, evidence);
+    assert!(evidence.assumptions.iter().any(|row| matches!(
+        tables.knowledge.get(*row).unwrap().justification,
+        Justification::BlockInvariant { .. }
+    )));
+    // The twin that differs only in the guard's bound lets `total = 9001`
+    // reach the add, which then overflows: still unproved.
+    let (elaboration, result) = run(vec![past_a_disjunction(9001)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+    for (_, verdict) in verdicts(&elaboration, &result, 1, arrival) {
+        assert!(verdict.is_ok());
+    }
+}
+
+#[test]
+fn a_branch_fact_on_a_conjunction_join_bounds_its_arm() {
+    // when total <= 9000 && 3 <= total -> total + (MAX - 9000); return 0.
+    let guard = either(
+        true,
+        compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(9000)),
+        compare(Strict::LessOrEqual, unsigned(3), slot(0, u32_type())),
+    );
+    let sum = strict(
+        Strict::Add,
+        slot(0, u32_type()),
+        unsigned(u128::from(u32::MAX) - 9000),
+    );
+    let program = machine(
+        vec![u32_type()],
+        vec![guarded(guard, sum), returns(unsigned(0))],
+    );
+    let (elaboration, result) = run(vec![program]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+}
+
+fn crash_coverage(kind: &ObligationKind) -> bool {
+    matches!(kind, ObligationKind::CrashCoverage { .. })
+}
+
+/// `when a < 10 -> crash Trap; return 0`, publishing `crashes` as given.
+fn crashing_below_ten(
+    routes: Vec<terminal_psi::CrashRouteBucket>,
+) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                source: nowhere(),
+            },
+            returns(unsigned(0)),
+        ],
+    });
+    signatures.push(Signature {
+        parameters: vec![u32_type().into()],
+        result: Some(u32_type().into()),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crashes: CrashCeiling::Authored(routes),
+    });
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+fn trap_when(
+    alternatives: Vec<terminal_psi::CrashRouteGuard>,
+) -> Vec<terminal_psi::CrashRouteBucket> {
+    vec![terminal_psi::CrashRouteBucket {
+        cause: semantic_vocabulary::CrashCause::Trap,
+        alternatives,
+    }]
+}
+
+fn below(value: u128) -> terminal_psi::CrashRouteGuard {
+    terminal_psi::CrashRouteGuard::Predicate(terminal_psi::CrashPredicateTerm::new(
+        Proposition::LessThan(
+            formal(1, u32_type()),
+            bound(u32_type(), IntegerValue::Unsigned(value)),
+        ),
+    ))
+}
+
+#[test]
+fn a_crash_site_is_covered_by_its_published_route() {
+    // An unconditional route covers the site; its guard is the path decision.
+    let (elaboration, result) =
+        crashing_below_ten(trap_when(vec![terminal_psi::CrashRouteGuard::Truth]));
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, crash_coverage)[..] else {
+        panic!("one crash site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // A route guarded by `a < 10` covers the site from the path decision.
+    let (elaboration, result) = crashing_below_ten(trap_when(vec![below(10)]));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, crash_coverage)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+}
+
+#[test]
+fn a_crash_site_outside_its_published_route_is_unproved() {
+    // A route guarded by `a < 5` does not cover `a = 7`, which reaches the crash.
+    let (elaboration, result) = crashing_below_ten(trap_when(vec![below(5)]));
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+    // A machine that publishes no route for the cause owes `Falsehood`.
+    let (elaboration, result) = crashing_below_ten(Vec::new());
+    assert_unproved(verdicts(&elaboration, &result, 1, crash_coverage)[0].1);
+}
+
+/// `ensures result <= limit` for a machine of one `u32` formal: the result
+/// pseudo-value is the value right after the formals.
+fn result_at_most(limit: u128) -> Proposition {
+    Proposition::LessOrEqual(
+        formal(2, u32_type()),
+        bound(u32_type(), IntegerValue::Unsigned(limit)),
+    )
+}
+
+#[test]
+fn an_exit_guarantee_is_about_the_value_that_exit_returns() {
+    // return 7, ensures result <= 7: proved; ensures result <= 6: refused.
+    let returning_seven = |limit| Machine {
+        ensures: vec![result_at_most(limit)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(7))])
+    };
+    let (elaboration, result) = run(vec![returning_seven(7)]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, guarantee)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run(vec![returning_seven(6)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, guarantee)[0].1);
+}
+
+#[test]
+fn a_callee_guarantee_on_its_result_reaches_the_caller() {
+    // callee(a) ensures result <= 10 { return 3 }
+    // caller(a) { return limited(callee(a)) }, limited(x) requires x <= 10.
+    let callee = Machine {
+        ensures: vec![result_at_most(10)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(3))])
+    };
+    let limited = Machine {
+        requires: vec![at_most(1, 10)],
+        ..machine(vec![u32_type()], vec![returns(unsigned(0))])
+    };
+    let caller = machine(
+        vec![u32_type()],
+        vec![returns(call(3, vec![call(2, vec![slot(0, u32_type())])]))],
+    );
+    let (elaboration, result) = run(vec![caller, callee, limited]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    let evidence = certificate(verdict);
+    assert_kernel_checked(&elaboration, 1, obligation, evidence);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert!(evidence.assumptions.iter().any(|row| matches!(
+        tables.knowledge.get(*row).unwrap().justification,
+        Justification::CalleeGuarantee { .. }
+    )));
+}
+
+#[test]
+fn a_call_that_may_crash_is_covered_by_its_callers_route() {
+    // callee(a) crashes Trap { when a < 10 -> crash Trap; return a }
+    // caller(a) { return callee(a) }, publishing `crashes` as given: the call
+    // operation is the crash site.
+    let program = |caller_routes| {
+        let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+        let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+        bodies.push(Body {
+            slots: vec![u32_type().into()],
+            statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
+        });
+        signatures.push(Signature {
+            parameters: vec![u32_type().into()],
+            result: Some(u32_type().into()),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(caller_routes),
+        });
+        bodies.push(Body {
+            slots: vec![u32_type().into()],
+            statements: vec![
+                Statement::Arm {
+                    guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                    target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                    source: nowhere(),
+                },
+                returns(slot(0, u32_type())),
+            ],
+        });
+        signatures.push(Signature {
+            parameters: vec![u32_type().into()],
+            result: Some(u32_type().into()),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
+        });
+        let mut elaboration =
+            structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+                .unwrap();
+        let result = discharge(&mut elaboration).unwrap();
+        (elaboration, result)
+    };
+    let operation_site = |kind: &ObligationKind| {
+        matches!(
+            kind,
+            ObligationKind::CrashCoverage {
+                site: terminal_check_tables::obligations::CrashSite::Operation(_),
+                ..
+            }
+        )
+    };
+    let (elaboration, result) = program(trap_when(vec![terminal_psi::CrashRouteGuard::Truth]));
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, operation_site)[..] else {
+        panic!("one call site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // A caller that publishes no route for the cause cannot let it through.
+    let (elaboration, result) = program(Vec::new());
+    assert_unproved(verdicts(&elaboration, &result, 1, operation_site)[0].1);
+}
