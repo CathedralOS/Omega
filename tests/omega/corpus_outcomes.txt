@@ -22030,8 +22030,7 @@ pass/drops/runtime_owned_nominal_replacement_exit checked 40522ms check-target:m
 pass/drops/runtime_owned_record_replacement_exit checked 3991ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_owned_replacement_composition_exit checked 43778ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_owned_replacement_reestablishment_exit checked 59851ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_owner_scoped_generic_cleanup_exit rejected 10290ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	statement 2 mutates `envelope.destination` while local borrow `entry` is still active (borrowed at statement 2)
+pass/drops/runtime_owner_scoped_generic_cleanup_exit checked 6147ms check-target:macos_arm64 @ee3320fb5ddf
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit checked 35302ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_projected_nominal_cleanup_exit checked 39577ms check-target:macos_arm64 terminal-runtime.exercise_unit_projection:unrequested terminal-inspections:match @2be83686053c
 pass/drops/runtime_projected_nominal_core_exit checked 34574ms check-target:macos_arm64 @ee4dbb4b2d56
