@@ -25,8 +25,8 @@ machine poke(bytes: &mut [u8], start: u64) -> Written {
     }
 }
 machine poke_count(count: &mut u64, start: u64) -> Written {
-    count = count + 1u64;
-    Written::Encoded { next: start + 1u64 }
+    count = start;
+    Written::Encoded { next: start }
 }
 machine tag<Kind>(context: &mut Context, value: &Kind)
 requires context.count < context.fields.len && Kind == u8
