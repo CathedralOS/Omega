@@ -80,7 +80,7 @@ public machine parse(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input)
     }
     machine removed(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input,
                   index: u64 in Wrapping, base: u64 in Wrapping) {
-        let accepted: bool = Sequence::append(&mut input.removed, base);
+        let accepted: bool = sequence_append(&mut input.removed, base);
         transition accepted && input.removed.length <= 8 {
             true -> sequence(line, count, input, index + 1, 0)
             _ -> stop()
@@ -88,7 +88,7 @@ public machine parse(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input)
     }
     machine inserted(line: &[u8; 64], count: u64 in Wrapping, input: &mut Input,
                    index: u64 in Wrapping, base: u64 in Wrapping) {
-        let accepted: bool = Sequence::append(&mut input.inserted, base);
+        let accepted: bool = sequence_append(&mut input.inserted, base);
         transition accepted && input.inserted.length <= 4 {
             true -> sequence(line, count, input, index + 1, 1)
             _ -> stop()

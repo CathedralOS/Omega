@@ -19,7 +19,7 @@ public machine source_mask(source: u64 in Wrapping) -> u64 in Wrapping {
         }
     }
 }
-public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
+public machine add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wrapping {
     transition { _ -> search(ledger, variant, 0) }
     machine search(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         transition index < ledger.count && index < 32 {
@@ -29,7 +29,7 @@ public machine Ledger::add(ledger: &mut Ledger, variant: &Variant) -> u64 in Wra
     }
     machine compare(ledger: &mut Ledger, variant: &Variant, index: u64 in Wrapping) -> u64 in Wrapping {
         let previous: Variant = ledger.variants[index];
-        let same: bool = Sequence::equal(&previous.inserted, &variant.inserted);
+        let same: bool = equal(&previous.inserted, &variant.inserted);
         transition previous.contig == variant.contig && previous.position == variant.position
             && previous.removed == variant.removed && same {
             true -> merge(ledger, variant, index)

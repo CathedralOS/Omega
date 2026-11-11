@@ -8,7 +8,7 @@ data Main requires off <= 47 {
     off: u32;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     let borrowed: &mut u8 = &mut main.buf[main.off];
     transition { _ -> done(main) }
 
@@ -20,5 +20,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }
