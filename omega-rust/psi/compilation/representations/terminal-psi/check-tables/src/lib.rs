@@ -130,6 +130,17 @@ pub enum RefusalReason {
     Unsupported,
     /// An obligation was reconstructed and its evidence did not check.
     Unproved,
+    /// A place is used on a path on which nothing was stored into it: a
+    /// compile error of the program, neither an unserved construct nor an
+    /// unproved proposition. `wiki/spec/terminal-psi/structural_access.md`:
+    /// "An unestablished local cannot be read: a whole read of the home, a
+    /// loan of it to an ordinary or boundary call, and its forwarding on a
+    /// state edge each require a whole store into it on every path reaching
+    /// that use." `wiki/spec/language/state_contracts.md`: "Uninitialized
+    /// storage has no assumed zero." It is a structural judgment over the
+    /// write log and the lowered graph, so it has no obligation row and no
+    /// certificate.
+    Unestablished,
     /// An edge did not account for an incoming conserved obligation exactly
     /// once. ownership.md: "every incoming owned obligation occurs exactly once
     /// in the edge's transfer map, explicit terminal consumption, eligible

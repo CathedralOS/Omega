@@ -203,3 +203,77 @@ One reading the implementer applies meanwhile, stated so it can be corrected:
 structural identity unifies two all-row `satisfies` blocks with the same
 selections, and does not unify a block with an inline member body with any
 other, because *"An inline body still declares a new machine"*.
+
+### Q3 - Does a local declared without an initializer hold its type's zero, or nothing until it is stored into?
+
+Decision name: `local-without-initializer`.
+
+**Customer.** The checker on the lowered form
+([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md),
+[places foundation lane](wiki/drafts/designs/places_foundation_lane.md))
+must decide what `let mut x: u32;` and `let mut p: Point;` hold before the
+first store, because a read there is either an ordinary read of zero or a
+compile error. The product requirement is the language's own: an author must
+know whether `let mut total: u32;` followed by `total = total + n;` is a
+valid program that starts from zero or a use of uninitialized storage.
+
+**The clauses, which pull opposite ways.**
+
+- [State contracts](wiki/spec/language/state_contracts.md#mutation-and-subject-identity):
+  *"Uninitialized storage has no assumed zero."* and, under restored scalar
+  values, *"Entry storage may supply an initialized reaching value without an
+  earlier store in the body; no zero value or initialization is inferred for
+  uninitialized storage."*
+- [Structural access](wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+  *"An unestablished local cannot be read: a whole read of the home, a loan
+  of it to an ordinary or boundary call, and its forwarding on a state edge
+  each require a whole store into it on every path reaching that use."* The
+  sentence sits in the paragraph on `EstablishStructuralLocal` homes (linear
+  carriers and view descriptors). The same section says of scalars only that
+  *"`EstablishPrimitiveLocal` consumes an exactly typed SSA initializer and
+  establishes the referent"*, and does not say what the initializer of a
+  declaration without one is.
+- [Dependent values](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
+  *"A zeroed storage representation can be accessed as an established value
+  only after its default-domain obligations hold."* and *"If zero satisfies
+  the default domain, the value is zero-constructible. Otherwise the type is
+  gated: construction or checked qualification must establish the domain
+  before observation."* The section is about `data` declarations and never
+  says that a `let` without an initializer zero-constructs.
+- [Language guide, chapter 3](wiki/language_guide/chapter_3_machines.md), on
+  `let mut application: Application; run(&mut application);`: *"This example
+  uses its ordinary zero initialization; a type whose invariant does not hold
+  at zero needs an explicit construction establishing that invariant."*
+
+**What the compiler does today.** It zero-initializes both and uses the zero
+as a fact. `let mut x: u32; f(x)` with `machine f(v: u32) requires v == 0`
+is accepted, and lowers to `IntegerConstant 0`, `EstablishPrimitiveLocal`.
+`let mut p: Point; p.x = 3; f(p.y)` is accepted the same way and lowers to
+`EstablishZeroedStructural`. `tests/omega/pass/data/prefix_case_pure_sum_retirement`
+reads `let zero_value: Stored;` and expects its zero at run time.
+
+**Gap.** No contract says that a declaration without an initializer is a
+zero-construction, for a scalar or for a zero-constructible `data` type. The
+guide implies it for data; state contracts read literally deny the zero as a
+fact for any uninitialized storage; structural access denies the read for
+"an unestablished local" without saying which locals are unestablished.
+
+**Questions for Zac.**
+
+- **(a) Zero-constructible data:** Does `let p: Point;`, where zero satisfies
+  `Point`'s default domain, establish `p` as the zero value, so that a read
+  before any store is valid and provably reads zero?
+- **(b) Scalars:** Does `let mut x: u32;` do the same, or is `x` unestablished
+  until its first store, so that a read before it is a compile error?
+- **(c) Gated data:** For a `data` type whose default domain fails at zero, is
+  the declaration itself rejected, or accepted with every read before a whole
+  store rejected?
+
+**What the new checker does until this is answered.** The fail-closed
+reading: a declaration without an initializer reserves storage and holds
+nothing, and a read, copy, argument or return that some path reaches with no
+store into every leaf is refused as `Unestablished`. The emitted module still
+stores the zero the current pipeline stores, so run-time behavior is
+unchanged. If (a) or (b) is answered "zero", elaboration records the zero as
+the content the reserving operation writes and those reads become ordinary
+reads; nothing else changes.

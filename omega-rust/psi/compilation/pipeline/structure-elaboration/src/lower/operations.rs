@@ -98,6 +98,10 @@ impl Lowering<'_> {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
                     Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    Some(Bound::Home(home)) => {
+                        let scalar_type = self.result_type(expression)?;
+                        self.read_home(home, scalar_type, source)
+                    }
                     Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
                     None => Err(self.internal("a slot is read before it is bound")),
                 }

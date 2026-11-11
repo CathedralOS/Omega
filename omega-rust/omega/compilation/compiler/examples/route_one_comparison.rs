@@ -11,6 +11,14 @@
 //!
 //!     program <path> current=<accepted|rejected> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
+//!     use <path> <machine> <operation or edge> unestablished <detail>
+//!
+//! `route` is `accepted` when every obligation is discharged and every use of
+//! storage is established, `rejected` when some use of storage is
+//! unestablished (a compile error by the new route, as an unproved
+//! obligation is, whatever the obligations say), `refused` when an
+//! obligation is unproved or refused, `outside` when elaboration does not
+//! serve the program and `refused-module` when discharge cannot read it.
 //!
 //! A program the current checker rejects has no typed trees here, so the new
 //! route cannot run on it (`route=unreached`). This is a measuring tool, not a
@@ -220,7 +228,23 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // obligations, judged, core refused, unproved, unsupported, needed a
     // relation, needed a branch fact, published clauses held
     let mut counts = [0_usize; 8];
+    // Uses of storage judged for initialization, and how many of them are
+    // unestablished. Each of those is a compile error by the new route: a
+    // rejection of the program, not a construct outside the subset.
+    let mut uses = 0_usize;
+    let mut unestablished = 0_usize;
     for (machine, result) in discharged.machines.iter() {
+        uses += result.uses.len();
+        for refusal in result.unestablished() {
+            unestablished += 1;
+            lines.push(format!(
+                "use\t{}\t{}\t{:?}\tunestablished\t{}",
+                main.display(),
+                machine.get(),
+                refusal.concerns,
+                one_line(&refusal.detail),
+            ));
+        }
         let Some(tables) = elaboration.tables.machines.get(machine) else {
             continue;
         };
@@ -327,13 +351,15 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             ));
         }
     }
-    let route = if counts[3] + counts[4] == 0 {
+    let route = if unestablished > 0 {
+        "rejected"
+    } else if counts[3] + counts[4] == 0 {
         "accepted"
     } else {
         "refused"
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}",
+        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

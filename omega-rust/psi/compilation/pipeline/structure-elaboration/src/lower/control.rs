@@ -183,6 +183,13 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(())
             }
+            Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
+            Statement::Store {
+                slot,
+                path,
+                value,
+                source,
+            } => self.store(*slot, path, value, *source),
             Statement::Evaluate(expression) => match self.no_normal(expression)? {
                 Some((callee, arguments)) => {
                     self.invoke_no_normal(callee, arguments, expression.source)

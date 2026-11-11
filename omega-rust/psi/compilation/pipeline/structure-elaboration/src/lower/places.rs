@@ -1,45 +1,49 @@
 /*
 The place family of lowering: structural roots, projections interned on first
-use, the forward write log, record construction, field reads and whole
-copies. This is where `MachineTables::places`, `roots` and `writes` are
-filled, in lockstep with the Terminal Psi operations that create the storage.
+use, the forward write log, record construction, field reads, stores, whole
+copies and locals declared without an initializer. This is where
+`MachineTables::places`, `roots` and `writes` are filled, in lockstep with
+the Terminal Psi operations that create or change the storage.
 
 Roots. One Terminal `PlaceId` and one `PlaceRow { origin: Root }` per record
-formal, per operation that produces a record (a literal, a whole copy, a call
-with a record result) and for a record machine's result place; `roots` maps
-the `PlaceId` to its row. A record local has no place of its own: its slot
-holds the root its initializer produced. ownership.md: "Parameter,
-named-local, and call-result roots retain distinct establishment identities."
+formal, per operation that produces storage (a literal, a whole copy, a call
+with a record result, the home of a local declared without an initializer)
+and for a record machine's result place; `roots` maps the `PlaceId` to its
+row. A record local has no place of its own: its slot holds the root its
+initializer, or the last whole value assigned to it, produced.
+ownership.md: "Parameter, named-local, and call-result roots retain distinct
+establishment identities."
 
 Projections. `r.a` is the row `(r, Segment::Field(a))`, found by binary
 search of the parent's sorted `children` and pushed only when absent, so a
 path names one `ExactPlaceId` however often it is used. ownership.md:
 "Resolve every segment against the type reached by the previous segment".
 
-The write log. Establishing a record writes each scalar leaf beneath its
-fresh root once, at the point after the establishing operation: a literal
-writes `Content::Value(operand)`, a whole copy writes what the source leaf
-holds, and a call's record result is one `Content::Overwritten` on the root,
-because nothing here knows the callee's values. What a formal holds at entry
-is not a write: it is one value per leaf with
-`ValueOrigin::EntryContent { place }`, minted the first time the leaf is
-read or copied. A value is never invented: a leaf whose content has no value
-identity stays `Overwritten`.
+The write log. Each row says what one operation stored and where, and
+nothing else: lowering never asks what a place holds.
 
-What a leaf holds is read back from the log lowering itself wrote (`held`):
-the last write on the leaf or on an ancestor. That is exact here because of
-how this subset is shaped, not in general: every transition arm completes the
-machine, so the statements of a body lie on one spine of blocks, each
-dominating the next, and every root a later statement can name was written on
-that spine. The checker does not rely on this; it derives reaching writes
-from the graph (`lowered-discharge`, `places`). A slice that joins two
-different contents of one place (a value `match`, a loop) must replace `held`
-with the graph answer rather than extend it.
+- A literal writes `Content::Value(operand)` on each scalar field of its
+  fresh root, and a scalar store writes it on the exact leaf it names.
+- A whole copy writes one `Content::Overwritten` on its fresh root, and a
+  record moved into a field (a record operand of a literal, a record stored
+  into a field) writes one on that field's place. `Content` has no way to
+  say "what that other place held", so the row states only that the place
+  has new contents; the operation at the row's point names the source, and
+  the checker resolves each leaf through it with the same walk it uses for
+  a read (`lowered-discharge`, `places`).
+- A call's record result is one `Content::Overwritten` on its root: nothing
+  here knows the callee's values.
+- A local declared without an initializer writes nothing: its home is
+  reserved and holds no content until a store reaches it.
+- What a formal holds at entry is not a write. It is one value per scalar
+  leaf with `ValueOrigin::EntryContent { place }`, minted the first time an
+  operation names the leaf or a place above it, whatever is stored there
+  later.
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IdTable, MachineId, OperationId, PlaceId, ScalarType,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    CanonicalStructuralPathSegment, IdTable, IntegerValue, MachineId, OperationId, PlaceId,
+    ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
@@ -50,12 +54,13 @@ use terminal_psi::{
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralRecordStorage,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder, Terminator,
+    StructuralStoreDisposition, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder, Terminator,
 };
 
 use super::{Lowering, Value};
-use crate::body::{Expression, ExpressionKind, RecordType, ValueType};
+use crate::body::{Body, Expression, ExpressionKind, RecordType, Statement, ValueType};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
 /// The module's record types as lowering needs them: the reader's table and,
@@ -63,6 +68,10 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    /// The primitive structural type of each scalar type some local is homed
+    /// in, declared after the record types. A handful at most, searched by
+    /// the scalar type itself.
+    primitives: Vec<(ScalarType, StructuralTypeId)>,
     /// `field_identities[record][position]`: the field's index in the
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
@@ -88,9 +97,15 @@ pub(crate) struct Declared<'a> {
 /// owned storage and reference descriptors, with no nominal cleanup hook or
 /// conserved claim" (`wiki/spec/terminal-psi/structural_access.md`); it owns
 /// no linear claim and authors no layout.
+///
+/// A scalar local declared without an initializer is homed in a place of
+/// primitive structural type, so each scalar type such a local has is
+/// declared too, after the records, as the current pipeline declares it:
+/// copyable, with no cleanup and no claim.
 pub(crate) fn declare<'a>(
     entry: MachineId,
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    bodies: &IdTable<MachineId, Body>,
 ) -> Checked<Declared<'a>> {
     let mut identities = TerminalIdentityTableBuilder::default();
     let mut field_identities = IdTable::default();
@@ -157,9 +172,50 @@ pub(crate) fn declare<'a>(
             scalar_restriction: None,
         });
     }
+    let mut primitives: Vec<(ScalarType, StructuralTypeId)> = Vec::new();
+    for (_, body) in bodies.iter() {
+        for statement in &body.statements {
+            let Statement::Declare { slot, home, .. } = statement else {
+                continue;
+            };
+            let Some(ValueType::Scalar(scalar_type)) = body.slots.get(*slot).copied() else {
+                continue;
+            };
+            if primitives.iter().any(|(known, _)| *known == scalar_type) {
+                continue;
+            }
+            let Some(home) = home else {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Spelling("scalar home without a type identity"),
+                ));
+            };
+            let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("structural type identity overflow"),
+                )
+            })?;
+            structural_types.push(StructuralTypeDeclaration {
+                quotient_carrier: None,
+                id,
+                identity: identities.intern(home),
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+                scalar_restriction: None,
+            });
+            primitives.push((scalar_type, id));
+        }
+    }
     Ok(Declared {
         records: Records {
             types,
+            primitives,
             field_identities,
         },
         identities: identities.build(),
@@ -169,11 +225,14 @@ pub(crate) fn declare<'a>(
 }
 
 /// What a slot holds: a scalar slot the value bound to it, a record slot the
-/// root place of the value its formal or initializer established.
+/// root place of the value its formal, initializer or last whole assignment
+/// established, and a scalar local declared without an initializer the root
+/// place that is its home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Bound {
     Scalar(ValueId),
     Record(PlaceId),
+    Home(PlaceId),
 }
 
 /// The storage a record-typed expression names, before anything is copied.
@@ -300,82 +359,60 @@ impl<'a> Lowering<'a> {
         Ok(value)
     }
 
-    /// What a scalar leaf holds at the point lowering has reached: the last
-    /// write on it or on an ancestor, or its entry content when nothing was
-    /// written beneath a formal's root. See the module comment for why the
-    /// last write is the reaching one in this subset.
-    fn held(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<Content> {
-        let mut latest = None;
-        let mut place = leaf;
-        let root = loop {
-            let row = terminal_check_tables::row(
-                &self.tables.places,
-                place,
-                self.id,
-                Construct::Place(place),
-            )?;
-            if let Some(write) = row.writes.last().copied()
-                && latest.is_none_or(|(known, _)| write > known)
-            {
-                latest = Some((write, place));
-            }
-            match row.origin {
-                PlaceOrigin::Root(root) => break root,
-                PlaceOrigin::Projection { parent, .. } => place = parent,
-            }
-        };
-        let Some((write, written)) = latest else {
-            let (kind, _) =
-                terminal_check_tables::row(&self.roots, root, self.id, Construct::Place(leaf))?;
-            return match kind {
-                StructuralPlaceKind::Parameter { .. } => {
-                    self.entry_content(leaf, scalar_type).map(Content::Value)
-                }
-                _ => Err(self.internal("a place is read before anything was written to it")),
-            };
-        };
-        let content = terminal_check_tables::row(
-            &self.tables.writes,
-            write,
-            self.id,
-            Construct::Place(written),
-        )?
-        .content;
-        match content {
-            Content::Value(_) if written == leaf => Ok(content),
-            Content::Value(_) => Err(self.internal("a scalar value was written to a record")),
-            Content::Overwritten => Ok(Content::Overwritten),
-            Content::Reference(_) | Content::Vacated => Err(refuse(
-                self.id,
-                Construct::Place(written),
-                Unserved::Expression("place holding a reference or a hole"),
-            )),
+    /// Mints the entry content of every scalar leaf at or beneath `place`
+    /// when `root` is a formal: an operation is about to name that storage,
+    /// and what it held at entry is the value the checker's walk ends at on
+    /// every path with no store. Other roots hold nothing at entry.
+    fn name_entry(
+        &mut self,
+        root: PlaceId,
+        place: ExactPlaceId,
+        value_type: ValueType,
+    ) -> Checked<()> {
+        let (kind, _) =
+            *terminal_check_tables::row(&self.roots, root, self.id, Construct::Place(place))?;
+        match kind {
+            StructuralPlaceKind::Parameter { .. } => self.entry_leaves(place, value_type),
+            StructuralPlaceKind::BlockParameter { .. }
+            | StructuralPlaceKind::Result
+            | StructuralPlaceKind::OperationResult { .. }
+            | StructuralPlaceKind::ByteSequenceLiteral { .. }
+            | StructuralPlaceKind::ProviderAttachment { .. }
+            | StructuralPlaceKind::TrivialAffineLocal { .. } => Ok(()),
         }
     }
 
-    /// Writes, leaf by leaf, what `from` holds into `to`: the log entry of a
-    /// whole copy or of a record operand moved into its field.
-    fn copy_contents(
-        &mut self,
-        from: ExactPlaceId,
-        to: ExactPlaceId,
-        value_type: ValueType,
-        at: ProgramPoint,
-    ) -> Checked<()> {
+    fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
-            ValueType::Scalar(scalar_type) => {
-                let content = self.held(from, scalar_type)?;
-                self.write(to, at, content)
-            }
+            ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record) => {
                 for field in &self.record_type(record)?.fields {
-                    let from = self.project(from, field.id)?;
-                    let to = self.project(to, field.id)?;
-                    self.copy_contents(from, to, field.value_type, at)?;
+                    let leaf = self.project(place, field.id)?;
+                    self.entry_leaves(leaf, field.value_type)?;
                 }
                 Ok(())
             }
         }
+    }
+
+    /// The Terminal Psi storage path segment of one field: the interned
+    /// identity its declaration carries. It is written into operations,
+    /// which is the form Terminal Psi gives them; nothing here compares it.
+    fn storage_segment(
+        &self,
+        owner: StructuralTypeId,
+        field: usize,
+    ) -> Checked<StructuralPathSegment> {
+        terminal_check_tables::row(
+            &self.records.field_identities,
+            owner,
+            self.id,
+            Construct::Machine,
+        )?
+        .get(field)
+        .copied()
+        .map(StructuralPathSegment::Field)
+        .ok_or_else(|| self.internal("a field has no declared identity"))
     }
 
     /// Emits an operation whose result is a fresh record root.
@@ -429,7 +466,7 @@ impl<'a> Lowering<'a> {
                         record,
                         fresh: false,
                     }),
-                    Some(Bound::Scalar(_)) => {
+                    Some(Bound::Scalar(_) | Bound::Home(_)) => {
                         Err(self.internal("a scalar slot is used as a record"))
                     }
                     None => Err(self.internal("a slot is read before it is bound")),
@@ -493,17 +530,9 @@ impl<'a> Lowering<'a> {
         }
         let mut path = Vec::with_capacity(at.path.len());
         for (owner, field) in &at.path {
-            let identity = terminal_check_tables::row(
-                &self.records.field_identities,
-                *owner,
-                self.id,
-                Construct::Machine,
-            )?
-            .get(*field)
-            .copied()
-            .ok_or_else(|| self.internal("a field has no declared identity"))?;
-            path.push(StructuralPathSegment::Field(identity));
+            path.push(self.storage_segment(*owner, *field)?);
         }
+        self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
         let operation = self.operation_identity(expression.source);
         let (root, exact) = self.produce(
             operation,
@@ -513,11 +542,12 @@ impl<'a> Lowering<'a> {
                 path,
             },
         )?;
-        self.copy_contents(
-            at.place,
+        // The copy's source is the operation's own `source` and `path`; the
+        // row says only that the fresh root has new contents.
+        self.write(
             exact,
-            ValueType::Record(at.record),
             ProgramPoint::AfterOperation(operation),
+            Content::Overwritten,
         )?;
         Ok(root)
     }
@@ -525,7 +555,7 @@ impl<'a> Lowering<'a> {
     /// `R { a: x, b: y }`: the operands in authored order, then one
     /// `EstablishRecord` whose roster is in declaration order
     /// (structural_access.md: "a complete roster of declaration-identified
-    /// field operands"), then one write per scalar leaf of the fresh root.
+    /// field operands"), then one write per field of the fresh root.
     fn establish(
         &mut self,
         record: StructuralTypeId,
@@ -580,10 +610,9 @@ impl<'a> Lowering<'a> {
             let leaf = self.project(exact, field.id)?;
             match operand {
                 Operand::Scalar(value) => self.write(leaf, at, Content::Value(value))?,
-                Operand::Record(source) => {
-                    let source = self.exact_root(source)?;
-                    self.copy_contents(source, leaf, field.value_type, at)?;
-                }
+                // The operand root is named by the establishment's own
+                // roster; the row says only that the field has new contents.
+                Operand::Record(_) => self.write(leaf, at, Content::Overwritten)?,
             }
         }
         Ok((root, exact))
@@ -617,10 +646,7 @@ impl<'a> Lowering<'a> {
             .get(field)
             .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
         let leaf = self.project(at.place, declared.id)?;
-        // Asking what the leaf holds mints its entry content value when it
-        // lies beneath a formal and nothing was written to it: the value the
-        // checker's read equation names.
-        self.held(leaf, scalar_type)?;
+        self.name_entry(at.root, leaf, ValueType::Scalar(scalar_type))?;
         let kind = match scalar_type {
             ScalarType::Boolean => OperationKind::BooleanStructuralField {
                 source: at.root,
@@ -638,6 +664,215 @@ impl<'a> Lowering<'a> {
         };
         let operation = self.operation_identity(source);
         self.emit(operation, Some(scalar_type), kind)
+    }
+
+    /// `let x: T;`: reserves the local's storage and stores nothing the
+    /// checker may rely on. The operations are the ones the current pipeline
+    /// emits, so the module runs: a record home is `EstablishZeroedStructural`
+    /// and a scalar home is `EstablishPrimitiveLocal` of a zero constant
+    /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
+    /// typed SSA initializer and establishes the referent"). No row is
+    /// written for either: state_contracts.md, "Uninitialized storage has no
+    /// assumed zero." Whether such a declaration instead establishes the zero
+    /// value is `OWNER_QUESTIONS.md`, `local-without-initializer`.
+    pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
+        let bound = match self.slot_type(slot)? {
+            ValueType::Record(record) => {
+                let operation = self.operation_identity(source);
+                let (root, _) = self.produce(
+                    operation,
+                    record,
+                    OperationKind::EstablishZeroedStructural {},
+                )?;
+                Bound::Record(root)
+            }
+            ValueType::Scalar(scalar_type) => {
+                let home = self
+                    .records
+                    .primitives
+                    .iter()
+                    .find(|(known, _)| *known == scalar_type)
+                    .map(|(_, home)| *home)
+                    .ok_or_else(|| self.internal("a homed scalar type is not declared"))?;
+                let zero = self.operation_identity(source);
+                let kind = match scalar_type {
+                    ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
+                    ScalarType::Integer(integer) => OperationKind::IntegerConstant {
+                        value: IntegerValue::for_sign(integer.sign(), 0)
+                            .map_err(|_| self.internal("zero is not an integer value"))?,
+                    },
+                    ScalarType::IeeeFloat(_) => {
+                        return Err(self.internal("a float local reached lowering"));
+                    }
+                };
+                let Value::Scalar(value) = self.emit(zero, Some(scalar_type), kind)? else {
+                    return Err(self.internal("a constant produced no value"));
+                };
+                let operation = self.operation_identity(source);
+                let (root, _) = self.produce(
+                    operation,
+                    home,
+                    OperationKind::EstablishPrimitiveLocal {
+                        value,
+                        range_obligation: None,
+                    },
+                )?;
+                Bound::Home(root)
+            }
+        };
+        *self.slot_mut(slot)? = Some(bound);
+        Ok(())
+    }
+
+    /// A fresh read of a scalar local's home. structural_access.md:
+    /// "`PrimitiveScalarRead` produces a fresh scalar observation of an
+    /// established local ... A read is not equality with the initializer or
+    /// a previous read: intervening stores and calls can change storage."
+    pub(super) fn read_home(
+        &mut self,
+        home: PlaceId,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let operation = self.operation_identity(source);
+        self.emit(
+            operation,
+            Some(scalar_type),
+            OperationKind::PrimitiveScalarRead {
+                source: home,
+                path: Vec::new(),
+            },
+        )
+    }
+
+    /// `slot.path = value;`: the value, then one store into exactly the
+    /// place the path selects, and one row saying what that place now holds.
+    /// Sibling places get no row, so they keep their contents; no earlier
+    /// row is edited, so what was known about the old value stays known.
+    ///
+    /// A scalar field is `StructuralScalarFieldStore`, whose path is the
+    /// carrier and whose field is the leaf (structural_access.md: "An empty
+    /// carrier path denotes a common field directly on the root"); a plain
+    /// field has no declared range, so it carries no obligation ("unbounded
+    /// fields must not carry one"). A record field is the ordinary
+    /// structural replacement, `StoreStructuralField`, of a root that holds
+    /// the already constructed value ("A whole record assignment constructs
+    /// its operands before replacing the destination through the ordinary
+    /// structural replacement operation ... Root, field, and indexed
+    /// destinations do not change construction semantics or decompose the
+    /// assignment into member stores"). A homed scalar local is
+    /// `WriteOnlyPrimitiveStore` with an empty path.
+    pub(super) fn store(
+        &mut self,
+        slot: usize,
+        path: &[usize],
+        value: &Expression,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let bound = *self.slot_mut(slot)?;
+        let (root, last) = match (bound, path.split_last()) {
+            (Some(Bound::Home(home)), None) => {
+                let stored = self.scalar(value)?;
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    None,
+                    OperationKind::WriteOnlyPrimitiveStore {
+                        destination: home,
+                        path: Vec::new(),
+                        value: stored,
+                        range_obligation: None,
+                    },
+                )?;
+                let place = self.exact_root(home)?;
+                return self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Value(stored),
+                );
+            }
+            (Some(Bound::Record(root)), Some(last)) => (root, last),
+            (Some(Bound::Scalar(_) | Bound::Home(_)), Some(_)) => {
+                return Err(self.internal("a field of a scalar slot is stored to"));
+            }
+            (Some(Bound::Scalar(_) | Bound::Record(_)), None) => {
+                return Err(self.internal("a whole store into a slot that is not a home"));
+            }
+            (None, _) => return Err(self.internal("a slot is stored to before it is bound")),
+        };
+        let (_, mut record) =
+            *terminal_check_tables::row(&self.roots, root, self.id, Construct::Machine)?;
+        let mut place = self.exact_root(root)?;
+        let (final_field, carrier) = last;
+        let mut storage = Vec::with_capacity(carrier.len());
+        for position in carrier {
+            let declared = self
+                .record_type(record)?
+                .fields
+                .get(*position)
+                .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
+            storage.push(self.storage_segment(record, *position)?);
+            place = self.project(place, declared.id)?;
+            record = match declared.value_type {
+                ValueType::Record(nested) => nested,
+                ValueType::Scalar(_) => {
+                    return Err(self.internal("a store path crosses a scalar field"));
+                }
+            };
+        }
+        let declared = self
+            .record_type(record)?
+            .fields
+            .get(*final_field)
+            .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
+        let place = self.project(place, declared.id)?;
+        if value.result != Some(declared.value_type) {
+            return Err(self.internal("a stored value has another type than its field"));
+        }
+        match declared.value_type {
+            ValueType::Scalar(_) => {
+                let stored = self.scalar(value)?;
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    None,
+                    OperationKind::StructuralScalarFieldStore {
+                        destination: root,
+                        path: storage,
+                        field: declared.id,
+                        value: stored,
+                        range_obligation: None,
+                    },
+                )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Value(stored),
+                )
+            }
+            ValueType::Record(_) => {
+                let constructed = self.record(value)?;
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    None,
+                    OperationKind::StoreStructuralField {
+                        disposition: StructuralStoreDisposition::Vacant,
+                        destination: root,
+                        path: storage,
+                        field: Some(declared.id),
+                        value: StructuralArgument::whole(constructed, StructuralAccess::Owned),
+                    },
+                )?;
+                // The operation names the root the value came from; the row
+                // says only that the field has new contents.
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )
+            }
+        }
     }
 
     /// Ends the block after a call that consumed record arguments and

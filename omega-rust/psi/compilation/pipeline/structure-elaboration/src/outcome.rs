@@ -162,11 +162,15 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate(expression)
+                | Statement::Store {
+                    value: expression, ..
+                } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
                 }
+                Statement::Declare { .. } => {}
                 Statement::Arm { guard, target, .. } => {
                     if let Some(guard) = guard
                         && !self.expression(machine, guard)?

@@ -25,6 +25,12 @@ one prover.
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
+Beside the obligations it judges initialization: every operation and
+terminator that reads storage gets one verdict (`MachineDischarge::uses`),
+and a use that some path reaches with nothing stored is refused with reason
+`Unestablished`. That is a compile error of the program, like `Unproved`,
+not a construct outside the subset; see [Initialization](#initialization).
+
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
@@ -37,35 +43,72 @@ an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
 
-## Reads of places
+## What a place holds
 
-A field read produces a fresh value. It gets the row `read == v` when `v` is
-the one value its place holds on every path to it
-([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md):
-"A primitive read may introduce an equality between its copied SSA result
-and an exact reaching stored SSA value. Every actual predecessor must supply
-that same value"). [places.rs](src/places.rs) finds that from the tables
-alone:
+A read, a whole copy and the initialization judgment all ask one question:
+what does this scalar leaf hold on every path to this point?
+[places.rs](src/places.rs) answers it with one walk (`Storage::reaching`)
+over the tables and the lowered form:
 
-- **The place.** The read's root is `roots[source]`, and each field of its
-  path is one binary search of a parent's `children`.
+- **The place.** A place is its root and the fields from the root down to
+  it. A read names its fields by `StructuralFieldId`; a Terminal Psi storage
+  path is resolved by the lowered form itself, one segment against the type
+  the previous segment reached (`runtime_structural_field`).
 - **Overlap.** One function answers whether two places may share storage: a
   place overlaps itself, its ancestors and its descendants; two places that
   part by two different record fields are disjoint; any other pair of sibling
   segments overlaps, and places under different roots do not. Later lanes
   extend this function (indices, referents) and add no second relation.
-- **Reaching.** Walking the graph back from the read, the first write to an
-  overlapping place on each path is the one that reaches along it. A write of
-  `Content::Value(v)` to exactly the read place supplies `v`. Any other
-  overlapping write supplies no value. A path that reaches the machine's
-  entry with no write is supplied by the place's entry content
-  (`ValueOrigin::EntryContent`).
+- **Reaching.** Walking the graph back from the use, the last write to an
+  overlapping place on each path is the one that reaches along it.
+  - `Content::Value(v)` on exactly the leaf supplies `v`.
+  - `Content::Overwritten` on the leaf or above it supplies contents with no
+    value identity, unless the operation at that row is one that moves
+    storage whole: a whole copy, a record operand of a literal, a record
+    stored into a field. Then the leaf holds what the matching leaf of the
+    operation's source held just before it, and the walk continues there.
+    The write log cannot say this (its `Content` has no "copied from"
+    variant), so the source is read from the operation.
+  - A path that reaches the machine's entry with no write is supplied by the
+    place's entry content when its root is a formal, and by nothing
+    otherwise.
 
-One value from every arrival gives the equation. Different values on
-different arrivals, or contents with no value identity, give none: the read
-is still well formed and nothing is known about it. A path that reaches the
-entry of a place with no entry content is a table that does not describe the
-module, and the machine is refused.
+A store inside a block reaches only what that block leads to: a store in a
+guarded arm that completes the machine reaches neither a read nor a copy in
+the continuation, and a store before the branch reaches both sides.
+
+### The read equation
+
+A read produces a fresh value. It gets the row `read == v` when `v` is the
+one value its place holds on every path to it
+([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md):
+"A primitive read may introduce an equality between its copied SSA result
+and an exact reaching stored SSA value. Every actual predecessor must supply
+that same value"). Different values on different arrivals, or contents with
+no value identity, give none: the read is still well formed and nothing is
+known about it. A store never removes a row, so what was known about the
+value a leaf held before the store stays known.
+
+### Initialization
+
+[Structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
+"An unestablished local cannot be read: a whole read of the home, a loan of
+it to an ordinary or boundary call, and its forwarding on a state edge each
+require a whole store into it on every path reaching that use."
+
+Every operation and terminator that reads storage is one use: a field read,
+a read of a scalar home, a whole copy, a record operand, a record stored
+into a field, a call's record arguments, a record return. Each scalar leaf
+at or beneath the place it reads must be supplied on every path: by a store
+into the leaf, by a whole write to a place above it, or by a formal's entry
+content. If some path supplies nothing, the use's verdict is a refusal with
+reason `Unestablished`, concerning that operation or edge. A record is
+therefore established by a whole write or by a store into every leaf, and
+not by fewer.
+
+It is a structural judgment over the write log and the graph. It is not a
+proposition, so it has no obligation row, no certificate and no part in the
+prover.
 
 Knowledge names values only. No row states a proposition about a place and
 no structural `Proposition` variant is used, so the prover gained no
@@ -147,8 +190,19 @@ subset needs, so the prover emits them directly.
    `p.x - p.x` over a formal discharges with a `Judged` certificate.
 6. **Edge writes are refused, not placed.** The backward walk moves between
    blocks. A write logged on one edge reaches only that edge's destination,
-   so a write at `ProgramPoint::Edge` that overlaps a read refuses the
+   so a write at `ProgramPoint::Edge` that overlaps a use refuses the
    machine until the slice that logs one teaches the walk about edges.
+7. **A copy's source is not in the write log.** `Content` cannot name a
+   source place, so the walk reads it from the operation at the row
+   (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
+   value of `StoreStructuralField`). An `Overwritten` row at any other
+   operation keeps its own meaning: contents with no value identity.
+8. **A local with no initializer is unestablished here and zero in the
+   current checker.** `let mut x: u32; f(x)` is accepted today with `x == 0`
+   known; this route rejects the read. The question is in
+   `OWNER_QUESTIONS.md` (`local-without-initializer`). If the answer is
+   zero, elaboration logs the zero at the reserving operation and nothing
+   here changes.
 
 ## Evidence seals
 
@@ -175,7 +229,8 @@ module lowered from bytes, including one a cache rebuilt, arrives with
 ## Measuring against the current checker
 
 `omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
-both checkers on corpus programs and prints one line per program and one per
-obligation. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
+both checkers on corpus programs and prints one line per program, one per
+obligation and one per unestablished use of storage; a program with such a
+use is `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
