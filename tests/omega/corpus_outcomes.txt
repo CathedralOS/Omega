@@ -1302,8 +1302,9 @@ fail/borrows/dynamic_window_result_requires_bounds rejected 2088ms expected @ccd
 	cannot prove subslice range end bound `start..end` is within unknown slice length of `bytes` in capture::entry
 fail/borrows/empty_array_snapshot_requires_read_authority rejected 325ms expected @27c558b731f4
 	machine `snapshot` state `entry` reads through index projection of write-only parameter `rows`; `&write` permits admitted fixed-array element replacement but never observation
-fail/borrows/erased_cast_borrow_overlaps_mutable_borrow rejected 5526ms expected @f2672d675498
+fail/borrows/erased_cast_borrow_overlaps_mutable_borrow rejected 10398ms expected @b95657c2e953
 	state `both` receives `t` as both mutable and read-only
+	cannot prove default-domain field requirement for call both from main::entry: parameter a requires Ticket::Held
 fail/borrows/erased_input_before_returned_reference_live_source_write rejected 6684ms expected @7e859cc5b918
 	statement 1 mutates `one` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/erased_input_before_second_returned_reference_live_source_write rejected 6691ms expected @7e859cc5b918
@@ -4784,7 +4785,7 @@ fail/domains/issued_state_arrival_mutated rejected 2335ms expected @ccdb99ca2214
 	cannot prove requires contract for call received from main: resource in Resource::Open (invalidated by prior mutation of resource.identity; resource.identity is part of Resource::Open) in state `entry`
 fail/domains/issued_state_arrival_unissued rejected 2330ms expected @ccdb99ca2214
 	cannot prove requires contract for call received from main: resource in Resource::Open in state `entry`
-fail/domains/linear_erased_cast_field_read_moves_operand rejected 4968ms expected @f2672d675498
+fail/domains/linear_erased_cast_field_read_moves_operand rejected 8521ms expected @b95657c2e953
 	cannot use `t.value` in machine `main` state `entry` (statement 1) after `t` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `t` first
 fail/domains/linear_qualification_reuse_moved_source rejected 8259ms expected @ee4dbb4b2d56
 	cannot use `claim` in machine `exercise` state `entry` (statement 3) after `claim` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `claim` first
@@ -5018,23 +5019,25 @@ fail/domains/routed_qualification_cast_wrong_family_instance rejected 6457ms exp
 fail/domains/routed_qualification_cast_wrong_occurrence rejected 2255ms expected @ccdb99ca2214
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
-fail/domains/routed_qualification_erased_array_element rejected 5639ms expected @f2672d675498
+fail/domains/routed_qualification_erased_array_element rejected 10754ms expected @b95657c2e953
 	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_borrow_argument rejected 6650ms expected @f8e80b0c32b0
+fail/domains/routed_qualification_erased_borrow_argument rejected 11907ms expected @b95657c2e953
 	cannot prove requires contract for call observe from main: issued in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_borrow_from_parameter rejected 6682ms expected @9da5bc95d748
+fail/domains/routed_qualification_erased_borrow_from_parameter rejected 12891ms expected @b95657c2e953
 	cannot prove requires contract for call observe from outer: t in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_call_argument rejected 5889ms expected @f2672d675498
+fail/domains/routed_qualification_erased_call_argument rejected 11066ms expected @b95657c2e953
 	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_case_payload rejected 5653ms expected @f2672d675498
+fail/domains/routed_qualification_erased_case_payload rejected 11354ms expected @b95657c2e953
 	cannot prove requires contract for call consume from main: wrapped::Some.ticket in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_literal_field rejected 6059ms expected @f2672d675498
+fail/domains/routed_qualification_erased_literal_field rejected 12645ms expected @b95657c2e953
 	cannot prove requires contract for call consume from main: holder.ticket in Ticket::Held in state `entry`
-fail/domains/routed_qualification_erased_reference_annotation rejected 6811ms expected @9da5bc95d748
+fail/domains/routed_qualification_erased_reference_annotation rejected 11253ms expected @b95657c2e953
 	cannot prove initializer of `held` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
-fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
+fail/domains/routed_qualification_erased_return rejected 10125ms expected @b95657c2e953
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
-fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
+fail/domains/routed_qualification_erased_stored_reference_field rejected 10243ms expected @b95657c2e953
+	cannot prove requires contract for call observe from main: v.t in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_transition_argument rejected 11522ms expected @b95657c2e953
 	cannot prove requires contract for call next from main: issued as Ticket in Ticket::Held in state `entry`
 fail/domains/routed_qualification_invalidated_field rejected 3076ms expected @ccdb99ca2214
 	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
@@ -5215,8 +5218,8 @@ fail/drops/drop_ensures_unlocked_predicate rejected 11520ms expected @ee4dbb4b2d
 	cannot prove ensures contract for exit from drop_mutex_guard at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/empty_array_owner_cleanup_prerequisite rejected 11322ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by drop_holder clause `holder.ready`
-fail/drops/erased_linear_subject_requires_disposition rejected 1811ms expected @ccdb99ca2214
-	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:3ef6cc66a06ab29aaf920c13a08ac22e6a634150b97aa1427e8d78e59e24daea\\)\\,path\\(Event\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
+fail/drops/erased_linear_subject_requires_disposition rejected 9413ms expected @b95657c2e953
+	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:1d38107c1746168199d9cc2f31a83a046b543681591af6301fe4a8cdcfdf953c\\)\\,path\\(Event\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/fresh_qualified_storage_invalidated_before_cleanup rejected 8451ms unexpected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$2e928c65ba61c82a$0$2663 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$a574f77a5e13dcbe$1$2666 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
@@ -8216,28 +8219,23 @@ fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 5040ms exp
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4931ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from invoke_selected: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_call_result_rejected rejected 2112ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_call_result_rejected rejected 12357ms expected @b95657c2e953
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_const_name_rejected rejected 1832ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_const_name_rejected rejected 10455ms expected @b95657c2e953
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_field_rejected rejected 2419ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_field_rejected rejected 11239ms expected @b95657c2e953
 	cannot prove requires contract for call keep from exercise: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_local_rejected rejected 2102ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_local_rejected rejected 11316ms expected @b95657c2e953
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `witness == 7`
-fail/facts/erased_reference_contract_through_match_join_rejected rejected 2229ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_match_join_rejected rejected 12477ms expected @b95657c2e953
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_machine_rejected rejected 2423ms expected @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/facts/erased_reference_contract_through_other_machine_rejected rejected 10700ms expected @b95657c2e953
 	cannot prove requires contract for call relay from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_state_rejected rejected 2340ms expected @ccdb99ca2214
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/facts/erased_reference_contract_through_other_state_rejected rejected 10192ms expected @b95657c2e953
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_parameter_rejected rejected 2161ms expected @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+fail/facts/erased_reference_contract_through_parameter_rejected rejected 11957ms expected @b95657c2e953
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_target_body_rejected rejected 2261ms expected @ccdb99ca2214
+fail/facts/erased_reference_contract_through_target_body_rejected rejected 10243ms expected @b95657c2e953
 	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -19726,9 +19724,7 @@ pass/borrows/runtime_byte_view_element_reference_calls_exit checked 3807ms check
 pass/borrows/runtime_callee_alias_descriptor_replacement_exit checked 3599ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_captured_primitive_reference_exit checked 63133ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 62534ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_captured_window_effectful_selector_exit rejected 2948ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+pass/borrows/runtime_captured_window_effectful_selector_exit checked 15075ms check-target:macos_arm64 @b95657c2e953
 pass/borrows/runtime_carrier_reference_reselection_exit checked 72576ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_carrier_reference_store_exit checked 16825ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_byte_field_length_cleanup_exit checked 5515ms check-target:macos_arm64 @5ec3b07d751a
@@ -21014,9 +21010,7 @@ pass/control_flow/runtime_far_case_tag_dispatch_exit checked 99696ms check-targe
 pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit checked 15806ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit checked 18640ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_guard_terminal_unit_cleanup_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_guarded_edge_preparation_exit rejected 2699ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `count` receives `left[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `count` receives `right[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+pass/control_flow/runtime_guarded_edge_preparation_exit checked 16223ms check-target:macos_arm64 @b95657c2e953
 pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit checked 6356ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_index_state_child_loan_exit checked 5648ms check-target:macos_arm64 @911f6617ba9e
 pass/control_flow/runtime_index_state_grandchild_loan_exit checked 19148ms check-target:macos_arm64 @911f6617ba9e
@@ -21562,8 +21556,7 @@ pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 3383ms chec
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit checked 3798ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_named_linear_container_cleanup_exit checked 36150ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_named_parent_linear_cleanup_exit checked 61642ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_narrowed_cleanup_receiver_exit rejected 8235ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	statement 2 cannot resolve the complete borrowed destination of `tail[0]`: the completed address is not projected from its receiver
+pass/drops/runtime_narrowed_cleanup_receiver_exit checked 15767ms check-target:macos_arm64 @b95657c2e953
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit checked 49570ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_cleanup_postcondition_exit checked 58140ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_nested_empty_array_owner_cleanup_exit checked 40039ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -22859,19 +22852,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 6222ms chec
 pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 6383ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 6385ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 6311ms check-target:macos_arm64 @281c0d530cb7
-pass/facts/erased_reference_contract_through_call_result_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_const_name_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_field_exit checked 3326ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_local_exit checked 3769ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_match_join_exit checked 3603ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/erased_reference_contract_through_other_machine_exit rejected 3155ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_other_state_exit rejected 3054ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_parameter_exit checked 9765ms check-target:macos_arm64 @edd05427fd02
-pass/facts/erased_reference_contract_through_target_body_exit checked 3169ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/erased_reference_contract_through_call_result_exit checked 14796ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_const_name_exit checked 16776ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_field_exit checked 13038ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_local_exit checked 15476ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_match_join_exit checked 13436ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_other_machine_exit checked 12476ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_other_state_exit checked 13803ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_parameter_exit checked 13878ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_target_body_exit checked 15867ms check-target:macos_arm64 @b95657c2e953
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_field_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
@@ -23521,17 +23510,15 @@ pass/facts/linear_owner_borrowed_projection_other_machine checked 3808ms check-t
 pass/facts/linear_owner_borrowed_projection_other_state checked 3800ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/linear_owner_borrowed_projection_parameter checked 4540ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/linear_owner_borrowed_projection_target_body checked 4129ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/linear_routed_label_through_call_result_exit rejected 12353ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	linear value `constrained(named(name(nominal\\(package-owner\\(32:44c780f3abaf6a7d424afdc75ac9af1f370e9d09973867474a8aaca8673cad3d\\)\\,path\\(Claim\\)\\))),declared-domain(name(package:44c780f3abaf6a7d424afdc75ac9af1f370e9d09973867474a8aaca8673cad3d:product::Claim::Issued)))` reaches scope exit without being consumed or transferred in machine `exercise` state `entry`
-pass/facts/linear_routed_label_through_const_name_exit checked 15609ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_field_exit checked 15337ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_local_exit checked 18867ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_match_join_exit rejected 14582ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	linear value `constrained(named(name(nominal\\(package-owner\\(32:070e8439da8e9c6da331bc6a2e821e54c897e6042489ec59c4e984b329423abc\\)\\,path\\(Claim\\)\\))),declared-domain(name(package:070e8439da8e9c6da331bc6a2e821e54c897e6042489ec59c4e984b329423abc:product::Claim::Issued)))` reaches scope exit without being consumed or transferred in machine `exercise` state `entry`
-pass/facts/linear_routed_label_through_other_machine_exit checked 18018ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_other_state_exit checked 22547ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_parameter_exit checked 16286ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/linear_routed_label_through_target_body_exit checked 14082ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/linear_routed_label_through_call_result_exit checked 12645ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_const_name_exit checked 13414ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_field_exit checked 14931ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_local_exit checked 14243ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_match_join_exit checked 15592ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_other_machine_exit checked 14653ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_other_state_exit checked 15175ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_parameter_exit checked 13599ms check-target:macos_arm64 @b95657c2e953
+pass/facts/linear_routed_label_through_target_body_exit checked 14302ms check-target:macos_arm64 @b95657c2e953
 pass/facts/live_across_call_spill_through_call_result_exit checked 3406ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/live_across_call_spill_through_const_name_exit checked 3685ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/live_across_call_spill_through_field_exit checked 3424ms check-target:macos_arm64 @ccdb99ca2214
@@ -26194,14 +26181,10 @@ pass/layouts/nested_record_layout_queries_compile checked 3124ms @ccdb99ca2214
 pass/layouts/nested_reference_carrier_geometry_exit checked 1412ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/nested_sum_member_layout_compile checked 2368ms @ccdb99ca2214
 pass/layouts/odd_array_then_byte_layout_compile checked 2365ms @ccdb99ca2214
-pass/layouts/placed_factory_accepts_source_interval rejected 904ms @911f6617ba9e
-	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_factory_child_retains_parent rejected 1105ms @b43a5fa574e6
-	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_factory_preserves_independent_source_predicate rejected 905ms @911f6617ba9e
-	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_policy_owner_selection rejected 1082ms regressed-from:checked @b43a5fa574e6
-	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+pass/layouts/placed_factory_accepts_source_interval checked 22669ms @b95657c2e953
+pass/layouts/placed_factory_child_retains_parent checked 21482ms @b95657c2e953
+pass/layouts/placed_factory_preserves_independent_source_predicate checked 22156ms @b95657c2e953
+pass/layouts/placed_policy_owner_selection checked 30697ms @b95657c2e953
 pass/layouts/placed_primitive_aligned_backing checked 9325ms check-target:macos_arm64 @f78a4fddea0b
 pass/layouts/placed_primitive_authored_name checked 3262ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_callback rejected 4065ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -28174,9 +28157,7 @@ run/borrows/local_mut_borrow checked 10253ms check-target:macos_arm64 @ccdb99ca2
 run/borrows/mut_record_loan_member_access checked 10447ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/owned_array_view_establishment checked 3072ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/probe_shared_len checked 9928ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/proved_window_index_replacement rejected 3170ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `replaced` receives `windows[0].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+run/borrows/proved_window_index_replacement checked 10259ms check-target:macos_arm64 @b95657c2e953
 run/borrows/qualified_owner_views checked 3479ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/recast_mut_borrow checked 10713ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/reference_local_binding_routes checked 10799ms check-target:macos_arm64 @ccdb99ca2214
