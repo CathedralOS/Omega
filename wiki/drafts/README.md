@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Boundary slots as static implementations](designs/boundary_slot_implementation_views.md):
+  a boundary trait that inherits an ordinary trait can be passed, named and
+  stored as a static implementation of it, still routed through the slot;
+  delete when the board item lands.
 - [Required automatic discharge](designs/required_automatic_discharge.md):
   the obligations every checker proves unaided are order reasoning and range
   propagation, with `--floor-only` to confirm sources need nothing more;

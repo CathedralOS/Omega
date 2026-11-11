@@ -72,19 +72,22 @@ machine pure_math(x: u32) -> u32 reaches none { ... }
 ## Two providers for one contract
 
 One boundary trait is one slot. For two independently chosen providers of the
-same operations, write the operations once and wrap them twice:
+same operations, write the operations once as an ordinary trait and declare a
+boundary trait for each:
 
 ```omega
 boundary trait TimeObservation {}
 
-trait TickSource {
-    machine now() -> u64
+trait ClockOps<S> {
+    machine now(state: &mut S) -> u64
         reaches TimeObservation
         crashes none;
 }
 
-boundary trait WallClock: TickSource {}
-boundary trait SteadyClock: TickSource {}
+data NoState {}
+
+boundary trait WallClock: ClockOps<NoState> {}
+boundary trait SteadyClock: ClockOps<NoState> {}
 ```
 
 ```omega
@@ -94,20 +97,18 @@ machine build(builder: &mut Build) {
 }
 ```
 
+Call either by path: `WallClock::now(&mut none)`.
+
 ## Code that should run against a substitute
 
-A machine that calls `WallClock::now()` is tied to that slot. Code you want to
-test against a fake takes its operations as a parameter instead:
+A machine that calls `WallClock::now` directly is tied to that slot. Code you
+want to test against a fake takes the clock as a parameter instead:
 
 ```omega
-trait ClockOps<S> {
-    machine now(state: &mut S) -> u64 crashes none;
-}
+data Entry { at: u64; }
 
-data NoState {}
-FromWallClock satisfies ClockOps<NoState>
-{
-    machine now(state: &mut NoState) -> u64 { WallClock::now() }
+machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+    entry.at = C::now(clock);
 }
 
 data SimClock { ticks: u64; }
@@ -119,16 +120,15 @@ Simulated satisfies ClockOps<SimClock>
     }
 }
 
-data Entry { at: u64; }
-
-machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
-    entry.at = C::now(clock);
-}
+stamp<NoState, WallClock>(&mut none, &mut entry);    // the real clock
+stamp<SimClock, Simulated>(&mut sim, &mut entry);    // the fake
 ```
 
-`stamp<NoState, FromWallClock>` reaches the real clock.
-`stamp<SimClock, Simulated>` reaches nothing, and the compiler proves it, so a
-test built on it cannot touch the real clock. The state parameter is there
+A boundary trait can be passed wherever an implementation of a trait it
+inherits is expected, so the real clock needs no wrapper. `ClockOps` writes
+`reaches TimeObservation` as a limit, not a demand: `Simulated` reaches
+nothing, the compiler proves `stamp<SimClock, Simulated>` reaches nothing, and
+a test built on it cannot touch the real clock. The state parameter is there
 because a fake has to keep its state somewhere and nothing is captured.
 
 ## Forward a callback's services
