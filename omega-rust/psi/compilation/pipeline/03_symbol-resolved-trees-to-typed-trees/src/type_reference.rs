@@ -365,9 +365,16 @@ pub(crate) mod domain_constraints {
         retained: symbols::SymbolHandle,
         arguments: &[typed_trees::types::TypeReferenceHandle],
     ) -> Vec<typed_trees::domain::DomainDefinition> {
-        select_domain_candidates_where(source, program, authored_name, reference, retained, |domain| {
-            typed_trees::domain::domain_accepts_carrier(program, domain, carrier, arguments)
-        })
+        select_domain_candidates_where(
+            source,
+            program,
+            authored_name,
+            reference,
+            retained,
+            |domain| {
+                typed_trees::domain::domain_accepts_carrier(program, domain, carrier, arguments)
+            },
+        )
     }
 
     /*
@@ -400,10 +407,7 @@ pub(crate) mod domain_constraints {
         };
         let matches = if let Some(symbol) = selected {
             domain_by_symbol(program, symbol)
-                .filter(|domain| {
-                    visible(domain)
-                        && accepts(domain)
-                })
+                .filter(|domain| visible(domain) && accepts(domain))
                 .cloned()
                 .into_iter()
                 .collect()

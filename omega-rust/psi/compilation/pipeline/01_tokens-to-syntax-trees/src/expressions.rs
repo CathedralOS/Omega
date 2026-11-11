@@ -1322,8 +1322,9 @@ pub(crate) mod parse_postfix {
             match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
                 Some(parsed) => {
                     if rest.at_punctuation(PunctuationKind::Less) {
-                        return Err(rest
-                            .error_here("compiler arithmetic domains do not take index arguments"));
+                        return Err(rest.error_here(
+                            "compiler arithmetic domains do not take index arguments",
+                        ));
                     }
                     domain = parsed;
                     input = rest;

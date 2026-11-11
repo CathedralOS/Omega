@@ -2467,16 +2467,14 @@ pub(crate) mod domain_cast_accounting {
             .map(|membership| membership.domain_symbol)
             .find(|candidate| {
                 *candidate != domain
-                    && program
-                        .domain_definition(*candidate)
-                        .is_some_and(|parent| {
-                            definition
-                                .name
-                                .as_str()
-                                .strip_prefix(parent.name.as_str())
-                                .and_then(|rest| rest.strip_prefix("::"))
-                                .is_some_and(|leaf| !leaf.contains("::"))
-                        })
+                    && program.domain_definition(*candidate).is_some_and(|parent| {
+                        definition
+                            .name
+                            .as_str()
+                            .strip_prefix(parent.name.as_str())
+                            .and_then(|rest| rest.strip_prefix("::"))
+                            .is_some_and(|leaf| !leaf.contains("::"))
+                    })
             })
     }
 
@@ -2509,10 +2507,14 @@ pub(crate) mod domain_cast_accounting {
         definition: &typed_trees::domain::DomainDefinition,
     ) -> String {
         let name = definition.name.as_str();
-        name.strip_prefix(program.display_type_reference(definition.target_type).as_str())
-            .and_then(|rest| rest.strip_prefix("::"))
-            .unwrap_or(name)
-            .to_owned()
+        name.strip_prefix(
+            program
+                .display_type_reference(definition.target_type)
+                .as_str(),
+        )
+        .and_then(|rest| rest.strip_prefix("::"))
+        .unwrap_or(name)
+        .to_owned()
     }
 
     fn declared_node(program: &TypedTrees, atom: Atom) -> Option<TypeConstraintNode> {
@@ -2642,12 +2644,10 @@ pub(crate) mod domain_cast_accounting {
                         }
                         None => members.push(Member {
                             atom,
-                            label: program
-                                .domain_definition(domain.symbol)
-                                .map_or_else(
-                                    || domain.name.as_str().to_owned(),
-                                    |definition| domain_label(program, definition),
-                                ),
+                            label: program.domain_definition(domain.symbol).map_or_else(
+                                || domain.name.as_str().to_owned(),
+                                |definition| domain_label(program, definition),
+                            ),
                             node: Some(constraint.clone()),
                             attached: true,
                         }),
@@ -2744,9 +2744,7 @@ pub(crate) mod domain_cast_accounting {
                     alias
                         .constituents
                         .iter()
-                        .filter_map(|constituent| {
-                            declared_atom(program, constituent.domain_symbol)
-                        })
+                        .filter_map(|constituent| declared_atom(program, constituent.domain_symbol))
                         .map(|(atom, label)| (atom, label, None))
                         .collect()
                 } else {

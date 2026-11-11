@@ -245,10 +245,10 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::exit_process(0);
 }
 machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
-    Console::write_byte((((value / 1000) % 10) as i32) + 48);
-    Console::write_byte((((value / 100) % 10) as i32) + 48);
-    Console::write_byte((((value / 10) % 10) as i32) + 48);
-    Console::write_byte(((value % 10) as i32) + 48);
+    Console::write_byte(((value / 1000) % 10) as i32 + 48);
+    Console::write_byte(((value / 100) % 10) as i32 + 48);
+    Console::write_byte(((value / 10) % 10) as i32 + 48);
+    Console::write_byte((value % 10) as i32 + 48);
     Console::write_byte(10);
 }
 
