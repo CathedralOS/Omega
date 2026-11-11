@@ -1706,6 +1706,7 @@ pub(crate) mod item_copies {
                 suspends: machine.suspends,
                 blocks: machine.blocks,
                 admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                declares_no_crash_route: machine.declares_no_crash_route,
                 contracts: self.copy_capability_contract_span(other, machine.contracts),
                 states: self.copy_state_handle_span(other, machine.states),
                 nested_machines,

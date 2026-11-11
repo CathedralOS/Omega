@@ -5823,8 +5823,20 @@ pub(crate) mod expression_analysis {
             trap_predicates: &[IntegerTrapPredicate],
             primitive: PrimitiveType,
         ) -> String {
+            // An unsigned carrier has no negative one, so its quotient is
+            // always representable and only the zero divisor can trap.
+            let signed = primitive
+                .integer_bounds()
+                .is_some_and(|(minimum, _)| minimum < 0);
             trap_predicates
                 .iter()
+                .filter(|predicate| {
+                    signed
+                        || !matches!(
+                            predicate,
+                            IntegerTrapPredicate::SignedMinimumDividedByNegativeOne
+                        )
+                })
                 .map(|predicate| match predicate {
                     IntegerTrapPredicate::ResultOutsideCarrier => {
                         format!("its result lies outside `{}`", primitive_name(primitive))

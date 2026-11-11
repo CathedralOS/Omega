@@ -379,6 +379,12 @@ pub mod item {
             pub suspends: bool,
             pub blocks: bool,
             pub admitted_same_stack_bytes: u64,
+            /// The header wrote `crashes none`, which publishes no row in
+            /// `contracts`. `wiki/spec/language/effects.md`: an explicit
+            /// empty value "promises the empty value and rejects any body or
+            /// selection that violates it", so on a private body it is not
+            /// the omitted clause that requests inference.
+            pub declares_no_crash_route: bool,
             pub contracts: HandleSpan<CapabilityContract>,
             pub states: HandleSpan<StateHandle>,
             pub nested_machines: HandleSpan<Item>,

@@ -2871,6 +2871,21 @@ pub(crate) mod definitions_and_contracts {
                 .capability_contracts(quiet.contracts)
                 .is_empty()
         );
+        // With no contract row, the authored promise is kept as its own
+        // fact, so a later stage can tell it from an omitted clause.
+        assert!(quiet.declares_no_crash_route);
+        let omitted = super::parse_source(
+            "machine quiet() -> u64 { 7 }",
+            "an omitted crashes clause parses",
+        );
+        let omitted_quiet = omitted
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("quiet machine");
+        assert!(!omitted_quiet.declares_no_crash_route);
 
         for (rejected, message) in [
             (

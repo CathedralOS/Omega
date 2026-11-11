@@ -3,7 +3,7 @@
 | Directory | Read it for |
 | --- | --- |
 | [learn/](learn/index.html) | Illustrated field guide for reading Omega and supervising agent-written code. |
-| [language_guide/](language_guide/language_guide.md) | How to write Omega. |
+| [language_guide/](language_guide/language_guide.md) | How to write Omega: a short tutorial that starts from code. |
 | spec/ | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
 | [drafts/](drafts/README.md) | Temporary investigations and migration plans. |
@@ -16,6 +16,25 @@ compiler delivery. Put implementation gaps in the owning task on the
 [execution boards](../TASKS.md), extending an existing task before adding another.
 Keep normative limits, trust assumptions and required evidence in the spec;
 do not replace them with progress reports or remove them as status.
+
+## Guide and specification
+
+The guide and the specification do different jobs, and text belongs in one of
+them:
+
+| | Guide | Specification |
+| --- | --- | --- |
+| Answers | What do I write? | What is true in every case? |
+| Leads with | A code sample | The rule |
+| Covers | What most code needs | Everything, including what rejects and why |
+| When it is incomplete | It links to the rule | That is a defect |
+
+A rule is stated in the specification. The guide shows it working and links to
+it. A change to the language updates the specification, and touches the guide
+only to correct an example the change made wrong or to add a sample for
+something a newcomer would reach for. A guide chapter that needs a list of
+what rejects, or a paragraph of exceptions, is restating the specification;
+link to it.
 
 ## Public names
 

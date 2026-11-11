@@ -36,7 +36,7 @@ use std::num::NonZeroU64;
 
 pub use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, OperationId, PlaceId,
-    PsiSemanticId, ValueId,
+    PropositionId, PsiSemanticId, ValueId,
 };
 
 macro_rules! check_id {
@@ -188,6 +188,10 @@ pub fn row<Id: PsiSemanticId, T>(
 pub struct MachineTables {
     pub values: IdTable<ValueId, values::ValueRow>,
     pub knowledge: IdTable<KnowledgeId, values::KnowledgeRow>,
+    /// The propositions knowledge rows state, minted by `push`. Machine-local
+    /// like every other identity here: Terminal Psi keeps contract
+    /// propositions inline and has no proposition table of its own.
+    pub propositions: IdTable<PropositionId, semantic_vocabulary::Proposition>,
     pub places: IdTable<ExactPlaceId, bindings::PlaceRow>,
     /// The `ExactPlaceId` of each root `PlaceId`. Elaboration mints root
     /// `PlaceId`s densely too, so interning a root is one index.
