@@ -2424,7 +2424,15 @@ pub(crate) mod declaration_tables {
                     return Vec::new();
                 }
                 let source = self.static_machine_application(selection_application);
-                if source.lexical_owner != owner || source.registration_operation != requirement {
+                // A constant has no body of its own: its initializer runs in an
+                // evaluation entry generated from the constant, which wraps the
+                // same call. The call's application still names the constant as
+                // the scope it was written in, and that is the same owner.
+                let owned_by_caller = source.lexical_owner == owner
+                    || (self.symbols.get(source.lexical_owner).kind == symbols::SymbolKind::Const
+                        && self.symbols.get(owner).kind == symbols::SymbolKind::Machine
+                        && self.symbols.get(owner).generated_from == source.lexical_owner);
+                if !owned_by_caller || source.registration_operation != requirement {
                     return Vec::new();
                 }
                 let Some(selection) = &source.conformance_selection else {
