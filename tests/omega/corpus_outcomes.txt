@@ -28696,22 +28696,22 @@ pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 5985ms check-target:macos_arm64 @911f6617ba9e
 pass/traits/runtime_dyn_slot_metadata_exit checked 14881ms check-target:macos_arm64 @4815ea579d91
-pass/traits/runtime_dyn_statement_call_operand_positions_exit checked 54492ms check-target:macos_arm64 @cb2bb7751cae+wt
-pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @ca41410e2ee2+wt
+pass/traits/runtime_dyn_statement_call_operand_positions_exit checked 54492ms check-target:macos_arm64 @9b51aa36d95d
+pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @9b51aa36d95d
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @9b51aa36d95d
 pass/traits/runtime_dyn_suspending_parameter_envelope_exit checked 15635ms check-target:macos_arm64 @4815ea579d91
 pass/traits/runtime_dyn_suspending_retained_envelope_exit checked 18407ms check-target:macos_arm64 @4815ea579d91
 pass/traits/runtime_dyn_suspending_retained_record_exit checked 17822ms check-target:macos_arm64 @4815ea579d91
 pass/traits/runtime_dyn_suspending_retained_selector_exit checked 15621ms check-target:macos_arm64 @4815ea579d91
 pass/traits/runtime_dyn_suspending_returned_envelope_exit checked 17542ms check-target:macos_arm64 @4815ea579d91
-pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @cb2bb7751cae+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @9b51aa36d95d
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 6396ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 12754ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_finite_family_affine_result_exit checked 83120ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/traits/runtime_finite_family_correlated_case_result_exit checked 115725ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/traits/runtime_finite_family_correlated_case_result_exit checked 115725ms check-target:macos_arm64 @9b51aa36d95d
 pass/traits/runtime_finite_family_owned_result_exit checked 83104ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_finite_family_owned_state_result_exit checked 82190ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_finite_family_structural_result_exit checked 38504ms check-target:macos_arm64 @4dafba37c631
@@ -28729,7 +28729,7 @@ pass/traits/structural_array_crash_identity_exit checked 100695ms check-target:m
 pass/traits/structural_identity_crash_contract checked 10674ms @1e566db50bf5
 pass/traits/trait_generic_bound_static_dispatch checked 11552ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/trait_member_effects checked 3379ms @ccdb99ca2214
-pass/traits/trait_operator_token checked 11859ms @c2cfe5f3dece+wt
+pass/traits/trait_operator_token checked 11859ms @9b51aa36d95d
 pass/traits/trait_parent_inherit checked 4132ms @ccdb99ca2214
 pass/traits/transparent_refinement_declaration checked 6187ms check-target:macos_arm64 @89956713be3d
 pass/traits/unused_trait_implementation_member_exit checked 3798ms check-target:macos_arm64 @ccdb99ca2214
@@ -28810,7 +28810,7 @@ run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:
 run/borrows/direct_runtime_index_write checked 81522ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 74848ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @ccdb99ca2214
-run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
+run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @9b51aa36d95d
 run/borrows/indexed_loan_element_write checked 75455ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/local_mut_borrow checked 80383ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/local_sibling_field_write_beside_live_loan checked 6723ms check-target:macos_arm64 @2e348e6b2dca
