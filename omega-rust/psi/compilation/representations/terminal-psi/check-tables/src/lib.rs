@@ -131,16 +131,18 @@ pub enum RefusalReason {
     /// An obligation was reconstructed and its evidence did not check. The
     /// cause is typed so a diagnostic reports it without reading `detail`.
     Unproved(UnprovedCause),
-    /// A place is used on a path on which nothing was stored into it: a
-    /// compile error of the program, neither an unserved construct nor an
-    /// unproved proposition. `wiki/spec/terminal-psi/structural_access.md`:
-    /// "An unestablished local cannot be read: a whole read of the home, a
-    /// loan of it to an ordinary or boundary call, and its forwarding on a
-    /// state edge each require a whole store into it on every path reaching
-    /// that use." `wiki/spec/language/state_contracts.md`: "Uninitialized
-    /// storage has no assumed zero." It is a structural judgment over the
-    /// write log and the lowered graph, so it has no obligation row and no
-    /// certificate.
+    /// Storage is used on a path where nothing established it: a compile
+    /// error of the program, neither an unserved construct nor an unproved
+    /// proposition. For plain storage that is today the zeroed storage of a
+    /// gated type. A scalar or data local declared without an initializer
+    /// is not otherwise such storage: it is zero-constructed, and
+    /// established whenever zero satisfies its type
+    /// (`local-without-initializer`), as it does for every builtin scalar. `wiki/spec/language/dependent_values.md`: "If
+    /// zero satisfies the default domain, the value is zero-constructible.
+    /// Otherwise the type is gated: construction or checked qualification
+    /// must establish the domain before observation." It is a structural
+    /// judgment over the write log and the lowered graph, so it has no
+    /// obligation row and no certificate.
     ///
     /// The same reason covers the two structural judgments over a sum. A
     /// case payload named where its case is not established on every path:

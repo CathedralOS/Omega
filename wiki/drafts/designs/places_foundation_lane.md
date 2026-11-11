@@ -51,7 +51,7 @@ emits, and the sentence it implements. Quotations are verbatim.
 | Record pattern `let R { a, b } = r;`, arm payload bindings | Field reads of the subject; each binding is the read's value | [patterns](../../spec/language/patterns.md#irrefutable-data-bindings): "A pattern that can fail rejects; a binding introduces no hidden branch, trap, fallback or runtime assertion." |
 | Data `requires` (default domain) on construction and on writes | Obligation `DataDomain` (below) at `EstablishRecord`, `Establish*Case`, field store and whole store | [data and literals](../../spec/language/data_and_literals.md): "Construction and every restoring write prove the owning default-domain clauses." [Structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "Record and case construction and scalar-field replacement use the same declaration-owned requirement. The obligation binds the initializer or replacement SSA value, never the old field contents." |
 | Field-domain premises at a read | Knowledge row on the read's value | [structural access](../../spec/terminal-psi/structural_access.md#complete-record-construction): "A validated field read or selected-case payload copy instantiates that invariant on its fresh scalar snapshot; other fields and unselected cases provide no premise. The snapshot survives later writes". |
-| A primitive local declared without an initializer, assigned later | A root with no content until its first write | [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary): "An unestablished local cannot be read: a whole read of the home, a loan of it to an ordinary or boundary call, and its forwarding on a state edge each require a whole store into it on every path reaching that use." [State contracts](../../spec/language/state_contracts.md): "Uninitialized storage has no assumed zero." |
+| A primitive local declared without an initializer, assigned later | A root zero-constructed at `EstablishPrimitiveLocal`: its home holds the zero constant, an established value because every builtin scalar admits zero (`local-without-initializer`). A scalar type that zero does not satisfy would be gated, but a constrained scalar type is outside this subset | [dependent values](../../spec/language/dependent_values.md#default-domains-and-zero-initialization): "If zero satisfies the default domain, the value is zero-constructible. Otherwise the type is gated: construction or checked qualification must establish the domain before observation." The sentence "An unestablished local cannot be read" in [structural access](../../spec/terminal-psi/structural_access.md#store-vocabulary) governs declared shared view locals, which stay refused here (references lane), not a plain scalar. |
 | A `data` local declared without an initializer (`let v: Stored;`) | `EstablishZeroedStructural`, then a `DataDomain` obligation on the zero value before first use | [dependent values](../../spec/language/dependent_values.md#default-domains-and-zero-initialization): "A zeroed storage representation can be accessed as an established value only after its default-domain obligations hold." [Data and literals](../../spec/language/data_and_literals.md): "The ordinary case-bearing zero representation selects the first declared case and recursively zeroed common fields/payload." `pass/data/prefix_case_pure_sum_retirement` reads such a local and expects its zero. The lane confirms against `state_contracts.md` that the two rows do not conflict, and asks in `OWNER_QUESTIONS.md` if they do. |
 | Named `const` of scalar, record or copy-eligible case type | The constant's `materialized_initializer` elaborated in place, at each use, as literal operands and construction | [constants](../../spec/language/constants.md): "`const` names an immutable compile-time value, not runtime storage." and "A constant has no stable address and grants no authority." |
 | `requires` / `ensures` clauses that project a formal or `result` (`p.first == 7`, `result in S::C`) | Clause terms over the entry content of the formal's place, or over the result root | [fact validity](../../spec/terminal-psi/fact_validity.md#restored-scalar-values): "a valid initialized ordinary storage place at entry may supply its exact reaching value version; it need not have a store inside the current body." |
@@ -154,9 +154,14 @@ needs no step: facts are already over values, never over the place.
 
 ### Initialization
 
-A root declared without an initializer has no content until a write. Each
-read, whole copy, call argument or return of it must be dominated, on every
-path, by a whole write to the place, or to every leaf beneath it. This is a
+A root declared without an initializer is zero-constructed
+(`local-without-initializer`): it holds an established value when zero
+satisfies its type's default domain, which every builtin scalar's does, and
+is gated when it does not. The unestablished root is therefore one of gated
+type, or a view local, which this lane does not serve, and not a plain
+scalar. Each read, whole copy, call argument or return of such a root must be
+dominated, on every path, by a whole write to the place, or to every leaf
+beneath it. This is a
 structural judgment over the write log and the dominance graph
 (`lowered-discharge/src/graph.rs`). It is not a proposition, so it makes no
 certificate. A failure is a refusal with a new closed reason,
@@ -363,8 +368,9 @@ own them:
   (the owned twin of `nested_payload_read_after_case_replacement`);
 - a field store that breaks the data `requires` (`r.count = 9` with
   `requires count <= 5`), then returns `r`;
-- a read of a local declared without an initializer that is assigned on only
-  one arm of a `transition`;
+- a read of a local of gated type (or a view local) declared without an
+  initializer that is assigned on only one arm of a `transition`; a plain
+  scalar local is zero-constructed and its read is accepted;
 - a data `requires` that relates two fields (`low <= high`), broken by a
   store to one field, where the other field's value comes only from the
   write log.
@@ -432,6 +438,116 @@ behavior. The test suite, with no test edited, is the check.
 membership rows and the two structural judgments (initialization and payload
 access). `prove.rs` does not change unless a kernel rule is missing, and a
 missing rule is reported as a finding, not worked around.
+
+## Gate run, 2026-11-11
+
+The lane's five slices are on `main` (`#2328`, `#2332`, `#2337`, `#2343`,
+`#2362`, with `#2356` for one justification). Run against the corpus slice
+above, they bring almost no corpus program to a verdict: 25 programs now
+lower whole, 5 are judged, and the 4 the two checkers agree on have no
+obligation at all. The tables and judgments are exercised by the programs
+written for each slice, not yet by the corpus.
+
+The run: `route_one_comparison` on `main` at `e125b2fc3`, built with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p compiler --example route_one_comparison`,
+over 619 fixtures in two shards on a cloud VM (Linux x86_64, 4 CPUs), 87
+minutes. The slice is the same selection as above and has grown from 608: 516
+in the nine `pass/` directories and `run/`, and 103 from `pass/facts` (every
+38th by name). No fixture panicked. The raw lines are in
+[places_foundation_lane_gate.tsv](places_foundation_lane_gate.tsv).
+
+| Current checker | New route | Fixtures |
+| --- | --- | ---: |
+| accepted | outside: elaboration refuses a construct, so the current checker decides | 479 |
+| accepted | no program entry | 68 |
+| rejected | not reached (a `pass/` or `run/` row that is red today) | 47 |
+| accepted | lowered whole, then discharge refuses the module | 20 |
+| accepted | accepted | 4 |
+| accepted | rejected | 1 |
+
+**Agreement.** Of the 5 judged programs, 4 agree. The disagreement is
+`run/calls/scalar_contract_route_exit`: "requires clause 1 of the called
+machine: no proof found from the facts available here (the bounds do not
+decide the comparison)", at bytes 744..756. It is the prover gap `#2305`
+recorded, so its class is "new route cannot prove a true obligation". None is
+"new route accepts something false". The 4 agreeing programs have no
+obligation and no use of storage.
+
+**Kernel-checked evidence on the corpus.** 7 certificate obligations, all in
+that one program: `OperationSafety` 3 of 3, `CallRequirement` 2 of 3,
+`NormalGuarantee` 1 of 1, each judged by the kernel core, none refused by
+it; 1 `PublishedGuarantee` held. No `DataDomain` obligation is minted on the
+corpus. On the programs written for the slices: `DataDomain` 20 of 23,
+`CallRequirement` 8 of 8, all judged (`#2362`).
+
+**First refusals** among the 479 the route does not serve:
+
+| Refusal | Fixtures |
+| --- | ---: |
+| `machine service reach` | 192 |
+| `type data with custody` | 111 |
+| `type fixed array` | 50 |
+| `type constrained` | 34 |
+| `type float` | 11 |
+| `parameter mutable parameter` | 9 |
+| `call receiver, requirement or coercion call` | 8 |
+| `type reference` | 8 |
+| `expression cast` | 7 |
+| `type generic data` | 6 |
+| other refusals, 5 or fewer fixtures each | 43 |
+
+The six refusals this plan set out to remove (`type nominal type`,
+`statement uninitialized local`, `expression match`, `expression member`,
+`expression projected name path`, `expression record literal`) are the first
+refusal of no fixture now.
+
+What the numbers say:
+
+- **Corpus data is not `[copy]`.** The lane serves plain copyable data only,
+  as scoped, and 111 fixtures stop at `type data with custody`: a record
+  without `[copy]` is affine
+  ([ownership](../../spec/language/ownership.md): "A record still requires an
+  explicit `[copy]` declaration; copyable fields do not change the affine
+  default"). That is the ownership lane's work and the largest refusal next
+  to this lane. The estimate above of 16 to 20 entering programs did not
+  hold: it was made by screening sources for borrows and brackets and missed
+  the affine default.
+- **20 programs lower whole and get no verdict**, for two reasons that
+  predate the lane: discharge refuses a no-normal invocation terminator
+  ("invocation outside an operation", 15) and a callee clause that names a
+  value that is not a formal (5). Closing those two would quadruple the
+  judged sample.
+- **`machine service reach` is unchanged** at 192: every program that prints.
+- **Rejections are not measured here.** The slice has no `fail/` fixture, and
+  the 47 rejected rows are red `pass/` and `run/` rows the route never
+  reached.
+
+Other measures. Decisions keyed on text: 0. Silent drops: 0. Routes per
+obligation kind: 1; initialization, payload access and dispatch coverage are
+one structural judgment each over one reaching walk. Check time: the current
+checker took 9,306.7 s over the 619 fixtures (at most 42.1 s for one; it
+includes discovery, review and Build execution); the new route took 42 ms
+over the 25 it lowered (at most 14 ms; elaboration and discharge only). The
+two are not the same work.
+
+Lines added per slice outside tests and READMEs (`structure-elaboration`,
+`lowered-discharge`, `terminal-check-tables`):
+
+| Slice | Lines |
+| --- | --- |
+| records, field reads, copies (`#2332`) | 1,955 / 441 / 0 |
+| stores, whole assignment, initialization (`#2337`) | 565 / 805 / 11 |
+| sums, dispatch, payload access (`#2343`) | 1,730 / 661 / 18 |
+| data `requires`, zero-established locals (`#2362`) | 510 / 1,200 / 26 |
+
+The cost is not falling: sums and data `requires` each cost about what
+records did. The design's stop rule asks for a later construct to cost less
+than the one before it; on this count the lane does not show that yet.
+
+Not done from this plan's table: a record pattern and a directly authored
+payload member (the typed trees hold their fields as text; an upstream repair
+is in progress), clauses over `result`, and invariant windows (a store not
+shown to keep a clause hands the program back to the current checker).
 
 ## Dependencies
 

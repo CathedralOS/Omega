@@ -3192,8 +3192,8 @@ fail/collections/vec_duplicate_cleanup rejected 13347ms expected @089c0a150e63
 	cannot use `vector` in machine `finish` state `entry` (statement 1) after `vector` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `vector` first
 fail/collections/vec_invalidated_loan_after_growth rejected 18200ms expected @089c0a150e63
 	state `grow` receives an owned value while local borrow `borrowed` is still active (borrowed at statement 6; its last use is at statement 8)
-fail/collections/wrapping_loop_increment_bound rejected 2224ms expected @ccdb99ca2214
-	cannot prove index `main.index` is within length 4 in fill::entry
+fail/collections/wrapping_loop_increment_bound rejected 7975ms expected @58155962c41e
+	cannot prove index `main.index` is non-negative (>= 0)
 fail/collections/wrapping_member_decrement_index_unproven rejected 2237ms expected @ccdb99ca2214
 	cannot prove index `stack.count` is within length 8 in take::entry
 fail/collections/wrapping_range_index_unproven rejected 17059ms expected @ccdb99ca2214
@@ -15251,6 +15251,10 @@ fail/generics/grouped_decimal_const_suffix_rejected rejected 200ms unexpected @c
 	cannot form specification operator `/` in closed const argument: no exact selected meaning
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpected @ccdb99ca2214
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
+fail/generics/implementation_parameter_contract_only_holds_for_selection rejected 6039ms expected @a0eb7649491b
+	cannot prove ensures contract for exit from advance at statement 0: result <= 18
+	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$0$4637 at statement 0: result <= 18
+	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$1$4640 at statement 0: result <= 18
 fail/generics/index_algebra_law_requires_identity rejected 7678ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/index_equality_foreign_algebra rejected 8524ms expected @c2cfe5f3dece+wt
@@ -28796,6 +28800,7 @@ run/facts/float_comparison_route_through_parameter_traps checked 5663ms check-ta
 run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
 run/float/folded_anonymous_operator_custody_exit checked 80180ms check-target:macos_arm64 @c3cb68d51f3f
+run/generics/implementation_parameter_contract checked 6970ms check-target:macos_arm64 @a0eb7649491b
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt

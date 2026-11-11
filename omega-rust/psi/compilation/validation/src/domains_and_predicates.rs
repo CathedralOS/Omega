@@ -14068,7 +14068,7 @@ pub mod domains {
                         expression,
                         test.subject,
                         domain,
-                        "executable domain test",
+                        MembershipSite::ExecutableTest,
                     )?;
                 }
             }
@@ -14095,10 +14095,42 @@ pub mod domains {
                     membership.value,
                     membership.value,
                     domain,
-                    "domain membership",
+                    MembershipSite::ProofFact,
                 )?;
             }
             Ok(())
+        }
+
+        /*
+            Where a membership whose carriers do not match on their face was
+            written. A domain over a generic carrier binds that carrier at each
+            use and is matched where the arguments are known, at either site.
+
+            A proof fact (`requires value in Small` with `value: T`) is a
+            hypothesis: each caller must establish it for its own carrier, so
+            the generic declaration is judged on each specialized copy.
+
+            An executable test in a body (`cell in Cell::Ready` with
+            `cell: &Value`) is code the body runs for every admitted `Value`.
+            generics.md: "An unspecialized body checks every admitted
+            alternative; one consumer cannot authorize an otherwise invalid
+            generic body." So it is refused even when the only caller passes a
+            `Cell`, unless a declared equation such as `requires Value == Cell`
+            made the carriers match.
+        */
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum MembershipSite {
+            ExecutableTest,
+            ProofFact,
+        }
+
+        impl MembershipSite {
+            fn label(self) -> &'static str {
+                match self {
+                    Self::ExecutableTest => "executable domain test",
+                    Self::ProofFact => "domain membership",
+                }
+            }
         }
 
         fn validate_membership_carrier(
@@ -14108,7 +14140,7 @@ pub mod domains {
             owner_expression: ExpressionHandle,
             subject: ExpressionHandle,
             domain: &DomainDefinition,
-            label: &str,
+            site: MembershipSite,
         ) -> Result<(), Diagnostic> {
             let Err(diagnostic) = validate_declaration_carrier(
                 program,
@@ -14117,7 +14149,7 @@ pub mod domains {
                 owner_expression,
                 subject,
                 domain,
-                label,
+                site,
             ) else {
                 return Ok(());
             };
@@ -14134,7 +14166,7 @@ pub mod domains {
                     owner_expression,
                     subject,
                     candidate,
-                    label,
+                    site,
                 )
                 .is_ok()
                 {
@@ -14151,7 +14183,7 @@ pub mod domains {
             owner_expression: ExpressionHandle,
             subject: ExpressionHandle,
             domain: &DomainDefinition,
-            label: &str,
+            site: MembershipSite,
         ) -> Result<(), Diagnostic> {
             let Some(subject_type) =
                 crate::expression_owners::checked_expression_type_reference_from_exact_owner(
@@ -14190,13 +14222,15 @@ pub mod domains {
             }
             let subject_type = normalized_subject.unwrap_or(subject_type);
             let target = normalized_target.unwrap_or(target);
-            if mentions_type_parameter(program, subject_type)
-                || mentions_type_parameter(program, target)
+            if mentions_type_parameter(program, target)
+                || (site == MembershipSite::ProofFact
+                    && mentions_type_parameter(program, subject_type))
             {
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "{label} `{}` expects subject carrier `{}`, got `{}`",
+                "{} `{}` expects subject carrier `{}`, got `{}`",
+                site.label(),
                 domain.name.as_str(),
                 program.display_type_reference_with_constraints(target),
                 program.display_type_reference_with_constraints(subject_type),

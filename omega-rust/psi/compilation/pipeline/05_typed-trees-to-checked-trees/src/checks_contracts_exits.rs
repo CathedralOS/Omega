@@ -4438,8 +4438,9 @@ mod result_domains {
         }
 
         /*
-            The default-domain field facts a state assumes on entry for its exclusive
-            referents: each such parameter's `StateParameterDomain` field facts.
+            The default-domain facts a state assumes on entry for its exclusive
+            referents: each such parameter's `StateParameterDomain` facts for its
+            fields and for the domains its type spells on the referent itself.
             These are exactly the rows the state-transition arrival check re-proves
             (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
         */
@@ -4467,12 +4468,32 @@ mod result_domains {
                 else {
                     continue;
                 };
-                let rows: Vec<_> =
-                    validation::field_domains::declared_type_domain_rows(program, carrier)
-                        .into_iter()
-                        .filter(|row| !row.transfer && !row.path.is_empty())
-                        .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
-                        .collect();
+                let carrier_rows =
+                    validation::field_domains::declared_type_domain_rows(program, carrier);
+                let mut rows: Vec<_> = carrier_rows
+                    .iter()
+                    .filter(|row| !row.transfer && !row.path.is_empty())
+                    .map(|row| (row.path.clone(), row.domain_symbol, row.semantic_domain))
+                    .collect();
+                /*
+                    The domains the parameter's own type spells on its referent
+                    (`row: &mut u64 in IssuedIndex`) are entry facts too, and
+                    every caller relies on them after the call exactly as on a
+                    field's. Leaving them out let `row = 1` return without the
+                    issuer's establishment. The carrier's own default domains
+                    stay with the data-invariant check that already re-proves
+                    them at return.
+                */
+                for row in validation::field_domains::declared_type_domain_rows(program, referee) {
+                    let carried_by_type = carrier_rows.iter().any(|base| {
+                        base.path.is_empty()
+                            && base.domain_symbol == row.domain_symbol
+                            && base.semantic_domain == row.semantic_domain
+                    });
+                    if row.path.is_empty() && !row.transfer && !carried_by_type {
+                        rows.push((row.path, row.domain_symbol, row.semantic_domain));
+                    }
+                }
                 referents.push((parameter.symbol, rows));
             }
             let mut requirements = Vec::new();

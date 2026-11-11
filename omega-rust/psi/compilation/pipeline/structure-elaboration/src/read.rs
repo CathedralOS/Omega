@@ -49,6 +49,13 @@ pub(crate) struct Program<'t> {
     pub signatures: IdTable<MachineId, Signature>,
     /// Every direct call read so far, as (caller, callee).
     calls: Vec<(MachineId, MachineId)>,
+    /// Whether this is a generic check form: the entry's implementation
+    /// parameters stay rigid, and a call through one names the requirement.
+    rigid: bool,
+    /// The machines that are a requirement's contract with no body.
+    pub requirements: Vec<MachineId>,
+    /// Every call through an implementation parameter read so far.
+    pub selections: Vec<crate::Selected>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -100,12 +107,15 @@ fn span<'a, T: Default>(
         .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
-    pub fn new(typed: &'t TypedTrees) -> Self {
+    pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             calls: Vec::new(),
+            rigid,
+            requirements: Vec::new(),
+            selections: Vec::new(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -176,7 +186,7 @@ mod tests {
     fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let refusal = program
             .expression(machine(), &[], handle, None)
             .unwrap_err();
@@ -247,7 +257,7 @@ mod tests {
     #[test]
     fn a_call_cycle_is_refused_as_recursion() {
         let typed = TypedTrees::default();
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         for _ in 0..3 {
             program.symbols.push(SymbolHandle::invalid());
         }
@@ -305,7 +315,7 @@ mod tests {
         let spelled = name(SymbolHandle::invalid());
         let mine = name(owner);
         let theirs = name(other);
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let result = ValueId::new(2).unwrap();
         let exit = ClauseScope {
@@ -414,7 +424,7 @@ mod tests {
                     subject: truth,
                     ..Default::default()
                 }));
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         assert_eq!(
             program
                 .expression(machine(), &[], scalar_match, None)
@@ -504,7 +514,7 @@ mod tests {
             assignable: true,
             homed: false,
         }];
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
             program
                 .assignment(
@@ -651,7 +661,7 @@ mod tests {
                 access: ReferenceAccess::Shared,
                 lifetime: None,
             });
-        let mut program = Program::new(&typed);
+        let mut program = Program::new(&typed, false);
         assert_eq!(
             program.scalar_type(machine(), builtin),
             Ok(ScalarType::Integer(

@@ -197,10 +197,11 @@ pub enum Statement {
     /// is gated: construction or checked qualification must establish the
     /// domain before observation.").
     ///
-    /// A scalar local's storage is reserved and nothing is stored into it:
-    /// the checker treats every use that a store does not reach on every
-    /// path as unestablished. `wiki/spec/language/state_contracts.md`:
-    /// "Uninitialized storage has no assumed zero." A scalar slot declared
+    /// A scalar local is zero-constructed by the same rule
+    /// (`local-without-initializer`): its storage holds zero, which is an
+    /// established value because every scalar type served here (`i8`..`u64`,
+    /// `bool`) admits zero. A constrained scalar type is refused by the
+    /// reader, so no gated scalar reaches lowering. A scalar slot declared
     /// this way is a storage home, not an SSA value: it is written by
     /// `Store` with an empty path and read through its place.
     ///

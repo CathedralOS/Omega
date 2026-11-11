@@ -23,11 +23,9 @@ So the walk reads the stores from the operations themselves
   stored into a field stores what its source held into that field.
 - A scalar store stores its value into exactly the leaf it names.
 - A call's record result holds what the callee returned.
-- A reserved scalar home (`EstablishPrimitiveLocal`) stores nothing. Its
-  operand is the zero the current pipeline reserves the home with; whether
-  that is content a read may observe is `OWNER_QUESTIONS.md`,
-  `local-without-initializer`, and until it is answered a read of the home
-  with no store is unestablished.
+- A scalar local declared without an initializer is zero-constructed
+  (`local-without-initializer`): `EstablishPrimitiveLocal` stores its
+  operand into the fresh home.
 
 An operation that is none of these, reads no storage and has no scalar
 semantics is refused as `Unsupported`: it may store somewhere, and an
@@ -382,9 +380,11 @@ impl Storage<'_> {
             OperationKind::StoreStructuralField { field: None, .. } => {
                 return Err(self.unsupported(concerns, "a whole store that names no field"));
             }
-            // A reserved home, and the operations that only observe storage.
-            OperationKind::EstablishPrimitiveLocal { .. }
-            | OperationKind::PrimitiveScalarRead { .. }
+            OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                rows.push((fresh()?, Stored::Value(*value)));
+            }
+            // The operations that only observe storage.
+            OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. } => {}

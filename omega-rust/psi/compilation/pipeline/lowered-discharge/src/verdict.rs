@@ -44,7 +44,7 @@ weaker check; Psi 05 and 06 still judge the closure. Any other refusal is a
 defect of the route itself (an identity that does not resolve) and is
 returned as `Err`; a router must not accept the program on it.
 
-A use of storage that some path reaches with nothing stored into it
+A use of storage that some path reaches with nothing established in it
 (`RefusalReason::Unestablished`) is a compile error of the same standing as an
 unproved obligation, but it is a structural judgment with no obligation row,
 so a rejection carries the two lists side by side. One such use makes the
@@ -71,7 +71,7 @@ pub enum RouteVerdict {
     /// The program is rejected. `unproved` has one entry per obligation the
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
-    /// nothing stored into it. At least one of the two is not empty.
+    /// nothing established in it. At least one of the two is not empty.
     Rejected {
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
@@ -133,9 +133,12 @@ impl UnprovedObligation {
     }
 }
 
-/// One use of storage that is not established on every path to it.
-/// `wiki/spec/terminal-psi/structural_access.md`: "An unestablished local
-/// cannot be read".
+/// One use of storage that is not established on every path to it: the
+/// zeroed storage of a gated type, a payload of a case the sum does not
+/// hold, or a dispatch with no arm for a declared case.
+/// `wiki/spec/language/dependent_values.md`: "Otherwise the type is gated:
+/// construction or checked qualification must establish the domain before
+/// observation."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnestablishedUse {
     pub machine: MachineId,

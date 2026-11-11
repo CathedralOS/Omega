@@ -154,7 +154,7 @@ fn lower_records(
     bodies.push(body);
     let declared = crate::lower::places::declare(id(1), records, &bodies)?;
     let body = bodies.get(id(1)).unwrap();
-    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records)
+    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records, false)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -1048,7 +1048,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 ..signature(Vec::new(), None)
             });
         }
-        let table = outcomes(&bodies, &signatures).unwrap();
+        let table = outcomes(&bodies, &signatures, &[]).unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
     };
     let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
@@ -1091,7 +1091,7 @@ fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
                 ..signature(Vec::new(), None)
             });
         }
-        outcomes(&bodies, &signatures).map(|table| table.get(id(1)).unwrap().clone())
+        outcomes(&bodies, &signatures, &[]).map(|table| table.get(id(1)).unwrap().clone())
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
@@ -1148,7 +1148,7 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
         crashes: CrashCeiling::Inferred,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
-    let table = outcomes(&bodies, &signatures).unwrap();
+    let table = outcomes(&bodies, &signatures, &[]).unwrap();
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
@@ -1168,7 +1168,7 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
         signatures.push(signature(Vec::new(), None));
     }
     assert_eq!(
-        outcomes(&bodies, &signatures).unwrap_err().detail,
+        outcomes(&bodies, &signatures, &[]).unwrap_err().detail,
         "call recursion"
     );
 }
@@ -1930,7 +1930,7 @@ fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
 }
 
 #[test]
-fn a_scalar_local_without_an_initializer_logs_nothing_and_a_data_local_logs_its_zero() {
+fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
     // f() -> u32 {
     //     let mut x: u32;  let mut p: Point;
     //     x = 3;  p.x = x;
@@ -1988,16 +1988,24 @@ fn a_scalar_local_without_an_initializer_logs_nothing_and_a_data_local_logs_its_
             if scalar_type == u32_type()
     ));
     terminal_codec::encode_module(&elaboration.module).unwrap();
-    // The scalar declaration writes no row: the zero the module stores so
-    // that it runs is not content the checker may rely on.
+    // The scalar declaration is zero-constructed: its home holds the zero
+    // constant emitted just before the establishment, then what the store
+    // wrote. `u32` admits zero, so the zero is an established value.
+    let x_zero = operations[0].result.scalar().unwrap().id;
     let three = operations[5].result.scalar().unwrap().id;
     let x_root = *tables.roots.get(x).unwrap();
     assert_eq!(
         written(tables, x_root),
-        [(
-            Content::Value(three),
-            ProgramPoint::AfterOperation(operations[6].id)
-        )]
+        [
+            (
+                Content::Value(x_zero),
+                ProgramPoint::AfterOperation(operations[1].id)
+            ),
+            (
+                Content::Value(three),
+                ProgramPoint::AfterOperation(operations[6].id)
+            )
+        ]
     );
     // The data declaration is zero-established: one row for the root's new
     // contents, then on each scalar leaf the zero constant emitted for it
@@ -2030,7 +2038,8 @@ fn a_scalar_local_without_an_initializer_logs_nothing_and_a_data_local_logs_its_
             )
         ]
     );
-    assert_eq!(tables.writes.len(), 5);
+    // Two rows on the scalar home, four on the record and its leaves.
+    assert_eq!(tables.writes.len(), 6);
     // `Point` has no `requires`, so its zero establishment owes nothing.
     assert!(tables.obligations.is_empty());
     // A scalar home with no type identity cannot be declared.
