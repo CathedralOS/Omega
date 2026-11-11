@@ -15,6 +15,7 @@
 //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message> site=<class>
 //!     use <path> <machine> <operation or edge> unestablished <detail> <site> site=<class>
 //!     current-diagnostic <path> <site> <message>
+//!     fallback <path> root=<..> <construct> <refusal detail>
 //!     quality <path> root=<..> fragment=<all|part|none|absent> site=<class> expected=<fragments>
 //!
 //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
@@ -32,9 +33,10 @@
 //! it calls (`root=entry`). Most `fail/` fixtures bind no entry, and a defect
 //! in a machine the entry never calls is outside that closure. With
 //! `--every-machine` as the first argument, each machine declared in a source
-//! file that a current diagnostic names is also elaborated as the root of its
-//! own closure (`root=machine:<name>`, one more `program` line each): what
-//! the route says once it elaborates every checked machine.
+//! file under the fixture's directory (other than its `build.omg`), or in a
+//! source file that a current diagnostic names, is also elaborated as the
+//! root of its own closure (`root=machine:<name>`, one more `program` line
+//! each): what the route says once it elaborates every checked machine.
 //!
 //! **Diagnostic quality.** A program both checkers reject gets one `quality`
 //! line that weighs the new route's errors against the current checker's:
@@ -239,20 +241,36 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
     }
     if every_machine {
         // The route elaborates only the entry's call closure today. Rooting
-        // it at each machine of a source file the current checker's
-        // diagnostics name measures what it says once it elaborates every
-        // checked machine, and reaches fixtures that bind no entry.
+        // it at each machine of the fixture's own sources, and of any source
+        // a current diagnostic names, measures what it says once it
+        // elaborates every checked machine, and reaches fixtures that bind no
+        // entry or whose current diagnostic carries no position.
+        // The fixture is checked from a copy (a session directory holding
+        // `source/<fixture path>`), so a source is the fixture's own when one
+        // of its directories ends with the fixture's directory as given.
+        let fixture = main
+            .parent()
+            .filter(|fixture| !fixture.as_os_str().is_empty());
         for machine in typed.machines() {
-            let diagnosed = typed
-                .symbols
-                .symbol_source_span(machine.symbol)
-                .is_some_and(|declared| {
-                    sites
-                        .spans
-                        .iter()
-                        .any(|current| current.source_id == declared.source_id)
-                });
-            if diagnosed && Some(machine.symbol) != entry {
+            let Some(declared) = typed.symbols.symbol_source_span(machine.symbol) else {
+                continue;
+            };
+            let own = fixture.as_deref().is_some_and(|fixture| {
+                typed.symbols.source_file(declared).is_some_and(|file| {
+                    // `build.omg` declares the Build, which the product check
+                    // does not judge.
+                    file.path.file_name() != Some(std::ffi::OsStr::new("build.omg"))
+                        && file
+                            .path
+                            .ancestors()
+                            .any(|directory| directory.ends_with(fixture))
+                })
+            });
+            let diagnosed = sites
+                .spans
+                .iter()
+                .any(|current| current.source_id == declared.source_id);
+            if (own || diagnosed) && Some(machine.symbol) != entry {
                 roots.push((format!("machine:{}", machine.name.as_str()), machine.symbol));
             }
         }
@@ -485,7 +503,15 @@ fn probe_root(
             report(main, &unproved, "incomplete", sites, lines);
             "incomplete"
         }
-        Ok(RouteVerdict::FallBack(_)) => "fallback",
+        Ok(RouteVerdict::FallBack(refusal)) => {
+            lines.push(format!(
+                "fallback\t{}\troot={label}\t{:?}\t{}",
+                main.display(),
+                refusal.concerns,
+                one_line(&refusal.detail)
+            ));
+            "fallback"
+        }
         Err(_) => "defect",
     };
     format!(
@@ -804,7 +830,7 @@ fn tally(input: impl BufRead) {
     println!("current checker rejects\t{}", fixtures.len());
     let choices = [
         "roots: the bound entry",
-        "roots: the entry and every machine of a diagnosed source file",
+        "roots: the entry and every machine of the fixture's or a diagnosed source file",
     ];
     for (choice, title) in choices.iter().enumerate() {
         if choice == 1 && !machine_roots {
