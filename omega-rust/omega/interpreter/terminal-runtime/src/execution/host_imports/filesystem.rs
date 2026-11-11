@@ -33,10 +33,10 @@ pub(super) use linux::LinuxFilesystemWrite;
 pub(super) struct FilesystemContext {
     /// Whether the host namespace is delegated at all.
     supplied: bool,
-    /// Whether that namespace is rooted at a directory. Only the Linux kernel
-    /// adapter resolves `AT_FDCWD` against its own root; the Darwin and
-    /// Windows supplies run in the native sponsor's working directory and
-    /// therefore refuse a rooted delegation.
+    /// Whether that namespace is rooted at a directory. The Linux kernel
+    /// adapter resolves `AT_FDCWD` against its own root descriptor; calls the
+    /// native sponsor makes (libc, Windows) resolve against the sponsor's
+    /// working directory, which the host context starts in the same root.
     rooted: bool,
     windows: Rc<RefCell<windows::Handles>>,
     linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
@@ -62,7 +62,7 @@ enum DescriptorEffect {
     Io,
 }
 
-pub(super) struct DarwinFilesystemCall {
+pub(super) struct LibcFilesystemCall {
     context: FilesystemContext,
     descriptor: DescriptorEffect,
     namespace_admission: Result<(), &'static str>,
@@ -71,7 +71,7 @@ pub(super) struct DarwinFilesystemCall {
 }
 
 pub(super) enum FilesystemCall {
-    Darwin(DarwinFilesystemCall),
+    Libc(LibcFilesystemCall),
     Windows(windows::Call),
 }
 
@@ -86,14 +86,14 @@ impl FilesystemCall {
     ) -> Result<Option<Vec<u8>>, TerminalEffectRejection> {
         match self {
             Self::Windows(call) => call.prepare_readonly_record(argument, record),
-            Self::Darwin(_) => Err(rejection(
+            Self::Libc(_) => Err(rejection(
                 "this filesystem supply has no readonly native record translation",
             )),
         }
     }
     pub(super) fn path_argument(&self, argument: usize) -> bool {
         match self {
-            Self::Darwin(call) => call.path_argument(argument),
+            Self::Libc(call) => call.path_argument(argument),
             Self::Windows(call) => call.path_argument(argument),
         }
     }
@@ -103,22 +103,22 @@ impl FilesystemCall {
         bytes: &[u8],
     ) -> Result<(), TerminalEffectRejection> {
         match self {
-            Self::Darwin(call) => call.validate_path(argument, bytes),
+            Self::Libc(call) => call.validate_path(argument, bytes),
             Self::Windows(call) => call.validate_path(argument, bytes),
         }
     }
     pub(super) fn descriptor_io(&self) -> bool {
-        matches!(self, Self::Darwin(call) if call.descriptor_io())
+        matches!(self, Self::Libc(call) if call.descriptor_io())
     }
     pub(super) fn modeled_stream(&self, arguments: &[TerminalScalarValue]) -> bool {
-        matches!(self, Self::Darwin(call) if call.modeled_stream(arguments))
+        matches!(self, Self::Libc(call) if call.modeled_stream(arguments))
     }
     pub(super) fn arguments(
         &self,
         arguments: &[TerminalScalarValue],
     ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
         match self {
-            Self::Darwin(call) => call.arguments(arguments),
+            Self::Libc(call) => call.arguments(arguments),
             Self::Windows(call) => call.arguments(arguments),
         }
     }
@@ -128,7 +128,7 @@ impl FilesystemCall {
         result: TerminalScalarValue,
     ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
         match self {
-            Self::Darwin(call) => call.result(arguments, result),
+            Self::Libc(call) => call.result(arguments, result),
             Self::Windows(call) => call.result(arguments, result),
         }
     }
@@ -139,7 +139,7 @@ impl FilesystemCall {
         result: Option<TerminalScalarValue>,
     ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
         match self {
-            Self::Darwin(_) => Ok(None),
+            Self::Libc(_) => Ok(None),
             Self::Windows(call) => call.output_scalar(argument, value, result),
         }
     }
@@ -196,11 +196,11 @@ impl FilesystemContext {
         }
     }
 
-    /// The working-directory namespace the Darwin and Windows supplies use.
+    /// The namespace the native sponsor's libc and Windows supplies use.
     fn process_namespace(&self) -> Result<(), &'static str> {
         match (self.supplied, self.rooted) {
-            (true, false) => Ok(()),
-            (_, true) => Err("only the Linux kernel supply resolves a rooted filesystem namespace"),
+            (true, _) => Ok(()),
+            (false, true) => Err("the filesystem namespace root could not be opened"),
             (false, false) => Err("no explicit host filesystem namespace was supplied"),
         }
     }
@@ -218,8 +218,15 @@ impl FilesystemContext {
         let Some((locator, _)) = binding.import() else {
             return Ok(None);
         };
-        if !matches!(locator.target(), target::TargetProfile::MacosArm64)
-            || !cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        // Linux reaches libc only for `realpath`; every other Linux filesystem
+        // operation is a kernel call the `linux` adapter executes directly.
+        let linux = matches!(
+            locator.target(),
+            target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
+        ) && Some(locator.target()) == target::TargetProfile::host_if_supported();
+        if !linux
+            && (!matches!(locator.target(), target::TargetProfile::MacosArm64)
+                || !cfg!(all(target_os = "macos", target_arch = "aarch64")))
         {
             return Ok(None);
         }
@@ -387,13 +394,34 @@ impl FilesystemContext {
             ),
         ];
         let mut selected = None;
-        for &(symbol, parameters, result, descriptor) in candidates {
-            if matches_platform_c_symbol(binding, symbol, &[b"/usr/lib/libSystem.B.dylib"], None)? {
-                selected = Some((Some(parameters), result, descriptor));
-                break;
+        if linux {
+            if glibc_realpath(locator)? {
+                selected = Some((
+                    Some(
+                        &[
+                            UnsignedArray(4096, 8, SharedBorrow),
+                            UnsignedArray(4096, 8, MutableBorrow),
+                        ][..],
+                    ),
+                    Unsigned(64),
+                    NoDescriptor,
+                ));
+            }
+        } else {
+            for &(symbol, parameters, result, descriptor) in candidates {
+                if matches_platform_c_symbol(
+                    binding,
+                    symbol,
+                    &[b"/usr/lib/libSystem.B.dylib"],
+                    None,
+                )? {
+                    selected = Some((Some(parameters), result, descriptor));
+                    break;
+                }
             }
         }
-        if self.process_namespace().is_ok()
+        if !linux
+            && self.process_namespace().is_ok()
             && matches!(
                 runtime_abi::descriptor_import(locator),
                 Some((runtime_abi::DescriptorAbi::DarwinLibSystem, _))
@@ -441,7 +469,7 @@ impl FilesystemContext {
                 _ => {}
             }
         }
-        Ok(Some(FilesystemCall::Darwin(DarwinFilesystemCall {
+        Ok(Some(FilesystemCall::Libc(LibcFilesystemCall {
             context: self.clone(),
             descriptor,
             namespace_admission,
@@ -486,6 +514,28 @@ impl FilesystemContext {
         }
         Ok(())
     }
+}
+
+/// Whether `locator` is glibc's versioned `realpath` for its Linux target.
+fn glibc_realpath(
+    locator: &target::NormalizedForeignLocator,
+) -> Result<bool, TerminalRuntimeError> {
+    let target = locator.target();
+    let version: &[u8] = match target {
+        target::TargetProfile::LinuxX64 => b"GLIBC_2.3",
+        target::TargetProfile::LinuxArm64 => b"GLIBC_2.17",
+        _ => return Ok(false),
+    };
+    target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libc.so.6".to_vec(),
+            symbol: b"realpath".to_vec(),
+            version: version.to_vec(),
+        },
+        target,
+    )
+    .map(|offered| offered == *locator)
+    .map_err(|_| TerminalRuntimeError::InvalidProvision("glibc realpath is not a valid locator"))
 }
 
 fn matches_signature(
@@ -628,7 +678,7 @@ fn matches_parameters(
         && structural == declaration.structural_parameters.len()
 }
 
-impl DarwinFilesystemCall {
+impl LibcFilesystemCall {
     pub(super) fn validate_path(
         &self,
         argument: usize,
@@ -726,6 +776,19 @@ impl DarwinFilesystemCall {
         arguments: &[TerminalScalarValue],
         mut result: TerminalScalarValue,
     ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+        // A descriptor-free call such as `realpath` returns its own unsigned
+        // value (a pointer into the sponsor's storage, tested only for null).
+        if matches!(self.descriptor, DescriptorEffect::None)
+            && matches!(
+                result,
+                TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(_),
+                    ..
+                }
+            )
+        {
+            return Ok(result);
+        }
         let TerminalScalarValue::Integer {
             value: IntegerValue::Signed(value),
             ..
@@ -787,8 +850,8 @@ mod tests {
         }
     }
 
-    fn call(namespace_admission: Result<(), &'static str>) -> DarwinFilesystemCall {
-        DarwinFilesystemCall {
+    fn call(namespace_admission: Result<(), &'static str>) -> LibcFilesystemCall {
+        LibcFilesystemCall {
             context: FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace),
             descriptor: DescriptorEffect::Io,
             namespace_admission,

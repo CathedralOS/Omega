@@ -100,6 +100,13 @@ impl LinuxFilesystemWrite {
             .map_err(|error| rejection(format!("host Linux write: {error}")))
     }
 
+    /// Whether `descriptor` still names a modeled standard stream; once the
+    /// program closes one, its number belongs to the host descriptor table.
+    pub(in super::super) fn models_standard(&self, descriptor: i128) -> bool {
+        i32::try_from(descriptor)
+            .is_ok_and(|descriptor| self.context.linux.borrow().models_standard(descriptor))
+    }
+
     pub(in super::super) fn read(
         &self,
         descriptor: i32,
