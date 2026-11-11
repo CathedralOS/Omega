@@ -17,11 +17,18 @@ owes `Falsehood`: the site must be shown unreachable, which this prover does
 not do, so such a site is unproved.
 
 At a call site (an `InvokeNoNormal` terminator, or a `Call` or `CallUnit`
-operation whose callee may return and crash) the callee's substituted route
-would be one more hypothesis ("Entry-only call-ceiling coverage proves the same-cause union of
-published alternatives", fact_validity.md). It is not added: proving the
-caller's coverage without it is a stronger demand, so leaving it out can only
-refuse, never accept wrongly. A call site has no guard of its own.
+operation whose callee may return and crash) the guard is the callee's
+published route for the cause, substituted with the call's actuals: the call
+crashes with that cause only when one of its alternatives holds ("Entry-only
+call-ceiling coverage proves the same-cause union of published
+alternatives", fact_validity.md). Unlike a `Crash` terminator's guard it is
+not a path decision, so it is not among the facts before the call, and the
+goal is the implication from that route to the caller's coverage. When the
+caller's own requirement contradicts the route (`requires d != 0` against a
+callee route `d == 0`), the implication holds however little the caller
+publishes, `crashes none` included: the call never crashes with that cause.
+An unconditional callee route is `Truth`, and the goal is the coverage
+itself.
 */
 
 use semantic_vocabulary::{BlockId, CrashCause, MachineId, ObligationId, OperationId, Proposition};
@@ -39,33 +46,60 @@ pub(crate) fn coverage_goal(
     cause: CrashCause,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
-    let mut parts = match site {
+    let guard = match site {
         CrashSite::Block(block) => block_site(lowered, id, concerns, block, cause)?,
         CrashSite::Operation(operation) => operation_site(lowered, id, concerns, operation, cause)?,
     };
-    let coverage = coverage(lowered, cause);
-    if coverage != Proposition::Truth {
-        parts.push(coverage);
-    }
-    Ok(match parts.len() {
-        0 => Proposition::Truth,
-        1 => parts.remove(0),
-        _ => Proposition::Conjunction(parts),
+    let coverage = coverage(&lowered.contract.crash_routes, cause);
+    Ok(match guard {
+        Guard::Path(mut parts) => {
+            if coverage != Proposition::Truth {
+                parts.push(coverage);
+            }
+            match parts.len() {
+                0 => Proposition::Truth,
+                1 => parts.remove(0),
+                _ => Proposition::Conjunction(parts),
+            }
+        }
+        Guard::Route(route) => match (route, coverage) {
+            (_, Proposition::Truth) => Proposition::Truth,
+            (Proposition::Truth, coverage) => coverage,
+            (route, coverage) => Proposition::Implication {
+                premise: Box::new(route),
+                conclusion: Box::new(coverage),
+            },
+        },
     })
+}
+
+/// What a crash site's guard is.
+enum Guard {
+    /// A `Crash` terminator's clauses: path decisions known before it.
+    Path(Vec<Proposition>),
+    /// A call's: the callee's route for the cause, with the call's actuals.
+    Route(Proposition),
 }
 
 fn has_cause(continuations: &[CrashRouteBucket], cause: CrashCause) -> bool {
     continuations.iter().any(|bucket| bucket.cause == cause)
 }
 
-/// A call operation that may crash with `cause`: no guard of its own.
+/// A call's guard for `cause`: the disjunction of its continuations'
+/// alternatives, when it may crash with that cause at all.
+fn route(continuations: &[CrashRouteBucket], cause: CrashCause) -> Option<Proposition> {
+    has_cause(continuations, cause).then(|| coverage(continuations, cause))
+}
+
+/// A call operation that may crash with `cause`: its guard is the callee's
+/// route.
 fn operation_site(
     lowered: &TerminalMachine,
     id: MachineId,
     concerns: Construct,
     operation: OperationId,
     cause: CrashCause,
-) -> Checked<Vec<Proposition>> {
+) -> Checked<Guard> {
     let found = lowered
         .blocks
         .iter()
@@ -81,7 +115,16 @@ fn operation_site(
                 crash_continuations,
                 ..
             },
-        ) if has_cause(crash_continuations, cause) => Ok(Vec::new()),
+        ) => route(crash_continuations, cause)
+            .map(Guard::Route)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    concerns,
+                    "the operation is not a call that may crash with this cause",
+                )
+            }),
         _ => Err(refusal(
             RefusalReason::ForeignIdentity,
             id,
@@ -91,14 +134,15 @@ fn operation_site(
     }
 }
 
-/// The guard clauses of a block site, empty for a no-normal call.
+/// The guard of a block site: a `Crash` terminator's clauses, or a no-normal
+/// call's callee route.
 fn block_site(
     lowered: &TerminalMachine,
     id: MachineId,
     concerns: Construct,
     site: BlockId,
     cause: CrashCause,
-) -> Checked<Vec<Proposition>> {
+) -> Checked<Guard> {
     let block = usize::try_from(site.get() - 1)
         .ok()
         .and_then(|position| lowered.blocks.get(position))
@@ -116,14 +160,18 @@ fn block_site(
             cause: crashes,
             site_guard,
             ..
-        } if *crashes == cause => Ok(site_guard
-            .iter()
-            .map(|term| term.proposition().clone())
-            .collect()),
+        } if *crashes == cause => Ok(Guard::Path(
+            site_guard
+                .iter()
+                .map(|term| term.proposition().clone())
+                .collect(),
+        )),
         Terminator::InvokeNoNormal {
             crash_continuations,
             ..
-        } if has_cause(crash_continuations, cause) => Ok(Vec::new()),
+        } if has_cause(crash_continuations, cause) => {
+            Ok(Guard::Route(coverage(crash_continuations, cause)))
+        }
         _ => Err(refusal(
             RefusalReason::ForeignIdentity,
             id,
@@ -133,14 +181,11 @@ fn block_site(
     }
 }
 
-/// The disjunction of this machine's published alternatives for `cause`:
-/// `Truth` when one is unconditional, `Falsehood` when it publishes none.
-fn coverage(lowered: &TerminalMachine, cause: CrashCause) -> Proposition {
-    let published = lowered
-        .contract
-        .crash_routes
-        .iter()
-        .find(|bucket| bucket.cause == cause);
+/// The disjunction of the alternatives `routes` holds for `cause` (a
+/// machine's published routes, or a call's crash continuations): `Truth`
+/// when one is unconditional, `Falsehood` when there are none.
+fn coverage(routes: &[CrashRouteBucket], cause: CrashCause) -> Proposition {
+    let published = routes.iter().find(|bucket| bucket.cause == cause);
     match published {
         None => Proposition::Falsehood,
         Some(bucket) => {

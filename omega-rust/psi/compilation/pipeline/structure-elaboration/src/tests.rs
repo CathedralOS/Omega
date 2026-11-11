@@ -1069,11 +1069,11 @@ fn outcomes_follow_the_ceiling_or_the_body() {
 }
 
 /// An authored `crashes none` is a promise, not a request to infer: a body
-/// with no crash publishes no route, and a body that reaches a crash, by its
-/// own `crash` statement or through a callee's route, is refused by name
-/// instead of being given the route its author forbade.
+/// publishes no route whether or not structure reaches a crash, by its own
+/// `crash` statement or through a callee's route. What it reaches is then
+/// owed as coverage by no route, which lowered-discharge decides.
 #[test]
-fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
+fn a_body_that_declares_crashes_none_publishes_no_route() {
     use crate::outcome::outcomes;
     let run = |statements: Vec<Statement>, callee_statements: Vec<Statement>| {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
@@ -1099,19 +1099,14 @@ fn a_body_that_declares_crashes_none_and_can_crash_is_refused() {
 
     assert_eq!(run(quiet(), quiet()).unwrap(), returns_normally());
     assert_eq!(run(calls(), quiet()).unwrap(), returns_normally());
-    for refusal in [
-        run(crashing(), quiet()).unwrap_err(),
-        run(calls(), crashing()).unwrap_err(),
-    ] {
-        assert_eq!(
-            (refusal.reason, refusal.machine, refusal.detail.as_str()),
-            (
-                terminal_check_tables::RefusalReason::Unsupported,
-                id(1),
-                "contract `crashes none` on a body with a crash route"
-            )
-        );
-    }
+    // Reaching a crash, by its own statement or through the callee, the body
+    // never completes normally and still publishes nothing.
+    let never_returns = Outcome {
+        completes_normally: false,
+        crash_routes: Vec::new(),
+    };
+    assert_eq!(run(crashing(), quiet()).unwrap(), never_returns);
+    assert_eq!(run(calls(), crashing()).unwrap(), never_returns);
 }
 
 /// The right operand of `&&` or `||` may be skipped, so a short-circuit whose

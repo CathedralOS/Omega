@@ -632,3 +632,31 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// A requirement that contradicts a crash route's guard rules the route out,
+/// so a machine that writes `crashes none` keeps it. In the pending program
+/// `requires denominator != 0u64` makes both `denominator == 0u64` routes
+/// unreachable, the machine's own arm and a callee's published route, and the
+/// route accepts the whole program. The twin requires `denominator != 1u64`,
+/// which admits zero, and is rejected. Both are refused by the current
+/// checker, which is why the positive program waits in `pending/`.
+#[test]
+fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let ruled_out = rejected_frontier(
+        "tests/omega/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+    );
+    let verdict = route_verdict(&ruled_out).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "every route is ruled out: {verdict:?}"
+    );
+    let left_open = rejected_frontier(
+        "tests/omega/fail/contracts/requires_disequality_leaves_crash_route_open",
+    );
+    let verdict = route_verdict(&left_open).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Rejected { .. })),
+        "`denominator != 1u64` admits zero: {verdict:?}"
+    );
+}
