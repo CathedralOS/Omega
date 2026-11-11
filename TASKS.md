@@ -38,7 +38,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
-  - Static callable-selection atom, selection rows, structural identity, open/closed field contracts, one schema for static and runtime use.
+  - Static callable-selection atom, explicit callable fields for every `machine` member, ordinary typed/erased fields and schema constraints, open/closed contracts, one schema for static and runtime use.
+  - Uniform resulting-record identity for empty and generic constructors; migrate the empty-`Tag` negative and marker customers to actual schema indices or relevant fields where distinction is intended, preserving selected-machine and lifetime/custody obligations.
+  - General evidence citation in ordinary records and traits, explicit originating-field construction, and computed records through Build's existing Provider argument; reject wrong encoders, missing premises, operational-reset substitution and stale dependent evidence.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
@@ -62,7 +64,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run the Windows GUI customers (`runtime_{gui,windows}_*`, `window_demo`) via `omega run --both` on a Windows host.
   Acceptance: Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q2](OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer)).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q1](OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer)).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.

@@ -7,7 +7,7 @@ evaluation and Psi 02 const arguments reject implicit landing, and `as`
 acknowledges its complete operand
 (`tests/omega/{pass,fail}/arithmetic/*integer_landing*`,
 `fail/arithmetic/implicit_fractional_const_landing`). Proof-level `Int` peers
-still warn pending [an owner question](../../../OWNER_QUESTIONS.md#q2---does-explicit-landing-apply-at-a-proof-level-int-peer).
+still warn pending [an owner question](../../../OWNER_QUESTIONS.md#q1---does-explicit-landing-apply-at-a-proof-level-int-peer).
 
 Anonymous arithmetic remains exact mathematical arithmetic. A fractional
 intermediate can cancel to an integer, so `(5 / 2) * 2` has value `5` while
