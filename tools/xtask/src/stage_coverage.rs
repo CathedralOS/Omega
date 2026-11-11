@@ -186,6 +186,13 @@ fn build_instrumented(root: &Path, target_dir: &Path) -> Result<PathBuf, String>
         .env("RUSTFLAGS", "-C instrument-coverage")
         .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
         .env("CARGO_TARGET_DIR", target_dir)
+        // Build scripts and proc macros are instrumented too. Without a
+        // destination each would leave a `default_*.profraw` in the source
+        // tree; `%m` keeps one merged file per binary here instead.
+        .env(
+            "LLVM_PROFILE_FILE",
+            target_dir.join("build-time-profiles/%m.profraw"),
+        )
         .status()
         .map_err(|e| format!("start mbx: {e}"))?;
     if !status.success() {
