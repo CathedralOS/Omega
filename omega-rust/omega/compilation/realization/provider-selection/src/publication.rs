@@ -142,8 +142,12 @@ pub struct SelectedTargetProviderPublication {
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
     /// Whether the evaluated Build declares this target: an entry root bound
     /// for it, or a provider row keyed to it. Untargeted rows and catalogue
-    /// defaults declare no target of their own.
+    /// defaults declare no target of their own. A target without a layout
+    /// catalogue has no geometry for its closure to demand.
     pub fn declares_target_row(&self) -> bool {
+        if self.profile.layout_target_facts().is_none() {
+            return false;
+        }
         self.application_roots
             .as_ref()
             .is_some_and(|roots| !roots.is_empty())
