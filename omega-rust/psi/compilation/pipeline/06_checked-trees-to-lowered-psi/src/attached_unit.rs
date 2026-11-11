@@ -13953,19 +13953,14 @@ pub(crate) mod inner {
         }
 
         /*
-            Erased scalar lanes keep source order, but an erased record formal
-            owns one lane per scalar leaf, so consecutive lanes may share their
-            authored position. Runtime scalar parameters never do.
+            Erased scalar lanes arrive in the order Psi 05 planned them. An
+            erased record formal owns one lane per scalar leaf, so consecutive
+            lanes may share their authored position, which the strict order
+            required of runtime scalar parameters would refuse.
         */
         pub(crate) fn lower_unit_erased_scalar_lane_types(
             parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
         ) -> Result<Vec<ScalarType>, LoweringError> {
-            if parameters
-                .windows(2)
-                .any(|pair| pair[0].source_position > pair[1].source_position)
-            {
-                return unsupported("Unit erased scalar lanes are not in source order");
-            }
             parameters
                 .iter()
                 .map(|parameter| terminal_scalar_type(parameter.primitive_type))

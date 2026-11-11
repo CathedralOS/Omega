@@ -1797,27 +1797,24 @@ pub(crate) mod bindings {
         pub(crate) fn resolve_local(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             fields: &StructuralFieldBindings,
-            source: PlaceId,
-            access: StructuralAccess,
-            structural_type: StructuralTypeId,
+            home: Option<(PlaceId, StructuralAccess, StructuralTypeId)>,
             path: &[checked_trees::CheckedStructuralPredicatePathSegment],
             scalar_type: ScalarType,
         ) -> Result<LoweredDirectExpression, LoweringError> {
-            let binding = StructuralScalarFieldBinding {
-                source_position: 0,
-                source,
-                access,
-                structural_type,
-                declarations: fields.declarations.clone(),
-                case_payloads: Vec::new(),
-            };
-            resolve(
-                identities,
-                std::slice::from_ref(&binding),
-                0,
-                path,
-                scalar_type,
-            )
+            // A local without a place leaves no binding, which `resolve`
+            // reports as an observation with no readable binding.
+            let binding =
+                home.map(
+                    |(source, access, structural_type)| StructuralScalarFieldBinding {
+                        source_position: 0,
+                        source,
+                        access,
+                        structural_type,
+                        declarations: fields.declarations.clone(),
+                        case_payloads: Vec::new(),
+                    },
+                );
+            resolve(identities, binding.as_slice(), 0, path, scalar_type)
         }
 
         pub(crate) fn resolve(

@@ -1599,19 +1599,11 @@ pub(crate) mod contracts {
                     primitive_type,
                     ..
                 } => {
+                    // Psi 05 names only a local of the calling state; its
+                    // place is resolved when the term is lowered.
+                    let _ = symbol;
                     crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
-                    if namespace
-                        .views
-                        .locals
-                        .iter()
-                        .any(|local| local.symbol == *symbol)
-                    {
-                        Ok(())
-                    } else {
-                        Err(LoweringError::Unsupported(
-                            "closed contract names an undeclared structural local observation",
-                        ))
-                    }
+                    Ok(())
                 }
             }
         }
@@ -2485,19 +2477,15 @@ pub(crate) mod contracts {
                 primitive_type,
             } = expression
             {
-                let local = self
+                let home = self
                     .views
                     .locals
                     .iter()
                     .find(|local| local.symbol == *symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "erased actual observes a structural local that has no place here",
-                    ))?;
+                    .map(|local| (local.place, local.structural_type, local.access));
                 return crate::proofs::crash_routes::lower_structural_local_member_term(
                     identities,
-                    local.place,
-                    local.structural_type,
-                    local.access,
+                    home,
                     path,
                     crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                     self.views.structural_types,
