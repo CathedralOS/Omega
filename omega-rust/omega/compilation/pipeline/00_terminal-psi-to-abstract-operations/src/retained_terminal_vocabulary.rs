@@ -656,7 +656,8 @@ mod providers {
     });
     record_fields!(effects::provider_plan::ServiceCallingPlan {
         report_fingerprint,
-        commitment
+        commitment,
+        promise
     });
 
     record_variants!(effects::TerminalAuthorityClass {
@@ -1041,6 +1042,7 @@ mod recovered {
         effects::provider_plan::ProviderPlanDigest,
         effects::provider_plan::ServiceSchemaDigest,
         effects::provider_plan::BoundaryCallingPlanCommitment,
+        effects::provider_plan::BoundaryCallingPlanPromise,
     );
 
     macro_rules! evaluated_digest_value {

@@ -55,6 +55,11 @@ fn attach_requirement_calling(
                     plan: ServiceCallingPlan {
                         report_fingerprint: application.report_fingerprint,
                         commitment: application.commitment,
+                        promise: effects::provider_plan::BoundaryCallingPlanPromise::from_digest(
+                            application
+                                .validated_boundary_entry_plan
+                                .contract_commitment_digest(),
+                        ),
                     },
                 };
                 if !schema.calling_applications.contains(&attachment) {
