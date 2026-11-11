@@ -1332,7 +1332,7 @@ fail/borrows/dynamic_store_retains_child_backing rejected 1642ms expected @ccdb9
 	statement 6 mutates `original[0].value` while local borrow `child` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
 fail/borrows/dynamic_store_retains_old_backing rejected 1998ms expected @ccdb99ca2214
 	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
-fail/borrows/dynamic_store_then_fixed_retains_replacement rejected 1709ms expected @ccdb99ca2214
+fail/borrows/dynamic_store_then_fixed_retains_replacement rejected 3865ms expected @618c3819c6c6
 	statement 6 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
 fail/borrows/dynamic_window_result_cannot_escape_local rejected 1933ms expected @ccdb99ca2214
 	machine `capture` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
