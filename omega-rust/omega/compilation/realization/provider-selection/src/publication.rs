@@ -140,6 +140,19 @@ pub struct SelectedTargetProviderPublication {
 }
 
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Whether the evaluated Build declares this target: an entry root bound
+    /// for it, or a provider row keyed to it. Untargeted rows and catalogue
+    /// defaults declare no target of their own.
+    pub fn declares_target_row(&self) -> bool {
+        self.application_roots
+            .as_ref()
+            .is_some_and(|roots| !roots.is_empty())
+            || self.overrides.iter().any(|row| {
+                row.target
+                    .is_some_and(|target| target.canonical_name() == self.profile.target_name())
+            })
+    }
+
     pub fn map_owner<Mapped>(
         self,
         mut map: impl FnMut(&effects::provider_plan::ProviderPlan, Owner) -> Mapped,
@@ -235,7 +248,18 @@ impl PreparedTargetProviderPublication {
             .into_iter()
             .map(|(target, prepared)| {
                 let mut application_roots = self.deployed.then(Vec::new);
-                let application_required = realization_scopes.contains(&target);
+                // Declaring a Build row retains a choice, not a request to
+                // realize its backend, but every declared row still demands
+                // its selected closure's conditions. A target with an entry
+                // root or a target-keyed row is checked even when the
+                // operation emits another target.
+                let application_required = realization_scopes.contains(&target)
+                    || prepared.as_ref().is_ok_and(|choice| match choice {
+                        TargetProviderChoice::Prepared(prepared) => {
+                            prepared.declares_target_row()
+                        }
+                        TargetProviderChoice::Selected { .. } => false,
+                    });
                 let selection = prepared
                     .and_then(|choice| {
                         let prepared = match choice {
