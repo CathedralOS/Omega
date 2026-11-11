@@ -1895,6 +1895,18 @@ pub mod queries {
                         .iter()
                         .map(|conformance| (conformance.trait_symbol, conformance.symbol)),
                 )
+                // A target family is one callable across targets: a call
+                // names its head and each target selects a member later, so
+                // a reached head keeps every member and a reached member its
+                // head.
+                .chain(original.target_machine_families.iter().flat_map(|family| {
+                    family.members.iter().flat_map(move |member| {
+                        [
+                            (family.canonical, member.machine),
+                            (member.machine, family.canonical),
+                        ]
+                    })
+                }))
                 // A value's qualification names a domain of its data type
                 // without a reference the walker follows, so a reached data
                 // type keeps its domains.

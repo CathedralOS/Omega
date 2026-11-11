@@ -546,3 +546,42 @@ not use.
   state-contracts sentence on inferred private requirements needs narrowing.
 
 Until answered the row is left as recorded and the checker is unchanged.
+
+### Q11 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+
+Decision name: `validation-subjects` (`Build::validate` naming).
+
+**Customer.** The toolchain release gate, which
+[validation subjects](wiki/spec/build/validation_subjects.md#admission-and-release)
+says "checks each bundled library as a subject", and any product that wants
+its dependency checked in full with `Build::validate`.
+
+The specification's example registers dependencies as identifiers:
+
+```omega
+Build::dependency(builder, core, locator);
+Build::validate(builder, core);
+```
+
+The shipped Build vocabulary has no `Build::dependency` and names no
+dependency by identifier. A dependency is registered with
+`Build::depend(builder, Source::Path { location: "vendor" })` or
+`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
+alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+product at all; the toolchain supplies them. Today
+`omega --check source/library/core/main.omg` is refused with
+`source root ... overlaps toolchain root`, so no command can check a bundled
+library as a subject.
+
+The question:
+
+- **(a)** Is the argument of `Build::validate` the dependency's alias, as in
+  `Build::validate(builder, "vendor")`, or a new identifier form?
+- **(b)** How is a bundled library named as a subject: by
+  `Build::validate(builder, "core")` without registration, by checking the
+  library's own directory as a root (lifting the overlap refusal for the
+  toolchain's own packages), or by another form?
+
+Until answered `Build::validate` is not implemented and the release gate has
+no full-package check of `core` and `std`. Ordinary checks already treat only
+the root package as a subject.

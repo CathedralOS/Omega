@@ -230,6 +230,7 @@ pub fn prepare_build_evaluation(
         evaluation_sponsor,
         snapshot,
         restricted_grants: mut restricted_build_grants,
+        dependency_activation,
     } = execution;
     let build_directory = build_directory.as_deref();
     let snapshot = snapshot.as_ref();
@@ -282,6 +283,7 @@ pub fn prepare_build_evaluation(
         pre_checks,
         selected_machine,
         package_inputs,
+        dependency_activation,
         toolchain_defaults,
         execution_profile,
         timings,

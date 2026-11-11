@@ -35,7 +35,8 @@ pub(crate) fn check_product_source(
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
     // Validation subjects: the root package is checked in full; a dependency
-    // only where the root package or one of the Build's selections reaches it.
+    // only where the root package or one of the Build's selections reaches it
+    // (`PackageCompilationInputs::is_validation_subject`).
     let library_slice = psi_compiler::LibrarySliceRequest {
         root_package: package_inputs.map(PackageCompilationInputs::root),
     };
@@ -77,6 +78,38 @@ pub(crate) fn check_product_source(
             .map(|selection| selection.opaque()),
     );
     demanded.extend(selected.iter().copied());
+    // A dependency's provider-default machines run for every product that
+    // depends on it, and settlement finds them by their purpose rather than a
+    // name, so they are preparation entries of this check.
+    demanded.extend(
+        typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            })
+            .map(|machine| machine.symbol),
+    );
+    // Each accepted semantic binding names a service declaration of the
+    // package it was accepted for, and selected execution rejoins it by that
+    // name, so the admitted bindings are obligations of this check whether or
+    // not the program calls the service.
+    for binding in package_inputs
+        .into_iter()
+        .flat_map(PackageCompilationInputs::accepted_semantic_bindings)
+    {
+        demanded.extend(
+            typed
+                .traits()
+                .iter()
+                .map(|definition| definition.symbol)
+                .chain(typed.machines().iter().map(|machine| machine.symbol))
+                .filter(|symbol| {
+                    typed.symbols.symbol_package_identity(*symbol) == Some(binding.package())
+                        && typed.symbols.display_path(*symbol, "::") == binding.declaration_path()
+                }),
+        );
+    }
     // Representation and provider requests are read back from the Build
     // machine that made them.
     demanded.extend(computed_build_config.selected_build_machine_symbol);
@@ -94,12 +127,8 @@ pub(crate) fn check_product_source(
     }
     let typed = validation::execution_projection::project_subject_program(
         &typed,
-        // ponytail: every source that is not bundled with the toolchain is a
-        // subject, so a dependency from the package graph is still checked in
-        // full. Narrow to the root package when the root source set reaches
-        // this point as request state.
         |file| {
-            file.origin == source::SourceOrigin::User
+            PackageCompilationInputs::is_validation_subject(package_inputs, file)
                 || entry_contracts.iter().any(|package| {
                     file.path.strip_prefix(&file.package_root).ok()
                         == Some(std::path::Path::new(package.package_relative_source()))
