@@ -9,7 +9,7 @@ data Main {
     size: u32;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     let v: u32 = 7;
     let borrowed: &u32 = &v;
     transition borrowed == 7 { true -> done(main) _ -> bad(main) }
@@ -26,5 +26,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

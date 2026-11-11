@@ -67,6 +67,7 @@ pub enum ProviderSelectionProvenance {
     TargetDefault(Vec<crate::ProviderSelection>),
     UniqueCoveringCandidate,
     NativeBuild,
+    TargetRealization(target::CanonicalFloatRealization),
 }
 
 impl ProviderSelectionProvenance {
@@ -127,14 +128,16 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
                 }
             }
             provider_selection::SelectionProvenance::UniqueCoveringCandidate
-            | provider_selection::SelectionProvenance::NativeBuild => {}
+            | provider_selection::SelectionProvenance::NativeBuild
+            | provider_selection::SelectionProvenance::TargetRealization(_) => {}
         }
         let selecting_declaration = crate::provider_declarations::close_selecting_declaration(
             context,
             exact_toolchain_sources,
             &selected.derived.provenance,
         );
-        let mut candidate = selection_declarations::source_candidate(selected.derived);
+        let mut candidate =
+            selection_declarations::source_candidate(context.typed, selected.derived);
         candidate.declarations.selecting_declaration = selecting_declaration;
         choices.push(provider_selection::SelectedProvider {
             candidate,
@@ -156,6 +159,7 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
 }
 
 pub fn select_derived_provider_plans(
+    typed: &TypedTrees,
     derived: &[DerivedProviderPlan],
     selected_target: target::TargetProfile,
     defaults: &[crate::ProviderSelection],
@@ -164,7 +168,7 @@ pub fn select_derived_provider_plans(
     let candidates = derived
         .iter()
         .cloned()
-        .map(selection_declarations::source_candidate)
+        .map(|derived| selection_declarations::source_candidate(typed, derived))
         .collect();
     let defaults = defaults
         .iter()
@@ -211,6 +215,7 @@ pub(crate) fn entry_state<'typed>(
 
 pub(crate) mod selection_declarations {
     use crate::{ProviderSelection, ProviderSelectionSubject};
+    use checked_trees::typed_trees::TypedTrees;
     use provider_selection::{
         ProviderDeclaration, ProviderFamily, ProviderFamilyCoordinate, ProviderIdentity,
         ProviderSubject, SelectionProvenance,
@@ -311,6 +316,9 @@ pub(crate) mod selection_declarations {
                 SelectionProvenance::UniqueCoveringCandidate
             }
             crate::ProviderSelectionProvenance::NativeBuild => SelectionProvenance::NativeBuild,
+            crate::ProviderSelectionProvenance::TargetRealization(realization) => {
+                SelectionProvenance::TargetRealization(realization)
+            }
         }
     }
 
@@ -338,12 +346,17 @@ pub(crate) mod selection_declarations {
                 crate::ProviderSelectionProvenance::UniqueCoveringCandidate
             }
             SelectionProvenance::NativeBuild => crate::ProviderSelectionProvenance::NativeBuild,
+            SelectionProvenance::TargetRealization(realization) => {
+                crate::ProviderSelectionProvenance::TargetRealization(realization)
+            }
         }
     }
 
     pub(crate) fn source_candidate(
+        typed: &TypedTrees,
         source: crate::DerivedProviderPlan,
     ) -> provider_selection::ProviderCandidate<SymbolHandle, crate::ProviderPlanProvenance> {
+        let canonical_float_map = canonical_float_map(typed, &source.provenance);
         let native_build = source
             .provenance
             .row_realizations
@@ -359,7 +372,17 @@ pub(crate) mod selection_declarations {
                 )]),
             },
             native_build,
+            canonical_float_map,
             owner: source.provenance,
         }
+    }
+
+    pub(crate) fn canonical_float_map(
+        typed: &TypedTrees,
+        provenance: &crate::ProviderPlanProvenance,
+    ) -> bool {
+        provenance.provider_type.is_some_and(|symbol| {
+            checked_trees::typed_trees::float_providers::is_sealed_catalog_map(typed, symbol)
+        })
     }
 }

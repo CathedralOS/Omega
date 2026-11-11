@@ -4,7 +4,7 @@ public data Sequence [copy] {
     bases: [u64 in Wrapping; 12];
     length: u64 in Wrapping;
 }
-public machine Sequence::base(sequence: &Sequence, position: u64 in Wrapping) -> u64 in Wrapping {
+public machine sequence_base(sequence: &Sequence, position: u64 in Wrapping) -> u64 in Wrapping {
     transition position < 12 && position < sequence.length {
         true -> read(sequence, position)
         _ -> 0
@@ -13,7 +13,7 @@ public machine Sequence::base(sequence: &Sequence, position: u64 in Wrapping) ->
         sequence.bases[position]
     }
 }
-public machine Sequence::append(sequence: &mut Sequence, value: u64 in Wrapping) -> bool {
+public machine sequence_append(sequence: &mut Sequence, value: u64 in Wrapping) -> bool {
     let position: u64 in Wrapping = sequence.length;
     transition position < 12 && value > 0 && value <= 4 {
         true -> store(sequence, position, value)
@@ -25,7 +25,7 @@ public machine Sequence::append(sequence: &mut Sequence, value: u64 in Wrapping)
         (true)
     }
 }
-public machine Sequence::copy_range(source: &Sequence, start: u64 in Wrapping,
+public machine copy_range(source: &Sequence, start: u64 in Wrapping,
                                  count: u64 in Wrapping, destination: &mut Sequence) -> bool {
     transition { _ -> copy(source, start, count, destination, 0) }
     machine copy(source: &Sequence, start: u64 in Wrapping, count: u64 in Wrapping,
@@ -37,15 +37,15 @@ public machine Sequence::copy_range(source: &Sequence, start: u64 in Wrapping,
     }
     machine append(source: &Sequence, start: u64 in Wrapping, count: u64 in Wrapping,
                  destination: &mut Sequence, index: u64 in Wrapping) -> bool {
-        let value: u64 in Wrapping = Sequence::base(source, start + index);
-        let stored: bool = Sequence::append(destination, value);
+        let value: u64 in Wrapping = sequence_base(source, start + index);
+        let stored: bool = sequence_append(destination, value);
         transition stored {
             true -> copy(source, start, count, destination, index + 1)
             _ -> false
         }
     }
 }
-public machine Sequence::equal(left: &Sequence, right: &Sequence) -> bool {
+public machine equal(left: &Sequence, right: &Sequence) -> bool {
     transition left.length == right.length {
         true -> compare(left, right, 0)
         _ -> false
@@ -57,8 +57,8 @@ public machine Sequence::equal(left: &Sequence, right: &Sequence) -> bool {
         }
     }
     machine item(left: &Sequence, right: &Sequence, index: u64 in Wrapping) -> bool {
-        let first: u64 in Wrapping = Sequence::base(left, index);
-        let second: u64 in Wrapping = Sequence::base(right, index);
+        let first: u64 in Wrapping = sequence_base(left, index);
+        let second: u64 in Wrapping = sequence_base(right, index);
         transition first == second {
             true -> compare(left, right, index + 1)
             _ -> false

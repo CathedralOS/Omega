@@ -50,7 +50,11 @@ versioned-state disposition, and every possible entry. Producer validation
 proves internal identity/custody does not leak; independent consumer validation
 matches every import to an exported requirement and its normalized calling,
 state, representation, and semantic contracts. No omniscient source pass is
-required.
+required. The outgoing requirements include each provider's
+[realization inventory](../language/effects.md#direct-synchronous-invocation)
+of possible provider-slot calls. A portable requirement's `invokes` bounds
+entries, not that inventory; replacing a provider reruns the entry and cycle
+checks over it.
 
 Initial composition freezes an independent slot's replacement envelope: imports
 and authority, compatibility/observation profile, target semantics, resource

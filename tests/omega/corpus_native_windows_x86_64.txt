@@ -276,12 +276,10 @@ pass/borrows/literal_index_reference_copy_exit built 12739ms exit:0 @5f668826adf
 pass/borrows/loan_scalar_copies checked 2747ms @5f668826adf3+wt
 pass/borrows/local_fixed_array_shared_state_loan_exit built 10777ms exit:70 stdout:match @5f668826adf3+wt
 pass/borrows/local_record_byte_field_snapshot_exit built 8566ms exit:70 @5f668826adf3+wt
-pass/borrows/local_record_nested_sequence_extent_exit rejected 5762ms regressed-from:built+exit:70 @5f668826adf3+wt
-	cleanup effect dependency in `Main::main` has no exact structural residual disposition in state `main` at statement 4
+pass/borrows/local_record_nested_sequence_extent_exit built 140570ms exit:70 @1628ca7ba41c
 pass/borrows/local_reference_record_transfer_exit built 9251ms exit:70 @5f668826adf3+wt
 pass/borrows/local_reference_scalar_completion_exit built 9050ms exit:70 @5f668826adf3+wt
-pass/borrows/local_shared_record_sequence_observations_exit rejected 7386ms regressed-from:built+exit:70 @5f668826adf3+wt
-	cleanup effect dependency in `Main::main` has no exact structural residual disposition in state `main` at statement 5
+pass/borrows/local_shared_record_sequence_observations_exit built 132438ms exit:70 @1628ca7ba41c
 pass/borrows/local_subslice_parent_lent_after_last_use_exit built 2419ms exit:0 @5f668826adf3+wt
 pass/borrows/loop_descriptor_reformation_exit built 9238ms exit:70 @5f668826adf3+wt
 pass/borrows/mut_loan_local_write_through_exit built 9109ms exit:9 @5f668826adf3+wt
@@ -352,8 +350,7 @@ pass/borrows/runtime_captured_primitive_reference_exit built 8656ms exit:70 @5f6
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 9103ms exit:70 @5f668826adf3+wt
 pass/borrows/runtime_carrier_reference_reselection_exit built 8303ms exit:70 @5f668826adf3+wt
 pass/borrows/runtime_carrier_reference_store_exit built 8536ms exit:70 @5f668826adf3+wt
-pass/borrows/runtime_case_descriptor_retirement_exit incomplete 2781ms @5f668826adf3+wt
-	`inspect_window` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `inspect_window::entry`
+pass/borrows/runtime_case_descriptor_retirement_exit built 75410ms exit:0 @1628ca7ba41c
 pass/borrows/runtime_case_payload_partial_transfer_exit built 2738ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_case_reference_mixed_state_returns_exit built 2815ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_case_reference_reordered_state_returns_exit built 3339ms exit:0 @5f668826adf3+wt
@@ -370,8 +367,7 @@ pass/borrows/runtime_copied_byte_distinct_epochs_exit built 2943ms exit:0 @5f668
 pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 2839ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_copied_range_record_domains_exit built 2674ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_copyable_carrier_retirement_exit built 3200ms exit:0 @5f668826adf3+wt
-pass/borrows/runtime_cyclic_field_loan_release_exit rejected 8192ms regressed-from:built+exit:70 @5f668826adf3+wt
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(19)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/runtime_cyclic_field_loan_release_exit built 172638ms exit:70 @1628ca7ba41c
 pass/borrows/runtime_descriptor_replacement_exit built 2979ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_direct_immutable_scalar_loan_exit built 3258ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_discarded_reference_release_exit built 7620ms exit:70 @5f668826adf3+wt
@@ -481,8 +477,7 @@ pass/borrows/runtime_returned_reference_array_bounded_read_exit built 9045ms exi
 pass/borrows/runtime_returned_reference_array_restoration_exit built 9060ms exit:70 @5f668826adf3+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 9767ms exit:70 @5f668826adf3+wt
 pass/borrows/runtime_scalar_call_stored_carrier_exit built 4502ms exit:0 @5f668826adf3+wt
-pass/borrows/runtime_scalar_field_local_loan_handback_exit rejected 3716ms regressed-from:built+exit:0 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "computed borrow lost its established local", gap: None })
+pass/borrows/runtime_scalar_field_local_loan_handback_exit built 64095ms exit:0 @1628ca7ba41c
 pass/borrows/runtime_scalar_reads_shared_result_exit built 3828ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_selected_byte_descriptor_store built 2979ms exit:0 @5f668826adf3+wt
 pass/borrows/runtime_selected_descriptor_after_fixed_store built 2795ms exit:0 @5f668826adf3+wt
@@ -600,14 +595,12 @@ pass/build/dependency_generated_source_unimported rejected 334ms regressed-from:
 pass/build/dependency_implementation_closure built 4522ms exit:0 @5f668826adf3+wt
 pass/build/described_runner_entry_left_exit built 9054ms exit:11 @5f668826adf3+wt
 pass/build/described_runner_entry_right_exit built 8876ms exit:37 @5f668826adf3+wt
-pass/build/discarded_provider_selection_exit rejected 9030ms regressed-from:built+exit:70 @5f668826adf3+wt
-	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
+pass/build/discarded_provider_selection_exit built 136068ms exit:70 @1628ca7ba41c
 pass/build/entry_schema_same_leaf_exit built 3603ms exit:0 @5f668826adf3+wt
 pass/build/freestanding_unselected_completion checked 6915ms @5f668826adf3+wt
 pass/build/generated_source_selects_authored checked 6315ms published:files/generated.omg @5f668826adf3+wt
 pass/build/named_map_target_family_rows_exit built 9615ms exit:70 @5f668826adf3+wt
-pass/build/nested_generated_dependency_dual_purpose rejected 458ms regressed-from:built+exit:0 @5f668826adf3+wt
-	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
+pass/build/nested_generated_dependency_dual_purpose built 76002ms exit:0 @1628ca7ba41c
 pass/build/package_batch_distinct_builds built 3860ms exit:0 @5f668826adf3+wt
 pass/build/policy_array_entry_context_exit built 3545ms exit:0 @5f668826adf3+wt
 pass/build/product_description_paths_exit built 3543ms exit:0 @5f668826adf3+wt
@@ -701,8 +694,7 @@ pass/calls/inline_record_scalar_call_arguments_exit built 8819ms exit:70 stdout:
 pass/calls/local_after_call_result_store_exit built 8933ms exit:70 @5f668826adf3+wt
 pass/calls/local_array_direct_read_exit built 8934ms exit:70 @5f668826adf3+wt
 pass/calls/local_fixed_byte_array_loan_exit built 8564ms exit:70 @5f668826adf3+wt
-pass/calls/local_nested_record_call_then_state_exit rejected 8984ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/calls/local_nested_record_call_then_state_exit built 67276ms exit:70 @1628ca7ba41c
 pass/calls/local_projected_field_argument_exit built 8994ms exit:70 @5f668826adf3+wt
 pass/calls/local_projected_field_record_result_argument_exit built 8941ms exit:70 @5f668826adf3+wt
 pass/calls/local_projected_field_scalar_result_argument_exit built 8731ms exit:70 @5f668826adf3+wt
@@ -1059,12 +1051,9 @@ pass/collections/runtime_finite_element_view_call_write_exit built 6843ms exit:0
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 7725ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_fixed_array_projected_write_exit built 9931ms exit:45 @5f668826adf3+wt
 pass/collections/runtime_fixed_array_selector_call_store_exit built 8911ms exit:70 @5f668826adf3+wt
-pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit rejected 10702ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
-pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit rejected 10734ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
-pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit rejected 10156ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
+pass/collections/runtime_fixed_byte_view_dynamic_state_loan_exit built 96355ms exit:70 @1628ca7ba41c
+pass/collections/runtime_fixed_byte_view_dynamic_state_shared_loan_exit built 120697ms exit:70 @1628ca7ba41c
+pass/collections/runtime_fixed_byte_view_restricted_scalar_state_loan_exit built 107614ms exit:70 @1628ca7ba41c
 pass/collections/runtime_fixed_vec_contract_chain_exit built 10396ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_fixed_vec_round_trip_exit built 10716ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_float_array_projection_return_exit built 9134ms exit:0 @5f668826adf3+wt
@@ -1116,10 +1105,8 @@ pass/collections/runtime_shared_fixed_array_cycle_exit built 10846ms exit:42 std
 pass/collections/runtime_signed_element_offset_read_exit built 8894ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_slice_record_copy_exit built 11440ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_state_indexed_scalar_field_store_exit built 9504ms exit:0 @5f668826adf3+wt
-pass/collections/runtime_stored_reference_array_owned_record_contract_exit incomplete 2977ms @5f668826adf3+wt
-	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
-pass/collections/runtime_stored_reference_array_replacement_contract_exit incomplete 3146ms @5f668826adf3+wt
-	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
+pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 57619ms exit:0 @1628ca7ba41c
+pass/collections/runtime_stored_reference_array_replacement_contract_exit built 33668ms exit:0 @1628ca7ba41c
 pass/collections/runtime_three_indexed_record_float_read_exit built 13803ms exit:0 @5f668826adf3+wt
 pass/collections/runtime_vec_u32_growth_exit built 17776ms exit:70 @5f668826adf3+wt
 pass/collections/runtime_view_element_structural_replacement_exit built 4664ms exit:0 @5f668826adf3+wt
@@ -1350,8 +1337,7 @@ pass/control_flow/runtime_branching_helper_string rejected 2850ms regressed-from
 pass/control_flow/runtime_captured_case_reference_arm_forwarding_exit built 8356ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_captured_case_reference_child_arm_forwarding_exit built 9484ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_captured_local_remutated_field_exit built 8725ms exit:70 @5f668826adf3+wt
-pass/control_flow/runtime_carried_local_reference_backing_exit rejected 2689ms @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "joined_named_backings", reason: "Unit graph owned loan arrival lacks its selected carrier retirement", gap: None })
+pass/control_flow/runtime_carried_local_reference_backing_exit built 66618ms exit:0 @1628ca7ba41c
 pass/control_flow/runtime_compare_pair_dispatch_exit built 9165ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_completed_readonly_home_replacement_exit incomplete 2883ms @5f668826adf3+wt
 	`countdown` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
@@ -1372,12 +1358,9 @@ pass/control_flow/runtime_far_case_tag_dispatch_exit built 9454ms exit:2 @5f6688
 pass/control_flow/runtime_float_payload_snapshot_after_case_replacement_exit built 15483ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit built 10077ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_guarded_edge_preparation_exit built 4011ms exit:0 @5f668826adf3+wt
-pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit rejected 3547ms regressed-from:built+exit:0 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "update", reason: "captured loan arrival has no matching owner", gap: None })
-pass/control_flow/runtime_index_state_child_loan_exit rejected 4840ms regressed-from:built+exit:0 @5f668826adf3+wt
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: Some(OperationId(41)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/control_flow/runtime_index_state_grandchild_loan_exit rejected 3229ms regressed-from:built+exit:0 @5f668826adf3+wt
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: Some(OperationId(44)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/control_flow/runtime_heterogeneous_static_parent_state_loan_exit built 65524ms exit:0 @1628ca7ba41c
+pass/control_flow/runtime_index_state_child_loan_exit built 68924ms exit:0 @1628ca7ba41c
+pass/control_flow/runtime_index_state_grandchild_loan_exit built 45369ms exit:0 @1628ca7ba41c
 pass/control_flow/runtime_index_state_loan_forwarding_exit built 5042ms exit:0 @5f668826adf3+wt
 pass/control_flow/runtime_index_state_loan_snapshot_exit built 3880ms exit:0 @5f668826adf3+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 8073ms exit:2 @5f668826adf3+wt
@@ -1393,10 +1376,8 @@ pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit built 4186
 pass/control_flow/runtime_nested_case_pattern_guard_meet_exit built 6310ms exit:0 @5f668826adf3+wt
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit built 8367ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit built 8206ms exit:70 @5f668826adf3+wt
-pass/control_flow/runtime_nonentry_state_local_loan_shared_relend_exit rejected 7562ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state loan chain lender lends from two homes", gap: None })
-pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit rejected 7643ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "Unit graph state-local loan chain is re-lent beyond its exclusive members", gap: None })
+pass/control_flow/runtime_nonentry_state_local_loan_shared_relend_exit built 117532ms exit:70 @1628ca7ba41c
+pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit built 96347ms exit:70 @1628ca7ba41c
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit built 8212ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_nonentry_state_local_shared_loan_exit built 8288ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 19466ms exit:70 @5f668826adf3+wt
@@ -1417,8 +1398,7 @@ pass/control_flow/runtime_saved_transition_empty_sibling_exit built 3925ms exit:
 pass/control_flow/runtime_saved_transition_subject_exit built 5277ms exit:0 @5f668826adf3+wt
 pass/control_flow/runtime_scalar_case_arm_evaluation_exit built 398807ms exit:0 @5f668826adf3+wt
 pass/control_flow/runtime_selected_copy_repeated_call_exit built 5080ms exit:0 @5f668826adf3+wt
-pass/control_flow/runtime_selected_parent_state_loan_exit rejected 3542ms regressed-from:built+exit:0 @5f668826adf3+wt
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: Some(OperationId(54)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/control_flow/runtime_selected_parent_state_loan_exit built 48814ms exit:0 @1628ca7ba41c
 pass/control_flow/runtime_shared_case_return_call_exit built 11380ms exit:70 @5f668826adf3+wt
 pass/control_flow/runtime_string_literal_dispatch_exit built 11756ms exit:11 @5f668826adf3+wt
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit built 10908ms exit:70 @5f668826adf3+wt
@@ -1654,8 +1634,7 @@ pass/domains/domain_param_forwarded checked 3165ms @5f668826adf3+wt
 pass/domains/domain_signed_clamp checked 3522ms @5f668826adf3+wt
 pass/domains/domain_subslice_carry checked 3480ms @5f668826adf3+wt
 pass/domains/established_by_domain checked 3331ms @5f668826adf3+wt
-pass/domains/executable_domain_membership_expression_exit incomplete 17573ms regressed-from:built+exit:81 @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
+pass/domains/executable_domain_membership_expression_exit built 80307ms exit:81 @1628ca7ba41c
 pass/domains/executable_domain_membership_union_guard_exit built 16935ms exit:241 @5f668826adf3+wt
 pass/domains/explicit_domain_erasure checked 1690ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2779ms @5f668826adf3+wt
@@ -1692,8 +1671,7 @@ pass/domains/qualified_structural_argument_inline_constructor built 4035ms exit:
 pass/domains/qualified_structural_argument_plain_types_call built 4837ms exit:0 @5f668826adf3+wt
 pass/domains/qualified_structural_argument_same_shape_no_call built 4219ms exit:0 @5f668826adf3+wt
 pass/domains/record_interval_domain_member_exit built 13768ms exit:70 @5f668826adf3+wt
-pass/domains/record_literal_view_member_store_exit incomplete 13530ms regressed-from:built+exit:70+stdout:match @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 5
+pass/domains/record_literal_view_member_store_exit built 56588ms exit:70 stdout:match @1628ca7ba41c
 pass/domains/record_predicate_domain_member_exit built 13144ms exit:70 @5f668826adf3+wt
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 2066ms @5f668826adf3+wt
 pass/domains/refinement_chain_predicates checked 1637ms @5f668826adf3+wt
@@ -1736,8 +1714,7 @@ pass/domains/user_authored_predicate_machine checked 3041ms @5f668826adf3+wt
 pass/domains/utf8_equals_literal_exit built 13390ms exit:70 @5f668826adf3+wt
 pass/domains/utf8_equals_literal_mismatch_exit built 13041ms exit:71 @5f668826adf3+wt
 pass/domains/utf8_field_read_carries_domain_exit built 11644ms exit:70 @5f668826adf3+wt
-pass/domains/utf8_field_write_from_param incomplete 4475ms regressed-from:built+exit:0 @5f668826adf3+wt
-	`store` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `store::entry`
+pass/domains/utf8_field_write_from_param built 40710ms exit:0 @1628ca7ba41c
 pass/domains/vacuous_domain_qualification checked 3641ms @5f668826adf3+wt
 pass/domains/view_field_literal_store_reads_exit built 11978ms exit:70 @5f668826adf3+wt
 pass/domains/write_domain_store checked 2923ms @5f668826adf3+wt
@@ -1762,8 +1739,7 @@ pass/drops/contextual_core_drop_exit rejected 2232ms regressed-from:built+exit:0
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$891e52af04cc4b60$0 state entry after statement 0: missing value.ready == true required by Token::drop clause `token.ready`
 pass/drops/contextual_hook_cleanup checked 3123ms @5f668826adf3+wt
 pass/drops/contextual_receiver_drop_exit built 4581ms exit:0 stdout:match @5f668826adf3+wt
-pass/drops/copied_scalar_temporary_completion_exit rejected 2289ms @5f668826adf3+wt
-	cleanup prerequisite has no exact outgoing edge context in main
+pass/drops/copied_scalar_temporary_completion_exit built 54917ms exit:0 @1628ca7ba41c
 pass/drops/core_drop_explicit_consume built 3491ms exit:0 @5f668826adf3+wt
 pass/drops/core_drop_generic_chain checked 2561ms @5f668826adf3+wt
 pass/drops/core_drop_owner_hook built 3746ms exit:0 @5f668826adf3+wt
@@ -1785,8 +1761,7 @@ pass/drops/owned_qualified_contextual_cleanup_exit rejected 6984ms @5f668826adf3
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$3cb40fa4b1ba9e64$0 state entry after statement 0: value does not establish Capacity::drop clause `capacity.active == 0 && capacity.released`
 pass/drops/projected_case_subject_root_cleanup_exit built 3830ms exit:0 stdout:match @5f668826adf3+wt
 pass/drops/qualified_scalar_control_consumed_owner_exit built 3625ms exit:0 @5f668826adf3+wt
-pass/drops/reference_rebinding_preserves_pointee_exit rejected 2508ms @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "observe_byte_view", reason: "shared view rebind changes its declared carrier", gap: None })
+pass/drops/reference_rebinding_preserves_pointee_exit built 50365ms exit:0 @1628ca7ba41c
 pass/drops/result_cleanup_implicit_boolean_exit built 2584ms exit:0 @5f668826adf3+wt
 pass/drops/result_cleanup_integer_exit built 2535ms exit:0 @5f668826adf3+wt
 pass/drops/result_cleanup_named_boolean_exit built 2559ms exit:0 @5f668826adf3+wt
@@ -1824,8 +1799,7 @@ pass/drops/runtime_local_nominal_return_exit built 2095ms exit:0 stdout:match @5
 pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3194ms exit:0 @5f668826adf3+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 4096ms exit:0 @5f668826adf3+wt
 pass/drops/runtime_named_linear_container_cleanup_exit built 3784ms exit:0 @5f668826adf3+wt
-pass/drops/runtime_named_parent_linear_cleanup_exit rejected 2659ms regressed-from:built+exit:0 @5f668826adf3+wt
-	cannot prove automatic cleanup requires at selected edge from complete_array state entry after statement 3: owner does not establish ArrayOwner::drop clause `owner.receipts[0].value == 7 && owner.receipts[1].value == 13`
+pass/drops/runtime_named_parent_linear_cleanup_exit built 52779ms exit:0 @1628ca7ba41c
 pass/drops/runtime_narrowed_cleanup_receiver_exit rejected 2218ms @5f668826adf3+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: elements[1] does not establish Element::drop clause `element.child.value == 9 && element.child.ready`
 pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit built 2234ms exit:0 @5f668826adf3+wt
@@ -1967,8 +1941,7 @@ pass/expressions/match_owned_mixed_projection_reads rejected 7887ms regressed-fr
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "mix_b", reason: "selected cleanup repeats its captured source home", gap: None })
 pass/expressions/match_owned_mixed_result_kinds built 8688ms exit:70 @5f668826adf3+wt
 pass/expressions/match_owned_parameter_field_subject built 8729ms exit:70 @5f668826adf3+wt
-pass/expressions/match_owned_projected_field_arm rejected 7625ms regressed-from:built+exit:70 @5f668826adf3+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "choose", reason: "selected cleanup repeats its captured source home", gap: None })
+pass/expressions/match_owned_projected_field_arm built 100352ms exit:70 @1628ca7ba41c
 pass/expressions/match_owned_projected_local_roots built 9974ms exit:70 @5f668826adf3+wt
 pass/expressions/match_owned_projected_parameter_roots built 9518ms exit:70 @5f668826adf3+wt
 pass/expressions/match_owned_projection_no_match_control built 8678ms exit:70 @5f668826adf3+wt
@@ -3655,24 +3628,15 @@ pass/facts/open_index_distributivity_through_other_machine_exit built 8609ms exi
 pass/facts/open_index_distributivity_through_other_state_exit built 8511ms exit:0 @af2cbd5e6837
 pass/facts/open_index_distributivity_through_parameter_exit built 9128ms exit:0 @af2cbd5e6837
 pass/facts/open_index_distributivity_through_target_body_exit built 8480ms exit:0 @af2cbd5e6837
-pass/facts/open_record_const_implementation_through_call_result_exit rejected 2141ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 106ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 2311ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 2152ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2341ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 2271ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 2238ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 2297ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2273ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit built 103325ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_const_name_exit built 52262ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_field_exit built 153064ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_local_exit built 55590ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_match_join_exit built 56585ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_other_machine_exit built 57038ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_other_state_exit built 67050ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_parameter_exit built 34390ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_target_body_exit built 34627ms exit:0 @f3951e500514
 pass/facts/outcome_structural_evidence_through_call_result_exit built 13619ms exit:0 stdout:match @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_const_name_exit built 15706ms exit:0 stdout:match @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_field_exit built 3840ms exit:0 stdout:match @5f668826adf3+wt
@@ -4870,16 +4834,16 @@ pass/filesystem/windows_namespace_rename_exit built 63884ms exit:70 @5f668826adf
 pass/filesystem/windows_native_create_write_close_exit built 49772ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_raw_argument_failures_exit built 60011ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_raw_bounded_view_exit built 71292ms exit:70 @5f668826adf3+wt
-pass/filesystem/windows_raw_breadth_exit built 70470ms exit:70 @5f668826adf3+wt
+pass/filesystem/windows_raw_breadth_exit built 157907ms exit:70 @8d1508795e32
 pass/filesystem/windows_raw_canonical_path_exit built 190771ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_directory_count_exit built 213237ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_directory_nth_exit built 175440ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_file_control_exit built 231210ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_hard_link_exit built 173446ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_lock_exit built 183578ms exit:70 terminal-inspections:match @5f668826adf3+wt
-pass/filesystem/windows_raw_metadata_exit built 198935ms exit:70 terminal-inspections:match @5f668826adf3+wt
+pass/filesystem/windows_raw_metadata_exit built 261882ms exit:70 terminal-inspections:match @8d1508795e32
 pass/filesystem/windows_raw_positioned_io_exit built 208400ms exit:70 terminal-inspections:match @5f668826adf3+wt
-pass/filesystem/windows_raw_read_link_exit built 233058ms exit:70 terminal-inspections:match @5f668826adf3+wt
+pass/filesystem/windows_raw_read_link_exit built 226884ms exit:70 terminal-inspections:match @8d1508795e32
 pass/filesystem/windows_set_file_time_exit built 106166ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_wrapper_results_exit built 172438ms exit:70 @5f668826adf3+wt
 pass/filesystem/wrapper_lock_metadata_exit rejected 44079ms @e3eb5bdd566b
@@ -7187,6 +7151,7 @@ run/domains/structural_qualification_cast_transitions built 2776ms exit:0 @5f668
 run/domains/structural_qualification_cast_values built 2739ms exit:0 @5f668826adf3+wt
 run/domains/structural_qualification_nested_values built 2593ms exit:0 @5f668826adf3+wt
 run/domains/vacuous_tag_call_arguments built 2827ms exit:0 @5f668826adf3+wt
+run/domains/wide_array_literal_membership_exit built 15151ms exit:0 @c76b7619485d
 run/domains/zero_field_call_formation_exit built 2761ms exit:0 @5f668826adf3+wt
 run/dyn_finite_family_runtime_dispatch built 9121ms exit:70 @5f668826adf3+wt
 run/facts/double_indexed_rmw_through_call_result_traps built 4510ms exit:-1073741795 @5f668826adf3+wt

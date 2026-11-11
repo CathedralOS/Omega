@@ -137,9 +137,12 @@ mod anonymous {
                     "integer const argument exceeds the signed/unsigned 64-bit envelope".to_owned()
                 })?;
             if let Some((origin, fractional_value)) = self.fractional {
-                warnings.push(Diagnostic::warning(format!(
-            "anonymous arithmetic preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{integer}`; type an operand if typed integer division was intended"
-        )).with_source_span(syntax.expressions.source_span(origin)));
+                // Implicit const-argument landing after a fractional
+                // intermediate rejects (numeric_values.md); an explicit
+                // `as` operand is not an anonymous argument at this layer.
+                warnings.push(Diagnostic::error(format!(
+                    "anonymous arithmetic with the exact fractional intermediate `{fractional_value}` cannot land implicitly as integer `{integer}`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended"
+                )).with_source_span(syntax.expressions.source_span(origin)));
             }
             Ok(value)
         }
@@ -2373,10 +2376,15 @@ mod facts {
                     return Ok(Some(None));
                 };
                 let mut warnings = Vec::new();
-                let selected = evaluate_index(indexed.index)?
+                let index = evaluate_index(indexed.index)?
                     .map(|value| value.into_integer(syntax, &mut warnings))
                     .transpose()?
-                    .flatten()
+                    .flatten();
+                // An index is an implicit integer landing too.
+                if let Some(error) = warnings.iter().find(|warning| warning.is_error()) {
+                    return Err(error.message.clone());
+                }
+                let selected = index
                     .and_then(|value| usize::try_from(value).ok())
                     .and_then(|index| values.get(index));
                 Ok(Some(selected))

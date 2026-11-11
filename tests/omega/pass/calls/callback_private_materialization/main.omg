@@ -23,6 +23,8 @@ satisfies CallingPolicy::plan
     plan.call.parameters[1] = CallbackPolicies::word(4, MachineRegister::X86Rdx);
     plan.call.parameters[2] = CallbackPolicies::word(8, MachineRegister::X86R8);
     let mut callback: BoundaryEntryPlan = CallbackPolicies::finish(plan);
+    callback.state.permitted_transitive_use.instruction_pointer = true;
+    callback.state.permitted_transitive_use.stack_pointer = true;
     // Keep the genuine Microsoft argument geometry, with a stronger R10/XMM5
     // preservation promise than the ordinary body. This requires an adapter.
     callback.call.ordinary_clobbers.registers[5] = callback.call.ordinary_clobbers.registers[11];
@@ -131,19 +133,6 @@ satisfies PointProcedure::visit
 {
     remember_point(context, x, y);
 }
-
-windows_x86_64 machine line_binding() -> ForeignBinding<9, 7, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName { library: "gdi32.dll", export: "LineDDA" },
-    }
-}
-windows_x86_64 machine line_leaf<machine Selected>(
-    start_x: i32, start_y: i32, end_x: i32, end_y: i32,
-    context: &mut CallbackState
-) -> i32
-requires machine Selected satisfies PointProcedure::visit;
-satisfies LineRaster::draw
-via line_binding();
 
 data Main { context: CallbackState; }
 machine Main::main(main: &mut Main) reaches LineRaster + PointProcedure + Console

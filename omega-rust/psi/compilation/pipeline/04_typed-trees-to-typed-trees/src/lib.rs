@@ -12,8 +12,9 @@ requirement specialization (`monomorphization.rs`,
 `selection_and_reflection.rs`), conformance lifetime and requirement call
 elaboration (`conformance.rs`), data and product operand applications
 (`data_and_product_operands.rs`), selected operator call binding and lexical
-assembly control normalization (`assembly_and_operators.rs`), and assignment
-destination and rebound reference parameter preparation.
+assembly control normalization (`assembly_and_operators.rs`), suffixed policy
+operator typing (`policy_operators.rs`), and assignment destination and
+rebound reference parameter preparation.
 */
 
 /*
@@ -32,6 +33,7 @@ mod constructed_results;
 mod contextual_and_requirement_calls;
 mod data_and_product_operands;
 mod monomorphization;
+mod policy_operators;
 mod preparation;
 mod selection_and_reflection;
 

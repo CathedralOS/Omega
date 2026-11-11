@@ -15,7 +15,7 @@ compilation-products = { path = "../../../../omega-rust/omega/compilation/produc
 package-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
 optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
-package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation", features = ["test-support"] }
+package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation" }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/build-time-evaluation" }
 provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }

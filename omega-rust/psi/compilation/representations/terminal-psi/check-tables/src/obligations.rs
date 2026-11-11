@@ -88,6 +88,25 @@ pub enum ObligationKind {
     /// `wiki/spec/terminal-psi/control_flow.md`: "Each partial operation still
     /// proves its own safety from facts available before it executes".
     OperationSafety { operation: OperationId },
+    /// One clause of a data type's `requires`, owed by one operation that
+    /// forms or changes a value of that type: a record or case construction,
+    /// a zero establishment, or a store into a field of a place of that type
+    /// or of a type that contains it. `wiki/spec/language/data_and_literals.md`:
+    /// "Construction and every restoring write prove the owning
+    /// default-domain clauses." The goal is the clause with `self` replaced
+    /// by the values the place holds once the operation completes, proved
+    /// from what is known before it.
+    /// `wiki/spec/terminal-psi/structural_access.md`: "The obligation binds
+    /// the initializer or replacement SSA value, never the old field
+    /// contents."
+    ///
+    /// One operation can owe clauses of several types: a store to `l.from.x`
+    /// owes `Point`'s for `l.from` and `Line`'s for `l`. `clause` is the
+    /// position in the operation's whole list: the types that own the
+    /// written path from the innermost outward, or for a zero establishment
+    /// the data-typed places of the zero value in declaration order, parent
+    /// first; within one type its clauses in authored order.
+    DataDomain { operation: OperationId, clause: u32 },
     /// A block invariant on one incoming edge. control_flow.md: "A scalar
     /// block invariant is a semantic row identifying a machine, destination
     /// block, scalar predicate, and one obligation for every actual incoming
@@ -95,13 +114,26 @@ pub enum ObligationKind {
     ArrivalInvariant { edge: EdgeId },
     /// One published guarantee, by position, on one normal exit edge.
     /// control_flow.md: "All normal returns, including returns after a cycle,
-    /// must establish the published guarantees."
-    NormalGuarantee { exit: EdgeId, clause: u32 },
-    /// A crash site's guard and same-cause route coverage.
-    /// `wiki/spec/terminal-psi/calls_and_outcomes.md`: "The verifier proves
-    /// every site guard from independent entry/CFG facts and checks same-cause
-    /// coverage". The site is the crashing block's terminator.
-    CrashCoverage { site: BlockId, cause: CrashCause },
+    /// must establish the published guarantees." The real obligation is per
+    /// return edge; `published` names the clause's `PublishedGuarantee`, the
+    /// identity the module's `ContractClause` carries.
+    NormalGuarantee {
+        exit: EdgeId,
+        clause: u32,
+        published: ObligationId,
+    },
+    /// One published `ensures` clause, by position: the per-clause identity
+    /// Terminal Psi's `ContractClause` holds. It holds exactly when every
+    /// normal return edge's `NormalGuarantee` for this clause holds, which is
+    /// vacuously so for a machine with no normal return (control_flow.md:
+    /// "All normal returns ... must establish the published guarantees").
+    /// It is discharged from those rows, never proved on its own.
+    PublishedGuarantee { clause: u32 },
+    /// A crash site's guard and same-cause route coverage, one per site and
+    /// cause. `wiki/spec/terminal-psi/calls_and_outcomes.md`: "The verifier
+    /// proves every site guard from independent entry/CFG facts and checks
+    /// same-cause coverage".
+    CrashCoverage { site: CrashSite, cause: CrashCause },
     /// Well-foundedness of one recursive component's rank relation.
     /// control_flow.md: "One grouped control judgment covers each
     /// reconstructed component, with a shared well-foundedness question and
@@ -112,6 +144,26 @@ pub enum ObligationKind {
         component: CycleComponentId,
         edge: EdgeId,
     },
+}
+
+/// Where a machine may leave by crashing. Closed: Terminal Psi has no other
+/// construct that carries a crash cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashSite {
+    /// A block whose terminator has no successor: a `Crash`, or an
+    /// `InvokeNoNormal` whose callee publishes crash routes.
+    /// calls_and_outcomes.md, "Crash": "`Trap` and `Abort` are closed causes
+    /// on distinct no-successor terminators." and "An unconditional
+    /// no-return callee crash needs no extra caller branch or fabricated
+    /// crash event."
+    Block(BlockId),
+    /// A call operation whose callee may return and also publishes crash
+    /// routes: the block continues after it, so the site is the operation.
+    /// calls_and_outcomes.md, "Call contracts": "Surviving crash routes are
+    /// derived from the pinned callee contract using exact actuals. ... Empty
+    /// or untranslated continuation rows cannot erase a crash." and "Crash":
+    /// "Call composition substitutes arguments and caller path facts."
+    Operation(OperationId),
 }
 
 /// Where a loan's authority comes from. loans.md: "A direct reborrow names
@@ -160,9 +212,17 @@ mod tests {
         assert!(loan.is_conserved() && window.is_conserved());
         assert!(!ObligationKind::ArrivalInvariant { edge }.is_conserved());
         assert!(
+            !ObligationKind::DataDomain {
+                operation: OperationId::new(1).unwrap(),
+                clause: 0,
+            }
+            .is_conserved()
+        );
+        assert!(
             !ObligationKind::NormalGuarantee {
                 exit: edge,
-                clause: 0
+                clause: 0,
+                published: ObligationId::new(1).unwrap(),
             }
             .is_conserved()
         );

@@ -589,8 +589,8 @@ pub use scalars::scalar_leaf_schema::{
     ScalarLeafSchema, ScalarLeafWorkPolicy,
 };
 pub use scalars::scalar_leaf_semantics::{
-    GoalFreeScalarLeafSemantics, ScalarLeafLiteral, constant_goal_free_scalar_leaf,
-    goal_free_scalar_leaf_semantics,
+    GoalFreeScalarLeafSemantics, ScalarLeafLiteral, SortedValueTypes, ValueTypes,
+    constant_goal_free_scalar_leaf, goal_free_scalar_leaf_semantics,
 };
 pub use scalars::scalar_representation_view::{ScalarRepresentationViewPair, ScalarViewValue};
 pub use semantic_rows::{

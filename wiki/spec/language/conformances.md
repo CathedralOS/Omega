@@ -75,8 +75,10 @@ The conformance has its own package-scoped name, visibility, binder telescope,
 instantiated trait application, complete row map, laws, and provenance. It is
 private unless declared `public`; data and trait visibility do not publish it.
 Cross-package selection requires public visibility and ordinary direct-dependency
-authority. A generic evidence binder has the same shape without a body:
-`Order satisfies Ranked<Element>`. It is an implementation parameter, not a
+authority. A generic consumer takes an implementation as a typed static
+parameter, `const Order: Ranked<Element>`, under
+[typed static parameters](generics.md#typed-static-parameters). It is an
+implementation parameter, not a
 constraint saying that `Element` owns or implements operations.
 
 Calls through an evidence binder project service reach from the exact selected
@@ -90,7 +92,9 @@ generic parameter list, including inside a boundary trait. Its selected member
 has a matching ordered binder contract and must satisfy the requirement for
 every admitted application, not only one chosen map. The caller supplies exact
 implementation evidence under the ordinary static application rules; Build
-provider selection does not fill or replace it. Trait-level captured binders
+provider selection does not fill or replace it. A boundary trait named as the
+argument is [the slot's own view](#boundary-slots-as-static-implementations),
+which is source selection, not provider selection. Trait-level captured binders
 and requirement-local fresh binders retain distinct identities. See
 [generic machine requirements](generics.md#generic-machine-requirements).
 
@@ -188,8 +192,8 @@ these values under their declaration spelling.
 
 ```omega
 const WireCodec: Codec<Message> = Codec {
-    encode: lib_a::encode,
-    decode: lib_b::decode,
+    encode: (lib_a::encode satisfies Codec<Message>::encode),
+    decode: (lib_b::decode satisfies Codec<Message>::decode),
     round_trip: proofs::wire_round_trip,
 };
 ```
@@ -197,8 +201,11 @@ const WireCodec: Codec<Message> = Codec {
 Fields hold [static callable selections](machine_values.md#static-callable-selections).
 A field is either a structural selection or a selection bound to a named
 requirement, which preserves requirement-routed invocation, token binding and
-domain access routes. Selection stays explicit: constructing or importing an
-implementation makes nothing an ambient default.
+domain access routes. A trait's operation fields have their requirement types,
+and a literal accepts only a selection already
+[bound to that requirement](#binding-a-machine-to-a-requirement); placing a
+machine in the field does not bind it. Selection stays explicit: constructing or
+importing an implementation makes nothing an ambient default.
 
 Identity is the schema application plus its canonical relevant field values. A
 name creates no identity and grants no authority: two names for one value are
@@ -213,8 +220,8 @@ artifact dependencies and admission provenance remain separate.
 
 Construction proves the schema's laws for the selected operations, and replacing
 an operation re-establishes them under ordinary invariant rules. One schema
-serves static and runtime use: a static parameter of the schema, including the
-binder spelling `Order satisfies Ranked<T>`, exposes exact selections for
+serves static and runtime use: a static parameter of the schema,
+`const Order: Ranked<T>`, exposes exact selections for
 specialization, and a runtime value carries callable descriptors under their
 checked envelopes. A record holding an open generic callable family is not
 runtime-materializable until that family is closed. The normalized field type
@@ -235,6 +242,90 @@ slots, realizations and admission separately: packing a selection into a record
 registers no provider and manufactures no satisfaction, establishment or cleanup
 authority. Related types remain explicit parameters and hidden types use
 [`some`](some_packages.md); no associated-type surface is introduced.
+
+## Boundary slots as static implementations
+
+Named decision: `boundary-slot-implementation-views`, settled 2026-11-10;
+[the design draft](../../drafts/designs/boundary_slot_implementation_views.md)
+records the acceptance cases. A boundary trait that inherits an ordinary trait
+has a static implementation value of that parent whose operations are the
+slot's own boundary requirements. Code that takes an implementation receives
+the slot the way it receives any other implementation:
+
+```omega
+boundary trait TimeObservation {}
+
+trait ClockOps<S> {
+    machine now(state: &mut S) -> u64
+        reaches TimeObservation
+        crashes none;
+}
+
+boundary trait WallClock: ClockOps<NoState> {}
+
+machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+    entry.at = C::now(clock);
+}
+
+stamp<NoState, WallClock>(&mut none, &mut entry);
+
+const RealClock: ClockOps<NoState> = WallClock;       // the same value, named
+stamp<NoState, RealClock>(&mut none, &mut entry);
+
+stamp<SimClock, Simulated>(&mut sim, &mut entry);     // an ordinary implementation
+```
+
+**Which parent.** The view is of an exact ordinary-parent application that the
+boundary trait declares, directly or transitively. It is a projection of
+declared inheritance: a trait with matching signatures that is not a declared
+parent rejects, and no implementation is searched for. Where several declared
+parent applications fit a position, an annotation selects one. The annotation
+selects a parent the declaration already names. It creates no
+[binding](#binding-a-machine-to-a-requirement); the inheritance clause is the
+declared edge.
+
+**A static value.** The view may be passed as a static argument, named by a
+`const`, forwarded, held in a static record field, and have one member
+projected. Every such use keeps the slot route. It does not materialize at run
+time: a runtime callable or runtime operation record over a boundary operation
+is built from an authored local proxy machine under
+[component boundaries](machine_values.md#representation-and-component-boundaries),
+because a boundary call keeps its calling plan and code-lifetime obligations.
+
+**Identity.** The value identifies the boundary slot, the parent application
+and the inherited member mapping. Two slots viewed as one parent are different
+values even when Build selects the same provider for both, and aliases of one
+view are one value. The selected provider is not part of the value: it stays a
+realization, artifact and admission dependency under
+[provider selection](../build/provider_selection.md). Selecting another
+provider leaves `stamp<NoState, WallClock>` the same application and the same
+guarantees, and may change its results within the slot's published contract.
+
+**Calls.** Calling a projected member is the same boundary demand as calling
+the slot by path, `WallClock::now(&mut none)`. Naming, forwarding and storing
+the view reach nothing.
+
+**Contract.** The members carry the slot's complete published contract: reach,
+crashes, suspension, blocking, guarantees and write frame. An application over
+the view receives that contract and never a narrower fact about the selected
+provider. The parent's requirements must therefore be ones a boundary
+requirement can carry, with `reaches` and `crashes` written under
+[open callable contracts](effects.md#open-callable-contracts); an inherited
+open contract is never closed by inspecting a provider. A written reach is a
+ceiling, so an ordinary implementation of the same parent may publish less,
+and an application over it receives what it publishes.
+
+**Laws.** The view carries the parent's complete law and evidence obligations,
+tied to the slot. Supply discharges them under the existing checking and
+admission rules, and forming the view grants no trust or authority. A relevant
+witness field whose identity the slot's public contract does not fix makes the
+view unavailable; a provider-private witness is never inserted.
+
+The parent's signature is the slot's signature. The state parameter in this
+example comes from choosing `ClockOps<NoState>` as the slot's interface, not
+from the view. A consumer that needs a different signature is still served by
+an ordinary implementation that calls the slot; the view removes only the
+bridge that would forward unchanged.
 
 ## Complete row identity
 
@@ -284,7 +375,7 @@ descriptor's runtime representation and custody.
 ## Exact requirement edges
 
 `machine ... satisfies Trait<...>::requirement` supplies only that exact
-requirement. It may serve provider selection, a trait/boundary operator
+requirement, and a machine declares at most one. It may serve provider selection, a trait/boundary operator
 requirement, an establishment route, or proof citation without satisfying a
 whole-trait bound. Runtime selection uses machine values, not `dyn`; the selected
 machine still needs a compatible callable contract. An optional `as Name`
@@ -293,9 +384,9 @@ creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
 
-Inferring a wrapper's [forwarded callback requirements](generics.md#forwarded-callback-requirements)
+Inferring a wrapper's [callable parameter type](generics.md#inferred-callable-parameter-types)
 does not infer any of these implementation edges or a named conformance map.
-It retains requirements the caller's explicitly selected machine must satisfy.
+It retains the type the caller's explicitly supplied selection must have.
 
 The edge's explicit trait application binds its contract parameters. A
 realization parameter used in that application, including inside a compound
@@ -331,6 +422,96 @@ conformance search. Meaning comes from operand types, declared qualification,
 an exact proof-static selection, carried evidence, or a sealed language route.
 [Domains](domains.md) own result-domain overload selection; selecting a law
 conformance cannot itself establish a routed qualification.
+
+## Binding a machine to a requirement
+
+Named decision: `explicit-requirement-binding`, settled 2026-11-10;
+[the design draft](../../drafts/designs/typed_static_parameters.md) records the
+migration. A machine becomes a selection bound to a requirement only where
+source says so. Three forms create a binding, and nothing else does:
+
+| Form | The machine's body |
+| --- | --- |
+| A declared edge, `machine issue(...) satisfies Issues::issue { ... }`, or an inline member of a `satisfies` block | Is checked as a conformer of that requirement, under the invocation context the requirement supplies. |
+| A selection row, `Trait::member = Existing::machine;` | Is not rechecked. A route is attached to a machine that was already valid without it. |
+| A binding expression, `(clear satisfies A::clear)` | As for a row. The expression yields the bound selection as a value. |
+
+A field, a generic argument, a result and an assignment accept an existing
+binding. Their expected type never creates one.
+
+```omega
+machine clear(item: &mut u32) { item = 0; }
+
+const clear_a = (clear satisfies A::clear);
+const clear_b = (clear satisfies B::clear);
+
+clear(&mut x);        // direct
+clear_a(&mut x);      // through A::clear
+clear_b(&mut x);      // through B::clear
+
+machine run<const F: A::clear>(item: &mut u32) { F(item); }
+
+run<clear_a>(&mut x);                    // accepted
+run<(clear satisfies A::clear)>(&mut x); // accepted
+run<clear>(&mut x);                      // rejected: `clear` is not bound
+```
+
+**What a binding checks.** The requirement application resolves
+unambiguously, ordinary visibility and dependency rules permit it, and the
+machine refines the complete requirement: parameters, results, preconditions,
+guarantees, effects, progress, ownership and resource relationships, for every
+admitted application of any remaining generic or lifetime family. A matching
+signature is insufficient.
+
+**What a binding produces.** A static callable selection that invokes through
+that requirement. It creates no wrapper machine and leaves the machine
+unchanged. A row or expression registers no edge on the machine: the value
+carries the binding, and a later use of the bare machine name is still
+unbound. A bound selection's identity is the machine selection together with
+its route. Binding one machine to one requirement twice gives one value; the
+site, an alias name and the proof derivation are not part of it. The same
+machine bound to two requirements gives two selections that are not
+interchangeable.
+
+**The route is kept.** Copying, projecting, returning and widening a bound
+selection to a structural callable type preserve its route. A wider type may
+expose fewer guarantees; it never turns a routed call into a direct one.
+
+**What may be bound.** The operand of a row or binding expression is a plain
+machine declaration the author can select, with its static arguments. A
+parameter, a field or any other value that was handed in rejects, as does a
+declared conformer, which is already bound and is used as it is. There is no
+rebinding. Code that must present a handed selection under another requirement
+writes an ordinary adapter machine that calls it and binds the adapter, which
+makes the new identity visible. `reflect::callable` takes the same operands.
+
+**One declared requirement per body.** A machine declares at most one
+requirement, and an inline member has one. A machine that should serve several
+requirements stays plain and is bound to each by a row or expression.
+
+**A conformer's name is its routed entry.** A machine with a declared edge has
+no separately callable direct entry: a call by its name, or through any value
+holding it, invokes through its requirement. Such a machine cannot be more
+visible than the requirement it satisfies, so publishing it never publishes a
+route its requirement keeps private. A declared conformer of a boundary
+requirement is not callable by name at all and is reached only through its
+provider slot.
+
+**No authority after the fact.** A row or expression grants the machine's body
+nothing. A machine that relies on a requirement's authority without declaring
+that edge rejects at its own declaration, and a later binding cannot repair it.
+
+**No establishment by binding.** Binding attaches no domain to a result. A
+checked conformer issues with a written `+D` in a declared conformer's body
+under [domain casts](domains.md#domain-casts). A machine bound by a row or
+expression satisfies an issuing requirement only by returning evidence it
+already holds. Establishment from a signature alone stays with boundary
+supply, where there is no body to write the cast in.
+
+Binding establishes no storage claim, no access to a particular object, no
+callback registration and no provider selection. An implementation record
+still proves its laws for the operations actually installed, and constructing
+one activates no operator syntax and registers nothing with Build.
 
 ## Transparent refinements
 

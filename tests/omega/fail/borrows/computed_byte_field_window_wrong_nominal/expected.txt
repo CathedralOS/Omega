@@ -1,1 +1,1 @@
-argument `view` for state `entry` expects `&View<>`
+argument `view` for state `shared` expects `&View<>`

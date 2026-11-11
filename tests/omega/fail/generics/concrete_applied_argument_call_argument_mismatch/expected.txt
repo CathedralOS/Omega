@@ -1,1 +1,1 @@
-argument `value` for state `entry` expects `Holder<Foo>`
+argument `value` for state `take` expects `Holder<Foo>`

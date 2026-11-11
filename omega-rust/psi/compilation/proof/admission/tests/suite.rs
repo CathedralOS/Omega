@@ -5,6 +5,7 @@
 mod common;
 mod contradiction_elimination;
 mod equality_symmetry;
+mod exact_multiply_result_bound;
 mod indexed_derivation;
 mod indexed_levels;
 mod indexed_mutual;

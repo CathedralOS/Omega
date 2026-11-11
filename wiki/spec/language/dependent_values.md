@@ -95,7 +95,7 @@ invalidity only under otherwise-authorized access; they do not waive a reader or
 writer restriction. Fresh construction and policy installation follow the domain
 establishment rules, not an implicit file-local or constructor privilege.
 
-Constraints on common fields and active-case payloads are written in data
+Constraints on fields and active-case payloads are written in data
 `requires`. Its `self` denotes the complete value, as in named-domain predicates.
 Payload projections require a prior case guard; case declarations do not accept
 `requires`. See [case-dependent default domains](data_and_literals.md#case-constraints).
@@ -107,8 +107,8 @@ before realization; that independent check neither changes the containing data's
 validity nor manufactures authority or storage.
 
 [Case-dependent default predicates](data_and_literals.md#case-constraints) can
-relate the active case to type parameters and payload values. Common-field and
-data-level obligations remain conjunctive with that case's payload validity. The zero
+relate the active case to type parameters and payload values. Data-level
+obligations remain conjunctive with that case's payload validity. The zero
 representation keeps the first declared case, even when its constraints fail
 for a particular specialization; there is no selection of a first possible case.
 
@@ -309,17 +309,101 @@ governs that distinct outcome.
 
 ## Mutation frames
 
-The conservative call frame includes places reachable through exclusive borrows
-and separately authorized capability state. Checked implementations may derive
-a narrower complete frame; opaque or unknown dynamic calls retain the
-signature/authority ceiling. A complete empty frame differs from an unknown
-one. Include argument/index evaluation writes as well as callee writes.
+Named decision: `published-write-frames`, settled 2026-11-10;
+[the design draft](../../drafts/designs/published_write_frames.md) records the
+change. A call's frame is the existing storage it may write. A caller's fact
+about current storage survives the call when its storage dependencies are
+provably disjoint from the frame, aliases included. A checked body's frame is
+inferred, and it is part of the machine's published contract:
+
+```omega
+public machine set_time(entry: &mut Entry, time: u64) {
+    entry.at = time;
+}
+// published frame: entry.at
+
+set_time(&mut e, 5);
+use(e.owner);        // facts about e.owner survive
+```
+
+A frame has no authored form. A wide frame invalidates only facts about
+current storage it may write: snapshots taken before the call stay valid, and
+the callee's guarantees establish facts afterward as usual. A frame
+establishes no contents and grants no authority.
+
+**Where a frame comes from.**
+
+| Callee | Frame |
+| --- | --- |
+| A checked body, public or private | Inferred from the body and published. |
+| A static requirement or callable parameter | The selected machine's published frame, by substitution. |
+| A runtime callable value, a boundary or foreign operation | The ceiling: all existing storage the callee is admitted to write. |
+
+A body cannot write beyond what its signature hands it and the authority it
+holds, so an inferred frame never exceeds the ceiling. That is the reason
+[reach](effects.md#static-binder-contract-dependencies) infers on a body, and
+frames follow the same rule. A caller in the same fingerprinted verification
+unit may use the body's exact summary; every other caller uses the published
+frame.
+
+**Identity.** The inferred frame is part of the published contract and of
+interface identity, as an inferred reach row is. A body edit that widens it is
+an interface change even when the authored header is unchanged, and dependents
+revalidate. Narrowing it is compatible.
+
+**What a frame lists.** A published frame is a set of static paths, each a
+parameter followed by zero or more field selections. An indexed write lists
+the indexed place whole, and a sum is written whole. A path covers the place
+it names and the backing that place owns through custody evidence, and it
+passes through references as the parameter itself does. That footprint is
+identified at entry and followed through moves. Moving pre-existing storage
+into a place does not bring that storage under the place's path.
+
+**Every access path counts.** The frame covers writes to existing storage
+through all admitted access: mutable and write-only borrows, owned backing,
+reference fields, atomic or synchronized access through a shared reference,
+and capability-held authority. It includes argument and index evaluation
+writes, delegated calls and callback invocations. A write that restores the
+earlier value is still a write. A callee whose storage effects are unknown
+contributes its ceiling, never an empty set, and a complete empty frame
+differs from an unknown one. [Service reach](effects.md) is a separate axis
+and neither bounds nor exempts a storage write.
+
+**Fresh storage.** Writes to fresh private storage are outside every frame:
+locals, scratch, and fresh backing that is initialized and then installed in
+a place or returned. Exposure follows ordinary aliasing and access rules, and
+allocator state keeps its own accounting.
+
+**Wrappers.** The frame of a generic machine is a term over its static
+callbacks: its fixed paths together with each callback's frame applied to the
+argument places it is called with. The term is published as a row of
+[static binder contract dependencies](effects.md#static-binder-contract-dependencies),
+and each application substitutes the selected callback's published frame:
+
+```omega
+public machine apply<
+    const F: machine(entry: &mut Entry, time: u64) crashes none
+>(entry: &mut Entry, time: u64) {
+    F(entry, time);
+}
+
+apply<set_time>(&mut e, 5);   // this application's frame is e.at
+```
+
+**Opaque calls.** A runtime callable value and a boundary operation have no
+body to infer from and no static selection to defer to, so their frame is the
+ceiling. Two existing tools narrow what a caller loses. Borrowing the
+subplace, `&mut entry.at`, narrows the ceiling itself and is the first
+choice. A requirement can also state the end state,
+`ensures entry.owner == old(entry.owner)`, which returns value facts to the
+caller. That postcondition permits a write between entry and return and
+re-establishes value facts only, under
+[restored values](state_contracts.md#restoring-a-saved-scalar-value).
 
 Invalidate flow refinements atom by atom on overlapping written places; exact
 outcome guarantees may restore them or preserve untouched paths. Default-domain
 obligations and explicit domain qualifications must be re-established before
-consumption, not assumed to be unchanged values. Body-derived frames are implementation evidence,
-not changes to public contract or specialization identity.
+consumption, not assumed to be unchanged values.
 
 Frames retain exact subject substitution across aliases, calls, and terminal
 transitions. Where only collection-level origin is known, later field

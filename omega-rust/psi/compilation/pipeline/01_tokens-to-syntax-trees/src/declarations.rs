@@ -178,7 +178,7 @@ pub(crate) mod conformance {
     use crate::grammar::parameters::contracts::validate_machine_parameter_contracts;
     use crate::grammar::parameters::parse_generic_parameters::GenericParameterSyntax;
     use crate::grammar::parameters::parse_generic_parameters::parse_generic_parameters;
-    use crate::tokens::token_cursor::{Input, ParseResult};
+    use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
     use arena::HandleSpan;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::item::{ConformanceMember, Item, Machine, State};
@@ -249,11 +249,33 @@ pub(crate) mod conformance {
                 head
             };
             if !head.at_keyword(KeywordKind::Machine) {
-                return Err(input.error_here(
-                "a named implementation declares each requirement as an inline `machine` member; \
-                 a reference row (`Trait::member = Existing::machine;`) is retired, so call the \
-                 existing machine from the member's body",
-            ));
+                // A selection row fills one slot with an existing machine. It
+                // carries no visibility or boundary marker of its own: both
+                // belong to the selected declaration.
+                let Ok((declaring_trait, rest)) = input.take_identifier() else {
+                    return Err(input.error_here(
+                        "a named implementation member is an inline `machine` or a selection \
+                         row `Trait::member = Existing::machine;`",
+                    ));
+                };
+                let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let (requirement, rest) = rest.take_identifier()?;
+                let rest = rest.take_punctuation(PunctuationKind::Equal, "=")?;
+                let (target, rest) = parse_path_handle_span(rest, |member| {
+                    syntax_trees.items.append_identifier_path_member(member)
+                })?;
+                let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+                let handle =
+                    syntax_trees
+                        .items
+                        .append_conformance_member(ConformanceMember::Selection {
+                            declaring_trait,
+                            requirement,
+                            target,
+                        });
+                members.push(handle);
+                input = rest;
+                continue;
             }
             let (declaration, rest) = parse_item(syntax_trees, input)?;
             let ParsedDeclaration::Item(Item::Machine(mut machine)) = declaration else {
@@ -343,7 +365,9 @@ pub(crate) mod const_item {
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
         let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (value, input) = parse_expression_handle(syntax_trees, input)?;
+        let (value, input) =
+            parse_expression_handle(syntax_trees, input.with_constant_position(true))?;
+        let input = input.with_constant_position(false);
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         Ok((
             ConstDefinition {
@@ -1719,6 +1743,7 @@ pub(crate) mod machines {
                 suspends: clauses.suspends,
                 blocks: clauses.blocks,
                 admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
+                declares_no_crash_route: clauses.declares_no_crash_route,
                 contracts: clauses.contracts,
                 states,
                 nested_machines,
@@ -2014,6 +2039,17 @@ pub(crate) mod operator {
             }
         }
 
+        // A bindable arithmetic token followed by a policy suffix lexes as one
+        // suffixed operator; name the rule instead of listing spellings.
+        let policy_form = symbol.len() > 1
+            && symbol.ends_with(['%', '|', '!'])
+            && OperatorSpelling::from_symbol(&symbol[..symbol.len() - 1])
+                .is_some_and(|base| matches!(base.symbol(), "+" | "-" | "*" | "/" | "%"));
+        if policy_form {
+            return Err(input.error_here(
+                "a suffixed policy operator such as `+%`, `+|` or `+!` is a compiler-owned integer primitive; a declaration cannot bind one",
+            ));
+        }
         match OperatorSpelling::from_symbol(&symbol) {
             Some(spelling) => Ok((spelling, rest)),
             None => Err(input.error_here(format!(

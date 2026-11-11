@@ -152,6 +152,9 @@ pub mod control_flow {
             pub service_reach_row: language_semantics::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
+            /// The header wrote `crashes none`; see the syntax trees' field
+            /// of the same name.
+            pub declares_no_crash_route: bool,
             pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
             pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
             pub compiler_selection_partition: Option<
@@ -304,6 +307,7 @@ pub mod control_flow {
                 service_reach_row: Default::default(),
                 service_reach_is_installation_bound: false,
                 admitted_same_stack_bytes: 0,
+                declares_no_crash_route: false,
                 suspends_keyword_source_spans: Vec::new(),
                 blocks_keyword_source_spans: Vec::new(),
                 compiler_selection_partition: None,

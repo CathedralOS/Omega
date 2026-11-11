@@ -15127,6 +15127,7 @@ pub(crate) mod contract_refinement {
         invocation_parameters: &[typed_trees::data::TypeParameter],
         application: &AppliedTraitScope<'_>,
         requirement: &StateSignature,
+        selecting: Option<&typed_trees::trait_definition::Conformance>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let trait_definition = application.declaration;
@@ -15205,7 +15206,7 @@ pub(crate) mod contract_refinement {
             &captured,
         );
         if let Some(operations) =
-            selected_operation_correspondence(program, machine, application, requirement)
+            selected_operation_correspondence(program, machine, application, requirement, selecting)
         {
             required.bind_selected_operations(program, &operations.required);
             member.bind_selected_operations(program, &operations.provided);
@@ -15266,10 +15267,32 @@ pub(crate) mod contract_refinement {
         machine: &Machine,
         application: &AppliedTraitScope<'_>,
         requirement: &StateSignature,
+        selecting: Option<&typed_trees::trait_definition::Conformance>,
     ) -> Option<SelectedOperationCorrespondence> {
         use super::law_conformance::slot_bindings::TraitOperationSlots;
 
-        let (selected, scope) = program.lexical_conformance_scope(machine.symbol)?;
+        /*
+            An inline member finds the implementation it belongs to through its
+            enclosing block. A machine named by a selection row has no enclosing
+            block and may fill slots of several implementations, so the row's
+            own implementation is the one whose selections its contract is
+            read against. That implementation must hold this machine in a row
+            it does not own; any other caller keeps the lexical route.
+        */
+        let (selected, scope) = match program.lexical_conformance_scope(machine.symbol) {
+            Some(lexical) => lexical,
+            None => {
+                let selecting = selecting.filter(|selecting| {
+                    selecting.rows.iter().any(|row| {
+                        !row.source.owns_realization() && row.realization_machine == machine.symbol
+                    })
+                })?;
+                (
+                    selecting,
+                    AppliedTraitScope::from_conformance(program.typed_program(), selecting)?,
+                )
+            }
+        };
         let scope =
             scope.declaring_scope(program.typed_program(), application.declaration.symbol)?;
         if !scope.same_application(program.typed_program(), application) {
@@ -39160,11 +39183,11 @@ pub(crate) mod specification_calls {
                     let mut bindings = Self::for_retained_call_site(
                         program,
                         caller,
-                        &SelectedCallContract::Signature(member.signature),
+                        &SelectedCallContract::Signature(member.requirement),
                         site,
                     )?;
                     let public =
-                        program.requirement_invocation_contract_parameters(member.signature);
+                        program.requirement_invocation_contract_parameters(member.requirement);
                     let declared = program.machine_type_parameters(member.machine);
                     if public.len() != declared.len()
                         || public.iter().zip(declared).any(|(public, declared)| {
@@ -41889,17 +41912,41 @@ pub(crate) mod specification_calls {
         Operator(&'program typed_trees::operator::OperatorDefinition),
     }
 
-    struct DirectNamedMemberContract<'program> {
-        machine: &'program Machine,
-        state: &'program State,
-        signature: &'program StateSignature,
+    /// A call that names a member of a named implementation directly, such as
+    /// `Write::try_from(value)`, rather than reaching it through a binder.
+    ///
+    /// An inline member is an ordinary machine with its own identity
+    /// (conformances.md, "Complete row identity"), so this is the one place
+    /// that says which machine such a call runs. Every check then treats the
+    /// call as it would a call to that machine written as a free machine:
+    /// `requirement` is what the member inherits from the requirement it
+    /// realizes, and `machine`/`state` carry everything it adds on its own.
+    /// A call through a binder names no member and never produces this.
+    #[derive(Clone, Copy)]
+    pub struct DirectMemberCall<'program> {
+        pub machine: &'program Machine,
+        pub state: &'program State,
+        pub requirement: &'program StateSignature,
+    }
+
+    /// Resolves `site` to the member it names directly. `caller` may be the
+    /// calling machine or one of its states.
+    pub fn direct_member_call<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<DirectMemberCall<'program>> {
+        let caller = program
+            .machine_holding_state(caller)
+            .map_or(caller, |machine| machine.symbol);
+        direct_named_member_contract(program, caller, site)
     }
 
     fn direct_named_member_contract<'program>(
         program: &'program dyn crate::CheckingInput,
         caller: SymbolHandle,
         site: crate::CallSite<'_>,
-    ) -> Option<DirectNamedMemberContract<'program>> {
+    ) -> Option<DirectMemberCall<'program>> {
         let receiver = match site {
             crate::CallSite::Expression { call, .. } => {
                 expression_table(program)
@@ -41948,10 +41995,10 @@ pub(crate) mod specification_calls {
         if program.machine_states(machine).first()?.symbol != state.symbol {
             return None;
         }
-        Some(DirectNamedMemberContract {
+        Some(DirectMemberCall {
             machine,
             state,
-            signature,
+            requirement: signature,
         })
     }
 
@@ -41981,6 +42028,16 @@ pub(crate) mod specification_calls {
         if let Some(member) = direct_named_member_contract(program, caller, site) {
             return Some(SelectedCallContract::Concrete(member.machine, member.state));
         }
+        selected_contract_past_direct_member(program, caller, site)
+    }
+
+    /// The rest of `selected_call_site_contract` for a site already known not
+    /// to name an implementation member directly.
+    pub(crate) fn selected_contract_past_direct_member<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<SelectedCallContract<'program>> {
         if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
         {
             return Some(SelectedCallContract::Signature(signature));
@@ -63171,6 +63228,7 @@ pub(crate) mod structural_judgment {
                         }));
                     let joined = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left,
                             operator: BinaryOperator::And,
                             right,
@@ -63178,6 +63236,7 @@ pub(crate) mod structural_judgment {
                     ));
                     let repeated = program.expression_table.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: joined,
                             operator: BinaryOperator::Or,
                             right: joined,
@@ -82457,41 +82516,54 @@ pub(crate) mod structural_judgment {
             if !self.specification_terms {
                 return false;
             }
-            // Predicate admission uses the selected public operation's denotation.
-            // A direct member still owns its declared call contract; choosing that
-            // contract must not replace this operation with a private body question.
             let lexical_owner = self
                 .program
                 .machine_holding_state(lexical_owner)
                 .map_or(lexical_owner, |machine| machine.symbol);
-            let signature = crate::requirement_contract_signature(
-                self.program,
-                lexical_owner,
-                &crate::CallSite::Expression {
-                    expression: Default::default(),
-                    call,
-                },
-            )
-            .map(|(_, signature)| signature)
-            .or_else(|| {
-                match super::specification_calls::selected_call_contract(
+            let site = crate::CallSite::Expression {
+                expression: Default::default(),
+                call,
+            };
+            let closed = |signature: &typed_trees::signature::StateSignature| {
+                crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
                     self.program,
-                    lexical_owner,
-                    call,
-                ) {
-                    Some(super::specification_calls::SelectedCallContract::Signature(
-                        signature,
-                    )) => Some(signature),
-                    _ => None,
+                    signature,
+                )
+            };
+            // A proposition may use a call as a value term only when the call is
+            // total and pure (domains.md, "eligible total, pure machine calls";
+            // contracts.md, "a checked observation-free, reach-free, crash-free,
+            // terminating invocation"). The site is resolved once here.
+            if let Some(member) =
+                super::specification_calls::direct_member_call(self.program, lexical_owner, site)
+            {
+                // The call names one implementation member, which is an ordinary
+                // machine. It has the closed contract it inherits from its
+                // requirement; failing that, it is judged below exactly as a
+                // free machine is, by its own checked application.
+                if closed(member.requirement) {
+                    return true;
                 }
-            });
-            if let Some(signature) = signature {
-                return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program, signature,
-                );
-            }
-            if call.static_requirement_dispatch.is_some() {
-                return false;
+            } else {
+                // Any other selected operation is judged by its public contract
+                // alone: a binder's selection supplies no body to consult.
+                let signature =
+                    match super::specification_calls::selected_contract_past_direct_member(
+                        self.program,
+                        lexical_owner,
+                        site,
+                    ) {
+                        Some(super::specification_calls::SelectedCallContract::Signature(
+                            signature,
+                        )) => Some(signature),
+                        _ => None,
+                    };
+                if let Some(signature) = signature {
+                    return closed(signature);
+                }
+                if call.static_requirement_dispatch.is_some() {
+                    return false;
+                }
             }
             let target =
                 super::structural_terms::structural_call_target(self.program, lexical_owner, call);

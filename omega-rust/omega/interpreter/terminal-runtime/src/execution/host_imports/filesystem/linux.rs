@@ -177,7 +177,8 @@ impl LinuxFilesystemImport {
             OperationKind::Open => (
                 &[
                     Formal::Signed(32),
-                    Formal::ByteWindow {
+                    Formal::UnsignedWindow {
+                        bits: 8,
                         minimum: 1,
                         access: StructuralAccess::SharedBorrow,
                     },
@@ -194,7 +195,8 @@ impl LinuxFilesystemImport {
             OperationKind::UnlinkAt | OperationKind::MkdirAt => (
                 &[
                     Formal::Signed(32),
-                    Formal::ByteWindow {
+                    Formal::UnsignedWindow {
+                        bits: 8,
                         minimum: 1,
                         access: StructuralAccess::SharedBorrow,
                     },
@@ -205,11 +207,13 @@ impl LinuxFilesystemImport {
             OperationKind::StatAt => (
                 &[
                     Formal::Signed(32),
-                    Formal::ByteWindow {
+                    Formal::UnsignedWindow {
+                        bits: 8,
                         minimum: 1,
                         access: StructuralAccess::SharedBorrow,
                     },
-                    Formal::ByteWindow {
+                    Formal::UnsignedWindow {
+                        bits: 8,
                         minimum: metadata_extent() as u64,
                         access: StructuralAccess::MutableBorrow,
                     },
@@ -220,7 +224,8 @@ impl LinuxFilesystemImport {
             OperationKind::Stat => (
                 &[
                     Formal::Signed(32),
-                    Formal::ByteWindow {
+                    Formal::UnsignedWindow {
+                        bits: 8,
                         minimum: metadata_extent() as u64,
                         access: StructuralAccess::MutableBorrow,
                     },

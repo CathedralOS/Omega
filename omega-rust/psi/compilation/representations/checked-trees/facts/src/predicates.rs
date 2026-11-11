@@ -344,6 +344,14 @@ pub enum CheckedScalarExpression {
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
+    /// A scalar field of an immutable structural local, named as a proof-side
+    /// observation of that local's place. Only an erased call actual forms
+    /// one; it is never an executable read.
+    StructuralLocalField {
+        symbol: SymbolHandle,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
     StructuralParameterIndexedRead {
         observation: typed_trees::expression::ExpressionHandle,
         root: CheckedStorageRoot,
@@ -512,6 +520,7 @@ impl CheckedScalarExpression {
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
             | Self::StructuralParameterField { .. }
+            | Self::StructuralLocalField { .. }
             | Self::IntegerLiteral { .. }
             | Self::IeeeFloatLiteral { .. }
             | Self::ImplementationSelection { .. } => false,
@@ -528,6 +537,7 @@ impl CheckedScalarExpression {
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }
             | Self::StructuralParameterField { primitive_type, .. }
+            | Self::StructuralLocalField { primitive_type, .. }
             | Self::StructuralParameterIndexedRead { primitive_type, .. }
             | Self::IntegerBinary { primitive_type, .. }
             | Self::IntegerBitwiseNot { primitive_type, .. }

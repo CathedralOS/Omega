@@ -1099,9 +1099,10 @@ pub mod values {
             impl TableBinaryExpression {
                 pub fn display_name(&self, table: &crate::SyntaxTrees) -> String {
                     format!(
-                        "{} {} {}",
+                        "{} {}{} {}",
                         table.display_expression_name(self.left),
                         self.operator.display_name(),
+                        self.policy.operator_suffix(),
                         table.display_expression_name(self.right)
                     )
                 }
@@ -1774,6 +1775,9 @@ pub mod values {
             pub left: ExpressionHandle,
             pub operator: BinaryOperator,
             pub right: ExpressionHandle,
+            /// The policy an operator suffix chose for this one operation
+            /// (`+%`, `+|`, `+!`); `Exact` for the bare operator.
+            pub policy: numerics::arithmetic::ArithmeticDomain,
         }
 
         #[derive(

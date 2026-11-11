@@ -2839,6 +2839,7 @@ pub(crate) mod dispatch_environments {
         match selection.condition {
             DispatchCondition::Equality { subject, pattern } => {
                 let comparison = TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                     left: subject,
                     operator: BinaryOperator::Equal,
                     right: pattern,
@@ -5603,6 +5604,18 @@ pub(crate) mod expression_analysis {
             diagnostics: &mut Vec<Diagnostic>,
             decisions: &mut super::ArithmeticDecisions,
         ) -> Analysis {
+            // Preparation rewrites every suffixed policy operator onto
+            // policy-qualified operands. One that still carries its suffix
+            // here was never typed, and analyzing it as written would give
+            // it the bare Exact meaning, so it rejects instead.
+            if binary.policy != ArithmeticDomain::Exact {
+                diagnostics.push(Diagnostic::error(format!(
+                    "the policy operator `{}{}` in {} was not typed against its operand carrier; a suffixed operator is supported only in executable machine code",
+                    arithmetic_operator_spelling(binary.operator),
+                    binary.policy.operator_suffix(),
+                    walk.owner,
+                )));
+            }
             let mut operation =
                 Operation::analyze_operands(walk, expression, binary, diagnostics, decisions);
             if !walk.builtin_binary(expression) {
@@ -5810,8 +5823,20 @@ pub(crate) mod expression_analysis {
             trap_predicates: &[IntegerTrapPredicate],
             primitive: PrimitiveType,
         ) -> String {
+            // An unsigned carrier has no negative one, so its quotient is
+            // always representable and only the zero divisor can trap.
+            let signed = primitive
+                .integer_bounds()
+                .is_some_and(|(minimum, _)| minimum < 0);
             trap_predicates
                 .iter()
+                .filter(|predicate| {
+                    signed
+                        || !matches!(
+                            predicate,
+                            IntegerTrapPredicate::SignedMinimumDividedByNegativeOne
+                        )
+                })
                 .map(|predicate| match predicate {
                     IntegerTrapPredicate::ResultOutsideCarrier => {
                         format!("its result lies outside `{}`", primitive_name(primitive))
@@ -18529,9 +18554,14 @@ pub(crate) mod live_integer_constraints {
                 Operand::Integer(literal, _) => {
                     literal.value_bignum().map(ScopedArithmeticValue::Integer)
                 }
+                // A value can only be observed after the operation that made
+                // it returned. An Exact operation was proved representable,
+                // and a Trapping one that returned did not trap, so both
+                // equal the mathematical result. A Wrapping or Saturating
+                // result may differ from it and stays an opaque atom.
                 Operand::Binary {
                     operator,
-                    domain: ArithmeticDomain::Exact,
+                    domain: ArithmeticDomain::Exact | ArithmeticDomain::Trapping,
                     operands,
                     ..
                 } if matches!(
@@ -21374,10 +21404,18 @@ pub(crate) mod ordered_values {
                     depth + 1,
                 )
             }
+            // Qualifying a value `in Trapping` changes which operations act
+            // on it later and leaves the value itself alone, so the cast
+            // observes its source like an Exact one. Wrapping and
+            // Saturating casts stay unobserved: nothing below reads their
+            // operations as mathematics.
             ExpressionNode::Cast(cast)
                 if !cast.form.is_recast()
                     && cast.semantic_domain.is_empty()
-                    && cast.domain == ArithmeticDomain::Exact =>
+                    && matches!(
+                        cast.domain,
+                        ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+                    ) =>
             {
                 let source = integer_meaning(program, machine, state, cast.value)?.0;
                 let target = program.primitive_type_reference(cast.target_type)?;
@@ -22708,7 +22746,9 @@ pub(crate) mod selected_scalar_intervals {
                 position,
                 primitive_type,
             } => (*primitive_type, source.binding(*position, *primitive_type)?),
-            Expression::ConstantApplication { .. } | Expression::ErasedParameter { .. } => {
+            Expression::ConstantApplication { .. }
+            | Expression::ErasedParameter { .. }
+            | Expression::StructuralLocalField { .. } => {
                 return None;
             }
             Expression::StorageRead {

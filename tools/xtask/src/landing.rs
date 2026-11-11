@@ -50,7 +50,7 @@ fn required_checks_verdict(nodes: &[Value], head: &str) -> (String, String) {
         return (
             "missing".to_owned(),
             format!(
-                "{} has not run on {head}. A check starts on a push to the PR branch; `workspace-clippy` does not start when only the base branch or the description is edited. If you pushed a moment ago, run this again in a minute; otherwise push the branch again.",
+                "{} has not run on {head}. Both checks start on a push to the PR branch and when the base changes to main; a description edit starts only `compiler-check`. If one of those happened a moment ago, run this again in a minute; otherwise push the branch again.",
                 missing.join(" and ")
             ),
         );
@@ -426,9 +426,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::{required_checks_verdict, subcommand_and_first_argument};
 
-    // Branch protection requires both checks. A PR whose base was changed
-    // without a push has a green `compiler-check` and no `workspace-clippy`
-    // run at all, and that must not read as green.
+    // Branch protection requires both checks. A PR can have a green
+    // `compiler-check` and no `workspace-clippy` run at all, as one retargeted
+    // without a push did before `lint-when-mergeable.yml`, and that must not
+    // read as green.
     #[test]
     fn a_required_check_that_never_ran_is_missing_not_green() {
         let run = |name: &str, status: &str, conclusion: &str| {

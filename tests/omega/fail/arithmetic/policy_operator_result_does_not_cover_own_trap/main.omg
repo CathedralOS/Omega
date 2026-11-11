@@ -1,0 +1,40 @@
+// Twin of `regained` and `regained_qualified` in
+// run/arithmetic/policy_operator_exact_result_fact, made public without
+// `crashes Trap`. The sum is known to equal `left + right` only after the
+// addition returned. That fact, with the bound `sum` has as a `u64`, must not
+// be read back as proof that the addition itself cannot overflow: its trap
+// site is judged from what holds before it runs, and nothing bounds the
+// operands, so both machines owe a published crash route.
+use omega_language_std::console;
+data Main { }
+
+public machine regained(left: u64, right: u64) -> u64 {
+    let sum: u64 = left +! right;
+    sum - left
+}
+
+public machine regained_qualified(left: u64, right: u64) -> u64 {
+    let trapping_left: u64 in Trapping = left as u64 in Trapping;
+    let trapping_right: u64 in Trapping = right as u64 in Trapping;
+    let sum: u64 = (trapping_left + trapping_right) as u64;
+    sum - left
+}
+
+machine subject() -> bool {
+    regained(40, 2) == 2 && regained_qualified(40, 2) == 2
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    transition subject() {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

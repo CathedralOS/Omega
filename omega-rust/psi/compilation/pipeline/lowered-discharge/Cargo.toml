@@ -1,0 +1,22 @@
+[package]
+name = "lowered-discharge"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "lowered_discharge"
+path = "src/lib.rs"
+
+# Decides the obligations structure-only elaboration minted, on the lowered
+# form, and accepts one only when the proof kernel accepted its certificate.
+# It must never depend on Psi 05, validation, Psi 06 or checked trees.
+[dependencies]
+diagnostics = { path = "../../../foundation/diagnostics" }
+proof-admission = { path = "../../proof/admission" }
+semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+structure-elaboration = { path = "../structure-elaboration" }
+terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }

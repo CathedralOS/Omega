@@ -1,1 +1,1 @@
-mutable argument for state `entry` must be a named place
+mutable argument for state `produce` must be a named place

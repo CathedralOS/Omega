@@ -457,9 +457,10 @@ clean checkout of that commit on a test VM:
 
 Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
 empty filter the gate passes every fixture name to the runner in one
-environment string, which Linux refuses. Each invocation spends about six
-minutes rebuilding and verifying the runner, and xtask stops a runner at 1800
-seconds, so forty shards of about 440 fixtures is the size that fits. On the
+environment string, which Linux refuses. Before 2026-11-11 each invocation
+spent about six minutes rebuilding the runner (see the freshness paragraph
+below); an unchanged tree now reuses it in under a second. xtask stops a runner
+at 1800 seconds, so forty shards of about 440 fixtures is the size that fits. On the
 two test VMs that is about 22 minutes a shard. To split the work, give each
 host its own `todo.txt` and merge the ledgers by taking each fixture's block
 from the host that stamped it with the new commit. The script's header carries
@@ -804,14 +805,27 @@ the candidate sources as older than those artifacts. Rebuilding the runner alone
 does not establish that its linked compiler dependencies came from the candidate.
 An isolated target directory avoids that ambiguity without deleting peer caches.
 
-Keep lint and build commands on the supported producer's freshness settings to
-avoid rebuilding unchanged dependencies. On the pinned nightly, content freshness
-needs both `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` and
-`CARGO_BUILD_FINGERPRINT=content`; the supported producer sets both. Set them on
-direct `mbx build`, `mbx check` and `mbx clippy` commands sharing its target
-directory too. Enabling the unstable feature alone keeps timestamp freshness;
-changing the fingerprint method dirties existing units. See
+Every Cargo command in the repository uses content (checksum) freshness:
+`.cargo/config.toml` sets `unstable.checksum-freshness` and
+`build.fingerprint = "content"`, and the corpus producer sets the same values
+through `CARGO_UNSTABLE_CHECKSUM_FRESHNESS` and `CARGO_BUILD_FINGERPRINT`. Do not
+override either for one command. Cargo stores the method in each unit's
+fingerprint and rebuilds a unit whose method changed, so one timestamp-fresh
+build dirties everything above it. Before the shared setting, `mbx xtask`
+rebuilt xtask's proc-macro dependencies under timestamp freshness on every
+invocation, and the producer then rebuilt the runner graph (126 of its 212
+units on an unchanged warm tree, all 212 after a CLI build): about eleven
+minutes per `cargo xtask corpus` run on a 4-core container. Content
+freshness also keeps a reused runner tied to the measured tree, because a unit
+is fresh only when its source bytes match. See
 [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+The runner also shares the compiler units an ordinary `mbx build -p omega`
+produced, because `corpus_runner`'s dev-dependencies enable no extra features on
+crates the CLI links. A dev-dependency feature on such a crate (for example a
+`test-support` feature on `package-compilation`) gives it and every crate above
+it a second build; only the runner's own test-only crates should compile after
+a CLI build.
 
 For bounded rebuild diagnosis on the pinned Cargo, set
 `CARGO_LOG=cargo::compiler::fingerprint=trace` and retain the actual dirty reasons
@@ -1109,6 +1123,71 @@ carries no diagnostic.
 python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 ```
 
+### Who may record a regression
+
+A pull request that changes only corpus ledgers and Markdown may record a row
+as red; a pull request that changes anything else may not. Before this rule
+`cargo xtask check-rules` refused every red row in
+`tests/omega/corpus_outcomes.txt`, whoever wrote it, so the ledger could only
+move toward green. When the compiler regressed, the row kept its old good line
+because nothing was allowed to replace it. A full sweep at `759c80404428`
+found 1,296 rows worse than recorded, 34 of them `fail/` programs the compiler
+accepted, and the ledger said none of it.
+
+The refusal existed for a good reason, and that reason is narrower than the
+rule was. A pull request that edits a fixture must re-record its row, and a
+worker whose change broke the fixture could satisfy that by recording the
+breakage: a `pass/` row as `rejected`, a `fail/` row as `unexpected`. The row
+then reads as a baseline and the regression lands as if it were the expected
+result. What must be prevented is a pull request writing down a failure *it
+could have caused*.
+
+`check-rules` cannot run the compiler at the base to learn who caused a row,
+but it can read the diff. If every changed path is a `tests/omega/corpus_*.txt`
+ledger or a Markdown file outside `tests/` and `samples/`, the pull request
+changes no compiler, library, tool or fixture source, so the compiler and
+fixtures it measured are exactly those of its base. Whatever it records was
+already true there. That one condition is the whole change:
+
+| The pull request changes | Red row in `corpus_outcomes.txt` |
+| --- | --- |
+| only ledgers and Markdown | recorded |
+| anything else | refused, as before: repair the compiler or fixture first |
+
+Three things stay as they were, and they are the guard.
+
+- **A pull request cannot hide its own regression.** One that touches source
+  still cannot write a red row, and one that touches a fixture still has to
+  re-record it, so its only way through is green. Splitting the work does not
+  help: the recording pull request shows the loss on `main` under its own
+  title instead of inside a repair.
+- **A red row is never progress.** The `Gate:` line's `red rows:` number is
+  still computed from the ledger diff by the same definition
+  `--list-pinned-regressions` uses. Recording a regression raises it, and the
+  repair's `-1` only cancels the `+1` the recording put on `main`, so a break
+  followed by a repair sums to zero. Under the old rule the break was never
+  counted, which made the unrecorded ledger look better than the compiler.
+- **A loss stays distinguishable from a fixture that never worked.** When a
+  `pass/` or `run/` row replaces a recorded success with anything else,
+  `check-rules` requires the `regressed-from:` token that `--record` derives
+  (see [above](#recording-a-regression-without-pinning-it)). A hand-edited row
+  that drops it is refused. A `fail/` row needs no token: `checked` or
+  `unexpected` on a `fail/` fixture already says the rejection was lost.
+
+Dirty `+wt` stamps are refused in every pull request. A recorded regression is
+still a measurement: run `cargo xtask corpus --record --filter <fixtures>` on a
+clean checkout of the base, and attribute each row first
+([Attributing a move](#attributing-a-move)) so a host-only or flaky result is
+not written down as the compiler's.
+
+Alternatives considered and not taken: letting any pull request record a red
+row that carries `regressed-from:` (the recorder writes that token for the
+author's own breakage too, so it proves nothing about cause); a declaration in
+the pull request body (a claim, where the changed-path list is a fact); and
+checking that each row's stamp is an ancestor of the base (squash merges and a
+second recording commit both break it, and the path condition already implies
+the measured source is the base's).
+
 `python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
 "authored" means executed with a matching `expected_native_exit.txt`
@@ -1295,6 +1374,64 @@ sh tests/bootstrap/alpha-beta-edge.sh --edge
 The first is the single repository-topology gate. The second is the currently
 closed bootstrap floor. There is deliberately no wrapper that pretends to run
 the whole chain.
+
+## Stage line coverage
+
+`cargo xtask stage-coverage` answers one question: how many lines of the
+checking stages does a program make the compiler run? It measures, it does not
+gate; nothing in CI calls it. Use it to compare a program against another, or
+one commit against another, when deciding what a change to the checker removes.
+
+```bash
+mbx xtask stage-coverage tests/omega/pass/build/conditional_root_binding < /dev/null
+mbx xtask stage-coverage --list fixtures.txt --json report.json < /dev/null
+```
+
+A program is a `main.omg` or a fixture directory holding one; `--list` reads
+one path per line and ignores blank lines and lines starting with `#`. The
+report has one row per program and, for more than one program, a row for the
+lines run by any of them:
+
+```
+| Lines | Exit | Psi 05 | validation | Psi 06 | All three |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Instrumented | | ... | ... | ... | ... |
+| Run by `tests/omega/pass/build/conditional_root_binding/main.omg` | 1 | ... | ... | ... | ... |
+```
+
+How to read it:
+
+- **A line is counted by source path.** Psi 05 is
+  `pipeline/05_typed-trees-to-checked-trees/`, validation is `validation/src/`
+  (not its `terminal-installation` or `representation-planning` subcrates) and
+  Psi 06 is `pipeline/06_checked-trees-to-lowered-psi/`, all under
+  `omega-rust/psi/compilation/`.
+- **Instrumented** lines are the lines that carry a coverage counter in this
+  build, which is fewer than the lines in the files. A line is **run** when its
+  counter is not zero.
+- **Exit** is the compiler's own exit code. A program that fails still gets a
+  row, because its count up to the failure is real; read the exit code before
+  comparing rows. A program rejected in checking never reaches Psi 06.
+- **Counts are comparable only within one build.** A different commit
+  instruments a different set of lines, so compare two commits by their run
+  counts and quote each commit's instrumented total beside them.
+
+The command builds `omega` with `-C instrument-coverage` at
+`CARGO_PROFILE_DEV_OPT_LEVEL=1` into its own `target/stage-coverage`, so it
+does not disturb the ordinary build cache. The first build is a full build of
+the compiler; `--build-only` does just that step, and `--target-dir` moves it.
+By default each program runs as `omega run --engine terminal <main.omg>`;
+arguments after `--` replace that, for example `-- --check`. Programs run one
+at a time, and each program's compiler output is kept under
+`target/stage-coverage/stage-coverage-profiles/<index>/`.
+
+It needs the `llvm-profdata` and `llvm-cov` that ship with the pinned
+toolchain, because the profile format changes between LLVM releases and a
+system `llvm-cov` usually cannot read it:
+
+```bash
+rustup component add llvm-tools
+```
 
 
 ## Full baseline

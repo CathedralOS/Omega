@@ -1,0 +1,8 @@
+// No target declares a native directed-rounding fused multiply-add realization,
+// so reaching the operation on Linux x86-64 rejects at checking, naming the
+// operation, the target and its constraint. The program makes no float
+// provider selection; the target's realization table decides.
+machine build(builder: &mut Build) {
+    Build::application(builder, "directed_fma_target_realization");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

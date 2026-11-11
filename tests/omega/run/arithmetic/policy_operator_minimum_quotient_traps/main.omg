@@ -1,0 +1,32 @@
+// `/!` traps on signed `MIN / -1`, whose quotient does not fit `i32`. The
+// divisor is proved nonzero, so this is the only trap left; `/%` and `/|`
+// return `MIN` and `MAX` for the same operands in
+// run/arithmetic/policy_operators_match_policy_domains.
+use omega_language_std::console;
+data Main { }
+
+machine quotient(value: i32, divisor: i32) -> i32 crashes Trap
+    requires divisor != 0
+{
+    value /! divisor
+}
+
+machine subject() -> bool crashes Trap {
+    quotient(-2147483648, -1) == 0
+}
+
+// Reaching either exit means the operation returned instead of trapping.
+machine Main::main(main: &mut Main) reaches Console crashes Trap {
+    transition subject() {
+        true -> returned(main)
+        _ -> returned_other(main)
+    }
+    machine returned(main: &mut Main) { Console::exit_process(70); }
+    machine returned_other(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

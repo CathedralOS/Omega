@@ -1,0 +1,2 @@
+cannot bind `Double` to conformance `PlainDoubling`
+expected a complete `Doubling` implementation with the instantiated trait arguments

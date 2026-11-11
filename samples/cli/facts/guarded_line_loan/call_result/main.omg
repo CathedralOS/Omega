@@ -17,7 +17,7 @@ machine make_line() -> [u8; 64] {
     line
 }
 machine observe(line: &[u8; 64], count: u64) -> u64 in Wrapping {
-    (line[0] as u64 in Wrapping + count as u64 in Wrapping)
+    ((line[0] as u64 in Wrapping) + count as u64 in Wrapping)
 }
 machine main() crashes Trap {
     let mut line: [u8; 64] = make_line();

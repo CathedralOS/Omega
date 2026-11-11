@@ -94,13 +94,16 @@ same check rather than an empty frontier inferred from tail position.
 
 ## Runtime admission
 
-Each lowered activation has a fixed nonmoving stack provisioned from
+Each lowered activation has a compile-time
+[storage plan](../build/task_runtime.md#storage-plans) provisioned from
 [whole-call-graph WCSU](storage.md). Portable activations require no affinity
 fact. A machine that may retain CPU/thread-restricted values requires its runtime
 to establish the corresponding preservation, commonly through a borrowed or
-consumed affinity capability. Address stability for stack residents follows
-from that fixed `StackLease`; there is no provider-selectable movable
-continuation-storage mode.
+consumed affinity capability. The selected plan establishes address stability
+for every resident that needs it by giving it a retained home before its
+address is exposed; under `Fixed` that is the nonmoving `StackLease`. Sharing
+execution backing authorizes no migration to another CPU or thread, and there
+is no provider-selectable movable continuation-storage mode.
 
 Carry checking uses canonical place liveness at semantic transitions. A
 suspension-forbidden live value rejects an explicit semantic suspension point.

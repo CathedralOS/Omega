@@ -3554,9 +3554,11 @@ pub(crate) mod attached_unit {
                     let declaration = super::super::scalar_arrays::emit(
                         result,
                         qualifications,
+                        self.callees.domain_declarations,
                         &self.values[leaf_start..],
                         self.type_ids,
                         self.next_place,
+                        self.private_places,
                         self.operations,
                     )?;
                     self.values.truncate(leaf_start);
