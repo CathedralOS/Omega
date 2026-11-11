@@ -1,8 +1,11 @@
 # Places foundation lane
 
 Staging plan, 2026-11-10, for the first lane after route one of
-[check on the lowered form](check_on_lowered_form.md). Nothing here is built.
-It is ready to execute once route one passes its gate.
+[check on the lowered form](check_on_lowered_form.md). When this was written
+nothing here was built, and the lane was to start once route one passed its
+gate. It started before that:
+[what landed](check_on_lowered_form.md#started-before-the-gate-and-paused)
+is recorded there, with the gate that now holds further lanes.
 
 The new checker can only check programs whose values are plain integers and
 Booleans. Any program that builds a record, reads a field, matches a case or
