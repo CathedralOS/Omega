@@ -38,9 +38,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: two factories into one container, wrong-pool return, captured borrow, restricted crossing, pending-settlement repack and bare-`S` result rejection pass `--both`.
 
 - **OPERATION-RECORD-IMPLEMENTATIONS.** Make implementations ordinary checked records of callable selections and evidence ([design](wiki/drafts/designs/operation_record_implementations.md)).
-  - Static callable-selection atom, explicit callable fields for every `machine` member, ordinary typed/erased fields and schema constraints, open/closed contracts, one schema for static and runtime use.
-  - Uniform resulting-record identity for empty and generic constructors; migrate the empty-`Tag` negative and marker customers to actual schema indices or relevant fields where distinction is intended, preserving selected-machine and lifetime/custody obligations.
-  - General evidence citation in ordinary records and traits, explicit originating-field construction, and computed records through Build's existing Provider argument; reject wrong encoders, missing premises, operational-reset substitution and stale dependent evidence.
+  - Finish callable selections, typed/erased fields, constraints, open/closed contracts and static/runtime materialization.
+  - Unify empty/generic record identity; migrate marker customers. Complete general evidence citation, explicit inherited fields and computed Build providers.
   Acceptance: the design's cases pass `--both`; reusing a machine needs no forwarding member.
 
 - **OWNED-ACTIVATIONS.** Expose activation execution custody with typed replies ([design](wiki/drafts/designs/owned_activations.md)), after the record model.
