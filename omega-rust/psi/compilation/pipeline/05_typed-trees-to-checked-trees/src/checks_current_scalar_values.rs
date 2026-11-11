@@ -2748,9 +2748,11 @@ mod entry_fields {
     */
     /*
         The readable value leaves of one record type, in declaration order: every
-        scalar or fixed collection reached through non-erased fields. Access views,
-        atomics and reference leaves are separate authorities and are not walked;
-        a reference leaf needs its own load evidence before its referent is read.
+        scalar, fixed collection or reference reached through non-erased fields.
+        Access views and atomics are separate authorities and are not returned. A
+        reference is returned as a leaf but never walked: its descriptor (a slice's
+        length) belongs to the record, so parameter entry seeds that length, while
+        its referent needs its own load evidence before it is read.
     */
     pub(super) fn record_value_leaves(
         program: &dyn validation::CheckingInput,
@@ -2778,11 +2780,14 @@ mod entry_fields {
                     typed_trees::types::TypeReferenceNode::Named { symbol, .. }
                         if program.symbols.builtin_type_atom(*symbol)
                             .is_some_and(|atom| atom.is_atomic()))
-                || matches!(
-                    program.type_reference_table.type_reference(declared),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
-                )
             {
+                continue;
+            }
+            if matches!(
+                program.type_reference_table.type_reference(declared),
+                typed_trees::types::TypeReferenceNode::Reference { .. }
+            ) {
+                leaves.push((path, reference));
                 continue;
             }
             let data = program.data_application_definition(declared).or_else(|| {
