@@ -5,9 +5,9 @@
 // Expected exit: 0
 machine measure(buckets: &[u8]) -> u64
 requires buckets.len > 0 && buckets.len < 100
-ensures result == buckets.len as u64 + 1
+ensures result == (buckets.len as u64) + 1
 {
-    buckets.len as u64 + 1
+    (buckets.len as u64) + 1
 }
 
 machine pick(value: u64, buckets: &[u8]) -> u8

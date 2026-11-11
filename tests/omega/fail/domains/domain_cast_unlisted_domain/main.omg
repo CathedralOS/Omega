@@ -1,0 +1,20 @@
+// Rejected: `Positive` is attached to `both` and the cast does not say whether it stays.
+// Twin of run/domains/domain_cast_accounting_exit: only the cast on `both`
+// differs.
+domain i32::Km;
+
+domain i32::Positive requires self > 0;
+
+machine plain_of(distance: i32 in Km) -> i32 { distance as -Km }
+
+machine main() crashes Trap {
+    let start: i32 = 5;
+    let both: i32 in Km & Positive = start as +Km +Positive;
+    let km: i32 in Km = both as =Km;
+    transition plain_of(km) == 5 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

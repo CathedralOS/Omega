@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine shift(main: &mut Main) {
-        main.ch = main.text[main.i] as u8 in Wrapping + 3;
+        main.ch = (main.text[main.i] as u8 in Wrapping) + 3;
         main.out[main.i] = main.ch as u8;
         main.i = main.i + 1;
         transition {

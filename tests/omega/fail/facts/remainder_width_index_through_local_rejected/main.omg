@@ -5,7 +5,7 @@
 machine pick(value: u64, buckets: &[u8]) -> u8
 requires buckets.len > 0 && buckets.len < 100
 {
-    let width: u64 = buckets.len as u64 + 1;
+    let width: u64 = (buckets.len as u64) + 1;
     buckets[value % width]
 }
 

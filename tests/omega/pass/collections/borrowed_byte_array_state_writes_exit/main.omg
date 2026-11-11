@@ -24,7 +24,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine copy(text: &[u8; 5], output: &mut [u8; 5], position: u64)
         requires position < 5
     {
-        let byte: u8 in Wrapping = text[position] as u8 in Wrapping + 1;
+        let byte: u8 in Wrapping = (text[position] as u8 in Wrapping) + 1;
         output[position] = byte as u8;
         transition { _ -> step(text, output, position + 1) }
     }

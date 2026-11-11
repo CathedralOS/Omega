@@ -7,7 +7,7 @@ data Window [copy] {
 }
 
 machine pick(value: u64, buckets: &[u8], window: Window) -> u8
-requires buckets.len > 0 && buckets.len < 100 && window.width == buckets.len as u64 + 1
+requires buckets.len > 0 && buckets.len < 100 && window.width == (buckets.len as u64) + 1
 {
     buckets[value % window.width]
 }

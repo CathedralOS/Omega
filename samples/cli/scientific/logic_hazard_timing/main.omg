@@ -25,8 +25,8 @@ data Main {
 
 machine Main::number(main: &mut Main, value: u64) reaches Console {
     // All reports are below 100; two ASCII decimal digits are emitted directly.
-    Console::write_byte(((value % 100) / 10) as i32 + 48);
-    Console::write_byte((value % 10) as i32 + 48);
+    Console::write_byte((((value % 100) / 10) as i32) + 48);
+    Console::write_byte(((value % 10) as i32) + 48);
 }
 
 machine Main::main(main: &mut Main) reaches Console {
