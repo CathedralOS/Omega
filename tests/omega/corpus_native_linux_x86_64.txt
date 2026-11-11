@@ -4915,15 +4915,15 @@ pass/filesystem/native_metadata_ctime_dev built 64316ms exit:0 stdout:match inte
 pass/filesystem/native_metadata_ino built 68201ms @d494050247cf
 pass/filesystem/native_metadata_nlink built 73217ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
 pass/filesystem/native_read_dir_iter built 74639ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_wrapper_write_all_result built 129871ms exit:0 stdout:match @a92f16431042
+pass/filesystem/native_wrapper_write_all_result built 166240ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @31776a374b18
 pass/filesystem/portable_raw_family_capabilities_exit built 117205ms exit:0 @a92f16431042
-pass/filesystem/runtime_local_host_result_dispatch_exit built 33694ms exit:70 @a92f16431042
+pass/filesystem/runtime_local_host_result_dispatch_exit built 89758ms exit:70 interpreter-exit:70 interpreter:agrees @31776a374b18
 pass/filesystem/runtime_portable_copy_errors_exit built 180697ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_directory_failure_exit built 176349ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_directory_names_exit built 145059ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_metadata_availability_exit built 145642ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_metadata_exit built 142274ms exit:0 @a92f16431042
-pass/filesystem/runtime_portable_permissions_exit built 139593ms exit:0 @a92f16431042
+pass/filesystem/runtime_portable_directory_failure_exit built 177682ms exit:0 interpreter-exit:0 interpreter:agrees @31776a374b18
+pass/filesystem/runtime_portable_directory_names_exit built 176094ms exit:0 interpreter-exit:0 interpreter:agrees @31776a374b18
+pass/filesystem/runtime_portable_metadata_availability_exit built 157428ms exit:0 interpreter-exit:0 interpreter:agrees @31776a374b18
+pass/filesystem/runtime_portable_metadata_exit built 181363ms exit:0 interpreter-exit:0 interpreter:agrees @31776a374b18
+pass/filesystem/runtime_portable_permissions_exit built 137088ms exit:0 interpreter-exit:0 interpreter:agrees @31776a374b18
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 406143ms exit:0 @a92f16431042
 pass/filesystem/runtime_portable_zero_descriptor_exit built 136187ms exit:0 @a92f16431042
 pass/filesystem/runtime_posix_borrowed_directory_link_exit built 75679ms exit:0 interpreter-exit:0 interpreter:agrees @d494050247cf
