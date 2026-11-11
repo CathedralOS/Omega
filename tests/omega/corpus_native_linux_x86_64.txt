@@ -4905,16 +4905,16 @@ pass/filesystem/create_dir_all_symlink_kind_exit built 194865ms exit:0 interpret
 pass/filesystem/cross_linux_value_syscalls checked 185821ms @32e1f7edc92e
 pass/filesystem/dir_walk_wrappers_exit built 146698ms exit:70 interpreter-exit:70 interpreter:agrees @32e1f7edc92e
 pass/filesystem/native_canonicalize built 180550ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @93b39bed6afe
-pass/filesystem/native_close built 97307ms @d494050247cf
-pass/filesystem/native_crud built 89826ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_errno built 97659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_filetype built 67581ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_fs_workflow built 89395ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_metadata_blocks built 76897ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_metadata_ctime_dev built 64316ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_metadata_ino built 68201ms @d494050247cf
-pass/filesystem/native_metadata_nlink built 73217ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
-pass/filesystem/native_read_dir_iter built 74639ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @d494050247cf
+pass/filesystem/native_close built 67841ms @370fd47c6e97
+pass/filesystem/native_crud built 73628ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_errno built 73141ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_filetype built 66643ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_fs_workflow built 69805ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_blocks built 63737ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_ctime_dev built 56156ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_metadata_ino built 67313ms @370fd47c6e97
+pass/filesystem/native_metadata_nlink built 62774ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
+pass/filesystem/native_read_dir_iter built 45239ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @370fd47c6e97
 pass/filesystem/native_wrapper_write_all_result built 166240ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @31776a374b18
 pass/filesystem/portable_raw_family_capabilities_exit built 117205ms exit:0 @a92f16431042
 pass/filesystem/runtime_local_host_result_dispatch_exit built 89758ms exit:70 interpreter-exit:70 interpreter:agrees @31776a374b18
