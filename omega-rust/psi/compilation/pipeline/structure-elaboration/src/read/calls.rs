@@ -513,6 +513,15 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument count"),
             ));
         }
+        if let SourceOrigin::Authored(span) = source
+            && let Some(names) = self.names.get_mut(id)
+        {
+            let shown = arguments
+                .iter()
+                .map(|argument| self.typed.expression_table.display_name(*argument))
+                .collect();
+            names.calls.push((span, shown));
+        }
         let mut read = Vec::with_capacity(arguments.len());
         for (argument, formal) in arguments.iter().zip(&formals) {
             read.push(self.expression(id, slots, *argument, formal.scalar())?);

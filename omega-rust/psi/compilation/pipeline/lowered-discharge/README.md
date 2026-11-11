@@ -797,12 +797,26 @@ route's decision from. It discharges an elaborated closure and returns:
 - `Rejected`: one `UnprovedObligation` per obligation that was not, each with
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
-  `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
-  no artifact. A clause not proved again where an open invariant window is
-  consumed is one such entry with `consumed` set: `unproved obligation:
-  <kind> inside an open invariant window: a prior write left the clause
-  unproved and this use consumes the value before it is proved again:
-  <cause> (<detail>)`, placed at the consumption, with
+  `<statement> (<cause>: <detail>)`, an ordinary `Reject` with no artifact.
+  The statement ([describe.rs](src/describe.rs)) says what was not proved in
+  the current checker's words for the same obligation, from the lowered form
+  and elaboration's names table (`MachineNames`): `cannot prove requires
+  contract for call bounded from probe: xored >= 1 && xored <= 2` (the
+  callee's clause over the caller's actuals), `cannot prove ensures contract
+  for exit from shifted at statement 0: result <= value` (the exit's
+  statement position, counted as the current checker counts it), `exact
+  arithmetic in machine `tally` state `entry` return value may overflow
+  `u64`: ...`, `shift count in ... is not provably below the operand width
+  for `u64`` (a left shift names both its conjuncts, the count and the
+  shifted value, since the route does not say which failed), `partial exact
+  division in machine `divide` state `entry` local `quotient`: the divisor
+  must be proven nonzero`. Without names (bodies lowered by `lower_bodies`)
+  it names identities only: `cannot prove requires clause 1 of the called
+  machine`. A clause not proved again where an open invariant window is
+  consumed is one such entry with `consumed` set: `<statement> inside an
+  open default-domain invariant window: a prior write left the clause unproved and this use
+  consumes the value before it is proved again (<cause>: <detail>)`, placed
+  at the consumption, with
   `opening_diagnostic()` placed at the write. It says what was not proved and never that the obligation is
   false: "Failure to find a proof is not proof of falsehood"
   ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),

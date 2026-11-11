@@ -169,6 +169,12 @@ path = "tests/typed_frontier.rs"
 name = "lowered_route_subjects"
 path = "tests/lowered_route_subjects.rs"
 
+# The lowered route's rejection messages contain each fixture's pinned
+# fragment.
+[[test]]
+name = "lowered_route_messages"
+path = "tests/lowered_route_messages.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"

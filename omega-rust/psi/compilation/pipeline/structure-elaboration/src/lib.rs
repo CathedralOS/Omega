@@ -48,6 +48,7 @@ Gaps found against the contract are listed in the crate README, "Findings".
 mod body;
 mod canonical;
 mod lower;
+mod names;
 mod outcome;
 mod read;
 
@@ -55,6 +56,7 @@ pub use body::{
     Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
     Statement, Strict, Target, ValueType, self_place,
 };
+pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
 
 use semantic_vocabulary::{
@@ -150,6 +152,10 @@ pub struct Elaboration {
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
+    /// What diagnostics call each machine's constructs, read from the typed
+    /// trees (`names`). Empty for bodies lowered without typed trees
+    /// (`lower_bodies`): a message then names identities only.
+    pub names: IdTable<MachineId, MachineNames>,
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
@@ -423,6 +429,7 @@ fn finish_reading(
         &program.requirements,
     )?;
     elaboration.machines = program.symbols;
+    elaboration.names = program.names;
     elaboration.selections = program.selections;
     Ok(elaboration)
 }
@@ -518,6 +525,7 @@ pub fn lower_generic(
         module,
         tables,
         sources,
+        names: IdTable::default(),
         machines: IdTable::default(),
         domains,
         requirements: requirements.to_vec(),
