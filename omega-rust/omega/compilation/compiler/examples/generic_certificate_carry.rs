@@ -127,7 +127,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     let Some(entry) = frontier.entries.first().copied() else {
         return format!("{head}\troute=no-entry");
     };
-    let mut consumer = match structure_elaboration::elaborate(typed, entry) {
+    let mut consumer = match structure_elaboration::elaborate_closure(typed, entry) {
         Ok(elaboration) => elaboration,
         Err(refusal) => return format!("{head}\troute=outside\t{}", one_line(&refusal.detail)),
     };
@@ -197,7 +197,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         // accepts. Its closure is elaborated on its own, since the route
         // does not yet serve every machine of the whole program.
         if let Some(symbol) = consumer.machines.get(specialization).copied()
-            && let Ok(mut alone) = structure_elaboration::elaborate(typed, symbol)
+            && let Ok(mut alone) = structure_elaboration::elaborate_closure(typed, symbol)
             && let Ok(searched) = discharge(&mut alone)
         {
             report(
