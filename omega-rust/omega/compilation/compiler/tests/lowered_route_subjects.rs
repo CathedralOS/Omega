@@ -464,3 +464,171 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
         "declaration Build selection that is not a machine or a data type"
     );
 }
+
+/// What the route must conclude about a one-declaration program.
+#[derive(Debug, PartialEq, Eq)]
+enum Verdict {
+    /// Accepted, with this many machines in the module.
+    Accepted(usize),
+    Rejected,
+    /// Handed back, with the refusal's detail.
+    FallsBack(String),
+}
+
+/// One program per kind of declaration a subject package can hold. Each is
+/// the declaration followed by `machine main() {}`, so nothing reaches it
+/// and only its being a subject declaration brings it into the check.
+const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
+    // A valid machine: `count + 1` cannot overflow under its `requires`.
+    (
+        "valid_machine",
+        "machine spare(count: u64) -> u64 requires count <= 10 { (count + 1u64) }",
+    ),
+    // The same body with no `requires`: the addition can overflow.
+    (
+        "defective_machine",
+        "machine spare(count: u64) -> u64 { (count + 1u64) }",
+    ),
+    ("plain_data", "data Pair [copy] { left: u64; right: u64; }"),
+    // An invariant with nothing constructing the type owes nothing yet.
+    (
+        "data_invariant",
+        "data Small [copy] requires self.value <= 9 { value: u64; }",
+    ),
+    // Data that is not `[copy]` has custody, and so cleanup.
+    ("data_cleanup", "data Owned { value: u64; }"),
+    (
+        "generic_machine",
+        "machine keep<T>(value: u64) -> u64 { value }",
+    ),
+    // A machine parameter is how a callback is passed.
+    (
+        "callback",
+        "machine apply<machine Observe>(kept: bool) -> bool\n\
+         requires machine Observe(kept: bool) -> bool;\n{\n    Observe(kept)\n}",
+    ),
+    ("constant", "const GOOD: u64 = 2;"),
+    ("domain", "domain u64::AtMostSeven requires self <= 7;"),
+    (
+        "trait",
+        "trait Walk {\n    machine step(remaining: u64) -> u64;\n}",
+    ),
+    (
+        "measure",
+        "data Countdown [copy] { remaining: u64; }\n\
+         measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }",
+    ),
+    (
+        "proposition",
+        "data Point [copy] { x: u64; y: u64; }\n\
+         proposition same_x(left: Point, right: Point) = left.x == right.x;",
+    ),
+    // A proof: an empty body whose contract states a lemma.
+    (
+        "lemma",
+        "data Point [copy] { x: u64; y: u64; }\n\
+         proposition same_x(left: Point, right: Point) = left.x == right.x;\n\
+         machine same_x_symmetric(a: Point, b: Point)\n\
+         requires same_x(a, b)\nensures same_x(b, a)\n{\n}",
+    ),
+    // An uncalled machine that depends on a library declaration.
+    (
+        "dependency_call",
+        "use omega::language::core::wire;\n\
+         machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
+    ),
+];
+
+/// Writes `declaration` and an empty entry as a package under the
+/// repository's ignored `target` directory (the fixture loader takes only
+/// paths inside the repository), checks it, and returns the route's verdict.
+/// The Build binds `main` for the four hosted targets, as the corpus
+/// fixtures' Builds do.
+fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
+    let root = repo_root()
+        .join("target")
+        .join("lowered_route_subjects")
+        .join(name);
+    std::fs::create_dir_all(&root).expect("staging directory");
+    let targets = [
+        "macos_arm64",
+        "linux_x86_64",
+        "linux_arm64",
+        "windows_x86_64",
+    ];
+    let binds: String = targets
+        .iter()
+        .map(|target| format!("    Build::bind(builder, {target}::ProgramEntry, main);\n"))
+        .collect();
+    std::fs::write(
+        root.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    \
+             Build::application(builder, \"{name}\");\n{binds}}}\n"
+        ),
+    )
+    .expect("staged Build");
+    let main = root.join("main.omg");
+    std::fs::write(&main, format!("{declaration}\nmachine main() {{}}\n")).expect("staged source");
+    let checked = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
+        })
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    let _ = std::fs::remove_dir_all(&root);
+    let frontier = match checked {
+        FixtureFrontierCheck::Accepted { frontier, .. }
+        | FixtureFrontierCheck::Rejected { frontier, .. }
+        | FixtureFrontierCheck::ReviewRefused { frontier, .. } => frontier,
+        FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
+            panic!("{name}: the staged program must reach Psi 04: {diagnostics:?}")
+        }
+    };
+    match route_verdict(&frontier).1 {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    }
+}
+
+/// Every kind of unused subject declaration is in the check. What the route
+/// can judge it judges: a valid machine and plain data are accepted with the
+/// machine in the module, and a defective machine is rejected. Every kind it
+/// cannot judge hands the compilation back with a refusal naming that kind,
+/// so none is skipped.
+#[test]
+fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        falls_back("type data with custody"),
+        falls_back("machine generic parameters"),
+        falls_back("machine generic parameters"),
+        falls_back("declaration const"),
+        falls_back("declaration domain"),
+        falls_back("declaration trait"),
+        falls_back("declaration measure"),
+        falls_back("declaration proposition"),
+        falls_back("contract named proposition"),
+        falls_back("call receiver, requirement or coercion call"),
+    ];
+    assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in UNUSED_DECLARATIONS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
