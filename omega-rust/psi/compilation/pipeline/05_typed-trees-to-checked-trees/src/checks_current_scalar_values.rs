@@ -2755,7 +2755,10 @@ mod entry_fields {
     pub(super) fn record_value_leaves(
         program: &dyn validation::CheckingInput,
         reference: typed_trees::types::TypeReferenceHandle,
-    ) -> Vec<(Vec<symbols::SymbolHandle>, typed_trees::types::TypeReferenceHandle)> {
+    ) -> Vec<(
+        Vec<symbols::SymbolHandle>,
+        typed_trees::types::TypeReferenceHandle,
+    )> {
         let mut leaves = Vec::new();
         let mut pending = vec![(reference, Vec::new(), 0usize)];
         while let Some((reference, path, depth)) = pending.pop() {

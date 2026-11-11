@@ -791,8 +791,7 @@ mod local_origins {
                     representation: None,
                     ..source.clone()
                 };
-                let (mut place, _) =
-                    structural_origin(program, state, statement_index, &backing)?;
+                let (mut place, _) = structural_origin(program, state, statement_index, &backing)?;
                 validation::completed_storage::widen_element_anchor(&mut place.segments);
                 return Some((place, OriginPrecision::Enclosing));
             }
