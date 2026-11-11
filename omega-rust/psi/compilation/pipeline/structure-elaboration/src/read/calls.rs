@@ -286,7 +286,7 @@ impl Program<'_> {
         }
         let mut read = Vec::with_capacity(arguments.len());
         for (argument, formal) in arguments.iter().zip(&formals) {
-            read.push(self.expression(id, slots, *argument, Some(*formal))?);
+            read.push(self.expression(id, slots, *argument, formal.scalar())?);
         }
         let signature =
             terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;

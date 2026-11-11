@@ -12,7 +12,7 @@ use typed_trees::statement::{
 
 use super::expressions::same_computation;
 use super::{Program, Slot, crash_cause};
-use crate::body::{Expression, Target};
+use crate::body::{Expression, Target, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -23,7 +23,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         transition: &TableTransition,
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
     ) -> Checked<(Option<Expression>, Target)> {
         if transition.continuation.is_valid() {
             return Err(refuse(
@@ -77,7 +77,7 @@ impl Program<'_> {
             None => None,
             Some(guard) => {
                 let guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
-                if guard.result != Some(ScalarType::Boolean) {
+                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean)) {
                     return Err(refuse(
                         id,
                         Construct::Machine,
@@ -141,7 +141,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         handle: typed_trees::statement::TransitionTargetHandle,
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
     ) -> Checked<Target> {
         let typed = self.typed;
         if !handle.is_valid() {
@@ -163,7 +163,7 @@ impl Program<'_> {
                 return Ok(Target::Unit);
             }
             TransitionTargetNode::Value(expression) => {
-                self.expression(id, slots, *expression, result)?
+                self.expression(id, slots, *expression, result.and_then(ValueType::scalar))?
             }
             TransitionTargetNode::Named {
                 operational_acknowledgement,

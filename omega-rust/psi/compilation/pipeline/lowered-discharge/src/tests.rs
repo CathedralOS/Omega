@@ -13,7 +13,7 @@ use semantic_vocabulary::{
 };
 use structure_elaboration::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Unpositioned,
+    Target, Unpositioned, ValueType,
 };
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
@@ -44,7 +44,7 @@ fn nowhere() -> SourceOrigin {
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
         kind,
-        result,
+        result: result.map(ValueType::Scalar),
         source: nowhere(),
     }
 }
@@ -62,7 +62,7 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 }
 
 fn strict(operation: Strict, left: Expression, right: Expression) -> Expression {
-    let result = left.result;
+    let result = left.result.and_then(ValueType::scalar);
     expression(
         ExpressionKind::Strict {
             operation,
@@ -141,21 +141,24 @@ fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
-        let mut slots = machine.parameters.clone();
-        slots.extend(machine.locals);
+        let parameters: Vec<ValueType> = machine.parameters.into_iter().map(Into::into).collect();
+        let mut slots = parameters.clone();
+        slots.extend(machine.locals.into_iter().map(ValueType::Scalar));
         bodies.push(Body {
             slots,
             statements: machine.statements,
         });
         signatures.push(Signature {
-            parameters: machine.parameters,
-            result: Some(machine.result),
+            parameters,
+            result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
             crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
-    let mut elaboration = structure_elaboration::lower_bodies(id(1), &bodies, &signatures).unwrap();
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
     let result = discharge(&mut elaboration).unwrap();
     (elaboration, result)
 }
@@ -893,4 +896,522 @@ fn a_disequality_guard_splits_into_cases() {
         core,
         MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
     );
+}
+
+// Records by structure. `Point { x: u32, y: u32 }` is record 1 with fields 1
+// and 2; `Line { from: Point, to: Point }` is record 2 with fields 3 and 4.
+// A field read is a fresh value; the tests below check when it is provably
+// the value its place holds.
+
+use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId, ValueId};
+use structure_elaboration::{RecordField, RecordType};
+use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
+use terminal_check_tables::values::ValueOrigin;
+use terminal_check_tables::{ExactPlaceId, MachineTables};
+use terminal_psi::OperationKind;
+
+fn point() -> ValueType {
+    ValueType::Record(id(1))
+}
+
+fn line() -> ValueType {
+    ValueType::Record(id(2))
+}
+
+fn records() -> IdTable<StructuralTypeId, RecordType> {
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        identity: String::from("Point"),
+        fields: vec![
+            field(1, "x", ValueType::Scalar(u32_type())),
+            field(2, "y", ValueType::Scalar(u32_type())),
+        ],
+    });
+    records.push(RecordType {
+        identity: String::from("Line"),
+        fields: vec![field(3, "from", point()), field(4, "to", point())],
+    });
+    records
+}
+
+fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
+    Expression {
+        kind,
+        result: Some(result),
+        source: nowhere(),
+    }
+}
+
+fn place(slot: usize, value_type: ValueType) -> Expression {
+    of_type(ExpressionKind::Slot(slot), value_type)
+}
+
+/// `base.field`, a `u32` field.
+fn read(base: Expression, field: usize) -> Expression {
+    of_type(
+        ExpressionKind::Field {
+            base: Box::new(base),
+            field,
+        },
+        u32_type().into(),
+    )
+}
+
+fn point_of(x: Expression, y: Expression) -> Expression {
+    of_type(
+        ExpressionKind::Record {
+            fields: vec![(0, x), (1, y)],
+        },
+        point(),
+    )
+}
+
+fn bind(slot: usize, value: Expression) -> Statement {
+    Statement::Bind { slot, value }
+}
+
+/// One machine over `Point` and `Line`: its formals, its locals and its
+/// result, then its body.
+struct Shaped {
+    parameters: Vec<ValueType>,
+    locals: Vec<ValueType>,
+    result: ValueType,
+    requires: Vec<Proposition>,
+    statements: Vec<Statement>,
+}
+
+/// `bounded(v: u32) -> u32 requires v <= 10 { v }`.
+fn bounded() -> Shaped {
+    Shaped {
+        parameters: vec![u32_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![at_most(1, 10)],
+        statements: vec![returns(slot(0, u32_type()))],
+    }
+}
+
+fn elaborate_places(machines: Vec<Shaped>) -> structure_elaboration::Elaboration {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    for machine in machines {
+        let mut slots = machine.parameters.clone();
+        slots.extend(machine.locals);
+        bodies.push(Body {
+            slots,
+            statements: machine.statements,
+        });
+        signatures.push(Signature {
+            parameters: machine.parameters,
+            result: Some(machine.result),
+            requires: machine.requires,
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
+        });
+    }
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap()
+}
+
+fn run_places(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = elaborate_places(machines);
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+/// Every field read of machine 1, in block and operation order, as the
+/// operation and its result value.
+fn field_reads(elaboration: &structure_elaboration::Elaboration) -> Vec<(OperationId, ValueId)> {
+    elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::ScalarStructuralField { .. }))
+        .map(|operation| (operation.id, operation.result.scalar_ref().unwrap().id))
+        .collect()
+}
+
+/// The result of each integer constant of machine 1, in block and operation
+/// order.
+fn constants(elaboration: &structure_elaboration::Elaboration) -> Vec<ValueId> {
+    elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::IntegerConstant { .. }))
+        .map(|operation| operation.result.scalar_ref().unwrap().id)
+        .collect()
+}
+
+/// The value machine 1's knowledge equates a read's result with, if any:
+/// the right side of the read operation's own `OperationSemantics` row.
+fn read_equals(tables: &MachineTables, read: (OperationId, ValueId)) -> Option<ValueId> {
+    let mut held = tables.knowledge.iter().filter_map(|(_, row)| {
+        if row.justification != Justification::OperationSemantics(read.0) {
+            return None;
+        }
+        assert_eq!(row.available_from, ProgramPoint::AfterOperation(read.0));
+        match tables.propositions.get(row.proposition).unwrap() {
+            Proposition::Equal(
+                ScalarTerm::Value { id: result, .. },
+                ScalarTerm::Value { id: held, .. },
+            ) => {
+                assert_eq!(*result, read.1);
+                Some(*held)
+            }
+            other => panic!("a read equation is between two values, found {other:?}"),
+        }
+    });
+    let first = held.next();
+    assert!(held.next().is_none(), "a read has at most one equation");
+    first
+}
+
+#[test]
+fn a_read_after_construction_is_provably_the_constructed_operand() {
+    // f(a: u32) -> u32 {
+    //     let p = Point { x: a, y: 7 };
+    //     bounded(p.y);       // needs p.y <= 10: p.y is the 7 it was built with
+    //     bounded(p.x)        // needs p.x <= 10: p.x is `a`, and `y`'s 7 says
+    // }                       // nothing about a sibling
+    let caller = Shaped {
+        parameters: vec![u32_type().into()],
+        locals: vec![point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(1, point_of(slot(0, u32_type()), unsigned(7))),
+            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            returns(call(2, vec![read(place(1, point()), 0)])),
+        ],
+    };
+    let (elaboration, result) = run_places(vec![caller, bounded()]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [read_y, read_x] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    // Each read equals exactly the operand its field was established with:
+    // the constant 7 for `y`, the formal `a` (value 1) for `x`.
+    let seven = constants(&elaboration)[0];
+    assert_eq!(read_equals(tables, *read_y), Some(seven));
+    assert_eq!(read_equals(tables, *read_x), Some(id(1)));
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let [(first, needs_y), (_, needs_x)] = requirements.as_slice() else {
+        panic!("two requirements");
+    };
+    assert_kernel_checked(&elaboration, 1, *first, certificate(needs_y));
+    assert_unproved(needs_x);
+}
+
+#[test]
+fn a_formal_leaf_reads_as_its_one_entry_content_value() {
+    // f(p: Point) -> u32 { p.x - p.x }: both reads are the one value `p.x`
+    // holds at entry, so the unsigned difference cannot underflow. A
+    // difference of two different leaves has no such relation.
+    let difference = |left: usize, right: usize| Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Subtract,
+            read(place(0, point()), left),
+            read(place(0, point()), right),
+        ))],
+    };
+    let (elaboration, result) = run_places(vec![difference(0, 0)]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [first, second] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    let held = read_equals(tables, *first).unwrap();
+    assert_eq!(read_equals(tables, *second), Some(held));
+    assert!(matches!(
+        tables.values.get(held).unwrap().origin,
+        ValueOrigin::EntryContent { .. }
+    ));
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+
+    let (elaboration, result) = run_places(vec![difference(0, 1)]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    assert_ne!(read_equals(tables, reads[0]), read_equals(tables, reads[1]));
+    assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
+}
+
+#[test]
+fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing() {
+    // f() -> u32 {
+    //     let p = Point { x: 3, y: 7 };  let q = p;
+    //     bounded(q.y);              // the copy carries 7
+    //     let t = make();            // a call's result: values unknown here
+    //     bounded(t.y)
+    // }
+    let caller = Shaped {
+        parameters: Vec::new(),
+        locals: vec![point(), point(), point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(0, point_of(unsigned(3), unsigned(7))),
+            bind(1, place(0, point())),
+            Statement::Evaluate(call(2, vec![read(place(1, point()), 1)])),
+            bind(
+                2,
+                of_type(
+                    ExpressionKind::Call {
+                        callee: id(3),
+                        arguments: Vec::new(),
+                    },
+                    point(),
+                ),
+            ),
+            returns(call(2, vec![read(place(2, point()), 1)])),
+        ],
+    };
+    let make = Shaped {
+        parameters: Vec::new(),
+        locals: Vec::new(),
+        result: point(),
+        requires: Vec::new(),
+        statements: vec![returns(point_of(unsigned(1), unsigned(2)))],
+    };
+    let (elaboration, result) = run_places(vec![caller, bounded(), make]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let reads = field_reads(&elaboration);
+    let [of_copy, of_result] = reads.as_slice() else {
+        panic!("two reads");
+    };
+    let seven = constants(&elaboration)[1];
+    assert_eq!(read_equals(tables, *of_copy), Some(seven));
+    assert_eq!(read_equals(tables, *of_result), None);
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let [(first, through_copy), (_, through_result)] = requirements.as_slice() else {
+        panic!("two requirements");
+    };
+    assert_kernel_checked(&elaboration, 1, *first, certificate(through_copy));
+    assert_unproved(through_result);
+}
+
+#[test]
+fn a_record_actual_leaves_scalar_clauses_named_by_their_own_lane() {
+    // takes(p: Point, v: u32) -> u32 requires v <= 10 { v }: `v` is the
+    // callee's first scalar formal though it is its second formal, and the
+    // clause is decided for the caller's first scalar actual.
+    let takes = Shaped {
+        parameters: vec![point(), u32_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: vec![at_most(1, 10)],
+        statements: vec![returns(slot(1, u32_type()))],
+    };
+    let caller = |argument: u128| Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(call(
+            2,
+            vec![place(0, point()), unsigned(argument)],
+        ))],
+    };
+    let takes_again = || Shaped {
+        parameters: takes.parameters.clone(),
+        locals: Vec::new(),
+        result: takes.result,
+        requires: takes.requires.clone(),
+        statements: vec![returns(slot(1, u32_type()))],
+    };
+    let (elaboration, result) = run_places(vec![caller(7), takes_again()]);
+    let (obligation, verdict) = verdicts(&elaboration, &result, 1, requirement)[0];
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    let (elaboration, result) = run_places(vec![caller(20), takes_again()]);
+    assert_unproved(verdicts(&elaboration, &result, 1, requirement)[0].1);
+}
+
+/// The place reached from root `root` by `fields`, which must be interned.
+fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
+    let mut place = *tables.roots.get(root).unwrap();
+    for field in fields {
+        let children = &tables.places.get(place).unwrap().children;
+        let segment = Segment::Field(id::<StructuralFieldId>(*field));
+        let found = children
+            .binary_search_by_key(&segment, |(segment, _)| *segment)
+            .unwrap();
+        place = children[found].1;
+    }
+    place
+}
+
+#[test]
+fn different_values_on_different_arrivals_give_no_equation() {
+    // f(a: bool, b: bool) -> u32 {
+    //     let p = Point { x: 1, y: 2 };
+    //     let c = a && !b;       // the `!b` block is one of two ways to the join
+    //     p.x
+    // }
+    // As lowered, the one write to `p.x` dominates the read. The subset has
+    // no store yet, so the arm's write is added to the log by hand: what the
+    // checker concludes must follow from the log and the graph alone.
+    let program = || {
+        elaborate_places(vec![Shaped {
+            parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
+            locals: vec![point(), ScalarType::Boolean.into()],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                bind(2, point_of(unsigned(1), unsigned(2))),
+                bind(
+                    3,
+                    expression(
+                        ExpressionKind::ShortCircuit {
+                            conjunction: true,
+                            left: Box::new(slot(0, ScalarType::Boolean)),
+                            right: Box::new(expression(
+                                ExpressionKind::Not(Box::new(slot(1, ScalarType::Boolean))),
+                                Some(ScalarType::Boolean),
+                            )),
+                        },
+                        Some(ScalarType::Boolean),
+                    ),
+                ),
+                returns(read(place(2, point()), 0)),
+            ],
+        }])
+    };
+    // The constants 1 and 2 the literal was built with.
+    let built = constants(&program());
+    let (one, two) = (built[0], built[1]);
+    // What the read equals once `content` is also written to `place` after
+    // the arm's one operation.
+    let with_arm_write = |target: &[u64], content: Option<Content>| {
+        let mut elaboration = program();
+        let machine = &elaboration.module.machines[0];
+        let OperationKind::EstablishRecord { .. } = machine.blocks[0].operations[2].kind else {
+            panic!("the literal is the entry block's third operation");
+        };
+        let root = machine.blocks[0].operations[2]
+            .result
+            .as_structural()
+            .unwrap()
+            .place;
+        let arm = machine
+            .blocks
+            .iter()
+            .find(|block| {
+                matches!(
+                    block.operations.as_slice(),
+                    [operation] if matches!(operation.kind, OperationKind::BooleanNot { .. })
+                )
+            })
+            .unwrap()
+            .operations[0]
+            .id;
+        let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+        if let Some(content) = content {
+            let place = projected(tables, root, target);
+            let write = tables.writes.push(WriteRow {
+                place,
+                at: ProgramPoint::AfterOperation(arm),
+                content,
+            });
+            tables.places.get_mut(place).unwrap().writes.push(write);
+        }
+        discharge(&mut elaboration).unwrap();
+        let read = field_reads(&elaboration)[0];
+        let tables = elaboration.tables.machines.get(id(1)).unwrap();
+        read_equals(tables, read)
+    };
+    assert_eq!(with_arm_write(&[], None), Some(one));
+    // Another value on the arm: the two arrivals differ.
+    assert_eq!(with_arm_write(&[1], Some(Content::Value(two))), None);
+    // The same value on the arm: every arrival still supplies it.
+    assert_eq!(with_arm_write(&[1], Some(Content::Value(one))), Some(one));
+    // A write to the sibling `p.y` is disjoint and changes nothing.
+    assert_eq!(with_arm_write(&[2], Some(Content::Value(two))), Some(one));
+    // Unknown new contents of the whole record overlap its field.
+    assert_eq!(with_arm_write(&[], Some(Content::Overwritten)), None);
+}
+
+#[test]
+fn sibling_fields_are_disjoint_and_ancestors_overlap() {
+    // far(l: Line, m: Line) -> u32 { l.to.y & l.to.x & l.from.x & m.to.y }
+    let leaf = |slot: usize, outer: usize, inner: usize| {
+        read(
+            of_type(
+                ExpressionKind::Field {
+                    base: Box::new(place(slot, line())),
+                    field: outer,
+                },
+                point(),
+            ),
+            inner,
+        )
+    };
+    let and = |left, right| strict(Strict::BitwiseAnd, left, right);
+    let elaboration = elaborate_places(vec![Shaped {
+        parameters: vec![line(), line()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(and(
+            and(and(leaf(0, 1, 1), leaf(0, 1, 0)), leaf(0, 0, 0)),
+            leaf(1, 1, 1),
+        ))],
+    }]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let overlap = |left, right| {
+        let forward = crate::places::overlap(id(1), &tables.places, left, right).unwrap();
+        let backward = crate::places::overlap(id(1), &tables.places, right, left).unwrap();
+        assert_eq!(forward, backward, "overlap is symmetric");
+        forward
+    };
+    let l = |fields: &[u64]| projected(tables, id(1), fields);
+    let m = |fields: &[u64]| projected(tables, id(2), fields);
+    // A place overlaps itself, its ancestors and its descendants.
+    assert!(overlap(l(&[4, 2]), l(&[4, 2])));
+    assert!(overlap(l(&[]), l(&[4, 2])));
+    assert!(overlap(l(&[4]), l(&[4, 2])));
+    // Two fields of one record are disjoint, and so is everything beneath
+    // them.
+    assert!(!overlap(l(&[4, 2]), l(&[4, 1])));
+    assert!(!overlap(l(&[3]), l(&[4])));
+    assert!(!overlap(l(&[3, 1]), l(&[4, 1])));
+    assert!(!overlap(l(&[3]), l(&[4, 2])));
+    // The same path under another root is other storage.
+    assert!(!overlap(l(&[4, 2]), m(&[4, 2])));
+    assert!(!overlap(l(&[]), m(&[])));
+
+    // Segments that do not prove disjoint storage overlap: two cases of one
+    // sum overlay, and unequal identities alone prove nothing.
+    let mut places: IdTable<ExactPlaceId, PlaceRow> = IdTable::default();
+    let row = |origin| PlaceRow {
+        origin,
+        children: Vec::new(),
+        writes: Vec::new(),
+    };
+    let root = places.push(row(PlaceOrigin::Root(id(1))));
+    let mut child = |segment| {
+        places.push(row(PlaceOrigin::Projection {
+            parent: root,
+            segment,
+        }))
+    };
+    let first_case = child(Segment::Case(id(1)));
+    let second_case = child(Segment::Case(id(2)));
+    let field = child(Segment::Field(id(1)));
+    let first_index = child(Segment::FixedIndex(0));
+    let second_index = child(Segment::FixedIndex(1));
+    let may = |left, right| crate::places::overlap(id(1), &places, left, right).unwrap();
+    assert!(may(first_case, second_case));
+    assert!(may(first_case, field));
+    assert!(may(field, first_case));
+    assert!(may(first_index, second_index));
 }

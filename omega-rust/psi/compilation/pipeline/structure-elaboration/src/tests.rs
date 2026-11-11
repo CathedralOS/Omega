@@ -5,7 +5,8 @@ use semantic_vocabulary::{
     BlockId, CrashCause, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     Proposition, PsiSemanticId, ScalarTerm, ScalarType, ValueId,
 };
-use terminal_check_tables::edges::Destination;
+use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
+use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{MachineTables, ProgramPoint};
@@ -15,7 +16,7 @@ use terminal_psi::{
 };
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target, ValueType,
 };
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unpositioned};
@@ -35,7 +36,7 @@ fn nowhere() -> SourceOrigin {
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
         kind,
-        result,
+        result: result.map(ValueType::Scalar),
         source: nowhere(),
     }
 }
@@ -87,12 +88,17 @@ fn returns(value: Expression) -> Statement {
 
 fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signature {
     Signature {
-        parameters,
-        result,
+        parameters: scalars(parameters),
+        result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
         crashes: CrashCeiling::Authored(Vec::new()),
     }
+}
+
+/// Scalar slot or formal types as the body holds them.
+fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
+    types.into_iter().map(ValueType::Scalar).collect()
 }
 
 /// A machine that may return and publishes no crash route.
@@ -134,7 +140,18 @@ fn try_lower(
     for outcome in outcomes {
         outcome_table.push(outcome);
     }
-    crate::lower::machine(id(1), &body, &signature_table, &outcome_table)
+    lower_records(body, &signature_table, &outcome_table, &IdTable::default())
+}
+
+/// Lowers machine 1 with the record types its body and signatures name.
+fn lower_records(
+    body: Body,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &IdTable<semantic_vocabulary::StructuralTypeId, crate::body::RecordType>,
+) -> terminal_check_tables::Checked<crate::lower::Lowered> {
+    let declared = crate::lower::places::declare(id(1), records)?;
+    crate::lower::machine(id(1), &body, signatures, outcomes, &declared.records)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -162,6 +179,7 @@ fn assert_module_and_tables_agree(machine: &TerminalMachine, tables: &MachineTab
             } => vec![when_true.edge, when_false.edge],
             Terminator::Jump { edge, .. }
             | Terminator::Return { edge, .. }
+            | Terminator::ReturnStructural { edge, .. }
             | Terminator::ReturnUnit { edge, .. }
             | Terminator::Crash { edge, .. }
             | Terminator::InvokeNoNormal { edge, .. } => vec![*edge],
@@ -171,6 +189,16 @@ fn assert_module_and_tables_agree(machine: &TerminalMachine, tables: &MachineTab
     assert_eq!(edges.len(), tables.edges.len());
     for edge in edges {
         assert!(tables.edges.get(edge).is_some());
+    }
+    // Every structural place the machine declares is a root row, and the
+    // root table holds nothing else.
+    assert_eq!(machine.structural_places.len(), tables.roots.len());
+    for place in &machine.structural_places {
+        let root = *tables.roots.get(place.id).unwrap();
+        assert_eq!(
+            tables.places.get(root).unwrap().origin,
+            PlaceOrigin::Root(place.id)
+        );
     }
 }
 
@@ -256,7 +284,7 @@ fn strict_operands_and_call_arguments_evaluate_left_to_right() {
 fn greater_swaps_operands_without_reordering_evaluation() {
     // machine 1(a: u32, b: u32) -> bool { a > b }
     let body = Body {
-        slots: vec![u32_type(), u32_type()],
+        slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![returns(strict(
             Strict::Greater,
             slot(0, u32_type()),
@@ -372,7 +400,7 @@ fn disjunction_evaluates_the_right_operand_only_on_the_false_edge() {
 fn every_call_owes_one_requirement_per_callee_requires_clause() {
     // machine 1(x: u32) { f(x); f(x); }  with f requiring two clauses
     let body = Body {
-        slots: vec![u32_type()],
+        slots: scalars(vec![u32_type()]),
         statements: vec![
             Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
             Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
@@ -416,7 +444,7 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
     // machine 1(a: bool) -> u32 ensures P ensures Q
     //     { transition { a -> 1  _ -> 2 } }
     let body = Body {
-        slots: vec![ScalarType::Boolean],
+        slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
                 guard: Some(slot(0, ScalarType::Boolean)),
@@ -474,7 +502,7 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
 #[test]
 fn a_unit_machine_completes_after_its_last_statement() {
     let body = Body {
-        slots: vec![u32_type()],
+        slots: scalars(vec![u32_type()]),
         statements: vec![Statement::Bind {
             slot: 0,
             value: integer(4),
@@ -570,7 +598,7 @@ fn crash_sites(machine: &TerminalMachine) -> Vec<(BlockId, CrashCause, Vec<Crash
 fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
     // machine 1(a: bool, b: bool) { transition { a -> {}  b -> crash Trap  _ -> crash Abort } }
     let body = Body {
-        slots: vec![ScalarType::Boolean, ScalarType::Boolean],
+        slots: scalars(vec![ScalarType::Boolean, ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
                 guard: Some(boolean_slot(0)),
@@ -623,7 +651,7 @@ fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
 #[test]
 fn every_crash_site_owes_one_coverage_per_cause_on_a_no_successor_edge() {
     let body = Body {
-        slots: vec![ScalarType::Boolean],
+        slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![
             crash_arm(Some(boolean_slot(0)), CrashCause::Trap),
             crash_arm(None, CrashCause::Abort),
@@ -678,7 +706,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     // machine 1(x: u32) { transition { _ -> f(x) } }
     // with f(y: u32) requires P crashes Trap when y < 3 crashes Abort
     let body = Body {
-        slots: vec![u32_type()],
+        slots: scalars(vec![u32_type()]),
         statements: vec![returns(call(2, vec![slot(0, u32_type())], None))],
     };
     let formal = ScalarTerm::Value {
@@ -792,7 +820,7 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
     // machine 1(x: u32) -> u32 { f(x) + 1 }
     // with f(y: u32) -> u32 crashes Trap when y < 3 crashes Abort
     let body = Body {
-        slots: vec![u32_type()],
+        slots: scalars(vec![u32_type()]),
         statements: vec![returns(strict(
             Strict::Add,
             call(2, vec![slot(0, u32_type())], Some(u32_type())),
@@ -943,7 +971,7 @@ fn ensures_over_result_name_the_result_pseudo_value() {
     };
     let clause = Proposition::Equal(result, seven);
     let body = Body {
-        slots: vec![u32_type()],
+        slots: scalars(vec![u32_type()]),
         statements: vec![returns(integer(7))],
     };
     let (machine, tables) = lower(
@@ -1088,7 +1116,7 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
     use crate::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
-        slots: vec![ScalarType::Boolean],
+        slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![returns(expression(
             ExpressionKind::ShortCircuit {
                 conjunction: true,
@@ -1137,4 +1165,576 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
         outcomes(&bodies, &signatures).unwrap_err().detail,
         "call recursion"
     );
+}
+
+// Records by structure. `Point { x: u32, y: u32 }` is record 1 with fields 1
+// and 2; `Line { from: Point, to: Point }` is record 2 with fields 3 and 4.
+
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId,
+};
+use terminal_check_tables::ExactPlaceId;
+use terminal_psi::{RecordFieldValue, StructuralAccess, StructuralArgument};
+
+use crate::body::{RecordField, RecordType};
+
+fn point() -> ValueType {
+    ValueType::Record(id(1))
+}
+
+fn line() -> ValueType {
+    ValueType::Record(id(2))
+}
+
+fn records() -> IdTable<StructuralTypeId, RecordType> {
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        identity: String::from("Point"),
+        fields: vec![
+            field(1, "x", ValueType::Scalar(u32_type())),
+            field(2, "y", ValueType::Scalar(u32_type())),
+        ],
+    });
+    records.push(RecordType {
+        identity: String::from("Line"),
+        fields: vec![field(3, "from", point()), field(4, "to", point())],
+    });
+    records
+}
+
+fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
+    Expression {
+        kind,
+        result: Some(result),
+        source: nowhere(),
+    }
+}
+
+fn place(slot: usize, value_type: ValueType) -> Expression {
+    of_type(ExpressionKind::Slot(slot), value_type)
+}
+
+fn member(base: Expression, field: usize, result: ValueType) -> Expression {
+    of_type(
+        ExpressionKind::Field {
+            base: Box::new(base),
+            field,
+        },
+        result,
+    )
+}
+
+fn literal(fields: Vec<(usize, Expression)>, result: ValueType) -> Expression {
+    of_type(ExpressionKind::Record { fields }, result)
+}
+
+fn bind(slot: usize, value: Expression) -> Statement {
+    Statement::Bind { slot, value }
+}
+
+fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
+    Signature {
+        parameters,
+        result,
+        ..signature(Vec::new(), None)
+    }
+}
+
+/// Lowers machine 1 over `Point` and `Line`, every machine returning
+/// normally with no crash route.
+fn lower_places(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, MachineTables) {
+    let mut signature_table: IdTable<MachineId, Signature> = IdTable::default();
+    let mut outcome_table: IdTable<MachineId, Outcome> = IdTable::default();
+    for signature in signatures {
+        signature_table.push(signature);
+        outcome_table.push(returns_normally());
+    }
+    let lowered = lower_records(body, &signature_table, &outcome_table, &records()).unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    (lowered.machine, lowered.tables)
+}
+
+/// The place reached from root `root` by `fields`, which must be interned.
+fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
+    let mut place = *tables.roots.get(root).unwrap();
+    for field in fields {
+        let children = &tables.places.get(place).unwrap().children;
+        let segment = Segment::Field(id::<StructuralFieldId>(*field));
+        let found = children
+            .binary_search_by_key(&segment, |(segment, _)| *segment)
+            .unwrap();
+        place = children[found].1;
+    }
+    place
+}
+
+/// Every write to `place`, as its content and the operation it follows.
+fn written(tables: &MachineTables, place: ExactPlaceId) -> Vec<(Content, ProgramPoint)> {
+    tables
+        .places
+        .get(place)
+        .unwrap()
+        .writes
+        .iter()
+        .map(|write| {
+            let row = tables.writes.get(*write).unwrap();
+            assert_eq!(row.place, place);
+            (row.content, row.at)
+        })
+        .collect()
+}
+
+fn produced(operation: &terminal_psi::Operation) -> PlaceId {
+    operation.result.as_structural().unwrap().place
+}
+
+#[test]
+fn a_record_literal_evaluates_its_operands_in_authored_order_then_establishes_once() {
+    // make() -> Point { Point { y: g(), x: 3 } }: `y`'s operand is authored
+    // first, so the call runs before the constant, and the establishment
+    // comes after both with its roster in declaration order.
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(literal(
+            vec![(1, call(2, Vec::new(), Some(u32_type()))), (0, integer(3))],
+            point(),
+        ))],
+    };
+    let (machine, tables) = lower_places(
+        body,
+        vec![
+            shaped(Vec::new(), Some(point())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+    );
+    let entry = block(&machine, 1);
+    let [called, constant, established] = entry.operations.as_slice() else {
+        panic!("three operations");
+    };
+    assert!(matches!(called.kind, OperationKind::Call { .. }));
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let y = called.result.scalar().unwrap().id;
+    let x = constant.result.scalar().unwrap().id;
+    let OperationKind::EstablishRecord { fields } = &established.kind else {
+        panic!("establishment");
+    };
+    let roster: Vec<_> = fields
+        .iter()
+        .map(|field| match field.value {
+            RecordFieldValue::Scalar {
+                value,
+                range_obligation: None,
+            } => (field.field, value),
+            _ => panic!("plain scalar initializer"),
+        })
+        .collect();
+    assert_eq!(roster, [(id(1), x), (id(2), y)]);
+    // The machine's result place is root 1; the literal is the root its
+    // operation produced, and the machine returns that root.
+    let root = produced(established);
+    assert_eq!(
+        machine
+            .structural_places
+            .iter()
+            .map(|place| place.kind)
+            .collect::<Vec<_>>(),
+        [
+            StructuralPlaceKind::Result,
+            StructuralPlaceKind::OperationResult {
+                producer: established.id,
+                structural_type: id(1),
+            },
+        ]
+    );
+    assert!(matches!(
+        entry.terminator,
+        Terminator::ReturnStructural { source, .. } if source == root
+    ));
+    // One write per scalar leaf, the operand itself, after the operation.
+    let after = ProgramPoint::AfterOperation(established.id);
+    assert_eq!(
+        written(&tables, projected(&tables, root, &[1])),
+        [(Content::Value(x), after)]
+    );
+    assert_eq!(
+        written(&tables, projected(&tables, root, &[2])),
+        [(Content::Value(y), after)]
+    );
+    assert_eq!(tables.writes.len(), 2);
+    assert!(tables.obligations.is_empty());
+}
+
+#[test]
+fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
+    // far(l: Line) -> u32 { l.to.y & l.to.y }
+    let read = || member(member(place(0, line()), 1, point()), 1, u32_type().into());
+    let body = Body {
+        slots: vec![line()],
+        statements: vec![returns(strict(
+            Strict::BitwiseAnd,
+            read(),
+            read(),
+            u32_type(),
+        ))],
+    };
+    let (machine, tables) = lower_places(body, vec![shaped(vec![line()], Some(u32_type().into()))]);
+    let formal = machine.structural_parameters[0].place;
+    assert_eq!(
+        machine.parameter_order,
+        [terminal_psi::BoundaryParameterKind::Structural]
+    );
+    assert!(machine.parameters.is_empty());
+    let reads: Vec<_> = block(&machine, 1)
+        .operations
+        .iter()
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::ScalarStructuralField {
+                source,
+                path,
+                field,
+            } => Some((*source, path.clone(), *field)),
+            _ => None,
+        })
+        .collect();
+    // Both reads name the whole formal, the carrier path `to` and the final
+    // field `y`, all by dense identity.
+    let expected = (
+        formal,
+        vec![CanonicalStructuralPathSegment::Field(id(4))],
+        id::<StructuralFieldId>(2),
+    );
+    assert_eq!(reads, [expected.clone(), expected]);
+    // The root, `l.to` and `l.to.y`: three places for two reads.
+    assert_eq!(tables.places.len(), 3);
+    let to = projected(&tables, formal, &[4]);
+    let leaf = projected(&tables, formal, &[4, 2]);
+    assert_eq!(
+        tables.places.get(leaf).unwrap().origin,
+        PlaceOrigin::Projection {
+            parent: to,
+            segment: Segment::Field(id(2)),
+        }
+    );
+    // What a formal holds at entry is not a write: it is one value per leaf,
+    // minted at the first read and shared by the second.
+    assert!(tables.writes.is_empty());
+    let entry_contents: Vec<_> = tables
+        .values
+        .iter()
+        .filter_map(|(value, row)| match row.origin {
+            ValueOrigin::EntryContent { place } => Some((value, place, row.scalar_type)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(entry_contents.len(), 1);
+    assert_eq!(
+        (entry_contents[0].1, entry_contents[0].2),
+        (leaf, u32_type())
+    );
+    // A record formal takes no value identity: with no scalar formal the
+    // result pseudo-value is value 1.
+    assert_eq!(
+        tables.values.get(id(1)).unwrap().origin,
+        ValueOrigin::MachineResult
+    );
+}
+
+#[test]
+fn a_whole_copy_carries_each_leaf_content_into_the_fresh_root() {
+    // f(a: u32, p: Point) -> u32 {
+    //     let q = Point { x: a, y: 7 };  let r = q;   // values carried
+    //     let s = p;                                   // entry contents
+    //     let t = g();  let u = t;                     // unknown contents
+    //     r.x
+    // }
+    let body = Body {
+        slots: vec![
+            u32_type().into(),
+            point(),
+            point(),
+            point(),
+            point(),
+            point(),
+            point(),
+        ],
+        statements: vec![
+            bind(
+                2,
+                literal(vec![(0, slot(0, u32_type())), (1, integer(7))], point()),
+            ),
+            bind(3, place(2, point())),
+            bind(4, place(1, point())),
+            bind(
+                5,
+                of_type(
+                    ExpressionKind::Call {
+                        callee: id(2),
+                        arguments: Vec::new(),
+                    },
+                    point(),
+                ),
+            ),
+            bind(6, place(5, point())),
+            returns(member(place(3, point()), 0, u32_type().into())),
+        ],
+    };
+    let (machine, tables) = lower_places(
+        body,
+        vec![
+            shaped(vec![u32_type().into(), point()], Some(u32_type().into())),
+            shaped(Vec::new(), Some(point())),
+        ],
+    );
+    let operations = &block(&machine, 1).operations;
+    let kinds: Vec<_> = operations
+        .iter()
+        .map(|operation| match &operation.kind {
+            OperationKind::IntegerConstant { .. } => "constant",
+            OperationKind::EstablishRecord { .. } => "establish",
+            OperationKind::StructuralLeafCopy { path, .. } if path.is_empty() => "copy",
+            OperationKind::CallStructuralWithScalarArguments { .. } => "call",
+            OperationKind::ScalarStructuralField { .. } => "read",
+            other => panic!("unexpected operation {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            "constant",
+            "establish",
+            "copy",
+            "copy",
+            "call",
+            "copy",
+            "read"
+        ]
+    );
+    let a: ValueId = id(1);
+    let seven = operations[0].result.scalar().unwrap().id;
+    let formal = machine.structural_parameters[0].place;
+    let (q, r, s, t, u) = (
+        produced(&operations[1]),
+        produced(&operations[2]),
+        produced(&operations[3]),
+        produced(&operations[4]),
+        produced(&operations[5]),
+    );
+    let copy_source = |operation: &terminal_psi::Operation| match &operation.kind {
+        OperationKind::StructuralLeafCopy { source, .. } => *source,
+        other => panic!("copy expected, found {other:?}"),
+    };
+    assert_eq!(
+        [&operations[2], &operations[3], &operations[5]].map(copy_source),
+        [q, formal, t]
+    );
+    let after = |position: usize| ProgramPoint::AfterOperation(operations[position].id);
+    // `r` holds exactly the values `q` was established with.
+    assert_eq!(
+        written(&tables, projected(&tables, r, &[1])),
+        [(Content::Value(a), after(2))]
+    );
+    assert_eq!(
+        written(&tables, projected(&tables, r, &[2])),
+        [(Content::Value(seven), after(2))]
+    );
+    // `s` holds the formal's entry contents: one value per leaf, each minted
+    // for its own leaf of the formal and never written there.
+    let entry_content = |field| {
+        let leaf = projected(&tables, formal, &[field]);
+        assert!(written(&tables, leaf).is_empty());
+        let mut values = tables
+            .values
+            .iter()
+            .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: leaf });
+        let (value, _) = values.next().unwrap();
+        assert!(values.next().is_none());
+        value
+    };
+    assert_eq!(
+        written(&tables, projected(&tables, s, &[1])),
+        [(Content::Value(entry_content(1)), after(3))]
+    );
+    assert_eq!(
+        written(&tables, projected(&tables, s, &[2])),
+        [(Content::Value(entry_content(2)), after(3))]
+    );
+    // A call's record result has no value identity, and neither does a copy
+    // of it: nothing is invented for either.
+    assert_eq!(
+        written(&tables, *tables.roots.get(t).unwrap()),
+        [(Content::Overwritten, after(4))]
+    );
+    for field in [1, 2] {
+        assert_eq!(
+            written(&tables, projected(&tables, u, &[field])),
+            [(Content::Overwritten, after(5))]
+        );
+    }
+    // The read names `r`'s root directly; a local has no place of its own.
+    assert!(matches!(
+        &operations[6].kind,
+        OperationKind::ScalarStructuralField { source, path, field }
+            if *source == r && path.is_empty() && *field == id(1)
+    ));
+}
+
+#[test]
+fn a_record_argument_is_passed_whole_and_owned_and_its_home_is_retired() {
+    // f(p: Point) -> u32 { g(p, 5) }, with g(Point, u32) -> u32.
+    let body = Body {
+        slots: vec![point()],
+        statements: vec![returns(call(
+            2,
+            vec![place(0, point()), integer(5)],
+            Some(u32_type()),
+        ))],
+    };
+    let (machine, tables) = lower_places(
+        body,
+        vec![
+            shaped(vec![point()], Some(u32_type().into())),
+            shaped(vec![point(), u32_type().into()], Some(u32_type().into())),
+        ],
+    );
+    let entry = block(&machine, 1);
+    let [copied, constant, called] = entry.operations.as_slice() else {
+        panic!("three operations");
+    };
+    // Passing by value copies the formal into a root nothing else names.
+    let formal = machine.structural_parameters[0].place;
+    let argument = produced(copied);
+    assert!(matches!(
+        &copied.kind,
+        OperationKind::StructuralLeafCopy { source, path } if *source == formal && path.is_empty()
+    ));
+    let five = constant.result.scalar().unwrap().id;
+    let OperationKind::CallStructuralScalar {
+        callee,
+        arguments,
+        structural_arguments,
+        ..
+    } = &called.kind
+    else {
+        panic!("a scalar-result call with a record argument");
+    };
+    assert_eq!(*callee, id::<MachineId>(2));
+    assert_eq!(arguments, &[five]);
+    assert_eq!(
+        structural_arguments,
+        &[StructuralArgument::whole(argument, StructuralAccess::Owned)]
+    );
+    // The invocation row keeps the authored order across both lanes.
+    let invocation = tables.invocations.get(id(1)).unwrap();
+    assert_eq!(
+        invocation.actuals,
+        [
+            Actual::Place(*tables.roots.get(argument).unwrap()),
+            Actual::Value(five)
+        ]
+    );
+    // The consumed home is retired on the edge into the continuation, which
+    // returns the call's result.
+    let Terminator::Jump {
+        target,
+        cleanup_actions,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("continuation edge");
+    };
+    assert_eq!(
+        cleanup_actions,
+        &[terminal_psi::TerminalAffineCleanupAction::RetireHome(
+            argument
+        )]
+    );
+    let result = called.result.scalar().unwrap().id;
+    assert!(matches!(
+        block(&machine, target.get()).terminator,
+        Terminator::Return { value, .. } if value == result
+    ));
+}
+
+#[test]
+fn a_projected_record_is_copied_out_by_its_path() {
+    // ends(l: Line) -> Point { l.to }
+    let body = Body {
+        slots: vec![line()],
+        statements: vec![returns(member(place(0, line()), 1, point()))],
+    };
+    let (machine, tables) = lower_places(body, vec![shaped(vec![line()], Some(point()))]);
+    let [copied] = block(&machine, 1).operations.as_slice() else {
+        panic!("one copy");
+    };
+    let formal = machine.structural_parameters[0].place;
+    let OperationKind::StructuralLeafCopy { source, path } = &copied.kind else {
+        panic!("copy");
+    };
+    assert_eq!((*source, path.len()), (formal, 1));
+    // The copy carries the entry content of each leaf beneath `l.to`.
+    let copy = produced(copied);
+    for field in [1, 2] {
+        let from = projected(&tables, formal, &[4, field]);
+        let [(Content::Value(value), _)] = written(&tables, projected(&tables, copy, &[field]))[..]
+        else {
+            panic!("one value per leaf");
+        };
+        assert_eq!(
+            tables.values.get(value).unwrap().origin,
+            ValueOrigin::EntryContent { place: from }
+        );
+    }
+}
+
+#[test]
+fn a_module_with_records_declares_them_and_encodes() {
+    // make(a: u32) -> Line { Line { to: Point { x: a, y: 7 }, from: ... } }
+    let inner = |x: Expression| literal(vec![(0, x), (1, integer(7))], point());
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![returns(literal(
+            vec![(1, inner(slot(0, u32_type()))), (0, inner(integer(1)))],
+            line(),
+        ))],
+    });
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    signatures.push(shaped(vec![u32_type().into()], Some(line())));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let module = &elaboration.module;
+    assert_eq!(module.structural_types.len(), 2);
+    assert_eq!(module.native_layouts.records().count(), 2);
+    assert!(
+        module
+            .structural_types
+            .iter()
+            .all(|declaration| declaration.copyable)
+    );
+    terminal_codec::encode_module(module).unwrap();
+    // A scalar module declares nothing.
+    let mut scalar_bodies: IdTable<MachineId, Body> = IdTable::default();
+    scalar_bodies.push(Body {
+        slots: Vec::new(),
+        statements: vec![returns(integer(1))],
+    });
+    let mut scalar_signatures: IdTable<MachineId, Signature> = IdTable::default();
+    scalar_signatures.push(signature(Vec::new(), Some(u32_type())));
+    let scalar = crate::lower_bodies(
+        id(1),
+        &scalar_bodies,
+        &scalar_signatures,
+        &IdTable::default(),
+    )
+    .unwrap();
+    assert!(scalar.module.structural_types.is_empty());
+    assert_eq!(scalar.module.native_layouts.records().count(), 0);
 }

@@ -13,9 +13,10 @@ Per machine it does three things:
 
 - Fills the `knowledge` table from the lowered form alone: each entry
   `requires` clause at the entry block, each operation's result equation on
-  its normal successor (Terminal semantics states it), and each callee
-  `ensures` clause, under the call's actuals, after the call. Nothing comes
-  from source shapes, names or any Psi 05 or validation fact.
+  its normal successor (Terminal semantics states it), each field read's
+  equation with the one value its place holds on every path to it (`places`),
+  and each callee `ensures` clause, under the call's actuals, after the call.
+  Nothing comes from source shapes, names or any Psi 05 or validation fact.
 - States each obligation's goal over Terminal values: an operation's safety
   goal is Terminal semantics' own canonical goal, a call requirement is the
   callee's `requires` clause under the call's actuals, a normal guarantee is
@@ -29,6 +30,7 @@ refused as `Unsupported`; elaboration mints none of them yet.
 */
 
 mod graph;
+mod places;
 mod prove;
 
 #[cfg(test)]
@@ -256,6 +258,7 @@ fn machine(
     }
     let types = tables.values.map(|_, row| row.scalar_type);
     let graph = Graph::new(id, lowered, tables)?;
+    let entry_contents = places::entry_contents(id, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         push_knowledge(
             tables,
@@ -269,6 +272,18 @@ fn machine(
     for block in &lowered.blocks {
         for operation in &block.operations {
             if let Some(equation) = result_equation(id, operation, &types)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::AfterOperation(operation.id),
+                    Justification::OperationSemantics(operation.id),
+                );
+            }
+            // A field read's result is a fresh value; what it equals comes
+            // from the write log, not from the operation alone.
+            if let Some(equation) =
+                places::read_equation(id, tables, &graph, &entry_contents, operation)?
+            {
                 push_knowledge(
                     tables,
                     equation,
@@ -315,7 +330,7 @@ fn machine(
             ));
         };
         let callee = callee(id, invocation, &row.callee)?;
-        let actuals = actuals(id, invocation, &row.actuals)?;
+        let actuals = scalar_actuals(&row.actuals);
         let contract = &terminal_machine(machines, callee, id)?.contract;
         for (clause, ensures) in contract.ensures.iter().enumerate() {
             let proposition =
@@ -523,27 +538,25 @@ fn callee(
     }
 }
 
-fn actuals(
-    machine: MachineId,
-    invocation: terminal_check_tables::InvocationId,
-    actuals: &[Actual],
-) -> Checked<Vec<ValueId>> {
-    actuals
-        .iter()
-        .map(|actual| match actual {
-            Actual::Value(value) => Ok(*value),
-            Actual::Place(_) => Err(refusal(
-                RefusalReason::Unsupported,
-                machine,
-                Construct::Invocation(invocation),
-                "structural actual",
-            )),
-        })
-        .collect()
+/// A call's scalar lane: the actuals a callee clause's formals stand for.
+/// Elaboration numbers a machine's scalar formals apart from its record
+/// formals (the `k`-th scalar formal is its value `k + 1`), so a clause term
+/// is replaced by position in this lane. A record actual is a place and has
+/// no value identity; no clause term can name it, because elaboration refuses
+/// a clause that names or projects a record formal.
+fn scalar_actuals(actuals: &[Actual]) -> Vec<ValueId> {
+    let mut scalars = Vec::with_capacity(actuals.len());
+    for actual in actuals {
+        match actual {
+            Actual::Value(value) => scalars.push(*value),
+            Actual::Place(_) => {}
+        }
+    }
+    scalars
 }
 
-/// Replaces callee formal `i` (callee value `i + 1`) by the caller's actual
-/// `i`, in the clause forms elaboration produces. Any other form is refused:
+/// Replaces the callee's `k`-th scalar formal (callee value `k + 1`) by the
+/// caller's `k`-th scalar actual, in the clause forms elaboration produces. Any other form is refused:
 /// substituting under a construct this function does not know would be a
 /// silent change of meaning.
 fn substitute(
@@ -645,7 +658,7 @@ fn goal(
                 Construct::Invocation(invocation),
             )?;
             let callee = callee(id, invocation, &row.callee)?;
-            let actuals = actuals(id, invocation, &row.actuals)?;
+            let actuals = scalar_actuals(&row.actuals);
             let contract = &terminal_machine(machines, callee, id)?.contract;
             let clause = usize::try_from(clause)
                 .ok()

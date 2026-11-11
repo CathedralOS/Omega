@@ -126,14 +126,17 @@ refused as `Unsupported`, never accepted by default.
   `ContentProjectionScalar` hold `String`s. Route one (scalars) uses none of
   them. The lane that adds content knowledge replaces them with typed
   identities first; this crate does not wrap or copy them.
-- **A second place form inside propositions.** `Proposition`'s structural
-  variants (`StructuralIdentity`, `StructuralCaseMembership`, IEEE and
-  byte-sequence fields) name storage as `PlaceId` plus
-  `Vec<CanonicalStructuralPathSegment>`, beside this crate's `ExactPlaceId`.
-  Knowledge here is over values, and a storage observation enters as the value
-  a read produced, so route one needs neither. The records-and-fields lane
-  must choose one form before it adds knowledge about places; it must not keep
-  both.
+- **A second place form inside propositions: decided, values only.**
+  `Proposition`'s structural variants (`StructuralIdentity`,
+  `StructuralCaseMembership`, IEEE and byte-sequence fields) name storage as
+  `PlaceId` plus `Vec<CanonicalStructuralPathSegment>`, beside this crate's
+  `ExactPlaceId`. The places foundation lane chose one form
+  (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
+  carrier"): knowledge never names a place. A storage observation enters as the value its
+  read produced, and what the read equals is one more equation between values,
+  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  a structural `Proposition` variant in a knowledge row; a contract clause
+  that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's
   `requires` and `ensures` inline in its `MachineContract`; its only
   `PropositionId` table is named proposition declarations. `Summary`
