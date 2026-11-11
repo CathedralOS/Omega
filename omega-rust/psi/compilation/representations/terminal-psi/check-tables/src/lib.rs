@@ -187,8 +187,8 @@ pub enum UnprovedCause {
     /// it from the knowledge available at the obligation's point.
     NoDerivation,
     /// The prover has no rule for the goal's form (an order or equality over
-    /// non-integers, a shift-left bound, a proposition form it does not
-    /// reason about), so it cannot judge the obligation either way.
+    /// non-integers, a proposition form it does not reason about), so it
+    /// cannot judge the obligation either way.
     NoRuleForGoalForm,
     /// The prover built a certificate and the proof kernel refused it: an
     /// invalid proof ("an invalid certificate is `Reject`").
