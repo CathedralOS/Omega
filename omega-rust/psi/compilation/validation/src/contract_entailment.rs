@@ -49320,6 +49320,9 @@ pub(crate) mod structural_judgment {
                         Ok(IdentityNormalization::Values(values)) => values,
                         Err(_) => return StructuralJudgment::Unknown,
                     };
+                if self.identity_disjoint(left.clone(), right.clone(), depth + 1) {
+                    return StructuralJudgment::Refuted;
+                }
                 let direct = self.exact_identity_congruence(
                     left.clone(),
                     right.clone(),
@@ -49340,6 +49343,61 @@ pub(crate) mod structural_judgment {
                     StructuralJudgment::Proven
                 } else {
                     StructuralJudgment::Unknown
+                }
+            }
+
+            /// Id between two values is empty when their resolved forms are
+            /// distinct cases of one data carrier, distinct integers, or the same
+            /// case with a disjoint payload field. This is the inductive
+            /// constructor law, not an executable equality: floats are never
+            /// compared here because IEEE equality does not decide identity.
+            fn identity_disjoint(
+                &self,
+                left: StructuralTerm,
+                right: StructuralTerm,
+                depth: usize,
+            ) -> bool {
+                if depth >= 32 {
+                    return false;
+                }
+                let left = self.resolve_at(left, depth + 1).into_semantic_value();
+                let right = self.resolve_at(right, depth + 1).into_semantic_value();
+                match (&left, &right) {
+                    (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
+                        left != right
+                    }
+                    (
+                        StructuralTerm::Constructor {
+                            identity: identity_l,
+                            fields: fields_l,
+                            ..
+                        },
+                        StructuralTerm::Constructor {
+                            identity: identity_r,
+                            fields: fields_r,
+                            ..
+                        },
+                    ) => {
+                        if !identity_l.same_carrier(*identity_r) {
+                            return false;
+                        }
+                        if identity_l != identity_r {
+                            return true;
+                        }
+                        fields_l.iter().any(|(name, value_l)| {
+                            fields_r
+                                .iter()
+                                .find(|(candidate, _)| candidate == name)
+                                .is_some_and(|(_, value_r)| {
+                                    self.identity_disjoint(
+                                        value_l.clone(),
+                                        value_r.clone(),
+                                        depth + 1,
+                                    )
+                                })
+                        })
+                    }
+                    _ => false,
                 }
             }
 
