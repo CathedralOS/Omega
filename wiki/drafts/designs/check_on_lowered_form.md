@@ -495,20 +495,21 @@ overwrites; a rank premise across a pause.
   remaining families is checked as each lane lands.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
   premise of this record and is unmeasured until route one's gate.
-- **Reuse of checked results.** [`generics.md`](../../spec/language/generics.md#closed-applications-and-canonical-identity)
-  requires checked derivations to be carried through specialization without
-  re-searching under a consumer's smaller discovery budget;
+- **Reuse of checked results. Answered 2026-11-11 (Jarod), decision
+  `specialization-certificate-reuse`:** a proof that was found once is carried
+  forward, and every consumer checks it again. The consumer works out its own
+  goal from its own program and has `proof/admission` decide the carried
+  certificate against that goal, without searching again. A certificate that
+  no longer fits is refused, and a pass from an earlier compile is never used
+  in place of checking. This is how the two clauses are read together:
+  [`generics.md`](../../spec/language/generics.md#closed-applications-and-canonical-identity)
+  ("Carry checked derivations through specialization and published artifacts
+  without re-searching") is about search, and
   [`validation_subjects.md`](../../spec/build/validation_subjects.md#what-this-rule-does-not-do)
-  says "No result is reused". Recorded for the owner as
-  `specialization-certificate-reuse` in
-  [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md), together with the
-  reading to confirm (carry certificates through specialization and re-verify
-  them in `proof/admission` in each consumer without re-searching). Read in
-  context the two clauses agree: the validation chapter's own account of a
-  check is "a lemma with valid evidence", and "a generic body under its
-  requirements", which also points to checking a generic body once. A test of
-  re-verifying a saved proof, including stale and misplaced ones, is planned
-  in `lowered-discharge` before anything is built on it.
+  ("No result is reused: a consumer checks every dependency declaration it
+  needs afresh") is about checking. `lowered_discharge::reverify` is the
+  tested mechanism; substituting a concrete type for a type parameter in a
+  certificate is not built yet.
 
 ## Corrections to fact transport
 
