@@ -3622,6 +3622,10 @@ fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 5201ms ex
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 5930ms expected @089c0a150e63
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
+fail/contracts/rankless_cycle_guarantee_cannot_cite_member rejected 7801ms expected @9fafe3f2b7ef
+	cannot prove ensures contract for exit from first at statement 1: result == 5
+	cannot prove ensures contract for exit from second at statement 1: result == 5
+	cannot prove ensures contract for exit from second at statement 2: result == 5
 fail/contracts/recurrent_call_prefix_requires_every_arrival rejected 2401ms expected @ccdb99ca2214
 	cannot prove requires contract for call inspect from inspect: addr::Bound == 18446744073709551616 && 2 <= 1 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/recursive_private_arrival_exit rejected 2447ms expected @7391b2ce665a
@@ -21271,6 +21275,7 @@ pass/contracts/policy_field_ensures checked 3562ms @ccdb99ca2214
 pass/contracts/private_arrival_cases_exit checked 4374ms check-target:macos_arm64 @3cc4d80d3988
 pass/contracts/proof_fact_indexed_domain_application checked 11823ms @089c0a150e63
 pass/contracts/range_requires_discharge checked 3350ms @ccdb99ca2214
+pass/contracts/rankless_cycle_guarantee_holds_at_producers checked 7863ms @9fafe3f2b7ef
 pass/contracts/recurrent_call_prefix_preserves_model checked 3269ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/recursive_private_arrival_exit checked 3358ms check-target:macos_arm64 @7391b2ce665a
 pass/contracts/requires_narrow_ceiling_unproven checked 16071ms check-target:macos_arm64 @ccdb99ca2214
