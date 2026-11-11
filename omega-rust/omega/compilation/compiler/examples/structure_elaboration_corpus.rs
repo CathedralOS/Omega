@@ -19,12 +19,15 @@
 //! is the elaboration result (`lowered`, `refused` with `reason`, `no-entry`,
 //! or `none` when there were no trees). `total` lines follow the fixtures.
 //!
-//! A fixture that binds no program entry keeps the stage `no-entry`, but the
-//! new route is still asked about it: each machine the fixture's own package
-//! declares is elaborated as a root of its own, and `roots` says how many.
-//! `judged` is `lowered_discharge::judge`'s verdict over every root, the one
-//! a router would take: `fallback` when any root is outside the route, else
-//! `rejected` when any root is, else `incomplete`, else `accepted`.
+//! The stage, detail and `route` fields describe the bound entry's closure,
+//! as before. `judged` asks more: each machine the fixture's own package
+//! declares is elaborated as a root of its own, whether or not an entry
+//! calls it, `roots` says how many, and `judged` is
+//! `lowered_discharge::judge`'s verdict over all of them, the one a router
+//! would take: `fallback` when any root is outside the route, else
+//! `rejected` when any root is, else `incomplete`, else `accepted`. A
+//! fixture that binds no entry keeps the stage `no-entry`; its `route` is
+//! then the elaboration result over those roots.
 //! This is a measuring tool, not a gate.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
@@ -121,10 +124,12 @@ fn probe(main: &Path) -> Probed {
                 };
             }
         };
+    // The route is asked about every machine the fixture's own package
+    // declares, each as a root of its own, and not only about the closure
+    // of a bound entry: a machine no entry calls is still part of the
+    // program the current checker judged.
+    let mut roots = own_machines(&frontier.typed, fixture);
     let Some(entry) = frontier.entries.first().copied() else {
-        // No entry binds a closure, so every machine of the fixture's own
-        // package is a root of its own.
-        let roots = own_machines(&frontier.typed, fixture);
         let (route, reason, judged) = judge_roots(&frontier.typed, &roots);
         return Probed {
             legacy: failed.unwrap_or_else(|| "no-entry\t-".to_owned()),
@@ -135,14 +140,18 @@ fn probe(main: &Path) -> Probed {
             judged: Some((roots.len(), judged)),
         };
     };
-    let (_, _, judged) = judge_roots(&frontier.typed, &[entry]);
+    if !roots.contains(&entry) {
+        roots.push(entry);
+    }
+    let (_, _, judged) = judge_roots(&frontier.typed, &roots);
+    let judged = Some((roots.len(), judged));
     let probed = |legacy: String, route, reason| Probed {
         legacy: failed.clone().unwrap_or(legacy),
         reached: "yes",
         current,
         route,
         reason,
-        judged: Some((1, judged)),
+        judged,
     };
     if std::env::var_os("STRUCTURE_ELABORATION_DUMP").is_some() {
         dump_transitions(&frontier.typed);
