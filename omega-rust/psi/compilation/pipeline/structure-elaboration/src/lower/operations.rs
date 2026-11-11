@@ -1,6 +1,7 @@
 /*
 The operation family of lowering: expressions as scalar operations emitted in
 evaluation order, and the `OperationSafety` obligation of each partial one.
+A record-typed expression is storage and goes to `places`.
 */
 
 use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
@@ -9,9 +10,10 @@ use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, ProgramPoint};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
+use super::places::Bound;
 use super::{Lowering, Value, declaration};
 use crate::SourceOrigin;
-use crate::body::{Expression, ExpressionKind, Strict};
+use crate::body::{Expression, ExpressionKind, Strict, ValueType};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
@@ -54,6 +56,7 @@ impl Lowering<'_> {
     pub(super) fn scalar(&mut self, expression: &Expression) -> Checked<ValueId> {
         match self.expression(expression)? {
             Value::Scalar(value) => Ok(value),
+            Value::Record(_) => Err(self.internal("a record is used as a scalar value")),
             Value::Unit => Err(self.internal("a Unit call is used as a value")),
         }
     }
@@ -61,17 +64,25 @@ impl Lowering<'_> {
     fn result_type(&self, expression: &Expression) -> Checked<ScalarType> {
         expression
             .result
+            .and_then(ValueType::scalar)
             .ok_or_else(|| self.internal("an operand has no scalar type"))
     }
 
     pub(super) fn expression(&mut self, expression: &Expression) -> Checked<Value> {
         let source = expression.source;
+        // A record-typed expression names storage; its value is a root that
+        // holds it. Everything below is scalar or Unit.
+        let result = match expression.result {
+            Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
+            Some(ValueType::Scalar(scalar_type)) => Some(scalar_type),
+            None => None,
+        };
         match &expression.kind {
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(
                     operation,
-                    expression.result,
+                    result,
                     OperationKind::IntegerConstant { value: *value },
                 )
             }
@@ -79,31 +90,40 @@ impl Lowering<'_> {
                 let operation = self.operation_identity(source);
                 self.emit(
                     operation,
-                    expression.result,
+                    result,
                     OperationKind::BooleanConstant { value: *value },
                 )
             }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
-                bound
-                    .map(Value::Scalar)
-                    .ok_or_else(|| self.internal("a slot is read before it is bound"))
+                match bound {
+                    Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    Some(Bound::Home(home)) => {
+                        let scalar_type = self.result_type(expression)?;
+                        self.read_home(home, scalar_type, source)
+                    }
+                    Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
+                    None => Err(self.internal("a slot is read before it is bound")),
+                }
+            }
+            ExpressionKind::Field { base, field } => {
+                let scalar_type = self.result_type(expression)?;
+                self.read_field(base, *field, scalar_type, source)
+            }
+            ExpressionKind::Record { .. } => {
+                Err(self.internal("a record literal has a scalar type"))
             }
             ExpressionKind::Not(operand) => {
                 let operand = self.scalar(operand)?;
                 let operation = self.operation_identity(source);
-                self.emit(
-                    operation,
-                    expression.result,
-                    OperationKind::BooleanNot { operand },
-                )
+                self.emit(operation, result, OperationKind::BooleanNot { operand })
             }
             ExpressionKind::BitwiseNot(operand) => {
                 let operand = self.scalar(operand)?;
                 let operation = self.operation_identity(source);
                 self.emit(
                     operation,
-                    expression.result,
+                    result,
                     OperationKind::IntegerBitwiseNot { operand },
                 )
             }
@@ -115,14 +135,7 @@ impl Lowering<'_> {
                 let left = self.scalar(left_expression)?;
                 let right = self.scalar(right)?;
                 let operand_type = self.result_type(left_expression)?;
-                self.strict(
-                    *operation,
-                    operand_type,
-                    left,
-                    right,
-                    expression.result,
-                    source,
-                )
+                self.strict(*operation, operand_type, left, right, result, source)
             }
             ExpressionKind::ShortCircuit {
                 conjunction,

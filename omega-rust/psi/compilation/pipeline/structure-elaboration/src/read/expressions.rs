@@ -1,7 +1,8 @@
 /*
 The expression family of the reader: names as slots, literals, the scalar
 operators and the short-circuit operators, and whether two read expressions
-are the same computation.
+are the same computation. Record literals and member paths are read in
+`places`.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -11,7 +12,7 @@ use typed_trees::expression::{
 };
 
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind, Strict};
+use crate::body::{Expression, ExpressionKind, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
@@ -97,17 +98,22 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
-                (ExpressionKind::Slot(slot), slots[slot].scalar_type)
+                return Ok(Expression {
+                    kind: ExpressionKind::Slot(slot),
+                    result: Some(slots[slot].value_type),
+                    source,
+                });
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
                 match (unary.operator, operand.result) {
-                    (UnaryOperator::LogicalNot, Some(ScalarType::Boolean)) => {
+                    (UnaryOperator::LogicalNot, Some(ValueType::Scalar(ScalarType::Boolean))) => {
                         (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean)
                     }
-                    (UnaryOperator::BitwiseNot, Some(integer @ ScalarType::Integer(_))) => {
-                        (ExpressionKind::BitwiseNot(Box::new(operand)), integer)
-                    }
+                    (
+                        UnaryOperator::BitwiseNot,
+                        Some(ValueType::Scalar(integer @ ScalarType::Integer(_))),
+                    ) => (ExpressionKind::BitwiseNot(Box::new(operand)), integer),
                     _ => {
                         return Err(refuse(
                             id,
@@ -146,11 +152,13 @@ impl<'t> Program<'t> {
                 };
                 let (left, right) = if self.anonymous_literal(binary.left) {
                     let right = self.expression(id, slots, binary.right, hint)?;
-                    let left = self.expression(id, slots, binary.left, hint.or(right.result))?;
+                    let partner = right.result.and_then(ValueType::scalar);
+                    let left = self.expression(id, slots, binary.left, hint.or(partner))?;
                     (left, right)
                 } else {
                     let left = self.expression(id, slots, binary.left, hint)?;
-                    let right = self.expression(id, slots, binary.right, hint.or(left.result))?;
+                    let partner = left.result.and_then(ValueType::scalar);
+                    let right = self.expression(id, slots, binary.right, hint.or(partner))?;
                     (left, right)
                 };
                 return binary_expression(id, binary.operator, left, right, source);
@@ -165,16 +173,18 @@ impl<'t> Program<'t> {
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(_) => return unserved("index"),
-            ExpressionNode::Member(_) => return unserved("member"),
+            ExpressionNode::Member(member) => return self.member(id, slots, member, source),
             ExpressionNode::Borrow(_) => return unserved("borrow"),
             ExpressionNode::Range(_) => return unserved("range"),
-            ExpressionNode::StructLiteral(_) => return unserved("record literal"),
+            ExpressionNode::StructLiteral(literal) => {
+                return self.record_literal(id, slots, literal, source);
+            }
             ExpressionNode::String(_) => return unserved("string literal"),
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
             kind,
-            result: Some(result),
+            result: Some(ValueType::Scalar(result)),
             source,
         })
     }
@@ -205,6 +215,17 @@ fn binary_expression(
     let (Some(left_type), Some(right_type)) = (left.result, right.result) else {
         return Err(typing("Unit operand"));
     };
+    // Builtin operators are over scalars. Equality of two records needs
+    // synthesized structural comparison evidence
+    // (`wiki/spec/terminal-psi/structural_predicates.md`) and is refused.
+    let (ValueType::Scalar(left_type), ValueType::Scalar(right_type)) = (left_type, right_type)
+    else {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Expression("operator on a record"),
+        ));
+    };
     let (operation, operands) = match operator {
         BinaryOperator::And | BinaryOperator::Or => {
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
@@ -216,7 +237,7 @@ fn binary_expression(
                     left: Box::new(left),
                     right: Box::new(right),
                 },
-                result: Some(ScalarType::Boolean),
+                result: Some(ValueType::Scalar(ScalarType::Boolean)),
                 source,
             });
         }
@@ -265,7 +286,7 @@ fn binary_expression(
             left: Box::new(left),
             right: Box::new(right),
         },
-        result: Some(result),
+        result: Some(ValueType::Scalar(result)),
         source,
     })
 }
@@ -320,10 +341,28 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }
+            (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
+                a.len() == b.len()
+                    && a.iter()
+                        .zip(b)
+                        .all(|((a_field, a), (b_field, b))| a_field == b_field && both(a, b))
+            }
+            (
+                ExpressionKind::Field {
+                    base: a,
+                    field: a_field,
+                },
+                ExpressionKind::Field {
+                    base: b,
+                    field: b_field,
+                },
+            ) => a_field == b_field && both(a, b),
             (
                 ExpressionKind::Integer(_)
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
+                | ExpressionKind::Record { .. }
+                | ExpressionKind::Field { .. }
                 | ExpressionKind::Strict { .. }
                 | ExpressionKind::Not(_)
                 | ExpressionKind::BitwiseNot(_)

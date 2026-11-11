@@ -162,11 +162,15 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate(expression)
+                | Statement::Store {
+                    value: expression, ..
+                } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
                 }
+                Statement::Declare { .. } => {}
                 Statement::Arm { guard, target, .. } => {
                     if let Some(guard) = guard
                         && !self.expression(machine, guard)?
@@ -204,6 +208,17 @@ impl Walk<'_> {
             }
             ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
                 self.expression(machine, operand)
+            }
+            ExpressionKind::Field { base, .. } => self.expression(machine, base),
+            // Operands in authored order; the establishment itself cannot
+            // crash or fail to complete.
+            ExpressionKind::Record { fields } => {
+                for (_, operand) in fields {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
             }
             ExpressionKind::Strict { left, right, .. } => {
                 Ok(self.expression(machine, left)? && self.expression(machine, right)?)

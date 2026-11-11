@@ -1,6 +1,7 @@
 /*
 The type family of the reader: which typed-tree type is a scalar, by the
-`builtin_type_atom` route, and the type and value an integer literal lands on.
+`builtin_type_atom` route, which is a record, by its data declaration
+(`places`), and the type and value an integer literal lands on.
 */
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
@@ -10,6 +11,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
+use crate::body::ValueType;
 use crate::{Unserved, refuse};
 
 fn integer(sign: IntegerSign, bits: u16, machine: MachineId) -> Checked<ScalarType> {
@@ -125,13 +127,33 @@ impl Program<'_> {
         }
     }
 
+    /// A formal's, local's, result's or field's type: a record when the
+    /// type is a `Named` data declaration, else whatever the scalar route
+    /// says, including its refusals.
+    pub(super) fn value_type(
+        &mut self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(handle)
+            && symbol.is_valid()
+            && self.typed.symbols.builtin_type_atom(*symbol).is_none()
+            && self.data_declaration(*symbol).is_some()
+        {
+            return self.record(id, *symbol);
+        }
+        self.scalar_type(id, handle).map(ValueType::Scalar)
+    }
+
     /// A state's result: the invalid handle and `Unit` are both a Unit
     /// machine, because that is how the typed trees record "no result".
     pub(super) fn result_type(
-        &self,
+        &mut self,
         id: MachineId,
         handle: TypeReferenceHandle,
-    ) -> Checked<Option<ScalarType>> {
+    ) -> Checked<Option<ValueType>> {
         if !handle.is_valid() {
             return Ok(None);
         }
@@ -142,7 +164,7 @@ impl Program<'_> {
         ) {
             return Ok(None);
         }
-        self.scalar_type(id, handle).map(Some)
+        self.value_type(id, handle).map(Some)
     }
 
     /// An integer literal that stage 04 left without a landed type: it lands

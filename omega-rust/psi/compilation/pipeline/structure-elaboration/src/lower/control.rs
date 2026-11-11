@@ -1,10 +1,13 @@
 /*
 The control family of lowering: blocks and the open block, edges and
 terminators, transition arms, short-circuit joins, crashes and returns.
+A record value returns through `ReturnStructural`, naming the root that
+holds it.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, EdgeId, ObligationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, CrashCause, EdgeId, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    ValueId,
 };
 use terminal_check_tables::edges::{Destination, Disposition, EdgeRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -12,8 +15,9 @@ use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalReason};
 use terminal_psi::{CrashPredicateTerm, Terminator};
 
+use super::places::Bound;
 use super::{Draft, Lowering, Value, declaration, successor};
-use crate::body::{Expression, Statement, Target};
+use crate::body::{Expression, Statement, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -54,7 +58,11 @@ impl Lowering<'_> {
         })
     }
 
-    fn edge(&mut self, destination: Destination, source: SourceOrigin) -> Checked<EdgeId> {
+    pub(super) fn edge(
+        &mut self,
+        destination: Destination,
+        source: SourceOrigin,
+    ) -> Checked<EdgeId> {
         let edge = self.tables.edges.push(EdgeRow {
             source: self.current()?,
             destination,
@@ -136,6 +144,21 @@ impl Lowering<'_> {
         self.guarantee(edge, source)
     }
 
+    /// A record result returns the root that holds it.
+    /// `wiki/spec/terminal-psi/calls_and_outcomes.md`, "Normal results":
+    /// a structural result is one place, apart from the scalar lane. The
+    /// plain record holds no claim, so none is returned.
+    fn return_record(&mut self, source_root: PlaceId, source: SourceOrigin) -> Checked<()> {
+        let edge = self.edge(Destination::Return, source)?;
+        self.terminate(Terminator::ReturnStructural {
+            edge,
+            source: source_root,
+            returned_claims: Vec::new(),
+            cleanup_actions: Vec::new(),
+        })?;
+        self.guarantee(edge, source)
+    }
+
     pub(super) fn return_unit(&mut self, source: SourceOrigin) -> Checked<()> {
         let edge = self.edge(Destination::Return, source)?;
         self.terminate(Terminator::ReturnUnit {
@@ -153,10 +176,20 @@ impl Lowering<'_> {
         }
         match statement {
             Statement::Bind { slot, value } => {
-                let value = self.scalar(value)?;
-                *self.slot_mut(*slot)? = Some(value);
+                let bound = match value.result {
+                    Some(ValueType::Record(_)) => Bound::Record(self.record(value)?),
+                    Some(ValueType::Scalar(_)) | None => Bound::Scalar(self.scalar(value)?),
+                };
+                *self.slot_mut(*slot)? = Some(bound);
                 Ok(())
             }
+            Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
+            Statement::Store {
+                slot,
+                path,
+                value,
+                source,
+            } => self.store(*slot, path, value, *source),
             Statement::Evaluate(expression) => match self.no_normal(expression)? {
                 Some((callee, arguments)) => {
                     self.invoke_no_normal(callee, arguments, expression.source)
@@ -207,6 +240,7 @@ impl Lowering<'_> {
                 }
                 None => match self.expression(expression)? {
                     Value::Scalar(value) => self.return_value(value, expression.source),
+                    Value::Record(root) => self.return_record(root, expression.source),
                     Value::Unit => self.return_unit(expression.source),
                 },
             },
