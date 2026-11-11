@@ -16,6 +16,12 @@ rather than this process's working directory, so concurrent instances in one
 process never resolve each other's relative paths. Absolute paths still name
 the host's namespace, exactly as they do for the native program.
 
+Guest descriptors 0, 1 and 2 begin as the instance's modeled standard streams,
+which the runtime serves without the host. Closing one retires that stream, as
+closing a real one does, and like POSIX the next descriptor this table hands out
+is the lowest free number, so a program that closes its input and opens a file
+receives descriptor 0 for that file.
+
 When `close` fails after retiring the OS descriptor, we record a `None`
 tombstone so neither retries nor `OwnedFd` destructors can close a subsequently
 reused OS descriptor number.
@@ -56,15 +62,38 @@ pub enum KernelResult {
     Descriptor,
 }
 
-#[derive(Default)]
 pub struct LinuxFilesystem {
+    /// Which of descriptors 0, 1 and 2 still name the modeled standard streams.
+    modeled_standard: [bool; 3],
     #[cfg(target_os = "linux")]
     root: Option<std::os::fd::OwnedFd>,
     #[cfg(target_os = "linux")]
     descriptors: std::collections::BTreeMap<i32, Option<std::os::fd::OwnedFd>>,
 }
 
+impl Default for LinuxFilesystem {
+    fn default() -> Self {
+        Self {
+            modeled_standard: [true; 3],
+            #[cfg(target_os = "linux")]
+            root: None,
+            #[cfg(target_os = "linux")]
+            descriptors: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
 impl LinuxFilesystem {
+    /// Whether `guest` still names its modeled standard stream rather than a
+    /// host descriptor (or nothing, once closed).
+    pub fn models_standard(&self, guest: i32) -> bool {
+        usize::try_from(guest)
+            .ok()
+            .and_then(|index| self.modeled_standard.get(index))
+            .copied()
+            .unwrap_or(false)
+    }
+
     /// A namespace whose `AT_FDCWD` is `root` instead of the process directory.
     pub fn rooted(root: &std::path::Path) -> io::Result<Self> {
         #[cfg(target_os = "linux")]
@@ -77,7 +106,7 @@ impl LinuxFilesystem {
             }
             Ok(Self {
                 root: Some(directory.into()),
-                descriptors: std::collections::BTreeMap::new(),
+                ..Self::default()
             })
         }
         #[cfg(not(target_os = "linux"))]
@@ -147,8 +176,10 @@ impl LinuxFilesystem {
             let native = i32::try_from(status)
                 .map_err(|_| io::Error::other("kernel descriptor exceeds its native carrier"))?;
             let native = unsafe { std::os::fd::OwnedFd::from_raw_fd(native) };
-            let guest = (3..=i32::MAX)
-                .find(|guest| !self.descriptors.contains_key(guest))
+            let guest = (0..=i32::MAX)
+                .find(|guest| {
+                    !self.models_standard(*guest) && !self.descriptors.contains_key(guest)
+                })
                 .ok_or_else(|| {
                     io::Error::other("guest filesystem descriptor namespace exhausted")
                 })?;
@@ -196,10 +227,17 @@ impl LinuxFilesystem {
         #[cfg(target_os = "linux")]
         {
             use std::os::fd::IntoRawFd;
+            if self.models_standard(descriptor) {
+                // Closing a modeled stream retires it; the host never owned it.
+                self.modeled_standard[descriptor as usize] = false;
+                return Ok(0);
+            }
             self.descriptor(descriptor)?;
             let native = match self.descriptors.remove(&descriptor) {
                 Some(Some(native)) => native.into_raw_fd(),
-                None => -1,
+                // An unknown guest closes nothing: the kernel reports EBADF
+                // and no OS descriptor can have been retired.
+                None => return kernel_status(unsafe { libc::syscall(libc::SYS_close, -1) }),
                 Some(None) => unreachable!("descriptor rejected its tombstone"),
             };
             let status = kernel_status(unsafe { libc::syscall(libc::SYS_close, native) });
@@ -230,7 +268,7 @@ impl LinuxFilesystem {
     #[cfg(target_os = "linux")]
     fn descriptor(&self, guest: i32) -> io::Result<i32> {
         use std::os::fd::AsRawFd;
-        if (0..=2).contains(&guest) {
+        if self.models_standard(guest) {
             return Err(io::Error::other(
                 "filesystem delegation does not supply host standard streams",
             ));
@@ -347,6 +385,36 @@ mod tests {
             0
         );
         assert!(!directory.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn closed_standard_input_frees_descriptor_zero_for_the_next_file() -> std::io::Result<()> {
+        let root = scratch("standard")?;
+        std::fs::create_dir(&root)?;
+        let mut filesystem = LinuxFilesystem::rooted(&root)?;
+        let name = CString::new("zero")?;
+        let open = |filesystem: &mut LinuxFilesystem| {
+            filesystem.call(
+                libc::SYS_openat,
+                &mut [
+                    Operand::Directory(LINUX_AT_FDCWD),
+                    Operand::Path(&name),
+                    Operand::Value(i64::from(libc::O_CREAT | libc::O_RDWR)),
+                    Operand::Value(0o600),
+                ],
+                KernelResult::Descriptor,
+            )
+        };
+        assert_eq!(open(&mut filesystem)?, 3);
+        assert!(filesystem.models_standard(0));
+        assert_eq!(filesystem.close(0)?, 0);
+        assert!(!filesystem.models_standard(0));
+        assert_eq!(filesystem.close(0)?, -i64::from(libc::EBADF));
+        assert_eq!(open(&mut filesystem)?, 0);
+        assert_eq!(filesystem.write(0, b"zero")?, 4);
+        assert!(filesystem.models_standard(1));
+        std::fs::remove_dir_all(&root)?;
         Ok(())
     }
 

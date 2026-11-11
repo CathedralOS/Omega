@@ -39,8 +39,8 @@ pub enum TerminalFilesystemDelegation {
     HostNamespace,
     /// The host namespace with relative paths resolved beneath this directory
     /// rather than the process's working directory, so a harness can give each
-    /// execution its own scratch directory. Only the Linux kernel supply can
-    /// root its namespace; other hosts refuse this delegation.
+    /// execution its own scratch directory. Kernel calls resolve against an
+    /// open descriptor for it, and the native sponsor starts in it.
     HostDirectory(std::path::PathBuf),
 }
 
