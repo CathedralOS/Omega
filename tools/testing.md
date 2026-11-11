@@ -1665,8 +1665,11 @@ published for commit `fd5aef2f7`: 14 s to restore both, then
 That holds only while the checkout's compiler sources match the published
 commit. A change to a foundation crate recompiles every workspace crate above
 it: the same restored build, three commits away with `language-core` changed,
-took 673 s. The hook prints the published commit and says whether the sources
-match; basing new work on that commit keeps the first build short.
+took 673 s. So the hook creates `.agents/worktree/worker-1` at the published
+commit, `cargo xtask worktree acquire` hands it out there while it is untouched
+(it prints how many commits behind `origin/main` that is), and the work keeps
+that commit as its base; the merge queue integrates it with main. A slot that
+has been released or moved resets to `origin/main` as before.
 
 `mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
 on Cargo's checksum freshness, Cargo then passes

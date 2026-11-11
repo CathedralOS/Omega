@@ -31,9 +31,10 @@
 # The restore pays off only at the published commit. Most of the 11 minutes is
 # this workspace's own 89 crates, and a change to a foundation crate such as
 # language-core recompiles all of them: a build restored three commits away
-# from its sources took 673 s, as long as a cold one. session-start therefore
-# prints the published commit and whether the checkout's compiler sources
-# still match it.
+# from its sources took 673 s, as long as a cold one. So session-start creates
+# worker-1 at the published commit, `cargo xtask worktree acquire` hands it out
+# there, and the work keeps that commit as its base; the merge queue
+# integrates it with main.
 set -euo pipefail
 
 REPOSITORY=CathedralOS/Omega
@@ -43,8 +44,6 @@ SOURCE=${OMEGA_WARM_BUILD_SOURCE:-https://github.com/$REPOSITORY/releases/downlo
 SCHEMA=omega-warm-build-v2
 # Room the first build needs beyond the unpacked archive.
 HEADROOM_KIB=$((2 * 1024 * 1024))
-# What `mbx build -p omega` compiles: a difference elsewhere rebuilds nothing.
-COMPILED="omega-rust source/library Cargo.toml Cargo.lock rust-toolchain.toml .cargo"
 
 fail() { echo "warm build: $*" >&2; exit 1; }
 
@@ -100,11 +99,6 @@ restore() (
   started=$(date +%s)
   root=$(primary_root)
   dir=$(slot_dir "$slot")
-  if [ ! -e "$dir" ]; then
-    # The pool's first slot may not exist yet. `cargo xtask worktree acquire`
-    # prefers an idle slot that already holds a build, so it hands out this one.
-    git -C "$root" worktree add -q --detach "$dir" HEAD
-  fi
   # Never unpack over a build: another restore or a session's own build owns it.
   if [ -d "$dir/target" ] && [ -n "$(ls -A "$dir/target/")" ]; then
     echo "warm build: $slot kept, $dir/target already holds a build"
@@ -117,6 +111,15 @@ restore() (
   fetch "warm-build-$slot.txt" "$manifest" || fail "$slot: no published build at $SOURCE"
   [ "$(manifest_value "$manifest" schema)" = "$SCHEMA" ] || fail "$slot: unknown manifest schema"
   commit=$(manifest_value "$manifest" commit)
+  if [ ! -e "$dir" ]; then
+    # The pool's first slot does not exist yet. Create it at the commit the
+    # build came from, where the build is reused whole; `cargo xtask worktree
+    # acquire` keeps it there. A clone too shallow to hold that commit gets
+    # its own HEAD, and the first build recompiles what differs.
+    local base=HEAD
+    if git -C "$root" cat-file -e "$commit^{commit}" 2>/dev/null; then base=$commit; fi
+    git -C "$root" worktree add -q --detach "$dir" "$base"
+  fi
   asset=$(manifest_value "$manifest" asset)
   want=$(manifest_value "$manifest" rustc)
   have=$(toolchain "$dir")
@@ -157,17 +160,18 @@ session_start() {
       echo "warm build: $slot not restored; the first build compiles everything"; } &
   done
   wait
-  local stamp=$(primary_root)/.agents/worktree/worker-1/target/.warm-build.txt commit
+  local worker stamp commit
+  worker=$(slot_dir worker)
+  stamp=$worker/target/.warm-build.txt
   [ -f "$stamp" ] || return 0
   commit=$(manifest_value "$stamp" commit)
-  if ! git -C "$(primary_root)" cat-file -e "$commit^{commit}" 2>/dev/null; then
-    echo "warm build: commit ${commit:0:12} is not in this clone, so its distance from this checkout is unknown"
-  elif git -C "$(primary_root)" diff --quiet "$commit" HEAD -- $COMPILED; then
-    echo "warm build: this checkout's compiler sources match it; the first build takes under a minute"
+  if [ "$(git -C "$worker" rev-parse HEAD 2>/dev/null)" = "$commit" ]; then
+    echo "warm build: .agents/worktree/worker-1 is at the published commit ${commit:0:12};" \
+      "\`cargo xtask worktree acquire\` hands it out there, built. Keep that commit as the" \
+      "base of the work: moving to a newer main recompiles what changed, often all of it."
   else
-    echo "warm build: compiler sources here differ from commit ${commit:0:12}, so the first build recompiles" \
-      "what changed; to start from a built compiler, base new work on that commit" \
-      "(git checkout --detach ${commit:0:12} in the acquired worktree)"
+    echo "warm build: .agents/worktree/worker-1 is not at the published commit ${commit:0:12}," \
+      "so its first build recompiles what differs"
   fi
 }
 

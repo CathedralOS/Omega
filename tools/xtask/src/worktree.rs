@@ -14,6 +14,8 @@
 //! - `cargo xtask worktree status` — list all worktrees, their active topic, state, and cache.
 //! - `cargo xtask worktree acquire [<lane>-<topic>]` — claim an idle `worker-N` slot (or
 //!   recycle one into `worker-N`), reset it to `origin/main` in place, and print its path.
+//!   A cloud session's `worker-1`, still at the commit of its restored warm build, stays
+//!   at that commit instead ([`acquire_base`]).
 //! - `cargo xtask worktree release [worker-N]` — reset a finished slot to `origin/main`
 //!   and clear its topic while keeping its warm `target/` cache.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
@@ -294,13 +296,7 @@ fn has_unsaved_commits(main_root: &Path, head: &str) -> bool {
     if head.is_empty() {
         return false;
     }
-    let on_main = Command::new("git")
-        .args(["merge-base", "--is-ancestor", head, "origin/main"])
-        .current_dir(main_root)
-        .stdin(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success());
-    if on_main {
+    if is_on_main(main_root, head) {
         return false;
     }
     let Ok(out) = Command::new("git")
@@ -344,8 +340,71 @@ fn refusal_for(main_root: &Path, wt: &WorktreeInfo) -> Option<&'static str> {
 }
 
 fn reset_slot_to_main(worktree_path: &Path) -> bool {
+    reset_slot(worktree_path, "origin/main")
+}
+
+/// Where `acquire` puts a slot: `origin/main`, unless the slot still sits at the
+/// commit its restored warm build came from.
+///
+/// A Claude Code cloud session restores main's published compiler build into
+/// `worker-1` at that commit (`tools/warm_build.sh`). Cargo reuses the build
+/// only while the sources match, and main often changes a foundation crate: a
+/// build restored three commits behind its sources took 673 s, as long as a
+/// cold one, against under 5 s at its own commit. So an untouched restored slot
+/// keeps its commit as the base of the new work, and the merge queue
+/// integrates it with main. Once the slot has moved (released, or checked out
+/// elsewhere) its build no longer matches the stamp and it resets to main.
+fn acquire_base(main_root: &Path, slot: &Path, head: &str) -> String {
+    let stamp = fs::read_to_string(slot.join("target/.warm-build.txt")).unwrap_or_default();
+    match warm_build_commit(&stamp) {
+        Some(commit) if commit == head && is_on_main(main_root, commit) => commit.to_owned(),
+        _ => "origin/main".to_owned(),
+    }
+}
+
+/// The `commit=` line of the stamp `tools/warm_build.sh` leaves in a restored `target/`.
+fn warm_build_commit(stamp: &str) -> Option<&str> {
+    stamp
+        .lines()
+        .find_map(|line| line.strip_prefix("commit="))
+        .map(str::trim)
+        .filter(|commit| !commit.is_empty())
+}
+
+fn is_on_main(main_root: &Path, commit: &str) -> bool {
+    Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, "origin/main"])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// Says where a slot was put when it was not `origin/main`.
+fn report_base(main_root: &Path, base: &str) {
+    if base == "origin/main" {
+        return;
+    }
+    let behind = Command::new("git")
+        .args(["rev-list", "--count", &format!("{base}..origin/main")])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned())
+        .unwrap_or_else(|| "?".to_owned());
+    eprintln!(
+        "worktree acquire: kept the slot at {}, the commit its restored build came from \
+         ({behind} commits behind origin/main); base the work there, because moving to a \
+         newer main recompiles what changed",
+        &base[..base.len().min(12)]
+    );
+}
+
+fn reset_slot(worktree_path: &Path, base: &str) -> bool {
     let checkout_ok = Command::new("git")
-        .args(["checkout", "--detach", "origin/main"])
+        .args(["checkout", "--detach", base])
         .current_dir(worktree_path)
         .stdin(Stdio::null())
         .status()
@@ -584,9 +643,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     );
                     return Err(1);
                 }
-                if !reset_slot_to_main(&existing.path) {
+                let base = acquire_base(&main_root, &existing.path, &existing.head);
+                if !reset_slot(&existing.path, &base) {
                     return Err(1);
                 }
+                report_base(&main_root, &base);
                 println!("{}", existing.path.display());
                 return Ok(());
             }
@@ -608,13 +669,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 if refusal_for(&main_root, slot).is_some() {
                     continue;
                 }
-                if reset_slot_to_main(&slot.path) {
+                let base = acquire_base(&main_root, &slot.path, &slot.head);
+                if reset_slot(&slot.path, &base) {
                     write_topic(&slot.git_dir, topic).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: assigned `{}` (topic: {})",
                         slot.name,
                         topic.unwrap_or("-")
                     );
+                    report_base(&main_root, &base);
                     println!("{}", slot.path.display());
                     return Ok(());
                 }
@@ -919,7 +982,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::{
         ListedWorktree, lock_pool_at, parse_worktree_list, read_topic, reset_refusal,
-        worktree_git_dir, write_topic,
+        warm_build_commit, worktree_git_dir, write_topic,
     };
     use std::fs;
     use std::path::Path;
@@ -1089,6 +1152,17 @@ mod tests {
     }
 
     // Every way a worktree can hold work blocks a reset; only an empty one passes.
+    #[test]
+    fn reads_the_commit_a_restored_build_came_from() {
+        let stamp = "schema=omega-warm-build-v2\nslot=worker\ncommit=fd5aef2f72ba\nasset=a\n";
+        assert_eq!(warm_build_commit(stamp), Some("fd5aef2f72ba"));
+        assert_eq!(
+            warm_build_commit("schema=omega-warm-build-v2\ncommit=\n"),
+            None
+        );
+        assert_eq!(warm_build_commit(""), None);
+    }
+
     #[test]
     fn reset_is_refused_whenever_work_would_be_lost() {
         assert_eq!(reset_refusal(false, false, false), None);

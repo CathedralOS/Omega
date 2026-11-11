@@ -341,7 +341,10 @@ reads the allowed lanes from this table:
   checkout to `origin/main` in place so its fixed path and warm `target/` cache
   stay 100% valid across tasks. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
-  `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
+  `git push origin HEAD:refs/heads/work/<lane>-<topic>`. In a Claude Code cloud
+  session, `acquire` hands out `worker-1` at the commit of its restored compiler
+  build; keep that commit as the work's base, since moving to newer `main`
+  usually recompiles the whole compiler.
 - **No `facts/` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under
   `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, and never add
   more than 6 `.omg` files in a PR.
