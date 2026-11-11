@@ -12081,28 +12081,28 @@ fail/facts/runtime_index_application_computed_through_target_body_rejected rejec
 fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @4a93353f8274+wt
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_const_name_rejected rejected 1740ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_const_name_rejected rejected 1740ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_field_rejected rejected 4544ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_field_rejected rejected 4544ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_local_rejected rejected 4544ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_local_rejected rejected 4544ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_match_join_rejected rejected 1921ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_match_join_rejected rejected 1921ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_other_machine_rejected rejected 1595ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_other_machine_rejected rejected 1595ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_other_state_rejected rejected 6138ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_other_state_rejected rejected 6138ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_parameter_rejected rejected 2422ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_parameter_rejected rejected 2422ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_contract_index_through_target_body_rejected rejected 2235ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_target_body_rejected rejected 2235ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/runtime_index_application_equivalent_subject_through_call_result_rejected rejected 7763ms expected @911f6617ba9e
@@ -12180,35 +12180,35 @@ fail/facts/runtime_index_application_mutating_operator_through_parameter_rejecte
 fail/facts/runtime_index_application_mutating_operator_through_target_body_rejected rejected 1493ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_nested_forwarded_through_call_result_rejected rejected 19740ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2705 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2713 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_const_name_rejected rejected 16663ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2703 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2711 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_field_rejected rejected 18535ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2709 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2717 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_local_rejected rejected 15826ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2702 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2710 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_match_join_rejected rejected 18702ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2704 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2712 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_other_machine_rejected rejected 15499ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2704 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2712 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_other_state_rejected rejected 15304ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2704 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2712 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_parameter_rejected rejected 14704ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2701 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2709 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_target_body_rejected rejected 15086ms expected @8f0aaf5506a1+wt
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2735 from X86Probe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2743 from X86Probe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2735 from ArmProbe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2743 from ArmProbe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+fail/facts/runtime_index_application_nested_forwarded_through_call_result_rejected rejected 19740ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_const_name_rejected rejected 16663ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_field_rejected rejected 18535ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_local_rejected rejected 15826ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_match_join_rejected rejected 18702ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_other_machine_rejected rejected 15499ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_other_state_rejected rejected 15304ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_parameter_rejected rejected 14704ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_target_body_rejected rejected 15086ms expected @3bbe5c131a15
+	cannot prove requires contract for call forward from X86Probe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call observe from X86Probe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call forward from ArmProbe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call observe from ArmProbe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/runtime_index_application_ordinary_call_through_call_result_rejected rejected 1046ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_ordinary_call_through_const_name_rejected rejected 796ms expected @ccdb99ca2214
@@ -12274,23 +12274,31 @@ fail/facts/runtime_index_application_selected_operator_through_target_body_rejec
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_call_result_rejected rejected 8319ms expected @46cdd6b85b82+wt
+fail/facts/runtime_index_application_through_call_result_rejected rejected 8319ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_const_name_rejected rejected 10393ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_const_name_rejected rejected 10393ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_field_rejected rejected 11588ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_field_rejected rejected 11588ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_local_rejected rejected 9147ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_local_rejected rejected 9147ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_match_join_rejected rejected 8454ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_match_join_rejected rejected 8454ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_other_machine_rejected rejected 9300ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_other_machine_rejected rejected 9300ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_other_state_rejected rejected 9801ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_other_state_rejected rejected 9801ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_parameter_rejected rejected 15044ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_parameter_rejected rejected 15044ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_through_target_body_rejected rejected 9735ms expected @46cdd6b85b82+wt
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
+fail/facts/runtime_index_application_through_target_body_rejected rejected 9735ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/saturating_integer_arithmetic_through_call_result_rejected rejected 998ms expected @ccdb99ca2214
@@ -12314,23 +12322,23 @@ fail/facts/saturating_integer_arithmetic_through_target_body_rejected rejected 1
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/saved_case_predicate_through_call_result_rejected rejected 4199ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_call_result_rejected rejected 4199ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_const_name_rejected rejected 6643ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_const_name_rejected rejected 6643ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_field_rejected rejected 6057ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_field_rejected rejected 6057ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `holder.choice.amount`: captured source `holder.choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_local_rejected rejected 6549ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_local_rejected rejected 6549ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_match_join_rejected rejected 4051ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_match_join_rejected rejected 4051ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_other_machine_rejected rejected 4011ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_other_machine_rejected rejected 4011ms expected @3bbe5c131a15
 	machine `quotient` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_other_state_rejected rejected 5945ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_other_state_rejected rejected 5945ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_parameter_rejected rejected 6387ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_parameter_rejected rejected 6387ms expected @3bbe5c131a15
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
-fail/facts/saved_case_predicate_through_target_body_rejected rejected 5790ms expected @b23365ced206+wt
+fail/facts/saved_case_predicate_through_target_body_rejected rejected 5790ms expected @3bbe5c131a15
 	machine `X86Probe::probe` state `probe` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 	machine `ArmProbe::probe` state `probe` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected rejected 3833ms expected @ccdb99ca2214
@@ -12445,23 +12453,23 @@ fail/facts/saved_observation_snapshot_stored_reference_handback_parameter_reject
 	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
 fail/facts/saved_observation_snapshot_stored_reference_handback_target_body_rejected rejected 640ms expected @27c558b731f4
 	cannot prove ensures contract for exit from preserve at statement 4: kept(&holder.items) == true
-fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 6318ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_call_result_rejected rejected 6318ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 3623ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_const_name_rejected rejected 3623ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_field_rejected rejected 4558ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_field_rejected rejected 4558ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_local_rejected rejected 4485ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_local_rejected rejected 4485ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 6732ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_match_join_rejected rejected 6732ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from probe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 4371ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_other_machine_rejected rejected 4371ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from read_kept at statement 3: result == items[0] && result == 7
-fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 4326ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_other_state_rejected rejected 4326ms expected @3bbe5c131a15
 	cannot prove requires contract for call check from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 4845ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_parameter_rejected rejected 4845ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from hold: observed == items[0] && observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 4821ms expected @b23365ced206+wt
+fail/facts/saved_observation_snapshot_through_target_body_rejected rejected 4821ms expected @3bbe5c131a15
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call agree from observe: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -12528,7 +12536,7 @@ fail/facts/scalar_domain_call_guarantee_through_other_state_rejected rejected 27
 	cannot prove scalar result domain for return from finish at statement 0: i64::Nonnegative
 fail/facts/scalar_domain_call_guarantee_through_parameter_rejected rejected 2951ms expected @ccdb99ca2214
 	cannot prove requires contract for call issue from transport: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/scalar_domain_call_guarantee_through_target_body_rejected rejected 30186ms expected @b9580c0cab21+wt
+fail/facts/scalar_domain_call_guarantee_through_target_body_rejected rejected 30186ms expected @3bbe5c131a15
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
 fail/facts/scalar_sign_zero_extension_through_call_result_rejected rejected 1316ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -12711,23 +12719,23 @@ fail/facts/selected_value_application_through_parameter_rejected rejected 10055m
 	cannot prove requires contract for call exercise from main: 11 <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/selected_value_application_through_target_body_rejected rejected 5181ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 1633ms expected regressed-from:checked @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 1633ms expected regressed-from:checked @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 1544ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_const_name_rejected rejected 1544ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_field_rejected rejected 1545ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_field_rejected rejected 1545ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_local_rejected rejected 1533ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_local_rejected rejected 1533ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_match_join_rejected rejected 1524ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_match_join_rejected rejected 1524ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_other_machine_rejected rejected 1507ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_other_machine_rejected rejected 1507ms expected @3bbe5c131a15
 	exact arithmetic in machine `target_machine` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_other_state_rejected rejected 1394ms expected regressed-from:checked @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_other_state_rejected rejected 1394ms expected regressed-from:checked @3bbe5c131a15
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_parameter_rejected rejected 1387ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_parameter_rejected rejected 1387ms expected @3bbe5c131a15
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 1388ms expected @13fd04e63afe+wt
+fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 1388ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -13232,45 +13240,45 @@ fail/facts/signed_shift_left_bound_through_target_body_rejected rejected 1316ms 
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/size_align_layout_geometry_private_arrival_calls_rejected rejected 1133ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_private_arrival_calls_rejected rejected 1133ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_terminal_returns_rejected rejected 1431ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_terminal_returns_rejected rejected 1431ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 1243ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 1243ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 1158ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 1158ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_field_rejected rejected 1144ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_field_rejected rejected 1144ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_local_rejected rejected 1084ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_local_rejected rejected 1084ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 1167ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 3473ms unexpected @3bbe5c131a15
+	constant checking: inconsistent captured contract bounds
+fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 1163ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 1163ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 1196ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 1196ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 1118ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 1118ms expected @8b519ca647cd+wt
+fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 1126ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 1126ms expected @8b519ca647cd+wt
-	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/skipped_short_circuit_call_through_call_result_rejected rejected 13474ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_call_result_rejected rejected 13474ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_field_rejected rejected 10942ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_field_rejected rejected 10942ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_local_rejected rejected 3511ms expected @bf5cc360e384
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_match_join_rejected rejected 10663ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_match_join_rejected rejected 10663ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_other_machine_rejected rejected 7694ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_other_machine_rejected rejected 7694ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from evaluate: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_other_state_rejected rejected 6510ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_other_state_rejected rejected 6510ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from arrive: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_parameter_rejected rejected 7614ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_parameter_rejected rejected 7614ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from probe: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_target_body_rejected rejected 5075ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_target_body_rejected rejected 5075ms expected @3bbe5c131a15
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 8813ms unexpected @f632a980b2a0
 	cannot prove index `3` is within unknown slice length of `view` in read_guarded::entry
@@ -13506,12 +13514,12 @@ fail/facts/static_callback_reach_recursive_terminal_rank rejected 2035ms expecte
 	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/static_callback_reach_requirement_telescope_proposition rejected 3629ms expected @48bf716629cb+wt
-	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:0a325f5d78557e516401179b3c732efb3675820028961de0e576a21735dabadf\\\\)\\\\,path\\\\(alternate\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:0a325f5d78557e516401179b3c732efb3675820028961de0e576a21735dabadf\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))")
-fail/facts/static_callback_reach_requirement_telescope_requirement rejected 3624ms expected @48bf716629cb+wt
-	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:d66e21651ce9366e89b218324fedc4aeebadd05c2174e32c4c90c5aa1c486877\\\\)\\\\,path\\\\(OtherAnchor::anchor\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:d66e21651ce9366e89b218324fedc4aeebadd05c2174e32c4c90c5aa1c486877\\\\)\\\\,path\\\\(Anchor::anchor\\\\)\\\\)))")
-fail/facts/static_callback_reach_requirement_telescope_shadow rejected 3630ms expected @48bf716629cb+wt
-	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [traverse::bounded=u64], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:abf458fa761aa6ec643e345d31e1c7e749516c3c3cf5eb139d192820ed239da6\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))"), required Some("named(name(u64))")
+fail/facts/static_callback_reach_requirement_telescope_proposition rejected 3629ms expected @3bbe5c131a15
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:1147a58edbbf6597da3e1b40713a13ccbf4a066c1d8ec18b6fc5fa2479f21a34\\\\)\\\\,path\\\\(alternate\\\\)\\\\)))"), required Some("named(name(nominal\\\\(package-owner\\\\(32:1147a58edbbf6597da3e1b40713a13ccbf4a066c1d8ec18b6fc5fa2479f21a34\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))")
+fail/facts/static_callback_reach_requirement_telescope_requirement rejected 1711ms unexpected @3bbe5c131a15
+	`quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `Anchor::anchor`, but the implementation promises `OtherAnchor::anchor`
+fail/facts/static_callback_reach_requirement_telescope_shadow rejected 3630ms expected @3bbe5c131a15
+	static machine argument `quiet` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [bounded, Anchor::anchor], provider [], caller [traverse::bounded=u64], contextual demand true, operand mismatch actual index/type identity Some("named(name(nominal\\\\(package-owner\\\\(32:7fb4ac7c65bfbfb1f066349a9bf3d1573c4ddc0157c6dc2c2571c8953238585b\\\\)\\\\,path\\\\(bounded\\\\)\\\\)))"), required Some("named(name(u64))")
 fail/facts/static_callback_reach_selected_schema rejected 1738ms expected @ccdb99ca2214
 	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
 	machine `ordinary$specialized$3051a3ac972a47e8$0` state `entry` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
@@ -13591,9 +13599,9 @@ fail/facts/static_evidence_premise_through_other_state_rejected rejected 1399ms 
 	machine `check` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/static_evidence_premise_through_parameter_rejected rejected 1735ms expected @ccdb99ca2214
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-fail/facts/static_evidence_premise_through_target_body_rejected rejected 6854ms expected @b9580c0cab21+wt
-	machine `X86Observe::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-	machine `ArmObserve::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_target_body_rejected rejected 6854ms expected @3bbe5c131a15
+	cannot prove requires contract: machine `X86Observe::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+	cannot prove requires contract: machine `ArmObserve::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/stored_exclusive_byte_view_through_call_result_rejected rejected 2682ms expected @ccdb99ca2214
 	cannot prove index `0` is within length 0
 fail/facts/stored_exclusive_byte_view_through_const_name_rejected rejected 2874ms expected @ccdb99ca2214
@@ -13895,7 +13903,7 @@ fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejecte
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1887ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 24982ms expected @b9580c0cab21+wt
+fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 24982ms expected @3bbe5c131a15
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unsigned_32bit_division_remainder_bound_through_call_result_rejected rejected 1208ms expected @ccdb99ca2214
@@ -14217,23 +14225,24 @@ fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_parameter_rejected re
 	cannot prove requires contract for call check_param from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/unsigned_8bit_wrapping_arithmetic_bound_through_target_body_rejected rejected 3192ms expected @ccdb99ca2214
 	cannot prove requires contract for call exercise from main: sum >= 50 && sum <= 100 (needs fact `val >= 50 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/unsigned_byte_to_signed_case_domain_through_call_result_rejected rejected 12666ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_call_result_rejected rejected 12666ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_const_name_rejected rejected 713ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_const_name_rejected rejected 713ms expected @3bbe5c131a15
 	data `ByteParcel` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/unsigned_byte_to_signed_case_domain_through_field_rejected rejected 10348ms expected @46cdd6b85b82+wt
+	data `ByteParcel` case `Byte` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/unsigned_byte_to_signed_case_domain_through_field_rejected rejected 10348ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_local_rejected rejected 7884ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_local_rejected rejected 7884ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_match_join_rejected rejected 8638ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_match_join_rejected rejected 8638ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_other_machine_rejected rejected 7128ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_other_machine_rejected rejected 7128ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_other_state_rejected rejected 7128ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_other_state_rejected rejected 7128ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_parameter_rejected rejected 7070ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_parameter_rejected rejected 7070ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/unsigned_byte_to_signed_case_domain_through_target_body_rejected rejected 6915ms expected @46cdd6b85b82+wt
+fail/facts/unsigned_byte_to_signed_case_domain_through_target_body_rejected rejected 6915ms expected @3bbe5c131a15
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/unsigned_division_quotient_through_call_result_rejected rejected 1435ms expected @ccdb99ca2214
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -14384,37 +14393,37 @@ fail/facts/unsigned_shift_right_bound_through_target_body_rejected rejected 1887
 	exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/value_location_alignment_case_payload_rejected rejected 1139ms expected @8d6537e9a051
 	`align_of(value)` on a case payload field needs a proof that the case is active, which the query does not yet carry; query a field outside the case
-fail/facts/value_location_alignment_constant_rejected rejected 829ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_constant_rejected rejected 829ms expected @3bbe5c131a15
 	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
 fail/facts/value_location_alignment_contract_field_rejected rejected 7043ms expected @8d6537e9a051
 	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
-fail/facts/value_location_alignment_contract_rejected rejected 7692ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_contract_rejected rejected 7692ms expected @3bbe5c131a15
 	constant checking: scalar predicate is false: requires contract for call slack_of from main: align_of() >= 8
-fail/facts/value_location_alignment_ensures_rejected rejected 622ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_ensures_rejected rejected 622ms expected @3bbe5c131a15
 	`align_of(value)` in an `ensures` contract is not yet supported; state the alignment in `requires` or check it in the body
-fail/facts/value_location_alignment_slice_rejected rejected 6229ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_slice_rejected rejected 6229ms expected @3bbe5c131a15
 	`align_of(items)` observes the slice's first element and needs the nonempty fact `items.len >= 1`, which is not proved here in first_slack::entry
-fail/facts/value_location_alignment_through_call_result_rejected rejected 7945ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_call_result_rejected rejected 7945ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_const_name_rejected rejected 7831ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_const_name_rejected rejected 7831ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_field_rejected rejected 7744ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_field_rejected rejected 7744ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_local_rejected rejected 7915ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_local_rejected rejected 7915ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_match_join_rejected rejected 8507ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_match_join_rejected rejected 8507ms expected @3bbe5c131a15
 	constant checking: scalar range condition 1: bounds [-4, 8] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_other_machine_rejected rejected 9506ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_other_machine_rejected rejected 9506ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_other_state_rejected rejected 8178ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_other_state_rejected rejected 8178ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_parameter_rejected rejected 8185ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_parameter_rejected rejected 8185ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_through_target_body_rejected rejected 7595ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_through_target_body_rejected rejected 7595ms expected @3bbe5c131a15
 	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
-fail/facts/value_location_alignment_trait_contract_rejected rejected 777ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_trait_contract_rejected rejected 777ms expected @3bbe5c131a15
 	`align_of(value)` in a trait requirement's contract is not yet supported; its implementations cannot carry the clause
-fail/facts/value_location_alignment_value_leaf_rejected rejected 746ms expected @f8c7d2180faf+wt
+fail/facts/value_location_alignment_value_leaf_rejected rejected 746ms expected @3bbe5c131a15
 	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
 fail/facts/wrapping_integer_arithmetic_through_call_result_rejected rejected 1596ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `mask_value(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -14492,23 +14501,23 @@ fail/facts/write_only_indexed_reborrow_through_parameter_rejected rejected 6375m
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_indexed_reborrow_through_target_body_rejected rejected 5730ms expected @2e348e6b2dca
 	machine `replace` state `entry` reads field `value` from write-only parameter `cell`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @3bbe5c131a15
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_const_name_rejected rejected 10893ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_const_name_rejected rejected 10893ms expected @3bbe5c131a15
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_field_rejected rejected 4212ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_field_rejected rejected 4212ms expected @3bbe5c131a15
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_local_rejected rejected 2699ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_local_rejected rejected 2699ms expected @3bbe5c131a15
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_match_join_rejected rejected 8567ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_match_join_rejected rejected 8567ms expected @3bbe5c131a15
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_other_machine_rejected rejected 2942ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_other_machine_rejected rejected 2942ms expected @3bbe5c131a15
 	machine `apply` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_other_state_rejected rejected 2384ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_other_state_rejected rejected 2384ms expected @3bbe5c131a15
 	machine `pick` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_parameter_rejected rejected 2363ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_parameter_rejected rejected 2363ms expected @3bbe5c131a15
 	machine `apply` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_match_join_through_target_body_rejected rejected 2579ms expected @c79bb8268163+wt
+fail/facts/write_only_match_join_through_target_body_rejected rejected 2579ms expected @3bbe5c131a15
 	machine `X86Apply::apply` state `apply` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `ArmApply::apply` state `apply` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_recast_through_call_result_rejected rejected 1373ms expected @ccdb99ca2214
@@ -14676,7 +14685,7 @@ fail/float/float_guard_missing_upper_bound rejected 4071ms expected @ccdb99ca221
 	cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0 (needs fact `difference >= 0.5 && difference <= 8.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_range_field_store_outside_range rejected 3609ms expected @f78c2623a68c
 	cannot complete return from machine `main` state `entry`: this write left the `requires` facts of `built` (data `Ratio`) unproved; restore them first
-fail/float/float_selected_comparison_authority rejected 11960ms expected @c2cfe5f3dece+wt
+fail/float/float_selected_comparison_authority rejected 11960ms expected @3bbe5c131a15
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected @ccdb99ca2214
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
@@ -14708,13 +14717,13 @@ fail/float/guarded_range_requires_ordered_value rejected 4216ms expected @ccdb99
 	cannot prove requires contract for call bounded from narrow_negation: unordered >= 0.0 && unordered <= 1.0 (needs fact `narrow >= 0.0 && narrow <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from wrong_subject: unordered >= 0.0 && unordered <= 1.0 (needs fact `other >= 0.0 && other <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from integer_view: unordered >= 0.0 && unordered <= 1.0 (needs fact `recast >= 0.0 && recast <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/ieee_collection_call_write_retires_guard rejected 3800ms expected @085f035b8b6e+wt
+fail/float/ieee_collection_call_write_retires_guard rejected 3800ms expected @3bbe5c131a15
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/ieee_collection_index_rewrite_retires_guard rejected 3499ms expected @085f035b8b6e+wt
+fail/float/ieee_collection_index_rewrite_retires_guard rejected 3499ms expected @3bbe5c131a15
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[slot]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms expected @085f035b8b6e+wt
+fail/float/ieee_collection_other_element_write_retires_guard rejected 2367ms expected @3bbe5c131a15
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @085f035b8b6e+wt
+fail/float/ieee_collection_write_retires_guard rejected 2246ms expected @3bbe5c131a15
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `reading.values[index]` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/indexed_ieee_i64_upper_ceiling_rejected rejected 2093ms expected @b12da1b03c39
 	machine `convert` state `entry` cannot prove unqualified `I64::from_f64` operand `values[index]` is finite and truncates into `i64`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i64 in Trapping` or `i64 in Saturating`
@@ -14816,7 +14825,7 @@ fail/float/private_arrival_inexact_integer_coercion_rejected rejected 3751ms exp
 	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
-fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @18fc751d0060+wt
+fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @3bbe5c131a15
 	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/private_float_projection_selection rejected 31936ms expected @34061360b957
@@ -14864,12 +14873,12 @@ fail/float/saved_ieee_conversion_guard_after_write rejected 1965ms expected @b12
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `current` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
+fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @3bbe5c131a15
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
-fail/float/specification_index_write_only_selector rejected 2468ms expected @e8827ad1dd64+wt
+fail/float/specification_index_write_only_selector rejected 2468ms expected @3bbe5c131a15
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 4613ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
@@ -14898,7 +14907,7 @@ fail/float/trapping_named_conversion_requires_site_coverage rejected 4641ms expe
 	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_nonentry_site_requires_matching_path rejected 4941ms unexpected @ccdb99ca2214
 	call from `scale` to `risky` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 7280ms expected @18fc751d0060+wt
+fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 7280ms expected @3bbe5c131a15
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 4019ms expected @ccdb99ca2214
 	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
@@ -14987,7 +14996,7 @@ fail/generics/closed_record_const_field_wrong_carrier rejected 23031ms expected 
 fail/generics/closed_requirement_const_callback_extent rejected 16380ms expected @32c7663ba3ad
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
 	argument `second` for state `run` expects `&[u8; 4096]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4096)))`, declared place carrier `array(named(name(u8)),literal(4095))`
-fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
+fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @3bbe5c131a15
 	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
 fail/generics/closed_requirement_in_generic_owner_false_bound rejected 492ms expected @390bdce3859c
 	static application of requirement `Reading::read` violates its declared requires facts: the complete tuple is structurally false
@@ -15032,7 +15041,7 @@ fail/generics/const_data_machine_call_requires_pure rejected 109ms expected @ccd
 	const-generic application evaluation failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/generics/const_data_machine_call_runtime_argument rejected 51ms expected @ccdb99ca2214
 	machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/const_data_where_fact_false rejected 5297ms expected @46cdd6b85b82+wt
+fail/generics/const_data_where_fact_false rejected 5297ms expected @3bbe5c131a15
 	data `FixedBuffer<0>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/const_expression_cannot_supply_type_binder rejected 707ms expected @ccdb99ca2214
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
@@ -15090,11 +15099,12 @@ fail/generics/const_extent_index_without_guard rejected 3454ms expected @ddc17ff
 	cannot prove index `4` is within length 2
 fail/generics/const_generic_runtime_argument rejected 556ms expected @ccdb99ca2214
 	const parameter `Count` of `prefix_count` requires a normalized closed value
-fail/generics/const_index_active_case_false rejected 2949ms expected @7e945672b7b4+wt
+fail/generics/const_index_active_case_false rejected 2949ms expected @3bbe5c131a15
 	data `Choice` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/generics/const_index_default_domain_false rejected 478ms expected @46cdd6b85b82+wt
+	data `Choice` case `Point` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/const_index_default_domain_false rejected 478ms expected @3bbe5c131a15
 	data `Counter` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/generics/const_index_gated_domain_false rejected 408ms expected @46cdd6b85b82+wt
+fail/generics/const_index_gated_domain_false rejected 408ms expected @3bbe5c131a15
 	data `Counter` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
@@ -15178,7 +15188,7 @@ fail/generics/core_slice_for_each_callback_termination rejected 2708ms unexpecte
 	cannot prove published termination for machine `does_not_finish`: its checked body reaches an operation without a usable termination guarantee
 fail/generics/cross_module_const_alias_shadowed_callback_result rejected 1465ms expected @d4295d67990d
 	machine argument `selected$specialized$8cdb675808df91dc$0` for `read_seven` does not refine `Callback`: its ensures facts are not a conservative refinement
-fail/generics/cross_module_const_alias_shadowed_evidence rejected 1360ms expected @9cf950b08172+wt
+fail/generics/cross_module_const_alias_shadowed_evidence rejected 1360ms expected @3bbe5c131a15
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/generics/cross_module_const_alias_shadowed_implementation rejected 6459ms expected @6d8ad13849e1
 	exact arithmetic in machine `main` state `entry` local `direct_rest` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -15192,9 +15202,9 @@ fail/generics/dependent_callback_result_needs_public_order rejected 1636ms expec
 	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	machine argument `snapshot` for `through_callback` does not refine `Callback`: its requires facts are not a conservative refinement
-fail/generics/dependent_checker_wrong_constant rejected 471ms @775af766ad1a+wt
+fail/generics/dependent_checker_wrong_constant rejected 471ms @3bbe5c131a15
 	machine argument `second` for `apply` does not refine `Checker`: its ensures facts are not a conservative refinement
-fail/generics/dependent_checker_wrong_helper rejected 800ms @775af766ad1a+wt
+fail/generics/dependent_checker_wrong_helper rejected 800ms @3bbe5c131a15
 	`Selected::check` does not satisfy `Check::check`: helper `Valid` requires `accepts_other`, but the implementation promises `accepts`
 fail/generics/dependent_const_array_extent rejected 1681ms expected @ccdb99ca2214
 	const parameter `Selected` of `Pick` has an invalid named value: named constant `Short` has type `[u8; 1]`, expected `[u8; 2]`
@@ -15243,9 +15253,9 @@ fail/generics/equation_named_array_actual_boolean rejected 267ms expected @911f6
 	generic data `Verified` requires type equation array extent constant must have an integer carrier
 fail/generics/equation_named_array_actual_conflict rejected 252ms expected @911f6617ba9e
 	generic data `Verified` requires type equation has conflicting fixed-array lengths
-fail/generics/equation_named_array_actual_explicit rejected 1143ms expected @46cdd6b85b82+wt
+fail/generics/equation_named_array_actual_explicit rejected 1143ms expected @3bbe5c131a15
 	generic data `Verified` requires equation binds `Count` to 5 but its explicit argument is 4
-fail/generics/equation_named_array_actual_open rejected 943ms expected @b23365ced206+wt
+fail/generics/equation_named_array_actual_open rejected 943ms expected @3bbe5c131a15
 	machine equation retains an open caller binder; supply a closed explicit static argument
 fail/generics/erased_generic_field_ambiguous_constructor rejected 3939ms expected @9af3eb514e16
 	construction of `Mixed` omits erased field `proof`; supply an explicit proof term because no unique accessible nullary constructor determines this binding
@@ -15286,13 +15296,13 @@ fail/generics/forwarded_slice_result_element_mismatch rejected 7516ms expected @
 fail/generics/forwarded_static_arguments_keep_binder_order rejected 698ms expected @ccdb99ca2214
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
 	machine `marker` static argument 1 requires its declared binder kind, not a const value
-fail/generics/generic_carrier_equation_index_conflict rejected 549ms expected @46cdd6b85b82+wt
+fail/generics/generic_carrier_equation_index_conflict rejected 549ms expected @3bbe5c131a15
 	generic data `Box` requires equation binds `Index` to 8 but its explicit argument is 9
-fail/generics/generic_carrier_equation_mismatch rejected 1748ms expected @46cdd6b85b82+wt
+fail/generics/generic_carrier_equation_mismatch rejected 1748ms expected @3bbe5c131a15
 	generic data `Box` requires type equation has conflicting element types
-fail/generics/generic_carrier_equation_repeated_carrier_conflict rejected 878ms expected @46cdd6b85b82+wt
+fail/generics/generic_carrier_equation_repeated_carrier_conflict rejected 878ms expected @3bbe5c131a15
 	generic data `Same` requires type equation has conflicting element types
-fail/generics/generic_carrier_equation_repeated_index_conflict rejected 703ms expected @46cdd6b85b82+wt
+fail/generics/generic_carrier_equation_repeated_index_conflict rejected 703ms expected @3bbe5c131a15
 	generic data `Same` requires type equation has conflicting element types
 fail/generics/generic_carrier_field_index_conflict rejected 1714ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Tagged:main::entry:statement-0:Tagged<9>==Tagged<8>` is not established: actual `Tagged<9>` and expected `Tagged<8>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
@@ -15341,11 +15351,11 @@ fail/generics/implementation_parameter_contract_only_holds_for_selection rejecte
 	cannot prove ensures contract for exit from advance at statement 0: result <= 18
 	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$0$4637 at statement 0: result <= 18
 	cannot prove ensures contract for exit from advance$specialized$a5a3bae642674f4c$1$4640 at statement 0: result <= 18
-fail/generics/index_algebra_law_requires_identity rejected 7678ms expected @c2cfe5f3dece+wt
+fail/generics/index_algebra_law_requires_identity rejected 7678ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
-fail/generics/index_equality_foreign_algebra rejected 8524ms expected @c2cfe5f3dece+wt
+fail/generics/index_equality_foreign_algebra rejected 8524ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:Indexed<1 + 2>==Indexed<3>` is not established: actual `Indexed<1 + 2>` and expected `Indexed<3>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses no law
-fail/generics/index_equality_selected_boolean_relation rejected 7123ms expected @c2cfe5f3dece+wt
+fail/generics/index_equality_selected_boolean_relation rejected 7123ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:relation_is_not_equality::entry:statement-0:Indexed<Left + Right>==Indexed<4>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 1206ms expected @911f6617ba9e
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `0..=256`; constrain the value, construct with a literal in range, or widen the field
@@ -15356,13 +15366,14 @@ fail/generics/inferred_argument_parameter_conflict rejected 15627ms expected @32
 	argument `right` for state `pair` expects `T`, got `named value`; expected carrier `named(name(nominal\\(package-owner\\(32:365eb84eb95eb940e9304820f2ab51fda53409e81fe60038c700f266f4145153\\)\\,path\\(pair::T\\)\\)))`, declared place carrier `named(name(nominal\\(package-owner\\(32:365eb84eb95eb940e9304820f2ab51fda53409e81fe60038c700f266f4145153\\)\\,path\\(wrong::Output\\)\\)))`
 fail/generics/inferred_equation_computed_satisfaction_extent_conflict rejected 5338ms expected @35dd60f55878
 	machine `consume` state `entry` does not satisfy trait `SizedHook` machine `read` parameter `items`: expected `[u8; 3]`, got `[u8; 2]`
-fail/generics/inferred_equation_conflicting_inferred_result_rejected rejected 760ms expected @46cdd6b85b82+wt
+fail/generics/inferred_equation_conflicting_inferred_result_rejected rejected 760ms expected @3bbe5c131a15
 	generic machine `capacity` cannot determine `Length` from its requires equations; supply the argument explicitly
 	generic machine `forward` requires type equation has conflicting element types
-fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 1701ms expected @b23365ced206+wt
-	machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
-fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 1609ms expected @b23365ced206+wt
-	argument `value` for state `entry` expects `[u8; 3]`, got `named value`; expected carrier `array(named(name(u8)),literal(3))`, declared place carrier `array(named(name(u8)),literal(2))`
+fail/generics/inferred_equation_deferred_callee_requires_rejected rejected 1701ms expected @3bbe5c131a15
+	cannot prove requires contract: machine `main` state `entry` value call to `forward` violates required fact `okay`: the instantiated fact is structurally false
+fail/generics/inferred_equation_explicit_forward_conflict_rejected rejected 1609ms expected @3bbe5c131a15
+	argument `value` for state `forward` expects `[u8; 3]`, got `named value`; expected carrier `array(named(name(u8)),literal(3))`, declared place carrier `array(named(name(u8)),literal(2))`
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: observed >= 3
 fail/generics/inferred_equation_mixed_destination_invalid_value rejected 500ms expected @35dd60f55878
 	data `Ready` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/inferred_equation_typed_const_call_result_conflict rejected 562ms expected @35dd60f55878
@@ -15383,40 +15394,40 @@ fail/generics/inferred_equation_typed_const_parameter_conflict rejected 604ms ex
 	generic data `IndexedPacket` requires equation binds `Capacity` to 2 but its explicit argument is 3
 fail/generics/inferred_equation_typed_const_target_body_conflict rejected 626ms expected @35dd60f55878
 	generic data `IndexedPacket` requires equation binds `Capacity` to 2 but its explicit argument is 3
-fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 1765ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_constructor_identity_rejected rejected 1765ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation requires the same fixed-array constructor
-fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 1635ms expected @b23365ced206+wt
+fail/generics/inferred_machine_array_equation_copy_bound_rejected rejected 1635ms expected @3bbe5c131a15
 	generic machine `capacity` has a concrete specialization tuple that does not satisfy its authored type bounds
-fail/generics/inferred_machine_array_equation_cycle_rejected rejected 1841ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_cycle_rejected rejected 1841ms expected @3bbe5c131a15
 	generic machine `circular` requires equations define `Left` through itself; supply the argument explicitly
-fail/generics/inferred_machine_array_equation_match_conflict_rejected rejected 562ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_match_conflict_rejected rejected 562ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation has conflicting element types
-fail/generics/inferred_machine_array_equation_partial_conflict_rejected rejected 546ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_partial_conflict_rejected rejected 546ms expected @3bbe5c131a15
 	generic machine `paired` requires equations bind `Capacity` to both 2 and 3
-fail/generics/inferred_machine_array_equation_repeated_conflict_rejected rejected 528ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_repeated_conflict_rejected rejected 528ms expected @3bbe5c131a15
 	generic machine `paired` requires type equation has conflicting element types
-fail/generics/inferred_machine_array_equation_repeated_conflict_reversed_rejected rejected 648ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_repeated_conflict_reversed_rejected rejected 648ms expected @3bbe5c131a15
 	generic machine `paired` requires type equation has conflicting element types
-fail/generics/inferred_machine_array_equation_result_argument_count_rejected rejected 1618ms expected @b23365ced206+wt
+fail/generics/inferred_machine_array_equation_result_argument_count_rejected rejected 1618ms expected @3bbe5c131a15
 	machine `main` state `entry` assigns an array literal with 3 element(s) to a `[_; 2]` place; a fixed-array literal must supply exactly 2 element(s)
-	argument `items` for state `entry` expects `[u8; 2]`, got `array literal`
-fail/generics/inferred_machine_array_equation_result_conflict_rejected rejected 817ms expected @46cdd6b85b82+wt
+	argument `items` for state `produce` expects `[u8; 2]`, got `array literal`
+fail/generics/inferred_machine_array_equation_result_conflict_rejected rejected 817ms expected @3bbe5c131a15
 	generic machine `same` requires type equation has conflicting element types
-fail/generics/inferred_machine_array_equation_underdetermined_rejected rejected 787ms expected @46cdd6b85b82+wt
+fail/generics/inferred_machine_array_equation_underdetermined_rejected rejected 787ms expected @3bbe5c131a15
 	generic machine `capacity` cannot determine `Length` from its requires equations; supply the argument explicitly
-fail/generics/inferred_record_equation_carrier_conflict rejected 832ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_carrier_conflict rejected 832ms expected @3bbe5c131a15
 	generic machine `read` requires type equation constructor const binder has a different declared carrier
-fail/generics/inferred_record_equation_data_conflict rejected 578ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_data_conflict rejected 578ms expected @3bbe5c131a15
 	generic data `Package` requires type equation has conflicting constructor constants
-fail/generics/inferred_record_equation_kind_conflict rejected 807ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_kind_conflict rejected 807ms expected @3bbe5c131a15
 	generic machine `read` requires type equation mixes type and value kinds in a constructor argument
-fail/generics/inferred_record_equation_nominal_conflict rejected 923ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_nominal_conflict rejected 923ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting nominal constructors
-fail/generics/inferred_record_equation_qualified_conflict rejected 894ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_qualified_conflict rejected 894ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/generics/inferred_record_equation_repeated_conflict rejected 817ms expected @b23365ced206+wt
+fail/generics/inferred_record_equation_repeated_conflict rejected 817ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/generics/inferred_record_equation_underdetermined rejected 899ms expected @46cdd6b85b82+wt
+fail/generics/inferred_record_equation_underdetermined rejected 899ms expected @3bbe5c131a15
 	generic machine `read` cannot determine `Item` from its requires equations; supply the argument explicitly
 fail/generics/inferred_statement_lifetime_conformance_mismatch rejected 6446ms expected @4815ea579d91
 	generic machine `touch` cannot bind `Operations` to conformance `Evidence`: expected a complete `Known` implementation with the instantiated trait arguments
@@ -15432,37 +15443,37 @@ fail/generics/local_value_index_drops_written_order rejected 881ms expected @33a
 	exact arithmetic in value argument `Count` of `Counted` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/machine_bound_violated_at_call rejected 553ms expected @ccdb99ca2214
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
-fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 713ms expected @b23365ced206+wt
+fail/generics/machine_equation_constructor_binder_carrier_constructed rejected 713ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation constructor const binder has a different declared carrier
-fail/generics/machine_equation_constructor_binder_carrier_explicit rejected 732ms expected @b23365ced206+wt
+fail/generics/machine_equation_constructor_binder_carrier_explicit rejected 732ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation constructor const binder has a different declared carrier
-fail/generics/machine_equation_constructor_binder_carrier_inferred rejected 901ms expected @b23365ced206+wt
+fail/generics/machine_equation_constructor_binder_carrier_inferred rejected 901ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation constructor const binder has a different declared carrier
-fail/generics/machine_equation_constructor_binder_carrier_signed rejected 841ms expected @b23365ced206+wt
+fail/generics/machine_equation_constructor_binder_carrier_signed rejected 841ms expected @3bbe5c131a15
 	generic machine `capacity` requires type equation constructor const binder has a different declared carrier
-fail/generics/machine_equation_nested_const_carrier_conflict rejected 479ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_const_carrier_conflict rejected 479ms expected @3bbe5c131a15
 	machine equation application has a constructor argument with a different declared carrier
-fail/generics/machine_equation_nested_const_conflict rejected 496ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_const_conflict rejected 496ms expected @3bbe5c131a15
 	generic machine `capacity` requires equation binds `Count` to 4 but its explicit argument is 5
-fail/generics/machine_equation_nested_const_kind_conflict rejected 506ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_const_kind_conflict rejected 506ms expected @3bbe5c131a15
 	machine equation application has a constructor argument with a different declared carrier
-fail/generics/machine_equation_nested_const_policy_conflict rejected 497ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_const_policy_conflict rejected 497ms expected @3bbe5c131a15
 	machine equation application has a constructor argument with a different declared carrier
-fail/generics/machine_equation_nested_literal_overflow rejected 498ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_literal_overflow rejected 498ms expected @3bbe5c131a15
 	machine equation application has a constructor constant outside its declared carrier
-fail/generics/machine_equation_nested_open_const_shadow rejected 500ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_open_const_shadow rejected 500ms expected @3bbe5c131a15
 	machine equation retains an open caller binder; supply a closed explicit static argument
-fail/generics/machine_equation_nested_typed_literal_carrier rejected 439ms expected @b23365ced206+wt
+fail/generics/machine_equation_nested_typed_literal_carrier rejected 439ms expected @3bbe5c131a15
 	machine equation application has a constructor argument with a different integer meaning
 fail/generics/machine_equation_open_const_shadow rejected 2803ms expected @a81c7b2eb058
 	machine equation retains an open caller binder; supply a closed explicit static argument
-fail/generics/machine_equation_selected_const_carrier_conflict rejected 1064ms expected @b23365ced206+wt
+fail/generics/machine_equation_selected_const_carrier_conflict rejected 1064ms expected @3bbe5c131a15
 	const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u32`
-fail/generics/machine_equation_selected_const_conflict rejected 837ms expected @46cdd6b85b82+wt
+fail/generics/machine_equation_selected_const_conflict rejected 837ms expected @3bbe5c131a15
 	generic machine `capacity` requires equation binds `Count` to 4 but its explicit argument is 5
-fail/generics/machine_equation_selected_const_kind_conflict rejected 463ms expected @b23365ced206+wt
+fail/generics/machine_equation_selected_const_kind_conflict rejected 463ms expected @3bbe5c131a15
 	generic machine `capacity` requires equation mixes type and value kinds: const binder `Count` holds a non-integer argument
-fail/generics/machine_equation_selected_const_policy_conflict rejected 2603ms expected @b23365ced206+wt
+fail/generics/machine_equation_selected_const_policy_conflict rejected 2603ms expected @3bbe5c131a15
 	const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u64[1 constraint]`
 fail/generics/mixed_value_case_constructor_false rejected 1578ms expected @ccdb99ca2214
 	data `Tagged` case `At` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -15470,14 +15481,14 @@ fail/generics/mixed_value_case_payload_wrong_carrier rejected 1424ms expected @c
 	construction of `Tagged` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/generics/mixed_value_nullary_case_false rejected 1453ms expected @ccdb99ca2214
 	data `Tagged` case `Empty` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/generics/named_reference_equation_access rejected 818ms expected @46cdd6b85b82+wt
+fail/generics/named_reference_equation_access rejected 818ms expected @3bbe5c131a15
 	generic machine `capture` requires type equation has conflicting reference access
-fail/generics/named_reference_equation_pointee rejected 751ms expected @46cdd6b85b82+wt
+fail/generics/named_reference_equation_pointee rejected 751ms expected @3bbe5c131a15
 	generic machine `capture` requires type equation has conflicting element types
-fail/generics/named_reference_equation_undeclared_region rejected 749ms expected @b23365ced206+wt
+fail/generics/named_reference_equation_undeclared_region rejected 749ms expected @3bbe5c131a15
 	generic machine `capture` requires type equation reference region is not a declared invocation lifetime
-fail/generics/named_reference_equation_wrong_result_source rejected 3345ms expected @b23365ced206+wt
-	machine `capture$specialized$950fad81a3357133$0$2634` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
+fail/generics/named_reference_equation_wrong_result_source rejected 3345ms expected @3bbe5c131a15
+	machine `capture$specialized$8ee34647d713c573$0$4652` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/generics/named_value_parameter_mismatch rejected 1084ms expected @99a35aae42ec
 	machine `finish` state `entry` return value expects `Output`, but the value is delivered as `Input`
@@ -15490,9 +15501,9 @@ fail/generics/native_locator_wrong_explicit_extent rejected 306ms expected @b852
 	quoted byte literal has 26 source byte(s), but owned fixed byte array `[u8; 25]` requires exactly 25; fixed-array literal copying neither truncates nor pads
 fail/generics/nominal_binder_structural_coincidence_rejected rejected 656ms expected @ccdb99ca2214
 	static machine argument `lookalike` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Handler::call`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
-fail/generics/omitted_data_binder_explicit_conflict rejected 687ms expected @46cdd6b85b82+wt
+fail/generics/omitted_data_binder_explicit_conflict rejected 687ms expected @3bbe5c131a15
 	generic data `TinyBytes` requires equation binds `Capacity` to 256 but its explicit argument is 512
-fail/generics/omitted_data_binder_underdetermined rejected 672ms expected @46cdd6b85b82+wt
+fail/generics/omitted_data_binder_underdetermined rejected 672ms expected @3bbe5c131a15
 	generic data `Loose` cannot determine `Capacity` from its requires equations; supply the argument explicitly
 fail/generics/open_const_bare_binder_forwarding_mismatch rejected 1660ms expected @3fe2575d6483
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
@@ -15533,8 +15544,9 @@ fail/generics/open_const_wrong_literal_tuple rejected 2610ms unexpected @ccdb99c
 	cannot prove ensures contract for exit from forwarded$specialized$eabf790a7a6ad24f$0 at statement 0: result >= 7
 fail/generics/open_index_unlicensed_algebra rejected 2773ms expected @089c0a150e63
 	open index operator `+` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine
-fail/generics/open_value_case_constructor_false rejected 5476ms expected @7e945672b7b4+wt
+fail/generics/open_value_case_constructor_false rejected 5476ms expected @3bbe5c131a15
 	data `Tagged` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Tagged` case `At` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/owned_member_applied_ceiling_stale_bound rejected 1133ms expected @ccdb99ca2214
 	exact arithmetic in machine `wrong` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/owned_member_applied_result_wrong_destination rejected 1003ms expected @ccdb99ca2214
@@ -15554,11 +15566,11 @@ fail/generics/property_bound_violated_at_instantiation rejected 1049ms expected 
 	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
 fail/generics/qualified_closed_equation_const_width rejected 723ms expected @911f6617ba9e
 	const fact for generic instance `Check<4>` is invalid: integer value `256` is outside the declared `u8` range
-fail/generics/qualified_closed_equation_false_const_fact rejected 9256ms expected @46cdd6b85b82+wt
+fail/generics/qualified_closed_equation_false_const_fact rejected 9256ms expected @3bbe5c131a15
 	data `Check<4>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/generics/qualified_closed_equation_nominal_conflict rejected 934ms expected @b23365ced206+wt
+fail/generics/qualified_closed_equation_nominal_conflict rejected 934ms expected @3bbe5c131a15
 	generic machine `capacity` requires equation on `Payload` does not hold: the supplied `Payload` argument is not `models::Token`
-fail/generics/qualified_closed_equation_open_constructor rejected 1005ms expected @b23365ced206+wt
+fail/generics/qualified_closed_equation_open_constructor rejected 1005ms expected @3bbe5c131a15
 	generic machine `recovered` requires type equation requires a complete constructor argument tuple
 fail/generics/qualified_closed_equation_value_operand rejected 3000ms expected @84eadc5f4749
 	generic machine `capacity` requires type equation operand `models::COUNT` does not name a closed type
@@ -15580,11 +15592,11 @@ fail/generics/returned_applied_field_does_not_widen_access rejected 15180ms expe
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/returned_generic_result_parameter_mismatch rejected 7777ms expected @4815ea579d91
 	machine `wrong` state `entry` return value expects `Output`, but the value is delivered as `Input`
-fail/generics/runtime_call_index_contract_wrong_result rejected 11827ms expected @4a93353f8274+wt
+fail/generics/runtime_call_index_contract_wrong_result rejected 11827ms expected @3bbe5c131a15
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/generics/runtime_call_index_wrong_result rejected 2275ms expected @c79bb8268163+wt
+fail/generics/runtime_call_index_wrong_result rejected 2275ms expected @3bbe5c131a15
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/generics/runtime_difference_const_argument rejected 327ms expected @3f59f4c9e33c+wt
+fail/generics/runtime_difference_const_argument rejected 327ms expected @3bbe5c131a15
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_incoming_index_changed_after_mutation rejected 3394ms expected @ccdb99ca2214
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
@@ -15624,9 +15636,9 @@ fail/generics/runtime_index_carrier_call_stale_capture rejected 9055ms expected 
 fail/generics/runtime_index_carrier_cast_stale rejected 2881ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_const rejected 330ms expected @3f59f4c9e33c+wt
+fail/generics/runtime_index_carrier_const rejected 330ms expected @3bbe5c131a15
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 9335ms expected @6d20220933d7
+fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 2641ms expected @3bbe5c131a15
 	machine `escape` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2536ms expected @ccdb99ca2214
 	mutable scalar loan cannot preserve a runtime index descriptor
@@ -15681,8 +15693,9 @@ fail/generics/runtime_index_carrier_tail_mismatch rejected 2201ms expected @ccdb
 	machine `wrong` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_tail_stale rejected 2312ms expected @ccdb99ca2214
 	cannot prove runtime index descriptor equals its captured index
-fail/generics/runtime_index_predicate_global_shadow rejected 5445ms expected @46cdd6b85b82+wt
+fail/generics/runtime_index_predicate_global_shadow rejected 5445ms expected @3bbe5c131a15
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: second >= 10
 fail/generics/runtime_inferred_index_repeated_binder_mismatch rejected 5542ms expected @911f6617ba9e
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 4; an indexed value retains its captured index
 fail/generics/runtime_value_member_argument_wrong_carrier rejected 1482ms expected @ccdb99ca2214
