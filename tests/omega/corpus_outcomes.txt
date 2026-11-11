@@ -18578,8 +18578,8 @@ fail/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 3
 	machine `select` derives progress premise `package:4fb693a9331f78d8551120f81b96801ce625635fa02a826f307e8ed8ec11117e:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_owned_arrival_replaced_slot rejected 69339ms expected @71d7a6330d0b
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
-fail/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 48551ms unexpected @71d7a6330d0b
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+fail/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2156ms unexpected @ccdb99ca2214
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/progress_selector_owned_arrival_stale_contents rejected 41779ms expected @71d7a6330d0b
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
 fail/termination/progress_selector_owned_snapshot_rejected rejected 39797ms expected @71d7a6330d0b
@@ -27721,14 +27721,14 @@ pass/termination/progress_selector_owned_arrival_affine_exit checked 34607ms che
 pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit checked 30471ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_frozen_ingress_exit checked 56111ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_mixed_ingress_exit checked 42959ms check-target:macos_arm64 @71d7a6330d0b
-pass/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 63827ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 2392ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: held.value in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_owned_parameter_exit checked 75416ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_reference_boundary_exit checked 69573ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 59336ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_repeated_rebind_exit checked 61690ms check-target:macos_arm64 @71d7a6330d0b
-pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 56092ms check-target:macos_arm64 @71d7a6330d0b
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2258ms check-target:macos_arm64 @ccdb99ca2214
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
 pass/termination/progress_selector_owned_snapshot_exit checked 49644ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_reference_snapshot_exit checked 50192ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/projected_subject_measure checked 6258ms @d352d5e8e77e
@@ -27838,8 +27838,8 @@ pass/text/owned_byte_call_result_field_exit checked 63798ms check-target:macos_a
 pass/text/owned_record_byte_field_read_exit checked 62680ms check-target:macos_arm64 @911f6617ba9e
 pass/text/plain_and_qualified_byte_arrays_exit checked 140432ms check-target:macos_arm64 @71d7a6330d0b
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 11906ms check-target:macos_arm64 @ccdb99ca2214
-pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 70613ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @71d7a6330d0b
-	cannot prove default-domain field requirement for call step from Main::main::main: parameter output requires [u8; N]::Utf8
+pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 11379ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	cannot prove requires contract for call step from shift: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_2]; output is part of [u8; N]::Utf8) in state `entry`
 pass/text/qualified_byte_state_snapshot_exit checked 77994ms check-target:macos_arm64 @911f6617ba9e
 pass/text/qualified_byte_value_forwarding_exit checked 12547ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_alias_string_write checked 6520ms check-target:macos_arm64 @911f6617ba9e
