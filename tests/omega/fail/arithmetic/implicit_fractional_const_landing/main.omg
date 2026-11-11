@@ -1,0 +1,7 @@
+// A const initializer is an implicit integer landing: `(7 / 2) * 2` cancels to
+// 7 but rejects without a whole-expression `as`, as at any runtime destination
+// (fail/arithmetic/implicit_fractional_integer_landing). The accepted spelling
+// `((7 / 2) * 2) as u64` is pass/arithmetic/explicit_integer_landing_exit.
+const SEVEN: u64 = (7 / 2) * 2;
+
+machine seven() -> u64 { SEVEN }

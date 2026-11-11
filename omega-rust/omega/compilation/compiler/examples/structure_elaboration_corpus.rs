@@ -1,16 +1,24 @@
 //! Route one's corpus probe for structure-only elaboration.
 //!
 //! For each `main.omg` given on the command line: check the fixture with the
-//! ordinary pipeline (only to obtain its frozen typed trees and its bound
-//! program entry; no checker fact is read), elaborate the entry with
-//! `structure_elaboration`, then encode the unsealed module, load it into the
-//! Terminal interpreter and run it. One tab-separated line per fixture:
+//! ordinary pipeline through the typed-frontier seam (only to obtain its frozen
+//! typed trees, its bound program entry and the current checker's verdict; no
+//! checker fact is read), then elaborate the entry with `structure_elaboration`
+//! whether or not the current checker accepted the program. An accepted
+//! program's unsealed module is also encoded, loaded into the Terminal
+//! interpreter and run. One tab-separated line per fixture:
 //!
-//!     <path> <stage> <detail> [<expected exit>]
+//!     <path> <stage> <detail> [<summary> <expected exit>] reached04=.. current=.. route=.. [reason=..]
 //!
 //! where stage is `check-failed`, `no-entry`, `refused`, `encode-refused`,
-//! `load-refused`, `run-failed` or `ran`. A `summary` line per elaborated
-//! fixture counts its lowered rows. This is a measuring tool, not a gate.
+//! `load-refused`, `run-failed` or `ran`, as before the seam existed, so counts
+//! by stage stay comparable with earlier runs. The trailing fields are new:
+//! `reached04` says whether Psi 04 produced typed trees; `current` is the
+//! current checker's verdict (`accepted`, `rejected`, `review-refused` when the
+//! checker accepted and the fixture harness then refused, or `none`); `route`
+//! is the elaboration result (`lowered`, `refused` with `reason`, `no-entry`,
+//! or `none` when there were no trees). `total` lines follow the fixtures.
+//! This is a measuring tool, not a gate.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -42,55 +50,91 @@ fn first_line(text: impl std::fmt::Debug) -> String {
         .collect()
 }
 
-fn probe(main: &Path) -> String {
+/// One fixture's result: the stage and detail fields this probe has always
+/// printed, then what the seam and the new route reported.
+struct Probed {
+    legacy: String,
+    reached: &'static str,
+    current: &'static str,
+    route: &'static str,
+    reason: Option<String>,
+}
+
+impl Probed {
+    fn line(&self) -> String {
+        let mut line = format!(
+            "{}\treached04={}\tcurrent={}\troute={}",
+            self.legacy, self.reached, self.current, self.route
+        );
+        if let Some(reason) = &self.reason {
+            line.push_str("\treason=");
+            line.push_str(reason);
+        }
+        line
+    }
+}
+
+fn probe(main: &Path) -> Probed {
+    use fixture_package_inputs::FixtureFrontierCheck;
     let fixture = main.parent().map_or(main, |parent| parent);
     let expected = std::fs::read_to_string(fixture.join("expected_native_exit.txt"))
         .map(|text| text.trim().to_owned())
         .unwrap_or_default();
-    let checked = (|| {
-        let snapshot = fixture_package_inputs::fixture_build_snapshot(main)?;
-        let discovered = fixture_package_inputs::discover_fixture(
-            main,
-            package_compilation::BuildExecutionInputs {
-                snapshot,
-                ..Default::default()
-            },
-        )?;
-        let target = discovered
-            .targets
-            .iter()
-            .find(|target| target.as_str() == "linux_x86_64")
-            .or_else(|| discovered.targets.first())
-            .cloned();
-        let profile = target::TargetProfile::from_omega_target_name(target.as_deref())
-            .map_err(|error| vec![error])?;
-        let mut prepared = fixture_package_inputs::review_fixture(
-            discovered,
-            &[profile],
-            compiler::CompilationProduct::Check,
-        )?;
-        fixture_package_inputs::check_fixture(
-            &mut prepared,
-            profile.target_name(),
-            Default::default(),
-        )
-    })();
-    let checked = match checked {
-        Ok(checked) => checked,
-        Err(errors) => return format!("check-failed\t{}", first_line(errors.first())),
+    let check_failed = |errors: &[diagnostics::Diagnostic]| {
+        format!("check-failed\t{}", first_line(errors.first()))
     };
-    let roots = checked.build().config.program_roots();
-    let Some(entry) = roots.first().copied() else {
-        return "no-entry\t-".to_owned();
+    // `failed` is the stage field of a program the ordinary check did not
+    // return: it stays `check-failed` even when the new route goes on to
+    // lower the program, so earlier counts by stage are unchanged.
+    let (frontier, current, failed) =
+        match fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64") {
+            FixtureFrontierCheck::Accepted { frontier, .. } => (frontier, "accepted", None),
+            FixtureFrontierCheck::Rejected {
+                frontier,
+                diagnostics,
+            } => (frontier, "rejected", Some(check_failed(&diagnostics))),
+            FixtureFrontierCheck::ReviewRefused {
+                frontier,
+                diagnostics,
+            } => (frontier, "review-refused", Some(check_failed(&diagnostics))),
+            FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
+                return Probed {
+                    legacy: check_failed(&diagnostics),
+                    reached: "no",
+                    current: "none",
+                    route: "none",
+                    reason: None,
+                };
+            }
+        };
+    let probed = |legacy: String, route, reason| Probed {
+        legacy: failed.clone().unwrap_or(legacy),
+        reached: "yes",
+        current,
+        route,
+        reason,
     };
-    let program = checked.source_inspection().program();
+    let Some(entry) = frontier.entries.first().copied() else {
+        return probed("no-entry\t-".to_owned(), "no-entry", None);
+    };
     if std::env::var_os("STRUCTURE_ELABORATION_DUMP").is_some() {
-        dump_transitions(&program.typed);
+        dump_transitions(&frontier.typed);
     }
-    let elaboration = match structure_elaboration::elaborate(&program.typed, entry) {
+    let elaboration = match structure_elaboration::elaborate(&frontier.typed, entry) {
         Ok(elaboration) => elaboration,
-        Err(refusal) => return format!("refused\t{}", refusal.detail),
+        Err(refusal) => {
+            return probed(
+                format!("refused\t{}", refusal.detail),
+                "refused",
+                Some(format!("{:?}: {}", refusal.reason, refusal.detail)),
+            );
+        }
     };
+    if failed.is_some() {
+        // The current checker did not accept this program, so there is no
+        // expected run to compare with; the new route's prover decides it.
+        return probed(String::new(), "lowered", None);
+    }
     let mut counts = [0_usize; 4];
     let mut values = 0;
     let mut edges = 0;
@@ -125,20 +169,33 @@ fn probe(main: &Path) -> String {
     );
     let bytes = match terminal_codec::encode_module(&elaboration.module) {
         Ok(bytes) => bytes,
-        Err(error) => return format!("encode-refused\t{}\t{summary}", first_line(error)),
+        Err(error) => {
+            return probed(
+                format!("encode-refused\t{}\t{summary}", first_line(error)),
+                "lowered",
+                None,
+            );
+        }
     };
     let mut execution =
         match TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default()) {
             Ok(execution) => execution,
-            Err(error) => return format!("load-refused\t{}\t{summary}", first_line(error)),
+            Err(error) => {
+                return probed(
+                    format!("load-refused\t{}\t{summary}", first_line(error)),
+                    "lowered",
+                    None,
+                );
+            }
         };
-    match execution.resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects) {
+    let legacy = match execution.resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects) {
         Ok(status) => format!(
             "ran\t{}\t{summary}\texpected={expected}",
             first_line(status)
         ),
         Err(error) => format!("run-failed\t{}\t{summary}", first_line(error)),
-    }
+    };
+    probed(legacy, "lowered", None)
 }
 
 /// Diagnostic only: each transition's guard and pattern handles, so a reader
@@ -180,11 +237,54 @@ fn dump_transitions(typed: &typed_trees::TypedTrees) {
     }
 }
 
+/// Adds one to `key`'s count. The keys are report labels and nothing is
+/// decided on them.
+fn tally(counts: &mut Vec<(String, usize)>, key: &str) {
+    match counts.iter_mut().find(|(seen, _)| seen == key) {
+        Some((_, count)) => *count += 1,
+        None => counts.push((key.to_owned(), 1)),
+    }
+}
+
 fn main() {
+    let mut stages = Vec::new();
+    let mut frontiers = Vec::new();
+    let mut verdicts = Vec::new();
+    let mut rejected_routes = Vec::new();
+    let mut rejected_reasons = Vec::new();
     for argument in std::env::args().skip(1) {
         let main = Path::new(&argument);
-        let line =
-            std::panic::catch_unwind(|| probe(main)).unwrap_or_else(|_| "panicked\t-".to_owned());
-        println!("{argument}\t{line}");
+        let probed = std::panic::catch_unwind(|| probe(main)).unwrap_or_else(|_| Probed {
+            legacy: "panicked\t-".to_owned(),
+            reached: "unknown",
+            current: "unknown",
+            route: "unknown",
+            reason: None,
+        });
+        println!("{argument}\t{}", probed.line());
+        tally(&mut stages, probed.legacy.split('\t').next().unwrap_or(""));
+        tally(&mut frontiers, probed.reached);
+        tally(&mut verdicts, probed.current);
+        if probed.current == "rejected" {
+            tally(&mut rejected_routes, probed.route);
+            if let Some(reason) = &probed.reason {
+                tally(&mut rejected_reasons, reason);
+            }
+        }
+    }
+    // Totals: the stage counts this probe has always implied, then the
+    // programs the seam made visible. `rejected-*` rows cover only programs
+    // that reached Psi 04 and that the current checker then rejected.
+    for (name, counts) in [
+        ("stage", &mut stages),
+        ("reached04", &mut frontiers),
+        ("current", &mut verdicts),
+        ("rejected-route", &mut rejected_routes),
+        ("rejected-refusal", &mut rejected_reasons),
+    ] {
+        counts.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+        for (key, count) in counts.iter() {
+            println!("total\t{name}\t{key}\t{count}");
+        }
     }
 }

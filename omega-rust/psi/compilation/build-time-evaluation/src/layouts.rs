@@ -2940,6 +2940,8 @@ pub(crate) mod access_views {
                                     selected_owners,
                                     &mut deferred,
                                 ),
+                                // A selection row names an existing machine and has no body.
+                                ConformanceMember::Selection { .. } => {}
                             }
                         }
                     }

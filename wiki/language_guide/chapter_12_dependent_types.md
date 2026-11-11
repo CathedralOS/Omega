@@ -156,11 +156,30 @@ The practical frame rule is preserve-unless-written, at exact storage granularit
 - Mutable or write-only access may invalidate facts about written places.
 - Exact outcome guarantees can preserve or establish facts after the call.
 
-A checked implementation may publish a complete narrower mutation frame. An
-opaque or unknown dynamic call uses its conservative signature and authority
-ceiling; unknown is not an empty write set. Operand evaluation contributes writes
-too. Parameters borrowing a whole aggregate therefore lose more precision than
-parameters borrowing only the needed fields.
+The compiler works out which places a checked machine may write and publishes
+that with its contract. Nothing is written in the header:
+
+```omega
+public machine set_time(entry: &mut Entry, time: u64) {
+    entry.at = time;
+}
+
+set_time(&mut e, 5);
+use(e.owner);        // facts about e.owner survive the call
+```
+
+Because the frame is published, editing `set_time` to write `entry.owner` too
+is an interface change that dependents see, not a proof that breaks somewhere
+else without explanation. A generic machine's frame follows the callback it
+is given, so `apply<set_time>` writes what `set_time` writes.
+
+A call with no body to inspect, through a runtime callable value or a boundary
+operation, uses the ceiling: everything the callee could write. Unknown is not
+an empty write set. Two things keep the loss small. Borrow only the needed
+field, `&mut entry.at`, which is the first choice. Or have the requirement
+state the end state, `ensures entry.owner == old(entry.owner)`, which gives
+the caller its value facts back. Operand evaluation contributes writes too.
+See [mutation frames](../spec/language/dependent_values.md#mutation-frames).
 Default-domain facts must be restored before consumption; that is not a promise
 that the value stayed unchanged.
 

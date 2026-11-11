@@ -1170,6 +1170,7 @@ mod expressions {
                             ConformanceMember::Machine(machine)
                             | ConformanceMember::Synthesized(machine)
                             | ConformanceMember::TraitDefault { machine, .. } => machine,
+                            ConformanceMember::Selection { .. } => continue,
                         };
                         enter_machine(machine);
                     }

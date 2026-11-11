@@ -3475,9 +3475,7 @@ mod target_observations {
                 Some(&calls),
             )
             .map_err(&failure)?;
-            for warning in warnings {
-                eprintln!("{warning}");
-            }
+            crate::report_evaluation_diagnostics(&warnings)?;
             let completed = value.declaration_value();
             let materialized = match &value {
                 value::ScalarValue::UndeterminedNaN(format) => {
@@ -4312,9 +4310,7 @@ pub(crate) fn evaluate(
                     )
                     .map_err(|reason| failure(reference, reason))?;
                     replacements.insert(leaf.expression, materialized);
-                    for warning in &evaluation.warnings {
-                        eprintln!("{warning}");
-                    }
+                    crate::report_evaluation_diagnostics(&evaluation.warnings)?;
                     continue;
                 }
                 let result = if leaf.calls.is_empty() {
@@ -4384,9 +4380,7 @@ pub(crate) fn evaluate(
                 let materialized = syntax.expressions.insert(literal);
                 syntax.expressions.set_source_span(materialized, reference);
                 replacements.insert(leaf.expression, materialized);
-                for warning in result.warnings {
-                    eprintln!("{warning}");
-                }
+                crate::report_evaluation_diagnostics(&result.warnings)?;
             }
             let value = if declarations[ordinal].leaves.len() == 1
                 && authored_expression == declarations[ordinal].leaves[0].expression

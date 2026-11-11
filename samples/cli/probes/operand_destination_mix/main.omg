@@ -15,10 +15,10 @@ machine direct() -> u64 {
 }
 
 machine composed(flag: bool) -> u64 {
-    (match flag {
+    ((match flag {
         true -> 18446744073709551616 / 18446744073709551616
         false -> 7 / 2 * 2
-    }) | (8u64 | 16u64)
+    }) as u64) | (8u64 | 16u64)
 }
 
 machine qualified(flag: bool, value: u64 in Wrapping) -> u64 {

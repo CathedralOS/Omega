@@ -1768,6 +1768,7 @@ pub(crate) mod item {
     use symbol_resolved_trees::name::DiagnosticName;
     use symbol_resolved_trees::trait_definition::ConformanceRowSource;
     use syntax::item::Item;
+    use syntax_trees::identifier::JoinedSyntaxPath;
     use syntax_trees::{self as syntax, SyntaxTrees};
 
     pub(crate) fn lower_item(
@@ -1911,6 +1912,52 @@ pub(crate) mod item {
                                 machine,
                                 ConformanceRowSource::TraitDefault,
                             )?);
+                        }
+                        /*
+                            A selection row declares no machine. The slot keeps
+                            the authored path and its source span; closed
+                            conformance normalization resolves that path to one
+                            exact existing machine from where it was written and
+                            records it as the realization, so every later stage
+                            calls and checks the selected declaration itself.
+                        */
+                        syntax::item::ConformanceMember::Selection {
+                            declaring_trait,
+                            requirement,
+                            target,
+                        } => {
+                            let target_members =
+                                syntax_items(syntax_trees).identifier_path_members(*target);
+                            let authored_realization_source_span = target_members
+                                .first()
+                                .zip(target_members.last())
+                                .and_then(|(first, last)| {
+                                    (first.source_span().source_id == last.source_span().source_id)
+                                        .then(|| {
+                                            source::SourceSpan::new(
+                                                first.source_span().source_id,
+                                                source::Span::new(
+                                                    first.source_span().span.start,
+                                                    last.source_span().span.end,
+                                                ),
+                                            )
+                                        })
+                                });
+                            rows.push(symbol_resolved_trees::trait_definition::ConformanceRow {
+                                declaring_trait: symbols::SymbolHandle::invalid(),
+                                declaring_trait_name: lower_name(syntax_trees, declaring_trait),
+                                requirement: symbols::SymbolHandle::invalid(),
+                                requirement_name: lower_name(syntax_trees, requirement),
+                                provisional_requirement_ordinal: None,
+                                realization_machine: symbols::SymbolHandle::invalid(),
+                                realization_state: symbols::SymbolHandle::invalid(),
+                                realization_name: DiagnosticName::generated(
+                                    target_members.joined_path_in(syntax_trees),
+                                ),
+                                authored_realization_source_span,
+                                provisional_realization_ordinal: None,
+                                source: ConformanceRowSource::Reference,
+                            });
                         }
                     }
                 }

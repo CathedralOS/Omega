@@ -134,19 +134,24 @@ pub enum SelectionProvenance<Declaration, Origin = ()> {
     TargetDefault(Vec<ProviderDeclaration<Declaration, Origin>>),
     UniqueCoveringCandidate,
     NativeBuild,
+    /// A canonical float operation realized by the selected target's declared
+    /// realization table; no Build or package declaration chose it.
+    TargetRealization(target::CanonicalFloatRealization),
 }
 
 impl<Declaration, Origin> SelectionProvenance<Declaration, Origin> {
     pub fn declarations(&self) -> &[ProviderDeclaration<Declaration, Origin>] {
         match self {
             Self::BuildOverride(declarations) | Self::TargetDefault(declarations) => declarations,
-            Self::UniqueCoveringCandidate | Self::NativeBuild => &[],
+            Self::UniqueCoveringCandidate | Self::NativeBuild | Self::TargetRealization(_) => &[],
         }
     }
 
     pub fn composition_mode(&self) -> Result<CompositionMode, String> {
         match self {
-            Self::UniqueCoveringCandidate | Self::NativeBuild => Ok(CompositionMode::Fused),
+            Self::UniqueCoveringCandidate | Self::NativeBuild | Self::TargetRealization(_) => {
+                Ok(CompositionMode::Fused)
+            }
             Self::TargetDefault(declarations) => {
                 if declarations
                     .iter()
@@ -189,7 +194,8 @@ pub struct ProviderCandidate<Declaration, Owner = ()> {
     pub plan: ProviderPlan,
     pub declarations: CandidateDeclarations<Declaration>,
     pub native_build: bool,
-    pub owner: Owner, // exact derivation or canonical closure travels with its plan
+    pub canonical_float_map: bool, // provider is the authenticated sealed core float catalog map
+    pub owner: Owner,              // exact derivation or canonical closure travels with its plan
 }
 
 #[derive(Debug, Clone)]

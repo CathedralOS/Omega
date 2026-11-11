@@ -90,7 +90,7 @@ That proposal neither permits concrete cross-carrier membership nor admits
 arbitrary integer widths into the language.
 
 Scalar interval relationships use ordinary propositions, not a bracketed type
-suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
+suffix (`scalar-range-contract-spelling`). Put field relationships in the
 data declaration's `requires`, including guarded case-payload relationships,
 machine-parameter obligations in `requires`, and result obligations in
 `ensures`. Locals receive facts from their initializer, guards, calls, and
