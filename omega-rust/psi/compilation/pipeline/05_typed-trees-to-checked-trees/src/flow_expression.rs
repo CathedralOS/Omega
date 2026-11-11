@@ -11632,6 +11632,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             FlowInvalidationSource::Statement {
                 statement_index: self.statement_index,
             },
+            (self.state.symbol, self.statement_index),
         );
         *constraints = project_constraint_refs_to_active_contexts(
             &mut self.context.contexts.constraint_refs,
