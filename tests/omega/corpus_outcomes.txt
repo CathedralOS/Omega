@@ -5448,6 +5448,12 @@ fail/effects/pacing_poll_cannot_observe_descriptors rejected 13158ms expected @c
 	cannot prove requires contract for call poll from invalid_wait: 1 == 0 && 1 == 0 (needs fact `fds == 0 && nfds == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/portable_filesystem_write_needs_write_reach rejected 33696ms expected @ccdb99ca2214
 	machine `read_only` publishes service reach `FilesystemContentRead` but its checked body reaches undeclared service `FilesystemContentWrite`
+fail/effects/private_crashes_none_body_crashes rejected 11076ms expected @4f55c17ab337
+	call from `risky` to `bad` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `risky` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
+fail/effects/private_crashes_none_call_crashes rejected 5808ms expected @4f55c17ab337
+	call from `quotient` to `divide` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `quotient` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/effects/provider_authored_reach_beyond_invocation rejected 1637ms expected @ccdb99ca2214
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
 fail/effects/reviewed_service_rows_missing_capability rejected 2801ms expected regressed-from:checked @ccdb99ca2214
@@ -21685,6 +21691,7 @@ pass/effects/optional_reach_empty_exit checked 3144ms check-target:macos_arm64 @
 pass/effects/optional_reach_generic_narrow_exit checked 6976ms check-target:macos_arm64 @d68d95fa82f8
 pass/effects/optional_reach_recursive_foreign_exit checked 6543ms check-target:macos_arm64 @d68d95fa82f8
 pass/effects/optional_reach_target_union_exit checked 6498ms check-target:macos_arm64 @d68d95fa82f8
+pass/effects/private_crashes_none_call_disproved_exit checked 13180ms check-target:macos_arm64 @4f55c17ab337
 pass/effects/reach_inferred_wrapper checked 2917ms @ccdb99ca2214
 pass/effects/reach_through_machine_param checked 2976ms @ccdb99ca2214
 pass/effects/reviewed_service_rows_exit checked 18046ms check-target:macos_arm64 @ccdb99ca2214
