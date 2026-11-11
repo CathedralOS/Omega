@@ -25583,15 +25583,16 @@ pass/filesystem/windows_namespace_rename_exit checked 310804ms check-target:wind
 pass/filesystem/windows_native_create_write_close_exit checked 327777ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_argument_failures_exit checked 327836ms check-target:windows_x86_64 @e1cfe02f1a9b
 pass/filesystem/windows_raw_bounded_view_exit checked 326461ms check-target:windows_x86_64 @e1cfe02f1a9b
+pass/filesystem/windows_raw_breadth_exit checked 165953ms check-target:windows_x86_64 @f9b768d5065a
 pass/filesystem/windows_raw_canonical_path_exit checked 286713ms check-target:windows_x86_64 terminal-inspections:match @d79b5aa12a7c
 pass/filesystem/windows_raw_directory_count_exit checked 466128ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_directory_nth_exit checked 433584ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_file_control_exit checked 384589ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_hard_link_exit checked 472229ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
 pass/filesystem/windows_raw_lock_exit checked 378123ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
+pass/filesystem/windows_raw_metadata_exit checked 257499ms check-target:windows_x86_64 terminal-inspections:match @f9b768d5065a
 pass/filesystem/windows_raw_positioned_io_exit checked 281790ms check-target:windows_x86_64 terminal-inspections:match @659d85487967
-pass/filesystem/windows_raw_read_link_exit rejected 625286ms check-target:windows_x86_64 terminal-inspections:failed regressed-from:checked+check-target:windows_x86_64+terminal-inspections:match @e1cfe02f1a9b
-	inspection Main::main transport: Semantic(MalformedStructuralOperation { machine: "named-callable(path(nominal\\\\(package-owner\\\\(32:3d40852ed0efd8f62c09e692e27bf1f69266b16aac2b5667acff9c7b0ec69984\\\\)\\\\,path\\\\(Main::main\\\\)\\\\)),parameters(parameter\\\\(mutable\\\\(yes\\\\)\\\\,const\\\\(no\\\\)\\\\,ref-mut\\\\(named\\\\(name\\\\(nominal\\\\\\\\\\\\(package-owner\\\\\\\\\\\\(32:3d40852ed0efd8f62c09e692e27bf1f69266b16aac2b5667acff9c7b0ec69984\\\\\\\\\\\\)\\\\\\\\\\\\,path\\\\\\\\\\\\(Main\\\\\\\\\\\\)\\\\\\\\\\\\)\\\\)\\\\)\\\\)\\\\)),result-dispatch())", operation: OperationId(2), reason: "leaf copy memberships do not follow from every current payload source: source=PlaceId(1447), path=[], requested=StructuralTypeId(245)/[StructuralDomainId(4)]/[], current=None, history=[], phase=targets, machine_present=false" })
+pass/filesystem/windows_raw_read_link_exit checked 231038ms check-target:windows_x86_64 terminal-inspections:match @f9b768d5065a
 pass/filesystem/windows_wrapper_results_exit checked 311264ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/wrapper_lock_metadata_exit checked 323362ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/wrapper_open_with_exit checked 305050ms check-target:macos_arm64 @e1cfe02f1a9b

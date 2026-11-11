@@ -4834,16 +4834,16 @@ pass/filesystem/windows_namespace_rename_exit built 63884ms exit:70 @5f668826adf
 pass/filesystem/windows_native_create_write_close_exit built 49772ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_raw_argument_failures_exit built 60011ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_raw_bounded_view_exit built 71292ms exit:70 @5f668826adf3+wt
-pass/filesystem/windows_raw_breadth_exit built 70470ms exit:70 @5f668826adf3+wt
+pass/filesystem/windows_raw_breadth_exit built 157907ms exit:70 @8d1508795e32
 pass/filesystem/windows_raw_canonical_path_exit built 190771ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_directory_count_exit built 213237ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_directory_nth_exit built 175440ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_file_control_exit built 231210ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_hard_link_exit built 173446ms exit:70 terminal-inspections:match @5f668826adf3+wt
 pass/filesystem/windows_raw_lock_exit built 183578ms exit:70 terminal-inspections:match @5f668826adf3+wt
-pass/filesystem/windows_raw_metadata_exit built 198935ms exit:70 terminal-inspections:match @5f668826adf3+wt
+pass/filesystem/windows_raw_metadata_exit built 261882ms exit:70 terminal-inspections:match @8d1508795e32
 pass/filesystem/windows_raw_positioned_io_exit built 208400ms exit:70 terminal-inspections:match @5f668826adf3+wt
-pass/filesystem/windows_raw_read_link_exit built 233058ms exit:70 terminal-inspections:match @5f668826adf3+wt
+pass/filesystem/windows_raw_read_link_exit built 226884ms exit:70 terminal-inspections:match @8d1508795e32
 pass/filesystem/windows_set_file_time_exit built 106166ms exit:70 @5f668826adf3+wt
 pass/filesystem/windows_wrapper_results_exit built 172438ms exit:70 @5f668826adf3+wt
 pass/filesystem/wrapper_lock_metadata_exit rejected 44079ms @e3eb5bdd566b
