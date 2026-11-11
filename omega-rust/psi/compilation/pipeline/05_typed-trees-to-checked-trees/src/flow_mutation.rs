@@ -1305,18 +1305,36 @@ mod local_origins {
     ) -> Option<Vec<CanonicalPlace>> {
         let storage = places.clone();
         let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
-        for place in authored {
+        let within = |written: &CanonicalPlace, alias: &CanonicalPlace| {
+            written.root == alias.root
+                && written.segments.len() > alias.segments.len()
+                && written.segments.starts_with(&alias.segments)
+        };
+        let alias_of = |origin: &LocalWriteOrigin| {
+            canonical_place_from_symbol(origin.local_symbol).map(|mut alias| {
+                alias.segments.extend_from_slice(&origin.local_segments);
+                alias
+            })
+        };
+        /*
+            An authored place only stands in for an alias it lies strictly within;
+            a spelling that crosses no such alias adds nothing to the footprint.
+        */
+        let authored = authored
+            .iter()
+            .filter(|written| {
+                origins.iter().any(|origin| {
+                    origin.source.is_some()
+                        && alias_of(origin).is_some_and(|alias| within(written, &alias))
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for place in &authored {
             if seen.insert(place.clone()) {
                 places.push(place.clone());
             }
         }
-        let written_within = |alias: &CanonicalPlace| {
-            storage.iter().chain(authored).any(|written| {
-                written.root == alias.root
-                    && written.segments.len() > alias.segments.len()
-                    && written.segments.starts_with(&alias.segments)
-            })
-        };
         for origin in origins {
             if origin
                 .source
@@ -1328,16 +1346,13 @@ mod local_origins {
             let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
             alias.segments.extend_from_slice(&origin.local_segments);
             if origin.source.is_none() {
-                if !written_within(&alias) && seen.insert(alias.clone()) {
+                let written_within = storage.iter().any(|written| within(written, &alias));
+                if !written_within && seen.insert(alias.clone()) {
                     places.push(alias);
                 }
                 continue;
             }
-            if authored.iter().any(|written| {
-                written.root == alias.root
-                    && written.segments.len() > alias.segments.len()
-                    && written.segments.starts_with(&alias.segments)
-            }) {
+            if authored.iter().any(|written| within(written, &alias)) {
                 continue;
             }
             let (source, precision) = origin_place(program, state, statement_index, origin)
