@@ -6471,8 +6471,9 @@ pub(crate) mod canonical_projection {
 }
 pub(crate) use canonical_projection::ProjectionSyntaxQueries;
 pub use canonical_projection::{
-    CanonicalPlace, WindowedSegment, canonical_collection_element_place, canonical_place_from_expression,
-    canonical_place_from_expression_in_state, element_place_segment, fold_fixed_element_windows, index_place_segment,
+    CanonicalPlace, WindowedSegment, canonical_collection_element_place,
+    canonical_place_from_expression, canonical_place_from_expression_in_state,
+    element_place_segment, fold_fixed_element_windows, index_place_segment,
     place_root_may_be_symbol, push_field_place_segments, storage_operand,
     storage_place_from_expression_in_state, window_coordinate,
 };
