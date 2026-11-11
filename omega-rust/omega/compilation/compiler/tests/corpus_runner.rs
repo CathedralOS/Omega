@@ -77,12 +77,6 @@
 //! artifact and records unchecked without a source replay. The check golden's
 //! canonical target and a different runtime target remain distinct program inputs.
 //!
-//! `OMEGA_CORPUS_CHECKED_INTERPRETER=1` explicitly selects the independent
-//! checked-tree source oracle instead of Terminal execution. It records
-//! `interpreter-engine:checked-tree` and consumes the exact selected entry and
-//! provisioned receiver from checked compilation; it is never a fallback for a
-//! Terminal refusal and cannot reuse a native report's Terminal artifact.
-//!
 //! A `rollback.txt` beside `main.omg` declares a release rollback overlay for
 //! the fixture: one exact optimization case name per line, the spelling
 //! `--disable-optimization` takes. The declared `OptimizationRollback` rides
@@ -150,8 +144,6 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/artifact_capture.rs"]
 mod artifact_capture;
-#[path = "support/checked_interpreter_dispatch/mod.rs"]
-mod checked_interpreter_dispatch;
 #[path = "support/entry_inputs.rs"]
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
@@ -173,10 +165,7 @@ mod runtime_oracles;
 mod terminal_execution;
 #[path = "support/terminal_inspection.rs"]
 mod terminal_inspection;
-use fixture_package_inputs::{
-    fixture_build_snapshot, repo_root, reviewed_repository_fixture_package_inputs,
-    sealed_fixture_staging,
-};
+use fixture_package_inputs::{fixture_build_snapshot, repo_root, sealed_fixture_staging};
 
 fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -704,11 +693,7 @@ fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
 
 /// Whether runnable fixtures also execute on the explicitly selected engine.
 fn interpreter_leg() -> bool {
-    env::var_os("OMEGA_CORPUS_INTERPRET").is_some() || checked_interpreter_leg()
-}
-
-fn checked_interpreter_leg() -> bool {
-    env::var_os("OMEGA_CORPUS_CHECKED_INTERPRETER").is_some()
+    env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
 }
 
 /// Both execution legs read independent handles to the same authored byte
@@ -724,9 +709,8 @@ fn fixture_input(fixture_dir: &Path) -> std::io::Result<Box<dyn std::io::Read + 
     }
 }
 
-/// Dispatch the explicitly selected oracle. Terminal execution owns its canonical
-/// artifact and instance lifecycle; checked execution owns its independent source
-/// product. Both use reviewed fixture inputs, never an engine-refusal fallback.
+/// Interpret the fixture's own Terminal artifact. Terminal execution owns its
+/// canonical artifact and instance lifecycle and reads the reviewed fixture input.
 fn interpret_fixture(
     root_path: &Path,
     fixture_dir: &Path,
@@ -734,9 +718,6 @@ fn interpret_fixture(
     target: String,
     rollback: Option<&OptimizationRollback>,
 ) -> terminal_execution::Observation {
-    if checked_interpreter_leg() {
-        return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
-    }
     let work_budget = match terminal_execution::work_budget(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -768,155 +749,6 @@ fn interpret_fixture(
         work_budget,
         input,
     )
-}
-
-/// Run the source-shaped oracle only when the caller explicitly selects it.
-/// Admission, target and entry custody come from the same fixture harness as
-/// every compile leg; no source name or unsupported Terminal result selects it.
-fn interpret_checked_fixture(
-    root_path: &Path,
-    fixture_dir: &Path,
-    build_dir: PathBuf,
-    target: &str,
-    rollback: Option<&OptimizationRollback>,
-) -> terminal_execution::Observation {
-    let compile_checked = || {
-        let mut prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
-        fixture_package_inputs::check_fixture(
-            &mut prepared,
-            target,
-            rollback.cloned().unwrap_or_default(),
-        )
-    };
-    let checked = compile_checked();
-    let _ = fs::remove_dir_all(&build_dir);
-    let checked = match checked {
-        Ok(checked) => checked,
-        Err(errors) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:unchecked".to_owned()],
-                diagnostics: errors
-                    .iter()
-                    .map(|error| host_free_diagnostic_text(&error.message))
-                    .collect(),
-            };
-        }
-    };
-    let Some(entry) = checked.execution().selected_program_entry.as_ref() else {
-        return terminal_execution::Observation::failure(
-            "checked fixture has no selected ProgramEntry",
-        );
-    };
-    let dispatch =
-        match checked_interpreter_dispatch::prepare_checked_interpreter_dispatch(&checked) {
-            Ok(dispatch) => dispatch,
-            Err(errors) => {
-                return terminal_execution::Observation {
-                    facts: vec!["interpreter:declined".to_owned()],
-                    diagnostics: errors
-                        .iter()
-                        .map(|error| host_free_diagnostic_text(&error.message))
-                        .collect(),
-                };
-            }
-        };
-    let mut input = match fixture_input(fixture_dir) {
-        Ok(input) => input,
-        Err(error) => return terminal_execution::Observation::failure(error),
-    };
-    let mut input_bytes = Vec::new();
-    if let Err(error) = std::io::Read::read_to_end(&mut input, &mut input_bytes) {
-        return terminal_execution::Observation::failure(error);
-    }
-    // The realization owner chose `target` for this fixture's check leg; a call
-    // bound to a target family runs the member body selected for that target,
-    // the same member native realization binds.
-    let machine_bodies: Vec<checked_interpreter::SelectedBuildTimeMachineBody> = checked
-        .source_inspection()
-        .program()
-        .typed
-        .target_machine_families
-        .iter()
-        .filter_map(|family| {
-            family
-                .members
-                .iter()
-                .find(|member| member.target.as_str() == target)
-                .map(|member| checked_interpreter::SelectedBuildTimeMachineBody {
-                    family: family.canonical,
-                    body: member.machine,
-                })
-        })
-        .collect();
-    // The same owner supplies the x86 flags environment for this check leg:
-    // when `target` is an x86 target the host's captured image is the modeled
-    // state `pushfq` observes and `popfq` restores, matching the environment
-    // Terminal execution receives.
-    let x86_flags = if terminal_psi::RegisterTargetApplicability::X86_64.accepts_target_name(target)
-    {
-        runtime_abi::capture_host_x86_flags()
-    } else {
-        None
-    };
-    let outcome = checked_interpreter::interpret_entry(
-        checked.source_inspection().program(),
-        checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
-        &input_bytes,
-        checked_interpreter::InterpretOptions {
-            boundary_adapters: &dispatch.boundary_adapters,
-            float_comparisons: &dispatch.float_comparisons,
-            machine_bodies: &machine_bodies,
-            x86_flags,
-            ..checked_interpreter::InterpretOptions::default()
-        },
-    );
-    let mut observation = match (outcome.crash_cause, outcome.error.as_deref()) {
-        // The crash's site names where a trap fired, so a trapping harness or
-        // fixture record says which machine and state crashed.
-        (Some(typed_trees::signature::CrashCause::Trap), error) => {
-            terminal_execution::Observation {
-                facts: vec!["interpreter:trapped".to_owned()],
-                diagnostics: error
-                    .map(|site| format!("Checked interpreter: {site}"))
-                    .into_iter()
-                    .collect(),
-            }
-        }
-        (None, None) => terminal_execution::Observation {
-            facts: vec![format!("interpreter-exit:{}", outcome.exit_code)],
-            diagnostics: Vec::new(),
-        },
-        // Only the executed checked cause satisfies a Trap oracle. Internal
-        // evaluator errors and Abort remain distinct, regardless of wording.
-        (_, Some(error)) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: vec![format!("Checked interpreter: {error}")],
-            };
-        }
-        (Some(cause), None) => {
-            return terminal_execution::Observation {
-                facts: vec!["interpreter:declined".to_owned()],
-                diagnostics: vec![format!("Checked interpreter: explicit crash {cause:?}")],
-            };
-        }
-    };
-    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
-        let matches = std::str::from_utf8(&outcome.stdout)
-            .is_ok_and(|actual| actual.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
-        if !matches {
-            output_oracles::show_differing_stream("interpreter stdout", &outcome.stdout);
-        }
-        observation.facts.push(
-            if matches {
-                "interpreter-stdout:match"
-            } else {
-                "interpreter-stdout:differs"
-            }
-            .to_owned(),
-        );
-    }
-    observation
 }
 
 /// Observe the native report's own immutable Terminal product before publication
@@ -962,7 +794,7 @@ fn observe_retained_terminal(
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
-    let mut observation = if interpreter_leg() && !checked_interpreter_leg() {
+    let mut observation = if interpreter_leg() {
         match fixture_input(fixture_dir) {
             Ok(input) => terminal_execution::interpret(
                 artifact,
@@ -1761,9 +1593,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 realized = true;
                 let build_dir = unique_build_dir(sequence);
                 let interpretation = (terminal_target_oracle
-                    || (!checked_interpreter_leg() && interpreter_target.as_ref() == Some(target)))
+                    || interpreter_target.as_ref() == Some(target))
                 .then(|| {
-                    shared_interpreter_request = !checked_interpreter_leg();
+                    shared_interpreter_request = true;
                     (fixture_dir.as_path(), &mut interpreter_observation)
                 });
                 let capture = artifact_capture::Capture::from_environment(tier, &rel, target);
@@ -1839,7 +1671,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             // An authored installation matrix observes one exact portable product,
             // not separately compiled native products for its named target rows.
             (_, _, _) if terminal_target_oracle && !requests_target_cohort => {
-                shared_interpreter_request = !checked_interpreter_leg();
+                shared_interpreter_request = true;
                 let check_target = check_leg_realization_target(&targets);
                 let leg = (|| {
                     let capture = artifact_capture::Capture::from_environment(
@@ -1897,10 +1729,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             (_, _, _) => {
                 let check_target = check_leg_realization_target(&targets);
                 let interpretation = (check_target.is_some()
-                    && (terminal_target_oracle
-                        || (!checked_interpreter_leg() && check_target == interpreter_target)))
+                    && (terminal_target_oracle || check_target == interpreter_target))
                     .then(|| {
-                        shared_interpreter_request = !checked_interpreter_leg();
+                        shared_interpreter_request = true;
                         (fixture_dir.as_path(), &mut interpreter_observation)
                     });
                 let capture = artifact_capture::Capture::from_environment(
@@ -1956,7 +1787,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         }
     };
     let mut interpreter_diagnostics = Vec::new();
-    if terminal_target_oracle && (!interpreter_leg() || checked_interpreter_leg()) {
+    if terminal_target_oracle && !interpreter_leg() {
         if let Some(observation) = interpreter_observation.take() {
             facts.extend(observation.facts);
             interpreter_diagnostics.extend(observation.diagnostics);
@@ -1965,9 +1796,6 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         }
     }
     if interpreter_leg() && tier != "fail" && runnable {
-        if checked_interpreter_leg() {
-            facts.push("interpreter-engine:checked-tree".to_owned());
-        }
         let observation = if let Some(observation) = interpreter_observation {
             observation
         } else if shared_interpreter_request || rollback_error.is_some() {
