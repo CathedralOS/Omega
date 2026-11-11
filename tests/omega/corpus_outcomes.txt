@@ -21391,7 +21391,13 @@ pass/contracts/indexed_crash_dense_scalar_namespace checked 3754ms check-target:
 pass/contracts/indexed_crash_entry_subfield_arrival checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/invariant_identifier checked 3134ms @ccdb99ca2214
 pass/contracts/match_contract_composition_exit checked 3860ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/match_payload_contract checked 4813ms check-target:macos_arm64 @ee44157f6632
+pass/contracts/match_payload_contract rejected 6875ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	cannot prove requires contract for call kept from roundtrip: __transition_subject#142.neighbor == 23 (needs fact `neighbor == 23` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call refused from roundtrip: __transition_subject#142.neighbor == 41 (needs fact `neighbor == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from roundtrip at statement 1: result == input
+	cannot prove ensures contract for exit from roundtrip at statement 2: result == input
+	cannot prove ensures contract for exit from second_result at statement 2: result == other
+	cannot prove ensures contract for exit from second_result at statement 3: result == other
 pass/contracts/named_tail_return_contract checked 19835ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_later_operand_preserves_storage_fact checked 3417ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_outer_preserves_storage_fact checked 3117ms check-target:macos_arm64 @ccdb99ca2214
@@ -21427,10 +21433,13 @@ pass/contracts/runtime_float_nested_crash_guard_exit checked 6469ms check-target
 pass/contracts/runtime_float_unordered_crash_guard_exit checked 6338ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_generic_component_window_tick_exit checked 28955ms check-target:macos_arm64 @4815ea579d91
 pass/contracts/runtime_indexed_element_requirements_exit checked 3906ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/runtime_later_arm_call_requires_exit checked 13157ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/runtime_later_arm_call_requires_exit incomplete 21368ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	`entry_start` calls `Main::main`, which calls `sum`; `sum` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
 pass/contracts/runtime_literal_view_extent_calls_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/runtime_mutable_owned_call_poststate_exit checked 3264ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/runtime_mutable_owned_collection_poststate_exit checked 2957ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/runtime_mutable_owned_call_poststate_exit rejected 7297ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 5): returned == 7 && preserved == 3 && completed == 8
+pass/contracts/runtime_mutable_owned_collection_poststate_exit rejected 6661ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	statement 4 reads `view` without an exact retained backing for its loan
 pass/contracts/runtime_mutable_recursive_result_total_exit checked 3326ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_nested_call_post_storage_exit checked 3281ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_postcall_storage_identity_exit checked 3312ms check-target:macos_arm64 @ccdb99ca2214
@@ -21845,7 +21854,8 @@ pass/dependent/runtime_borrowed_coupled_last_store_exit checked 6417ms check-tar
 pass/dependent/runtime_computed_slice_index_relation_exit checked 3178ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/runtime_dependent_subtract_exit checked 82989ms check-target:macos_arm64 @911f6617ba9e
 pass/dependent/runtime_dynamic_record_replacement_exit checked 10790ms check-target:macos_arm64 @911f6617ba9e
-pass/dependent/runtime_index_forwarded_to_inferred_region_callee_exit checked 5258ms check-target:macos_arm64 @68b6f6ba6c2f
+pass/dependent/runtime_index_forwarded_to_inferred_region_callee_exit rejected 6016ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	cannot prove runtime index descriptor equals its captured index
 pass/dependent/runtime_requires_guarded_call_exit checked 28671ms check-target:macos_arm64 @4815ea579d91
 pass/dependent/runtime_reserved_container_domain_establishment_exit checked 15299ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/dependent/runtime_sibling_len_index_exit checked 16246ms check-target:macos_arm64 @ccdb99ca2214
@@ -21854,7 +21864,10 @@ pass/dependent/runtime_state_dependent_index_forward_exit checked 69514ms check-
 pass/dependent/runtime_symbolic_slice_cell_theorem_exit checked 1094ms check-target:macos_arm64 @5c5c178f82c7
 pass/dependent/runtime_symbolic_slice_predicate_store_exit checked 1241ms check-target:macos_arm64 @5c5c178f82c7
 pass/dependent/runtime_whole_view_collection_fact_exit checked 9358ms check-target:macos_arm64 @911f6617ba9e
-pass/dependent/state_arrival_byte_predicate_guarded_compile checked 2284ms @ccdb99ca2214
+pass/dependent/state_arrival_byte_predicate_guarded_compile rejected 2648ms regressed-from:checked @457d20765d91
+	state `checked` receives `main` as both mutable and read-only
+	state `checked` receives `main` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4)
+	cannot prove requires contract for call checked from Main::main: valid_utf8(main.buffer[0..1]) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `valid_utf8(view)`
 pass/dependent/state_arrival_contract_guarded_compile checked 2504ms @ccdb99ca2214
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 2325ms @ccdb99ca2214
 pass/dependent/valuation_order_cycle rejected 703ms regressed-from:checked @911f6617ba9e
@@ -21888,7 +21901,8 @@ pass/domains/chained_tagged_reference_moves_exit checked 4071ms check-target:mac
 pass/domains/copied_array_domain_survives_original_mutation_exit checked 2252ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/dependent_coordinate_sum_rational_bound checked 2918ms @ccdb99ca2214
 pass/domains/dependent_coordinate_sum_upper_bound checked 1984ms @ccdb99ca2214
-pass/domains/domain_axis_cast checked 3514ms @ccdb99ca2214
+pass/domains/domain_axis_cast rejected 4268ms regressed-from:checked @457d20765d91
+	cannot prove requires contract for call relay from choose: picked in package:dc97605ba218a94fc0999c89331148ea2ed5aaa034e7671615cd9b0d095014b4:product::Coord<integer:u64:7> in state `entry`
 pass/domains/domain_established_by checked 2335ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 2790ms @ccdb99ca2214
 pass/domains/domain_intersection checked 3189ms @ccdb99ca2214
@@ -21898,7 +21912,8 @@ pass/domains/domain_operator_requires_discharged checked 2282ms @ccdb99ca2214
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 1987ms @ccdb99ca2214
 pass/domains/domain_param_forwarded checked 2246ms @ccdb99ca2214
 pass/domains/domain_pattern_match_bound_alias_routed_retained_exit checked 3572ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/domains/domain_pattern_match_bound_full_width_field_exit checked 3097ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/domains/domain_pattern_match_bound_full_width_field_exit rejected 5461ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.windows_x86_64:0+terminal-target.linux_x86_64:0+terminal-target.macos_arm64:0+terminal-target.linux_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match @457d20765d91
+	construction of `Selected` field `value` is not proven in domain `u64::AtLeast73` in consume state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 pass/domains/domain_pattern_match_bound_generic_equation_same_carrier_exit checked 7715ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @b23365ced206+wt
 pass/domains/domain_pattern_match_bound_generic_open_same_carrier_exit checked 3278ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/domains/domain_pattern_match_bound_generic_reference_equation_exit checked 7656ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @b23365ced206+wt
@@ -21955,7 +21970,9 @@ pass/domains/qualified_mutable_scalar_input_domain_expires checked 9043ms check-
 pass/domains/qualified_owned_array_scalar_control_exit checked 3635ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_record_capture_after_mutation checked 2597ms @ccdb99ca2214
 pass/domains/qualified_record_capture_before_mutation checked 2404ms @ccdb99ca2214
-pass/domains/qualified_record_case_predicate checked 2216ms @ccdb99ca2214
+pass/domains/qualified_record_case_predicate rejected 3122ms regressed-from:checked @457d20765d91
+	cannot prove default-domain field requirement for return from issue_handle at statement 0: Handle requires Handle::Open
+	cannot prove default-domain field requirement for return from issue_literal at statement 0: Handle requires Handle::Open
 pass/domains/qualified_record_issuer_forwarding checked 2582ms @ccdb99ca2214
 pass/domains/qualified_record_retained_guarantee checked 3011ms @ccdb99ca2214
 pass/domains/qualified_record_wrapped_arithmetic checked 2332ms @ccdb99ca2214
@@ -21969,7 +21986,8 @@ pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 16175ms 
 pass/domains/refinement_chain_predicates checked 2310ms @ccdb99ca2214
 pass/domains/refinement_chain_routed_provenance checked 1970ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 2281ms @ccdb99ca2214
-pass/domains/routed_record_capture_before_sibling_mutation checked 2512ms @ccdb99ca2214
+pass/domains/routed_record_capture_before_sibling_mutation rejected 2531ms regressed-from:checked @457d20765d91
+	cannot prove default-domain field requirement for call clear from capture::entry: parameter number requires Ticket::Issued
 pass/domains/routed_selected_copy_exit checked 4463ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/routed_selected_replacement_exit checked 6779ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_authored_borrowed_result_domain_exit checked 5817ms check-target:linux_x86_64 @ccdb99ca2214
@@ -21999,7 +22017,8 @@ pass/domains/runtime_scalar_domain_mixed_return_origins_exit rejected 2926ms che
 pass/domains/runtime_scalar_domain_return_cleanup_exit checked 16776ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/domains/runtime_scalar_domain_saved_call_result_exit checked 3294ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_scalar_tag_mixed_return_completion_exit checked 3008ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/runtime_selected_nested_field_domain_exit checked 3984ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/runtime_selected_nested_field_domain_exit rejected 3531ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @457d20765d91
+	returned view lost its completed invocation capture
 pass/domains/runtime_stored_call_inequality_addition_exit checked 4050ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_structural_contract_erasure_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_terminal_result_context_exit checked 17192ms check-target:macos_arm64 @ccdb99ca2214
