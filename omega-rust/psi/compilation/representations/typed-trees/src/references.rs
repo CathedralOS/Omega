@@ -668,6 +668,7 @@ pub(crate) mod source_occurrences {
                 program
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: leaf,
                         right: leaf,
                         operator: BinaryOperator::Add,

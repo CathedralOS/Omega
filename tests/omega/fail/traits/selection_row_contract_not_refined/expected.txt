@@ -1,0 +1,1 @@
+machine `decode_nonzero` realizes `Codec::decode` but requires `input > 0`, which the requirement does not imply

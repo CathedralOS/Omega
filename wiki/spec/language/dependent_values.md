@@ -95,7 +95,7 @@ invalidity only under otherwise-authorized access; they do not waive a reader or
 writer restriction. Fresh construction and policy installation follow the domain
 establishment rules, not an implicit file-local or constructor privilege.
 
-Constraints on common fields and active-case payloads are written in data
+Constraints on fields and active-case payloads are written in data
 `requires`. Its `self` denotes the complete value, as in named-domain predicates.
 Payload projections require a prior case guard; case declarations do not accept
 `requires`. See [case-dependent default domains](data_and_literals.md#case-constraints).
@@ -107,8 +107,8 @@ before realization; that independent check neither changes the containing data's
 validity nor manufactures authority or storage.
 
 [Case-dependent default predicates](data_and_literals.md#case-constraints) can
-relate the active case to type parameters and payload values. Common-field and
-data-level obligations remain conjunctive with that case's payload validity. The zero
+relate the active case to type parameters and payload values. Data-level
+obligations remain conjunctive with that case's payload validity. The zero
 representation keeps the first declared case, even when its constraints fail
 for a particular specialization; there is no selection of a first possible case.
 

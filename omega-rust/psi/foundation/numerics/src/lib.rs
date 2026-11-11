@@ -67,6 +67,18 @@ pub mod arithmetic {
             }
         }
 
+        /// The operator suffix that selects this policy for one operation:
+        /// `a +% b` wraps, `a +| b` saturates, `a +! b` traps. The bare
+        /// operator is Exact and has no suffix.
+        pub const fn operator_suffix(self) -> &'static str {
+            match self {
+                Self::Exact => "",
+                Self::Wrapping => "%",
+                Self::Saturating => "|",
+                Self::Trapping => "!",
+            }
+        }
+
         pub fn combine(self, other: Self) -> Self {
             match (self, other) {
                 (Self::Exact, domain) | (domain, Self::Exact) => domain,

@@ -101,8 +101,8 @@ and policy.
 ## Handle cases and recursive data
 
 A sum visitor reports the active case as well as its payload. Even a case with
-no fields needs that tag in a serialized format. Common fields are visited
-once; only the active case's payload is read.
+no fields needs that tag in a serialized format. Only the active case's
+payload is read.
 
 For trees, provision work storage for pending branches or use a tail traversal.
 For shared or cyclic graphs, define how references are encoded and how already

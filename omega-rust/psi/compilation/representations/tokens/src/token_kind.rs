@@ -200,6 +200,31 @@ pub(crate) mod punctuation_kind {
         Semicolon,
         Slash,
         Tilde,
+        /*
+            Policy operators: an arithmetic or left-shift operator with a
+            `%` (Wrapping), `|` (Saturating) or `!` (Trapping) suffix is one
+            token. Right shift keeps its `>>` token; the parser reads its
+            suffix from the adjacent punctuation so nested static argument
+            lists still close one `>` at a time.
+        */
+        PlusWrapping,
+        PlusSaturating,
+        PlusTrapping,
+        MinusWrapping,
+        MinusSaturating,
+        MinusTrapping,
+        AsteriskWrapping,
+        AsteriskSaturating,
+        AsteriskTrapping,
+        SlashWrapping,
+        SlashSaturating,
+        SlashTrapping,
+        PercentWrapping,
+        PercentSaturating,
+        PercentTrapping,
+        LessLessWrapping,
+        LessLessSaturating,
+        LessLessTrapping,
         #[default]
         Unknown,
     }
@@ -207,6 +232,24 @@ pub(crate) mod punctuation_kind {
     impl PunctuationKind {
         pub fn ordered_lexemes() -> &'static [(&'static str, Self)] {
             &[
+                ("+%", Self::PlusWrapping),
+                ("+|", Self::PlusSaturating),
+                ("+!", Self::PlusTrapping),
+                ("-%", Self::MinusWrapping),
+                ("-|", Self::MinusSaturating),
+                ("-!", Self::MinusTrapping),
+                ("*%", Self::AsteriskWrapping),
+                ("*|", Self::AsteriskSaturating),
+                ("*!", Self::AsteriskTrapping),
+                ("/%", Self::SlashWrapping),
+                ("/|", Self::SlashSaturating),
+                ("/!", Self::SlashTrapping),
+                ("%%", Self::PercentWrapping),
+                ("%|", Self::PercentSaturating),
+                ("%!", Self::PercentTrapping),
+                ("<<%", Self::LessLessWrapping),
+                ("<<|", Self::LessLessSaturating),
+                ("<<!", Self::LessLessTrapping),
                 ("::", Self::ColonColon),
                 ("->", Self::Arrow),
                 ("..=", Self::DotDotEqual),

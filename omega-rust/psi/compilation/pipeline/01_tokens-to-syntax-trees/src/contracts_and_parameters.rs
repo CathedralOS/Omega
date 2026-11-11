@@ -466,6 +466,7 @@ pub(crate) mod contracts {
                             );
                             chain_expression = exprs(syntax_trees).insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: chain_expression,
                                     operator,
                                     right: membership,
@@ -603,6 +604,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: BinaryOperator::GreaterOrEqual,
                         right: start,
@@ -611,6 +613,7 @@ pub(crate) mod contracts {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator: if end_inclusive {
                             BinaryOperator::LessOrEqual
@@ -620,6 +623,7 @@ pub(crate) mod contracts {
                         right: end,
                     }));
             exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 left: lower,
                 operator: BinaryOperator::And,
                 right: upper,

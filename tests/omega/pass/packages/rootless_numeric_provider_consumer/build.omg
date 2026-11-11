@@ -3,10 +3,6 @@ use omega::language::core::float_operations;
 machine build(builder: &mut Build) {
     Build::application(builder, "rootless_numeric_provider_consumer");
     Build::depend_as(builder, "numeric_library", Source::Path { location: "../rootless_numeric_provider_review" });
-    Build::select_provider<F32::negate, numeric_library::UnusedNumericProvider>(builder, windows_x86_64);
-    Build::select_provider<F32::negate, numeric_library::UnusedNumericProvider>(builder, linux_x86_64);
-    Build::select_provider<F32::negate, numeric_library::UnusedNumericProvider>(builder, macos_arm64);
-    Build::select_provider<F32::negate, numeric_library::UnusedNumericProvider>(builder, linux_arm64);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

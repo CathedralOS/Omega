@@ -144,6 +144,7 @@ pub(crate) mod expression {
             Some(
                 expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                     typed::expression::TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: value,
                         operator,
                         right: case_reference,
@@ -369,6 +370,7 @@ pub(crate) mod expression {
                 combined =
                     expression_table_mut(target).insert(typed::expression::ExpressionNode::Binary(
                         typed::expression::TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
                             left: combined,
                             operator: typed::expression::BinaryOperator::And,
                             right: fact,
@@ -718,6 +720,7 @@ pub(crate) mod expression {
                         let condition = if case.is_some() {
                             let tag = self.target().insert(ExpressionNode::Binary(
                                 TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: saved,
                                     operator: BinaryOperator::CaseMembership,
                                     right: head,
@@ -725,6 +728,7 @@ pub(crate) mod expression {
                             ));
                             self.target()
                                 .insert(ExpressionNode::Binary(TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: tag,
                                     operator: BinaryOperator::And,
                                     right: predicate,
@@ -846,6 +850,12 @@ pub(crate) mod expression {
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
+                /// Whether this expression runs in a machine body. Preparation
+                /// types a suffixed policy operator against its operands'
+                /// carrier and reads only executable statements, so every
+                /// other position rejects the suffix here instead of letting
+                /// it be checked as the bare Exact operator.
+                executable: bool,
                 lowered_expressions: Vec<(
                     resolved::expression::ExpressionHandle,
                     bool,
@@ -875,6 +885,7 @@ pub(crate) mod expression {
                         symbol_substitution,
                         equality_scope,
                         fact_position: false,
+                        executable: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
                     }
@@ -922,6 +933,11 @@ pub(crate) mod expression {
 
                 pub(crate) fn in_fact_position(mut self) -> Self {
                     self.fact_position = true;
+                    self
+                }
+
+                pub(crate) fn in_executable_code(mut self) -> Self {
+                    self.executable = true;
                     self
                 }
 
@@ -1065,6 +1081,16 @@ pub(crate) mod expression {
                     let resolved::expression::ExpressionNode::Binary(binary) = node else {
                         return self.lower_nonbinary_node(expression, node);
                     };
+                    if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
+                        && !self.executable
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "the policy operator `{}{}` is supported only in executable machine code; contracts and constant expressions cannot use a suffixed operator yet",
+                            binary.operator.display_name(),
+                            binary.policy.operator_suffix(),
+                        ))
+                        .with_source_span(self.source.source_span(expression)));
+                    }
                     self.lower_binary_node(binary)
                 }
 
@@ -1106,6 +1132,9 @@ pub(crate) mod expression {
                     ) {
                         self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Bool)?;
                     }
+                    // A suffixed operator keeps its policy on the node: the
+                    // operand carrier is not known yet, so preparation types
+                    // it once the whole program is lowered.
                     Ok(self
                         .target()
                         .insert(typed::expression::ExpressionNode::Binary(
@@ -1113,6 +1142,7 @@ pub(crate) mod expression {
                                 left,
                                 operator: lower_binary_operator(binary.operator),
                                 right,
+                                policy: binary.policy,
                             },
                         )))
                 }
@@ -2785,6 +2815,7 @@ pub(crate) mod expression {
                         _ => operand,
                     };
                     let equality = resolved::expression::TableBinaryExpression {
+                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                         left: observed_operand(left),
                         operator: resolved::expression::BinaryOperator::Equal,
                         right: observed_operand(right),
@@ -2800,6 +2831,7 @@ pub(crate) mod expression {
                     Ok(Some(self.target().insert(
                         typed::expression::ExpressionNode::Binary(
                             typed::expression::TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left,
                                 operator: typed::expression::BinaryOperator::Equal,
                                 right,
@@ -3066,6 +3098,7 @@ pub(crate) mod expression {
                             self.target()
                                 .insert(typed::expression::ExpressionNode::Binary(
                                     typed::expression::TableBinaryExpression {
+                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                         left: equality,
                                         operator: typed::expression::BinaryOperator::Equal,
                                         right: negated,
@@ -3455,6 +3488,7 @@ pub(crate) mod expression {
                                 .target()
                                 .insert(typed::expression::ExpressionNode::Binary(
                                     typed::expression::TableBinaryExpression {
+                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                         left: left_value,
                                         operator: typed::expression::BinaryOperator::Equal,
                                         right: right_value,
@@ -3595,6 +3629,7 @@ pub(crate) mod expression {
                     self.target()
                         .insert(typed::expression::ExpressionNode::Binary(
                             typed::expression::TableBinaryExpression {
+                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left: place,
                                 operator: typed::expression::BinaryOperator::CaseMembership,
                                 right: case_reference,
@@ -3633,6 +3668,7 @@ pub(crate) mod expression {
                             .target()
                             .insert(typed::expression::ExpressionNode::Binary(
                                 typed::expression::TableBinaryExpression {
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                     left: combined,
                                     operator,
                                     right: part,
@@ -3676,6 +3712,18 @@ pub(crate) mod expression {
                 .lower(expression)
         }
 
+        pub(crate) fn lower_executable_expression_handle_from_table(
+            program: &resolved::SymbolResolvedTrees,
+            source: &resolved::expression::ExpressionTable,
+            target: &mut typed::TypedTrees,
+            expression: resolved::expression::ExpressionHandle,
+            scope: Option<&EqualityScope>,
+        ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+                .in_executable_code()
+                .lower(expression)
+        }
+
         pub(crate) fn lower_expression_handle_from_table_in_fact_position(
             program: &resolved::SymbolResolvedTrees,
             source: &resolved::expression::ExpressionTable,
@@ -3710,6 +3758,28 @@ pub(crate) mod expression {
         }
     }
     pub(crate) use table::declared_receiver_method_target;
+
+    /// Lowers an expression a machine body evaluates. Only these may use a
+    /// suffixed policy operator.
+    pub(crate) fn lower_executable_expression_handle(
+        lowerer: &mut Lowerer,
+        expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let Lowerer {
+            typed_trees,
+            source_trees,
+            equality_scope,
+            ..
+        } = lowerer;
+        let source = &source_trees.tables.bodies.expressions;
+        table::lower_executable_expression_handle_from_table(
+            source_trees,
+            source,
+            typed_trees,
+            expression,
+            equality_scope.as_ref(),
+        )
+    }
 
     pub(crate) fn lower_expression_handle(
         lowerer: &mut Lowerer,

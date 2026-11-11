@@ -334,6 +334,30 @@ fn selected_plan<'plans>(
     let plan = match (first, count) {
         (Some(plan), 1) => plan,
         _ => {
+            // An unchosen canonical float operation is one the target's
+            // realization table declares unsupported; report that constraint.
+            let unsupported = (count == 0)
+                .then(|| {
+                    candidates
+                        .iter()
+                        .filter(|plan| requirement_binds(requirement, plan))
+                        .find_map(|plan| {
+                            target::TargetProfile::from_canonical_target_name(&plan.target).ok()
+                        })
+                })
+                .flatten()
+                .and_then(|profile| match profile.canonical_float_realization(name)? {
+                    target::CanonicalFloatRealization::Unsupported { constraint } => {
+                        Some((profile, constraint))
+                    }
+                    target::CanonicalFloatRealization::CatalogIntrinsic { .. } => None,
+                });
+            if let Some((profile, constraint)) = unsupported {
+                return Err(Diagnostic::error(format!(
+                    "canonical float operation `{name}` has no realization on target `{}`: {constraint}",
+                    profile.target_name(),
+                )));
+            }
             return Err(Diagnostic::error(format!(
                 "boundary {subject} `{name}` in package {:?} resolves to {count} selected ProviderPlans; expected exactly one",
                 requirement.package_identity,

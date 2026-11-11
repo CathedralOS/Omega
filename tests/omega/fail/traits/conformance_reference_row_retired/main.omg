@@ -1,6 +1,10 @@
-// A named implementation declares each requirement as an inline `machine`
-// member. The requirement-to-machine assignment row is retired; sharing an
-// existing machine is an ordinary call from the member's body.
+// FAIL CANARY.
+// This control used to pin that a selection row was retired. The
+// operation-record decision (wiki/spec/language/conformances.md,
+// "Implementations are operation records") brought the row back, so the same
+// program now pins the rule that remains: one slot holds one selection.
+// `CounterSink` fills `Sink::put` with the existing `Counter::put` and also
+// declares an inline `put`, so the slot is filled twice and the block rejects.
 trait Sink<S, T> {
     machine put(sink: &mut S, value: T);
 }
@@ -15,6 +19,7 @@ machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, 
 
 CounterSink satisfies Sink<Counter, i32> {
     Sink::put = Counter::put;
+    machine put(counter: &mut Counter, value: i32) { counter.value = value; }
 }
 
 machine main() {}
