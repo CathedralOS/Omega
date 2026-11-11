@@ -8250,27 +8250,35 @@ fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 5040ms exp
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4931ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from invoke_selected: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_call_result_rejected rejected 12357ms expected @b95657c2e953
+fail/facts/erased_reference_contract_through_call_result_rejected rejected 24147ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_const_name_rejected rejected 10455ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_const_name_rejected rejected 27825ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_field_rejected rejected 11239ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_field_rejected rejected 31888ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: holder.value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_local_rejected rejected 11316ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: holder.record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_local_rejected rejected 22164ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `witness == 7`
-fail/facts/erased_reference_contract_through_match_join_rejected rejected 12477ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_match_join_rejected rejected 28968ms expected @8348dcc8506e
 	cannot prove requires contract for call keep from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_machine_rejected rejected 10700ms expected @b95657c2e953
+	cannot prove requires contract for call keep_record from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_machine_rejected rejected 29456ms expected @8348dcc8506e
 	cannot prove requires contract for call relay from exercise: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_other_state_rejected rejected 10192ms expected @b95657c2e953
+	cannot prove requires contract for call record_relay from record_exercise: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_other_state_rejected rejected 19169ms expected @8348dcc8506e
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_parameter_rejected rejected 11957ms expected @b95657c2e953
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_parameter_rejected rejected 23883ms expected @8348dcc8506e
 	cannot prove requires contract for call exercise from run: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/erased_reference_contract_through_target_body_rejected rejected 10243ms expected @b95657c2e953
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call keep from selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call record_exercise from record_run: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/erased_reference_contract_through_target_body_rejected rejected 21536ms expected @8348dcc8506e
+	cannot prove requires contract for call keep from X86Selected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep from ArmSelected::selected: value == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `selected`
+	cannot prove requires contract for call keep_record from record_X86Selected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
+	cannot prove requires contract for call keep_record from record_ArmSelected::record_selected: record.value == 7 (needs fact `record.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `record_selected`
 fail/facts/exact_integer_narrowing_through_call_result_rejected rejected 1637ms expected @ccdb99ca2214
 	Exact integer cast in machine `apply` state `entry` from `i32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/facts/exact_integer_narrowing_through_const_name_rejected rejected 1635ms expected @ccdb99ca2214
@@ -17924,6 +17932,8 @@ fail/relevance/erased_mutable_parameter rejected 838ms expected @ccdb99ca2214
 	machine `Main::record::record` erased parameter `x` cannot be `mut`; an erased binding owns no runtime storage or custody
 fail/relevance/erased_parameter_runtime_read rejected 903ms expected @ccdb99ca2214
 	erased parameter `bound` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
+fail/relevance/erased_record_mutable_formal_actual rejected 15678ms expected @8348dcc8506e
+	machine `relay::entry` cannot pass this argument as erased record `record` of `keep`: field `value` has no exact value at the call; a `mut` or `const` parameter has no entry place whose field the call can observe
 fail/relevance/erased_reference_distinct_subject rejected 2745ms expected regressed-from:checked @4710c3c8595b
 	cannot prove requires contract for call keep from forward: right == 7 (needs fact `witness == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/relevance/erased_reference_mutable_formal rejected 748ms expected @ccdb99ca2214
@@ -22859,15 +22869,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 6222ms chec
 pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 6383ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 6385ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 6311ms check-target:macos_arm64 @281c0d530cb7
-pass/facts/erased_reference_contract_through_call_result_exit checked 14796ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_const_name_exit checked 16776ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_field_exit checked 13038ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_local_exit checked 15476ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_match_join_exit checked 13436ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_other_machine_exit checked 12476ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_other_state_exit checked 13803ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_parameter_exit checked 13878ms check-target:macos_arm64 @b95657c2e953
-pass/facts/erased_reference_contract_through_target_body_exit checked 15867ms check-target:macos_arm64 @b95657c2e953
+pass/facts/erased_reference_contract_through_call_result_exit checked 44610ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_const_name_exit checked 47094ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_field_exit checked 45147ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_local_exit checked 48910ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_match_join_exit checked 46832ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_other_machine_exit checked 37074ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_other_state_exit checked 27284ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_parameter_exit checked 34596ms check-target:macos_arm64 @8348dcc8506e
+pass/facts/erased_reference_contract_through_target_body_exit checked 38583ms check-target:macos_arm64 @8348dcc8506e
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_field_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214

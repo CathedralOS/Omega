@@ -1788,6 +1788,36 @@ pub(crate) mod bindings {
             }
         }
 
+        /*
+            Observe one scalar field at the place of a caller's immutable
+            structural local. The same typed path resolution as a formal's field
+            is used; only the root is the local's own place. An erased call
+            actual is the sole producer of this observation.
+        */
+        pub(crate) fn resolve_local(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            fields: &StructuralFieldBindings,
+            (source, access, structural_type): (PlaceId, StructuralAccess, StructuralTypeId),
+            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+            scalar_type: ScalarType,
+        ) -> Result<LoweredDirectExpression, LoweringError> {
+            let binding = StructuralScalarFieldBinding {
+                source_position: 0,
+                source,
+                access,
+                structural_type,
+                declarations: fields.declarations.clone(),
+                case_payloads: Vec::new(),
+            };
+            resolve(
+                identities,
+                std::slice::from_ref(&binding),
+                0,
+                path,
+                scalar_type,
+            )
+        }
+
         pub(crate) fn resolve(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             fields: &[StructuralScalarFieldBinding],
@@ -5231,6 +5261,7 @@ pub(crate) mod bindings {
 
         fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
             match expression {
+                CheckedScalarExpression::StructuralLocalField { .. } => {}
                 CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
                     for step in path {
                         if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) =
