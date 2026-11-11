@@ -656,6 +656,7 @@ pub(crate) fn prepare(
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
     minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
+    minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
         let storage = places::Storage::new(

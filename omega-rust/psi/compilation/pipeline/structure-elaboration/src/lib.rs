@@ -155,9 +155,9 @@ pub struct Elaboration {
     pub machines: IdTable<MachineId, SymbolHandle>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
-    /// states them. They ride here because Terminal Psi's type declaration
-    /// has no slot for them: the current pipeline proves them on checked
-    /// trees and its Terminal module carries none. A `DataDomain` obligation
+    /// states them: the checker's restatement of each type declaration's
+    /// `StructuralTypeDeclaration::requires` in `module`, which the
+    /// discharge refuses when the two differ. A `DataDomain` obligation
     /// names its clause by position among these.
     pub domains: IdTable<StructuralTypeId, Vec<semantic_vocabulary::Proposition>>,
     /// The machines that stand for a requirement instead of a body: the

@@ -4476,6 +4476,7 @@ pub(crate) mod reference_input {
 
         fn declaration(identity: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id: type_id(u64::from(identity)),
                 identity: TerminalIdentityIndex(identity),

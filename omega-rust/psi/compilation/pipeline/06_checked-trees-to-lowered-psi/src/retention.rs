@@ -3346,6 +3346,7 @@ pub(crate) mod payload_memberships {
             }
             fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     id: id(value),
                     identity: terminal_psi::TerminalIdentityIndex(0),
                     quotient_carrier: None,

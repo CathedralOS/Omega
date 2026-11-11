@@ -100,6 +100,17 @@ machine does not make would be a premise nothing established. An edge row
 must have the source and destination of its terminator's edge, since
 dominance is computed from the edge table.
 
+The data `requires` clauses come to the discharge in a table beside the
+module (`Elaboration::domains`), and they are the goal of every `DataDomain`
+row and the premise a read of an arrived value learns from its type. The
+module's own type declarations state them
+(`StructuralTypeDeclaration::requires`, part of the encoded module and so of
+its identity), so `domains_are_declared` ([minted.rs](src/minted.rs)) refuses
+a table that is not exactly those clauses, type by type and in authored
+order. A clause weakened, strengthened, dropped or moved to another type in
+the table would otherwise change what is proved for every construction,
+store and read of the type.
+
 A disagreement is a defect of the route, not of the program: the refusal has
 reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
 accepted on it.
@@ -156,9 +167,12 @@ semantics states a goal over and what the kernel bounds a value by; the
 origin is what the payload judgment reads to learn which test a condition is
 the result of. The one row the lowered form does not declare is the content a
 formal's leaf held at entry. Such a value must be of a scalar leaf of a
-formal, with that leaf's declared type, and a place has at most one
-(`Storage::entry_contents_are_of_formals`). Exchanging two entry content
-values of one type renames them and proves nothing, so it is not refused.
+formal, with that leaf's declared type
+(`Storage::entry_contents_are_of_formals`). Since the lowered form declares
+none of them, nothing in it says which identity belongs to which leaf, so
+they must be in the order of their leaves (`entry_contents` in
+[places.rs](src/places.rs)): two rows of one type that exchange their
+leaves are refused, and so is a second value for one leaf.
 
 ## What a place holds
 
@@ -610,16 +624,6 @@ subset needs, so the prover emits them directly.
     clause `low <= high` is unproved: `high` has no value there. Stating a
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
-
-17. **A data type's `requires` clauses are still taken on elaboration's
-    word.** Terminal Psi's type declaration has no slot for them, so they
-    ride beside the module in `Elaboration::domains` and nothing in the
-    lowered form restates them. A clause weakened or dropped there weakens
-    or drops the `DataDomain` goal of every construction and store of that
-    type, and `owed_are_minted` counts against the same list. A machine's
-    `requires` and `ensures` are not in this position: they are in the
-    module's `MachineContract`. Closing it needs the clauses in the module,
-    or the typed trees as a second source at this check.
 
 ## Evidence seals
 

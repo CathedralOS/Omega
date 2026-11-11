@@ -214,6 +214,7 @@ pub(crate) fn declare<'a>(
             ));
         };
         structural_types.push(StructuralTypeDeclaration {
+            requires: record.requires.clone(),
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
@@ -252,6 +253,7 @@ pub(crate) fn declare<'a>(
                 )
             })?;
             structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id,
                 identity: identities.intern(home),

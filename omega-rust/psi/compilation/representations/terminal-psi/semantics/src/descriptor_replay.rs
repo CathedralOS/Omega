@@ -1585,6 +1585,7 @@ pub(crate) mod case_flow {
             #[test]
             fn completed_return_tags_union_all_exits_and_unknown_or_public_returns_grant_nothing() {
                 let types = vec![StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(1),
                     quotient_carrier: None,
@@ -4626,6 +4627,7 @@ pub(crate) mod engine {
             let collection = StructuralTypeId::new(3).unwrap();
             let element = StructuralTypeId::new(4).unwrap();
             let referent = StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id: scalar,
                 identity: TerminalIdentityIndex(1),
@@ -5065,6 +5067,7 @@ pub(crate) mod engine {
             use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
             use terminal_psi::TerminalIdentityIndex;
             StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id: StructuralTypeId::new(id).unwrap(),
                 identity: TerminalIdentityIndex(id as u32),

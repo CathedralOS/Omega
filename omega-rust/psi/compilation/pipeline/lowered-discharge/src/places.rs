@@ -170,14 +170,30 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
 
 /// The entry content value of each place that has one, indexed by
 /// `ExactPlaceId - 1`. A derived column over the value table: elaboration
-/// mints at most one such value per place, and a second one is refused
-/// because it would be a second identity for one content.
+/// mints at most one such value per place.
+///
+/// The lowered form declares no entry content value, so nothing in it fixes
+/// which identity belongs to which leaf. They are minted in the order of
+/// the leaves they belong to, and any other order is refused: otherwise two
+/// rows of the same type could exchange their leaves and be read as each
+/// other's contents. A second value for one place is out of order too: it
+/// would be a second identity for one content.
 fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
     let mut contents = vec![None; tables.places.len()];
+    let mut previous: Option<ExactPlaceId> = None;
     for (value, row) in tables.values.iter() {
         let ValueOrigin::EntryContent { place } = row.origin else {
             continue;
         };
+        if previous.is_some_and(|previous| previous >= place) {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Value(value),
+                "entry content values are not in the order of the leaves they belong to",
+            ));
+        }
+        previous = Some(place);
         let slot = contents.get_mut(index(place.get())).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -186,14 +202,7 @@ fn entry_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Opt
                 "entry content of a place past the end of this machine",
             )
         })?;
-        if slot.replace(value).is_some() {
-            return Err(refusal(
-                RefusalReason::ForeignIdentity,
-                machine,
-                Construct::Value(value),
-                "a place has two entry content values",
-            ));
-        }
+        *slot = Some(value);
     }
     Ok(contents)
 }

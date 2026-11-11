@@ -14587,6 +14587,7 @@ mod source {
                 shape: StructuralTypeShape,
             ) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     id,
                     identity,
                     shape,

@@ -654,6 +654,16 @@ pub mod types {
             pub descriptor_cleanup: bool,
             pub shape: StructuralTypeShape,
             pub scalar_restriction: Option<StructuralFieldType>,
+            /// The data declaration's `requires` clauses, in authored order:
+            /// the declaration-owned requirement every construction and
+            /// scalar-field replacement proves and every validated read
+            /// instantiates (structural_access.md, "Complete record
+            /// construction"). A clause names the declaration's own fields
+            /// by `StructuralFieldId`, with `self` as place 1, and its cases
+            /// by `StructuralCaseId`. Empty for every type of a module
+            /// whose producer proves them elsewhere; only a record or a sum
+            /// declares any.
+            pub requires: Vec<semantic_vocabulary::Proposition>,
         }
 
         impl StructuralTypeDeclaration {
@@ -1436,6 +1446,7 @@ pub mod types {
                 let array = StructuralTypeId::new(4).unwrap();
                 let types = vec![
                     StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
@@ -1450,6 +1461,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
@@ -1461,6 +1473,7 @@ pub mod types {
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     },
                     StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
@@ -1482,6 +1495,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
                         no_code_affine_cleanup: false,
