@@ -1,0 +1,24 @@
+// A private machine that writes `crashes none` may call a machine with a
+// guarded crash route when the call's own arguments disprove the guard.
+// `divide` traps only when its denominator is zero and `quotient` passes
+// three, so no route survives the call. Twin:
+// `fail/effects/private_crashes_none_call_crashes` passes zero.
+// Expected exit: 0
+machine divide(numerator: u64, denominator: u64) -> u64
+crashes Trap denominator == 0u64
+{
+    transition denominator == 0u64 {
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine quotient() -> u64 crashes none {
+    divide(12u64, 3u64)
+}
+machine main() reaches none crashes Trap {
+    let value: u64 = quotient();
+    transition value == 4u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
