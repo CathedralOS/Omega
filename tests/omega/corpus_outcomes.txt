@@ -21997,9 +21997,7 @@ pass/drops/runtime_distinct_temporary_parent_cleanup_once_exit checked 14592ms c
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_empty_array_owner_cleanup_exit checked 12737ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 11357ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_generic_cleanup_owner_telescope_exit rejected 12904ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	statement 1 mutates `owner.left` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 1)
-	statement 2 mutates `owner.right` while local borrow `entry` is still active (borrowed at statement 2)
+pass/drops/runtime_generic_cleanup_owner_telescope_exit checked 5997ms check-target:macos_arm64 @eb5a4e2d66e3
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 389579ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 88443ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/runtime_generic_reserved_construction_exit checked 10783ms check-target:macos_arm64 @ee4dbb4b2d56
