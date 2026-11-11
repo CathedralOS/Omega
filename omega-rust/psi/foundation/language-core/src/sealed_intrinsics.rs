@@ -34,6 +34,44 @@ pub enum SealedIntrinsic {
     TaskRuntimeStart,
     /// `TaskRuntime::try_start` in core `task.omg`.
     TaskRuntimeTryStart,
+    /// Core `layout.omg`'s `Access` template, the only data from which
+    /// placed scalar accessors are generated.
+    PlacedAccessorTemplate,
+    /// std `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
+    HostedByteRead,
+    /// A hosted console or process-exit requirement in bundled source.
+    HostedRequirement(HostedOperation),
+    /// A target's bundled realization of a hosted requirement.
+    HostedRealization {
+        operation: HostedOperation,
+        target: &'static str,
+    },
+    /// A UEFI fixed-image requirement in bundled core source.
+    FixedImageRequirement(FixedImageOperation),
+    /// The bundled `uefi_x86_64` realization of a fixed-image requirement.
+    FixedImageRealization(FixedImageOperation),
+}
+
+/// The hosted operations the compiler realizes for every hosted target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HostedOperation {
+    /// std `Console::exit_process`.
+    ConsoleExitProcess,
+    /// std `Console::write_byte`.
+    ConsoleWriteByte,
+    /// std `Console::read_byte`.
+    ConsoleReadByte,
+    /// core `ProcessExit::exit_process`.
+    ProcessExit,
+}
+
+/// The fixed-image operations the compiler realizes for `uefi_x86_64`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FixedImageOperation {
+    /// core `ProgramStorageEntry::enter`.
+    ProgramStorageEntry,
+    /// core `ProgramImage::retained_suffix_start`.
+    ProgramImageRetainedSuffixStart,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +113,160 @@ const CORE_TASK: &[u8] = include_bytes!(concat!(
 
 const CORE_STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
 
+macro_rules! bundled {
+    ($($path:tt)+) => {
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../source/library/",
+            $($path)+
+        ))
+    };
+}
+
+const CORE_LAYOUT: &[u8] = bundled!("core/layout.omg");
+const CORE_EXTENT: &[u8] = bundled!("core/extent.omg");
+const CORE_PROGRAM_IMAGE: &[u8] = bundled!("core/program_image.omg");
+const CORE_PROCESS_EXIT: &[u8] = bundled!("core/process_exit.omg");
+const STD_CONSOLE: &[u8] = bundled!("std/console.omg");
+
+const fn row(
+    file: &'static str,
+    declaration: &'static str,
+    source: &'static [u8],
+    intrinsic: SealedIntrinsic,
+) -> SealedIntrinsicRow {
+    SealedIntrinsicRow {
+        file,
+        declaration: SealedDeclaration::Exact(declaration),
+        source,
+        intrinsic,
+    }
+}
+
+/*
+    Each hosted target bundles one console and one process-exit realization
+    file in std. The rows name the target so a provider plan for one target
+    can never take custody through another target's realization.
+*/
+macro_rules! hosted_target_rows {
+    ($target:literal) => {
+        [
+            row(
+                concat!("targets/", $target, "/console_impl.omg"),
+                "ConsoleNativeProvider::exit_process",
+                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
+                SealedIntrinsic::HostedRealization {
+                    operation: HostedOperation::ConsoleExitProcess,
+                    target: $target,
+                },
+            ),
+            row(
+                concat!("targets/", $target, "/console_impl.omg"),
+                "ConsoleNativeProvider::write_byte",
+                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
+                SealedIntrinsic::HostedRealization {
+                    operation: HostedOperation::ConsoleWriteByte,
+                    target: $target,
+                },
+            ),
+            row(
+                concat!("targets/", $target, "/console_impl.omg"),
+                "ConsoleNativeProvider::read_byte",
+                bundled!(concat!("std/targets/", $target, "/console_impl.omg")),
+                SealedIntrinsic::HostedRealization {
+                    operation: HostedOperation::ConsoleReadByte,
+                    target: $target,
+                },
+            ),
+            row(
+                concat!("targets/", $target, "/process_exit_impl.omg"),
+                "ProcessExitNativeProvider::exit_process",
+                bundled!(concat!("std/targets/", $target, "/process_exit_impl.omg")),
+                SealedIntrinsic::HostedRealization {
+                    operation: HostedOperation::ProcessExit,
+                    target: $target,
+                },
+            ),
+        ]
+    };
+}
+
+const HOSTED_LINUX_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_arm64");
+const HOSTED_LINUX_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("linux_x86_64");
+const HOSTED_MACOS_ARM64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_arm64");
+const HOSTED_MACOS_X86_64: [SealedIntrinsicRow; 4] = hosted_target_rows!("macos_x86_64");
+const HOSTED_REALIZATIONS: [&[SealedIntrinsicRow]; 4] = [
+    &HOSTED_LINUX_ARM64,
+    &HOSTED_LINUX_X86_64,
+    &HOSTED_MACOS_ARM64,
+    &HOSTED_MACOS_X86_64,
+];
+
 const ROWS: &[SealedIntrinsicRow] = &[
+    row(
+        "layout.omg",
+        "Access",
+        CORE_LAYOUT,
+        SealedIntrinsic::PlacedAccessorTemplate,
+    ),
+    row(
+        "console.omg",
+        "ByteRead",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedByteRead,
+    ),
+    row(
+        "console.omg",
+        "Console::exit_process",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleExitProcess),
+    ),
+    row(
+        "console.omg",
+        "Console::write_byte",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
+    ),
+    row(
+        "console.omg",
+        "Console::read_byte",
+        STD_CONSOLE,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
+    ),
+    row(
+        "process_exit.omg",
+        "ProcessExit::exit_process",
+        CORE_PROCESS_EXIT,
+        SealedIntrinsic::HostedRequirement(HostedOperation::ProcessExit),
+    ),
+    row(
+        "extent.omg",
+        "ProgramStorageEntry::enter",
+        CORE_EXTENT,
+        SealedIntrinsic::FixedImageRequirement(FixedImageOperation::ProgramStorageEntry),
+    ),
+    row(
+        "extent.omg",
+        "ProgramStorageEntryNativeProvider::enter",
+        CORE_EXTENT,
+        SealedIntrinsic::FixedImageRealization(FixedImageOperation::ProgramStorageEntry),
+    ),
+    row(
+        "program_image.omg",
+        "ProgramImage::retained_suffix_start",
+        CORE_PROGRAM_IMAGE,
+        SealedIntrinsic::FixedImageRequirement(
+            FixedImageOperation::ProgramImageRetainedSuffixStart,
+        ),
+    ),
+    row(
+        "program_image.omg",
+        "ProgramImageNativeProvider::retained_suffix_start",
+        CORE_PROGRAM_IMAGE,
+        SealedIntrinsic::FixedImageRealization(
+            FixedImageOperation::ProgramImageRetainedSuffixStart,
+        ),
+    ),
     SealedIntrinsicRow {
         file: "float_provider.omg",
         declaration: SealedDeclaration::MemberOf("NativeFloats"),
@@ -138,6 +329,7 @@ impl SealedIntrinsicCatalog {
     /// when no row matches every part of the site.
     pub fn classify(site: SealedDeclarationSite<'_>) -> Option<SealedIntrinsic> {
         ROWS.iter()
+            .chain(HOSTED_REALIZATIONS.into_iter().flatten())
             .find(|row| {
                 site.file == Path::new(row.file)
                     && row.declaration.matches(site.declaration)
@@ -179,6 +371,27 @@ mod tests {
         );
         // A lookalike file, an edited source, a nested member, or a bare
         // owner name supplies no custody.
+        let linux = bundled!("std/targets/linux_x86_64/console_impl.omg");
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "targets/linux_x86_64/console_impl.omg",
+                "ConsoleNativeProvider::write_byte",
+                linux
+            )),
+            Some(SealedIntrinsic::HostedRealization {
+                operation: HostedOperation::ConsoleWriteByte,
+                target: "linux_x86_64",
+            })
+        );
+        // One target's realization bytes never stand in for another target's file.
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site(
+                "targets/linux_arm64/console_impl.omg",
+                "ConsoleNativeProvider::write_byte",
+                linux
+            )),
+            None
+        );
         assert_eq!(
             SealedIntrinsicCatalog::classify(site("tasks.omg", "TaskRuntime::start", CORE_TASK)),
             None
