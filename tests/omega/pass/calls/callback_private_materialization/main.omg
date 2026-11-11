@@ -23,6 +23,8 @@ satisfies CallingPolicy::plan
     plan.call.parameters[1] = CallbackPolicies::word(4, MachineRegister::X86Rdx);
     plan.call.parameters[2] = CallbackPolicies::word(8, MachineRegister::X86R8);
     let mut callback: BoundaryEntryPlan = CallbackPolicies::finish(plan);
+    callback.state.permitted_transitive_use.instruction_pointer = true;
+    callback.state.permitted_transitive_use.stack_pointer = true;
     // Keep the genuine Microsoft argument geometry, with a stronger R10/XMM5
     // preservation promise than the ordinary body. This requires an adapter.
     callback.call.ordinary_clobbers.registers[5] = callback.call.ordinary_clobbers.registers[11];
@@ -97,8 +99,6 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     plan

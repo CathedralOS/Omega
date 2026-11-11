@@ -73,6 +73,8 @@ satisfies CallingPolicy::plan
     plan.call.has_result = true;
     plan.call.result = Policies::record(8);
     let mut callback: BoundaryEntryPlan = Policies::finish(plan);
+    callback.state.permitted_transitive_use.instruction_pointer = true;
+    callback.state.permitted_transitive_use.stack_pointer = true;
     // Remove X9 and V16 from the ordinary clobbers without changing placement.
     // The ordinary helper still uses the complete internal clobber bank.
     callback.call.ordinary_clobbers.registers[9] = callback.call.ordinary_clobbers.registers[40];
@@ -151,8 +153,6 @@ machine Policies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     plan
@@ -285,8 +285,6 @@ machine LinuxPolicies::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     plan

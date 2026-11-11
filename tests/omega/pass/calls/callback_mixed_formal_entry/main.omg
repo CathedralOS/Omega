@@ -28,6 +28,8 @@ satisfies CallingPolicy::plan
         plan.call.parameters[2] = SortPolicies::word(8, 2);
         plan.call.has_result = true;
         plan.call.result = SortPolicies::result_word(4);
+        plan.state.permitted_transitive_use.instruction_pointer = true;
+        plan.state.permitted_transitive_use.stack_pointer = true;
         SortPolicies::finish(plan)
     }
     machine reject() -> BoundaryPlanResult {
@@ -136,8 +138,6 @@ machine SortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     BoundaryPlanResult::Accepted { plan: plan }
@@ -265,8 +265,6 @@ machine LinuxSortPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResu
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     BoundaryPlanResult::Accepted { plan: plan }
