@@ -39,10 +39,16 @@ that defines it, so a message can quote the source at that span but cannot
 say "local `quotient`". Loans could not be measured: the route refuses
 borrows, so no `fail/` borrow fixture reaches it.
 
-A rerun of every `fail/` fixture at a later `main` is under way. Seven
-lowered-route PRs have landed since `c7371d3dc` (`#2379`, `#2382`, `#2390`,
-`#2393`, `#2397`, `#2412`, `#2422`), and `#2379` changes what the route
-judges, so these numbers will be replaced, not added to.
+**The prover gap is already closed on a later `main`.** Seven lowered-route
+PRs have landed since `c7371d3dc` (`#2379`, `#2382`, `#2390`, `#2393`,
+`#2397`, `#2412`, `#2422`). At `main` `7f1316ed6`, three of the 63 were run
+again: `calls/state_arrival_call_result_above_bound`,
+`contracts/named_tail_return_contract` and
+`arithmetic/bitwise_non_singleton_endpoint_bounds`. The helpers `four` and
+`zero` are now accepted, and the route rejects the machine the fixture is
+about, at the exact site the current checker names. A rerun of every `fail/`
+fixture at `7f1316ed6` is under way. Its numbers will replace these, not add
+to them.
 
 ## The three counts
 
