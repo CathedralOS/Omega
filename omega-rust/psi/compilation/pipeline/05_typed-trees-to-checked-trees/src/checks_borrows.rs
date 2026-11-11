@@ -6119,6 +6119,16 @@ mod statements {
                     loan_handle,
                     stated_premises,
                     bound_lookup,
+                ) && !super::place_access::holder_access_interferes(
+                    program,
+                    facts,
+                    loan_occurrences,
+                    &destinations,
+                    &mutated_place,
+                    &access,
+                    loan_handle,
+                    stated_premises,
+                    bound_lookup,
                 ) {
                     continue;
                 }
@@ -11392,6 +11402,66 @@ mod place_access {
             )
             .non_interfering
         })
+    }
+
+    /*
+        A write whose destination crosses a stored reference reaches its
+        backing through the place that holds the reference:
+        `carrier.destination = 11` writes the referent by way of the slot
+        `carrier.destination`, and `parent = 9` by way of the local `parent`.
+        A live loan of that holder, or of a place enclosing it, still observes
+        everything the holder reaches, so the write must also be judged against
+        the loan at the holder's own coordinates. Only a loan whose path ends at
+        or above the written path qualifies; a deeper loan names part of the
+        referent, which the backing comparison already judges. A write through
+        the loan itself is the loan's own access.
+    */
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn holder_access_interferes<'p>(
+        program: &'p dyn ::validation::CheckingInput,
+        facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
+        backings: &[ResolvedAlias],
+        written: &validation::CanonicalPlace,
+        kind: &BorrowAccessKind,
+        loan_handle: Handle<BorrowLoanFact>,
+        premises: &[StatedOrderingPremise],
+        bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+    ) -> bool {
+        let borrow = &facts.borrow;
+        let loan = borrow.loans.get(loan_handle);
+        let segments = borrow.loan_segments(loan);
+        if loan.incoming_reference.is_valid()
+            || loan.root != written.root
+            || segments.len() > written.segments.len()
+            || !backings.iter().any(|backing| !backing.lineage.is_empty())
+            || backings
+                .iter()
+                .any(|backing| backing.retains_loan(facts, loan_occurrences, loan_handle))
+        {
+            return false;
+        }
+        let holder = CapturedPlace {
+            root: written.root,
+            segments: written.segments[..segments.len()].to_vec(),
+            ..Default::default()
+        };
+        let loan_place = CapturedPlace {
+            root: loan.root,
+            segments: segments.to_vec(),
+            ..Default::default()
+        };
+        !captured_place_compatibility(
+            program,
+            borrow,
+            &holder,
+            kind,
+            &loan_place,
+            &loan.kind,
+            premises,
+            bound_lookup,
+        )
+        .non_interfering
     }
 }
 pub(crate) use overlap::{
