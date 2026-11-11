@@ -5217,17 +5217,16 @@ fail/drops/empty_array_owner_cleanup_prerequisite rejected 11322ms expected @ee4
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by drop_holder clause `holder.ready`
 fail/drops/erased_linear_subject_requires_disposition rejected 1811ms expected @ccdb99ca2214
 	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:3ef6cc66a06ab29aaf920c13a08ac22e6a634150b97aa1427e8d78e59e24daea\\)\\,path\\(Event\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
-fail/drops/fresh_qualified_storage_invalidated_before_cleanup rejected 8451ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$2e928c65ba61c82a$0$2663 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$a574f77a5e13dcbe$1$2666 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove default-domain field requirement for call drop$specialized$a574f77a5e13dcbe$1$2666 from main::entry: parameter value.capacity requires Capacity::Vacant
+fail/drops/fresh_qualified_storage_invalidated_before_cleanup rejected 147555ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call drop from main: envelope.capacity.active does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+	cannot prove default-domain field requirement for call drop from main::entry: parameter value.capacity requires Capacity::Vacant (declared field domain not proved)
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 10062ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish drop_token clause `token.value == 7`
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$5ae389475f33531d$0$2639 state entry after statement 1: token does not establish drop_token clause `token.value == 7`
-fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 13605ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$e3e89426798c3d4e$0$2647 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 9275ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$82cf7ff947990f69$0$2646 state entry after statement 0: value does not establish drop_token clause `token.value == 7`
+fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 60578ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: token.ready does not establish drop_token clause `token.ready && token.value == 7`
+fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 30642ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: token.value does not establish drop_token clause `token.value == 7`
 fail/drops/guarded_record_return_duplicate_move rejected 1944ms expected @ccdb99ca2214
 	cannot use `observation` in machine `choose` state `entry` (statement 2) after `observation` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `observation` first
 fail/drops/guarded_record_return_linear_debt rejected 1712ms expected @ccdb99ca2214
@@ -8054,8 +8053,8 @@ fail/facts/domain_selected_cleanup_distinct_const_applications_rejected rejected
 	conflicting dropped by machine applications on one owned subject
 fail/facts/domain_selected_cleanup_enclosing_generic_telescope_rejected rejected 9738ms expected @dfac2536232b
 	cannot prove automatic cleanup requires at selected edge from consume$specialized$70ce99873519de2a$0$2635 state entry after statement 0: keeper does not establish release_keeper$specialized$2190ffe39b24236e$0$2629 clause `keeper.code == 7`
-fail/facts/domain_selected_cleanup_erased_interface_rejected rejected 11295ms expected @dfac2536232b
-	cannot prove automatic cleanup requires at selected edge from forward$specialized$a00c54f0e7762794$0$2626 state entry after statement 0: value does not establish release_keeper clause `keeper.code == 7`
+fail/facts/domain_selected_cleanup_erased_interface_rejected rejected 58156ms expected @3bc30f59b201
+	cannot prove contextual cleanup prerequisite for call forward from main: keeper.code does not establish release_keeper clause `keeper.code == 7`
 fail/facts/domain_selected_cleanup_erased_predicates_rejected rejected 2920ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from main: (keeper as Keeper).code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	construction value is not proven in domain `Keeper::Held` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
@@ -21480,14 +21479,9 @@ pass/drops/case_subject_root_cleanup checked 3719ms @ccdb99ca2214
 pass/drops/cleanup_machine_drop_shape checked 14416ms @ee4dbb4b2d56
 pass/drops/cleanup_owner_identity_application checked 13444ms @ee4dbb4b2d56
 pass/drops/conditional_return_cleanup checked 20177ms @ee4dbb4b2d56
-pass/drops/conditional_structural_return_cleanup_exit rejected 12540ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$7ea7f6cc34cd3a1a$0$2718 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from choose$specialized$07d5b79d3a6c19fe$0$2721 state entry after statement 1: missing second.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from choose$specialized$07d5b79d3a6c19fe$0$2721 state entry after statement 2: missing first.ready == true required by drop_token clause `token.ready`
+pass/drops/conditional_structural_return_cleanup_exit checked 60688ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/contextual_cleanup_exit checked 16807ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/contextual_core_drop_exit rejected 13618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$787479778e185cb2$0$2710 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$09d5e15e0710e924$0$2713 state entry after statement 0: missing value.ready == true required by drop_token clause `token.ready`
+pass/drops/contextual_core_drop_exit checked 144187ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/contextual_hook_cleanup checked 27320ms @ee4dbb4b2d56
 pass/drops/contextual_receiver_drop_exit checked 14312ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/copied_scalar_temporary_completion_exit checked 13674ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -21500,16 +21494,10 @@ pass/drops/drop_hook_body checked 14214ms @ee4dbb4b2d56
 pass/drops/drop_owner_hooks checked 14287ms @ee4dbb4b2d56
 pass/drops/drop_requires_hook checked 15882ms @ee4dbb4b2d56
 pass/drops/erased_record_initializer_exit checked 89857ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/fresh_qualified_storage_after_unknown_call_exit rejected 12028ms check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$e6a0d39daeb9815a$0$2672 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$52aa07dfff395daa$1$2675 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$f657869e1924e4a8$2$2678 state entry after statement 0: value.value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+pass/drops/fresh_qualified_storage_after_unknown_call_exit checked 277575ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/lifetime_owner_drop_hook checked 15100ms @ee4dbb4b2d56
 pass/drops/ordered_teardown_body checked 14143ms @ee4dbb4b2d56
-pass/drops/owned_qualified_contextual_cleanup_exit rejected 77409ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$45a0de03122a06ce$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$038726970af09d79$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$453b300fedac3c8c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+pass/drops/owned_qualified_contextual_cleanup_exit checked 413805ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/projected_case_subject_root_cleanup_exit checked 14476ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/qualified_scalar_control_consumed_owner_exit checked 17060ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/reference_rebinding_preserves_pointee_exit checked 8814ms check-target:macos_arm64 @a55978ecf3a8
@@ -21543,13 +21531,8 @@ pass/drops/runtime_empty_array_owner_cleanup_sites_exit checked 11357ms check-ta
 pass/drops/runtime_generic_cleanup_owner_telescope_exit rejected 12904ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	statement 1 mutates `owner.left` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 1)
 	statement 2 mutates `owner.right` while local borrow `entry` is still active (borrowed at statement 2)
-pass/drops/runtime_generic_nominal_compound_prerequisite_exit rejected 10470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$af56659368b70312$0$2711 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$af56659368b70312$0$2711 state entry after statement 0: value does not establish drop_token clause `7 <= token.value && token.value <= 9`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$279a425af07d651c$0$2714 state entry after statement 0: value does not establish drop_token clause `token.ready && token.value == 7`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$279a425af07d651c$0$2714 state entry after statement 0: value does not establish drop_token clause `7 <= token.value && token.value <= 9`
-pass/drops/runtime_generic_nominal_integer_prerequisite_exit rejected 8925ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$319a3cdceae44641$0$2649 state entry after statement 0: value does not establish drop_token clause `token.value == 7`
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 389579ms check-target:macos_arm64 @3bc30f59b201
+pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 88443ms check-target:macos_arm64 @3bc30f59b201
 pass/drops/runtime_generic_reserved_construction_exit checked 10783ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 35233ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 86237ms check-target:macos_arm64 @911f6617ba9e
