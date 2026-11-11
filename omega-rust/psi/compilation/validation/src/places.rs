@@ -5563,11 +5563,14 @@ pub(crate) mod canonical_projection {
         place.segments.push(facts::PlaceSegment::FixedIndex {
             index: element_index,
         });
-        let mut normalized = Vec::with_capacity(place.segments.len());
-        let mut window: Option<(usize, Option<usize>)> = None;
-        for segment in place.segments {
-            let range = match segment {
-                facts::PlaceSegment::FixedRange { start, end } => Some((start, Some(end))),
+        let segments = place
+            .segments
+            .into_iter()
+            .map(|segment| match segment {
+                facts::PlaceSegment::FixedRange { start, end } => Some(WindowedSegment::Window {
+                    start,
+                    end: Some(end),
+                }),
                 facts::PlaceSegment::Index { expression } => {
                     let range = expression_table(program).range_node(expression)?;
                     let ordinal = |bound| {
@@ -5591,32 +5594,63 @@ pub(crate) mod canonical_projection {
                     } else {
                         None
                     };
-                    Some((start, end))
+                    Some(WindowedSegment::Window { start, end })
                 }
-                _ => None,
-            };
-            if let Some((start, end)) = range {
-                if end.is_some_and(|end| start > end) {
-                    return None;
-                }
-                window = Some(match window {
-                    None => (start, end),
-                    Some((base, limit)) => {
-                        let start = base.checked_add(start)?;
-                        let end = match end {
-                            Some(end) => Some(base.checked_add(end)?),
-                            None => None,
-                        };
-                        if limit.is_some_and(|limit| start > limit)
-                            || limit.zip(end).is_some_and(|(limit, end)| end > limit)
-                        {
-                            return None;
-                        }
-                        (start, end.or(limit))
+                segment => Some(WindowedSegment::Segment(segment)),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let normalized = fold_fixed_element_windows(segments)?;
+        place.segments = normalized;
+        Some(place)
+    }
+
+    /// One step of a place path while fixed collection windows are folded:
+    /// either an ordinary segment or a window `[start..end]` (`end` is `None`
+    /// for an open-ended window such as `[start..]`).
+    pub enum WindowedSegment {
+        Window { start: usize, end: Option<usize> },
+        Segment(facts::PlaceSegment),
+    }
+
+    /// A fixed window `[s..e]` followed by element `[i]` names the single
+    /// element `[s + i]` of the window's storage. Place identity must not
+    /// depend on which view spelled that element, so canonical element and
+    /// write places fold every such pair (nested windows compose first) into
+    /// one absolute `FixedIndex`. Folding is exact or absent: it returns `None`
+    /// when a window is followed by anything but a fixed element, the element
+    /// lies outside its window, nested windows exceed their parent, or the path
+    /// ends inside a window. Callers keep their refusal in those cases.
+    pub fn fold_fixed_element_windows(
+        segments: impl IntoIterator<Item = WindowedSegment>,
+    ) -> Option<Vec<facts::PlaceSegment>> {
+        let mut normalized = Vec::new();
+        let mut window: Option<(usize, Option<usize>)> = None;
+        for segment in segments {
+            let segment = match segment {
+                WindowedSegment::Window { start, end } => {
+                    if end.is_some_and(|end| start > end) {
+                        return None;
                     }
-                });
-                continue;
-            }
+                    window = Some(match window {
+                        None => (start, end),
+                        Some((base, limit)) => {
+                            let start = base.checked_add(start)?;
+                            let end = match end {
+                                Some(end) => Some(base.checked_add(end)?),
+                                None => None,
+                            };
+                            if limit.is_some_and(|limit| start > limit)
+                                || limit.zip(end).is_some_and(|(limit, end)| end > limit)
+                            {
+                                return None;
+                            }
+                            (start, end.or(limit))
+                        }
+                    });
+                    continue;
+                }
+                WindowedSegment::Segment(segment) => segment,
+            };
             let segment = match (window.take(), segment) {
                 (Some((base, limit)), facts::PlaceSegment::FixedIndex { index }) => {
                     let index = base.checked_add(index)?;
@@ -5633,8 +5667,7 @@ pub(crate) mod canonical_projection {
         if window.is_some() {
             return None;
         }
-        place.segments = normalized;
-        Some(place)
+        Some(normalized)
     }
 
     pub fn index_place_segment(
@@ -6438,8 +6471,8 @@ pub(crate) mod canonical_projection {
 }
 pub(crate) use canonical_projection::ProjectionSyntaxQueries;
 pub use canonical_projection::{
-    CanonicalPlace, canonical_collection_element_place, canonical_place_from_expression,
-    canonical_place_from_expression_in_state, element_place_segment, index_place_segment,
+    CanonicalPlace, WindowedSegment, canonical_collection_element_place, canonical_place_from_expression,
+    canonical_place_from_expression_in_state, element_place_segment, fold_fixed_element_windows, index_place_segment,
     place_root_may_be_symbol, push_field_place_segments, storage_operand,
     storage_place_from_expression_in_state, window_coordinate,
 };
