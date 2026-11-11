@@ -28,7 +28,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5] in Utf8, position: i32)
         requires 0 <= position && position < 5
     {
-        let shifted: u8 in Wrapping = text[position] as u8 in Wrapping + 100;
+        let shifted: u8 in Wrapping = (text[position] as u8 in Wrapping) + 100;
         output[position] = shifted as u8;
         transition { _ -> step(text, output, position + 1) }
     }

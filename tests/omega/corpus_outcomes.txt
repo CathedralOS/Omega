@@ -4700,6 +4700,14 @@ fail/domains/domain_alias_reports_atomic_requirement rejected 2329ms expected @c
 	cannot prove requires contract for call consume from Main::main: main.socket in Socket::Authenticated in state `main`
 fail/domains/domain_carrier_mismatch rejected 699ms expected @ccdb99ca2214
 	data `Main` field `value` uses `in Scanned`, but no `domain` named `Scanned` is declared for `i32` (domains are bound to their storage type)
+fail/domains/domain_cast_adds_present_domain rejected 15536ms expected @92e9c0cfab0b
+	cast entry `+Km` adds domain `Km`, but the operand's type `i32[in Km, in Positive]` already carries `Km`; write `=Km` to keep it
+fail/domains/domain_cast_adds_unproven_predicate rejected 17424ms expected @92e9c0cfab0b
+	`as ... in Positive` cannot mint: a `Positive` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/domain_cast_removes_absent_domain rejected 14222ms expected @92e9c0cfab0b
+	cast entry `=Km` names domain `Km`, but the operand's type `i32` does not carry `Km`; only `+Km` can name a domain the operand lacks
+fail/domains/domain_cast_unlisted_domain rejected 13641ms expected @92e9c0cfab0b
+	domain cast leaves attached domain `Positive` unaccounted for: the operand's type `i32[in Km, in Positive]` carries `Positive`, so the cast names it as `=Positive` to keep it or `-Positive` to remove it
 fail/domains/domain_operator_competing_spelling_meanings rejected 2598ms expected @ccdb99ca2214
 	ambiguous operator spelling `+` has 2 viable candidates: `Quantity::Linear::add` owned by domain `Quantity::Linear`, `Quantity::Cyclic::add` owned by domain `Quantity::Cyclic`. The static operand-domain tuple does not uniquely select one -- narrow the binding's semantic qualification or choose a clearer operation.
 fail/domains/domain_pattern_match_bound_alias_routed_unproven_rejected rejected 3263ms expected @ccdb99ca2214
@@ -9253,63 +9261,62 @@ fail/facts/guarded_call_entry_through_parameter_rejected rejected 38214ms expect
 	cannot prove requires contract for call parse from receive: context.count <= context.slots.len && remaining_steps > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/guarded_call_entry_through_target_body_rejected rejected 24799ms expected @6fd07112da3c
 	cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && remaining_steps > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`
-fail/facts/guarded_line_loan_through_call_result_rejected rejected 2692ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_call_result_rejected rejected 41357ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_const_name_rejected rejected 2693ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_const_name_rejected rejected 54372ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_field_rejected rejected 2590ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_field_rejected rejected 22492ms expected @71d7a6330d0b
 	state `receive` receives `holder.line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `holder.line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `holder.line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `holder.line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_local_rejected rejected 3878ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_local_rejected rejected 27326ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_match_join_rejected rejected 2823ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_match_join_rejected rejected 32088ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_other_machine_rejected rejected 2657ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_other_machine_rejected rejected 57407ms expected @71d7a6330d0b
 	state `forward` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_other_state_rejected rejected 4088ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_other_state_rejected rejected 39333ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_parameter_rejected rejected 2772ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_parameter_rejected rejected 19872ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_line_loan_through_target_body_rejected rejected 3184ms expected @ccdb99ca2214
+fail/facts/guarded_line_loan_through_target_body_rejected rejected 23466ms expected @71d7a6330d0b
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3) in machine `main`, state `entry`, statement 2
 	statement 2 mutates `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/guarded_record_line_loan_through_call_result_rejected rejected 1112ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_call_result_rejected rejected 27873ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_const_name_rejected rejected 1156ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_const_name_rejected rejected 17326ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_field_rejected rejected 1355ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_field_rejected rejected 16974ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_local_rejected rejected 1186ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_local_rejected rejected 43310ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_match_join_rejected rejected 1245ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_match_join_rejected rejected 17066ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_other_machine_rejected rejected 1609ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_other_machine_rejected rejected 15289ms expected @71d7a6330d0b
 	machine `forward` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_other_state_rejected rejected 1721ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_other_state_rejected rejected 7905ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_parameter_rejected rejected 1461ms expected @ccdb99ca2214
+fail/facts/guarded_record_line_loan_through_parameter_rejected rejected 10517ms expected @71d7a6330d0b
 	machine `observe` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-fail/facts/guarded_record_line_loan_through_target_body_rejected rejected 1624ms expected @ccdb99ca2214
-	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
-	machine `inspect` state `entry` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+fail/facts/guarded_record_line_loan_through_target_body_rejected rejected 42670ms expected @71d7a6330d0b
+	machine `X86Inspect::inspect` state `inspect` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	machine `ArmInspect::inspect` state `inspect` assignment cannot write `application` because it is not mutable in this state (if `application` is undeclared -- a typo -- no such field or local exists)
+	unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: completed_count >= 99
 fail/facts/ieee_float_32bit_ordered_bound_through_call_result_rejected rejected 7107ms expected @911f6617ba9e
 	cannot prove requires contract for call verify_f32_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0 (needs fact `reading >= 1.0 && reading <= 3.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/ieee_float_32bit_ordered_bound_through_const_name_rejected rejected 5464ms expected @ccdb99ca2214
@@ -11073,69 +11080,69 @@ fail/facts/predicate_type_formation_through_target_body_rejected rejected 1882ms
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/progress_selector_nested_arrival_through_call_result_rejected rejected 3416ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:dda6d43780e48eafb3f66f02268d61387c909f7fa88cb686e063bdc5946bc1f2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_const_name_rejected rejected 3614ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:edf20128a8f0629da37a82cde9dd2a46c2b5271cfc1e202a83c20776583472ef:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_field_rejected rejected 3548ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:338c08e161f8deb427cfc55c07d0253253eb20a9bc8af2562cf652542d0f2938:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_local_rejected rejected 3778ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:0f481c832bd3bf740117e38f2b6c4d503ada6046b40b467c11a2d01389dd625b:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_match_join_rejected rejected 3707ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:40c4d05e5321aad5eab4d67631b13569f7270d329525f11157d6d7e69603dd5b:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_other_machine_rejected rejected 3736ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:cf7ba9604c0c583818d828a116e404b9a22bf09b5b9cdedd018e10c55aa3671e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_other_state_rejected rejected 3734ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:32f16aee73a8039dd9622de8c9e58e2aff26706fb379f71f0915f51d3172e5a1:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_parameter_rejected rejected 3767ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:409079fe4a96b1a0a9c1224a5ca2238b4d11a3c992d4f8381204065e102db367:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_nested_arrival_through_target_body_rejected rejected 3746ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:bfba8b707b5b531bfef2090c60341c55bfee116c8c3a52b58ea8f2bbe6bf3c62:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:bfba8b707b5b531bfef2090c60341c55bfee116c8c3a52b58ea8f2bbe6bf3c62:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:bfba8b707b5b531bfef2090c60341c55bfee116c8c3a52b58ea8f2bbe6bf3c62:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:bfba8b707b5b531bfef2090c60341c55bfee116c8c3a52b58ea8f2bbe6bf3c62:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_call_result_rejected rejected 3747ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:2c7f2fa75dfe3fbd2263ed116dab416e3354ea159033b91502ce6b4ef0e789df:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_const_name_rejected rejected 3737ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:b3262ea091fec4469a87b0c7b3d9b1408c9687f789e859bc16a03efb40c552aa:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_field_rejected rejected 3700ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:8c516cf5b1e30661b6e1038b6e11f59d2cf0de788a61e929dcb474bf198349d9:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_local_rejected rejected 3690ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:fb6197e340234d820731b1ef06f2d479773c1b2a3947b9989bad6f6ef9ed1ced:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_match_join_rejected rejected 3615ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:a90e56c6ee6d8194680d7379065861f9f2e2245afbe60bec14c4b99ef8b68d75:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_other_machine_rejected rejected 3614ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:500f9e455dd51939d4ccc1331e0dd6d06801ac683fd453b3a31022bb89826e7b:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_other_state_rejected rejected 3674ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:a3a7798022257f35e2550f0a4f2c634288f325bb5d25ff4984a645608799b8cc:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_parameter_rejected rejected 3668ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:a8077b7100a2483d54a497a2ea11cee66bba113d5f3d5ff2da7f53f73ac2b8d0:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_owned_arrival_through_target_body_rejected rejected 3799ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_call_result_rejected rejected 9166ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:c4d0c0387c43b40b6405822a7e77f5691650ff4d6c4875365871817f3454db39:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_const_name_rejected rejected 9176ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:cadbb3359e0622e4c4dc526247f8459f579ac3888e57553a2c49ade29331474e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_field_rejected rejected 9115ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:dbc7b9f02ea20ab859438363b79b0ba2f3a796027ebf1188eac3d8d287307e72:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_local_rejected rejected 9099ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:5d3a7ed536296c6926981d2f52b759f8619356f284c6a47adcbf38ca55b48b83:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_match_join_rejected rejected 9088ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:d7890c15b467c0e3a4a8f8f3348e6ac083d44c1088b17bcca7f6930fdaa41203:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_machine_rejected rejected 9126ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `nested` derives progress premise `package:bdadf9cafc2d8a6507361c33cf8cbed15799bfcc61f1ff13b319d568ccfdfe8f:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_state_rejected rejected 9078ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:8fd2d3115923bec06e3321c59762084cbcdf029096046e364148944aa6eec759:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_parameter_rejected rejected 9142ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:2ba57e0e9916732150e64553e2c926625d5e2818d9ef3121a76c9b0252f8d8f0:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_target_body_rejected rejected 9213ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `LinuxX86Selector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `LinuxX86Selector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `LinuxArmSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `LinuxArmSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `MacosSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `MacosSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `WindowsSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `WindowsSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_call_result_rejected rejected 46286ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:921c829449d507bc490d904826b185de03760b39d480fe9b49ddf4c0665abb3d:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_const_name_rejected rejected 38623ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:cefaec3dab1c760b0745fc41d4895b94fee89038ce4a0f987fe455b8c42272c3:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_field_rejected rejected 45150ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:81fad5e18db8fa40e15c40c65830a68d0379c4cdc0e533a286556cd278f09a73:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_local_rejected rejected 45923ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:0a678729010a2cc7bff72108a453a8eaf51ef65c4e5cf966a7629d1b91265f26:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_match_join_rejected rejected 77275ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:dc830a34f8352e3a2ebe5a0bdf82e21e04e070b1a85380554488ab9a3f2c4997:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_other_machine_rejected rejected 86414ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:fc7da27f5ace26d533d8fdd7686a6b3942a6264a0fb3ddda5b8fef503839f007:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_other_state_rejected rejected 29620ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:4a1b29c989d65596ee1394844abd081c5f0fd180fbd1d430207e0f4055b698af:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_parameter_rejected rejected 25898ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:5affd768bc3ccc1233564e065552f5b40f44642a57e252d7d175c175939175b2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_nested_arrival_through_target_body_rejected rejected 27729ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:4d82a4fbdc3d35de79da23538e35651f1c31e837737a914f4d95f62c14652790:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:4d82a4fbdc3d35de79da23538e35651f1c31e837737a914f4d95f62c14652790:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:4d82a4fbdc3d35de79da23538e35651f1c31e837737a914f4d95f62c14652790:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:4d82a4fbdc3d35de79da23538e35651f1c31e837737a914f4d95f62c14652790:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_call_result_rejected rejected 34312ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:c9bb10f11f689f44b367783ca2d2303b95f17f05b0b1e3f7aabd8b250b6f81bc:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_const_name_rejected rejected 33384ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:e0b8effba369656a76c1c029f1603900cfdb227ed49574c631186ba260260465:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_field_rejected rejected 41139ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:a70af294a6f83022f4ade2baa02ef466fe47fd40e3214a6e5bc795a52de98f8a:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_local_rejected rejected 40538ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:6fcb0f39a5e829b91ded4843450fa8e4a09f67e15e23775443a0b10ad5ba0819:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_match_join_rejected rejected 38049ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:d039b887294d587946fca3262db2d2b94f837f496ba73595cddcf08fdcdc3815:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_other_machine_rejected rejected 33658ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:bec08860f413942be0a0d898cce6ea6275cd0ae4ffcec5e88e5104f21a730bed:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_other_state_rejected rejected 82611ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:30402f7f64ccf712a60b9043e6c3618c82a341a3fb8437f493d3b9f6c90160fe:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_parameter_rejected rejected 23378ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:04ca6107375f09754a770d63fba0cc264bbbddae25808a97f559a31759db0d4c:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_owned_arrival_through_target_body_rejected rejected 26418ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:91a86e22dd6d94cb549ba9aec41e9163de758d842b24f20091c17636a7a62324:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:91a86e22dd6d94cb549ba9aec41e9163de758d842b24f20091c17636a7a62324:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:91a86e22dd6d94cb549ba9aec41e9163de758d842b24f20091c17636a7a62324:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `select` derives progress premise `package:91a86e22dd6d94cb549ba9aec41e9163de758d842b24f20091c17636a7a62324:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_call_result_rejected rejected 23388ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:bc870934b4e37d371be5b6d2be093b4afb42af985207300a0d51295392075217:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_const_name_rejected rejected 22389ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:2a96cfa1603eb4b2f650504c35d04e9b15e7c20d454e228139f27b5c21e7333f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_field_rejected rejected 28385ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:bb1aebc79ce79cba52d127ee2e6300d813859250ff436e4c111a88243fb06410:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_local_rejected rejected 36199ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:a02469daf9bbc2b42939a9629c71d1c7233c93c9be81cfe4189b867ba23b42c0:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_match_join_rejected rejected 15853ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:10fea76b5cafca028d84a61799d2c4a2f1d246c48883fc42cc82ef12534dce3f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_machine_rejected rejected 73736ms expected @71d7a6330d0b
+	machine `nested` derives progress premise `package:af68fddffe5b265f4becd2d88d062ed44dc1e0da2c472ef0d55e0d71cdcb9ec6:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_state_rejected rejected 20943ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:90d90b37e9e3159a36c5f44061c5e52b91f2f32a8740188c17ffdc41fb7c95f7:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_parameter_rejected rejected 32424ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:850425f64b3a5bd71ec14ee20538e582b5e7ed7c6be20adb43f729c0643cdde9:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_target_body_rejected rejected 21204ms expected @71d7a6330d0b
+	machine `LinuxX86Selector::select` derives progress premise `package:91d25fb0f06e0c51531504951c995d062ad5ef7b5e6a3c919c195f42fcc2b2d0:product::Token::Fair` for `LinuxX86Selector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `LinuxArmSelector::select` derives progress premise `package:91d25fb0f06e0c51531504951c995d062ad5ef7b5e6a3c919c195f42fcc2b2d0:product::Token::Fair` for `LinuxArmSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `MacosSelector::select` derives progress premise `package:91d25fb0f06e0c51531504951c995d062ad5ef7b5e6a3c919c195f42fcc2b2d0:product::Token::Fair` for `MacosSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `WindowsSelector::select` derives progress premise `package:91d25fb0f06e0c51531504951c995d062ad5ef7b5e6a3c919c195f42fcc2b2d0:product::Token::Fair` for `WindowsSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/projection_call_premise_through_call_result_rejected rejected 2829ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from produced at statement 0: result.kept
 fail/facts/projection_call_premise_through_const_name_rejected rejected 1512ms expected @ccdb99ca2214
@@ -11510,23 +11517,23 @@ fail/facts/register_stack_arg_calling_plan_through_target_body_rejected rejected
 	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/remainder_width_index_through_call_result_rejected rejected 2844ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_call_result_rejected rejected 23517ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_const_name_rejected rejected 3625ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_const_name_rejected rejected 19744ms expected @71d7a6330d0b
 	cannot prove index `value % 5` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_field_rejected rejected 2892ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_field_rejected rejected 30830ms expected @71d7a6330d0b
 	cannot prove index `value % window.width` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_local_rejected rejected 2572ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_local_rejected rejected 42607ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_match_join_rejected rejected 2841ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_match_join_rejected rejected 19679ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_other_machine_rejected rejected 2922ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_other_machine_rejected rejected 42072ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
-fail/facts/remainder_width_index_through_other_state_rejected rejected 3388ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_other_state_rejected rejected 27805ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in land::entry
-fail/facts/remainder_width_index_through_parameter_rejected rejected 2620ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_parameter_rejected rejected 22469ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
-fail/facts/remainder_width_index_through_target_body_rejected rejected 3201ms expected @ccdb99ca2214
+fail/facts/remainder_width_index_through_target_body_rejected rejected 30013ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
 	cannot prove index `value % width` is within unknown slice length of `buckets` in read_at::entry
@@ -18581,46 +18588,46 @@ fail/termination/private_stored_reference_rank_wrong_child rejected 680ms expect
 fail/termination/productive_cycle_claims_unproved_termination rejected 2211ms expected @ccdb99ca2214
 	terminating machine first contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `first`, `second` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/progress_selector_nested_arrival_replaced_slot rejected 3798ms expected @7c89e967bf75
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_nested_arrival_stale_contents rejected 3794ms expected @7c89e967bf75
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_owned_arrival_affine_rejected rejected 3692ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:5f8dd169ff7a87e5b17a9e0f6fe05786cbbf736fac7b2f57462748e2e032010f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_borrowed_reborrow_exit rejected 3689ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:898d9f9179fd682bbc56377523814bf6c70300bc02d9385188a0d0f58f124e69:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_frozen_ingress_exit rejected 3622ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:d65d0a35eeaefb04c0e120b13c929be91ac34035f4759c16522faee7c22bb3d1:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_mixed_ingress_exit rejected 3571ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:00d67f7df20c2f269a4738f46db2c93a9346f2cb9295dd7033084f0393f85b13:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 3750ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:4174f100eccabcb984a959fb4e9bd8d5bd1b105779231b8106812dc28a28e1e6:product::Token::Fair` for `select::entry::left` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_owned_parameter_rejected rejected 3749ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:9e214fc561c651e71b937db60a24c1d8e82041f9196749793bed8d958c04a699:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_reference_boundary_rejected rejected 3670ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:48461557013dd409a35c853c1a5e6dc2029965808aabdf9085d39ac3b048da50:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_reference_reborrow_rejected rejected 3676ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:67c0207b0f4f5ab32ace19db990400500df2bca9e438276cec13ac7ca8dcac4d:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 3664ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:4d146c71fb059e0556bcf777bd817b24920a4848fb0bcaf6ab9a80aa90dee6c7:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_replaced_slot rejected 3558ms expected @7c89e967bf75
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
+fail/termination/progress_selector_nested_arrival_replaced_slot rejected 20964ms expected @71d7a6330d0b
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+fail/termination/progress_selector_nested_arrival_stale_contents rejected 20824ms expected @71d7a6330d0b
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+fail/termination/progress_selector_owned_arrival_affine_rejected rejected 31835ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:db6391064f25b7220a6efcec551ce84d3a1197d54c662ae6ff3d2d71332ce38e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_borrowed_reborrow_exit rejected 57125ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:746fff9d6b6720d31680e6ae6f01c7d38083eb910ac63d11025fb95022250da2:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_frozen_ingress_exit rejected 26006ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:b2be6273817c7c77ddb1e3f0d40ecbf1108cbb4c8b7d3f16e9c2032298471a28:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_mixed_ingress_exit rejected 45382ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:7f655e1bd6a40f6d218f76dee1d8eabae554fa392d259be419cd23821c0238a2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 40614ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:383bd7942b7a9ce08f7147c80b57d2354a7fb20632ba01fc59714877db203773:product::Token::Fair` for `select::entry::left` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_owned_parameter_rejected rejected 44064ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:babdb21dc38e3781b4525281b8a2221d541093a2a90fe9d69d99bb841843dc1f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_reference_boundary_rejected rejected 49070ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:2fd97686bd386b580d88f6de5e889ab0dce9081e238ed66bcb003288963af50f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_reference_reborrow_rejected rejected 75432ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:d9ccaa54362910b3923560988dff4d4359eb316840a7a681c5ce4271db62873f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 30033ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:4fb693a9331f78d8551120f81b96801ce625635fa02a826f307e8ed8ec11117e:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_replaced_slot rejected 69339ms expected @71d7a6330d0b
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
 fail/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2156ms unexpected @ccdb99ca2214
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_owned_arrival_stale_contents rejected 3623ms expected @7c89e967bf75
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_owned_snapshot_rejected rejected 3887ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:35dd19e37ab066888a40f1a5484fbe064460cf6c302669761b449fde64172672:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_reference_snapshot_rejected rejected 3846ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:38a40564ebfcc0b83223d4edfdfa4e6907afdb11b8e1e63d0aa0e06debd69035:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_carrier rejected 9289ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:68124b86110cdc257b2623d44abf74274ca04eceb239785094c544d01d2059f1:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_slot rejected 9162ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:c6d64aa66d64d1eade9cfc01dac8a299ebe6e7ab849448caf0b2c65c4217222a:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_stale_contents rejected 9240ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_unknown_alternative rejected 9262ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
-	machine `select` derives progress premise `package:c0a34cf985550bf4e7eccceb629ebb13b5e0879a265cca4ef466102bb22aa221:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_stale_contents rejected 41779ms expected @71d7a6330d0b
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+fail/termination/progress_selector_owned_snapshot_rejected rejected 39797ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:0ed708b606e7a6e25ccb8347d85157434559d90d05e794ad5fe8d860c0f2a429:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_reference_snapshot_rejected rejected 42162ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:b0d5553f48a82caecb9cf9a24846bec94b930395e16e98900793a17068d70252:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_carrier rejected 39862ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:c1f74acaff13247756749d05bb424ca3ab1c6f2c1d1c3d82a040565e7318b76a:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_slot rejected 36197ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:ad64724edd333c2ee7745e6ea3d267026e39e9abe3611ef92df1bb013fb6557c:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_stale_contents rejected 98198ms expected @71d7a6330d0b
+	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee; the missing guarantee is not attached to a nonlocal flow call
+fail/termination/progress_selector_unknown_alternative rejected 73945ms expected @71d7a6330d0b
+	machine `select` derives progress premise `package:d1f490cb63352c7dd3aa77fd351a2b55957ab9107827ed2328dce2d9b384891e:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 743ms unexpected @ccdb99ca2214
 	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 923ms unexpected @ccdb99ca2214
@@ -18824,9 +18831,9 @@ fail/text/qualified_byte_array_element_replacement rejected 2391ms expected @ccd
 	cannot prove the value assigned to `entries[1]` in corrupt is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/qualified_byte_array_mutable_domain_loss rejected 2085ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from bad at statement 0: entries[1] requires [u8; N]::Ascii
-fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 55727ms expected @32c7663ba3ad
+fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 82023ms expected @71d7a6330d0b
 	cannot prove default-domain field requirement for call step from Main::main::main: parameter output requires [u8; N]::Utf8
-	cannot prove requires contract for call step from shift: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_2]; output is part of [u8; N]::Utf8) in state `entry`
+	cannot prove requires contract for call step from shift: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_5]; output is part of [u8; N]::Utf8) in state `entry`
 fail/text/qualified_byte_state_domain_widening rejected 3016ms expected @ccdb99ca2214
 	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii in state `entry`
 fail/text/qualified_local_byte_alias_replacement_invalid_encoding rejected 1925ms expected @ccdb99ca2214
@@ -19552,7 +19559,7 @@ pass/borrow/named_operator_disjoint_argument_preserves_bound checked 6477ms @123
 pass/borrow/nested_reference_parameter_referent_assignment checked 2407ms @ccdb99ca2214
 pass/borrow/owned_capture_replaced_reference checked 2177ms @ccdb99ca2214
 pass/borrow/owned_capture_weaker_formal checked 2409ms @ccdb99ca2214
-pass/borrow/projected_record_state_loan_split_exit checked 3756ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrow/projected_record_state_loan_split_exit checked 75098ms check-target:macos_arm64 @71d7a6330d0b
 pass/borrow/reference_parameter_referent_copy_exit checked 3721ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 13515ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	argument `bytes` for state `publish` expects `&[u8]`, got `named value`
@@ -20002,7 +20009,7 @@ pass/borrows/same_initializer_disjoint_source_move checked 4328ms @911f6617ba9e
 pass/borrows/shared_recast_loan_member_read checked 16520ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/state_element_clone checked 3441ms @ccdb99ca2214
 pass/borrows/state_reference_scalar_snapshots checked 3700ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/static_byte_case_state_loan_compile checked 12239ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/static_byte_case_state_loan_compile checked 113845ms check-target:macos_arm64 @71d7a6330d0b
 pass/borrows/static_carrier_bounded_reference_read_exit checked 60204ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/static_carrier_reference_read_exit checked 57827ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/static_projected_local_reference_exit checked 18221ms check-target:macos_arm64 @ccdb99ca2214
@@ -20617,7 +20624,7 @@ pass/cases/unit_empty_arm checked 3562ms @ccdb99ca2214
 pass/cases/write_only_case_postcondition_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/array_local_control checked 2374ms @ccdb99ca2214
 pass/collections/borrowed_byte_array_state_reads_exit checked 16196ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/borrowed_byte_array_state_writes_exit checked 18253ms check-target:macos_arm64 @ccdb99ca2214
+pass/collections/borrowed_byte_array_state_writes_exit checked 99429ms check-target:macos_arm64 @71d7a6330d0b
 pass/collections/case_array_computed_index_match_exit checked 15836ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/case_array_literal_callee_store_exit checked 18069ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/case_array_literal_field_store_exit checked 17836ms check-target:macos_arm64 @ccdb99ca2214
@@ -20657,7 +20664,7 @@ pass/collections/runtime_argmax_index_exit checked 68668ms check-target:macos_ar
 pass/collections/runtime_array_child_membership_transport_exit checked 3731ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_borrowed_element_float_guard_exit checked 20110ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 13081ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/runtime_bounded_byte_reference_forward_exit checked 12726ms check-target:macos_arm64 @ccdb99ca2214
+pass/collections/runtime_bounded_byte_reference_forward_exit checked 206673ms check-target:macos_arm64 @71d7a6330d0b
 pass/collections/runtime_bounded_byte_reference_read_exit checked 18362ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_bounded_local_index_write_exit checked 77466ms check-target:macos_arm64 @911f6617ba9e
 pass/collections/runtime_captured_structural_copy_exit checked 3368ms check-target:macos_arm64 @ccdb99ca2214
@@ -21023,7 +21030,7 @@ pass/control_flow/projected_loan_state_argument_exit checked 12647ms check-targe
 pass/control_flow/qualified_case_pattern_exit checked 3918ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/qualified_case_payload_copy_exit checked 2685ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 2203ms @ccdb99ca2214
-pass/control_flow/record_pattern_arm_rename_guard_exit checked 11917ms check-target:macos_arm64 @ccdb99ca2214
+pass/control_flow/record_pattern_arm_rename_guard_exit checked 124680ms check-target:macos_arm64 @71d7a6330d0b
 pass/control_flow/record_result_dispatch_compile checked 1896ms @ccdb99ca2214
 pass/control_flow/renamed_payload_guard_dispatch_compile checked 2396ms @ccdb99ca2214
 pass/control_flow/requires_bound_dispatch_compile checked 2522ms @ccdb99ca2214
@@ -23315,24 +23322,24 @@ pass/facts/guarded_call_entry_through_other_machine_exit checked 13539ms check-t
 pass/facts/guarded_call_entry_through_other_state_exit checked 12967ms check-target:macos_arm64 @6fd07112da3c
 pass/facts/guarded_call_entry_through_parameter_exit checked 12948ms check-target:macos_arm64 @6fd07112da3c
 pass/facts/guarded_call_entry_through_target_body_exit checked 12748ms check-target:macos_arm64 @6fd07112da3c
-pass/facts/guarded_line_loan_through_call_result_exit checked 3534ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_const_name_exit checked 3653ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_field_exit checked 2604ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_local_exit checked 4295ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_match_join_exit checked 3308ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_other_machine_exit checked 3720ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_other_state_exit checked 4294ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_parameter_exit checked 3823ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_line_loan_through_target_body_exit checked 3692ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_call_result_exit checked 4349ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_const_name_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_field_exit checked 3218ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_local_exit checked 3527ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_match_join_exit checked 4459ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_other_machine_exit checked 3335ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_other_state_exit checked 3001ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_parameter_exit checked 3460ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/guarded_record_line_loan_through_target_body_exit checked 3816ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/guarded_line_loan_through_call_result_exit checked 107605ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_const_name_exit checked 105808ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_field_exit checked 36194ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_local_exit checked 60417ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_match_join_exit checked 31436ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_other_machine_exit checked 50446ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_other_state_exit checked 41115ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_parameter_exit checked 43495ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_line_loan_through_target_body_exit checked 61646ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_call_result_exit checked 49641ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_const_name_exit checked 164827ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_field_exit checked 65236ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_local_exit checked 63070ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_match_join_exit checked 67684ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_other_machine_exit checked 72480ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_other_state_exit checked 61775ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_parameter_exit checked 65526ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/guarded_record_line_loan_through_target_body_exit checked 63006ms check-target:macos_arm64 @71d7a6330d0b
 pass/facts/ieee_float_32bit_ordered_bound_through_call_result_exit checked 8851ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/ieee_float_32bit_ordered_bound_through_const_name_exit checked 6562ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/ieee_float_32bit_ordered_bound_through_field_exit checked 7152ms check-target:macos_arm64 @911f6617ba9e
@@ -24159,33 +24166,33 @@ pass/facts/predicate_type_formation_through_other_machine_exit checked 6122ms ch
 pass/facts/predicate_type_formation_through_other_state_exit checked 7660ms check-target:macos_arm64 @62ce026b5931+wt
 pass/facts/predicate_type_formation_through_parameter_exit checked 5004ms check-target:macos_arm64 @62ce026b5931+wt
 pass/facts/predicate_type_formation_through_target_body_exit checked 6145ms check-target:macos_arm64 @62ce026b5931+wt
-pass/facts/progress_selector_nested_arrival_through_call_result_exit checked 5800ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_const_name_exit checked 4961ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_field_exit checked 4864ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_local_exit checked 4871ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_match_join_exit checked 4822ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_other_machine_exit checked 5732ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_other_state_exit checked 5082ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_parameter_exit checked 4923ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_nested_arrival_through_target_body_exit checked 4927ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_call_result_exit checked 4772ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_const_name_exit checked 4820ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_field_exit checked 4814ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_local_exit checked 4876ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_match_join_exit checked 5043ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_other_machine_exit checked 5035ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_other_state_exit checked 5000ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_parameter_exit checked 4820ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_owned_arrival_through_target_body_exit checked 4793ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_call_result_exit checked 12789ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_const_name_exit checked 13019ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_field_exit checked 12804ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_local_exit checked 12666ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_match_join_exit checked 12710ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_other_machine_exit checked 12664ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_other_state_exit checked 12731ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_parameter_exit checked 12722ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
-pass/facts/progress_selector_through_target_body_exit checked 12796ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_nested_arrival_through_call_result_exit checked 50832ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_const_name_exit checked 54751ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_field_exit checked 50172ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_local_exit checked 37674ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_match_join_exit checked 42758ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_other_machine_exit checked 133199ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_other_state_exit checked 53861ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_parameter_exit checked 46639ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_nested_arrival_through_target_body_exit checked 55906ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_call_result_exit checked 49407ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_const_name_exit checked 66519ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_field_exit checked 79380ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_local_exit checked 34431ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_match_join_exit checked 36504ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_other_machine_exit checked 45002ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_other_state_exit checked 34480ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_parameter_exit checked 36656ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_owned_arrival_through_target_body_exit checked 30327ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_call_result_exit checked 47613ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_const_name_exit checked 31076ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_field_exit checked 53229ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_local_exit checked 92245ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_match_join_exit checked 27170ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_other_machine_exit checked 27859ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_other_state_exit checked 83599ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_parameter_exit checked 39201ms check-target:macos_arm64 @71d7a6330d0b
+pass/facts/progress_selector_through_target_body_exit checked 79182ms check-target:macos_arm64 @71d7a6330d0b
 pass/facts/projection_call_premise_through_call_result_exit checked 3273ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_const_name_exit checked 3475ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_field_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
@@ -25962,7 +25969,7 @@ pass/generics/runtime_const_data_machine_call_exit rejected 6944ms check-target:
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `*` in closed const argument: no exact selected meaning", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 502, end: 503 } }), resolved_location: None })
 pass/generics/runtime_const_data_multiple_instances_exit checked 12362ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_const_data_symbolic_expression_exit checked 30322ms check-target:macos_arm64 @602404d45977
-pass/generics/runtime_const_data_where_fact_exit checked 67646ms check-target:macos_arm64 @911f6617ba9e
+pass/generics/runtime_const_data_where_fact_exit checked 68180ms check-target:macos_arm64 @71d7a6330d0b
 pass/generics/runtime_const_extent_guard_floors_exit checked 7775ms check-target:macos_arm64 @b31668d9a31f
 pass/generics/runtime_const_extent_index_walk_exit checked 5103ms check-target:macos_arm64 @ddc17fff6a3c
 pass/generics/runtime_const_extent_origin_exit checked 12212ms check-target:macos_arm64 @ccdb99ca2214
@@ -26108,7 +26115,7 @@ pass/host/runtime_descriptor_record_loan_input_exit checked 18754ms check-target
 pass/host/runtime_descriptor_reference_record_prefix_exit checked 19999ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_descriptor_scalar_input_exit checked 20580ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_encoded_record_view_observation_exit checked 12498ms check-target:macos_arm64 @0fab8dbb32c3
-pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_fixed_arithmetic_across_console_exit checked 63114ms check-target:macos_arm64 @71d7a6330d0b
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 86236ms check-target:windows_x86_64 @c989b75f08a9
 pass/host/runtime_foreign_zero_argument_import_exit checked 16999ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_foreground_window_exit checked 12325ms check-target:windows_x86_64 @ccdb99ca2214
@@ -27518,10 +27525,7 @@ pass/storage/computed_float_local_view_store_exit checked 6889ms check-target:ma
 pass/storage/forwarded_context_bounded_byte_field_exit checked 12905ms check-target:macos_arm64 @ccdb99ca2214
 pass/storage/forwarded_context_byte_field_cross_state_store_exit rejected 10593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove default-domain field requirement for call done from stamp::entry: parameter main.label requires [u8; N]::Utf8
-pass/storage/forwarded_context_byte_field_read_store_exit rejected 10390ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove default-domain field requirement for call step from shift::entry: parameter main.out requires [u8; N]::Utf8
-	cannot prove index `main.i` is within length 5 in shift::entry
-	cannot prove index `main.i` is within length 5 in shift::entry
+pass/storage/forwarded_context_byte_field_read_store_exit checked 79129ms check-target:macos_arm64 @22bc78f48dca
 pass/storage/large_zero_initialized_local_exit checked 17274ms check-target:macos_arm64 @9af3eb514e16
 pass/storage/runtime_alias_field_binary checked 2264ms @ccdb99ca2214
 pass/storage/runtime_alias_integer_write checked 2754ms @ccdb99ca2214
@@ -27750,20 +27754,20 @@ pass/termination/nested_projection_measure checked 7486ms @8ff88b9df484
 pass/termination/predicate_requires_ranked_cycle checked 13641ms @ccdb99ca2214
 pass/termination/private_rank_endpoint_composed_endpoint_exit checked 27470ms check-target:macos_arm64 @4449c9d8ccc0
 pass/termination/private_self_call_without_promise_compile checked 2690ms @ccdb99ca2214
-pass/termination/progress_selector_owned_arrival_affine_exit checked 4803ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit checked 4828ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_frozen_ingress_exit checked 4827ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_mixed_ingress_exit checked 4819ms check-target:macos_arm64 @7c89e967bf75
+pass/termination/progress_selector_owned_arrival_affine_exit checked 34607ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit checked 30471ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_frozen_ingress_exit checked 56111ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_mixed_ingress_exit checked 42959ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 2392ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: held.value in Token::Fair in state `entry`
-pass/termination/progress_selector_owned_arrival_owned_parameter_exit checked 5268ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_reference_boundary_exit checked 5028ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 5277ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_owned_arrival_repeated_rebind_exit checked 5228ms check-target:macos_arm64 @7c89e967bf75
+pass/termination/progress_selector_owned_arrival_owned_parameter_exit checked 75416ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_reference_boundary_exit checked 69573ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 59336ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_owned_arrival_repeated_rebind_exit checked 61690ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2258ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-pass/termination/progress_selector_owned_snapshot_exit checked 5380ms check-target:macos_arm64 @7c89e967bf75
-pass/termination/progress_selector_reference_snapshot_exit checked 4916ms check-target:macos_arm64 @7c89e967bf75
+pass/termination/progress_selector_owned_snapshot_exit checked 49644ms check-target:macos_arm64 @71d7a6330d0b
+pass/termination/progress_selector_reference_snapshot_exit checked 50192ms check-target:macos_arm64 @71d7a6330d0b
 pass/termination/projected_subject_measure checked 6258ms @d352d5e8e77e
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 2423ms @ccdb99ca2214
 pass/termination/quotient_endpoint_call_component checked 2435ms @ccdb99ca2214
@@ -27869,7 +27873,7 @@ pass/text/nested_owned_byte_record_literal_exit checked 79656ms check-target:mac
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 12020ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/owned_byte_call_result_field_exit checked 63798ms check-target:macos_arm64 @911f6617ba9e
 pass/text/owned_record_byte_field_read_exit checked 62680ms check-target:macos_arm64 @911f6617ba9e
-pass/text/plain_and_qualified_byte_arrays_exit checked 15557ms check-target:macos_arm64 @ccdb99ca2214
+pass/text/plain_and_qualified_byte_arrays_exit checked 140432ms check-target:macos_arm64 @71d7a6330d0b
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 11906ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/qualified_byte_owner_state_loan_cycle_exit rejected 11379ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call step from shift: output in [u8; N]::Utf8 (invalidated by prior mutation of output[__hoist_2]; output is part of [u8; N]::Utf8) in state `entry`
@@ -28244,7 +28248,7 @@ run/calls/scalar_contract_route_exit checked 2744ms check-target:macos_arm64 @d2
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/calls/static_boundary_terminal_arguments checked 37830ms check-target:macos_arm64 @c3cb68d51f3f
-run/calls/table_report_call_survival checked 80055ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/table_report_call_survival checked 63899ms check-target:macos_arm64 @92e9c0cfab0b
 run/contained_health_loop_command_branch checked 150212ms check-target:macos_arm64 @c3cb68d51f3f
 run/contracts/captured_bound_unused_mutation checked 2645ms check-target:macos_arm64 @ccdb99ca2214
 run/contracts/cyclic_mixed_conjunction checked 2775ms check-target:macos_arm64 @82dfb1c33a86
@@ -28262,6 +28266,7 @@ run/domains/checked_provider_issued_root checked 37617ms check-target:macos_arm6
 run/domains/completed_membership_after_earlier_guarantee rejected 2419ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call join from argument: Amount in Amount::Positive in state `entry`
 run/domains/current_record_predicate_captures checked 3127ms check-target:macos_arm64 @ccdb99ca2214
+run/domains/domain_cast_accounting_exit checked 23359ms check-target:macos_arm64 @92e9c0cfab0b
 run/domains/fixed_byte_array_content_observations_exit checked 4855ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_empty_observations_exit checked 3327ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/fixed_byte_array_runtime_predicate_exit checked 2454ms check-target:macos_arm64 @ccdb99ca2214
@@ -28353,7 +28358,7 @@ run/layouts/placed_ram_capture_retirement checked 25544ms check-target:macos_arm
 run/layouts/placed_ram_capture_return checked 23929ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_original_backing incomplete 413458ms check-target:macos_arm64 @ff514b7f093c
 	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
-run/layouts/placed_ram_scalar_types checked 28056ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_scalar_types checked 86938ms check-target:macos_arm64 @22bc78f48dca
 run/layouts/placed_ram_stored_field_return incomplete 335250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
 	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214

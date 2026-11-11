@@ -11,7 +11,7 @@ machine Main::main(main: &mut Main) {
 }
 machine Main::judge(main: &mut Main, p: Point) reaches Console {
     transition p {
-        Point { x, y as vertical } if x as i64 + vertical as i64 == 70 -> good(main)
+        Point { x, y as vertical } if (x as i64) + vertical as i64 == 70 -> good(main)
         _ -> bad(main)
     }
     machine good(main: &mut Main) { Console::exit_process(70); }

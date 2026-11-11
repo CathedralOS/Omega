@@ -108,7 +108,7 @@ machine Main::decimal(main: &mut Main, number: u64 in Wrapping) reaches Console 
     }
     machine write(main: &mut Main) {
         let digit: u64 in Wrapping = (main.number / main.divisor) % 10;
-        Console::write_byte(digit as i32 + 48);
+        Console::write_byte((digit as i32) + 48);
         main.divisor = main.divisor / 10;
         transition { _ -> digit(main) }
     }

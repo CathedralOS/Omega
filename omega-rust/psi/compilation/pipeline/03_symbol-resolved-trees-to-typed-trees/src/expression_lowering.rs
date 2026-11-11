@@ -1242,7 +1242,11 @@ pub(crate) mod expression {
                                 .target_trees
                                 .type_reference_table
                                 .insert_type_reference_handles(semantic_domain_arguments);
-                            if semantic_domain.is_empty() && !cast.form.is_recast() {
+                            // A domain entry has no carrier until its run is accounted for.
+                            if semantic_domain.is_empty()
+                                && !cast.form.is_recast()
+                                && cast.form.entry().is_none()
+                            {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     self.target_trees,
