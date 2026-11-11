@@ -120,11 +120,11 @@ the slice that serves it:
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
-| `let { a, b } = r;` | `statement record pattern binding` (finding 21) |
-| a directly authored payload member, `s.at` and `s.at = x` | `spelling member without a field symbol` (finding 20) |
+| `let { a, b } = r;` | `statement record pattern binding` (finding 20) |
+| a directly authored payload member, `s.at` and `s.at = x` | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `spelling member without a field symbol`; from a closed body, `expression field read beneath a case payload` |
 | a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
-| `crash` in a case arm | `transition crash in a case arm` (finding 22) |
+| `crash` in a case arm | `transition crash in a case arm` (finding 21) |
 | `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
 | a `match` arm with a guard or after the wildcard | `transition case arm with a guard`, `expression match arm after the wildcard` |
 | `s in S::C` whose right side names no case | `expression case membership` |
@@ -641,6 +641,6 @@ worked around by adding to `terminal-check-tables`.
     each call. `ensures result.x <= 9`, `ensures result in S::C`, a formal's
     field in an `ensures` and in a crash route guard are still refused as
     `contract clause that projects a formal or result`: they need the
-    returned leaves logged on the return edge (finding 15) and a result
+    returned leaves logged on the return edge (finding 14) and a result
     leaf stated as a value in the caller, which this slice does not do.
 
