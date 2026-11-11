@@ -296,6 +296,9 @@ fail/arithmetic/policy_operator_qualified_operand rejected 83586ms expected @30f
 fail/arithmetic/policy_operator_unpublished_trap rejected 92084ms expected @30f59ac9a9ba
 	uncovered Trap crash in machine `guarded_sum` state `entry` cast expression: Trapping `+` of `left as u64` and `right as u64` in `u64` traps when its result lies outside `u64`, and the published crash ceiling of machine `guarded_sum` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `guarded_sum` state `entry` return value: Trapping `+` of `left as u64` and `right as u64` in `u64` traps when its result lies outside `u64`, and the published crash ceiling of machine `guarded_sum` names no `crashes Trap` route; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/arithmetic/policy_operator_wrapped_result_not_exact rejected 61215ms expected @a54f74b63a36
+	exact arithmetic in machine `regained_wrapped` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `regained_clamped` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 785ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 2552ms expected @911f6617ba9e
@@ -28116,6 +28119,7 @@ run/arithmetic/fixed_integer_operand_after_pressure checked 24359ms check-target
 run/arithmetic/fixed_integer_operand_join checked 10136ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/float_structural_initializer_selection checked 12514ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/pinned_dividend_across_console_calls checked 10070ms check-target:macos_arm64 @ccdb99ca2214
+run/arithmetic/policy_operator_exact_result_fact checked 66071ms check-target:macos_arm64 @a54f74b63a36
 run/arithmetic/policy_operators_match_policy_domains checked 103096ms check-target:macos_arm64 @30f59ac9a9ba
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 15123ms check-target:macos_arm64 @ccdb99ca2214
