@@ -26,9 +26,25 @@ omega psi inspect --artifact <file>
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
-Package install/update retain their acquisition, review, resume and discard
-forms. Package audit retains project targets, details, offline and Build-input
-options. Inspection retains both source-machine and artifact forms.
+Package install and update have these acquisition, review, resume and discard
+forms:
+
+```text
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
+omega packages update [package-or-alias...] [--to <revision>]
+omega packages install --resume
+omega packages update --resume
+omega packages <install|update> --discard-review
+```
+
+`--as` selects the requester's alias for the dependency; the default is its
+declared name unchanged. `--resume` continues the same operation after its
+review document's `pending` decisions were edited to `accept` or `reject`, and
+`--discard-review` abandons it with accepted files unchanged. `--offline`
+restricts acquisition, resume and historical-source diagnostics to local
+sources and cached recorded Git pins; it skips no check and does not authorize
+a cached branch for a newly requested selection. Package audit retains project
+targets, details, offline and Build-input options. Inspection retains both source-machine and artifact forms.
 `omega --check` with no root inside a workspace checks every declared member
 as a [validation subject](validation_subjects.md). `--verify` withholds trust
 acceptance and re-verifies; it does not widen the subject set.
