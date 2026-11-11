@@ -1,15 +1,25 @@
-// `advance` promises `result <= 18`. That is true of the only use this program
-// makes, `advance<Shift>`, because `Shift::apply` returns at most 17. It is
+// `advance` promises `result <= 18`. That is true of every use this program
+// makes: `advance<Hold>` returns at most 11 and `advance<Shift>` at most 18,
+// because those two members promise more than their requirement does. It is
 // not true of `advance` as declared: `Step::apply` promises only
 // `result <= 20`, so the body can return 21. A generic body is checked against
-// its requirement's contract, and one caller's selection cannot make it valid.
-// The run twin `run/generics/implementation_parameter_contract` promises
-// `result <= 21` and also selects `Double`.
+// its requirement's contract, and its callers' selections cannot make it
+// valid. The run twin `run/generics/implementation_parameter_contract`
+// differs only in this bound, which there is 21.
 trait Step {
     machine apply(value: u32) -> u32
     requires value <= 10
     ensures result <= 20
     crashes none;
+}
+Hold satisfies Step {
+    machine apply(value: u32) -> u32
+    requires value <= 10
+    ensures result <= 10
+    crashes none
+    {
+        value
+    }
 }
 Shift satisfies Step {
     machine apply(value: u32) -> u32
@@ -28,8 +38,9 @@ crashes none
     Selected::apply(start) + 1
 }
 machine main() crashes Trap {
+    let held: u32 = advance<Hold>(4);
     let shifted: u32 = advance<Shift>(4);
-    transition shifted == 10 { true -> done() false -> wrong() }
+    transition held == 5 && shifted == 10 { true -> done() false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

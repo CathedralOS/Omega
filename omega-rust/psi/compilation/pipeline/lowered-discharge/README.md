@@ -668,9 +668,12 @@ ensures result <= 21
 { Selected::apply(start) + 1 }
 ```
 
-`Double::apply` publishes the requirement's own contract and returns
-`value + value`. `Shift::apply` asks less and promises more
-(`requires value <= 12 ensures result <= 17`) and returns `value + 5`.
+In the tests `Double::apply` publishes the requirement's own contract and
+returns `value + value`, and `Shift::apply` asks less and promises more
+(`requires value <= 12 ensures result <= 17`) and returns `value + 5`. The
+corpus fixture selects `Shift` and `Hold`, which returns `value` and promises
+`result <= 10`, so that both of its uses satisfy a bound the requirement
+does not give.
 
 **The generic check form.** Elaboration lowers `advance` once with
 `Selected` rigid ([structure-elaboration](../structure-elaboration/README.md#generic-machines)):
@@ -728,7 +731,9 @@ reach the prover, and the tests count prover starts.
 `compiler`'s example `generic_certificate_carry` runs the same three steps
 from source, on the typed trees of
 `tests/omega/run/generics/implementation_parameter_contract` and its fail
-twin.
+twin. The twin differs only in the bound `advance` promises, `result <= 18`:
+a search over each of its two specializations alone proves that bound, and
+the generic check refuses it.
 
 ### What the lowered form does not carry
 
