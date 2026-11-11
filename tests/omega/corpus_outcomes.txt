@@ -19693,8 +19693,9 @@ fail/traits/structural_identity_distinct_values rejected 3744ms expected @4a8020
 	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/traits/structural_identity_exact_carrier rejected 3009ms expected @4a802009dabd
 	invalid mathematical application `right`: mathematical result does not preserve its declared carrier and policy
-fail/traits/structural_identity_executable_equality rejected 1289ms expected @ccdb99ca2214
+fail/traits/structural_identity_executable_equality rejected 1859ms expected @dcee3b1242e3
 	call from `inspect` to `failed` at statement 1 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
+	machine `inspect` has an uncovered Abort crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/traits/structural_identity_private_overwrite rejected 2060ms expected @ccdb99ca2214
 	call from `forward` to `relay` at statement 0 call 0 has an uncovered Abort crash route; publish a same-cause route whose guard covers this invocation
 fail/traits/structural_identity_rebound_reference rejected 2555ms expected @4a802009dabd
