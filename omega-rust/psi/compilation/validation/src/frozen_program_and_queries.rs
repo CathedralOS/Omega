@@ -1680,10 +1680,22 @@ pub mod queries {
             collect_selected_program_references,
         };
 
+        /*
+            Project the program a Build activation checks and executes
+            (wiki/spec/build/validation_subjects.md#orchestration). Its roots are
+            the Build entry, the declarations the activation selects, and every
+            Build-scope declaration authored in a subject source; everything
+            else enters only as their closure. Executing a dependency's Build
+            (the toolchain core Build that settles provider defaults on every
+            compile, for example) therefore checks what that Build reaches and
+            never promotes the dependency's other Build-scope declarations to
+            subjects.
+        */
         pub fn project_build_program(
             original: &dyn crate::CheckingInput,
             entry: SymbolHandle,
             selected_declarations: &[SymbolHandle],
+            is_subject: impl Fn(&source::SourceFile) -> bool,
         ) -> Result<TypedTrees, Vec<Diagnostic>> {
             let instances = instantiated_declarations(original);
             let is_generated = |symbol| is_derived_declaration(original, &instances, symbol);
@@ -1721,6 +1733,16 @@ pub mod queries {
                         .and_then(|span| original.symbols.source_file(span))
                         .is_some_and(|file| file.dependency_scope == DependencyScope::Build)
             };
+            let is_subject_build_declaration = |symbol| {
+                symbol == entry
+                    || original
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .and_then(|span| original.symbols.source_file(span))
+                        .is_some_and(|file| {
+                            file.dependency_scope == DependencyScope::Build && is_subject(file)
+                        })
+            };
             let generated_methods = original
                 .machines()
                 .iter()
@@ -1738,7 +1760,7 @@ pub mod queries {
                     if selected.contains(symbol) {
                         return true;
                     }
-                    is_build_scope(symbol)
+                    is_subject_build_declaration(symbol)
                         && !is_generated(symbol)
                         && (original
                             .machine(symbol)
