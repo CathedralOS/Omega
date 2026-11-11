@@ -7753,12 +7753,10 @@ fail/facts/data_where_standing_mutable_premature_use rejected 2106ms expected @f
 fail/facts/data_where_standing_mutable_recast_live_backing_write_rejected rejected 4428ms expected @911f6617ba9e
 	statement 2 mutates `storage.before` while local borrow `counter` is still active (borrowed at statement 1; its last use is at statement 5)
 	statement 2 mutates `storage.before` while local borrow `counter` is still active (borrowed at statement 1; its last use is at statement 5)
-fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected rejected 1768ms expected @911f6617ba9e
-	cannot establish assignment invariants: source storage interpretation is unavailable
-	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
-fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 1706ms expected @911f6617ba9e
-	cannot establish assignment invariants: source storage interpretation is unavailable
-	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
+fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected rejected 3340ms unexpected @3bbe5c131a15
+	machine `compute` state `entry`: recast source has no fixed representation inventory
+fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 3243ms unexpected @3bbe5c131a15
+	machine `compute` state `entry`: recast source has no fixed representation inventory
 fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 7540ms expected @c1e13a12056a
 	argument `view` for state `forward`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_mutable_recast_through_const_name_rejected rejected 2833ms expected @f78c2623a68c
@@ -18264,8 +18262,8 @@ fail/recast/recast_mut_bool_as_unconstrained_byte rejected 1176ms expected @ccdb
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
 fail/recast/recast_mut_range_bit_sets_differ rejected 1062ms expected @911f6617ba9e
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ShiftedUnsigned` are not representation-compatible
-fail/recast/recast_mut_record_fact_fenced rejected 1126ms expected @ccdb99ca2214
-	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
+fail/recast/recast_mut_record_fact_fenced rejected 2628ms unexpected @3bbe5c131a15
+	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants
 fail/recast/recast_mut_record_where_bounds_differ rejected 613ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
 fail/recast/recast_mut_record_where_write_out_of_range rejected 2412ms expected @bc49525b6c1a
@@ -27864,11 +27862,22 @@ pass/recast/recast_view_forward_compile checked 2451ms @ccdb99ca2214
 pass/recast/reference_view_helper_backing_write_exit checked 3164ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/reference_view_shared_call_backing_exit checked 3487ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/reference_view_shared_primitive_neighbor_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/returned_qualification_preserves_representation_exit checked 3019ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/returned_qualified_reference_exit checked 5713ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/returned_same_type_view_capture_exit checked 3563ms check-target:macos_arm64 @ccdb99ca2214
+pass/recast/returned_qualification_preserves_representation_exit incomplete 7084ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 3
+pass/recast/returned_qualified_reference_exit incomplete 7176ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete input origins)); in state `main::entry`, statement 1
+pass/recast/returned_same_type_view_capture_exit rejected 5450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `capture`, state `entry` (statement 2)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `roundtrip`, state `entry` (statement 3)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_from_old`, state `entry` (statement 1)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_twice`, state `entry` (statement 1)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `replace_twice`, state `entry` (statement 3)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `carry_replacement`, state `entry` (statement 1)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `return_replacement_view`, state `entry` (statement 1)
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `return_replacement_view`, state `entry` (statement 2)
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_aggregate_slice_representation_recast_exit checked 82004ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 23386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	statement 6 mutates `main.source` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 6)
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 3041ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_bool_representation_recast_exit checked 87338ms check-target:macos_arm64 @898dd1bf8987
 pass/recast/runtime_boolean_view_decision_exit checked 11185ms check-target:macos_arm64 @911f6617ba9e
@@ -27878,17 +27887,27 @@ pass/recast/runtime_encoded_record_view_loan_exit checked 11265ms check-target:m
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 76361ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_guarded_offset_recast_exit checked 27816ms check-target:macos_arm64 @6bfec7307ed0
-pass/recast/runtime_inline_shared_slice_record_read_exit checked 86632ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_inline_shared_slice_record_read_exit rejected 23853ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	state `write_pairs` receives `main` as both mutable and read-only
 pass/recast/runtime_inline_slice_recast_call_exit checked 75518ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_scalar_machine_exit checked 65921ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_inline_slice_recast_shared_parameter_exit checked 48400ms check-target:macos_arm64 @4815ea579d91
-pass/recast/runtime_inline_slice_view_mutable_write_exit checked 65734ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_inline_slice_view_mutable_write_exit rejected 23516ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	state `write_pairs` receives `main` as mutable more than once
 pass/recast/runtime_integer_bit_view_recast_exit checked 19144ms check-target:macos_arm64 @6bfec7307ed0
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 64728ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_interior_slice_view_mutable_write_exit checked 59499ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 22845ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	state `write_pairs` receives `main` as mutable more than once
+	state `write_pairs` receives `main` while local borrow `pairs` is still active (borrowed at statement 0; its last use is at statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 12865ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_mutable_equivalent_range_recast_exit checked 54747ms check-target:macos_arm64 @911f6617ba9e
-pass/recast/runtime_mutable_equivalent_record_recast_exit checked 53268ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_mutable_equivalent_range_recast_exit rejected 15478ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	machine `Main::main` state `main` statement 7: reading `main` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
+	machine `Main::main` state `main` statement 7: the next whole-value read of `main` occurs inside an OPEN invariant window: a prior write left data `SignedBounded`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 8 in machine `Main::main` state `main`: this write left the `requires` facts of `main.value` (data `SignedBounded`) unproved; restore them first
+pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 14313ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
+	machine `Main::main` state `main` statement 10: reading `context` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
+	machine `Main::main` state `main` statement 10: the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `SignedRecord`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 11 in machine `Main::main` state `main`: this write left the `requires` facts of `context.source` (data `SignedRecord`) unproved; restore them first
 pass/recast/runtime_nested_record_byte_store_exit checked 11560ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
