@@ -11352,6 +11352,736 @@ pub(crate) mod write_frames {
             })
         }
     }
+    /// Writes that automatic cleanup performs when an owned value dies.
+    ///
+    /// A `dropped by` hook is ordinary code that runs with exclusive access to
+    /// the dying value, so it can write caller storage through every exclusive
+    /// reference that value stores. No statement spells that run, so a write
+    /// summary built from statements alone reports "writes nothing" for a
+    /// machine whose only effect is to let such a value die, and a caller fact
+    /// about the referent would survive the call.
+    ///
+    /// This module turns one dying place into summary paths. Each selected hook
+    /// contributes its own completed write summary re-rooted at the dying place,
+    /// so `leaf.counter.drops` written by the hook of `value.leaf` becomes
+    /// `value.leaf.counter.drops`. The ordinary stored-origin expansion then
+    /// carries that path across the reference leaf to the storage it names,
+    /// which keeps a sibling such as `counter.other` out of the summary.
+    ///
+    /// Whenever a hook's summary cannot be trusted for that re-rooting, the
+    /// whole dying place is reported instead. A path that names the place itself
+    /// overlaps every exclusive leaf beneath it, so the expansion charges each
+    /// leaf's whole origin. That fallback covers a hook without a checked body,
+    /// a hook already being summarized, a value of an unsubstituted type
+    /// parameter, and a parent hook that writes while children still own
+    /// cleanup of their own, because the parent may have changed which storage
+    /// the children reach.
+    ///
+    /// The validation crate does not own cleanup placement, so "dies here" is
+    /// over-approximated. At a state's exit every owned parameter and local is
+    /// charged except the binding the state returns by name. Inside a statement
+    /// the value an assignment displaces, an unnamed temporary the statement
+    /// only borrows or projects, and a result that `_ = call(...)` discards are
+    /// charged. A value that is in fact moved elsewhere is charged early, never
+    /// missed.
+    pub(crate) mod cleanup_writes {
+        use super::inference::FrameInference;
+        use super::place_paths::{FramePlaceOrigin, coarse_place_path, split_place_root};
+        use super::state_paths::relative_state_path_is_visible;
+        use super::state_write_walk::summarize_complete_state_written_paths;
+        use super::stored_origins::{StoredLocalOrigins, expand_write_paths};
+        use super::type_capabilities::type_may_carry_write_in;
+        use crate::declarations::symbols::MachineSymbols;
+        use crate::declarations::symbols::TopLevelSymbols;
+        use symbols::{SymbolHandle, SymbolKind};
+        use typed_trees::data::DataMember;
+        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+        use typed_trees::machine::Machine;
+        use typed_trees::signature::StateParameter;
+        use typed_trees::state::State;
+        use typed_trees::statement::{StatementNode, TableAssignment, TableCall};
+        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+        /// Nesting bound for one owned type graph. Owned data cannot contain
+        /// itself by value, so reaching this depth means the walk lost track of
+        /// the type and the whole place is charged.
+        const MAXIMUM_OWNED_DEPTH: usize = 32;
+
+        pub(crate) fn program_selects_cleanup(program: &dyn crate::CheckingInput) -> bool {
+            program.cleanup_selections().next().is_some()
+        }
+
+        /// Whether no value that can die in `state` has cleanup able to write
+        /// caller storage, judged from types alone. A state that passes owes no
+        /// cleanup rows even when its origins cannot be walked, so an unrelated
+        /// origin failure does not make its footprint unknown.
+        pub(crate) fn state_has_no_cleanup_candidates(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            symbols: &TopLevelSymbols<'_>,
+        ) -> bool {
+            let mut inference = FrameInference::for_state(state.symbol);
+            let mut dying = Vec::new();
+            for parameter in program.state_parameters(state) {
+                push_value_cleanup_writes(
+                    program,
+                    parameter.name.as_str().to_owned(),
+                    parameter.type_reference,
+                    &[],
+                    0,
+                    symbols,
+                    &mut inference,
+                    &mut dying,
+                );
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement {
+                    push_value_cleanup_writes(
+                        program,
+                        local.name.as_str().to_owned(),
+                        local.type_reference,
+                        &[],
+                        0,
+                        symbols,
+                        &mut inference,
+                        &mut dying,
+                    );
+                }
+                match statement_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    symbols,
+                    &mut inference,
+                ) {
+                    Some(paths) => dying.extend(paths),
+                    None => return false,
+                }
+            }
+            dying.is_empty()
+        }
+
+        /// Adds the writes of every value that may die when `state` exits.
+        #[allow(clippy::too_many_arguments)]
+        pub(crate) fn push_exit_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            state: &State,
+            parameters: &[StateParameter],
+            locals: &[String],
+            aliases: &[(String, FramePlaceOrigin)],
+            divergent: &[(String, Vec<FramePlaceOrigin>)],
+            stored: &[StoredLocalOrigins],
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+            written: &mut Vec<String>,
+        ) -> Option<()> {
+            if !program_selects_cleanup(program) {
+                return Some(());
+            }
+            let returned = returned_binding(program, state);
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let owned = parameters
+                .iter()
+                .map(|parameter| {
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str(),
+                        parameter.type_reference,
+                    )
+                })
+                .chain(statements.iter().filter_map(|statement| {
+                    let StatementNode::LocalData(local) = statement else {
+                        return None;
+                    };
+                    locals
+                        .iter()
+                        .any(|name| name == local.name.as_str())
+                        .then_some((local.symbol, local.name.as_str(), local.type_reference))
+                }));
+            let mut dying = Vec::new();
+            for (symbol, name, reference) in owned {
+                if symbol.is_valid() && returned == Some(symbol) {
+                    continue;
+                }
+                push_value_cleanup_writes(
+                    program,
+                    name.to_owned(),
+                    reference,
+                    &[],
+                    0,
+                    symbols,
+                    inference,
+                    &mut dying,
+                );
+            }
+            if crate::trace_flags::struct_trace() {
+                eprintln!(
+                    "STRUCT exit-cleanup-writes state={} dying={dying:?}",
+                    state.name
+                );
+            }
+            push_visible_expansion(
+                program, dying, parameters, locals, aliases, divergent, stored, written,
+            )
+        }
+
+        /// Adds the writes of the values that die inside one statement: the
+        /// value an assignment displaces and every unnamed temporary. Both die
+        /// before the statement's own store, so the paths are expanded against
+        /// the origins in force before the statement.
+        #[allow(clippy::too_many_arguments)]
+        pub(crate) fn push_statement_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            statement: &StatementNode,
+            parameters: &[StateParameter],
+            locals: &[String],
+            aliases: &[(String, FramePlaceOrigin)],
+            divergent: &[(String, Vec<FramePlaceOrigin>)],
+            stored: &[StoredLocalOrigins],
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+            written: &mut Vec<String>,
+        ) -> Option<()> {
+            let dying =
+                statement_cleanup_writes(program, machine, state, statement, symbols, inference)?;
+            push_visible_expansion(
+                program, dying, parameters, locals, aliases, divergent, stored, written,
+            )
+        }
+
+        /// The unexpanded cleanup paths of every value that dies inside
+        /// `statement`. `None` is an unknown footprint.
+        pub(crate) fn statement_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            statement: &StatementNode,
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+        ) -> Option<Vec<String>> {
+            let mut dying = Vec::new();
+            if !program_selects_cleanup(program) {
+                return Some(dying);
+            }
+            if let Some(assignment) = statement.as_assignment() {
+                dying = displaced_cleanup_writes(
+                    program, machine, state, assignment, symbols, inference,
+                )?;
+            }
+            if let StatementNode::Call(call) = statement
+                && call.discards_result
+            {
+                let machine_symbols = super::demand::machine_symbols(program, machine)?;
+                for path in discarded_result_cleanup_writes(
+                    program,
+                    machine,
+                    call,
+                    &machine_symbols,
+                    symbols,
+                )? {
+                    if !dying.contains(&path) {
+                        dying.push(path);
+                    }
+                }
+            }
+            for (role, root) in program.tables.expression_roots(statement) {
+                use typed_trees::statement::StatementRootRole as Role;
+                let root_is_homed = matches!(
+                    role,
+                    Role::AssignmentValue
+                        | Role::CallArgument
+                        | Role::Expression
+                        | Role::LocalInitializer
+                        | Role::TransitionArgument
+                        | Role::TransitionValue
+                );
+                for path in temporary_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    root,
+                    root_is_homed,
+                    symbols,
+                    inference,
+                )? {
+                    if !dying.contains(&path) {
+                        dying.push(path);
+                    }
+                }
+            }
+            Some(dying)
+        }
+
+        /// The cleanup paths of the unnamed values that `root` builds and no
+        /// place receives, such as `&Pair { .. }.second`, `make(..)[0]`, a
+        /// `match` subject or an operand of an operator. Such a value dies when
+        /// the statement ends.
+        ///
+        /// Validation does not know where lowering places a death, so the rule
+        /// runs the other way: a freshly built value is charged unless its
+        /// position is one that gives it a home. The homes are a declared
+        /// local, an assignment destination, a callee parameter, a transition
+        /// target, the returned value, and a field or element of a value that
+        /// is itself homed or charged. A position this walk does not recognize
+        /// is charged, so an unforeseen expression form loses precision, not
+        /// soundness.
+        ///
+        /// The value's storage has no name to re-root a hook summary at, so
+        /// each exclusive reference it holds is charged with its whole origin.
+        fn temporary_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            root: ExpressionHandle,
+            root_is_homed: bool,
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+        ) -> Option<Vec<String>> {
+            let mut written = Vec::new();
+            let mut pending = vec![(root, root_is_homed)];
+            while let Some((expression, homed)) = pending.pop() {
+                if !expression.is_valid() {
+                    continue;
+                }
+                let node = program.expression_table.expression(expression);
+                let builds_value = matches!(
+                    node,
+                    ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Call(_)
+                        | ExpressionNode::ArrayLiteral(_)
+                );
+                if builds_value && !homed {
+                    let reference =
+                        crate::value_custody::expression_types::expression_result_type_reference(
+                            program, machine, state, expression,
+                        )?;
+                    if crate::reference_shell(program, reference).is_none()
+                        && type_may_carry_write_in(program, reference, &[])
+                        && (crate::type_graph_requires_nominal_drop(
+                            program,
+                            reference,
+                            &[],
+                            &mut Default::default(),
+                        ) || mentions_open_parameter(program, reference, &[], 0))
+                    {
+                        for path in super::path_instantiation::aggregate_arguments::written_paths(
+                            program, machine, expression, reference, "", symbols, inference,
+                        )? {
+                            if !written.contains(&path) {
+                                written.push(path);
+                            }
+                        }
+                    }
+                }
+                crate::queries::expression_traversal::executable_children(program, node, |child| {
+                    let child_is_homed = match node {
+                        // Operands live in the built value or move into the
+                        // callee, whose own summary charges its parameters.
+                        ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Call(_)
+                        | ExpressionNode::ArrayLiteral(_) => true,
+                        // An arm value goes wherever the `match` goes; the
+                        // subject is only inspected.
+                        ExpressionNode::Match(dispatch) => homed && child != dispatch.subject,
+                        ExpressionNode::Cast(_) => homed,
+                        _ => false,
+                    };
+                    pending.push((child, child_is_homed));
+                });
+            }
+            Some(written)
+        }
+
+        /// The unexpanded cleanup paths of the value `assignment` displaces.
+        /// `None` means the displaced type is unknown in a program that selects
+        /// cleanup, which proves no non-interference.
+        pub(crate) fn displaced_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            assignment: &TableAssignment,
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+        ) -> Option<Vec<String>> {
+            let mut dying = Vec::new();
+            if !program_selects_cleanup(program) {
+                return Some(dying);
+            }
+            // The displaced value has the destination's declared type. Where the
+            // destination has none on record, the value stored there has the
+            // same type, so the right-hand side answers instead.
+            let Some(mut reference) = crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                assignment.target,
+            )
+            .or_else(|| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment.value,
+                )
+            }) else {
+                if crate::trace_flags::struct_trace() {
+                    eprintln!(
+                        "STRUCT displaced-cleanup-unknown-type machine={} state={}",
+                        machine.name, state.name
+                    );
+                }
+                return None;
+            };
+            // Assigning to a place of reference type stores through it, so the
+            // value that dies is the referent.
+            while let Some(shell) = crate::reference_shell(program, reference) {
+                reference = shell.referee;
+            }
+            if !type_may_carry_write_in(program, reference, &[]) {
+                return Some(dying);
+            }
+            let place = coarse_place_path(program, assignment.target)?;
+            push_value_cleanup_writes(
+                program,
+                place,
+                reference,
+                &[],
+                0,
+                symbols,
+                inference,
+                &mut dying,
+            );
+            Some(dying)
+        }
+
+        /// The cleanup paths of a result that `_ = call(...)` discards. The
+        /// result dies at the statement, and the only caller storage it can
+        /// reach was handed to the call, so every writable operand is charged
+        /// whole. `None` means the result or an operand is not a known place.
+        pub(crate) fn discarded_result_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            call: &TableCall,
+            machine_symbols: &MachineSymbols<'_>,
+            symbols: &TopLevelSymbols<'_>,
+        ) -> Option<Vec<String>> {
+            if !call.discards_result || !program_selects_cleanup(program) {
+                return Some(Vec::new());
+            }
+            let (_, callee_state) = super::machine_state_by_symbol(program, call.target_symbol)?;
+            let result = callee_state.return_type;
+            if !type_may_carry_write_in(program, result, &[])
+                || !(crate::type_graph_requires_nominal_drop(
+                    program,
+                    result,
+                    &[],
+                    &mut Default::default(),
+                ) || mentions_open_parameter(program, result, &[], 0))
+            {
+                return Some(Vec::new());
+            }
+            super::demand::conservative_call_written_paths(
+                program,
+                machine,
+                call,
+                machine_symbols,
+                symbols,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn push_visible_expansion(
+            program: &dyn crate::CheckingInput,
+            dying: Vec<String>,
+            parameters: &[StateParameter],
+            locals: &[String],
+            aliases: &[(String, FramePlaceOrigin)],
+            divergent: &[(String, Vec<FramePlaceOrigin>)],
+            stored: &[StoredLocalOrigins],
+            written: &mut Vec<String>,
+        ) -> Option<()> {
+            let mut rooted = Vec::new();
+            for path in dying {
+                let (root, suffix) = split_place_root(&path);
+                if let Some((_, candidates)) = divergent.iter().find(|(name, _)| name == root) {
+                    for candidate in candidates {
+                        let path =
+                            super::place_paths::project_write_path(program, candidate, suffix);
+                        if !rooted.contains(&path) {
+                            rooted.push(path);
+                        }
+                    }
+                } else if !rooted.contains(&path) {
+                    rooted.push(path);
+                }
+            }
+            for relative in expand_write_paths(program, &rooted, aliases, stored)? {
+                if relative_state_path_is_visible(&relative, parameters, locals)?
+                    && !written.contains(&relative)
+                {
+                    written.push(relative);
+                }
+            }
+            Some(())
+        }
+
+        /// The binding a state hands to its caller as the final bare name. It
+        /// leaves the state alive on every path that reaches the end, so its
+        /// cleanup belongs to whoever receives it.
+        fn returned_binding(
+            program: &dyn crate::CheckingInput,
+            state: &State,
+        ) -> Option<SymbolHandle> {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let order = program
+                .statement_table
+                .admitted_execution_order(state.statement_nodes);
+            let StatementNode::Expression(result) = statements.get(*order.indices().last()?)?
+            else {
+                return None;
+            };
+            let ExpressionNode::Name(path) = program.expression_table.expression(*result) else {
+                return None;
+            };
+            Some(path.symbol)
+        }
+
+        /// Pushes the paths, rooted at `place`, that cleanup of one owned value
+        /// of type `reference` may write.
+        #[allow(clippy::too_many_arguments)]
+        fn push_value_cleanup_writes(
+            program: &dyn crate::CheckingInput,
+            place: String,
+            mut reference: TypeReferenceHandle,
+            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+            depth: usize,
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+            written: &mut Vec<String>,
+        ) {
+            let mut selects_hook = false;
+            loop {
+                selects_hook |= !matches!(
+                    crate::value_custody::cleanup_selection::selected_application(
+                        program, reference
+                    ),
+                    Ok(None)
+                );
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                    TypeReferenceNode::Named { symbol, .. } => {
+                        match crate::queries::substitutions::actual_for(substitutions, *symbol) {
+                            Some(actual) if actual != reference => reference = actual,
+                            _ => break,
+                        }
+                    }
+                    _ => break,
+                }
+            }
+            let push = |written: &mut Vec<String>, path: String| {
+                if !written.contains(&path) {
+                    written.push(path);
+                }
+            };
+            // Charging the whole place is the fail-closed answer; the reason is
+            // traced because it is the first question when a sibling fact is lost.
+            let push_whole = |written: &mut Vec<String>, place: String, reason: &str| {
+                if crate::trace_flags::struct_trace() {
+                    eprintln!("STRUCT cleanup-whole-place place={place} reason={reason}");
+                }
+                push(written, place);
+            };
+            if program.primitive_type_reference(reference).is_some()
+                || !type_may_carry_write_in(program, reference, substitutions)
+            {
+                return;
+            }
+            let definition = match program.type_reference_table.type_reference(reference) {
+                // A borrow owns nothing, so nothing dies with it.
+                TypeReferenceNode::Reference { .. }
+                | TypeReferenceNode::Slice { .. }
+                | TypeReferenceNode::Unit
+                | TypeReferenceNode::ConstExpression(_)
+                | TypeReferenceNode::DynamicTrait { .. } => return,
+                TypeReferenceNode::Constrained { .. } => {
+                    return push_whole(written, place, "constrained");
+                }
+                TypeReferenceNode::FixedArray { .. } => {
+                    if crate::type_graph_requires_nominal_drop(
+                        program,
+                        reference,
+                        substitutions,
+                        &mut Default::default(),
+                    ) || mentions_open_parameter(program, reference, substitutions, 0)
+                    {
+                        push_whole(written, place, "owned array");
+                    }
+                    return;
+                }
+                TypeReferenceNode::Named { symbol, .. }
+                    if symbol.is_valid()
+                        && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter =>
+                {
+                    return push_whole(written, place, "open type parameter");
+                }
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                    crate::value_custody::places::data_definition_for_type(program, reference)
+                }
+            };
+            let Some(definition) = definition else {
+                return push_whole(written, place, "no data definition");
+            };
+            if depth >= MAXIMUM_OWNED_DEPTH {
+                return push_whole(written, place, "owned depth");
+            }
+            let mut nested = substitutions.to_vec();
+            if let TypeReferenceNode::Generic { arguments, .. } =
+                program.type_reference_table.type_reference(reference)
+            {
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(*arguments);
+                let parameters = program.data_type_parameters(definition);
+                // A closed instance definition has already substituted its
+                // fields and declares no parameters to bind.
+                if !parameters.is_empty() && arguments.len() != parameters.len() {
+                    return push_whole(written, place, "generic arity");
+                }
+                nested.extend(
+                    parameters
+                        .iter()
+                        .zip(arguments)
+                        .map(|(parameter, argument)| (parameter.symbol, *argument)),
+                );
+            }
+            let mut children = Vec::new();
+            for member in program.data_members(definition) {
+                let fields = match member {
+                    DataMember::Field(field) => std::slice::from_ref(field),
+                    DataMember::Variant(variant) => program.data_payload_fields(variant),
+                };
+                for field in fields {
+                    if !field.relevance.is_erased() {
+                        children.push((field.name.as_str(), field.type_reference));
+                    }
+                }
+            }
+            if selects_hook || definition.cleanup_selection.is_some() {
+                let hook =
+                    crate::nominal_cleanup_machine_for_type(program, reference, substitutions)
+                        .and_then(|hook| hook_relative_writes(program, hook, symbols, inference));
+                let Some((subject, hook_writes)) = hook else {
+                    return push_whole(written, place, "hook summary unavailable");
+                };
+                let children_own_cleanup = children.iter().any(|(_, child)| {
+                    crate::type_graph_requires_nominal_drop(
+                        program,
+                        *child,
+                        &nested,
+                        &mut Default::default(),
+                    ) || mentions_open_parameter(program, *child, &nested, 0)
+                });
+                if !hook_writes.is_empty() && children_own_cleanup {
+                    return push_whole(written, place, "parent hook writes above owned cleanup");
+                }
+                for relative in &hook_writes {
+                    let (root, suffix) = split_place_root(relative);
+                    if root != subject {
+                        return push_whole(written, place, "hook writes outside its subject");
+                    }
+                    push(written, format!("{place}{suffix}"));
+                }
+            }
+            for (name, child) in children {
+                push_value_cleanup_writes(
+                    program,
+                    format!("{place}.{name}"),
+                    child,
+                    &nested,
+                    depth + 1,
+                    symbols,
+                    inference,
+                    written,
+                );
+            }
+        }
+
+        /// The hook's subject parameter name and its completed write summary.
+        fn hook_relative_writes(
+            program: &dyn crate::CheckingInput,
+            hook: &Machine,
+            symbols: &TopLevelSymbols<'_>,
+            inference: &mut FrameInference,
+        ) -> Option<(String, Vec<String>)> {
+            if !hook.body_is_present
+                || !hook.supply_mode.is_checked_body()
+                || hook.target_family_interface
+            {
+                return None;
+            }
+            let state = program.machine_states(hook).first()?;
+            let [subject] = program.state_parameters(state) else {
+                return None;
+            };
+            if inference.active_states.contains(&state.symbol) {
+                return None;
+            }
+            inference.active_states.push(state.symbol);
+            let writes = inference.without_values(|inference| {
+                summarize_complete_state_written_paths(program, hook, state, symbols, inference)
+            });
+            inference.active_states.pop();
+            Some((subject.name.as_str().to_owned(), writes?))
+        }
+
+        /// Whether the type still names a type parameter no substitution closes.
+        /// Such a value may select any cleanup at instantiation.
+        fn mentions_open_parameter(
+            program: &dyn crate::CheckingInput,
+            mut reference: TypeReferenceHandle,
+            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+            depth: usize,
+        ) -> bool {
+            if depth >= MAXIMUM_OWNED_DEPTH {
+                return true;
+            }
+            loop {
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                    TypeReferenceNode::Named { symbol, .. } => {
+                        match crate::queries::substitutions::actual_for(substitutions, *symbol) {
+                            Some(actual) if actual != reference => reference = actual,
+                            _ => {
+                                return symbol.is_valid()
+                                    && program.symbols.get(*symbol).kind
+                                        == SymbolKind::TypeParameter;
+                            }
+                        }
+                    }
+                    TypeReferenceNode::FixedArray { element_type, .. } => reference = *element_type,
+                    TypeReferenceNode::Generic { arguments, .. } => {
+                        return program
+                            .type_reference_table
+                            .type_reference_handles(*arguments)
+                            .iter()
+                            .any(|argument| {
+                                mentions_open_parameter(
+                                    program,
+                                    *argument,
+                                    substitutions,
+                                    depth + 1,
+                                )
+                            });
+                    }
+                    _ => return false,
+                }
+            }
+        }
+    }
     pub(crate) mod cycle_frames {
         use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
         use crate::machine_calls::calls::write_frames::alias_origins::{
@@ -11572,6 +12302,23 @@ pub(crate) mod write_frames {
                 };
                 let replaces_local_binding =
                     super::reference_subjects::replaces_binding(program, machine, statement)?;
+                // A cyclic state displaces values and drops temporaries like any
+                // other state, so the same statement cleanup rows join its
+                // direct writes.
+                super::cleanup_writes::push_statement_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    parameters,
+                    &locals,
+                    &local_alias_origins,
+                    &[],
+                    &stored,
+                    symbols,
+                    &mut inference,
+                    &mut direct_writes,
+                )?;
                 if stored_origins::statement_exposes_frozen_binding(
                     program,
                     machine,
@@ -11834,6 +12581,18 @@ pub(crate) mod write_frames {
                 }
             }
 
+            super::cleanup_writes::push_exit_cleanup_writes(
+                program,
+                state,
+                parameters,
+                &locals,
+                &local_alias_origins,
+                &[],
+                &stored,
+                symbols,
+                &mut inference,
+                &mut direct_writes,
+            )?;
             Some(CycleFrameEquation {
                 state,
                 locals,
@@ -15462,6 +16221,24 @@ pub(crate) mod write_frames {
                                 Some(&argument_origins),
                             )
                         };
+                        let discarded = prefix.close_paths(
+                            self.program,
+                            super::cleanup_writes::discarded_result_cleanup_writes(
+                                self.program,
+                                current_machine,
+                                call,
+                                &machine_symbols,
+                                &self.tables.symbols,
+                            )?,
+                        );
+                        let with_discarded = |mut paths: Vec<String>| {
+                            for path in &discarded {
+                                if !paths.contains(path) {
+                                    paths.push(path.clone());
+                                }
+                            }
+                            paths
+                        };
                         known
                         .or_else(|| {
                             probe_paths(known_boundary_call_written_paths_for_parts, inference)
@@ -15482,6 +16259,7 @@ pub(crate) mod write_frames {
                                 &self.tables.symbols,
                             )
                         })
+                        .map(with_discarded)
                     },
                 )
                 .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
@@ -15926,9 +16704,16 @@ pub(crate) mod write_frames {
                 statement: &StatementNode,
                 expressions: &[ExpressionHandle],
             ) -> NormalizedWriteFrame {
-                if !expressions
-                    .iter()
-                    .any(|expression| expression_has_calls(self.program, *expression))
+                // A displaced value and unnamed temporaries die inside the
+                // statement, so their cleanup writes belong to it even without a call.
+                let Some(displaced) = self.statement_cleanup_paths(current_machine, statement)
+                else {
+                    return NormalizedWriteFrame::opaque();
+                };
+                if displaced.is_empty()
+                    && !expressions
+                        .iter()
+                        .any(|expression| expression_has_calls(self.program, *expression))
                 {
                     return NormalizedWriteFrame::complete(Vec::new());
                 }
@@ -15939,7 +16724,7 @@ pub(crate) mod write_frames {
                     CallerWriteSite::Statement(statement),
                     &self.caches.state_write_collections,
                     |inference, prefix| {
-                        let mut written = Vec::new();
+                        let mut written = prefix.close_paths(self.program, displaced);
                         for &expression in expressions {
                             collect_expression_call_written_paths(
                                 self.program,
@@ -15956,6 +16741,126 @@ pub(crate) mod write_frames {
                     },
                 )
                 .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+            }
+
+            /// Cleanup paths of the values that die inside `statement` (a
+            /// displaced value, unnamed temporaries), before the caller's origins
+            /// close them. `None` is an unknown footprint.
+            fn statement_cleanup_paths(
+                &self,
+                current_machine: &Machine,
+                statement: &StatementNode,
+            ) -> Option<Vec<String>> {
+                if !super::cleanup_writes::program_selects_cleanup(self.program) {
+                    return Some(Vec::new());
+                }
+                let (state, _, _) = super::caller_aliases::caller_statement_owner(
+                    self.program,
+                    current_machine,
+                    CallerWriteSite::Statement(statement),
+                )?;
+                super::cleanup_writes::statement_cleanup_writes(
+                    self.program,
+                    current_machine,
+                    state,
+                    statement,
+                    &self.tables.symbols,
+                    &mut FrameInference::default(),
+                )
+            }
+
+            /// Caller storage written by cleanup of the values that die inside
+            /// `statement`. A consumer that already accounts for the statement's
+            /// calls reads this instead of the whole value frame.
+            pub fn statement_cleanup_write_frame(
+                &self,
+                current_machine: &Machine,
+                statement: &StatementNode,
+            ) -> NormalizedWriteFrame {
+                match self.statement_cleanup_paths(current_machine, statement) {
+                    None => NormalizedWriteFrame::opaque(),
+                    Some(paths) if paths.is_empty() => NormalizedWriteFrame::complete(paths),
+                    Some(paths) => with_caller_origins(
+                        self.program,
+                        current_machine,
+                        &self.tables.symbols,
+                        CallerWriteSite::Statement(statement),
+                        &self.caches.state_write_collections,
+                        |_, prefix| Some(prefix.close_paths(self.program, paths)),
+                    )
+                    .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete),
+                }
+            }
+
+            /// Caller storage written by cleanup of a result that
+            /// `_ = call(...)` discards.
+            pub fn discarded_result_cleanup_write_frame(
+                &self,
+                current_machine: &Machine,
+                call: &TableCall,
+            ) -> NormalizedWriteFrame {
+                let Some(machine_symbols) = self
+                    .program
+                    .machine_by_symbol(current_machine.symbol)
+                    .and_then(|machine| self.machine_symbols(machine))
+                else {
+                    return NormalizedWriteFrame::opaque();
+                };
+                match super::cleanup_writes::discarded_result_cleanup_writes(
+                    self.program,
+                    current_machine,
+                    call,
+                    &machine_symbols,
+                    &self.tables.symbols,
+                ) {
+                    None => NormalizedWriteFrame::opaque(),
+                    Some(paths) if paths.is_empty() => NormalizedWriteFrame::complete(paths),
+                    Some(paths) => with_caller_origins(
+                        self.program,
+                        current_machine,
+                        &self.tables.symbols,
+                        CallerWriteSite::Call(call),
+                        &self.caches.state_write_collections,
+                        |_, prefix| Some(prefix.close_paths(self.program, paths)),
+                    )
+                    .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete),
+                }
+            }
+
+            /// Parameter-rooted places that automatic cleanup may write while
+            /// `state` runs: values dying at its exit and values its assignments
+            /// displace. Explicit calls are not followed, because a consumer
+            /// that propagates call summaries reaches the callees itself.
+            /// `None` is an unknown footprint.
+            pub fn state_cleanup_write_paths(
+                &self,
+                machine: &Machine,
+                state: &State,
+            ) -> Option<Vec<String>> {
+                if !super::cleanup_writes::program_selects_cleanup(self.program) {
+                    return Some(Vec::new());
+                }
+                if super::cleanup_writes::state_has_no_cleanup_candidates(
+                    self.program,
+                    machine,
+                    state,
+                    &self.tables.symbols,
+                ) {
+                    return Some(Vec::new());
+                }
+                let mut inference = FrameInference::for_state(state.symbol);
+                inference.collects_cleanup = true;
+                super::state_write_walk::walk_state_write_prefix(
+                    self.program,
+                    machine,
+                    state,
+                    &self.tables.symbols,
+                    &mut inference,
+                    Some(super::state_write_walk::StateWriteQuery::OriginTransfer {
+                        include_shared: false,
+                    }),
+                )?
+                .cleanup_written
             }
 
             pub fn inferred_state_write_frame(
@@ -16430,6 +17335,10 @@ pub(crate) mod write_frames {
         #[derive(Clone, Default)]
         pub(crate) struct FrameInference {
             pub(crate) active_states: Vec<SymbolHandle>,
+            /// Asks an origin-transfer walk to also report the automatic-cleanup
+            /// writes of the state, which it otherwise leaves to the
+            /// write-summary queries.
+            pub(crate) collects_cleanup: bool,
             local_shapes: Arc<Vec<StoredLocalOrigins>>,
             parameter_values: Option<ParameterValues>,
             slot_effects: std::sync::Arc<std::sync::Mutex<CompletedSlotEffects>>,
@@ -26323,6 +27232,9 @@ pub(crate) mod write_frames {
         pub(crate) struct StateWritePrefix {
             written: Vec<String>,
             pub(crate) stored: Vec<StoredLocalOrigins>,
+            /// The visible writes that automatic cleanup performs in this
+            /// state, or `None` when the walk did not establish them.
+            pub(crate) cleanup_written: Option<Vec<String>>,
         }
 
         #[derive(Clone)]
@@ -26651,6 +27563,11 @@ pub(crate) mod write_frames {
             if include_shared {
                 super::stored_calls::seed_incoming_slots(program, state, &mut stored);
             }
+            // Only a write summary reads `written`; the origin-transfer queries
+            // read `stored`, and automatic cleanup moves no origin.
+            let summarizes_writes = matches!(query, None | Some(StateWriteQuery::Complete));
+            let mut cleanup_written = Vec::new();
+            let mut cleanup_complete = summarizes_writes || inference.collects_cleanup;
             let mut written = Vec::new();
             let mut template_dependent = false;
             let mut incomplete_calls = Vec::new();
@@ -26746,6 +27663,28 @@ pub(crate) mod write_frames {
                 };
                 let replaces_local_binding =
                     super::reference_subjects::replaces_binding(program, machine, statement)?;
+                if cleanup_complete
+                    && super::cleanup_writes::push_statement_cleanup_writes(
+                        program,
+                        machine,
+                        state,
+                        statement,
+                        parameters,
+                        &locals,
+                        &local_alias_origins,
+                        &divergent_alias_origins,
+                        &stored,
+                        symbols,
+                        inference,
+                        &mut cleanup_written,
+                    )
+                    .is_none()
+                {
+                    if summarizes_writes {
+                        return None;
+                    }
+                    cleanup_complete = false;
+                }
                 if crate::trace_flags::struct_trace()
                     && let Some(assignment) = statement.as_assignment()
                     && let Some(receiving) = reference_subjects::assignment_stored_value_type(
@@ -27201,6 +28140,18 @@ pub(crate) mod write_frames {
                                 )
                             })
                         }?;
+                        let mut nested_writes = nested_writes;
+                        for path in super::cleanup_writes::discarded_result_cleanup_writes(
+                            program,
+                            machine,
+                            nested_call,
+                            &machine_symbols,
+                            symbols,
+                        )? {
+                            if !nested_writes.contains(&path) {
+                                nested_writes.push(path);
+                            }
+                        }
                         for relative in expand_write_paths(
                             program,
                             &origins.close_paths(program, nested_writes),
@@ -27364,6 +28315,34 @@ pub(crate) mod write_frames {
                 }
             }
 
+            if cleanup_complete
+                && super::cleanup_writes::push_exit_cleanup_writes(
+                    program,
+                    state,
+                    parameters,
+                    &locals,
+                    &local_alias_origins,
+                    &divergent_alias_origins,
+                    &stored,
+                    symbols,
+                    inference,
+                    &mut cleanup_written,
+                )
+                .is_none()
+            {
+                if summarizes_writes {
+                    return None;
+                }
+                cleanup_complete = false;
+            }
+            if summarizes_writes {
+                for path in &cleanup_written {
+                    if !written.contains(path) {
+                        written.push(path.clone());
+                    }
+                }
+            }
+
             let origins_complete = !matches!(query, Some(StateWriteQuery::OriginTransfer { .. }))
                 || (!template_dependent && incomplete_calls.is_empty());
             (origins_complete
@@ -27372,7 +28351,11 @@ pub(crate) mod write_frames {
                         query,
                         Some(StateWriteQuery::Complete | StateWriteQuery::OriginTransfer { .. })
                     )))
-            .then_some(StateWritePrefix { written, stored })
+            .then_some(StateWritePrefix {
+                written,
+                stored,
+                cleanup_written: cleanup_complete.then_some(cleanup_written),
+            })
         }
 
         fn install_statement_call_effects(

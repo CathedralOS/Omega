@@ -2677,8 +2677,12 @@ mod summary {
                         let direct_writes =
                             collect_state_mutation_summary_places(program, state, call_frames);
                         let direct_complete = direct_writes.is_some();
-                        let writes = direct_writes.unwrap_or_default();
+                        let mut writes = direct_writes.unwrap_or_default();
+                        let cleanup_complete =
+                            push_cleanup_summary_writes(program, state, call_frames, &mut writes)
+                                .is_some();
                         let complete = direct_complete
+                            && cleanup_complete
                             && state_has_concrete_body_signature(program, state)
                             && call_frames.is_some_and(|resolver| {
                                 find_state(program, state.symbol).is_some_and(|(machine, _)| {
@@ -2720,6 +2724,42 @@ mod summary {
                 index_by_state,
             }
         })
+    }
+
+    /*
+        Automatic cleanup is a write no statement spells: a `dropped by` hook
+        runs when an owned value dies and may store through every exclusive
+        reference that value holds. Validation owns which values may die in a
+        state and what their hooks write, already carried to parameter-rooted
+        places. Without these rows a callee whose only effect is to let such a
+        value die has a complete empty summary, and a caller fact about the
+        referent survives the call. An unknown cleanup footprint leaves the
+        summary incomplete, which sends callers to the signature ceiling.
+    */
+    fn push_cleanup_summary_writes(
+        program: &dyn ::validation::CheckingInput,
+        state: &State,
+        call_frames: Option<&CallFrameResolver<'_>>,
+        writes: &mut Vec<MutationWrite>,
+    ) -> Option<()> {
+        let resolver = call_frames?;
+        let (machine, _) = find_state(program, state.symbol)?;
+        for path in resolver.state_cleanup_write_paths(machine, state)? {
+            let write = MutationWrite {
+                region: StorageRegion::Declared(local_origins::frame_write_place(
+                    program, state, 0, &path,
+                )?),
+                requires_exclusive_access: true,
+                destination: WriteDestination::Referent,
+                checked_write_type: Default::default(),
+            };
+            if state_summary_exposes_place(program, state, &write.region, call_frames)?
+                && !writes.contains(&write)
+            {
+                writes.push(write);
+            }
+        }
+        Some(())
     }
 
     fn propagate_state_mutation_summaries(
@@ -3910,6 +3950,37 @@ pub(in crate::flow) fn call_mutation_writes(
         call_frames,
         None,
     )?;
+    // `_ = call(...)` lets the result die at the statement, so its cleanup
+    // writes join the call's own.
+    if let CallSite::Statement(call) = &site
+        && call.discards_result
+        && let Some(frames) = call_frames
+        && let Some(machine) = program.machine_by_symbol(caller_machine_symbol)
+    {
+        let frame = frames.discarded_result_cleanup_write_frame(machine, call);
+        let cleanup = if frame.complete_paths().is_some_and(|paths| paths.is_empty()) {
+            Vec::new()
+        } else {
+            frame_storage_writes(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow_call.statement_index,
+                &frame,
+                call_frames,
+            )?
+        };
+        for place in cleanup {
+            let region = StorageRegion::Declared(place);
+            if !writes.iter().any(|write| write.region == region) {
+                writes.push(CallMutationWrite {
+                    region,
+                    source: None,
+                    checked_write_type: Default::default(),
+                });
+            }
+        }
+    }
     for region in ceiling::retained_loan_write_regions(
         program,
         caller_machine_symbol,
@@ -4590,10 +4661,34 @@ pub(crate) fn statement_storage_writes(
             call_frames,
         );
     }
-    if !matches!(statement, StatementNode::Assignment(_)) {
-        return Some(Vec::new());
+    // A displaced value and unnamed temporaries die inside the statement, and
+    // their cleanup may store through the exclusive references they held,
+    // which no destination place names.
+    let mut places = Vec::new();
+    if let Some(frames) = call_frames
+        && let Some(machine) = program.machine_by_symbol(machine_symbol)
+    {
+        let frame = frames.statement_cleanup_write_frame(machine, statement);
+        // An empty frame names no place, so there is nothing to project.
+        if frame.complete_paths().is_none_or(|paths| !paths.is_empty()) {
+            places = frame_storage_writes(
+                program,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                &frame,
+                call_frames,
+            )?;
+        }
+    } else if program.cleanup_selections().next().is_some() {
+        // Nothing can name the values that die here, so their cleanup
+        // footprint is unknown rather than empty.
+        return None;
     }
-    let places = local_origins::assignment_storage_places(
+    if !matches!(statement, StatementNode::Assignment(_)) {
+        return Some(places);
+    }
+    let targets = local_origins::assignment_storage_places(
         program,
         machine_symbol,
         state_symbol,
@@ -4601,15 +4696,19 @@ pub(crate) fn statement_storage_writes(
         statement,
         call_frames,
     )?;
-    local_origins::close_storage_places_over_aliases(
+    for place in local_origins::close_storage_places_over_aliases(
         program,
         machine_symbol,
         state_symbol,
         statement_index,
-        places.clone(),
+        targets.clone(),
         call_frames,
     )
-    .or(Some(places))
+    .unwrap_or(targets)
+    {
+        crate::shared::collections::push_unique(&mut places, place);
+    }
+    Some(places)
 }
 
 /*

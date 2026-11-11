@@ -75189,6 +75189,9 @@ pub(crate) mod structural_judgment {
         pub(crate) struct CapturedStoreDestination {
             coordinate: Option<CapturedStorageCoordinate>,
             frame: facts::NormalizedWriteFrame,
+            // What cleanup of the displaced value and of temporaries that die
+            // inside the statement may write, beyond the destination itself.
+            cleanup: facts::NormalizedWriteFrame,
             version: Option<StorageVersion>,
             value_expression: ExpressionHandle,
             stored_type: TypeReferenceHandle,
@@ -76701,9 +76704,13 @@ pub(crate) mod structural_judgment {
                 if coordinate.is_none() && !self.requires_value_preservation() {
                     return None;
                 }
+                let cleanup = self
+                    .frame_resolver()?
+                    .statement_cleanup_write_frame(machine, statement);
                 Some(CapturedStoreDestination {
                     coordinate,
                     frame,
+                    cleanup,
                     version: self.statement_node_storage_version(state, statement),
                     value_expression: statement.as_assignment()?.value,
                     stored_type,
@@ -76806,8 +76813,35 @@ pub(crate) mod structural_judgment {
                 value: super::StructuralTerm,
             ) -> Option<()> {
                 let destination_value_expression = destination.value_expression;
+                // The store displaces the destination's old value, whose
+                // `dropped by` hook may write through exclusive references it
+                // held. Those places are not the destination, so a value that
+                // is disjoint from the destination is not thereby untouched:
+                // nothing is carried across the store, and the cleanup places
+                // join the written set.
+                let cleanup_free = destination
+                    .cleanup
+                    .complete_paths()
+                    .is_some_and(<[String]>::is_empty);
+                let written_paths = if cleanup_free {
+                    destination.frame.complete_paths().map(<[String]>::to_vec)
+                } else {
+                    destination
+                        .frame
+                        .complete_paths()
+                        .zip(destination.cleanup.complete_paths())
+                        .map(|(stored, cleanup)| {
+                            let mut paths = stored.to_vec();
+                            for path in cleanup {
+                                if !paths.contains(path) {
+                                    paths.push(path.clone());
+                                }
+                            }
+                            paths
+                        })
+                };
                 let mut preserved = Vec::new();
-                if let Some(written) = &destination.coordinate {
+                if let Some(written) = destination.coordinate.as_ref().filter(|_| cleanup_free) {
                     let frames = self.frame_resolver()?;
                     for stored in self.stored_values.iter() {
                         if !stored
@@ -76852,11 +76886,7 @@ pub(crate) mod structural_judgment {
                         ));
                     }
                 }
-                self.observe_storage_effects(
-                    state,
-                    destination.frame.complete_paths(),
-                    destination.version,
-                )?;
+                self.observe_storage_effects(state, written_paths.as_deref(), destination.version)?;
                 for (coordinate, current) in preserved {
                     self.retain_storage_value(coordinate, current, false);
                 }
