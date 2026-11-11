@@ -1,5 +1,5 @@
 /*
-Authored contract invocations, `where` proof facts, and parameter domain
+Authored contract invocations, `requires` proof facts, and parameter domain
 membership (`contracts`) alongside shared parameter, type-parameter, evidence,
 and callable-signature lowering (`signatures`).
 */

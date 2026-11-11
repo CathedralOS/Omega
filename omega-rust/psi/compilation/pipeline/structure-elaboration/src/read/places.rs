@@ -203,7 +203,7 @@ impl Program<'_> {
         };
         let facts = super::span(
             &typed.proof_facts,
-            data.where_facts,
+            data.requires_facts,
             id,
             "data requires span",
         )?;
@@ -699,7 +699,7 @@ fn record_shape<'m>(
         match member {
             DataMember::Variant(variant) => {
                 cases = true;
-                if !variant.where_facts.is_empty() {
+                if !variant.requires_facts.is_empty() {
                     return unserved("data requires");
                 }
                 if !variant.retired_payload_identities.is_empty() {
@@ -784,7 +784,7 @@ mod tests {
             }),
             ("type data requires", |_, members| {
                 *members = vec![DataMember::Variant(DataVariant {
-                    where_facts: HandleSpan::from_parts(Handle::from_parts(1, 1), 1),
+                    requires_facts: HandleSpan::from_parts(Handle::from_parts(1, 1), 1),
                     ..DataVariant::default()
                 })];
             }),

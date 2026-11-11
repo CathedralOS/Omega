@@ -2815,7 +2815,7 @@ mod entry_fields {
         if let Some(field) = field {
             let owner = program.symbols.get(field).parent;
             if let Some(data) = program.data_definition_by_symbol(owner)
-                && let Some(intervals) = validation::data_where_field_intervals(program, data)
+                && let Some(intervals) = validation::data_requires_field_intervals(program, data)
                 && let Some((_, lo, hi)) = intervals.iter().find(|(symbol, ..)| *symbol == field)
             {
                 if let Some(lo) = lo {

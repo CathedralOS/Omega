@@ -888,7 +888,7 @@ pub mod snapshot {
                 #[serde(skip_serializing_if = "Option::is_none")]
                 quotient: Option<QuotientSnapshot>,
                 #[serde(skip_serializing_if = "Vec::is_empty")]
-                where_facts: Vec<ProofFactSnapshot>,
+                requires_facts: Vec<ProofFactSnapshot>,
                 members: Vec<DataMemberSnapshot>,
             },
             TypeAlias {
@@ -1344,7 +1344,7 @@ pub mod snapshot {
                             }
                         }),
                     }),
-                    where_facts: snapshot_proof_facts(syntax_trees, value.where_facts),
+                    requires_facts: snapshot_proof_facts(syntax_trees, value.requires_facts),
                     members: syntax_trees
                         .items
                         .data_members(value.members)
@@ -2507,7 +2507,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(
                     syntax_trees
                         .items
@@ -2547,7 +2547,7 @@ pub mod snapshot {
                             carry: None,
                         },
                         quotient: None,
-                        where_facts: Vec::new(),
+                        requires_facts: Vec::new(),
                         members: vec![super::DataMemberSnapshot::Field {
                             identity: None,
                             name: super::IdentifierSnapshot {
@@ -2596,7 +2596,7 @@ pub mod snapshot {
                     identity: Some(3),
                     name: Identifier::generated("Certified"),
                     payload: arena::HandleSpan::from_parts(payload, 1),
-                    where_facts: arena::HandleSpan::empty(),
+                    requires_facts: arena::HandleSpan::empty(),
                     retired_payload_identities: Vec::new(),
                 }));
             syntax_trees.push_root_item(Item::Data(DataDefinition {
@@ -2610,7 +2610,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(member, 1),
             }));
 
@@ -2657,7 +2657,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: Default::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
             }));
 
             let snapshot = syntax_trees.snapshot();

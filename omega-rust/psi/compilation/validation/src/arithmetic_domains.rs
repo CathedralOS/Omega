@@ -19,7 +19,7 @@ pub(crate) mod atomic_observations {
             bounds = bounds.intersect(declared);
         }
         if let Some(stated) = state.and_then(|state| {
-            crate::proof_contracts::default_domains::stored_field_where_interval(
+            crate::proof_contracts::default_domains::stored_field_requires_interval(
                 program, machine, state, place,
             )
         }) {
@@ -162,7 +162,7 @@ pub(crate) mod declared_integer_facts {
             return;
         }
         active.push(reference);
-        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
             if let Some(expression) = fact.as_expression() {
                 contribute(
                     program,
@@ -433,7 +433,7 @@ pub(crate) mod declared_float_facts {
         }
         active.push(definition.symbol);
         if let Some(bounds) =
-            crate::proof_contracts::default_domains::data_where_field_representation_bounds(
+            crate::proof_contracts::default_domains::data_requires_field_representation_bounds(
                 program, definition,
             )
         {
@@ -13294,7 +13294,7 @@ pub(crate) mod guard_narrowing {
                 let Some(definition) = parameter_record(program, parameter) else {
                     continue;
                 };
-                let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+                let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
                     continue;
                 };
                 for (symbol, low, high) in bounds {
@@ -22382,7 +22382,7 @@ pub(crate) mod range_constraints {
         }
     }
 
-    pub(crate) fn check_where_interval_containment(
+    pub(crate) fn check_requires_interval_containment(
         program: &dyn CheckingInput,
         stated: Interval,
         value: IntegerValueObservation<'_>,
@@ -25622,7 +25622,7 @@ pub(crate) mod total_specification {
             let mut prior_facts = Vec::new();
             validate_facts(
                 program,
-                program.proof_facts.span_or_empty(data.where_facts),
+                program.proof_facts.span_or_empty(data.requires_facts),
                 &format!("data `{}` default-domain predicate", data.name),
                 AbstractSpecificationBindings {
                     owner_symbol: data.symbol,
@@ -25652,7 +25652,7 @@ pub(crate) mod total_specification {
                     .collect::<Vec<_>>();
                 validate_facts(
                     program,
-                    program.proof_facts.span_or_empty(variant.where_facts),
+                    program.proof_facts.span_or_empty(variant.requires_facts),
                     &format!("data `{}` case `{}` predicate", data.name, variant.name),
                     AbstractSpecificationBindings {
                         owner_symbol: variant.symbol,
@@ -26910,7 +26910,7 @@ pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;
 pub(crate) use range_constraints::{
-    IntegerValueObservation, check_where_interval_containment, range_constraint_interval,
+    IntegerValueObservation, check_requires_interval_containment, range_constraint_interval,
 };
 pub(crate) use return_ranges::{call_return_type, validate_return_value_range};
 pub use stored_integer_writes::{

@@ -182,7 +182,7 @@ pub(crate) mod expression {
                                 .data_definition_by_symbol(program.symbols.get(path.symbol).parent)
                                 .is_some_and(|definition| {
                                     definition.predicate_subject_symbol == path.symbol
-                                        && !definition.where_facts.is_empty()
+                                        && !definition.requires_facts.is_empty()
                                 });
                     }
                     typed::expression::ExpressionNode::SavedSubject(saved) => {

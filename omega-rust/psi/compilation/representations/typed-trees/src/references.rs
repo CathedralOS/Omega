@@ -2684,7 +2684,7 @@ fn visit_data(
     if let Some(selection) = &data.cleanup_selection {
         visit_cleanup_selection(program, retained, selection);
     }
-    visit_proof_facts(program, retained, data.where_facts);
+    visit_proof_facts(program, retained, data.requires_facts);
     for member in program.data_members(data) {
         match member {
             crate::data::DataMember::Field(field) => {
@@ -2694,7 +2694,7 @@ fn visit_data(
                 for field in program.data_payload_fields(variant) {
                     visit_type_reference(program, retained, field.type_reference);
                 }
-                visit_proof_facts(program, retained, variant.where_facts);
+                visit_proof_facts(program, retained, variant.requires_facts);
             }
         }
     }

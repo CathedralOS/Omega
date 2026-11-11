@@ -185,7 +185,7 @@ mod argument_types {
                     let equations = type_equations::classify_type_equations(
                         syntax,
                         &parameters,
-                        syntax.items.proof_facts(declaration.where_facts),
+                        syntax.items.proof_facts(declaration.requires_facts),
                     );
                     let name = declaration.name.as_str(syntax).to_owned();
                     let template = EquationTemplate {

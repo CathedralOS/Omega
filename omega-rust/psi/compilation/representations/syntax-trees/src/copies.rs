@@ -1566,7 +1566,7 @@ pub(crate) mod item_copies {
                         }
                     }),
                 }),
-                where_facts: self.copy_domain_fact_span(other, data.where_facts),
+                requires_facts: self.copy_domain_fact_span(other, data.requires_facts),
                 members: self.copy_data_member_span(other, data.members),
             }
         }
@@ -1888,7 +1888,7 @@ pub(crate) mod item_copies {
                         identity: variant.identity,
                         name: variant.name.clone(),
                         payload: this.copy_data_payload_field_span(other, variant.payload),
-                        where_facts: this.copy_domain_fact_span(other, variant.where_facts),
+                        requires_facts: this.copy_domain_fact_span(other, variant.requires_facts),
                         retired_payload_identities: variant.retired_payload_identities.clone(),
                     }),
                     DataMember::Retired(identity) => DataMember::Retired(*identity),

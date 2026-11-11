@@ -53,7 +53,7 @@ pub mod data_queries {
             })
     }
 
-    pub fn data_field_is_where_independent(
+    pub fn data_field_is_requires_independent(
         program: &dyn crate::CheckingInput,
         definition: &typed_trees::data::DataDefinition,
         field: &typed_trees::data::DataField,
@@ -67,12 +67,12 @@ pub mod data_queries {
                     .data_payload_fields(variant)
                     .iter()
                     .any(|payload| payload.symbol == field.symbol)
-                    .then(|| program.proof_facts.span_or_empty(variant.where_facts))
+                    .then(|| program.proof_facts.span_or_empty(variant.requires_facts))
             })
             .unwrap_or(&[]);
         program
             .proof_facts
-            .span_or_empty(definition.where_facts)
+            .span_or_empty(definition.requires_facts)
             .iter()
             .chain(case_facts)
             .all(|fact| {
@@ -382,7 +382,7 @@ pub mod definition_facts {
         let data_facts = program
             .data_definitions()
             .iter()
-            .map(|data| program.proof_facts.span_or_empty(data.where_facts).len())
+            .map(|data| program.proof_facts.span_or_empty(data.requires_facts).len())
             .sum::<usize>();
         domain_facts + data_facts
     }
@@ -430,7 +430,7 @@ pub mod definition_facts {
     fn append_data_definition_facts(program: &dyn crate::CheckingInput, facts: &mut FactPlan) {
         for data in program.data_definitions() {
             let mut refs = HandleSpan::empty();
-            for fact_handle in proof_fact_handles(data.where_facts) {
+            for fact_handle in proof_fact_handles(data.requires_facts) {
                 let proof_fact = program.proof_facts.get(fact_handle);
                 let dependencies = data_fact_dependency_places(program, facts, data, proof_fact);
                 let place = append_data_proof_fact_place(program, facts, data, proof_fact);
