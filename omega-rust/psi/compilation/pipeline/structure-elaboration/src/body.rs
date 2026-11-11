@@ -165,6 +165,24 @@ pub struct Signature {
     /// in authored order.
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
+    pub termination: Termination,
+}
+
+/// What the machine's header says about ending.
+/// `wiki/spec/language/termination.md`: "Bare `terminates` authors the
+/// promise", and `terminates by subject` supplies "a witness [that]
+/// discharges that promise rather than redefining it".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Termination {
+    /// No clause. termination.md: "A private acyclic body needs no
+    /// annotation and derives a local `Terminates` summary", and "A
+    /// productive terminal-transfer cycle without a termination promise may
+    /// run forever and owes no rank".
+    Silent,
+    /// The header promises termination and names no ranking.
+    Promised,
+    /// The header supplies a ranking witness, with or without the promise.
+    Witnessed,
 }
 
 impl Signature {

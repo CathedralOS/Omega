@@ -16,7 +16,8 @@ use terminal_psi::{
 };
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+    Termination, ValueType,
 };
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unpositioned};
@@ -94,6 +95,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         requires: Vec::new(),
         ensures: Vec::new(),
         crashes: CrashCeiling::Authored(Vec::new()),
+        termination: Termination::Silent,
     }
 }
 
@@ -154,8 +156,15 @@ fn lower_records(
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
     let declared = crate::lower::places::declare(id(1), records, &bodies)?;
-    let body = bodies.get(id(1)).unwrap();
-    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records, false)
+    crate::lower::machine(
+        id(1),
+        &bodies,
+        &[],
+        signatures,
+        outcomes,
+        &declared.records,
+        false,
+    )
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -1174,10 +1183,9 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
 }
 
 /// The right operand of `&&` or `||` may be skipped, so a short-circuit whose
-/// right operand never returns still completes; its causes stay published. A
-/// call cycle handed to `lower_bodies` directly is refused as recursion.
+/// right operand never returns still completes; its causes stay published.
 #[test]
-fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
+fn a_skipped_operand_cannot_end_the_machine() {
     use crate::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
@@ -1201,10 +1209,12 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
         crashes: CrashCeiling::Inferred,
+        termination: Termination::Silent,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
         crashes: CrashCeiling::Inferred,
+        termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
     let table = outcomes(&bodies, &signatures, &[]).unwrap();
@@ -1214,21 +1224,6 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
             completes_normally: true,
             crash_routes: routes(&[CrashCause::Trap]),
         }
-    );
-
-    // machine 1 { f() }, machine 2 { g() }, machine 3 { f() }
-    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
-    for callee in [2, 3, 2] {
-        bodies.push(Body {
-            slots: Vec::new(),
-            statements: vec![Statement::Evaluate(call(callee, Vec::new(), None))],
-        });
-        signatures.push(signature(Vec::new(), None));
-    }
-    assert_eq!(
-        outcomes(&bodies, &signatures, &[]).unwrap_err().detail,
-        "call recursion"
     );
 }
 
@@ -2965,3 +2960,4 @@ fn an_erased_binding_is_refused_as_a_runtime_value() {
         "expression erased term other than a literal or a binding"
     );
 }
+mod loops;

@@ -18,7 +18,8 @@ checks that the rows to decide are the ones the lowered form owes;
 it, from the stores [places/log.rs](src/places/log.rs) derives from the
 operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
-[crashes.rs](src/crashes.rs) states crash-site coverage.
+[crashes.rs](src/crashes.rs) states crash-site coverage;
+[arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
 
 ## What it decides
 
@@ -29,10 +30,10 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
-| `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
+| `ArrivalInvariant` | the destination block's predicate (a loop head's declared invariant, its member's `requires`, or a join's inferred predicate), its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
 | `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 
-Any other kind is refused as `Unsupported`; elaboration mints none yet.
+Any other kind is refused as `Unsupported`.
 
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
@@ -576,6 +577,53 @@ A call's actuals are replaced into the callee's clauses by position in the
 scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
 actual. A record actual is a place and no clause term can name it, because
 elaboration refuses a clause that names or projects a record formal.
+
+## Loops
+
+Elaboration lowers a call cycle as a loop: one head block per machine of the
+cycle, the machine's formals as the head's parameters, and a jump to the
+head for each call
+([structure elaboration](../structure-elaboration/README.md#call-cycles-as-loops)).
+A machine's `requires` is its head's invariant, a row of the module's
+`scalar_block_invariants`. [arrivals.rs](src/arrivals.rs) does three things
+with a row, and the prover does the rest unchanged.
+
+- **Admits it.** The predicate may name only machine formals and the head's
+  own parameters, the head is not the machine's entry, and every edge into
+  the head is one of the row's arrivals exactly once with an
+  `ArrivalInvariant` obligation of its own
+  ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+  "Missing or duplicate arrivals, wrong scope or carriers, and stale edge
+  coordinates reject."). A row that fails refuses the machine: its predicate
+  would otherwise be a hypothesis nobody proved.
+- **States each arrival's goal:** the predicate with each head parameter
+  replaced by the argument that edge carries, all at once (control flow:
+  "Every arrival proves the predicate under simultaneous
+  destination-parameter to actual-argument substitution, before destination
+  hypotheses become available."). It is decided at the edge, so a jump back
+  out of the loop has the invariant of the iteration it leaves, and the
+  entry's jump has the machine's own `requires`.
+- **Makes it known:** one knowledge row, the predicate over the head's
+  parameters, available from the head's entry and justified as
+  `BlockInvariant`.
+
+That row is all that is known about a head's parameters. A parameter is a
+value of its own on every arrival, so what a caller knew about an argument
+says nothing about it, which is the specification's "At a cyclic scheduling
+cut, only checked invariant predicates enter as induction hypotheses; prefix
+facts are discarded" in a model where knowledge names values. A row about a
+value evaluated before the loop stays available inside it by dominance: that
+value does not change.
+
+The invariant is used before it is proved, as an induction hypothesis must
+be. That is sound only because a closure is accepted whole: `judge` accepts
+when every obligation is discharged, every arrival among them
+([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#premise-availability):
+"Every arrival must check before the destination predicate can justify
+downstream obligations."). A single discharged obligation inside a loop is
+not evidence on its own while an arrival of its head is unproved.
+
+An unranked loop proves nothing about ending, and nothing here says it ends.
 
 ## The prover
 

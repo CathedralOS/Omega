@@ -129,6 +129,24 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// The machine a symbol enters: a machine itself, or the machine whose
+    /// one state the symbol is. `None` for anything else, including a state
+    /// of a machine with several.
+    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+        match self.typed.symbols.get(symbol).kind {
+            SymbolKind::Machine => Some(symbol),
+            SymbolKind::State => {
+                let parent = self.typed.symbols.get(symbol).parent;
+                let machine = self.typed.machine_by_symbol(parent)?;
+                match self.typed.machine_states.span(machine.states)? {
+                    [state] if state.symbol == symbol => Some(parent),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// A call is direct only when its authored selection, if recorded,
     /// resolved to exactly the called machine, and its call binding, if
     /// recorded, neither rebinds it nor reaches it through another
@@ -157,8 +175,16 @@ impl<'t> Program<'t> {
                 return unserved("authored selection missing from its ledger");
             };
             match selected.target() {
+                // The selection names the callee's machine or its one
+                // entry state, and so does the call; a call of the machine
+                // being read records the two differently.
                 AuthoredDeclarationSelectionTarget::Resolved(resolved)
-                    if names_target(resolved.selected_symbol()) => {}
+                    if names_target(resolved.selected_symbol())
+                        || self
+                            .entered_machine(resolved.selected_symbol())
+                            .is_some_and(|selected| {
+                                Some(selected) == self.entered_machine(target)
+                            }) => {}
                 AuthoredDeclarationSelectionTarget::Resolved(_) => {
                     return unserved("selection resolved to another declaration");
                 }
@@ -734,7 +760,6 @@ impl<'t> Program<'t> {
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        self.calls.push((id, callee));
         let signature =
             terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
         let formals: Vec<_> = signature

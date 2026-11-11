@@ -1,7 +1,7 @@
 /*
 How each machine may leave: whether some path completes normally, and the
-crash routes it publishes. Both are read from structure, callees first, once
-every body is read. Nothing here proves a route possible or impossible:
+crash routes it publishes. Both are read from structure, as a fixed point
+over the call graph, once every body is read. Nothing here proves a route possible or impossible:
 disproving a route is the checker's work, so a route that structure reaches
 is kept.
 
@@ -39,88 +39,97 @@ pub struct Outcome {
     pub crash_routes: Vec<CrashRouteBucket>,
 }
 
-/// The outcomes of every machine, indexed by `MachineId`. A callee's outcome
-/// is computed before its caller's, on first use; a machine reached again
-/// while its own outcome is being computed lies on a call cycle and is
-/// refused as recursion, so bodies passed to `lower_bodies` directly get the
-/// refusal the reader gives.
+/// The outcomes of every machine, indexed by `MachineId`.
+///
+/// Machines may call each other in a cycle, so the table is the least fixed
+/// point of one rule: every machine starts as never completing and reaching
+/// no crash, each body is walked against the table as it stands, and the
+/// walk is repeated until no outcome changes. Both terms only grow (a
+/// machine found to complete stays so, a cause found stays), so the walk
+/// ends. A machine whose only paths call it again never completes normally,
+/// which is what `wiki/spec/terminal-psi/control_flow.md` says of it: "An
+/// infinite path has no normal return".
+///
+/// A machine in `requirements` is a requirement's contract and has no body:
+/// its member may return, and it may crash only as its authored ceiling says.
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
     requirements: &[MachineId],
 ) -> Checked<IdTable<MachineId, Outcome>> {
     let mut walk = Walk {
-        bodies,
         signatures,
         requirements,
-        computed: bodies.map(|_, _| State::Unvisited),
+        reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
     };
+    loop {
+        let mut changed = false;
+        for (machine, body) in bodies.iter() {
+            walk.causes.clear();
+            let completes_normally = if requirements.contains(&machine) {
+                true
+            } else {
+                walk.statements(machine, &body.statements)?
+            };
+            let found = Reached {
+                completes_normally,
+                causes: std::mem::take(&mut walk.causes),
+            };
+            let slot = walk.reached.get_mut(machine).ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Call("callee outside the module"),
+                )
+            })?;
+            if *slot != found {
+                *slot = found;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     let mut table = IdTable::default();
-    for machine in bodies.keys() {
-        table.push(walk.outcome(machine, machine)?);
+    for (machine, reached) in walk.reached.iter() {
+        table.push(Outcome {
+            completes_normally: reached.completes_normally,
+            crash_routes: walk.published(machine, &reached.causes)?,
+        });
     }
     Ok(table)
 }
 
-#[derive(Clone)]
-enum State {
-    Unvisited,
-    /// On the current chain of callers: reaching it again is a cycle.
-    Visiting,
-    Done(Outcome),
+/// What structure reaches in one body, against the table as it stands.
+#[derive(Clone, Default, PartialEq)]
+struct Reached {
+    completes_normally: bool,
+    /// Every cause a path of the body may crash with, from a `crash`
+    /// statement or from a callee that may.
+    causes: BTreeSet<CrashCause>,
 }
 
 struct Walk<'b> {
-    bodies: &'b IdTable<MachineId, Body>,
     signatures: &'b IdTable<MachineId, Signature>,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
-    computed: IdTable<MachineId, State>,
+    reached: IdTable<MachineId, Reached>,
     /// Every cause a path of the body being walked may crash with.
     causes: BTreeSet<CrashCause>,
 }
 
 impl Walk<'_> {
-    /// `machine`'s outcome, computing it on first use. `caller` is the
-    /// machine whose body named it, for the refusal.
-    fn outcome(&mut self, machine: MachineId, caller: MachineId) -> Checked<Outcome> {
-        let state = self.computed.get(machine).ok_or_else(|| {
-            refuse(
-                caller,
-                Construct::Machine,
-                Unserved::Call("callee outside the module"),
-            )
-        })?;
-        match state {
-            State::Done(outcome) => return Ok(outcome.clone()),
-            State::Visiting => {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Call("recursion"),
-                ));
-            }
-            State::Unvisited => {}
-        }
-        let (bodies, signatures) = (self.bodies, self.signatures);
-        let body = terminal_check_tables::row(bodies, machine, machine, Construct::Machine)?;
+    /// The routes `machine` publishes, given the causes its body reaches.
+    fn published(
+        &self,
+        machine: MachineId,
+        causes: &BTreeSet<CrashCause>,
+    ) -> Checked<Vec<CrashRouteBucket>> {
         let signature =
-            terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
-        self.set(machine, State::Visiting)?;
-        // A callee's walk runs inside this one, so the caller's causes are
-        // set aside while it does.
-        let callers_causes = std::mem::take(&mut self.causes);
-        // A requirement has no body to walk. Its member may return, and it
-        // may crash only as its authored ceiling says.
-        let completes_normally = if self.requirements.contains(&machine) {
-            Ok(true)
-        } else {
-            self.statements(machine, &body.statements)
-        };
-        let causes = std::mem::replace(&mut self.causes, callers_causes);
-        let completes_normally = completes_normally?;
-        let crash_routes = match &signature.crashes {
+            terminal_check_tables::row(self.signatures, machine, machine, Construct::Machine)?;
+        Ok(match &signature.crashes {
             CrashCeiling::Authored(routes) => routes.clone(),
             // A requirement that defers its crash routes to the selected
             // member publishes none in the generic form (`lower_generic`).
@@ -134,25 +143,7 @@ impl Walk<'_> {
             // unreachable: lowered-discharge proves that from what is known
             // there (`requires d != 0` against a `d == 0` guard) or rejects.
             CrashCeiling::DeclaredNone => Vec::new(),
-        };
-        let outcome = Outcome {
-            completes_normally,
-            crash_routes,
-        };
-        self.set(machine, State::Done(outcome.clone()))?;
-        Ok(outcome)
-    }
-
-    fn set(&mut self, machine: MachineId, state: State) -> Checked<()> {
-        let slot = self.computed.get_mut(machine).ok_or_else(|| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Call("callee outside the module"),
-            )
-        })?;
-        *slot = state;
-        Ok(())
+        })
     }
 
     /// Whether the statements can fall through to a normal completion or
@@ -286,10 +277,23 @@ impl Walk<'_> {
                         return Ok(false);
                     }
                 }
-                let outcome = self.outcome(*callee, machine)?;
+                // A caller sees the causes the callee publishes, as the
+                // table stands: its ceiling when it authors one, what its
+                // body reaches when the routes are inferred, none under
+                // `crashes none` or a deferring requirement.
+                let reached = self.reached.get(*callee).ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Call("callee outside the module"),
+                    )
+                })?;
+                let completes = reached.completes_normally;
+                let causes = reached.causes.clone();
+                let published = self.published(*callee, &causes)?;
                 self.causes
-                    .extend(outcome.crash_routes.iter().map(|bucket| bucket.cause));
-                Ok(outcome.completes_normally)
+                    .extend(published.iter().map(|bucket| bucket.cause));
+                Ok(completes)
             }
         }
     }
