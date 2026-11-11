@@ -8,7 +8,7 @@ data Main {
     off: u64;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     main.off = 0;
     main.buf[main.off] = 9;
     transition main.buf[main.off] == 9 { true -> done(main) _ -> bad(main) }
@@ -25,5 +25,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

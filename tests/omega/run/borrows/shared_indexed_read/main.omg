@@ -8,7 +8,7 @@ data Main {
     buf: [u8; 48];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     main.size = 5;
     let len: &u32 = &main.size;
     let first: &u8 = &main.buf[0];
@@ -26,5 +26,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }
