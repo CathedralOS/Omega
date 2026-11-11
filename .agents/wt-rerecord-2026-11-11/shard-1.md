@@ -1,0 +1,289 @@
+# wt re-record shard 1 (of 6)
+
+**Pinned base:** `3bbe5c131a15666f68a700f499783f04910e8143`  
+**Branch:** `work/wt-rerecord-shard-1`  
+**Host:** linux/x86_64, 4 logical CPUs (`mbx xtask doctor`)  
+**Corpus jobs:** `OMEGA_CORPUS_JOBS=1` (one corpus run at a time)  
+**Slice:** 197 fixtures from sorted 6-way split (`/tmp/shard0`)
+
+## Row list (197)
+
+```
+fail/arithmetic/bounded_store_consumed_before_repair
+fail/arithmetic/guarded_read_count_exceeds_target
+fail/arithmetic/guarded_read_count_unguarded_arrival
+fail/arithmetic/signed_zero_does_not_prove_positive
+fail/arithmetic/widened_result_predicate_invalid_write
+fail/arithmetic/wrapping_guard_does_not_bound_original
+fail/asm/checked_asm_nominal_unproved_construction
+fail/asm/scratch_catalog_subtract_meaning
+fail/asm/scratch_catalog_zero_flag_meaning
+fail/borrow/selected_selector_relation_does_not_supply_equality
+fail/borrows/copied_scalar_field_without_restriction
+fail/borrows/dependent_window_region_retains_backing
+fail/borrows/independent_invocation_reference_result_escapes
+fail/borrows/indexed_carrier_conditional_retains_backing
+fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant
+fail/borrows/reference_record_field_predicate_invalid_store
+fail/borrows/reference_record_index_predicate_invalid_store
+fail/borrows/selected_reference_mutation_live_backing_write
+fail/borrows/stored_subview_new_backing_write
+fail/borrows/stored_subview_preserved_backing_write
+fail/boundary/named_foreign_provider_wrong_table
+fail/build/provider_structural_type_partial_extent
+fail/build/structural_equation_conflicting_argument
+fail/build/task_register_invalidates_descriptor
+fail/build/task_register_missing_machine_control
+fail/calls/converted_call_value_private_arrival_rejected
+fail/calls/duplicate_named_machine_overload_rejected
+fail/calls/nested_machine_duplicate_helper_overload
+fail/calls/nested_machine_private_descendant
+fail/calls/nested_machine_qualified_call_carriers
+fail/calls/outcome_specific_failure_selector
+fail/calls/retired_core_binding_field
+fail/calls/retired_core_binding_local
+fail/calls/retired_core_binding_parameter
+fail/calls/retired_where_machine_requirement
+fail/calls/runtime_guarded_reference_return_nested_local_escape
+fail/calls/selector_field_predicate_upper_bound
+fail/calls/terminal_call_duplicate_block
+fail/calls/terminal_call_duplicate_suspend
+fail/calls/terminal_call_reversed_markers
+fail/collections/contract_length_false_ensures
+fail/collections/fixed_array_write_rejects_element_domain
+fail/comptime/array_expression_fractional
+fail/comptime/array_expression_negative
+fail/comptime/array_expression_runtime_local
+fail/comptime/array_expression_runtime_parameter
+fail/comptime/array_expression_u32_intermediate_overflow
+fail/comptime/const_recursive_counter_survives_unrelated_writes
+fail/constants/predicate_constant_field_shadows_outer_constant
+fail/constants/predicate_constant_nested_projection_shadow
+fail/constants/target_layout_derived_crashing_helper_reject
+fail/constants/target_layout_derived_demanded_crashing_helper_reject
+fail/constants/unused_case_predicate_constant
+fail/constants/unused_default_domain_constant
+fail/constants/unused_empty_case_predicate_constant
+fail/constants/unused_generic_default_domain_constant
+fail/constants/unused_nested_default_domain_constant
+fail/contracts/borrowed_descriptor_guarded_end_exit
+fail/contracts/case_requirement_constructed_array_wrong_tag
+fail/contracts/case_requirement_referent_selector_changed
+fail/contracts/indexed_crash_missing_independent_index_bound
+fail/contracts/returned_case_geometry_domain_exit
+fail/control_flow/pattern_arm_unguarded_index_argument
+fail/core/integer_query_pending_false_type_equation_rejected
+fail/core/integer_query_pending_unsupported_rejected
+fail/core/integer_query_qualified_rejected
+fail/core/integer_query_unsupported_rejected
+fail/core/scoped_integer_call_abstract_trait_operator_requires_formation
+fail/core/scoped_integer_call_crash_route_blocks_unfolding
+fail/dependent/data_where_retired
+fail/domains/applied_generic_carrier_wrong_arguments
+fail/domains/carried_indexed_payload_qualification
+fail/domains/carried_nested_payload_qualification
+fail/domains/carried_nested_payload_qualification_missing_arrival
+fail/domains/carried_runtime_index_payload_qualification
+fail/domains/domain_pattern_match_bound_generic_definition_wrong_carrier_rejected
+fail/domains/domain_pattern_match_bound_generic_equation_wrong_carrier_rejected
+fail/domains/domain_pattern_match_bound_generic_reference_uninstantiated_write_rejected
+fail/domains/domain_pattern_match_bound_generic_reference_write_rejected
+fail/domains/domain_pattern_match_bound_generic_unrelated_equation_rejected
+fail/domains/inherited_requirement_issuer_wrong_owner
+fail/domains/interval_membership_wrapping_false
+fail/domains/mutable_domain_parameter_body_write_outside_domain
+fail/domains/mutable_domain_parameter_outside_arrival
+fail/domains/private_arrival_unguarded_qualification_rejected
+fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count
+fail/domains/refinement_chain_routed_provenance_forge
+fail/domains/retired_case_predicate
+fail/domains/returned_record_scalar_predicate_invalidation
+fail/drops/composed_cleanup_external_hook_state
+fail/effects/finite_requirement_block_required
+fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling
+fail/expressions/type_operand_in_executable_position
+fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected
+fail/facts/abstract_signature_call_generic_actual_through_const_name_rejected
+fail/facts/abstract_signature_call_generic_actual_through_field_rejected
+fail/facts/abstract_signature_call_generic_actual_through_local_rejected
+fail/facts/abstract_signature_call_generic_actual_through_match_join_rejected
+fail/facts/abstract_signature_call_generic_actual_through_other_machine_rejected
+fail/facts/abstract_signature_call_generic_actual_through_other_state_rejected
+fail/facts/abstract_signature_call_generic_actual_through_parameter_rejected
+fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected
+fail/facts/applied_requirement_indices_through_call_result_rejected
+fail/facts/applied_requirement_indices_through_const_name_rejected
+fail/facts/applied_requirement_indices_through_field_rejected
+fail/facts/applied_requirement_indices_through_local_rejected
+fail/facts/applied_requirement_indices_through_other_machine_rejected
+fail/facts/applied_requirement_indices_through_other_state_rejected
+fail/facts/applied_requirement_indices_through_parameter_rejected
+fail/facts/assumed_binding_input_authority_through_target_body_rejected
+fail/facts/assumed_binding_result_bound_through_target_body_rejected
+fail/facts/case_type_equation_recovery_through_call_result_rejected
+fail/facts/case_type_equation_recovery_through_const_name_rejected
+fail/facts/case_type_equation_recovery_through_field_rejected
+fail/facts/case_type_equation_recovery_through_local_rejected
+fail/facts/case_type_equation_recovery_through_match_join_rejected
+fail/facts/case_type_equation_recovery_through_other_machine_rejected
+fail/facts/case_type_equation_recovery_through_other_state_rejected
+fail/facts/case_type_equation_recovery_through_parameter_rejected
+fail/facts/case_type_equation_recovery_through_target_body_rejected
+fail/facts/computed_constant_array_extent_qualification
+fail/facts/correlated_invariant_store_through_call_result_rejected
+fail/facts/correlated_invariant_store_through_const_name_rejected
+fail/facts/correlated_invariant_store_through_local_rejected
+fail/facts/correlated_invariant_store_through_match_join_rejected
+fail/facts/correlated_invariant_store_through_other_machine_rejected
+fail/facts/correlated_invariant_store_through_other_state_rejected
+fail/facts/correlated_invariant_store_through_parameter_rejected
+fail/facts/correlated_invariant_store_through_target_body_rejected
+fail/facts/crash_entry_ieee_view_through_call_result_rejected
+fail/facts/crash_entry_ieee_view_through_const_name_rejected
+fail/facts/crash_entry_ieee_view_through_field_rejected
+fail/facts/crash_entry_ieee_view_through_local_rejected
+fail/facts/crash_entry_ieee_view_through_match_join_rejected
+fail/facts/crash_entry_ieee_view_through_other_machine_rejected
+fail/facts/crash_entry_ieee_view_through_other_state_rejected
+fail/facts/crash_entry_ieee_view_through_parameter_rejected
+fail/facts/crash_entry_ieee_view_through_target_body_rejected
+fail/facts/crash_entry_nan_equality_through_target_body_rejected
+fail/facts/crash_entry_nonempty_path_through_target_body_rejected
+fail/facts/crash_entry_representation_view_through_target_body_rejected
+fail/facts/crash_entry_signed_zero_through_target_body_rejected
+fail/facts/data_where_standing_const_coupled_false
+fail/facts/data_where_standing_const_missing_field_shadow
+fail/facts/data_where_standing_const_nested_false
+fail/facts/data_where_standing_const_scalar_false
+fail/facts/data_where_standing_nested_borrowed_field_call_result
+fail/facts/data_where_standing_nested_borrowed_field_const_name
+fail/facts/data_where_standing_nested_borrowed_field_field
+fail/facts/data_where_standing_nested_borrowed_field_incoming_compatibility
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_missing_bound
+fail/facts/data_where_standing_nested_borrowed_field_incoming_snapshot_wrong_identity
+fail/facts/data_where_standing_nested_borrowed_field_local
+fail/facts/data_where_standing_nested_borrowed_field_match_join
+fail/facts/data_where_standing_nested_borrowed_field_other_machine
+fail/facts/data_where_standing_nested_borrowed_field_other_state
+fail/facts/data_where_standing_nested_borrowed_field_parameter
+fail/facts/data_where_standing_nested_borrowed_field_target_body
+fail/facts/data_where_standing_recast_owner_restoration
+fail/facts/domain_predicate_call_through_call_result_rejected
+fail/facts/domain_predicate_call_through_const_name_rejected
+fail/facts/domain_predicate_call_through_field_rejected
+fail/facts/domain_predicate_call_through_local_rejected
+fail/facts/domain_predicate_call_through_match_join_rejected
+fail/facts/domain_predicate_call_through_other_machine_rejected
+fail/facts/domain_predicate_call_through_other_state_rejected
+fail/facts/domain_predicate_call_through_parameter_rejected
+fail/facts/domain_predicate_call_through_target_body_rejected
+fail/facts/domain_selected_cleanup_nested_external_access_rejected
+fail/facts/dyn_returned_view_membership_through_call_result_rejected
+fail/facts/dyn_returned_view_membership_through_const_name_rejected
+fail/facts/dyn_returned_view_membership_through_field_rejected
+fail/facts/dyn_returned_view_membership_through_local_rejected
+fail/facts/dyn_returned_view_membership_through_match_join_rejected
+fail/facts/dyn_returned_view_membership_through_other_machine_rejected
+fail/facts/dyn_returned_view_membership_through_other_state_rejected
+fail/facts/dyn_returned_view_membership_through_parameter_rejected
+fail/facts/dyn_returned_view_membership_through_target_body_rejected
+fail/facts/dynamic_selected_reach_through_call_result_rejected
+fail/facts/dynamic_selected_reach_through_const_name_rejected
+fail/facts/dynamic_selected_reach_through_field_rejected
+fail/facts/dynamic_selected_reach_through_local_rejected
+fail/facts/dynamic_selected_reach_through_match_join_rejected
+fail/facts/dynamic_selected_reach_through_other_machine_rejected
+fail/facts/dynamic_selected_reach_through_other_state_rejected
+fail/facts/dynamic_selected_reach_through_parameter_rejected
+fail/facts/dynamic_selected_reach_through_target_body_rejected
+fail/facts/fixed_layout_bit_observation_through_call_result_rejected
+fail/facts/fixed_layout_bit_observation_through_const_name_rejected
+fail/facts/fixed_layout_bit_observation_through_field_rejected
+fail/facts/fixed_layout_bit_observation_through_local_rejected
+fail/facts/fixed_layout_bit_observation_through_match_join_rejected
+fail/facts/fixed_layout_bit_observation_through_other_machine_rejected
+fail/facts/fixed_layout_bit_observation_through_other_state_rejected
+fail/facts/fixed_layout_bit_observation_through_parameter_rejected
+fail/facts/fixed_layout_bit_observation_through_target_body_rejected
+fail/facts/fixed_region_byte_roundtrip_through_const_name_short_region_rejected
+```
+
+## Commands
+
+```bash
+# slice extraction (shard 1 → /tmp/shard0)
+grep -E '^(pass|fail|run)/.*@[0-9a-f]{12}\+wt' tests/omega/corpus_outcomes.txt \
+  | cut -d' ' -f1 | LC_ALL=C sort -u > /tmp/all.txt
+split -n l/6 -d -a1 /tmp/all.txt /tmp/shard
+
+# setup
+git checkout 3bbe5c131a15666f68a700f499783f04910e8143
+git checkout -b work/wt-rerecord-shard-1
+bash tools/agent_setup.sh && mbx xtask doctor
+
+# single batch (197 ≤ 200)
+FILTER="$(paste -sd, /tmp/shard0)"
+export OMEGA_CORPUS_JOBS=1
+nice -n 19 mbx xtask corpus --record --filter "$FILTER" < /dev/null
+```
+
+Full log: `/tmp/shard0_record.log` on the recording host.
+
+## Outcomes
+
+| Category | Count |
+| --- | --- |
+| Re-recorded | 197 |
+| Unchanged (stamp/ms only after clean `@3bbe5c131a15` re-pin) | 177 |
+| Changed (status and/or pinned diagnostics) | 20 |
+| Left `+wt` on slice | 0 |
+| `timeout` in slice | 0 |
+| Unsettled (not recorded) | 0 |
+
+## Changed rows and attribution
+
+All measurements on a clean tree at `3bbe5c131a15666f68a700f499783f04910e8143`. Prior lines carried `+wt` (uncommitted recording); fresh pins reflect compiler identity at the pinned commit, not this ledger-only change.
+
+### Rejection lost (`fail/` now `checked`)
+
+- `fail/boundary/named_foreign_provider_wrong_table`: `rejected expected` → `checked`. Already accepted on base; records the loss of the pinned rejection.
+
+### Pinned `expected` diagnostic no longer matches (`rejected unexpected`)
+
+**Requires-facts / invariant-window cluster (arithmetic + borrows):**
+
+- `fail/arithmetic/bounded_store_consumed_before_repair`
+- `fail/arithmetic/guarded_read_count_exceeds_target`
+- `fail/arithmetic/guarded_read_count_unguarded_arrival`
+- `fail/arithmetic/widened_result_predicate_invalid_write`
+- `fail/arithmetic/wrapping_guard_does_not_bound_original`
+- `fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant`
+- `fail/borrows/reference_record_field_predicate_invalid_store`
+- `fail/borrows/reference_record_index_predicate_invalid_store`
+
+Attribution: dirty stamps pinned older “assignment stores a value not provably within requires” text; base compiler rejects on invariant-window / unproved-`requires` after-call paths instead. Same obligation, different diagnostic surface — not attributed to host flake.
+
+**Other single fixtures:**
+
+- `fail/calls/selector_field_predicate_upper_bound`
+- `fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count`
+- `fail/domains/returned_record_scalar_predicate_invalidation`
+
+Attribution: same pattern — `expected` fragment from `+wt` recording does not match base `@3bbe5c131a15` rejection set (`unexpected`).
+
+**`correlated_invariant_store` transport-place cluster (facts):**
+
+- `fail/facts/correlated_invariant_store_through_call_result_rejected`
+- `fail/facts/correlated_invariant_store_through_const_name_rejected`
+- `fail/facts/correlated_invariant_store_through_local_rejected`
+- `fail/facts/correlated_invariant_store_through_match_join_rejected`
+- `fail/facts/correlated_invariant_store_through_other_machine_rejected`
+- `fail/facts/correlated_invariant_store_through_other_state_rejected`
+- `fail/facts/correlated_invariant_store_through_parameter_rejected`
+- `fail/facts/correlated_invariant_store_through_target_body_rejected`
+
+Attribution: cluster-wide move on base; dirty stamps held stale `expected` pins across all nine placements. Recorded as red rows per [Who may record a regression](https://github.com/cathedralos/omega/blob/3bbe5c131a15666f68a700f499783f04910e8143/tools/testing.md#who-may-record-a-regression) (ledger-only PR).
+
+## Unsettled
+
+None.
