@@ -61335,11 +61335,23 @@ pub(crate) mod structural_judgment {
                             // invariant with it, wherever the value was read from.
                             // A field reached only through a runtime array index is
                             // otherwise invisible to the entry-parameter facts.
+                            // A pending recast view is the exception: until its
+                            // predicate is proved over the source storage it is not
+                            // yet a valid value, and admitting the predicate here
+                            // would let the cast establish itself.
+                            let admits = !crate::value_custody::recasts::pending_views::withholds_default_predicate(
+                                self.program,
+                                scope.0,
+                                scope.1,
+                                local.initial_value,
+                            );
                             completed.paths.map(|paths| {
                                 paths
                                     .into_iter()
                                     .map(|mut path| {
-                                        if let Some(value) = path.observed_value().cloned() {
+                                        if admits
+                                            && let Some(value) = path.observed_value().cloned()
+                                        {
                                             path.judge.intake_admitted_value_predicates(
                                                 local.type_reference,
                                                 value,
