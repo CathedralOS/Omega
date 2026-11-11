@@ -166,6 +166,16 @@ machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
 // Requests name their resources; these owned frames need no external resource.
 data NoResources [copy] { }
 
+// The checker proves that a record is its own fields rebuilt, and that equal
+// fields rebuild equal records. Citing the first fact for both records gives
+// identity from field equality.
+machine pair_rebuilt<'value>(value: &'value Pair) reaches none terminates
+ensures core::Identity<Pair>(value, Pair { first: value.first, last: value.last }) { }
+machine pair_same<'left, 'right>(left: &'left Pair, right: &'right Pair) reaches none terminates
+requires left.first == right.first
+requires left.last == right.last
+ensures core::Identity<Pair>(left, right) { pair_rebuilt(left); pair_rebuilt(right); }
+
 FirstModel satisfies RepresentationModel<Pair, FirstFrame> {
     machine valid<'view>(frame: &'view FirstFrame) -> bool
     reaches none terminates { frame.tag == 165u8 }
@@ -175,7 +185,7 @@ FirstModel satisfies RepresentationModel<Pair, FirstFrame> {
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
-    ensures core::Identity<Pair>(left, right) { }
+    ensures core::Identity<Pair>(left, right) { pair_same(left, right); }
 }
 SecondModel satisfies RepresentationModel<Pair, SecondFrame> {
     machine valid<'view>(frame: &'view SecondFrame) -> bool
@@ -186,9 +196,95 @@ SecondModel satisfies RepresentationModel<Pair, SecondFrame> {
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
-    ensures core::Identity<Pair>(left, right) { }
+    ensures core::Identity<Pair>(left, right) { pair_same(left, right); }
 }
 
+// The original decoders publish no guarantee of their own, and a caller does
+// not see into a callee's branches. For a valid frame, `*_decodes` states what
+// the decoder returns and `read_*_valid` carries that statement onto the value
+// the call actually returns. For an invalid frame the row's own
+// `decode_rejects` law says the decoder fails. Each adapter picks its branch
+// by the row's validity test and then forwards to the original decoder.
+machine first_decodes(frame: FirstFrame) reaches none terminates
+requires FirstValidity::valid(frame)
+ensures core::Identity<Result<Pair, Failure>>(ReadFirst::try_from(frame), Result::Ok { value: Pair { first: frame.first, last: frame.last } }) { }
+machine read_first_valid(frame: FirstFrame) -> Result<Pair, Failure>
+reaches none terminates
+requires FirstValidity::valid(frame)
+ensures core::Identity<Result<Pair, Failure>>(result, Result::Ok { value: Pair { first: frame.first, last: frame.last } })
+{
+    first_decodes(frame);
+    ReadFirst::try_from(frame)
+}
+machine decode_first_valid(frame: FirstFrame, resources: NoResources) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
+reaches none terminates
+requires FirstValidity::valid(frame)
+ensures result in Result::Ok
+ensures result.value.value.first == frame.first
+ensures result.value.value.last == frame.last
+{
+    let decoded: Result<Pair, Failure> = read_first_valid(frame);
+    transition decoded {
+        Result::Err { error as error } -> Result::Err { error: error }
+        Result::Ok { value as restored } -> Result::Ok {
+            value: RepresentationRequest { value: restored, resources: resources }
+        }
+    }
+}
+machine decode_first_invalid(frame: FirstFrame) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
+reaches none terminates
+requires !FirstValidity::valid(frame)
+ensures result in Result::Err
+{
+    FirstAgreement::decode_rejects(frame);
+    let decoded: Result<Pair, Failure> = ReadFirst::try_from(frame);
+    transition decoded {
+        Result::Err { error as error } -> Result::Err { error: error }
+        Result::Ok { value as restored } -> Result::Ok {
+            value: RepresentationRequest { value: restored, resources: NoResources { } }
+        }
+    }
+}
+machine second_decodes(frame: SecondFrame) reaches none terminates
+requires SecondValidity::valid(frame)
+ensures core::Identity<Result<Pair, Failure>>(ReadSecond::try_from(frame), Result::Ok { value: Pair { first: frame.last, last: frame.first } }) { }
+machine read_second_valid(frame: SecondFrame) -> Result<Pair, Failure>
+reaches none terminates
+requires SecondValidity::valid(frame)
+ensures core::Identity<Result<Pair, Failure>>(result, Result::Ok { value: Pair { first: frame.last, last: frame.first } })
+{
+    second_decodes(frame);
+    ReadSecond::try_from(frame)
+}
+machine decode_second_valid(frame: SecondFrame, resources: NoResources) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
+reaches none terminates
+requires SecondValidity::valid(frame)
+ensures result in Result::Ok
+ensures result.value.value.first == frame.last
+ensures result.value.value.last == frame.first
+{
+    let decoded: Result<Pair, Failure> = read_second_valid(frame);
+    transition decoded {
+        Result::Err { error as error } -> Result::Err { error: error }
+        Result::Ok { value as restored } -> Result::Ok {
+            value: RepresentationRequest { value: restored, resources: resources }
+        }
+    }
+}
+machine decode_second_invalid(frame: SecondFrame) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
+reaches none terminates
+requires !SecondValidity::valid(frame)
+ensures result in Result::Err
+{
+    SecondAgreement::decode_rejects(frame);
+    let decoded: Result<Pair, Failure> = ReadSecond::try_from(frame);
+    transition decoded {
+        Result::Err { error as error } -> Result::Err { error: error }
+        Result::Ok { value as restored } -> Result::Ok {
+            value: RepresentationRequest { value: restored, resources: NoResources { } }
+        }
+    }
+}
 StandardWriteFirst<'value> satisfies TryFrom<RepresentationRequest<&'value Pair, NoResources>, FirstFrame, Failure> {
     machine try_from(source: RepresentationRequest<&'value Pair, NoResources>) -> Result<FirstFrame, Failure>
     reaches none terminates
@@ -203,14 +299,10 @@ StandardReadFirst<'frame> satisfies TryFrom<RepresentationDecodeRequest<'frame, 
     ensures FirstModel::valid(source.frame) == (result in Result::Ok)
     ensures (result in Result::Err) || FirstModel::represents(source.frame, &result.value.value)
     {
-        let decoded: Result<Pair, Failure> = ReadFirst::try_from(FirstFrame {
-            tag: source.frame.tag, first: source.frame.first, last: source.frame.last
-        });
-        transition decoded {
-            Result::Err { error as error } -> Result::Err { error: error }
-            Result::Ok { value as restored } -> Result::Ok {
-                value: RepresentationRequest { value: restored, resources: source.resources }
-            }
+        let frame: FirstFrame = FirstFrame { tag: source.frame.tag, first: source.frame.first, last: source.frame.last };
+        transition FirstValidity::valid(frame) {
+            true -> decode_first_valid(frame, source.resources)
+            false -> decode_first_invalid(frame)
         }
     }
 }
@@ -228,14 +320,10 @@ StandardReadSecond<'frame> satisfies TryFrom<RepresentationDecodeRequest<'frame,
     ensures SecondModel::valid(source.frame) == (result in Result::Ok)
     ensures (result in Result::Err) || SecondModel::represents(source.frame, &result.value.value)
     {
-        let decoded: Result<Pair, Failure> = ReadSecond::try_from(SecondFrame {
-            tag: source.frame.tag, first: source.frame.first, last: source.frame.last
-        });
-        transition decoded {
-            Result::Err { error as error } -> Result::Err { error: error }
-            Result::Ok { value as restored } -> Result::Ok {
-                value: RepresentationRequest { value: restored, resources: source.resources }
-            }
+        let frame: SecondFrame = SecondFrame { tag: source.frame.tag, first: source.frame.first, last: source.frame.last };
+        transition SecondValidity::valid(frame) {
+            true -> decode_second_valid(frame, source.resources)
+            false -> decode_second_invalid(frame)
         }
     }
 }
