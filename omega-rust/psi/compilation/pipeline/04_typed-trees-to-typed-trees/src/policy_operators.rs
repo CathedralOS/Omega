@@ -175,9 +175,15 @@ fn plan(
         .map_err(|diagnostic| diagnostic.with_source_span(span))?;
     let (carrier, cast_left, cast_right) = match (left, right) {
         (Operand::Carrier(left), Operand::Carrier(right)) => {
-            if program.type_reference_table.type_symbol(left)
-                != program.type_reference_table.type_symbol(right)
-            {
+            // `type_symbol` answers the invalid handle for every primitive
+            // name, so it cannot tell `u32` from `u64`; the named symbol can.
+            let named = |reference| {
+                program
+                    .type_reference_table
+                    .type_reference(reference)
+                    .as_named_symbol()
+            };
+            if named(left) != named(right) {
                 return Err(Diagnostic::error(format!(
                     "`{spelling}` needs both operands in one fixed-width integer carrier, found `{}` and `{}`; convert one operand explicitly",
                     program.display_type_reference(left),
@@ -337,11 +343,16 @@ fn retain_policy_type(
     carrier: TypeReferenceHandle,
     policy: ArithmeticDomain,
 ) {
-    let symbol = program.type_reference_table.type_symbol(carrier);
     if program
         .type_reference_table
-        .find_arithmetic_result_type_reference(symbol, policy)
-        .is_some()
+        .type_reference(carrier)
+        .as_named_symbol()
+        .is_some_and(|symbol| {
+            program
+                .type_reference_table
+                .find_arithmetic_result_type_reference(symbol, policy)
+                .is_some()
+        })
     {
         return;
     }
