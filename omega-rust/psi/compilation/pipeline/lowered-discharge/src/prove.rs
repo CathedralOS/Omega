@@ -18,7 +18,10 @@ best upper and lower literal bound, each with a node concluding
 - its own result equation when it is an exact multiply: the bound on the
   mathematical product (`IntegerAffineBound`) carried through the equation
   (`ValueEqualityTransport`) and restated in the carrier
-  (`IntegerOrderSubstitution`).
+  (`IntegerOrderSubstitution`);
+- its own result equation when it is a divide, remainder, shift, bitwise and
+  or bitwise or with one literal operand: a one-step endpoint chain the
+  kernel replays (`ranges`).
 
 Goals decompose structurally (conjunction, disjunction, antisymmetry for
 equality). A comparison closes when the left side's bound and the right
@@ -44,14 +47,16 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::values::ValueRow;
 
+mod ranges;
+
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, integer orders and
-/// equalities, and an arithmetic bound of an add, subtract or multiply
-/// against a literal. Anything else the prover can only take from an equal
+/// equalities, and an arithmetic bound of an add, subtract, multiply or
+/// left shift against a literal. Anything else the prover can only take from an equal
 /// hypothesis, so a failure on it says nothing about the program: it is
 /// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
 /// `NoDerivation`.
@@ -71,6 +76,7 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
                     IntegerMathTerm::Add(..)
                         | IntegerMathTerm::Subtract(..)
                         | IntegerMathTerm::Multiply(..)
+                        | IntegerMathTerm::ShiftLeft { .. }
                 )
             };
             match (left, right) {
@@ -381,7 +387,30 @@ impl<'a> Prover<'a> {
         {
             return direct;
         }
-        self.split(goal).ok_or(direct.err().unwrap_or("no proof"))
+        if let Some(split) = self.split(goal) {
+            return Ok(split);
+        }
+        self.unreachable(goal)
+            .ok_or(direct.err().unwrap_or("no proof"))
+    }
+
+    /// `goal` at a point no execution reaches: some order fact known there
+    /// contradicts the rest, so anything follows
+    /// (`wiki/spec/proofs/contracts.md`, "Required automatic discharge":
+    /// order reasoning includes "contradiction of an unreachable path"). The
+    /// derivation is `refute`'s, applied to a fact instead of a split
+    /// alternative. It is tried last, so a reachable point pays for it only
+    /// when its goal is otherwise unproved.
+    fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let orders: Vec<ProofNode> = self
+            .facts
+            .iter()
+            .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
+            .map(|fact| fact.proof.clone())
+            .collect();
+        orders
+            .into_iter()
+            .find_map(|known| self.refute(known, goal))
     }
 
     /// `goal` from a disjunctive fact (a disequality guard transports to
@@ -730,6 +759,18 @@ impl<'a> Prover<'a> {
                         ));
                     }
                 }
+                // `a % d < d` for an unsigned remainder when `0 < d`.
+                Proposition::Equal(
+                    output,
+                    expression @ ScalarTerm::ExactIntegerRemainder { .. },
+                ) if output == at => {
+                    if let Some(axiom) = axiom
+                        && let Some((divisor, below)) =
+                            self.remainder_below_divisor(axiom, output, expression)
+                    {
+                        steps.push((divisor, below, true));
+                    }
+                }
                 _ => {}
             }
         }
@@ -935,9 +976,25 @@ impl<'a> Prover<'a> {
                 let other = if left == subject { right } else { left };
                 self.through(weaken(proof).ok()?, other, direction)
             }
-            // Exact add, subtract and multiply result equations.
+            // Result equations: the output's bound from its operands' bounds.
             (Proposition::Equal(output, expression), _) if output == subject => {
-                self.definition(axiom?, subject, integer, expression, direction)
+                let axiom = axiom?;
+                let defined = self.definition(axiom, subject, integer, expression, direction);
+                // An unsigned remainder is also below its divisor.
+                let below = (direction == Direction::Upper)
+                    .then(|| self.remainder_below_divisor(axiom, subject, expression))
+                    .flatten()
+                    .and_then(|(divisor, relation)| self.through(relation, &divisor, direction));
+                match (defined, below) {
+                    (Some(defined), Some(below)) => Some(
+                        if integer.compare(below.literal, defined.literal) == Some(Ordering::Less) {
+                            below
+                        } else {
+                            defined
+                        },
+                    ),
+                    (defined, below) => defined.or(below),
+                }
             }
             _ => None,
         }
@@ -1005,7 +1062,7 @@ impl<'a> Prover<'a> {
             ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 (left, right, direction.opposite(), false)
             }
-            _ => return None,
+            _ => return self.chain_step(axiom, subject, integer, expression, direction),
         };
         let left_proof = self.evidence(left, direction).ok()?;
         let right_proof = self.evidence(right, right_direction).ok()?;
@@ -1283,7 +1340,10 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),
             IntegerMathTerm::Multiply(first, second) => (Arithmetic::Multiply, first, second),
-            IntegerMathTerm::ShiftLeft { .. } => return Err("shift-left bound is not built"),
+            IntegerMathTerm::ShiftLeft { value, count } => {
+                let affine = self.shift_left_image(value, count, direction)?;
+                return self.land(affine, term, limit, direction);
+            }
             _ => return Err("arithmetic goal over a single term"),
         };
         let integer = [first.as_ref(), second.as_ref()]
@@ -1319,6 +1379,19 @@ impl<'a> Prover<'a> {
         }
         .map_err(|_| "operation term")?;
         let affine = self.image(operation, &first, &second, target, direction)?;
+        self.land(affine, term, limit, direction)
+    }
+
+    /// The goal `term <= limit` (or `limit <= term`) from `affine`, the
+    /// kernel's image bound on `term`: the image itself when it is the goal,
+    /// or chained with the closed relation between the image and the limit.
+    fn land(
+        &self,
+        affine: ProofNode,
+        term: &IntegerMathTerm,
+        limit: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
         let image = affine.conclusion.clone();
         let image_term = match (&image, direction) {
             (Proposition::IntegerMathLessOrEqual(term, _), Direction::Upper)

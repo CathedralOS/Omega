@@ -309,10 +309,20 @@ multiply result has no definition rule and needs none: the prover bounds the
 mathematical product with `IntegerAffineBound` (the least or greatest of the
 four corner products of the operands' bounds), carries that bound through the
 result equation with `ValueEqualityTransport`, and restates it in the carrier
-with `IntegerOrderSubstitution`. A
+with `IntegerOrderSubstitution`. The result of a divide, a remainder, a shift, a
+bitwise and or a bitwise or gets its bound from a one-step endpoint chain
+([prove/ranges.rs](src/prove/ranges.rs)): the witness roots at the operand
+that is a value, cites the result equation as its only definition and lands
+the other operand on the earlier equation that fixes it to a literal, and the
+kernel replays the step on the root's bound. This is the range propagation
+that [required automatic discharge](../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)
+asks of every checker. An unsigned remainder is also below a divisor known
+positive, whatever the divisor is. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
-image of the operands' bounds the kernel itself computes.
+image of the operands' bounds the kernel itself computes; an exact left
+shift's goal uses the kernel's direct shift form, from the value's bound and
+the count's literal or upper bound.
 
 The same prover carries relations between values, with no literal endpoint.
 A comparison between two values searches order steps between values:
@@ -323,7 +333,13 @@ kernel's correlated unsigned subtract. A goal the direct search misses is
 split over a disjunctive fact (a disequality guard transports to `v < k or
 k < v`): each alternative proves the goal as a local assumption or
 contradicts what is known (`DisjunctionElimination`, contradiction
-elimination). Splits do not nest.
+elimination). Splits do not nest. A goal still unproved is tried last as a
+goal on an unreachable path: when an order fact known at the point
+contradicts the bounds of its own endpoints (`requires count >= 10` under the
+guard `count < 5`), chaining the two gives a closed false relation between
+literals, whose denotation is `Falsehood`, and the goal follows
+([integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
+"closes an impossible arrival without pruning that arrival").
 
 `verify_obligation` then decides the whole certificate. Its acceptance records
 whether the mathematical core judged it as well. Most certificates are
@@ -331,6 +347,37 @@ whether the mathematical core judged it as well. Most certificates are
 `a <= 9`, `0 < a` to `1 <= a`) is accepted by the rule checker and answered
 `Refused` by the core. Both count as discharged, and the comparison harness
 reports them apart.
+
+### What the integer rules do not reach
+
+Each of these is true in the programs that need it and has no derivation in
+the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
+so the obligation is `Unproved`. None is worked around here.
+
+- *A contradiction between two values with no literal.* `low <= high`
+  under the guard `high < low` chains to `high < high`. A closed false
+  relation has the denotation `Falsehood` only between two literals, so
+  nothing follows. Required automatic discharge counts "contradiction of
+  an unreachable path" among order atoms as floor
+  (`pass/contracts/contradictory_relational_branch_exit`).
+- *A quotient or remainder by a divisor that is not a literal.* The
+  endpoint chain replays a divide or remainder only by a literal or
+  landed divisor. `value / divisor` with `divisor >= 2`, and
+  `value % divisor` bounded by the dividend's own bounds, get only what
+  the relational unsigned remainder form gives (`result < divisor`)
+  (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`,
+  `runtime_bounded_dividend_remainder_exit`).
+- *A quotient related to its dividend.* `value / 2 <= value` is a
+  relation between two values; the chain maps literal endpoints only
+  (`run/contracts/scalar_crash_route_exit`).
+- *A bitwise operation of two known operands.* A mask bounds its result
+  in `[0, mask]`, but `-9 & 15 == 7` needs the operation evaluated, and
+  closed evaluation covers add, subtract, multiply and left shift only.
+  Exclusive or has no rule at all
+  (`pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit`).
+- *A relation through a multiply.* `value * value >= value` for
+  `value >= 1`; beyond the floor, which propagates ranges only
+  (`pass/arithmetic/nonlinear_square_positive_operand_exit`).
 
 ## Why this route and not the arithmetic engine
 
@@ -362,10 +409,11 @@ subset needs, so the prover emits them directly.
    `MachineContract`, identified by machine and position, which is what
    `CallRequirement` and `CalleeGuarantee` use. `CheckTables::summaries`
    stays empty; the discharge reads callee contracts from the module.
-4. **Shift-left representability is not built.** The kernel has a direct
-   shift route (`map_direct_shift_left_bound`); this prover does not build
-   its evidence, so an exact `<<` whose count is not a literal zero is
-   `Unproved`.
+4. **Shift-left representability uses the kernel's direct shift form.**
+   The evidence is the value's bound and, for the count, the equation that
+   fixes it to a literal or else its upper bound (with `0 <= count` when the
+   count is signed); the kernel picks the count endpoint by the sign of the
+   value's bound (`map_direct_shift_left_bound`).
 5. **The read equation needs no kernel rule.** `read == v` is passed to the
    kernel as a semantic axiom, like every operation equation, and the
    existing equality steps carry it: a bound on `v` bounds the read, and two
@@ -498,7 +546,7 @@ route's decision from. It discharges an elaborated closure and returns:
   once, at that return.
 - `Incomplete`: every unproved obligation's goal has a form the prover has no
   rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
-  shift-left bound, a proposition form it does not reason about). The program
+  proposition form it does not reason about). The program
   may be valid and the route cannot judge it, so this is the outcome table's
   "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
   artifact and no fallback either. `Reject` wins when both kinds occur. The
