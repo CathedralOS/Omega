@@ -6395,6 +6395,108 @@ pub(crate) mod declared_frontier_tests {
         let excessive = array(&mut program, applied, super::MAX_REFERENCE_ORIGIN_LEAVES);
         assert!(declared_carrier_references(&program, excessive).is_none());
     }
+
+    /*
+        A const argument fixes how many reference leaves an application holds, so
+        two applications of one declaration with different counts must not share a
+        leaf roster or an identity. Without its argument, the generic body's array
+        is opaque: the complete inventory refuses it rather than guessing a count.
+    */
+    #[test]
+    fn const_argument_fixes_the_leaf_count_of_each_application() {
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::expression::ExpressionNode;
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("const_test"));
+        let holder = builder
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Holder"))])
+            .start();
+        let count = builder
+            .insert_children(
+                holder,
+                [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
+            )
+            .start();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: ReferenceAccess::Mutable,
+                lifetime: Some(Identifier::from("loan")),
+            });
+        let u64_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let counted = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: reference,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: count,
+                    name: Identifier::from("N"),
+                },
+            });
+        let parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: count,
+            name: Identifier::from("N"),
+            kind: TypeParameterKind::Const {
+                type_reference: u64_type,
+            },
+            ..TypeParameter::default()
+        }]);
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                identity: Some(5),
+                name: Identifier::from("items"),
+                type_reference: counted,
+                ..DataField::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: holder,
+            name: Identifier::from("Holder"),
+            type_parameters: parameters,
+            members,
+            ..DataDefinition::default()
+        });
+        let mut applied = Vec::new();
+        for value in [1, 2] {
+            let expression = program.expression_table.insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(value),
+            ));
+            let argument = program
+                .type_reference_table
+                .insert(TypeReferenceNode::ConstExpression(expression));
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles([argument]);
+            applied.push(
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol: holder,
+                        base_name: Identifier::from("Holder"),
+                        lifetime_arguments: Vec::new(),
+                        arguments,
+                    }),
+            );
+        }
+        let one = declared_carrier_references(&program, applied[0]).unwrap();
+        let two = declared_carrier_references(&program, applied[1]).unwrap();
+        assert_eq!(one.len(), 1);
+        assert_eq!(two.len(), 2);
+        assert_ne!(
+            program.normalized_type_identity(applied[0]),
+            program.normalized_type_identity(applied[1])
+        );
+        assert!(declared_carrier_references(&program, counted).is_none());
+        let inventory = super::declared_carrier_inventory(&program, counted).unwrap();
+        assert!(inventory.known.is_empty());
+        assert_eq!(inventory.opaque.len(), 1);
+    }
 }
 pub(crate) mod declared_returns {
     use super::{is_mutable_structural_parameter, loan_owner_path, record_carrier_sources};
@@ -6955,8 +7057,10 @@ fn reference_origin_expansion_bound(
                 if element_leaves == 0 {
                     return Some(());
                 }
-                let typed_trees::types::FixedArrayLength::Literal(length) = length else {
-                    return None;
+                // An extent this scope cannot count is an opaque leaf for the
+                // inventory and unbounded for every other judgment.
+                let Some(length) = &fixed_array_extent(program, scopes, length, scope) else {
+                    return opaque_type_parameters.then_some(());
                 };
                 *leaves = before.checked_add(element_leaves.checked_mul(*length)?)?;
                 return (*leaves <= MAX_REFERENCE_ORIGIN_LEAVES).then_some(());
@@ -7670,6 +7774,38 @@ pub struct DeclaredCarrierReference {
 }
 
 /*
+    The element count of a fixed array in this declaration scope: a literal, or a
+    const parameter bound to an integer argument by an enclosing application
+    (`values: [u8; Count]` inside `Owner<_, 2>`). An unbound parameter, as in the
+    generic body itself, or any other extent has no count here.
+*/
+fn fixed_array_extent(
+    program: &dyn CheckingInput,
+    scopes: &DeclarationScopes,
+    length: &typed_trees::types::FixedArrayLength,
+    scope: usize,
+) -> Option<usize> {
+    match length {
+        typed_trees::types::FixedArrayLength::Literal(length) => Some(*length),
+        typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+            let (argument, _) = scopes.bound_argument(*symbol, scope)?;
+            let TypeReferenceNode::ConstExpression(expression) =
+                program.type_reference_table.type_reference(argument)
+            else {
+                return None;
+            };
+            let typed_trees::expression::ExpressionNode::Integer(value) =
+                program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            usize::try_from(value.value_u64()?).ok()
+        }
+        _ => None,
+    }
+}
+
+/*
     The declared reference leaves of a carrier type, together with every place
     whose type is an unbound type parameter. A generic body cannot see what such
     a parameter is instantiated with, so the place may or may not hold references:
@@ -7741,8 +7877,9 @@ pub fn declared_carrier_inventory(
         }
         if let TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
+            length,
         } = program.type_reference_table.type_reference(reference)
+            && let Some(length) = &fixed_array_extent(program, scopes, length, scope)
         {
             if *length == 0 {
                 return Some(());
