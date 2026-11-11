@@ -17282,7 +17282,7 @@ fail/proofs/negated_guard_after_mutation rejected 2053ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from changed at statement 2: !selection.enabled || result == 1
 fail/proofs/nested_boolean_target_family_requires_agreement rejected 2299ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: relay() == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/nested_machine_computed_rank_preserving rejected 833ms expected @ccdb99ca2214
+fail/proofs/nested_machine_computed_rank_preserving rejected 5327ms expected @860ee26eb0c7
 	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/proofs/nested_machine_escaping_selection_rejected rejected 3076ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17554,11 +17554,11 @@ fail/proofs/runtime_case_guarantee_wrong_borrow_subject rejected 2335ms expected
 	cannot prove requires contract for call observe from main: other == constructor:80:package:387bc50c285a4a6f651922c244ebfc7d36bdd3731f0b5b4672158a5326225aa8::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/runtime_case_guarantee_wrong_return rejected 1798ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from make at statement 0: result == Choice::Cell
-fail/proofs/runtime_static_result_projection_effectful_citation rejected 12557ms expected @ccdb99ca2214
+fail/proofs/runtime_static_result_projection_effectful_citation rejected 61901ms expected @860ee26eb0c7
 	theorem citation `effectful_projection` must be effect-free; proof citations cannot declare or infer service reach, suspension, blocking, crashes, or mutable state
-fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 70175ms expected @ee4dbb4b2d56
+fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 60164ms expected @860ee26eb0c7
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
-fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 11842ms expected @ccdb99ca2214
+fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 59870ms expected @860ee26eb0c7
 	recursive proof machine `nonterminating_projection` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 fail/proofs/scalar_field_snapshot_after_alias_store rejected 5887ms expected regressed-from:checked @7a899fdd171e
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17589,13 +17589,13 @@ fail/proofs/selected_case_equality_does_not_establish_membership rejected 3559ms
 	cannot prove requires contract for call require_first from guarded: value == constructor:80:package:d29a6691d4aa6a9957a175d27f5d86a1e8200cd3557e5428c4404c14bd4a650c::Choice10:name:First (needs fact `value == Choice::First` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 7184ms expected @ee4dbb4b2d56
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/proofs/selected_specification_requires_false_result rejected 791ms expected @ccdb99ca2214
-	machine `identity` ensures contract proof fact `selected_identity<Modulus>(value) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/proofs/selected_specification_requires_missing_premise rejected 1121ms expected @e97ed21415d9
+fail/proofs/selected_specification_requires_false_result rejected 12200ms expected @860ee26eb0c7
+	machine `identity` ensures contract proof fact `core::Identity<Nat>(selected_identity<Modulus>(value), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/proofs/selected_specification_requires_missing_premise rejected 11624ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/selected_specification_requires_wrong_machine rejected 692ms expected @ccdb99ca2214
+fail/proofs/selected_specification_requires_wrong_machine rejected 12464ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/selected_specification_requires_wrong_subject rejected 1102ms expected @ccdb99ca2214
+fail/proofs/selected_specification_requires_wrong_subject rejected 10617ms expected @860ee26eb0c7
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/self_call_without_witness_not_denotational rejected 2124ms expected @ccdb99ca2214
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
@@ -17610,7 +17610,8 @@ fail/proofs/static_machine_result_effectful_contract rejected 5955ms expected @0
 	machine `unproved` ensures contract proof fact `core::Identity<Nat>(project<Read>(index), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
-fail/proofs/static_machine_result_partial_contract rejected 1840ms expected @ccdb99ca2214
+fail/proofs/static_machine_result_partial_contract rejected 5079ms expected @860ee26eb0c7
+	machine `unproved` ensures contract proof fact `core::Identity<Nat>(project<Read>(index), Nat)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 	specification call `project` has no observation-free, reach-free, crash-free value denotation: the selected closure has effects, reaches, or unresolved call targets
 fail/proofs/static_machine_result_wrong_field rejected 759ms expected @ccdb99ca2214
@@ -27443,7 +27444,7 @@ pass/proofs/runtime_sequential_ranked_components_exit rejected 10212ms check-tar
 	cannot prove ensures contract for exit from descend at statement 2: result <= previous
 pass/proofs/runtime_sequential_relational_accumulator_exit rejected 10107ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 2: result <= previous
-pass/proofs/runtime_static_result_projection_citation_exit checked 13375ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/runtime_static_result_projection_citation_exit checked 63471ms check-target:macos_arm64 @860ee26eb0c7
 pass/proofs/runtime_two_state_accumulator_exit rejected 11911ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 1: result <= previous
 pass/proofs/scalar_copy_guard_const_forwarding checked 2207ms @ccdb99ca2214
@@ -27457,25 +27458,16 @@ pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:
 pass/proofs/selected_boolean_policy_attached_exit checked 3562ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_boolean_policy_exit checked 3545ms check-target:macos_arm64 @e7ad8aab1953+wt
 pass/proofs/selected_map_law_application_exit checked 7701ms check-target:macos_arm64 @089c0a150e63
-pass/proofs/selected_specification_requires_composition rejected 1567ms regressed-from:checked @ccdb99ca2214
-	specification call `Right` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Left` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Second` is not denotational: the selected machine is not unconditionally terminating
-	specification call `First` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_exact rejected 2065ms regressed-from:checked @ccdb99ca2214
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_renamed rejected 1643ms regressed-from:checked @ccdb99ca2214
-	specification call `Choice` is not denotational: the selected machine is not unconditionally terminating
-	specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating
-pass/proofs/selected_specification_requires_state rejected 8ms regressed-from:checked @ccdb99ca2214
-	tests/omega/pass/proofs/selected_specification_requires_state/main.omg:11:5: expected transition subject expression
+pass/proofs/selected_specification_requires_composition checked 16453ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_exact checked 18776ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_renamed checked 15986ms @860ee26eb0c7
+pass/proofs/selected_specification_requires_state checked 14631ms @860ee26eb0c7
 pass/proofs/separated_range_result_exit checked 4035ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/short_circuit_rhs_entry_bound checked 3822ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/specification_case_exclusion_unique_payload checked 5321ms @ceec2d4e7d8b
 pass/proofs/static_machine_result_projection checked 2679ms @ccdb99ca2214
 pass/proofs/stride_pair_telescope checked 6824ms @d352d5e8e77e
-pass/proofs/structural_application_decreasing_actuals_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/structural_application_decreasing_actuals_exit checked 9748ms check-target:macos_arm64 @860ee26eb0c7
 pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit checked 20405ms check-target:macos_arm64 @4815ea579d91
