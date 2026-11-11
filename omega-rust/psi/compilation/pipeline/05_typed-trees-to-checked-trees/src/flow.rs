@@ -5357,40 +5357,55 @@ mod statements {
             };
             // Assignments and declarations take their destination from the
             // branches above, which do not see the values that die inside the
-            // statement; their cleanup may store through held exclusive references.
-            let storage_writes = match (storage_writes, build.call_frames) {
-                (Some(mut writes), Some(frames))
-                    if (statement.as_assignment().is_some()
-                        || statement.as_local_data().is_some())
-                        && frames
-                            .statement_cleanup_write_frame(machine, statement)
-                            .complete_paths()
-                            .is_none_or(|paths| !paths.is_empty()) =>
-                {
-                    let frame = frames.statement_cleanup_write_frame(machine, statement);
-                    let cleanup = crate::flow::frame_storage_writes(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        statement_index,
-                        &frame,
-                        build.call_frames,
-                    );
-                    if ::validation::trace_flags::struct_trace() {
-                        eprintln!(
-                            "FLOW statement-cleanup-writes caller={} state={} statement={statement_index} frame={frame:?} places={cleanup:?}",
-                            machine.name, state.name
-                        );
-                    }
-                    cleanup.map(|cleanup| {
-                        for place in cleanup {
-                            crate::shared::collections::push_unique(&mut writes, place);
+            // statement: the value an assignment displaces and unnamed
+            // temporaries. Their cleanup may store through exclusive references
+            // they held. `None` is an unknown footprint; a program that selects
+            // cleanup has one whenever no resolver can name the dying values.
+            let cleanup_writes = if statement.as_assignment().is_some()
+                || statement.as_local_data().is_some()
+            {
+                match build.call_frames {
+                    Some(frames) => {
+                        let frame = frames.statement_cleanup_write_frame(machine, statement);
+                        let cleanup =
+                            if frame.complete_paths().is_some_and(|paths| paths.is_empty()) {
+                                Some(Vec::new())
+                            } else {
+                                crate::flow::frame_storage_writes(
+                                    program,
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    &frame,
+                                    build.call_frames,
+                                )
+                            };
+                        if ::validation::trace_flags::struct_trace() {
+                            eprintln!(
+                                "FLOW statement-cleanup-writes caller={} state={} statement={statement_index} frame={frame:?} places={cleanup:?}",
+                                machine.name, state.name
+                            );
                         }
-                        writes
-                    })
+                        cleanup
+                    }
+                    None if program.cleanup_selections().next().is_some() => None,
+                    None => Some(Vec::new()),
                 }
-                (writes, _) => writes,
+            } else {
+                Some(Vec::new())
             };
+            let with_cleanup = |writes: Option<Vec<validation::CanonicalPlace>>| {
+                let mut writes = writes?;
+                for place in cleanup_writes.as_ref()? {
+                    crate::shared::collections::push_unique(&mut writes, place.clone());
+                }
+                Some(writes)
+            };
+            let storage_writes = with_cleanup(storage_writes);
+            // The snapshot's binding rows answer inline-field queries, so a
+            // cleanup write to `counter.drops` must be among them, not only
+            // among the content rows.
+            let final_storage_writes = with_cleanup(final_storage_writes);
             let operand_writes = build
                 .control
                 .statements
@@ -5630,11 +5645,20 @@ mod statements {
                         .statements
                         .get(statement_fact)
                         .storage_snapshot;
+                    // Temporaries of the initializer die inside this statement;
+                    // their cleanup places join the declared local's rows.
+                    let written = cleanup_writes.as_ref().map(|cleanup| {
+                        let mut written = vec![destination.clone()];
+                        for place in cleanup {
+                            crate::shared::collections::push_unique(&mut written, place.clone());
+                        }
+                        written
+                    });
                     let snapshot = append_place_writes(
                         &mut build.control,
                         snapshot,
-                        Some(std::slice::from_ref(&destination)),
-                        Some(std::slice::from_ref(&destination)),
+                        written.as_deref(),
+                        written.as_deref(),
                     );
                     build
                         .control

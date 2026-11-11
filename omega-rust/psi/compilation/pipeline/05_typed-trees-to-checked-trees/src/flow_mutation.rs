@@ -4680,6 +4680,10 @@ pub(crate) fn statement_storage_writes(
                 call_frames,
             )?;
         }
+    } else if program.cleanup_selections().next().is_some() {
+        // Nothing can name the values that die here, so their cleanup
+        // footprint is unknown rather than empty.
+        return None;
     }
     if !matches!(statement, StatementNode::Assignment(_)) {
         return Some(places);

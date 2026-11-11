@@ -11601,7 +11601,8 @@ pub(crate) mod write_frames {
         }
 
         /// The cleanup paths of unnamed values built inside `root` that the
-        /// statement only borrows or projects, such as `&Pair { .. }.second`.
+        /// statement only borrows, projects, indexes or matches on, such as
+        /// `&Pair { .. }.second`, `make(..)[0]` and `match make(..) { .. }`.
         /// Nothing receives such a value, so it dies when the statement ends.
         /// Its storage has no name to re-root a hook summary at, so each
         /// exclusive reference it holds is charged with its whole origin.
@@ -11620,16 +11621,22 @@ pub(crate) mod write_frames {
                     continue;
                 }
                 let node = program.expression_table.expression(expression);
+                // A borrow, a field or element projection and a `match` subject
+                // all read a value without giving it a home.
                 let observed = match node {
                     ExpressionNode::Borrow(borrow) => Some(borrow.target),
                     ExpressionNode::Member(member) => Some(member.receiver),
+                    ExpressionNode::Indexed(indexed) => Some(indexed.collection),
+                    ExpressionNode::Match(dispatch) => Some(dispatch.subject),
                     _ => None,
                 };
                 if let Some(mut base) = observed {
-                    while let ExpressionNode::Member(member) =
-                        program.expression_table.expression(base)
-                    {
-                        base = member.receiver;
+                    loop {
+                        base = match program.expression_table.expression(base) {
+                            ExpressionNode::Member(member) => member.receiver,
+                            ExpressionNode::Indexed(indexed) => indexed.collection,
+                            _ => break,
+                        };
                     }
                     if matches!(
                         program.expression_table.expression(base),
@@ -12273,6 +12280,23 @@ pub(crate) mod write_frames {
                 };
                 let replaces_local_binding =
                     super::reference_subjects::replaces_binding(program, machine, statement)?;
+                // A cyclic state displaces values and drops temporaries like any
+                // other state, so the same statement cleanup rows join its
+                // direct writes.
+                super::cleanup_writes::push_statement_cleanup_writes(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    parameters,
+                    &locals,
+                    &local_alias_origins,
+                    &[],
+                    &stored,
+                    symbols,
+                    &mut inference,
+                    &mut direct_writes,
+                )?;
                 if stored_origins::statement_exposes_frozen_binding(
                     program,
                     machine,

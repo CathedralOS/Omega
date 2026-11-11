@@ -11184,6 +11184,56 @@ pub(crate) mod guard_narrowing {
                 }
             }
 
+            /*
+                A value that dies inside the statement (the one an assignment
+                displaces, an unnamed temporary of an initializer) runs its
+                `dropped by` hook, which may store through exclusive references
+                the value held. Those places are neither the destination nor a
+                call's summary, so they are retired here. Without a resolver the
+                dying values cannot be named: a statement that builds or calls
+                anything then has an unknown footprint.
+            */
+            fn statement_cleanup_writes(
+                &self,
+                source: &State,
+                statement: &StatementNode,
+                value: ExpressionHandle,
+                environment: &mut ValueEnvironment,
+            ) {
+                match self.frames {
+                    Some(frames) => {
+                        let frame = frames.statement_cleanup_write_frame(self.machine, statement);
+                        match frame.complete_paths() {
+                            Some([]) => {}
+                            Some(paths) => {
+                                environment.invalidate_call_paths(self.program, Some(source), paths)
+                            }
+                            None => {
+                                environment.invalidate_unknown_writes(self.program, Some(source))
+                            }
+                        }
+                    }
+                    None => {
+                        if self.program.cleanup_selections().next().is_some()
+                            && crate::executable_subtree_any(
+                                self.program,
+                                value,
+                                typed_trees::SubtreeEdges::VALUES,
+                                |_, node| match node {
+                                    typed_trees::expression::ExpressionNode::Call(_)
+                                    | typed_trees::expression::ExpressionNode::StructLiteral(_) => {
+                                        typed_trees::SubtreeVisit::Found
+                                    }
+                                    _ => typed_trees::SubtreeVisit::Descend,
+                                },
+                            )
+                        {
+                            environment.invalidate_unknown_writes(self.program, Some(source));
+                        }
+                    }
+                }
+            }
+
             fn expression_effects(
                 &self,
                 source: &State,
@@ -11574,6 +11624,12 @@ pub(crate) mod guard_narrowing {
                                 local,
                                 environment,
                             );
+                            self.statement_cleanup_writes(
+                                source,
+                                statement,
+                                local.initial_value,
+                                environment,
+                            );
                             environment.invalidate_written_paths(std::slice::from_ref(&path));
                             environment.set(path.clone(), value.interval);
                             super::super::publish_slice_length(
@@ -11739,6 +11795,12 @@ pub(crate) mod guard_narrowing {
                             } else {
                                 environment.invalidate_unknown_writes(self.program, Some(source));
                             }
+                            self.statement_cleanup_writes(
+                                source,
+                                statement,
+                                assignment.value,
+                                environment,
+                            );
                             if destination_is_current {
                                 let path =
                                     self.bound_place(source, assignment.target).or_else(|| {
