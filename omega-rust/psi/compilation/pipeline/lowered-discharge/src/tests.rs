@@ -19,7 +19,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 
-use crate::{Discharge, Discharged, Evidence, discharge};
+use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
+use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
@@ -136,8 +137,8 @@ fn machine(parameters: Vec<ScalarType>, statements: Vec<Statement>) -> Machine {
     }
 }
 
-/// Lowers `machines` (machine 1 is the entry) and discharges them.
-fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+/// Lowers `machines` (machine 1 is the entry).
+fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
@@ -155,9 +156,22 @@ fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge
             crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
-    let mut elaboration = structure_elaboration::lower_bodies(id(1), &bodies, &signatures).unwrap();
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures)
+}
+
+/// Lowers `machines` (machine 1 is the entry) and discharges them.
+fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = lower(machines).unwrap();
     let result = discharge(&mut elaboration).unwrap();
     (elaboration, result)
+}
+
+/// The route's verdict on `machines`, which must reject the program.
+fn rejected(machines: Vec<Machine>) -> Vec<UnprovedObligation> {
+    match judge(lower(machines)).unwrap() {
+        RouteVerdict::Rejected(unproved) => unproved,
+        verdict => panic!("the program must be rejected: {verdict:?}"),
+    }
 }
 
 /// Every verdict of `machine` whose obligation has the kind `select` picks.
@@ -264,10 +278,10 @@ fn assert_unproved(verdict: &Checked<Discharged>) {
     let refusal = verdict
         .as_ref()
         .expect_err("the obligation must be refused");
-    assert_eq!(
+    assert!(
+        matches!(refusal.reason, RefusalReason::Unproved(_)),
+        "{:?}: {}",
         refusal.reason,
-        RefusalReason::Unproved,
-        "{}",
         refusal.detail
     );
 }
@@ -1014,4 +1028,106 @@ fn a_disequality_guard_splits_into_cases() {
         core,
         MathematicalCoreDecision::Refused("checked discreteness has integer order endpoints")
     );
+}
+
+// The route's verdict: an obligation the prover cannot discharge rejects the
+// program; the route never accepts it with a guard or hands Omega 00 a
+// module with an unsealed obligation.
+
+#[test]
+fn the_route_accepts_a_closure_only_when_every_obligation_is_discharged() {
+    let RouteVerdict::Accepted(accepted) = judge(lower(vec![add_of_formals(vec![
+        at_most(1, 100),
+        at_most(2, 100),
+    ])]))
+    .unwrap() else {
+        panic!("every obligation is discharged");
+    };
+    // One seal for the one operation obligation, so Omega 00 receives
+    // evidence for every operation obligation of the module.
+    assert_eq!(accepted.seals.len(), 1);
+    let safety_rows = verdicts(&accepted.elaboration, &accepted.discharge, 1, safety);
+    assert_eq!(safety_rows.len(), 1);
+    assert_eq!(accepted.seals[0].obligation, safety_rows[0].0);
+}
+
+#[test]
+fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
+    let unproved = rejected(vec![add_of_formals(Vec::new())]);
+    assert_eq!(unproved.len(), 1);
+    let entry = &unproved[0];
+    assert!(safety(&entry.kind));
+    assert_eq!(entry.cause, UnprovedCause::NoDerivation);
+    let diagnostic = entry.diagnostic();
+    assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
+    assert!(
+        diagnostic.message.starts_with(
+            "unproved obligation: operation safety: no proof from the facts available here ("
+        ),
+        "{}",
+        diagnostic.message
+    );
+    // The test bodies carry no authored span, and none is invented.
+    assert_eq!(diagnostic.source_span, None);
+}
+
+#[test]
+fn an_unproved_call_requirement_names_the_callee_clause() {
+    let unproved = rejected(caller(Vec::new(), unsigned(20)));
+    assert_eq!(unproved.len(), 1);
+    assert!(requirement(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .diagnostic()
+            .message
+            .starts_with("unproved obligation: requires clause 1 of the called machine: "),
+        "{}",
+        unproved[0].diagnostic().message
+    );
+}
+
+#[test]
+fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
+    // f(a) ensures a <= 10 { when a <= 10 -> 0; return 1 }: the fall-through
+    // return does not establish the clause. The published clause fails only
+    // because of it, so it is not reported a second time.
+    let program = Machine {
+        ensures: vec![at_most(1, 10)],
+        ..machine(
+            vec![u32_type()],
+            vec![
+                guarded(
+                    compare(Strict::LessOrEqual, slot(0, u32_type()), unsigned(10)),
+                    unsigned(0),
+                ),
+                returns(unsigned(1)),
+            ],
+        )
+    };
+    let unproved = rejected(vec![program]);
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(guarantee(&unproved[0].kind));
+    assert!(
+        unproved[0]
+            .diagnostic()
+            .message
+            .starts_with("unproved obligation: ensures clause 1 on a normal return: "),
+        "{}",
+        unproved[0].diagnostic().message
+    );
+}
+
+#[test]
+fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() {
+    let refused = |reason| Refusal {
+        reason,
+        machine: id(1),
+        concerns: Construct::Machine,
+        detail: String::from("test"),
+    };
+    assert!(matches!(
+        judge(Err(refused(RefusalReason::Unsupported))),
+        Ok(RouteVerdict::FallBack(_))
+    ));
+    assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
 }

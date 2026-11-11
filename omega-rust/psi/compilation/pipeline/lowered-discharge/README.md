@@ -8,7 +8,8 @@ the third piece of
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
 obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_trust.md)
-rule 2 lets remove a runtime check. It is not wired into the default compile.
+rule 2 lets remove a runtime check. It is not wired into the default compile;
+[the route's verdict](#the-routes-verdict) is what a router will take from it.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
 dominance between program points; [prove.rs](src/prove.rs) is the one prover.
@@ -124,6 +125,35 @@ Seals are in memory only. Terminal Psi's layout has no place for them yet, so
 they are lost on a byte round trip and do not survive a stored artifact: a
 module lowered from bytes, including one a cache rebuilt, arrives with
 `ObligationEvidence::ReadFromBytes` and zero fingerprints.
+
+## The route's verdict
+
+An obligation the prover cannot discharge is a compile error for the program,
+never a slower guarded form
+([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
+`judge` ([verdict.rs](src/verdict.rs)) is the one function a router takes the
+route's decision from. It discharges an elaborated closure and returns:
+
+- `Accepted`: every obligation of every machine was discharged by a
+  certificate the kernel accepted, with the operation seals for Omega 00.
+- `Rejected`: one `UnprovedObligation` per obligation that was not, each with
+  its kind, its source site from elaboration's correspondence, and its cause
+  (`UnprovedCause`: no derivation, the kernel refused the certificate, or a
+  normal return does not establish an `ensures` clause). `diagnostic()` turns
+  it into the program error, `unproved obligation: <kind>: <cause> (<detail>)`.
+  A published clause that fails only because a return's guarantee failed is
+  reported once, at that return.
+- `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
+  Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
+
+There is no variant for a partly proved closure. Omega 00 accepts every
+obligation of the module it is given and fills evidence only where a seal
+arrives, so a module with an undischarged obligation must never reach it. Any
+other refusal is a defect of the route and comes back as `Err`.
+
+No router calls `judge` in the default compile yet: the comparison harness
+below is its only caller outside tests, and prints each rejection's
+diagnostic.
 
 ## Measuring against the current checker
 

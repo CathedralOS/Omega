@@ -128,8 +128,9 @@ pub enum RefusalReason {
     /// The construct is outside the construct families this checker serves.
     /// Fail closed: an unserved construct is never accepted by default.
     Unsupported,
-    /// An obligation was reconstructed and its evidence did not check.
-    Unproved,
+    /// An obligation was reconstructed and its evidence did not check. The
+    /// cause is typed so a diagnostic reports it without reading `detail`.
+    Unproved(UnprovedCause),
     /// An edge did not account for an incoming conserved obligation exactly
     /// once. ownership.md: "every incoming owned obligation occurs exactly once
     /// in the edge's transfer map, explicit terminal consumption, eligible
@@ -140,6 +141,32 @@ pub enum RefusalReason {
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
+}
+
+/// Why an obligation's evidence did not check. Closed like `RefusalReason`:
+/// a prover that finds a new way to fail names it here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnprovedCause {
+    /// The prover found no derivation of the goal from the knowledge
+    /// available at the obligation's point.
+    NoDerivation,
+    /// The prover built a certificate and the proof kernel refused it.
+    KernelRefused,
+    /// A normal return does not establish a published `ensures` clause: the
+    /// guarantee owed on that return edge is unproved or was never owed.
+    ReturnDoesNotEstablish,
+}
+
+impl UnprovedCause {
+    /// The cause as a program diagnostic states it. Stable wording: corpus
+    /// expectations match it.
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::NoDerivation => "no proof from the facts available here",
+            Self::KernelRefused => "the proof kernel refused the certificate",
+            Self::ReturnDoesNotEstablish => "a normal return does not establish it",
+        }
+    }
 }
 
 /// The only negative result of a checking step: a reason, the machine, and
