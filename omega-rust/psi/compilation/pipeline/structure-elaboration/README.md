@@ -567,6 +567,7 @@ interpreter loads and runs both.
 | `CallRequirement` | one per callee `requires` clause per call, clause = position in the callee's canonical `requires` | the point before the call |
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
+| `ArrivalInvariant` | one per edge into a block with parameters (only short-circuit joins have them); the predicate is the checker's | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence

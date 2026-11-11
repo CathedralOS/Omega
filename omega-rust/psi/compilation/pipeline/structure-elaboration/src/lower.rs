@@ -22,6 +22,9 @@ Obligations are created, never discharged:
   "one exact obligation for every callee `requires` clause").
 - `NormalGuarantee` per `ensures` clause per normal exit (control_flow.md:
   "All normal returns ... must establish the published guarantees.").
+- `ArrivalInvariant` per edge that passes scalar arguments to a block
+  (control_flow.md: a block invariant has "one obligation for every actual
+  incoming edge"). Short-circuit joins are the blocks that take them.
 - `CrashCoverage` per crash site and cause (calls_and_outcomes.md: "The
   verifier proves every site guard from independent entry/CFG facts and
   checks same-cause coverage"). A site is a block whose terminator leaves
@@ -343,6 +346,53 @@ impl Lowering<'_> {
         obligation
     }
 
+    /// One `ArrivalInvariant` per edge that passes scalar arguments to a
+    /// block, at that edge. control_flow.md: a block invariant has "one
+    /// obligation for every actual incoming edge", and fact_validity.md:
+    /// "Every arrival must check before the destination predicate can justify
+    /// downstream obligations." Only a `Jump` or a `Conditional` successor
+    /// passes arguments; a dispatch arm's parameters are bound from the
+    /// payload (`Justification::DispatchBinding`), not by an argument. The
+    /// predicate is the checker's; lowering only names the arrivals.
+    fn arrivals(&mut self) -> Checked<()> {
+        let mut arrivals = Vec::new();
+        for (_, draft) in self.blocks.iter() {
+            let successors: Vec<(EdgeId, bool)> = match &draft.terminator {
+                Some(Terminator::Jump {
+                    edge, arguments, ..
+                }) => vec![(*edge, !arguments.is_empty())],
+                Some(Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                }) => vec![
+                    (when_true.edge, !when_true.arguments.is_empty()),
+                    (when_false.edge, !when_false.arguments.is_empty()),
+                ],
+                _ => Vec::new(),
+            };
+            for (edge, passes) in successors {
+                if !passes {
+                    continue;
+                }
+                let source = *self
+                    .sources
+                    .edges
+                    .get(edge)
+                    .ok_or_else(|| self.internal("an edge has no source row"))?;
+                arrivals.push((edge, source));
+            }
+        }
+        for (edge, source) in arrivals {
+            self.obligation(
+                ObligationKind::ArrivalInvariant { edge },
+                ProgramPoint::Edge(edge),
+                source,
+            );
+        }
+        Ok(())
+    }
+
     fn finish(
         mut self,
         entry: BlockId,
@@ -359,6 +409,7 @@ impl Lowering<'_> {
                 proposition: proposition.clone(),
             })
             .collect();
+        self.arrivals()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {

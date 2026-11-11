@@ -274,6 +274,8 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 Some(ObligationKind::NormalGuarantee { .. }) => "guarantee",
                 Some(ObligationKind::PublishedGuarantee { .. }) => "published",
                 Some(ObligationKind::DataDomain { .. }) => "domain",
+                Some(ObligationKind::ArrivalInvariant { .. }) => "arrival",
+                Some(ObligationKind::CrashCoverage { .. }) => "crash",
                 Some(_) => "other",
                 None => "missing",
             };
@@ -373,6 +375,11 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             ));
         }
     }
+    let weakened_joins: usize = discharged
+        .machines
+        .values()
+        .map(|machine| machine.weakened_joins.len())
+        .sum();
     // The route's own verdict, the one a router takes: an unproved obligation
     // rejects the program with a diagnostic, an unsupported one hands the
     // closure back to the current checker.
@@ -391,7 +398,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tdischarge_us={discharge_us}\treverify_us={reverify_us}\treverified={reverified}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}",
+        "{head}\troute={route}\troute_us={route_us}\tdischarge_us={discharge_us}\treverify_us={reverify_us}\treverified={reverified}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}\tgated={gated}\tweakened_joins={weakened_joins}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

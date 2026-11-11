@@ -15,6 +15,11 @@ identity needed, so nothing is taken from elaboration's word:
   every normal return owes one guarantee per clause
   (control_flow.md: "All normal returns, including returns after a cycle,
   must establish the published guarantees.").
+- A crashing terminator owes coverage for its cause, and a no-normal call or
+  a call that may return and crash owes it per cause among its
+  continuations (calls_and_outcomes.md, "Crash"). An edge that passes scalar
+  arguments owes its destination's predicate (control_flow.md: "one
+  obligation for every actual incoming edge").
 
 Each of those rows must have exactly the kind the lowered form owes and be
 created at the point of what owes it: before the operation, or on the return
@@ -44,14 +49,14 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
-use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, TerminalMachine, TerminalMachineResult,
-    Terminator, ValueDeclaration,
+    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::{refusal, semantics_refusal, terminal_machine};
@@ -96,6 +101,24 @@ struct Minted<'a> {
 }
 
 impl Minted<'_> {
+    /// A row the lowered form owes but does not name: found by its exact
+    /// kind, and claimed at `point`. A second row of the same kind stays
+    /// unclaimed and is refused with the rows nothing owes.
+    fn owed(
+        &mut self,
+        kind: ObligationKind,
+        point: ProgramPoint,
+        concerns: Construct,
+    ) -> Checked<()> {
+        let (obligation, _) = self
+            .tables
+            .obligations
+            .iter()
+            .find(|(_, row)| row.kind == kind)
+            .ok_or_else(|| self.foreign(concerns, "a site owes an obligation with no row"))?;
+        self.claim(obligation, kind, point)
+    }
+
     fn foreign(&self, concerns: Construct, detail: &str) -> Refusal {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -301,6 +324,28 @@ pub(crate) fn follow_the_lowered_form(
                     Construct::Operation(operation.id),
                 )?;
             }
+            // A call that may return and crash is a crash site of its own,
+            // owing coverage per cause among its continuations.
+            if let OperationKind::Call {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallUnit {
+                crash_continuations,
+                ..
+            } = &operation.kind
+            {
+                for bucket in crash_continuations {
+                    minted.owed(
+                        ObligationKind::CrashCoverage {
+                            site: CrashSite::Operation(operation.id),
+                            cause: bucket.cause,
+                        },
+                        before,
+                        Construct::Operation(operation.id),
+                    )?;
+                }
+            }
             before = ProgramPoint::AfterOperation(operation.id);
         }
         if let Some(inputs) = block.terminator.module_invocation() {
@@ -310,6 +355,55 @@ pub(crate) fn follow_the_lowered_form(
                 before,
                 Construct::Block(block.id),
             )?;
+        }
+        // A crashing terminator owes coverage at the point before it: its one
+        // cause, or each cause among a no-normal call's continuations. An
+        // edge that passes scalar arguments owes its destination's predicate
+        // on that edge (control_flow.md: "one obligation for every actual
+        // incoming edge").
+        let site = CrashSite::Block(block.id);
+        let concerns = Construct::Block(block.id);
+        match &block.terminator {
+            Terminator::Crash { cause, .. } => {
+                let kind = ObligationKind::CrashCoverage {
+                    site,
+                    cause: *cause,
+                };
+                minted.owed(kind, before, concerns)?;
+            }
+            Terminator::InvokeNoNormal {
+                crash_continuations,
+                ..
+            } => {
+                for bucket in crash_continuations {
+                    let kind = ObligationKind::CrashCoverage {
+                        site,
+                        cause: bucket.cause,
+                    };
+                    minted.owed(kind, before, concerns)?;
+                }
+            }
+            Terminator::Jump {
+                edge, arguments, ..
+            } if !arguments.is_empty() => {
+                let kind = ObligationKind::ArrivalInvariant { edge: *edge };
+                minted.owed(kind, ProgramPoint::Edge(*edge), concerns)?;
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for successor in [when_true, when_false] {
+                    if !successor.arguments.is_empty() {
+                        let kind = ObligationKind::ArrivalInvariant {
+                            edge: successor.edge,
+                        };
+                        minted.owed(kind, ProgramPoint::Edge(successor.edge), concerns)?;
+                    }
+                }
+            }
+            _ => {}
         }
         if let Terminator::Return { edge, .. }
         | Terminator::ReturnUnit { edge, .. }
@@ -340,7 +434,9 @@ pub(crate) fn follow_the_lowered_form(
             ObligationKind::OperationSafety { .. }
             | ObligationKind::CallRequirement { .. }
             | ObligationKind::NormalGuarantee { .. }
-            | ObligationKind::PublishedGuarantee { .. } => {
+            | ObligationKind::PublishedGuarantee { .. }
+            | ObligationKind::ArrivalInvariant { .. }
+            | ObligationKind::CrashCoverage { .. } => {
                 if !minted.obligations[index(obligation.get())] {
                     return Err(minted.foreign(
                         concerns,
@@ -355,8 +451,6 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::RestorationWindow { .. }
             | ObligationKind::DomainDebt { .. }
             | ObligationKind::EstablishmentDebt { .. }
-            | ObligationKind::ArrivalInvariant { .. }
-            | ObligationKind::CrashCoverage { .. }
             | ObligationKind::WellFoundedness { .. }
             | ObligationKind::RankComparison { .. } => {}
         }
