@@ -487,6 +487,10 @@ fn prepare_occurrences(
                         closure.dependency_path(&key),
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
+                // ponytail: each occurrence is compiled as the root of its own
+                // scope, so a dependency occurrence is still a full subject
+                // here. Carry the consumer's subject set into its occurrences.
+                dependency_activation: false,
             },
             collect_timings: request.timings,
             optimization_rollback: request.product.optimization_rollback(),
