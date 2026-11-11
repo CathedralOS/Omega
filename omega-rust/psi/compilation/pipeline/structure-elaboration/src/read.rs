@@ -8,11 +8,12 @@ is fixed before elaboration"):
   typed trees' own `PrimitiveType::from_name` classifies by spelling and is
   not used. A `Named` type whose symbol is invalid is refused as a spelling.
 - A name is a slot only when its path has one member and a valid symbol equal
-  to a formal's or local's symbol. A name with no symbol is refused. The
-  synthetic `result` of an `ensures` clause reaches the typed trees in exactly
-  that form (`typed-trees/src/values.rs`, `names_reserved_result`: invalid
-  symbols, recognised by `is_reserved_result` on the spelling), so a clause
-  that mentions `result` is refused here rather than matched by text.
+  to a formal's or local's symbol. A name with no symbol is refused.
+- The reserved `result` of a contract keeps invalid symbols, but its name
+  path carries `reserved_result_of`, the contract owner stage 02 recorded
+  when it decided the name is the reserved result. A term is the result
+  pseudo-value only through that identity; a name spelled `result` without
+  it is refused as a spelling like any other unresolved name.
 - A callee is a `MachineId` reached from its symbol.
 
 Every match over a typed-tree node kind lists every kind; a kind outside the
@@ -22,11 +23,12 @@ serve is refused when it is set, never ignored.
 
 use arena::Arena;
 use semantic_vocabulary::{
-    IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition, ScalarTerm,
-    ScalarType, ValueId,
+    CrashCause, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, Proposition,
+    ScalarTerm, ScalarType, ValueId,
 };
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
@@ -42,7 +44,10 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
+use crate::body::{
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+};
+use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
 pub(crate) struct Program<'t> {
@@ -59,6 +64,33 @@ struct Slot {
     symbol: SymbolHandle,
     scalar_type: ScalarType,
     assignable: bool,
+}
+
+/// What a contract clause may name: the formals, and the result pseudo-value
+/// only in a normal-return guarantee of a scalar machine.
+#[derive(Clone, Copy)]
+struct ClauseScope<'s> {
+    slots: &'s [Slot],
+    /// The callable whose reserved `result` this clause may name (the
+    /// machine's one state; see `TableNamePath::reserved_result_of`).
+    owner: SymbolHandle,
+    result: ResultTerm,
+}
+
+#[derive(Clone, Copy)]
+enum ResultTerm {
+    /// The result pseudo-value's identity and type.
+    Named(ValueId, ScalarType),
+    /// Why this clause cannot name `result`.
+    Absent(&'static str),
+}
+
+/// The closed crash cause of a `crashes` clause or `crash` statement.
+fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
+    match cause {
+        typed_trees::signature::CrashCause::Trap => CrashCause::Trap,
+        typed_trees::signature::CrashCause::Abort => CrashCause::Abort,
+    }
 }
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
@@ -347,8 +379,33 @@ impl<'t> Program<'t> {
             });
         }
         let result = self.result_type(id, state.return_type)?;
+        // The result pseudo-value is the value right after the formals
+        // (`Signature::result`), owned by the machine's one state: stage 02
+        // records the entry state as the owner of a machine contract's
+        // reserved `result`.
+        let result_value = ValueId::new(formals.len() as u64 + 1).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("result identity"),
+            )
+        })?;
+        let entry = ClauseScope {
+            slots: &slots,
+            owner: state.symbol,
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let exit = ClauseScope {
+            result: match result {
+                Some(scalar_type) => ResultTerm::Named(result_value, scalar_type),
+                None => ResultTerm::Absent("result of a Unit machine"),
+            },
+            ..entry
+        };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut routes = Vec::new();
+        let mut crash_clauses = false;
         for contract in span(
             &typed.signature_contracts,
             machine.contracts,
@@ -362,9 +419,18 @@ impl<'t> Program<'t> {
                     Unserved::Contract("result binding"),
                 ));
             }
-            let clauses = match contract.kind {
-                SignatureContractKind::Requires => &mut requires,
-                SignatureContractKind::Ensures => &mut ensures,
+            let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
+            match contract.kind {
+                SignatureContractKind::Requires => {
+                    for fact in facts {
+                        requires.push(self.clause(id, &entry, self.fact(id, fact)?)?);
+                    }
+                }
+                SignatureContractKind::Ensures => {
+                    for fact in facts {
+                        ensures.push(self.clause(id, &exit, self.fact(id, fact)?)?);
+                    }
+                }
                 SignatureContractKind::EnsuresForResultCase { .. } => {
                     return Err(refuse(
                         id,
@@ -372,42 +438,60 @@ impl<'t> Program<'t> {
                         Unserved::Contract("outcome-specific ensures"),
                     ));
                 }
-                SignatureContractKind::Crashes { .. } => {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Contract("crashes"),
-                    ));
-                }
-            };
-            for fact in span(&typed.proof_facts, contract.facts, id, "fact span")? {
-                match fact {
-                    ProofFact::Expression(expression) => {
-                        clauses.push(self.clause(id, &slots, *expression)?);
+                // effects.md, "Guarded crashes": "Each `crashes` clause names
+                // one cause (`Trap` or `Abort`); its route guards are
+                // alternatives, and an empty route list means `true`." Route
+                // guards describe invocation entry, so they cannot name
+                // `result`.
+                SignatureContractKind::Crashes { cause } => {
+                    crash_clauses = true;
+                    let cause = crash_cause(cause);
+                    if facts.is_empty() {
+                        routes.push((cause, CrashRouteGuard::Truth));
                     }
-                    ProofFact::Membership(_) => {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("domain membership"),
-                        ));
-                    }
-                    ProofFact::Proposition(_) => {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("named proposition"),
+                    for fact in facts {
+                        let guard = self.clause(id, &entry, self.fact(id, fact)?)?;
+                        routes.push((
+                            cause,
+                            CrashRouteGuard::Predicate(CrashPredicateTerm::new(guard)),
                         ));
                     }
                 }
             }
         }
-        let requires = canonical(requires, id)?;
+        // effects.md: "On a public checked body omitted `crashes` means no
+        // crash route, exactly as `crashes none`. Private checked bodies may
+        // omit any of the three to request inference." An authored
+        // `crashes none` leaves no contract row; the typed trees record it
+        // as `declares_no_crash_route`, so it is told from an omission by
+        // that fact and never by the missing rows.
+        let crashes = match (
+            machine.declares_no_crash_route,
+            crash_clauses,
+            machine.is_public,
+        ) {
+            (true, false, _) => CrashCeiling::DeclaredNone,
+            // Stage 01 rejects this header; refused here too rather than
+            // trusted to have been.
+            (true, true, _) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("`crashes none` beside a `crashes Cause` clause"),
+                ));
+            }
+            (false, true, _) | (false, false, true) => {
+                CrashCeiling::Authored(canonical::routes(routes))
+            }
+            (false, false, false) => CrashCeiling::Inferred,
+        };
+        let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         Ok(Signature {
             parameters,
             result,
             requires,
             ensures,
+            crashes,
         })
     }
 
@@ -501,10 +585,28 @@ impl<'t> Program<'t> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
     // conjunction of those. Terms name formal `i` as value `i + 1`.
 
+    /// A contract fact that is an expression; memberships and named
+    /// propositions are outside the subset.
+    fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
+        match fact {
+            ProofFact::Expression(expression) => Ok(*expression),
+            ProofFact::Membership(_) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("domain membership"),
+            )),
+            ProofFact::Proposition(_) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("named proposition"),
+            )),
+        }
+    }
+
     fn clause(
         &self,
         id: MachineId,
-        slots: &[Slot],
+        scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Proposition> {
         let typed = self.typed;
@@ -520,12 +622,13 @@ impl<'t> Program<'t> {
             BinaryOperator::And => {
                 let mut conjuncts = Vec::new();
                 for side in [binary.left, binary.right] {
-                    match self.clause(id, slots, side)? {
+                    match self.clause(id, scope, side)? {
                         Proposition::Conjunction(inner) => conjuncts.extend(inner),
                         other => conjuncts.push(other),
                     }
                 }
-                return canonical(conjuncts, id).map(Proposition::Conjunction);
+                return canonical::clauses(conjuncts, Repeated::Refuse, id)
+                    .map(Proposition::Conjunction);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -548,11 +651,11 @@ impl<'t> Program<'t> {
         };
         // An anonymous literal lands in its partner's type.
         let ((left, left_type), (right, right_type)) = if self.anonymous_literal(binary.left) {
-            let right = self.term(id, slots, binary.right, None)?;
-            (self.term(id, slots, binary.left, Some(right.1))?, right)
+            let right = self.term(id, scope, binary.right, None)?;
+            (self.term(id, scope, binary.left, Some(right.1))?, right)
         } else {
-            let left = self.term(id, slots, binary.left, None)?;
-            let right = self.term(id, slots, binary.right, Some(left.1))?;
+            let left = self.term(id, scope, binary.left, None)?;
+            let right = self.term(id, scope, binary.right, Some(left.1))?;
             (left, right)
         };
         if left_type != right_type {
@@ -564,22 +667,7 @@ impl<'t> Program<'t> {
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
-            BinaryOperator::Equal => {
-                let key = |term: &ScalarTerm| {
-                    terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Contract("unencodable term"),
-                        )
-                    })
-                };
-                if key(&left)? <= key(&right)? {
-                    Ok(Proposition::Equal(left, right))
-                } else {
-                    Ok(Proposition::Equal(right, left))
-                }
-            }
+            BinaryOperator::Equal => canonical::equal(left, right, id),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
@@ -603,7 +691,7 @@ impl<'t> Program<'t> {
     fn term(
         &self,
         id: MachineId,
-        slots: &[Slot],
+        scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ScalarType)> {
@@ -613,9 +701,24 @@ impl<'t> Program<'t> {
             return unserved("missing term");
         }
         match typed.expression_table.expression(expression) {
+            // The reserved result, by the owner identity stage 02 recorded,
+            // never by its spelling. calls_and_outcomes.md: "The reserved
+            // result occurrence belongs to its contract owner, not any local
+            // or parameter spelled `result`."
+            ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
+                if path.reserved_result_of != scope.owner {
+                    return unserved("result of another callable");
+                }
+                match scope.result {
+                    ResultTerm::Named(id, scalar_type) => {
+                        Ok((ScalarTerm::Value { id, scalar_type }, scalar_type))
+                    }
+                    ResultTerm::Absent(why) => unserved(why),
+                }
+            }
             ExpressionNode::Name(path) => {
-                let slot = self.slot_of(id, slots, path)?;
-                let row = &slots[slot];
+                let slot = self.slot_of(id, scope.slots, path)?;
+                let row = &scope.slots[slot];
                 let value = ValueId::new(slot as u64 + 1).ok_or_else(|| {
                     refuse(
                         id,
@@ -701,6 +804,13 @@ impl<'t> Program<'t> {
 
     fn slot_of(&self, id: MachineId, slots: &[Slot], path: &TableNamePath) -> Checked<usize> {
         let typed = self.typed;
+        if path.reserved_result_of.is_valid() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("reserved result outside a contract term"),
+            ));
+        }
         if !path.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -854,16 +964,6 @@ impl<'t> Program<'t> {
                             Unserved::Transition("proof selectors"),
                         ));
                     }
-                    match transition.exit {
-                        TransitionExit::Ordinary => {}
-                        TransitionExit::Crash(_) => {
-                            return Err(refuse(
-                                id,
-                                Construct::Machine,
-                                Unserved::Transition("crash"),
-                            ));
-                        }
-                    }
                     let patterns = self
                         .typed
                         .statement_table
@@ -916,7 +1016,18 @@ impl<'t> Program<'t> {
                             Some(guard)
                         }
                     };
-                    let target = self.target(id, &slots, transition.target, signature.result)?;
+                    // A `crash Cause;` statement, or an arm `-> crash Cause`,
+                    // is a transition whose exit is the crash and whose target
+                    // is the terminal node stage 01 gives it.
+                    let target = match transition.exit {
+                        TransitionExit::Ordinary => {
+                            self.target(id, &slots, transition.target, signature.result)?
+                        }
+                        TransitionExit::Crash(cause) => {
+                            self.crash_target(id, transition.target)?;
+                            Target::Crash(crash_cause(cause))
+                        }
+                    };
                     completed = guard.is_none();
                     Statement::Arm {
                         guard,
@@ -1131,6 +1242,25 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(Target::Value(target))
+    }
+
+    /// A crash exit carries no target of its own: stage 01 gives it the
+    /// terminal node. Any other target is refused, not ignored.
+    fn crash_target(
+        &self,
+        id: MachineId,
+        handle: typed_trees::statement::TransitionTargetHandle,
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Transition(what)));
+        if !handle.is_valid() {
+            return unserved("crash without a target");
+        }
+        match self.typed.statement_table.transition_target(handle) {
+            TransitionTargetNode::Terminal => Ok(()),
+            TransitionTargetNode::Value(_) | TransitionTargetNode::Named { .. } => {
+                unserved("crash with a value or call target")
+            }
+        }
     }
 
     fn node(&self, id: MachineId, expression: ExpressionHandle) -> Checked<&'t ExpressionNode> {
@@ -1703,34 +1833,6 @@ fn same_computation(left: &Expression, right: &Expression) -> bool {
         }
 }
 
-/// Sorts propositions into Terminal Psi's canonical order and refuses a
-/// duplicate, which canonical order cannot hold ("strictly increase").
-fn canonical(propositions: Vec<Proposition>, id: MachineId) -> Checked<Vec<Proposition>> {
-    let mut keyed = Vec::with_capacity(propositions.len());
-    for proposition in propositions {
-        let key = terminal_codec::canonical_proposition_order_key(&proposition).map_err(|_| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("unencodable proposition"),
-            )
-        })?;
-        keyed.push((key, proposition));
-    }
-    keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    if keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("duplicate clause"),
-        ));
-    }
-    Ok(keyed
-        .into_iter()
-        .map(|(_, proposition)| proposition)
-        .collect())
-}
-
 /// The refusal label for a name or callee that is not a slot or machine.
 fn symbol_kind(kind: SymbolKind) -> &'static str {
     match kind {
@@ -1887,6 +1989,72 @@ mod tests {
             right,
         });
         assert_eq!(refused(&typed, node), "expression case membership");
+    }
+
+    /// `result` in a contract is taken by the owner identity stage 02
+    /// recorded, never by its spelling: a name spelled `result` with no
+    /// identity is refused as a spelling, the result of another callable and
+    /// a result in an entry clause are refused, and a body cannot name it.
+    #[test]
+    fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use typed_trees::name::Identifier;
+        let mut typed = TypedTrees::default();
+        let owner = SymbolHandle::from_arena_index(3);
+        let other = SymbolHandle::from_arena_index(4);
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("result"));
+        let mut name = |reserved_result_of| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    reserved_result_of,
+                    ..TableNamePath::default()
+                }))
+        };
+        let spelled = name(SymbolHandle::invalid());
+        let mine = name(owner);
+        let theirs = name(other);
+        let mut program = Program::new(&typed);
+        let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let result = ValueId::new(2).unwrap();
+        let exit = ClauseScope {
+            slots: &[],
+            owner,
+            result: ResultTerm::Named(result, u32_type),
+        };
+        let entry = ClauseScope {
+            result: ResultTerm::Absent("result in an entry clause"),
+            ..exit
+        };
+        assert_eq!(
+            program.term(machine(), &exit, mine, None),
+            Ok((
+                ScalarTerm::Value {
+                    id: result,
+                    scalar_type: u32_type
+                },
+                u32_type
+            ))
+        );
+        let detail = |scope: &ClauseScope<'_>, handle| {
+            program
+                .term(machine(), scope, handle, None)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(detail(&exit, theirs), "contract result of another callable");
+        assert_eq!(detail(&entry, mine), "contract result in an entry clause");
+        assert_eq!(detail(&exit, spelled), "spelling name without a symbol");
+        assert_eq!(
+            program
+                .expression(machine(), &[], mine, None)
+                .unwrap_err()
+                .detail,
+            "expression reserved result outside a contract term"
+        );
     }
 
     /// A type is `u32` by its builtin slot. A declaration spelled `u32` is a

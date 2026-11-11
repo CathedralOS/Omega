@@ -97,11 +97,11 @@ pub enum ObligationKind {
     /// control_flow.md: "All normal returns, including returns after a cycle,
     /// must establish the published guarantees."
     NormalGuarantee { exit: EdgeId, clause: u32 },
-    /// A crash site's guard and same-cause route coverage.
-    /// `wiki/spec/terminal-psi/calls_and_outcomes.md`: "The verifier proves
-    /// every site guard from independent entry/CFG facts and checks same-cause
-    /// coverage". The site is the crashing block's terminator.
-    CrashCoverage { site: BlockId, cause: CrashCause },
+    /// A crash site's guard and same-cause route coverage, one per site and
+    /// cause. `wiki/spec/terminal-psi/calls_and_outcomes.md`: "The verifier
+    /// proves every site guard from independent entry/CFG facts and checks
+    /// same-cause coverage".
+    CrashCoverage { site: CrashSite, cause: CrashCause },
     /// Well-foundedness of one recursive component's rank relation.
     /// control_flow.md: "One grouped control judgment covers each
     /// reconstructed component, with a shared well-foundedness question and
@@ -112,6 +112,26 @@ pub enum ObligationKind {
         component: CycleComponentId,
         edge: EdgeId,
     },
+}
+
+/// Where a machine may leave by crashing. Closed: Terminal Psi has no other
+/// construct that carries a crash cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrashSite {
+    /// A block whose terminator has no successor: a `Crash`, or an
+    /// `InvokeNoNormal` whose callee publishes crash routes.
+    /// calls_and_outcomes.md, "Crash": "`Trap` and `Abort` are closed causes
+    /// on distinct no-successor terminators." and "An unconditional
+    /// no-return callee crash needs no extra caller branch or fabricated
+    /// crash event."
+    Block(BlockId),
+    /// A call operation whose callee may return and also publishes crash
+    /// routes: the block continues after it, so the site is the operation.
+    /// calls_and_outcomes.md, "Call contracts": "Surviving crash routes are
+    /// derived from the pinned callee contract using exact actuals. ... Empty
+    /// or untranslated continuation rows cannot erase a crash." and "Crash":
+    /// "Call composition substitutes arguments and caller path facts."
+    Operation(OperationId),
 }
 
 /// Where a loan's authority comes from. loans.md: "A direct reborrow names

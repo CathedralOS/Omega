@@ -965,6 +965,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: original,
                             symbol: original,
+                            reserved_result_of: SymbolHandle::invalid(),
                         }));
                 let arguments = program
                     .declarations_mut()
@@ -1394,6 +1395,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol,
                             symbol: path.symbol,
+                            reserved_result_of: path.reserved_result_of,
                         }))
                     }
                     ExpressionNode::Range(range) => {
@@ -1759,6 +1761,7 @@ pub mod expression {
                 member_symbols: room_member_symbols,
                 head_symbol: room_symbol,
                 symbol: room_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
 
             let field_members = source.reserve_name_path_members(2);
@@ -1780,6 +1783,7 @@ pub mod expression {
                 member_symbols: field_member_symbols,
                 head_symbol: room_symbol,
                 symbol: field_symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }));
 
             let hall = source.insert(ExpressionNode::String((&b"Hall"[..]).into()));
@@ -2096,6 +2100,7 @@ pub mod expression {
                 member_symbols: symbol_span,
                 head_symbol: member_symbols.first().copied().unwrap_or_default(),
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }))
         }
 
@@ -3178,6 +3183,15 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub member_symbols: HandleSpan<SymbolHandle>,
         pub head_symbol: SymbolHandle,
         pub symbol: SymbolHandle,
+        /// The callable whose reserved `result` this name denotes, or invalid
+        /// when it denotes no result. Stage 02 sets it once, where it decides a
+        /// contract name is the reserved result occurrence
+        /// (`wiki/spec/terminal-psi/calls_and_outcomes.md`: "The reserved
+        /// result occurrence belongs to its contract owner, not any local or
+        /// parameter spelled `result`"), so a later reader takes the result
+        /// by this identity instead of comparing the spelling. `symbol` stays
+        /// invalid, as before, so readers of the spelling route are unchanged.
+        pub reserved_result_of: SymbolHandle,
     }
 
     impl TableNamePath {
@@ -3192,6 +3206,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 member_symbols,
                 head_symbol,
                 symbol,
+                reserved_result_of: SymbolHandle::invalid(),
             }
         }
     }

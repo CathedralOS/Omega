@@ -279,3 +279,5 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
+The [required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+names the obligations every checker proves unaided.

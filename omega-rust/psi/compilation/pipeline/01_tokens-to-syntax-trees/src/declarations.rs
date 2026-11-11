@@ -1743,6 +1743,7 @@ pub(crate) mod machines {
                 suspends: clauses.suspends,
                 blocks: clauses.blocks,
                 admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
+                declares_no_crash_route: clauses.declares_no_crash_route,
                 contracts: clauses.contracts,
                 states,
                 nested_machines,

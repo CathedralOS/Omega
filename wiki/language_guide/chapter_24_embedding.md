@@ -1,13 +1,11 @@
 # Chapter 24: Embedding and scripting
 
-An application can use Omega as a scripting language by depending on its
-interpreter library. Scripts are ordinary Omega programs compiled to Psi. They
-use the same contracts, ownership, and boundary interfaces as native programs.
-The [embedding specification](../spec/build/embedding.md) defines loading, calls, and instance lifetimes.
+An application can run Omega as its scripting language by linking the
+interpreter library. A script is an ordinary Omega program compiled to Psi,
+Omega's portable format. It has the same contracts and ownership rules as
+native code, and it reaches the host only through boundary traits.
 
-## One interface, two implementations
-
-Suppose a game exposes a boundary-trait requirement:
+## One interface, two sides
 
 ```omega
 public boundary trait Game {
@@ -31,48 +29,28 @@ reaches Game
 }
 ```
 
-The host and script depend on the same interface package. The build selects
-`reward` as an export and binds `Game` to the host implementation. The installed
-export contract supplies the `RewardScript` context from instance storage.
-
-Native and interpreted calls use the same requirement. Interpretation reaches
-the host through a typed adapter:
+Host and script depend on the same interface package. The host implements
+`Game`; the script implements `ScriptCalls`. The script can do to the host
+exactly what `Game` offers and nothing else.
 
 ```text
-guest call -> installed typed adapter -> native host call
-           <- validated result       <- host result
+script call -> typed adapter -> native host call
+            <- checked result <- host result
 ```
 
-Calling a script export in the other direction checks its entry contract and
-arguments too. Generated bindings handle marshalling; host operations remain
-responsible for the guarantees they promise.
-
-## Loading and running
-
-The target environment and execution engine are separate choices. Windows,
-macOS, Linux and Cathedral describe environments; interpreted and native describe
-how code executes. Most libraries are ordinary Omega code and work in both
-engines without another implementation. A platform library supplies target
-implementations; external mechanisms need host adapters for interpretation.
-
-The command-line choice is explicit:
+## Running a program either way
 
 ```text
-omega run --engine native main.omg
-omega run --engine psi main.omg
-omega run --both main.omg
+omega run --engine native main.omg     (the default)
+omega run --engine psi main.omg        (interpreted)
+omega run --both main.omg              (run both and compare)
 ```
 
-Native is the default. `--engine psi` interprets the program; `--both` runs and
-compares both routes. The target environment is selected separately, so an
-interpreted Linux operation still needs a provider for its Linux contract.
-Missing adapters prevent execution.
+Ordinary Omega code runs under both engines unchanged.
 
-The host owns a runtime, its host context, and script instances. An immutable
-admitted program can be shared by instances, while each instance owns its state.
-Loading bytes does not run build files or grant filesystem access.
+## Loading and calling from a host
 
-The library flow, shown as pseudocode rather than fixed API spelling, is:
+In outline:
 
 ```text
 program  = load(psi_bytes, receiving_policy)
@@ -81,72 +59,33 @@ call     = runtime.start(instance, selected_entry, arguments)
 outcome  = call.resume(work_budget)
 ```
 
-`outcome` distinguishes return, budget pause, pending host operation, and fault.
-A synchronous call is a convenience over the same mechanism. No background thread
-or async executor is silently created. Work limits interpreter work, not the
-duration of a synchronous native host call.
+`resume` runs the script for a bounded amount of work and reports whether it
+returned, paused on its budget, is waiting on the host, or faulted. Nothing
+runs in the background: the script advances only when the host resumes it.
+Loading a program does not run its build files or give it file access.
 
-A paused call retains its locals, loans, and unfinished obligations. Returning
-control to the host does not authorize editing borrowed state. Dropping the call
-handle does not cancel it. Closing an instance can report Busy while preserving
-its resources; successful closure reclaims that instance without closing all the
-others. Host effects already performed are not rolled back by a later failure.
+## Editors and live state
 
-## Calls, messages, and editors
+An editor can use [reflection](chapter_21_reflection.md) to list a script's
+public operations and call them. It cannot write into a paused script's
+variables: the paused code may be relying on facts about them. Edit a detached
+copy and submit it through an operation that validates it.
 
-The host can call `update` with input data and receive commands. A script can
-call a supplied host query directly, submit a bounded queued command, or receive
-an event through another exported entry. Events are ordinary calls and data, not
-a separate language mechanism. Queue acceptance is not action completion.
+## Replacing code while running
 
-Reflection describes the retained public API and selected type schemas. An editor
-can discover available operations and invoke them; it cannot overwrite arbitrary
-live fields or paused locals. Read and change live objects through exposed checked
-operations, with ordinary access constraints. A detached document may be freely
-edited and submitted to an operation that validates and applies it.
-
-This matters even when an edit would preserve a type invariant: paused code can
-rely on stronger facts about the current value. A work stop can also occur inside
-an invariant window. Neither the schema nor a checked setter grants permission
-to interfere with that activation. Diagnostic snapshots are observations, not
-established values that can be written back to the interpreter.
-
-## Replacing part of a running program
-
-A source module is not automatically a replaceable component. Build composition
-must establish an independent boundary. Then interpreted and native components
-follow the same [publication and lifetime rules](../spec/build/component_publication.md):
+A component with a declared boundary can be replaced in a running program:
 
 ```text
-compile replacement -> submit to authorized updater -> stage/check
+compile replacement -> submit to the updater -> check
                     -> handle state -> publish new entries
-                    -> retire old code after its obligations settle
+                    -> retire old code once nothing still uses it
 ```
 
-New calls use the published implementation. Existing activations, callbacks, and
-returned objects retain the implementation they still need. State can remain
-outside the component, be reset, or undergo an explicit migration. A paused
-continuation does not automatically resume inside edited code.
+New calls go to the new code. Calls already in progress finish in the code
+they started in. See
+[component publication](../spec/build/component_publication.md).
 
-An interpreted program can own the updater itself, including a long-running OS.
-The host supplies component-execution mechanics, not the OS's update policy.
-Alternatively, an explicitly appointed host supervisor may own updates. Loading
-an artifact alone never authorizes replacing the running program.
+## Where next
 
-Artifact bytes may come from disk, a virtual filesystem, a network, or memory.
-There is no special scripting import resolver. Optional source compilation uses
-the ordinary root and nested build files with their lock and attenuated authority;
-compiling one independent component need not rebuild every product. Fused callers
-or shared concrete layouts can require a larger rebuild.
-
-## Native and interpreted cathedral
-
-An interpreted OS executes its own boot, driver, scheduler, and update code.
-The host supplies the processor and device environment through selected
-bindings. This can exercise OS behavior without granting control of the real
-host's hardware.
-
-Assembly runs through supported instruction semantics. Memory, device, and
-processor-state effects persist; scratch registers stay local to their assembly
-region. Missing environment support prevents execution. Native timing and real
-hardware behavior require their own tests. See [interpreted assembly](chapter_22_inline_assembly.md#running-assembly-under-interpretation).
+The complete rules are in [embedding](../spec/build/embedding.md).
+[Using source packages](packages.md) covers dependencies.

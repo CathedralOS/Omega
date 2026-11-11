@@ -6,7 +6,8 @@ typed tree and nothing from text. The variants are the subset: a construct the
 reader cannot express here is refused there, never approximated.
 */
 
-use semantic_vocabulary::{IntegerValue, MachineId, Proposition, ScalarType};
+use semantic_vocabulary::{CrashCause, IntegerValue, MachineId, Proposition, ScalarType};
+use terminal_psi::CrashRouteBucket;
 
 use crate::SourceOrigin;
 
@@ -17,14 +18,41 @@ pub struct Signature {
     /// machine's value `i + 1`, so clause propositions name formals by those
     /// identities.
     pub parameters: Vec<ScalarType>,
-    /// `None` is a Unit machine.
+    /// `None` is a Unit machine. A scalar result's pseudo-value is the value
+    /// right after the formals, `parameters.len() + 1`, which is how
+    /// `ensures` clauses name `result`.
     pub result: Option<ScalarType>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
     /// position here is its position in every `CallRequirement`.
     pub requires: Vec<Proposition>,
-    /// Normal-return guarantees over the formals, in authored order.
+    /// Normal-return guarantees over the formals and the result pseudo-value,
+    /// in authored order.
     pub ensures: Vec<Proposition>,
+    pub crashes: CrashCeiling,
+}
+
+/// What the machine's header says about crashing.
+/// `wiki/spec/language/effects.md`: "On a public checked body omitted
+/// `crashes` means no crash route, exactly as `crashes none`. Private checked
+/// bodies may omit any of the three to request inference."
+#[derive(Debug, Clone, PartialEq)]
+pub enum CrashCeiling {
+    /// The authored routes, canonical (one bucket per cause, causes and
+    /// alternatives strictly increasing, `Truth` alone when present), over the
+    /// formals. Empty is "no crash route".
+    Authored(Vec<CrashRouteBucket>),
+    /// A private body with no `crashes` clause: its published routes are
+    /// derived from its body (`outcome`).
+    Inferred,
+    /// The header wrote `crashes none`, read from the typed trees'
+    /// `Machine::declares_no_crash_route`, not from the absence of a clause.
+    /// effects.md: "An explicit empty value, `reaches none`, `crashes none`,
+    /// `suspends false` or `blocks false`, promises the empty value and
+    /// rejects any body or selection that violates it." It publishes no
+    /// route, and a body that structure can reach a crash from is refused
+    /// (`outcome`), never given an inferred route.
+    DeclaredNone,
 }
 
 /// A machine body: slot types (formals first, then locals in binding order)
@@ -44,7 +72,8 @@ pub enum Statement {
     Evaluate(Expression),
     /// One transition arm. With a guard, the arm runs when it is true and the
     /// following statements run when it is false; without one, the arm runs
-    /// and nothing follows it.
+    /// and nothing follows it. A `crash` statement is an unguarded arm whose
+    /// target is `Target::Crash`.
     Arm {
         guard: Option<Expression>,
         target: Target,
@@ -59,6 +88,10 @@ pub enum Target {
     Value(Expression),
     /// Unit completion (`{}` arm).
     Unit,
+    /// A crash with its cause: a no-successor exit, not a completion.
+    /// `wiki/spec/terminal-psi/calls_and_outcomes.md`: "`Trap` and `Abort`
+    /// are closed causes on distinct no-successor terminators."
+    Crash(CrashCause),
 }
 
 #[derive(Debug, Clone, PartialEq)]
