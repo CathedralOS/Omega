@@ -82510,7 +82510,9 @@ pub(crate) mod structural_judgment {
                         lexical_owner,
                         call,
                     ),
-                    Some(super::specification_calls::SelectedCallContract::Concrete(..))
+                    Some(super::specification_calls::SelectedCallContract::Concrete(
+                        ..
+                    ))
                 );
             if let Some(signature) = signature
                 && (!direct_member

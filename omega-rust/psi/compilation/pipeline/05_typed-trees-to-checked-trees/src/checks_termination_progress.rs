@@ -1465,7 +1465,8 @@ mod machine_summaries {
                     call.statement_index,
                     call.call_ordinal,
                 )
-                && let Some(member) = validation::direct_named_member_machine(program, machine, site)
+                && let Some(member) =
+                    validation::direct_named_member_machine(program, machine, site)
                 && let language_semantics::TerminationInterface::Published(guarantee) =
                     &member.termination_plan.interface
                 && guarantee.promises_termination()
