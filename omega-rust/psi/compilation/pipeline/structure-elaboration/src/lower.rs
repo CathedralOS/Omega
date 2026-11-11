@@ -98,6 +98,7 @@ pub(crate) fn machine(
         current: None,
         point: None,
         slots: vec![None; body.slots.len()],
+        slot_types: &body.slots,
         published: Vec::new(),
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
@@ -226,6 +227,8 @@ struct Lowering<'a> {
     /// The program point after the last thing emitted in `current`.
     point: Option<ProgramPoint>,
     slots: Vec<Option<Bound>>,
+    /// The declared type of each slot, as the body states it.
+    slot_types: &'a [ValueType],
     /// The `PublishedGuarantee` of each `ensures` clause, by position: the
     /// identity Terminal Psi's `ContractClause` holds.
     published: Vec<ObligationId>,
@@ -284,6 +287,15 @@ impl Lowering<'_> {
         self.slots.get_mut(slot).ok_or(Refusal {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
+            concerns: Construct::Machine,
+            detail: String::from("slot is past the end of this body"),
+        })
+    }
+
+    fn slot_type(&self, slot: usize) -> Checked<ValueType> {
+        self.slot_types.get(slot).copied().ok_or(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine: self.id,
             concerns: Construct::Machine,
             detail: String::from("slot is past the end of this body"),
         })

@@ -12,7 +12,9 @@
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
 //! - `cargo xtask worktree <status|acquire|clean> [options]`
+//! - `cargo xtask retire-attached-machines [--write] <path>...`
 
+mod attached_machines;
 mod boundary;
 mod claims;
 mod corpus;
@@ -57,7 +59,8 @@ commands:
   land             Inspect, enqueue, or land a pull request via the GitHub merge queue
   claims           Inspect or update the cross-session work-claim registry
   provenance       Emit the canonical model-audit footer from the active session transcript
-  worktree         List, acquire/recycle, or clean isolated `.agents/worktree/` checkouts"
+  worktree         List, acquire/recycle, or clean isolated `.agents/worktree/` checkouts
+  retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines"
 }
 
 fn main() -> ExitCode {
@@ -80,6 +83,7 @@ fn main() -> ExitCode {
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
+        "retire-attached-machines" => attached_machines::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
             return ExitCode::from(2);

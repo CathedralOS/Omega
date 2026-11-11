@@ -12,10 +12,12 @@
 //!     program <path> current=<accepted|rejected> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
 //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
+//!     use <path> <machine> <operation or edge> unestablished <detail>
 //!
 //! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
-//! (one `diagnostic` line per unproved obligation, the compile error the
-//! program gets on this route), `incomplete` (the prover has no rule for some
+//! (one `diagnostic` line per unproved obligation and one `use` line per use
+//! of storage that is not established, the compile errors the program gets on
+//! this route), `incomplete` (the prover has no rule for some
 //! goal's form), `fallback` (an unsupported obligation hands the closure to
 //! the current checker) or `defect`.
 //!
@@ -228,7 +230,23 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // obligations, judged, core refused, unproved, unsupported, needed a
     // relation, needed a branch fact, published clauses held
     let mut counts = [0_usize; 8];
+    // Uses of storage judged for initialization, and how many of them are
+    // unestablished. Each of those is a compile error by the new route: a
+    // rejection of the program, not a construct outside the subset.
+    let mut uses = 0_usize;
+    let mut unestablished = 0_usize;
     for (machine, result) in discharged.machines.iter() {
+        uses += result.uses.len();
+        for refusal in result.unestablished() {
+            unestablished += 1;
+            lines.push(format!(
+                "use\t{}\t{}\t{:?}\tunestablished\t{}",
+                main.display(),
+                machine.get(),
+                refusal.concerns,
+                one_line(&refusal.detail),
+            ));
+        }
         let Some(tables) = elaboration.tables.machines.get(machine) else {
             continue;
         };
@@ -340,7 +358,8 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     // closure back to the current checker.
     let route = match judge(Ok(for_verdict)) {
         Ok(RouteVerdict::Accepted(_)) => "accepted",
-        Ok(RouteVerdict::Rejected(unproved)) => {
+        // The unestablished uses were reported above, one `use` line each.
+        Ok(RouteVerdict::Rejected { unproved, .. }) => {
             report(main, &unproved, "reject", lines);
             "rejected"
         }
@@ -352,7 +371,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Err(_) => "defect",
     };
     format!(
-        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}",
+        "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
 }

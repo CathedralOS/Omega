@@ -2317,6 +2317,7 @@ mod route_substitution {
         match expression {
             CheckedScalarExpression::ConstantApplication { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
+            | CheckedScalarExpression::StructuralLocalField { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
             CheckedScalarExpression::RepresentationView {
                 primitive_type,
@@ -2606,6 +2607,7 @@ mod route_substitution {
             CheckedScalarExpression::ErasedParameter { .. } => return None,
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StorageRead { .. }
+            | CheckedScalarExpression::StructuralLocalField { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::RepresentationView {
@@ -3531,6 +3533,7 @@ mod summary_predicates {
                 Scalar::ConstantApplication { .. }
                 | Scalar::ErasedParameter { .. }
                 | Scalar::Local { .. }
+                | Scalar::StructuralLocalField { .. }
                 | Scalar::StorageRead { .. } => false,
             }
         }

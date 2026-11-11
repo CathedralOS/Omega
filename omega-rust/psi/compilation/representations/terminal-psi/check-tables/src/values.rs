@@ -107,6 +107,17 @@ pub enum Justification {
     /// `fact_validity.md` has no sentence on it; its availability is ordinary
     /// dominance from the edge.
     BranchCondition { edge: EdgeId, holds: bool },
+    /// What one edge of a case dispatch binds: a payload parameter of the
+    /// selected arm's block equals the value the payload field holds, known
+    /// on that edge only. `wiki/spec/terminal-psi/control_flow.md`: "Selected
+    /// payload fields become scalar parameters on that case's edge before
+    /// cleanup." `wiki/spec/terminal-psi/structural_access.md`: "A validated
+    /// field read or selected-case payload copy instantiates that invariant
+    /// on its fresh scalar snapshot; other fields and unselected cases
+    /// provide no premise." It is not a branch condition: a dispatch has no
+    /// Boolean value, and the row says what the edge delivers, not which way
+    /// it went. Its availability is ordinary dominance from the edge.
+    DispatchBinding { edge: EdgeId },
     /// The checked invariant of a block, available after every arrival
     /// obligation checks. control_flow.md: "There is one row per block;
     /// multiple assertions form a conjunction."

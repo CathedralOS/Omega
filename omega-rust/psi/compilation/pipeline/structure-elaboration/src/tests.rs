@@ -150,8 +150,11 @@ fn lower_records(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &IdTable<semantic_vocabulary::StructuralTypeId, crate::body::RecordType>,
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
-    let declared = crate::lower::places::declare(id(1), records)?;
-    crate::lower::machine(id(1), &body, signatures, outcomes, &declared.records)
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(body);
+    let declared = crate::lower::places::declare(id(1), records, &bodies)?;
+    let body = bodies.get(id(1)).unwrap();
+    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records)
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -1449,11 +1452,11 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
 }
 
 #[test]
-fn a_whole_copy_carries_each_leaf_content_into_the_fresh_root() {
+fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     // f(a: u32, p: Point) -> u32 {
-    //     let q = Point { x: a, y: 7 };  let r = q;   // values carried
-    //     let s = p;                                   // entry contents
-    //     let t = g();  let u = t;                     // unknown contents
+    //     let q = Point { x: a, y: 7 };  let r = q;   // a copy of values
+    //     let s = p;                                   // of entry contents
+    //     let t = g();  let u = t;                     // of unknown contents
     //     r.x
     // }
     let body = Body {
@@ -1537,48 +1540,37 @@ fn a_whole_copy_carries_each_leaf_content_into_the_fresh_root() {
         [q, formal, t]
     );
     let after = |position: usize| ProgramPoint::AfterOperation(operations[position].id);
-    // `r` holds exactly the values `q` was established with.
-    assert_eq!(
-        written(&tables, projected(&tables, r, &[1])),
-        [(Content::Value(a), after(2))]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, r, &[2])),
-        [(Content::Value(seven), after(2))]
-    );
-    // `s` holds the formal's entry contents: one value per leaf, each minted
-    // for its own leaf of the formal and never written there.
-    let entry_content = |field| {
+    // Lowering does not say what a copy's leaves hold: it would have to
+    // ask what the source holds at that point, which only the graph answers
+    // (the checker resolves it; `lowered-discharge`, `places`). Each copy
+    // logs one row on its fresh root, and its operation names the source.
+    let root = |place| *tables.roots.get(place).unwrap();
+    let _ = (a, seven);
+    for (copy, position) in [(r, 2), (s, 3), (u, 5)] {
+        assert_eq!(
+            written(&tables, root(copy)),
+            [(Content::Overwritten, after(position))]
+        );
+        for (_, leaf) in &tables.places.get(root(copy)).unwrap().children {
+            assert!(written(&tables, *leaf).is_empty());
+        }
+    }
+    // Copying the formal names its storage, so each of its leaves has its
+    // one entry content value, minted for that leaf and never written there.
+    for field in [1, 2] {
         let leaf = projected(&tables, formal, &[field]);
         assert!(written(&tables, leaf).is_empty());
-        let mut values = tables
+        let values = tables
             .values
             .iter()
             .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: leaf });
-        let (value, _) = values.next().unwrap();
-        assert!(values.next().is_none());
-        value
-    };
+        assert_eq!(values.count(), 1);
+    }
+    // A call's record result has no value identity: nothing is invented.
     assert_eq!(
-        written(&tables, projected(&tables, s, &[1])),
-        [(Content::Value(entry_content(1)), after(3))]
-    );
-    assert_eq!(
-        written(&tables, projected(&tables, s, &[2])),
-        [(Content::Value(entry_content(2)), after(3))]
-    );
-    // A call's record result has no value identity, and neither does a copy
-    // of it: nothing is invented for either.
-    assert_eq!(
-        written(&tables, *tables.roots.get(t).unwrap()),
+        written(&tables, root(t)),
         [(Content::Overwritten, after(4))]
     );
-    for field in [1, 2] {
-        assert_eq!(
-            written(&tables, projected(&tables, u, &[field])),
-            [(Content::Overwritten, after(5))]
-        );
-    }
     // The read names `r`'s root directly; a local has no place of its own.
     assert!(matches!(
         &operations[6].kind,
@@ -1680,18 +1672,24 @@ fn a_projected_record_is_copied_out_by_its_path() {
         panic!("copy");
     };
     assert_eq!((*source, path.len()), (formal, 1));
-    // The copy carries the entry content of each leaf beneath `l.to`.
+    // The copy logs one row on its fresh root; its operation names the
+    // source place by root and path. Naming `l.to` mints the entry content
+    // of each leaf beneath it.
     let copy = produced(copied);
+    assert_eq!(
+        written(&tables, *tables.roots.get(copy).unwrap()),
+        [(
+            Content::Overwritten,
+            ProgramPoint::AfterOperation(copied.id)
+        )]
+    );
     for field in [1, 2] {
         let from = projected(&tables, formal, &[4, field]);
-        let [(Content::Value(value), _)] = written(&tables, projected(&tables, copy, &[field]))[..]
-        else {
-            panic!("one value per leaf");
-        };
-        assert_eq!(
-            tables.values.get(value).unwrap().origin,
-            ValueOrigin::EntryContent { place: from }
-        );
+        let values = tables
+            .values
+            .iter()
+            .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: from });
+        assert_eq!(values.count(), 1);
     }
 }
 
@@ -1737,4 +1735,291 @@ fn a_module_with_records_declares_them_and_encodes() {
     .unwrap();
     assert!(scalar.module.structural_types.is_empty());
     assert_eq!(scalar.module.native_layouts.records().count(), 0);
+}
+
+fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
+    Statement::Store {
+        slot,
+        path: path.to_vec(),
+        value,
+        source: nowhere(),
+    }
+}
+
+fn declare(slot: usize, home: Option<&str>) -> Statement {
+    Statement::Declare {
+        slot,
+        home: home.map(str::to_owned),
+        source: nowhere(),
+    }
+}
+
+#[test]
+fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
+    // f() -> u32 {
+    //     let p = Point { x: 1, y: 2 };
+    //     let mut l = Line { from: p, to: p };
+    //     l.from.x = 5;
+    //     l.to = p;
+    //     l.from.x
+    // }
+    let body = Body {
+        slots: vec![point(), line()],
+        statements: vec![
+            bind(0, literal(vec![(0, integer(1)), (1, integer(2))], point())),
+            bind(
+                1,
+                literal(vec![(0, place(0, point())), (1, place(0, point()))], line()),
+            ),
+            store(1, &[0, 0], integer(5)),
+            store(1, &[1], place(0, point())),
+            returns(member(
+                member(place(1, line()), 0, point()),
+                0,
+                u32_type().into(),
+            )),
+        ],
+    };
+    let (machine, tables) = lower_places(body, vec![shaped(Vec::new(), Some(u32_type().into()))]);
+    let operations = &block(&machine, 1).operations;
+    let kinds: Vec<_> = operations
+        .iter()
+        .map(|operation| match &operation.kind {
+            OperationKind::IntegerConstant { .. } => "constant",
+            OperationKind::EstablishRecord { .. } => "establish",
+            OperationKind::StructuralLeafCopy { .. } => "copy",
+            OperationKind::StructuralScalarFieldStore { .. } => "store",
+            OperationKind::StoreStructuralField { .. } => "replace",
+            OperationKind::ScalarStructuralField { .. } => "read",
+            other => panic!("unexpected operation {other:?}"),
+        })
+        .collect();
+    // The stored value is evaluated before its store, and the record value
+    // is constructed (here copied whole) before it replaces the field.
+    assert_eq!(
+        kinds,
+        [
+            "constant",
+            "constant",
+            "establish",
+            "copy",
+            "copy",
+            "establish",
+            "constant",
+            "store",
+            "copy",
+            "replace",
+            "read"
+        ]
+    );
+    let l = produced(&operations[5]);
+    let five = operations[6].result.scalar().unwrap().id;
+    let after = |position: usize| ProgramPoint::AfterOperation(operations[position].id);
+    // `l.from.x = 5`: the path is the carrier `from`, the field the leaf
+    // `x`, and a plain field carries no range obligation.
+    assert!(matches!(
+        &operations[7].kind,
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            value,
+            range_obligation: None,
+        } if *destination == l && path.len() == 1 && *field == id(1) && *value == five
+    ));
+    assert!(matches!(
+        operations[7].result,
+        terminal_psi::OperationResult::Unit
+    ));
+    // One row, on exactly `l.from.x`. Its sibling `l.from.y` is not even a
+    // place yet, and `l.from` keeps the one row its construction wrote.
+    assert_eq!(
+        written(&tables, projected(&tables, l, &[3, 1])),
+        [(Content::Value(five), after(7))]
+    );
+    let from = projected(&tables, l, &[3]);
+    assert_eq!(tables.places.get(from).unwrap().children.len(), 1);
+    assert_eq!(written(&tables, from), [(Content::Overwritten, after(5))]);
+    // `l.to = p`: the ordinary structural replacement of the field by an
+    // already constructed root, not member stores. Its row says only that
+    // `l.to` has new contents; the operation names where they came from.
+    let copied = produced(&operations[8]);
+    assert!(matches!(
+        &operations[9].kind,
+        OperationKind::StoreStructuralField {
+            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            destination,
+            path,
+            field: Some(field),
+            value,
+        } if *destination == l && path.is_empty() && *field == id(4)
+            && value.place == copied && value.path.is_empty()
+    ));
+    let to = projected(&tables, l, &[4]);
+    assert_eq!(
+        written(&tables, to),
+        [
+            (Content::Overwritten, after(5)),
+            (Content::Overwritten, after(9))
+        ]
+    );
+    assert!(tables.places.get(to).unwrap().children.is_empty());
+    // No store mints an obligation.
+    assert!(tables.obligations.is_empty());
+}
+
+#[test]
+fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
+    // f(a: u32) -> u32 { let mut p = Point { x: 1, y: 2 }; p = Point { x: p.y, y: a }; p.x }
+    let body = Body {
+        slots: vec![u32_type().into(), point()],
+        statements: vec![
+            bind(1, literal(vec![(0, integer(1)), (1, integer(2))], point())),
+            bind(
+                1,
+                literal(
+                    vec![
+                        (0, member(place(1, point()), 1, u32_type().into())),
+                        (1, slot(0, u32_type())),
+                    ],
+                    point(),
+                ),
+            ),
+            returns(member(place(1, point()), 0, u32_type().into())),
+        ],
+    };
+    let (machine, tables) = lower_places(
+        body,
+        vec![shaped(vec![u32_type().into()], Some(u32_type().into()))],
+    );
+    let operations = &block(&machine, 1).operations;
+    let (first, second) = (produced(&operations[2]), produced(&operations[4]));
+    assert_ne!(first, second);
+    // The operand `p.y` reads the old root, before the new one exists.
+    let old_y = operations[3].result.scalar().unwrap().id;
+    assert!(matches!(
+        &operations[3].kind,
+        OperationKind::ScalarStructuralField { source, field, .. }
+            if *source == first && *field == id(2)
+    ));
+    // The new root's leaves hold exactly the constructed operands.
+    let after = ProgramPoint::AfterOperation(operations[4].id);
+    assert_eq!(
+        written(&tables, projected(&tables, second, &[1])),
+        [(Content::Value(old_y), after)]
+    );
+    assert_eq!(
+        written(&tables, projected(&tables, second, &[2])),
+        [(Content::Value(id(1)), after)]
+    );
+    // From the assignment on, the local names the new root.
+    assert!(matches!(
+        &operations[5].kind,
+        OperationKind::ScalarStructuralField { source, field, .. }
+            if *source == second && *field == id(1)
+    ));
+    // Nothing was written to the old root after its construction.
+    assert_eq!(written(&tables, projected(&tables, first, &[1])).len(), 1);
+}
+
+#[test]
+fn a_local_declared_without_an_initializer_reserves_storage_and_logs_nothing() {
+    // f() -> u32 {
+    //     let mut x: u32;  let mut p: Point;
+    //     x = 3;  p.x = x;
+    //     x
+    // }
+    let body = || Body {
+        slots: vec![u32_type().into(), point()],
+        statements: vec![
+            declare(0, Some("named(name(u32))")),
+            declare(1, None),
+            store(0, &[], integer(3)),
+            store(1, &[0], slot(0, u32_type())),
+            returns(slot(0, u32_type())),
+        ],
+    };
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    bodies.push(body());
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    signatures.push(shaped(Vec::new(), Some(u32_type().into())));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
+    let machine = &elaboration.module.machines[0];
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let operations = &block(machine, 1).operations;
+    let kinds: Vec<_> = operations
+        .iter()
+        .map(|operation| match &operation.kind {
+            OperationKind::IntegerConstant { .. } => "constant",
+            OperationKind::EstablishPrimitiveLocal { .. } => "home",
+            OperationKind::EstablishZeroedStructural {} => "zeroed",
+            OperationKind::WriteOnlyPrimitiveStore { .. } => "write",
+            OperationKind::PrimitiveScalarRead { .. } => "read",
+            OperationKind::StructuralScalarFieldStore { .. } => "store",
+            other => panic!("unexpected operation {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            "constant", "home", "zeroed", "constant", "write", "read", "store", "read"
+        ]
+    );
+    let (x, p) = (produced(&operations[1]), produced(&operations[2]));
+    // The scalar home has the primitive structural type declared after the
+    // two records, and the module with it still encodes.
+    let home = operations[1]
+        .result
+        .as_structural()
+        .unwrap()
+        .structural_type;
+    assert_eq!(home, id(3));
+    assert!(matches!(
+        elaboration.module.structural_types[2].shape,
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
+            if scalar_type == u32_type()
+    ));
+    terminal_codec::encode_module(&elaboration.module).unwrap();
+    // Neither declaration writes a row: the zero the module stores so that
+    // it runs is not content the checker may rely on.
+    let three = operations[3].result.scalar().unwrap().id;
+    let x_root = *tables.roots.get(x).unwrap();
+    assert_eq!(
+        written(tables, x_root),
+        [(
+            Content::Value(three),
+            ProgramPoint::AfterOperation(operations[4].id)
+        )]
+    );
+    assert!(written(tables, *tables.roots.get(p).unwrap()).is_empty());
+    // Each use of `x` is a fresh read of its home, and the store into `p.x`
+    // stores that read's value.
+    let read = operations[5].result.scalar().unwrap().id;
+    assert!(matches!(
+        &operations[5].kind,
+        OperationKind::PrimitiveScalarRead { source, path } if *source == x && path.is_empty()
+    ));
+    assert_eq!(
+        written(tables, projected(tables, p, &[1])),
+        [(
+            Content::Value(read),
+            ProgramPoint::AfterOperation(operations[6].id)
+        )]
+    );
+    assert_eq!(tables.writes.len(), 2);
+    // A scalar home with no type identity cannot be declared.
+    let mut nameless: IdTable<MachineId, Body> = IdTable::default();
+    nameless.push(Body {
+        statements: vec![declare(0, None), returns(integer(1))],
+        ..body()
+    });
+    let refusal = crate::lower_bodies(id(1), &nameless, &signatures, &records()).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert_eq!(
+        refusal.detail,
+        "spelling scalar home without a type identity"
+    );
 }

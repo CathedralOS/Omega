@@ -9,14 +9,19 @@ is no interval verdict, no admitted route and no assumption.
 (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one";
 `wiki/drafts/designs/stage_trust.md`, rule 2.)
 
-Per machine it does three things:
+Per machine it does four things:
 
 - Fills the `knowledge` table from the lowered form alone: each entry
   `requires` clause at the entry block, each operation's result equation on
   its normal successor (Terminal semantics states it), each field read's
-  equation with the one value its place holds on every path to it (`places`),
+  equation with the one value its place holds on every path to it (`places`,
+  the same walk a copy's leaves are resolved by),
   and each callee `ensures` clause, under the call's actuals, after the call.
   Nothing comes from source shapes, names or any Psi 05 or validation fact.
+- Judges initialization: every operation and terminator that reads storage
+  gets one verdict, `Unestablished` when some path to it stores nothing into
+  a scalar leaf it reads (`places`). It is a structural judgment over the
+  write log and the graph, not an obligation, so it has no certificate.
 - States each obligation's goal over Terminal values: an operation's safety
   goal is Terminal semantics' own canonical goal, a call requirement is the
   callee's `requires` clause under the call's actuals, a normal guarantee is
@@ -34,7 +39,7 @@ mod places;
 mod prove;
 mod verdict;
 
-pub use verdict::{AcceptedClosure, RouteVerdict, UnprovedObligation, judge};
+pub use verdict::{AcceptedClosure, RouteVerdict, UnestablishedUse, UnprovedObligation, judge};
 
 #[cfg(test)]
 pub(crate) use prove::has_rules_for;
@@ -100,11 +105,36 @@ impl Discharged {
     }
 }
 
+/// One operation or terminator that reads storage, and whether what it
+/// reads is established there. The initialization judgment is structural: it
+/// has no obligation row, so its verdicts stand beside the obligations'.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageUse {
+    /// The operation, or for a terminator its edge.
+    pub at: Construct,
+    /// `Err` with reason `Unestablished` when some path to the use stores
+    /// nothing into a scalar leaf it reads: a compile error of the program.
+    pub verdict: Checked<()>,
+}
+
 /// One machine's result.
 #[derive(Debug, Clone)]
 pub struct MachineDischarge {
     /// One verdict per obligation row, indexed by the same `ObligationId`.
     pub verdicts: IdTable<ObligationId, Checked<Discharged>>,
+    /// One verdict per use of storage, in block and operation order, a
+    /// block's terminator last.
+    pub uses: Vec<StorageUse>,
+}
+
+impl MachineDischarge {
+    /// The uses of storage that are not established: each is a rejection of
+    /// the program by this route, as an `Unproved` obligation is.
+    pub fn unestablished(&self) -> impl Iterator<Item = &Refusal> {
+        self.uses
+            .iter()
+            .filter_map(|used| used.verdict.as_ref().err())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -210,7 +240,13 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
                 "machine tables are past the end",
             )
         })?;
-        machines.push(machine(&module.machines, id, tables, knowledge)?);
+        machines.push(machine(
+            &module.machines,
+            &module.structural_types,
+            id,
+            tables,
+            knowledge,
+        )?);
     }
     Ok(Discharge { machines })
 }
@@ -250,6 +286,7 @@ fn terminal_machine(
 
 fn machine(
     machines: &[TerminalMachine],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
@@ -265,7 +302,7 @@ fn machine(
     }
     let types = tables.values.map(|_, row| row.scalar_type);
     let graph = Graph::new(id, lowered, tables)?;
-    let entry_contents = places::entry_contents(id, tables)?;
+    let storage = places::Storage::new(id, lowered, structural_types, &graph, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         push_knowledge(
             tables,
@@ -288,9 +325,7 @@ fn machine(
             }
             // A field read's result is a fresh value; what it equals comes
             // from the write log, not from the operation alone.
-            if let Some(equation) =
-                places::read_equation(id, tables, &graph, &entry_contents, operation)?
-            {
+            if let Some(equation) = storage.read_equation(tables, operation)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -413,7 +448,8 @@ fn machine(
             )),
         });
     }
-    Ok(MachineDischarge { verdicts })
+    let uses = storage.uses(tables)?;
+    Ok(MachineDischarge { verdicts, uses })
 }
 
 /// A published `ensures` clause holds when every `Destination::Return` edge
@@ -759,6 +795,7 @@ fn decide(
             Justification::EntryRequirement { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {
                 assumption_rows.push(row);

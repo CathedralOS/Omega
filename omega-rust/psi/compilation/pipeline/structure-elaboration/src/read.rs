@@ -65,6 +65,9 @@ struct Slot {
     symbol: SymbolHandle,
     value_type: ValueType,
     assignable: bool,
+    /// A scalar local declared without an initializer: it is a storage home
+    /// written by a store, not an SSA value rebound by assignment.
+    homed: bool,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -374,9 +377,10 @@ mod tests {
         }
     }
 
-    /// A record local is bound once: storing into a field of it, replacing
-    /// it whole, declaring it without an initializer and destructuring it
-    /// are each refused by name, as is a named constant.
+    /// A store names a field by its symbol and a declaration without an
+    /// initializer names its type; what the typed trees hold only as a
+    /// spelling, a value of another type, and a destructuring binding are
+    /// each refused by name, as is a named constant.
     #[test]
     fn each_place_statement_outside_the_slice_is_refused_by_name() {
         use semantic_vocabulary::StructuralTypeId;
@@ -427,6 +431,7 @@ mod tests {
             symbol: local,
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
+            homed: false,
         }];
         let mut program = Program::new(&typed);
         let mut assigned = |target| {
@@ -443,8 +448,34 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
-        assert_eq!(assigned(projected), "statement field store");
-        assert_eq!(assigned(whole), "statement whole assignment of a record");
+        assert_eq!(
+            assigned(projected),
+            "spelling member without a field symbol"
+        );
+        assert_eq!(assigned(whole), "typing assigned value type");
+        assert_eq!(assigned(value), "statement assignment to a projected place");
+        // A binding that is not `mut` is neither replaced nor stored into.
+        let frozen = [Slot {
+            symbol: local,
+            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            assignable: false,
+            homed: false,
+        }];
+        assert_eq!(
+            program
+                .assignment(
+                    machine(),
+                    &frozen,
+                    &TableAssignment {
+                        target: whole,
+                        value,
+                        ..Default::default()
+                    },
+                )
+                .unwrap_err()
+                .detail,
+            "statement assignment to an immutable binding"
+        );
         let mut declared = |role, initial_value| {
             program
                 .local(
@@ -472,7 +503,7 @@ mod tests {
                 language_core::LocalBindingRole::Value,
                 ExpressionHandle::invalid()
             ),
-            "statement uninitialized local"
+            "statement uninitialized local without a declared type"
         );
         assert_eq!(
             declared(language_core::LocalBindingRole::RecordPattern, whole),
