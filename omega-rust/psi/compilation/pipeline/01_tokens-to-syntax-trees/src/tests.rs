@@ -2505,34 +2505,74 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
-    fn destructure_marker_preserves_double_underscore_field_as_one_component() {
+    fn record_pattern_marker_carries_its_field_roster() {
         let source = r#"
-        data Pair { left__value: i32; right: i32; }
+        data Pair { left__value: i32; right: i32; other: i32; }
         machine inspect(pair: Pair) {
-            let { left__value, right as _ } = pair;
+            let { left__value, right as _, other as renamed } = pair;
         }
     "#;
         let parsed = super::parse_source(source, "destructure should parse");
         let machine = super::root_machine(&parsed, "machine root item");
         let state = super::entry_state(&parsed, machine);
-        let marker = parsed
+        let locals = parsed
             .items
             .statements(state.statements)
             .iter()
-            .find_map(|handle| match parsed.statements.statement(*handle) {
-                StatementNode::LocalData(local)
-                    if local.name.as_str(&parsed).starts_with("__destructure#") =>
-                {
-                    Some(local)
-                }
+            .filter_map(|handle| match parsed.statements.statement(*handle) {
+                StatementNode::LocalData(local) => Some(local),
                 _ => None,
             })
-            .expect("destructure marker local");
+            .collect::<Vec<_>>();
+        let [marker, bound @ ..] = locals.as_slice() else {
+            panic!("the pattern leaves a marker local");
+        };
 
+        assert_eq!(marker.role, language_core::LocalBindingRole::RecordPattern);
         assert_eq!(
             marker.name.as_str(&parsed),
-            "__destructure#left__value#right",
-            "the internal delimiter must not split repeated underscores"
+            "__destructure",
+            "the marker's name encodes nothing"
+        );
+        let roster = parsed
+            .expressions
+            .match_fields(marker.pattern_fields)
+            .iter()
+            .map(|field| {
+                (
+                    field.member.as_str(&parsed),
+                    match &field.action {
+                        syntax_trees::expression::MatchFieldAction::Bind(binding) => {
+                            Some(binding.as_str(&parsed))
+                        }
+                        syntax_trees::expression::MatchFieldAction::Waive => None,
+                        syntax_trees::expression::MatchFieldAction::Equal(_) => {
+                            panic!("a let pattern compares nothing")
+                        }
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            roster,
+            [
+                ("left__value", Some("left__value")),
+                ("right", None),
+                ("other", Some("renamed")),
+            ],
+            "every named field is kept in authored order, waived ones included"
+        );
+        assert_eq!(
+            bound
+                .iter()
+                .map(|local| local.name.as_str(&parsed))
+                .collect::<Vec<_>>(),
+            ["left__value", "renamed"],
+            "only bound fields become value locals"
+        );
+        assert!(
+            bound.iter().all(|local| local.pattern_fields.is_empty()),
+            "only the marker carries a roster"
         );
     }
 

@@ -5567,6 +5567,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let mut incoming = statement_entry
                 .iter()
@@ -7495,6 +7496,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let contents = borrow_carrying_data_loans(
                 program,
@@ -7572,6 +7574,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
         let expression_loans = |expression| {
             let mut value = returned_value.clone();
@@ -7910,6 +7913,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
 
         let loans = binding_borrow_loans(

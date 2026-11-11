@@ -3033,6 +3033,41 @@ pub(crate) mod state {
             } else {
                 TypeReference::Unit
             };
+            /*
+                A record pattern's roster keeps its authored spellings here.
+                Each entry receives its field once the subject's type is known,
+                in typed preparation, so no entry is resolved by this stage.
+            */
+            let roster = syntax
+                .expressions
+                .match_fields(local.pattern_fields)
+                .iter()
+                .map(|field| {
+                    use symbol_resolved_trees::expression::{MatchFieldAction, TableMatchField};
+                    TableMatchField {
+                        component: field.component,
+                        member: crate::lowering::name::lower_name(syntax, &field.member),
+                        field_symbol: SymbolHandle::invalid(),
+                        action: match &field.action {
+                            syntax::expression::MatchFieldAction::Bind(binding) => {
+                                MatchFieldAction::Bind(crate::lowering::name::lower_name(
+                                    syntax, binding,
+                                ))
+                            }
+                            syntax::expression::MatchFieldAction::Waive
+                            | syntax::expression::MatchFieldAction::Equal(_) => {
+                                MatchFieldAction::Waive
+                            }
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+            let pattern_fields = lowerer
+                .symbol_resolved_trees
+                .tables
+                .bodies
+                .expressions
+                .insert_match_fields(roster);
             Ok(LocalData {
                 symbol: SymbolHandle::invalid(),
                 name: crate::lowering::name::lower_name(syntax, &local.name),
@@ -3044,6 +3079,7 @@ pub(crate) mod state {
                     type_is_inferred: !local.type_reference.is_valid(),
                     is_operand_capture: false,
                     relevance: local.relevance,
+                    pattern_fields,
                 },
             })
         }

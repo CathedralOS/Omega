@@ -608,6 +608,15 @@ impl<'t> Program<'t> {
                         (false, _) | (true, None) => Statement::Evaluate(expression),
                     }
                 }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::RecordPattern =>
+                {
+                    // The marker reads nothing and binds nothing, so it
+                    // leaves no statement; only the cursor moves on.
+                    self.record_pattern(id, &slots, local)?;
+                    position += 1;
+                    continue;
+                }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local)?;
                     slots.push(slot);

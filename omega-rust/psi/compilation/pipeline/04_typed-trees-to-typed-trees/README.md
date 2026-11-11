@@ -110,3 +110,21 @@ This rewrite is scaffolding for the order the design record sets. Its step 5
 inverts the definition: `omega::core` declares the policy domains' operators
 through the suffixed forms, and the suffixed operation becomes the primitive
 this pass currently spells with casts.
+
+## Record pattern rosters
+
+`let { a, b as _ } = subject;` reaches this stage as a marker local
+(`LocalBindingRole::RecordPattern`) whose roster holds one row per field the
+author named, bound or waived, still only as spelled. The last preparation
+step, [`record_patterns::prepare`](src/lib.rs), resolves each roster against
+the subject's declared record, which only now is settled for specialized
+bodies too: every row receives the symbol of the field it names
+(`TableMatchField::field_symbol`) and the marker the record's own symbol
+(`TableLocalData::pattern_subject`). A row naming no field, or a spelling two
+fields share, stays without a symbol, and a subject that is not a plain record
+leaves the roster unresolved.
+
+Checking (`validation`'s `validate_destructure_exhaustiveness`) and
+[structure-only elaboration](../structure-elaboration/README.md) then decide
+coverage from those symbols alone; neither reads a row's spelling, and the
+marker's name encodes nothing.

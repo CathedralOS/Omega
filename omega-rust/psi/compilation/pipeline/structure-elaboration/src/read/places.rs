@@ -46,9 +46,9 @@ use crate::{SourceOrigin, Unserved, refuse};
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
 /// body holds positions.
 pub(super) struct RecordSource {
-    declaration: SymbolHandle,
-    fields: Vec<SymbolHandle>,
-    cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+    pub(super) declaration: SymbolHandle,
+    pub(super) fields: Vec<SymbolHandle>,
+    pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
 
 /// What a member's field symbol names in its receiver's data type.
@@ -355,11 +355,83 @@ impl Program<'_> {
             })
     }
 
+    /// `let { a, b as _ } = subject;`: the marker local of a record pattern.
+    /// It binds nothing and lowers to nothing. The bound fields are the
+    /// ordinary locals that follow it, each a field read of the subject; the
+    /// marker only says which fields the author named, and the pattern is
+    /// served when those are every field of the subject's record.
+    /// `wiki/spec/language/patterns.md`: "A pattern that can fail rejects; a
+    /// binding introduces no hidden branch, trap, fallback or runtime
+    /// assertion." Coverage is read from the roster's field symbols and the
+    /// record's own; no spelling is compared.
+    pub(super) fn record_pattern(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Checked<()> {
+        let refused = |what| refuse(id, Construct::Machine, what);
+        if !local.pattern_subject.is_valid() {
+            return Err(refused(Unserved::Spelling(
+                "record pattern without a resolved subject",
+            )));
+        }
+        let subject = self.expression(id, slots, local.initial_value, None)?;
+        let mut place = &subject;
+        while let ExpressionKind::Field { base, .. } = &place.kind {
+            place = base;
+        }
+        if !matches!(place.kind, ExpressionKind::Slot(_)) {
+            return Err(refused(Unserved::Statement(
+                "record pattern over a value that is not a place",
+            )));
+        }
+        let Some(ValueType::Record(record)) = subject.result else {
+            return Err(refused(Unserved::Typing(
+                "record pattern over a value that is not a record",
+            )));
+        };
+        let source =
+            terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?;
+        if source.declaration != local.pattern_subject {
+            return Err(refused(Unserved::Typing(
+                "record pattern resolved against another record",
+            )));
+        }
+        if !source.cases.is_empty() {
+            return Err(refused(Unserved::Typing("record pattern over a sum")));
+        }
+        let roster = self
+            .typed
+            .expression_table
+            .match_fields(local.pattern_fields);
+        if roster
+            .iter()
+            .any(|row| !row.field_symbol.is_valid() || !source.fields.contains(&row.field_symbol))
+        {
+            return Err(refused(Unserved::Spelling(
+                "record pattern field without a symbol",
+            )));
+        }
+        if source
+            .fields
+            .iter()
+            .any(|field| !roster.iter().any(|row| row.field_symbol == *field))
+        {
+            return Err(refused(Unserved::Statement(
+                "record pattern that omits a field",
+            )));
+        }
+        Ok(())
+    }
+
     /// `receiver.member`: a field of the record, or a payload field of a
     /// case of the sum, that the receiver names. Which of the two is read
     /// from the member's field symbol; a member the typed trees hold only as
-    /// a spelling is refused, and stage 02 leaves a directly authored
-    /// payload member (`s.at`) in that form.
+    /// a spelling is refused. A directly authored payload member (`s.at`)
+    /// carries its payload field's symbol when exactly one case declares
+    /// that field, as stage 03 records it; whether the sum holds that case
+    /// where it is read is judged on the lowered form.
     pub(super) fn member(
         &mut self,
         id: MachineId,

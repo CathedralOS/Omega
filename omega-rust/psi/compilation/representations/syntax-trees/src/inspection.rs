@@ -762,6 +762,33 @@ pub mod snapshot {
             )
         }
 
+        /// One pattern's field roster, for a dispatch arm or a record
+        /// pattern's marker local alike.
+        pub(crate) fn snapshot_match_fields(
+            syntax_trees: &SyntaxTrees,
+            fields: arena::HandleSpan<crate::expression::TableMatchField>,
+        ) -> Vec<MatchFieldSnapshot> {
+            syntax_trees
+                .expressions
+                .match_fields(fields)
+                .iter()
+                .map(|field| MatchFieldSnapshot {
+                    component: (field.component == language_core::PatternComponent::Case)
+                        .then_some("case"),
+                    member: snapshot_identifier(syntax_trees, &field.member),
+                    action: match &field.action {
+                        MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
+                            binding: snapshot_identifier(syntax_trees, binding),
+                        },
+                        MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
+                            value: Box::new(snapshot_expression_handle(syntax_trees, *value)),
+                        },
+                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
+                    },
+                })
+                .collect()
+        }
+
         pub(crate) fn snapshot_match_pattern(
             syntax_trees: &SyntaxTrees,
             pattern: MatchPattern,
@@ -778,28 +805,7 @@ pub mod snapshot {
                         ))
                     }),
                     head: Box::new(snapshot_expression_handle(syntax_trees, pattern.head)),
-                    fields: syntax_trees
-                        .expressions
-                        .match_fields(pattern.fields)
-                        .iter()
-                        .map(|field| MatchFieldSnapshot {
-                            component: (field.component == language_core::PatternComponent::Case)
-                                .then_some("case"),
-                            member: snapshot_identifier(syntax_trees, &field.member),
-                            action: match &field.action {
-                                MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
-                                    binding: snapshot_identifier(syntax_trees, binding),
-                                },
-                                MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
-                                    value: Box::new(snapshot_expression_handle(
-                                        syntax_trees,
-                                        *value,
-                                    )),
-                                },
-                                MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
-                            },
-                        })
-                        .collect(),
+                    fields: snapshot_match_fields(syntax_trees, pattern.fields),
                     has_rest: pattern.has_rest,
                     guard: pattern
                         .guard
@@ -2062,6 +2068,8 @@ pub mod snapshot {
                 initial_value: ExpressionSnapshot,
                 is_mutable: bool,
                 relevance: &'static str,
+                #[serde(skip_serializing_if = "Vec::is_empty")]
+                pattern_fields: Vec<super::expression_and_type_snapshots::MatchFieldSnapshot>,
             },
             Transition {
                 #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -2394,6 +2402,10 @@ pub mod snapshot {
                     initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
                     is_mutable: value.is_mutable,
                     relevance: super::item_snapshots::snapshot_binding_relevance(value.relevance),
+                    pattern_fields: super::expression_and_type_snapshots::snapshot_match_fields(
+                        syntax_trees,
+                        value.pattern_fields,
+                    ),
                 },
                 StatementNode::Transition(value) => StatementSnapshot::Transition {
                     patterns: syntax_trees

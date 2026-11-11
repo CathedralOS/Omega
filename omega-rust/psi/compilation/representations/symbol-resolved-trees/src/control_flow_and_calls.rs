@@ -531,6 +531,9 @@ pub mod control_flow {
             pub type_is_inferred: bool,
             pub is_operand_capture: bool,
             pub relevance: language_core::BindingRelevance,
+            /// The fields a record pattern names, each bound or waived;
+            /// empty unless `role` is `RecordPattern`.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
         }
 
         deref_to_storage!(LocalData => LocalDataStorage);
@@ -969,6 +972,14 @@ pub mod control_flow {
                         } else {
                             crate::expression::ExpressionHandle::invalid()
                         };
+                        let pattern_fields = if transplant.copy_expression_handles {
+                            expressions.copy_pattern_fields(
+                                transplant.source_expressions,
+                                local_data.pattern_fields,
+                            )
+                        } else {
+                            local_data.pattern_fields
+                        };
                         self.insert(StatementNode::LocalData(TableLocalData {
                             role: local_data.role,
                             symbol: local_data.symbol,
@@ -979,6 +990,7 @@ pub mod control_flow {
                             type_is_inferred: local_data.type_is_inferred,
                             is_operand_capture: local_data.is_operand_capture,
                             relevance: local_data.relevance,
+                            pattern_fields,
                         }))
                     }
                     Statement::Transition(transition) => {
@@ -1223,6 +1235,9 @@ pub mod control_flow {
             pub type_is_inferred: bool,
             pub is_operand_capture: bool,
             pub relevance: language_core::BindingRelevance,
+            /// The fields a record pattern names, each bound or waived;
+            /// empty unless `role` is `RecordPattern`.
+            pub pattern_fields: HandleSpan<crate::expression::TableMatchField>,
         }
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
