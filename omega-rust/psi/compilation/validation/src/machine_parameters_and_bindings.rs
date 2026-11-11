@@ -3387,24 +3387,7 @@ pub mod machine_parameters {
             } else {
                 target
             };
-            let Some(source) = program
-                .symbols
-                .symbol_source_span(declaration)
-                .and_then(|span| program.symbols.source_file(span))
-            else {
-                return false;
-            };
-            if source.origin != source::SourceOrigin::Toolchain
-                || source.path.strip_prefix(&source.package_root).ok()
-                    != Some(std::path::Path::new("reflect.omg"))
-                || !matches!(
-                    program.symbols.name(declaration),
-                    "visit_runtime_fields"
-                        | "visit_runtime_fields_mut"
-                        | "inspect_record_fields"
-                        | "visit_active_fields"
-                        | "visit_active_fields_mut"
-                )
+            if !program.symbols.core_vocabulary(declaration).is_some_and(|vocabulary| vocabulary.is_reflection_field_visitor())
             {
                 return false;
             }

@@ -38,6 +38,47 @@ pub enum CoreVocabulary {
     InterruptAcknowledgementCompletionComplete,
     /// Core `static_interrupt.omg`'s `StaticInterruptCompletionPermit` token.
     StaticInterruptCompletionPermit,
+    /// A reflection operation or result type in core `reflect.omg`.
+    Reflection(ReflectionDeclaration),
+}
+
+/// The `reflect.omg` declarations reflection elaboration is written against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReflectionDeclaration {
+    /// `schema<T>()`.
+    Schema,
+    /// `TypeSchema`, the result of `schema`.
+    TypeSchema,
+    /// `CaseInfo`, active-case metadata.
+    CaseInfo,
+    /// `FieldInfo`, field metadata.
+    FieldInfo,
+    VisitRuntimeFields,
+    VisitRuntimeFieldsMut,
+    InspectRecordFields,
+    VisitActiveFields,
+    VisitActiveFieldsMut,
+}
+
+impl ReflectionDeclaration {
+    /// Whether this is one of the field-visiting operations.
+    pub const fn is_field_visitor(self) -> bool {
+        matches!(
+            self,
+            Self::VisitRuntimeFields
+                | Self::VisitRuntimeFieldsMut
+                | Self::InspectRecordFields
+                | Self::VisitActiveFields
+                | Self::VisitActiveFieldsMut
+        )
+    }
+}
+
+impl CoreVocabulary {
+    /// Whether this is one of `reflect.omg`'s field-visiting operations.
+    pub const fn is_reflection_field_visitor(self) -> bool {
+        matches!(self, Self::Reflection(declaration) if declaration.is_field_visitor())
+    }
 }
 
 /// The selector primitives of the two segment files.
@@ -83,6 +124,7 @@ const DATA_SEGMENT: &[u8] = core_source!("data_segment.omg");
 const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
+const REFLECT: &[u8] = core_source!("reflect.omg");
 
 const fn row(
     file: &'static str,
@@ -214,6 +256,60 @@ const ROWS: &[CoreVocabularyRow] = &[
         "StaticInterruptCompletionPermit",
         STATIC_INTERRUPT,
         CoreVocabulary::StaticInterruptCompletionPermit,
+    ),
+    row(
+        "reflect.omg",
+        "schema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
+    ),
+    row(
+        "reflect.omg",
+        "TypeSchema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
+    ),
+    row(
+        "reflect.omg",
+        "CaseInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::CaseInfo),
+    ),
+    row(
+        "reflect.omg",
+        "FieldInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo),
+    ),
+    row(
+        "reflect.omg",
+        "visit_runtime_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields),
+    ),
+    row(
+        "reflect.omg",
+        "visit_runtime_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut),
+    ),
+    row(
+        "reflect.omg",
+        "inspect_record_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields),
+    ),
+    row(
+        "reflect.omg",
+        "visit_active_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields),
+    ),
+    row(
+        "reflect.omg",
+        "visit_active_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
     ),
 ];
 
