@@ -3044,8 +3044,7 @@ fail/capabilities/boundary_qualification_subject_rejected rejected 651ms expecte
 	boundary requirement `TokenIssuer::issue` may admit domain `Token::Issued` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in Token::Issued` or name a mutable parameter
 fail/capabilities/callback_synchronous_registration_cycle rejected 14500ms unexpected @bbcd76b6ba0a
 	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
-fail/capabilities/cyclic_synchronous_invocation rejected 3107ms expected @ccdb99ca2214
-	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
+fail/capabilities/cyclic_synchronous_invocation checked 2607ms @11582c84f057
 fail/capabilities/effect_ceiling_exceeded rejected 1444ms expected @ccdb99ca2214
 	machine `Worker::run` publishes service reach `Console` but its checked body reaches undeclared service `Disk`
 fail/capabilities/native_qualified_slice_external_leaf_rejected rejected 718ms expected @ccdb99ca2214
@@ -3337,8 +3336,7 @@ fail/constraints/bounded_mutable_initializer_outside_range rejected 2260ms expec
 	cannot prove ensures contract for exit from main at statement 1: result <= 4
 fail/constraints/callee_result_bound_exceeds_cast rejected 752ms expected @ccdb99ca2214
 	Exact integer cast in machine `value` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/constraints/computed_local_value_invalidated rejected 2331ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from produce at statement 2: result == 7
+fail/constraints/computed_local_value_invalidated checked 2516ms @11582c84f057
 fail/constraints/guarded_integer_return_range rejected 993ms expected @ccdb99ca2214
 	anonymous integer value `256` does not fit destination `u8` in machine `value` state `entry` return value
 fail/constraints/multiple_policy_domain_chain rejected 781ms expected @ccdb99ca2214
@@ -15976,6 +15974,7 @@ fail/layouts/demanded_partial_target_layout rejected 14219ms expected @ccdb99ca2
 	native execution input: TargetFamily("native storage extent demand: UnclosedTargetLayout(StructuralTypeId(27))")
 fail/layouts/direct_encoded_assignment_requires_fit rejected 1260ms expected @ccdb99ca2214
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
+fail/layouts/direct_unselected_ordinary_layout_contract checked 7649ms @11582c84f057
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 2145ms expected @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
