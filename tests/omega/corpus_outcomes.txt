@@ -8966,15 +8966,15 @@ fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 1
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
-fail/facts/fixed_region_byte_roundtrip_through_match_join_short_region_rejected rejected 3418ms expected @2669e12a2d98+wt
+fail/facts/fixed_region_byte_roundtrip_through_match_join_short_region_rejected rejected 3418ms expected @3bbe5c131a15
 	machine `copy_region` state `entry`: recast source window endpoint is not statically exact
-fail/facts/fixed_region_byte_roundtrip_through_other_machine_short_region_rejected rejected 1182ms expected @2669e12a2d98+wt
+fail/facts/fixed_region_byte_roundtrip_through_other_machine_short_region_rejected rejected 1182ms expected @3bbe5c131a15
 	machine `copy_region` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
-fail/facts/fixed_region_byte_roundtrip_through_other_state_short_region_rejected rejected 1201ms expected @2669e12a2d98+wt
+fail/facts/fixed_region_byte_roundtrip_through_other_state_short_region_rejected rejected 1201ms expected @3bbe5c131a15
 	machine `copy_region` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/fixed_region_byte_roundtrip_through_parameter_short_region_rejected rejected 9134ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
-fail/facts/fixed_region_byte_roundtrip_through_target_body_short_region_rejected rejected 1596ms expected @2669e12a2d98+wt
+fail/facts/fixed_region_byte_roundtrip_through_target_body_short_region_rejected rejected 1596ms expected @3bbe5c131a15
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/float_comparison_route_through_call_result_rejected rejected 2521ms expected @ccdb99ca2214
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
@@ -9039,23 +9039,23 @@ fail/facts/float_result_equality_through_parameter_rejected rejected 7076ms expe
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/float_result_equality_through_target_body_rejected rejected 13437ms expected @37bbc58593ae
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/foreign_byte_array_element_backing_through_call_result_rejected rejected 36751ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_call_result_rejected rejected 36751ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_const_name_rejected rejected 23024ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_const_name_rejected rejected 23024ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_field_rejected rejected 22985ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_field_rejected rejected 22985ms expected @3bbe5c131a15
 	statement 3 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/foreign_byte_array_element_backing_through_local_rejected rejected 24252ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_local_rejected rejected 24252ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_match_join_rejected rejected 24580ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_match_join_rejected rejected 24580ms expected @3bbe5c131a15
 	statement 3 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/foreign_byte_array_element_backing_through_other_machine_rejected rejected 5201ms expected @851c0a22af77+wt
+fail/facts/foreign_byte_array_element_backing_through_other_machine_rejected rejected 5201ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_other_state_rejected rejected 17486ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_other_state_rejected rejected 17486ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_parameter_rejected rejected 21344ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_parameter_rejected rejected 21344ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/foreign_byte_array_element_backing_through_target_body_rejected rejected 20335ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_target_body_rejected rejected 20335ms expected @3bbe5c131a15
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 2563ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
@@ -9274,23 +9274,23 @@ fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 2573
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 2216ms expected @ccdb99ca2214
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 45920ms expected @6e5131c510b9+wt
-	cannot prove ensures contract for exit from extract_payload at statement 7: result >= 40 && result <= 80
-fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 10937ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_call_result_rejected rejected 5064ms unexpected @3bbe5c131a15
+	cannot prove ensures contract for exit from extract_payload at statement 3: result >= 40 && result <= 80
+fail/facts/four_variant_enum_payload_bound_through_const_name_rejected rejected 10937ms expected @3bbe5c131a15
 	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 18519ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_field_rejected rejected 18519ms expected @3bbe5c131a15
 	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 17587ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_local_rejected rejected 17587ms expected @3bbe5c131a15
 	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 16980ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_match_join_rejected rejected 16980ms expected @3bbe5c131a15
 	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 14032ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_other_machine_rejected rejected 14032ms expected @3bbe5c131a15
 	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 9988ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_other_state_rejected rejected 9988ms expected @3bbe5c131a15
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 13277ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_parameter_rejected rejected 13277ms expected @3bbe5c131a15
 	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 12186ms expected @6e5131c510b9+wt
+fail/facts/four_variant_enum_payload_bound_through_target_body_rejected rejected 12186ms expected @3bbe5c131a15
 	cannot prove requires contract for call verify_payload from X86TargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
 	cannot prove requires contract for call verify_payload from ArmTargetProbe::target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `target_probe`
 fail/facts/generic_calling_policy_through_call_result_rejected rejected 16316ms expected @f8fd5ea66130
@@ -9567,58 +9567,58 @@ fail/facts/implementation_region_forwarding_through_parameter_rejected rejected 
 	machine `carry` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `carry$specialized$19d4628e06f90d7a$0$4648` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `observed$specialized$f92ed324b5120a1d$0$4654` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/in_place_view_argument_through_call_result_rejected rejected 6882ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_third from main: constructor:79:package:3bc19f2a7a0a886cfff3ea5bb3ded4977eb30220b75d9ae66c14c9921a8c1b08::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_const_name_rejected rejected 6808ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_third from main: constructor:79:package:b5e13951f8814ce53380f9ae2403b6f43e535cf9c8a32be1c4d69fb1a65bfef3::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_field_rejected rejected 7180ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-	cannot prove requires contract for call read_third from Main::main: constructor:79:package:fca11091c7578df01642246bed211d2b194a18b2889398aa89874ec4e1c236c8::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/facts/in_place_view_argument_through_local_rejected rejected 7160ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_third from main: constructor:79:package:845702af52bd4cc4c92cb295bbde29ce77cf2ad48db7aee742d985747c50a22f::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_match_join_rejected rejected 8076ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from choose: match first { true => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes11:shared left15:common:name:tag1:516:common:name:tail1:9, _ => constructor:79:package:a58d9c16b204885ee2a3e077093123e0db03af9a72be775359c7decffbd021a2::Input6:record17:common:name:bytes12:shared right15:common:name:tag1:516:common:name:tail1:9 }.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_other_machine_rejected rejected 10644ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from relay: constructor:79:package:e04e150308d22a5303408da0d4afb493e3c32640f84d2380d32150635f2ff2ee::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_other_state_rejected rejected 5342ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_third from inspect: constructor:79:package:81b6a363083a4ac81fb335e7f286b4999950703e3b11347d5092b11ae6788887::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_parameter_rejected rejected 5302ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from probe: constructor:79:package:0044af01741cbdc92a0d30dd58701590b9b33c3a55f6513c90c82f786fe01daa::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/in_place_view_argument_through_target_body_rejected rejected 4814ms expected @ca41410e2ee2+wt
-	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_third from main: constructor:79:package:ca6f90e78141632d10af583dc58afc58f1d9965e38f81b993eb17b98f39be4bb::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/independent_call_result_bound_applied_requirement_rejected rejected 8402ms expected @1efc2536b3bc+wt
+fail/facts/in_place_view_argument_through_call_result_rejected rejected 6882ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from main: constructor:79:package:0c72e1eb8555aaa7f28c76a0c3ad0f8c721bdf9f229891b81f608b7f7e047c50::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:0c72e1eb8555aaa7f28c76a0c3ad0f8c721bdf9f229891b81f608b7f7e047c50::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_const_name_rejected rejected 6808ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from main: constructor:79:package:fa093e7cfb707b1136d3e5e57e1f1d957c37d01b8cfa7602a7361f895277f9c1::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:fa093e7cfb707b1136d3e5e57e1f1d957c37d01b8cfa7602a7361f895277f9c1::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_field_rejected rejected 7180ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:0cf54ae3ab0a42213085c9a25203fc0ad80463996b79681bf9d5817465b2917d::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+	cannot prove requires contract for call read_third from Main::main: constructor:79:package:0cf54ae3ab0a42213085c9a25203fc0ad80463996b79681bf9d5817465b2917d::Input6:record17:common:name:bytes18:shared main.packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/facts/in_place_view_argument_through_local_rejected rejected 7160ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from main: constructor:79:package:6897176452455511da4f1eda0328c48b98159b8fbec1bb9d18ccddd3b4935d3e::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:6897176452455511da4f1eda0328c48b98159b8fbec1bb9d18ccddd3b4935d3e::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_match_join_rejected rejected 8076ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from choose: match first { true => constructor:79:package:759e7969e9ef2d46b565806592831e45d32885267a7d71af052d2c4d881f14ae::Input6:record17:common:name:bytes11:shared left15:common:name:tag1:516:common:name:tail1:9, _ => constructor:79:package:759e7969e9ef2d46b565806592831e45d32885267a7d71af052d2c4d881f14ae::Input6:record17:common:name:bytes12:shared right15:common:name:tag1:516:common:name:tail1:9 }.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_machine_rejected rejected 10644ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from relay: constructor:79:package:f2ebbd8221ef6cc1d1d47b32f223ad5b01768cddb010765cdaacbfe914a32709::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_other_state_rejected rejected 5342ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:9758cf982ca8db6dec856231e4a88b8b697892635caf505433bfe165ae2c95d5::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from inspect: constructor:79:package:9758cf982ca8db6dec856231e4a88b8b697892635caf505433bfe165ae2c95d5::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_parameter_rejected rejected 5302ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from probe: constructor:79:package:843a437cb40c061501f5c45d5626169edc0f51a5fe1d55949593e543f271702e::Input6:record17:common:name:bytes13:shared packet15:common:name:tag3:tag16:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/in_place_view_argument_through_target_body_rejected rejected 4814ms expected @3bbe5c131a15
+	cannot prove requires contract for call read_third from main: constructor:79:package:7749b0c15ef6a2134380e72a6d7c38a87b895b6878417c343e942c495cc68cea::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:516:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call read_third from main: constructor:79:package:7749b0c15ef6a2134380e72a6d7c38a87b895b6878417c343e942c495cc68cea::Input6:record17:common:name:bytes13:shared packet15:common:name:tag1:616:common:name:tail1:9.bytes.len >= 4 (needs fact `packet.bytes.len >= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/independent_call_result_bound_applied_requirement_rejected rejected 8402ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_call_result_rejected rejected 6102ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_call_result_rejected rejected 6102ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_const_name_rejected rejected 6847ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_const_name_rejected rejected 6847ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_field_rejected rejected 4625ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_field_rejected rejected 4625ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_local_rejected rejected 7571ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_local_rejected rejected 7571ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_match_join_rejected rejected 10030ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_match_join_rejected rejected 10030ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_other_machine_rejected rejected 6190ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_other_machine_rejected rejected 6190ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_other_state_rejected rejected 5799ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_other_state_rejected rejected 5799ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_parameter_rejected rejected 4639ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_parameter_rejected rejected 4639ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
-fail/facts/independent_call_result_bound_through_target_body_rejected rejected 3603ms expected @1efc2536b3bc+wt
+fail/facts/independent_call_result_bound_through_target_body_rejected rejected 3603ms expected @3bbe5c131a15
 	cannot prove ensures contract for exit from ReservedSource::source at statement 0: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 0: result == 7
 fail/facts/independent_content_partition_through_call_result_rejected rejected 6690ms expected @089c0a150e63
@@ -9775,8 +9775,9 @@ fail/facts/indexed_crash_guard_through_other_state_rejected rejected 3826ms unex
 	call from `read_seven` to `consume` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_crash_guard_through_parameter_rejected rejected 3033ms expected @ccdb99ca2214
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_target_body_rejected rejected 28782ms expected @b9580c0cab21+wt
+fail/facts/indexed_crash_guard_through_target_body_rejected rejected 28782ms expected @3bbe5c131a15
 	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `read_seven` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/facts/indexed_element_mut_loan_through_call_result_rejected rejected 2029ms expected @ccdb99ca2214
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
 	statement 3 borrows `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -9895,24 +9896,24 @@ fail/facts/indexed_storage_address_identity_through_target_body_rejected rejecte
 	statement 2 borrows `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 borrows `items[index]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_field_rejected rejected 784ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_local_rejected rejected 910ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_match_join_rejected rejected 731ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_other_machine_rejected rejected 736ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_other_state_rejected rejected 636ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
-fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
-	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_field_rejected rejected 784ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_local_rejected rejected 910ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_match_join_rejected rejected 731ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_other_machine_rejected rejected 736ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_other_state_rejected rejected 636ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
+fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @3bbe5c131a15
+	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#17 == false`
 fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected rejected 1178ms expected @35dd60f55878
 	machine argument `marker` for `capacity` does not refine `Callback`: expected 0 parameter(s), got 1
 fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected rejected 582ms expected @35dd60f55878
@@ -9975,25 +9976,25 @@ fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 566m
 	generic machine `capacity` requires equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 585ms expected @35dd60f55878
 	generic machine `capacity` requires equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_record_equation_call/call_result rejected 1069ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/call_result rejected 1069ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/const_name rejected 879ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/const_name rejected 879ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/field rejected 827ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/field rejected 827ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/local rejected 907ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/local rejected 907ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/match_join rejected 868ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/match_join rejected 868ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/other_machine rejected 827ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/other_machine rejected 827ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/other_state rejected 853ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/other_state rejected 853ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/parameter rejected 798ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/parameter rejected 798ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/root rejected 728ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/root rejected 728ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
-fail/facts/inferred_record_equation_call/target_body rejected 800ms expected @b23365ced206+wt
+fail/facts/inferred_record_equation_call/target_body rejected 800ms expected @3bbe5c131a15
 	generic machine `read` requires type equation has conflicting constructor constants
 fail/facts/inline_member_helper_through_call_result_rejected rejected 3372ms expected @12a8c9de0dff
 	machine `supply_right` ensures contract proof fact `0 <= result && result <= 50` is disproved by constant arithmetic on the transition arm guarded by `<always>`
@@ -10257,23 +10258,23 @@ fail/facts/loop_branch_relaxation_ranking_through_target_body_rejected rejected 
 	machine `evaluate` ensures contract proof fact `result == 0` is disproved on the transition arm guarded by `<always>`: the arm's facts entail its negation
 	machine `evaluate` ensures contract proof fact `result == 0` is disproved on the transition arm guarded by `<always>`: the arm's facts entail its negation
 	machine `evaluate` ensures contract proof fact `result == 0` is disproved on the transition arm guarded by `<always>`: the arm's facts entail its negation
-fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_field_rejected rejected 2187ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_field_rejected rejected 2187ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_local_rejected rejected 1662ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_local_rejected rejected 1662ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_match_join_rejected rejected 1499ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_match_join_rejected rejected 1499ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_other_machine_rejected rejected 1683ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_other_machine_rejected rejected 1683ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_other_state_rejected rejected 1699ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_other_state_rejected rejected 1699ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from check: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_parameter_rejected rejected 1880ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_parameter_rejected rejected 1880ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms expected @dacae466db1d+wt
+fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms expected @3bbe5c131a15
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -10328,7 +10329,7 @@ fail/facts/match_join_multi_variant_bound_through_match_join_rejected rejected 2
 	exact arithmetic in machine `run` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/match_join_multi_variant_bound_through_other_machine_rejected rejected 714ms expected @ccdb99ca2214
 	exact arithmetic in machine `runner` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_join_multi_variant_bound_through_other_state_rejected rejected 2830ms expected regressed-from:checked @66cf4ee152c3+wt
+fail/facts/match_join_multi_variant_bound_through_other_state_rejected rejected 2830ms expected regressed-from:checked @3bbe5c131a15
 	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/match_join_multi_variant_bound_through_parameter_rejected rejected 2323ms expected regressed-from:checked @69da047140ea
 	exact arithmetic in machine `run` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `receive(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -10435,25 +10436,35 @@ fail/facts/match_reference_referent_through_parameter_rejected rejected 2822ms e
 	cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
 fail/facts/match_reference_referent_through_target_body_rejected rejected 7681ms expected @b5d560ee2fc6
 	cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
-fail/facts/match_runtime_view_extent_through_call_result_rejected rejected 619ms expected @fc74098f66b9+wt
+fail/facts/match_runtime_view_extent_through_call_result_rejected rejected 619ms expected @3bbe5c131a15
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_const_name_rejected rejected 2357ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in store::entry
+fail/facts/match_runtime_view_extent_through_const_name_rejected rejected 2357ms expected @3bbe5c131a15
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_field_rejected rejected 1203ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in store::entry
+fail/facts/match_runtime_view_extent_through_field_rejected rejected 1203ms expected @3bbe5c131a15
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_local_rejected rejected 615ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in store::entry
+fail/facts/match_runtime_view_extent_through_local_rejected rejected 615ms expected @3bbe5c131a15
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_match_join_rejected rejected 586ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in store::entry
+fail/facts/match_runtime_view_extent_through_match_join_rejected rejected 586ms expected @3bbe5c131a15
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_other_machine_rejected rejected 487ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in store::entry
+fail/facts/match_runtime_view_extent_through_other_machine_rejected rejected 487ms expected @3bbe5c131a15
 	exact arithmetic in machine `apply` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_other_state_rejected rejected 763ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in apply::entry
+fail/facts/match_runtime_view_extent_through_other_state_rejected rejected 763ms expected @3bbe5c131a15
 	exact arithmetic in machine `pick` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_parameter_rejected rejected 803ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in pick::entry
+fail/facts/match_runtime_view_extent_through_parameter_rejected rejected 803ms expected @3bbe5c131a15
 	exact arithmetic in machine `apply` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_runtime_view_extent_through_target_body_rejected rejected 682ms expected @fc74098f66b9+wt
+	cannot prove index `last` is within unknown slice length of `selected` in apply::entry
+fail/facts/match_runtime_view_extent_through_target_body_rejected rejected 682ms expected @3bbe5c131a15
 	exact arithmetic in machine `X86Apply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmApply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	cannot prove index `last` is within unknown slice length of `selected` in X86Apply::apply::apply
+	cannot prove index `last` is within unknown slice length of `selected` in ArmApply::apply::apply
 fail/facts/matched_field_windows_through_call_result_rejected rejected 2207ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from from_call at statement 0: result.len == 2
 fail/facts/matched_field_windows_through_const_name_rejected rejected 2225ms expected @ccdb99ca2214
@@ -10510,9 +10521,9 @@ fail/facts/named_conformance_dispatch_through_other_state_rejected rejected 3469
 	cannot prove requires contract for call step from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/named_conformance_dispatch_through_parameter_rejected rejected 3541ms expected @6618a8c606d6
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2686 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 30764ms expected @b9580c0cab21+wt
-	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from X86Probe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from ArmProbe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 30764ms expected @3bbe5c131a15
+	cannot prove requires contract for call apply from X86Probe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call apply from ArmProbe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/named_const_callable_family_through_call_result_rejected rejected 571ms expected @75dd4e483f7a
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/named_const_callable_family_through_const_name_rejected rejected 666ms expected @75dd4e483f7a
@@ -10630,7 +10641,7 @@ fail/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_rejected r
 fail/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_rejected rejected 1600ms expected @ccdb99ca2214
 	exact arithmetic in machine `X86Probe::exercise` state `exercise` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmProbe::exercise` state `exercise` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_rejected rejected 7424ms expected @60f7e3cd4ee2+wt
+fail/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_rejected rejected 7424ms expected @3bbe5c131a15
 	machine `extend_u8` cannot prove ensures contract proof fact `result >= 50 && result <= 180` on the transition arm guarded by `<always>`
 fail/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_rejected rejected 1292ms expected @ccdb99ca2214
 	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -10686,7 +10697,7 @@ fail/facts/narrowed_integer_write_through_other_state_rejected rejected 15560ms 
 	IntegerAt call in apply requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/narrowed_integer_write_through_parameter_rejected rejected 3195ms expected @ccdb99ca2214
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/facts/narrowed_integer_write_through_target_body_rejected rejected 8245ms expected @aa06f04853cc+wt
+fail/facts/narrowed_integer_write_through_target_body_rejected rejected 8245ms expected @3bbe5c131a15
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/negated_mathematical_order_through_call_result_rejected rejected 3088ms expected @ccdb99ca2214
 	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
@@ -10774,21 +10785,21 @@ fail/facts/nested_machine_invocation/parameter rejected 1685ms expected @959aa53
 fail/facts/nested_machine_invocation/target_body rejected 1510ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
-fail/facts/nested_machine_joint_rank_bounded_computed_length_call_result_rejected rejected 3813ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_call_result_rejected rejected 3813ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_const_name_rejected rejected 3423ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_const_name_rejected rejected 3423ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_field_rejected rejected 3665ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_field_rejected rejected 3665ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_local_rejected rejected 3902ms expected @83e3d72bad8b+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_local_rejected rejected 3902ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_match_join_rejected rejected 3389ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_match_join_rejected rejected 3389ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_rejected rejected 3409ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_rejected rejected 3409ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_other_state_rejected rejected 3409ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_other_state_rejected rejected 3409ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_computed_length_target_body_rejected rejected 3413ms expected @2901d17d5aa3+wt
+fail/facts/nested_machine_joint_rank_bounded_computed_length_target_body_rejected rejected 3413ms expected @3bbe5c131a15
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_nine_level_record_field_bound_through_call_result_rejected rejected 1363ms expected @ccdb99ca2214
 	exact arithmetic in machine `check_bound` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -10812,23 +10823,23 @@ fail/facts/nested_nine_level_record_field_bound_through_target_body_rejected rej
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_call_result_rejected rejected 1579ms expected regressed-from:checked @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_call_result_rejected rejected 1579ms expected regressed-from:checked @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_const_name_rejected rejected 1574ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_const_name_rejected rejected 1574ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_field_rejected rejected 3009ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_field_rejected rejected 3009ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_local_rejected rejected 3078ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_local_rejected rejected 3078ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_match_join_rejected rejected 2877ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_match_join_rejected rejected 2877ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_other_machine_rejected rejected 2794ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_other_machine_rejected rejected 2794ms expected @3bbe5c131a15
 	exact arithmetic in machine `target_machine` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_other_state_rejected rejected 2712ms expected regressed-from:checked @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_other_state_rejected rejected 2712ms expected regressed-from:checked @3bbe5c131a15
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_parameter_rejected rejected 2698ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_parameter_rejected rejected 2698ms expected @3bbe5c131a15
 	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_record_field_borrow_bound_through_target_body_rejected rejected 1359ms expected @13fd04e63afe+wt
+fail/facts/nested_record_field_borrow_bound_through_target_body_rejected rejected 1359ms expected @3bbe5c131a15
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -10936,25 +10947,25 @@ fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 
 	cannot prove index `512` is within length 512
 fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 1693ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 17971ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_const_name_rejected rejected 8349ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 17971ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_const_name_rejected rejected 8349ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/nine_arg_stack_calling_plan_through_field_rejected rejected 2387ms expected @911f6617ba9e
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_local_rejected rejected 8353ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_match_join_rejected rejected 7414ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_other_machine_rejected rejected 8357ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_other_state_rejected rejected 7410ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_parameter_rejected rejected 7404ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nine_arg_stack_calling_plan_through_target_body_rejected rejected 9576ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `X86CallingPlanNine::calling_plan_nine` state `calling_plan_nine` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `ArmCallingPlanNine::calling_plan_nine` state `calling_plan_nine` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nine_arg_stack_calling_plan_through_local_rejected rejected 8353ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_match_join_rejected rejected 7414ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_other_machine_rejected rejected 8357ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_other_state_rejected rejected 7410ms expected @3bbe5c131a15
+	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_parameter_rejected rejected 7404ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/nine_arg_stack_calling_plan_through_target_body_rejected rejected 9576ms expected @3bbe5c131a15
+	exact arithmetic in machine `X86CallingPlanNine::calling_plan_nine` state `calling_plan_nine` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `ArmCallingPlanNine::calling_plan_nine` state `calling_plan_nine` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/nominal_callback_reach_through_call_result_rejected rejected 941ms expected @ccdb99ca2214
 	static machine argument `noise` for nominal parameter `Step` retains 0 authored satisfaction row(s) for exact requirement `StepContract::step`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/facts/nominal_callback_reach_through_const_name_rejected rejected 318ms expected @ccdb99ca2214
@@ -11119,51 +11130,51 @@ fail/facts/open_const_implementation_through_parameter_rejected rejected 1386ms 
 fail/facts/open_const_implementation_through_target_body_rejected rejected 1108ms expected @ccdb99ca2214
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_index_distributivity_commutative_semiring_rejected rejected 8284ms expected @c2cfe5f3dece+wt
+fail/facts/open_index_distributivity_commutative_semiring_rejected rejected 8284ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<(A + B) * (C + D)>==Indexed<D * B + C * A + A * D + B * C>` is not established: actual `Indexed<(A + B) * (C + D)>` and expected `Indexed<D * B + C * A + A * D + B * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$71b9730bc4249a5a$0$2728::entry:statement-1:Indexed<(2 + 3) * (4 + 5)>==Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` is not established: actual `Indexed<(2 + 3) * (4 + 5)>` and expected `Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
-fail/facts/open_index_distributivity_conditional_law_rejected rejected 7797ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$36bd6140a7ad35cb$0$4723::entry:statement-1:Indexed<(2 + 3) * (4 + 5)>==Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` is not established: actual `Indexed<(2 + 3) * (4 + 5)>` and expected `Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
+fail/facts/open_index_distributivity_conditional_law_rejected rejected 7797ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2684::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_foreign_addition_rejected rejected 8796ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4679::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_foreign_addition_rejected rejected 8796ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$a9da6f701d472faf$0$2695::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
-fail/facts/open_index_distributivity_missing_law_member_rejected rejected 512ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$e8969f51ccb922a4$0$4694::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
+fail/facts/open_index_distributivity_missing_law_member_rejected rejected 512ms expected @3bbe5c131a15
 	closed conformance `Canonical satisfies IndexSemiring` is incomplete: missing `IndexSemiring::distribute`
-fail/facts/open_index_distributivity_mutual_distributivity_rejected rejected 8923ms expected @c2cfe5f3dece+wt
+fail/facts/open_index_distributivity_mutual_distributivity_rejected rejected 8923ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2700::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
-fail/facts/open_index_distributivity_repeated_operand_law_rejected rejected 9738ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4695::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
+fail/facts/open_index_distributivity_repeated_operand_law_rejected rejected 9738ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2678::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_call_result_rejected rejected 7223ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4673::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_call_result_rejected rejected 7223ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_const_name_rejected rejected 9757ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4667::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_const_name_rejected rejected 9757ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_field_rejected rejected 7644ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4667::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_field_rejected rejected 7644ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_local_rejected rejected 8490ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4667::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_local_rejected rejected 8490ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2670::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_match_join_rejected rejected 8392ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4665::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_match_join_rejected rejected 8392ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2671::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_other_machine_rejected rejected 8187ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4666::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_machine_rejected rejected 8187ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2681::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_other_state_rejected rejected 8357ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4676::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_state_rejected rejected 8357ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2673::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_parameter_rejected rejected 9146ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4668::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_parameter_rejected rejected 9146ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_target_body_rejected rejected 8923ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4667::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_target_body_rejected rejected 8923ms expected @3bbe5c131a15
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2704::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_unproved_law_rejected rejected 10159ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$d5b970382652034e$0$4699::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_unproved_law_rejected rejected 10159ms expected @3bbe5c131a15
 	machine `times_index_distribute` realizes `IndexSemiring::distribute` but requires `times_index(a, plus_index(b, c)) == plus_index(times_index(a, b), times_index(a, c))`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/open_record_const_implementation_specialization_agreement_rejected rejected 2560ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
@@ -11278,45 +11289,35 @@ fail/facts/predicate_array_copy_through_target_body_rejected rejected 3347ms exp
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call evaluate from main: values[3] == 0 (needs fact `values[3] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/predicate_type_formation_through_call_result_rejected rejected 1976ms expected @62ce026b5931+wt
+fail/facts/predicate_type_formation_through_call_result_rejected rejected 1916ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_const_name_rejected rejected 576ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_const_name_rejected rejected 1372ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_field_rejected rejected 1774ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_field_rejected rejected 1829ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_local_rejected rejected 1764ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_local_rejected rejected 1810ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_match_join_rejected rejected 1583ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_match_join_rejected rejected 1673ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_other_machine_rejected rejected 2292ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_other_machine_rejected rejected 1801ms unexpected @3bbe5c131a15
 	data `Value` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_other_state_rejected rejected 2255ms expected @62ce026b5931+wt
+	data `Value` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_other_state_rejected rejected 1754ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_parameter_rejected rejected 2126ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_parameter_rejected rejected 1766ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/predicate_type_formation_through_target_body_rejected rejected 1882ms expected @62ce026b5931+wt
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_target_body_rejected rejected 1730ms unexpected @3bbe5c131a15
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/progress_selector_nested_arrival_through_call_result_rejected rejected 46286ms expected @71d7a6330d0b
 	machine `select` derives progress premise `package:921c829449d507bc490d904826b185de03760b39d480fe9b49ddf4c0665abb3d:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/progress_selector_nested_arrival_through_const_name_rejected rejected 38623ms expected @71d7a6330d0b
@@ -11401,23 +11402,23 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2964ms 
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_field_rejected rejected 1658ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_field_rejected rejected 1658ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_local_rejected rejected 1539ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_local_rejected rejected 1539ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_match_join_rejected rejected 1570ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_match_join_rejected rejected 1570ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_other_machine_rejected rejected 2086ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_other_machine_rejected rejected 2086ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_other_state_rejected rejected 1578ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_other_state_rejected rejected 1578ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_parameter_rejected rejected 1855ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_parameter_rejected rejected 1855ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms expected @73c70115c79e+wt
+fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms expected @3bbe5c131a15
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
@@ -11441,9 +11442,9 @@ fail/facts/provider_contract_endpoint_closed_owner_through_parameter_rejected re
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
 fail/facts/provider_contract_endpoint_closed_owner_through_target_body_rejected rejected 3087ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @3bbe5c131a15
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
-fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 11644ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 11644ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 116ms expected @390bdce3859c
@@ -11467,39 +11468,39 @@ fail/facts/provider_contract_endpoint_control_public_header_private_endpoint rej
 	public interface selects private machine `limit::entry`
 fail/facts/provider_contract_endpoint_control_runtime_self_forbidden rejected 136ms expected @390bdce3859c
 	tests/omega/fail/facts/provider_contract_endpoint_control_runtime_self_forbidden/main.omg:17:22: implicit `self` is retired; name the explicit parameter or domain subject
-fail/facts/provider_contract_endpoint_guarded_crash_through_call_result_rejected rejected 2304ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_call_result_rejected rejected 2304ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected rejected 2585ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected rejected 2585ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_field_rejected rejected 2530ms expected @c5cc3d874922+wt
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_local_rejected rejected 2503ms expected @c5cc3d874922+wt
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_match_join_rejected rejected 3237ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_field_rejected rejected 2530ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_other_machine_rejected rejected 2549ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_local_rejected rejected 2503ms expected @3bbe5c131a15
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_match_join_rejected rejected 3237ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_other_state_rejected rejected 2860ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_other_machine_rejected rejected 2549ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_parameter_rejected rejected 4650ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_guarded_crash_through_other_state_rejected rejected 2860ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
-fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected rejected 4617ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_parameter_rejected rejected 4650ms expected @3bbe5c131a15
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected rejected 4617ms expected @3bbe5c131a15
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
@@ -11514,7 +11515,7 @@ fail/facts/provider_contract_endpoint_pending_call_through_const_name_rejected r
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_field_rejected rejected 3600ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 2
-fail/facts/provider_contract_endpoint_pending_call_through_local_rejected rejected 9058ms expected @c5cc3d874922+wt
+fail/facts/provider_contract_endpoint_pending_call_through_local_rejected rejected 9058ms expected @3bbe5c131a15
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_match_join_rejected rejected 4216ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
@@ -11598,7 +11599,7 @@ fail/facts/range_fact_delivery_through_other_state_rejected rejected 2225ms expe
 	cannot prove requires contract for call count from deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/range_fact_delivery_through_parameter_rejected rejected 2200ms expected @ccdb99ca2214
 	cannot prove requires contract for call count from probe: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/range_fact_delivery_through_target_body_rejected rejected 2733ms expected @b78bed0caa28+wt
+fail/facts/range_fact_delivery_through_target_body_rejected rejected 2733ms expected @3bbe5c131a15
 	cannot prove requires contract for call count from X86Deliver::deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
 	cannot prove requires contract for call count from ArmDeliver::deliver: index <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `deliver`
 fail/facts/readonly_byte_pool_relocation_bound_through_call_result_rejected rejected 2688ms expected @ccdb99ca2214
@@ -11754,27 +11755,27 @@ fail/facts/reflection_declaration_inspection_through_parameter_rejected rejected
 	machine `describe` requires type predicate does not hold for the supplied arguments
 fail/facts/reflection_declaration_inspection_through_target_body_rejected rejected 6346ms expected @4815ea579d91
 	machine `describe` requires type predicate does not hold for the supplied arguments
-fail/facts/register_stack_arg_calling_plan_through_call_result_rejected rejected 9192ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_const_name_rejected rejected 9185ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/register_stack_arg_calling_plan_through_call_result_rejected rejected 9192ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_const_name_rejected rejected 9185ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/register_stack_arg_calling_plan_through_field_rejected rejected 1710ms expected @911f6617ba9e
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_local_rejected rejected 9082ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_match_join_rejected rejected 8157ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_other_machine_rejected rejected 8159ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_other_state_rejected rejected 9613ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_parameter_rejected rejected 14942ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/register_stack_arg_calling_plan_through_target_body_rejected rejected 13307ms expected @60f7e3cd4ee2+wt
-	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/register_stack_arg_calling_plan_through_local_rejected rejected 9082ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_match_join_rejected rejected 8157ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_other_machine_rejected rejected 8159ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_other_state_rejected rejected 9613ms expected @3bbe5c131a15
+	exact arithmetic in machine `step` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_parameter_rejected rejected 14942ms expected @3bbe5c131a15
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+fail/facts/register_stack_arg_calling_plan_through_target_body_rejected rejected 13307ms expected @3bbe5c131a15
+	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	exact arithmetic in machine `calling_plan_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/remainder_width_index_through_call_result_rejected rejected 23517ms expected @71d7a6330d0b
 	cannot prove index `value % width` is within unknown slice length of `buckets` in pick::entry
 fail/facts/remainder_width_index_through_const_name_rejected rejected 19744ms expected @71d7a6330d0b
@@ -12014,31 +12015,31 @@ fail/facts/runtime_count_index_through_parameter_rejected rejected 3934ms expect
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: index < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_count_index_through_target_body_rejected rejected 17180ms expected @25f8bb78090b
 	cannot prove requires contract for call read_at from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_call_index_through_call_result_rejected rejected 1427ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_call_result_rejected rejected 1427ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_const_name_rejected rejected 1062ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_const_name_rejected rejected 1062ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_field_rejected rejected 1362ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_field_rejected rejected 1362ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_local_rejected rejected 1133ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_local_rejected rejected 1133ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_match_join_rejected rejected 1073ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_match_join_rejected rejected 1073ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_other_machine_rejected rejected 953ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_other_machine_rejected rejected 953ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_other_state_rejected rejected 884ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_other_state_rejected rejected 884ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_parameter_rejected rejected 812ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_parameter_rejected rejected 812ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/runtime_index_application_call_index_through_target_body_rejected rejected 1258ms expected @c79bb8268163+wt
+fail/facts/runtime_index_application_call_index_through_target_body_rejected rejected 1258ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/runtime_index_application_computed_result_through_call_result_rejected rejected 553ms expected @ccdb99ca2214
@@ -12078,7 +12079,7 @@ fail/facts/runtime_index_application_computed_through_parameter_rejected rejecte
 fail/facts/runtime_index_application_computed_through_target_body_rejected rejected 8190ms expected @dbb8c4437ffa
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @4a93353f8274+wt
+fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @3bbe5c131a15
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/runtime_index_application_contract_index_through_const_name_rejected rejected 1740ms expected @4a93353f8274+wt
