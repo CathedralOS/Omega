@@ -6523,15 +6523,11 @@ mod statements {
         if forming_loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
             return active_loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
                 && forming_loan.kind == active_loan.kind
-                && forming_loan.source_owner_symbol == active_loan.owner_symbol
                 && matches!(
                     compatibility.containment,
                     checked_trees::CapturedPlaceContainment::Same
                 )
-                && borrow
-                    .loan_suppliers
-                    .span(forming_loan.supplying_loans)
-                    .is_some_and(|suppliers| suppliers.contains(&active_loan_handle));
+                && lifetime_dependency_descends_from(borrow, forming_loan, active_loan_handle);
         }
         if !active_loan.kind.is_exclusive()
             || active_loan
@@ -6565,6 +6561,47 @@ mod statements {
             | checked_trees::BorrowLoanLineage::SuppliedOutput
             | checked_trees::BorrowLoanLineage::LifetimeDependency => false,
         }
+    }
+
+    /*
+        A retained input lifetime travels through every value that saves it: an
+        opaque call's completed result owns the first row, the `let` that saves the
+        result retains it, and a later call that receives that local retains the
+        local's row in turn. Each step names its supplier and that supplier's owner,
+        so the forming row descends from the ancestor exactly when this chain of
+        same-access lifetime rows reaches it. A step from any other lineage, owner
+        or access ends the chain.
+    */
+    fn lifetime_dependency_descends_from(
+        borrow: &checked_trees::BorrowFacts,
+        forming_loan: &checked_trees::BorrowLoanFact,
+        ancestor: arena::Handle<checked_trees::BorrowLoanFact>,
+    ) -> bool {
+        let mut visited = Vec::new();
+        let mut pending = vec![forming_loan];
+        while let Some(loan) = pending.pop() {
+            let Some(suppliers) = borrow.loan_suppliers.span(loan.supplying_loans) else {
+                continue;
+            };
+            for &supplier_handle in suppliers {
+                if !borrow.loans.is_valid(supplier_handle) || visited.contains(&supplier_handle) {
+                    continue;
+                }
+                visited.push(supplier_handle);
+                let supplier = borrow.loans.get(supplier_handle);
+                if supplier.owner_symbol != loan.source_owner_symbol
+                    || supplier.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                    || supplier.kind != forming_loan.kind
+                {
+                    continue;
+                }
+                if supplier_handle == ancestor {
+                    return true;
+                }
+                pending.push(supplier);
+            }
+        }
+        false
     }
 
     /*
