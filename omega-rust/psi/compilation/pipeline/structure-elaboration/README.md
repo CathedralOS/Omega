@@ -37,7 +37,12 @@ terminator).
 
 Machines with one state and a complete body whose formals, locals and result
 are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
-assignment to them; integer and Boolean literals; builtin `Exact` integer
+assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
+`*` and `/` trees over unsuffixed literals, evaluated as exact rationals (so
+`7 / 2` is `7/2`, not 3) and lowered as one literal when the completed value
+is an integer of the context's type reached with no fractional intermediate,
+any other such tree (fractional anywhere, out of range, or under an operator
+with no anonymous meaning) being refused; builtin `Exact` integer
 arithmetic, bitwise operations, shifts and comparisons; `!`, `~`, `&&` and
 `||`; direct calls of other such machines with `requires` clauses over their
 formals and `ensures` clauses over their formals and `result`; `crashes Trap`

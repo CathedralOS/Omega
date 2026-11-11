@@ -169,8 +169,8 @@ impl Program<'_> {
             | BinaryOperator::BitwiseXor => return unserved("arithmetic clause"),
             BinaryOperator::CaseMembership => return unserved("case membership"),
         };
-        // An anonymous literal lands in its partner's type.
-        let ((left, left_type), (right, right_type)) = if self.anonymous_literal(binary.left) {
+        // A wholly anonymous operand lands in its partner's type.
+        let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
             (self.term(id, scope, binary.left, Some(right.1))?, right)
         } else {
@@ -292,6 +292,16 @@ impl Program<'_> {
             ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
+                Ok((
+                    ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value,
+                    },
+                    ScalarType::Integer(integer),
+                ))
+            }
+            ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
+                let (value, integer) = self.anonymous_value(id, expression, expected)?;
                 Ok((
                     ScalarTerm::Integer {
                         scalar_type: integer,

@@ -18,7 +18,7 @@ use fixture_package_inputs::{
 };
 use lowered_discharge::{RouteVerdict, judge};
 use semantic_vocabulary::{IdTable, MachineId};
-use structure_elaboration::{Compilation, elaborate};
+use structure_elaboration::{Compilation, elaborate, elaborate_closure};
 use symbols::SymbolHandle;
 
 // Fixture compilation shares process-wide counters; run one at a time.
@@ -374,6 +374,95 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
     );
 }
 
+/// Wholly anonymous arithmetic denotes an exact rational
+/// (`wiki/spec/language/numeric_values.md`: "Anonymous integer-literal
+/// division is rational division, not truncation"), so `7 / 2` is `7/2`,
+/// which no `i32` holds. The route lowered such a division as an integer
+/// division yielding a truncated value, proved that, and accepted each
+/// machine here. Integer landing also "requires ... explicit `as` when
+/// acknowledging fractional intermediates", so `(7 / 2) * 2` must not land
+/// as 7 either, and builtin remainder has no anonymous meaning at all. Each
+/// tree is now evaluated exactly and refused, so the current checker decides
+/// the closure. None of these fixtures binds an entry, so each machine is
+/// judged as the root of its own closure, as `route_one_comparison
+/// --every-machine` judges it.
+const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
+    (
+        "tests/omega/fail/arithmetic/fractional_integer_landing",
+        "value",
+        "expression fractional anonymous value",
+    ),
+    (
+        "tests/omega/fail/arithmetic/fractional_integer_operand",
+        "value",
+        "expression fractional anonymous value",
+    ),
+    (
+        "tests/omega/fail/arithmetic/anonymous_remainder_rejected",
+        "run",
+        "expression anonymous operation without an exact meaning",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "returned",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "local",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "field",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "argument",
+        "expression anonymous value with a fractional intermediate",
+    ),
+    (
+        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "half",
+        "expression anonymous value with a fractional intermediate",
+    ),
+];
+
+#[test]
+fn an_anonymous_tree_that_cannot_land_is_handed_back_not_truncated() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let mut wrong = Vec::new();
+    let mut frontiers: Vec<(&str, Box<compiler::TypedFrontier>)> = Vec::new();
+    for (fixture, machine, detail) in ANONYMOUS_TREES_WITHOUT_A_LANDING {
+        if !frontiers.iter().any(|(checked, _)| checked == fixture) {
+            frontiers.push((fixture, rejected_frontier(fixture)));
+        }
+        let (_, frontier) = frontiers
+            .iter()
+            .find(|(checked, _)| checked == fixture)
+            .expect("checked above");
+        let typed = &frontier.typed;
+        let root = typed
+            .machines()
+            .iter()
+            .find(|declared| {
+                declared.name.as_str() == *machine
+                    && typed
+                        .symbols
+                        .symbol_source_span(declared.symbol)
+                        .and_then(|span| typed.symbols.source_file(span))
+                        .is_some_and(|file| file.origin == source::SourceOrigin::User)
+            })
+            .unwrap_or_else(|| panic!("{fixture} declares `{machine}`"));
+        match judge(elaborate_closure(typed, root.symbol)) {
+            Ok(RouteVerdict::FallBack(refusal)) if refusal.detail == *detail => {}
+            other => wrong.push(format!("{fixture} `{machine}`: {other:?}")),
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
 /// A package identity that is not the fixture's, so that the fixture's own
 /// declarations read as a dependency's.
 fn another_package(frontier: &compiler::TypedFrontier) -> semantic_vocabulary::PackageKeyIdentity {
@@ -537,6 +626,19 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
          machine same_x_symmetric(a: Point, b: Point)\n\
          requires same_x(a, b)\nensures same_x(b, a)\n{\n}",
     ),
+    // Wholly anonymous arithmetic is exact: `(2147483647 + 1) - 1` lands in
+    // `i32` although its intermediate does not, where `i32` addition would
+    // overflow.
+    (
+        "exact_anonymous_intermediate",
+        "machine spare() -> i32 ensures result == 2147483647 { (2147483647 + 1) - 1 }",
+    ),
+    // The twin of `fail/arithmetic/fractional_integer_operand`: `4096 / 2`
+    // is an integer, so the operand lands and the product is judged.
+    (
+        "integral_anonymous_operand",
+        "machine spare(input: i32) -> i32 requires input >= 0, input <= 1 { input * (4096 / 2) }",
+    ),
     // An uncalled machine that depends on a library declaration.
     (
         "dependency_call",
@@ -628,6 +730,8 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         falls_back("declaration measure"),
         falls_back("declaration proposition"),
         falls_back("contract named proposition"),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
         falls_back("call receiver, requirement or coercion call"),
     ];
     assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
