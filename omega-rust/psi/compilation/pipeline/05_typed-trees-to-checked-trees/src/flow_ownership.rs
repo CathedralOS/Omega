@@ -974,6 +974,19 @@ mod moves {
                 append_child!(binary.left, Default::default());
                 append_child!(binary.right, Default::default());
             }
+            /*
+                A recast re-views its operand's storage; its `target_type` names
+                the presented referent, not a value read out of that reference.
+                Like a recast observed in place (`observations::append`), it
+                reborrows the operand rather than moving the referent out of
+                borrowed storage. The loan it forms carries the exclusivity: a
+                shared view may be duplicated (ownership: shared loans may
+                duplicate), and a second exclusive view of a still-live one is
+                refused by the borrow checker.
+            */
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                append_observation!(cast.value)
+            }
             ExpressionNode::Cast(cast) => append_child!(cast.value, cast.target_type),
             ExpressionNode::Unary(unary) => append_child!(unary.operand, Default::default()),
             ExpressionNode::StructLiteral(struct_literal) => {
