@@ -5433,6 +5433,9 @@ mod statements {
             } else {
                 storage_writes.clone()
             };
+            if std::env::var_os("OMEGA_DBG").is_some() && statement.as_assignment().is_some() {
+                eprintln!("DBG write stmt={statement_index} storage={storage_writes:?} final={final_storage_writes:?} contents={content_writes:?} exact={:?}", write.as_ref().map(|w| (w.target_is_exact, w.candidate_targets.clone())));
+            }
             let final_content_writes = content_writes.clone();
             let mut completed_contents = build
                 .control
