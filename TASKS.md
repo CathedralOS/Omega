@@ -95,6 +95,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate `Token`, samples and tests.
 
+- **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
+
 - **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
