@@ -10,7 +10,8 @@ undischarged obligation must never reach it: Omega 00 would accept that
 obligation with no evidence. `RouteVerdict` therefore has no variant for a
 partly proved closure. A closure is either accepted with every obligation
 discharged by the kernel, rejected with one diagnostic per unproved
-obligation, or handed back whole to Psi 05 and 06 because the route does not
+obligation, left incomplete because the prover has no rule for some goal's
+form, or handed back whole to Psi 05 and 06 because the route does not
 serve some construct in it (`RefusalReason::Unsupported`; the design: "falling
 back to Psi 05 and 06 on any `RefusalReason::Unsupported`").
 
@@ -23,6 +24,18 @@ why, and never claims the obligation is false
 is not proof of falsehood"; `wiki/spec/terminal-psi/fact_validity.md`: "The
 false premise must be proved, not inferred from search failure"). The
 diagnostic is an ordinary `Reject` error; no new outcome tag or exit code.
+
+The two unproved outcomes, by the owner's ruling on
+`unproved-goal-form-outcome`: a goal whose form the prover has rules for but
+cannot establish from what the program states is `Reject`; a goal whose form
+it has no rule for is `Incomplete`, the outcome table's "unsupported valid
+case", with "no claim that the unproved conclusion is false"
+(`wiki/spec/build/compiler_request.md`, "Outcomes"). Neither publishes an
+artifact or a runtime fallback. `Reject` wins when both occur: the program
+fails a checking rule whatever the other obligations hold. `Incomplete` has
+no `Diagnostic` constructor here, because the closed `Incomplete` resource
+table has no provision for a proof goal form yet, and a plain error would
+publish it as `Reject`.
 
 `Unsupported` wins over `Unproved`: an unproved obligation in a closure the
 route cannot judge whole is the current checker's to decide. That is not a
@@ -50,6 +63,11 @@ pub enum RouteVerdict {
     /// The program is rejected: one entry per obligation the prover could not
     /// discharge, in machine and obligation order. Never empty.
     Rejected(Vec<UnprovedObligation>),
+    /// No obligation is unproved for want of a derivation, but the prover has
+    /// no rule for the form of at least one goal, so the route can judge the
+    /// program neither way. Every entry's cause is
+    /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
+    Incomplete(Vec<UnprovedObligation>),
     /// The route does not serve some construct or obligation of the closure,
     /// so Psi 05 and 06 decide the whole closure. The first such refusal.
     FallBack(Refusal),
@@ -63,7 +81,7 @@ pub struct AcceptedClosure {
     pub seals: Vec<ObligationEvidenceSeal>,
 }
 
-/// One obligation the prover could not discharge, as a program error.
+/// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {
     pub machine: MachineId,
@@ -78,17 +96,23 @@ pub struct UnprovedObligation {
 }
 
 impl UnprovedObligation {
-    /// The program diagnostic. The message opens with a stable part (the
-    /// obligation kind and the cause) that corpus expectations can match,
-    /// followed by the prover's detail.
-    pub fn diagnostic(&self) -> Diagnostic {
-        let message = format!(
+    /// The message. It opens with a stable part (the obligation kind and the
+    /// cause) that corpus expectations can match, followed by the prover's
+    /// detail.
+    pub fn message(&self) -> String {
+        format!(
             "unproved obligation: {}: {} ({})",
             describe_kind(self.kind),
             self.cause.describe(),
             self.detail
-        );
-        let diagnostic = Diagnostic::error(message);
+        )
+    }
+
+    /// The `Reject` diagnostic, for an entry of `RouteVerdict::Rejected`.
+    /// An entry of `Incomplete` must not be published through it: see the
+    /// module comment.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
         match self.site {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
             SourceOrigin::Unpositioned(_) => diagnostic,
@@ -188,7 +212,17 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         }
     }
     if !unproved.is_empty() {
-        return Ok(RouteVerdict::Rejected(without_restated_clauses(unproved)));
+        // Classified after restated clauses are dropped: a published clause
+        // fails as `ReturnDoesNotEstablish` even when its return's goal had
+        // no rule, and must not turn an `Incomplete` program into `Reject`.
+        let unproved = without_restated_clauses(unproved);
+        return Ok(
+            if unproved.iter().all(|entry| entry.cause.is_incomplete()) {
+                RouteVerdict::Incomplete(unproved)
+            } else {
+                RouteVerdict::Rejected(unproved)
+            },
+        );
     }
     let seals = match discharged.operation_seals(&elaboration) {
         Ok(seals) => seals,

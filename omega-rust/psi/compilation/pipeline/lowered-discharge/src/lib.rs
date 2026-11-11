@@ -35,6 +35,9 @@ mod verdict;
 pub use verdict::{AcceptedClosure, RouteVerdict, UnprovedObligation, judge};
 
 #[cfg(test)]
+pub(crate) use prove::has_rules_for;
+
+#[cfg(test)]
 mod tests;
 
 use proof_admission::{
@@ -751,9 +754,16 @@ fn decide(
         }
     }
     let mut prover = prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
-    let proof = prover
-        .prove(&goal)
-        .map_err(|reason| unproved(UnprovedCause::NoDerivation, reason.to_owned()))?;
+    let proof = prover.prove(&goal).map_err(|reason| {
+        // Classified by the goal's form, not by which search path failed
+        // last, so the outcome does not depend on search order.
+        let cause = if prove::has_rules_for(&goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        unproved(cause, reason.to_owned())
+    })?;
     let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
         refusal(
             RefusalReason::ForeignIdentity,

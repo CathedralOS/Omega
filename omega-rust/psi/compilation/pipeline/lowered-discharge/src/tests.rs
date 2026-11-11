@@ -1058,7 +1058,7 @@ fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
     let entry = &unproved[0];
     assert!(safety(&entry.kind));
     assert_eq!(entry.cause, UnprovedCause::NoDerivation);
-    let diagnostic = entry.diagnostic();
+    let diagnostic = entry.reject_diagnostic();
     assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
     assert!(
         diagnostic.message.starts_with(
@@ -1078,11 +1078,11 @@ fn an_unproved_call_requirement_names_the_callee_clause() {
     assert!(requirement(&unproved[0].kind));
     assert!(
         unproved[0]
-            .diagnostic()
+            .reject_diagnostic()
             .message
             .starts_with("unproved obligation: requires clause 1 of the called machine: "),
         "{}",
-        unproved[0].diagnostic().message
+        unproved[0].reject_diagnostic().message
     );
 }
 
@@ -1109,11 +1109,11 @@ fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
     assert!(guarantee(&unproved[0].kind));
     assert!(
         unproved[0]
-            .diagnostic()
+            .reject_diagnostic()
             .message
             .starts_with("unproved obligation: ensures clause 1 on a normal return: "),
         "{}",
-        unproved[0].diagnostic().message
+        unproved[0].reject_diagnostic().message
     );
 }
 
@@ -1130,4 +1130,82 @@ fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() 
         Ok(RouteVerdict::FallBack(_))
     ));
     assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
+}
+
+fn bool_type() -> ScalarType {
+    ScalarType::Boolean
+}
+
+/// Machine 1 takes `(a: u32, flag: bool)` and calls machine 2 with `flag`;
+/// machine 2 requires its `bool` formal to equal `false`, a goal form the
+/// prover has no rule for. With `add`, machine 1 returns the call's result
+/// plus `a`, an add of two unbounded values.
+fn bool_requirement(add: bool) -> Vec<Machine> {
+    let callee = Machine {
+        requires: vec![Proposition::Equal(
+            formal(1, bool_type()),
+            ScalarTerm::boolean(false),
+        )],
+        ..machine(vec![bool_type()], vec![returns(unsigned(0))])
+    };
+    let called = call(2, vec![slot(1, bool_type())]);
+    let result = if add {
+        strict(Strict::Add, called, slot(0, u32_type()))
+    } else {
+        called
+    };
+    let caller = machine(vec![u32_type(), bool_type()], vec![returns(result)]);
+    vec![caller, callee]
+}
+
+#[test]
+fn the_prover_has_rules_for_integer_goals_and_not_for_other_forms() {
+    let value = formal(1, u32_type());
+    let flag = formal(1, bool_type());
+    assert!(crate::has_rules_for(&at_most(1, 10)));
+    assert!(crate::has_rules_for(&Proposition::Equal(
+        value.clone(),
+        bound(u32_type(), IntegerValue::Unsigned(3)),
+    )));
+    assert!(!crate::has_rules_for(&Proposition::Equal(
+        flag.clone(),
+        ScalarTerm::boolean(false),
+    )));
+    // One uncovered part leaves the whole goal without a rule.
+    assert!(!crate::has_rules_for(&Proposition::Conjunction(vec![
+        at_most(1, 10),
+        Proposition::Equal(flag, ScalarTerm::boolean(true)),
+    ])));
+}
+
+#[test]
+fn a_goal_form_without_a_rule_is_incomplete_not_rejected() {
+    let RouteVerdict::Incomplete(unproved) = judge(lower(bool_requirement(false))).unwrap() else {
+        panic!("the prover has no rule for a bool equality");
+    };
+    assert_eq!(unproved.len(), 1, "{unproved:?}");
+    assert!(requirement(&unproved[0].kind));
+    assert_eq!(unproved[0].cause, UnprovedCause::NoRuleForGoalForm);
+    assert!(
+        unproved[0].message().starts_with(
+            "unproved obligation: requires clause 1 of the called machine: \
+             the prover has no rule for this form of goal ("
+        ),
+        "{}",
+        unproved[0].message()
+    );
+}
+
+#[test]
+fn an_unproved_goal_with_rules_rejects_even_beside_one_without() {
+    let unproved = rejected(bool_requirement(true));
+    let causes: Vec<UnprovedCause> = unproved.iter().map(|entry| entry.cause).collect();
+    assert_eq!(
+        causes,
+        vec![
+            UnprovedCause::NoRuleForGoalForm,
+            UnprovedCause::NoDerivation
+        ],
+        "{unproved:?}"
+    );
 }

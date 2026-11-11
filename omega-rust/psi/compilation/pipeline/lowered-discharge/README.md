@@ -138,19 +138,25 @@ route's decision from. It discharges an elaborated closure and returns:
   certificate the kernel accepted, with the operation seals for Omega 00.
 - `Rejected`: one `UnprovedObligation` per obligation that was not, each with
   its kind, its source site from elaboration's correspondence, and its cause
-  (`UnprovedCause`: no derivation, the kernel refused the certificate, or a
-  normal return does not establish an `ensures` clause). `diagnostic()` turns
-  it into the program error, `unproved obligation: <kind>: <cause> (<detail>)`,
-  an ordinary `Reject` with no artifact. It says what was not proved and never
-  that the obligation is false: "Failure to find a proof is not proof of
-  falsehood" ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
+  `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
+  no artifact. It says what was not proved and never that the obligation is
+  false: "Failure to find a proof is not proof of falsehood"
+  ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
   and "Unproved source contracts reject in Psi checking"
-  ([review.md](../../../../../wiki/spec/packages/review.md)). The prover has
-  no search bound, so nothing here is `Incomplete`. Whether a goal form the
-  prover has no rule for should be `Reject`, `Incomplete` or a fallback is the
-  open owner decision `unproved-goal-form-outcome`.
-  A published clause that fails only because a return's guarantee failed is
-  reported once, at that return.
+  ([review.md](../../../../../wiki/spec/packages/review.md)). A published
+  clause that fails only because a return's guarantee failed is reported
+  once, at that return.
+- `Incomplete`: every unproved obligation's goal has a form the prover has no
+  rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
+  shift-left bound, a proposition form it does not reason about). The program
+  may be valid and the route cannot judge it, so this is the outcome table's
+  "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
+  artifact and no fallback either. `Reject` wins when both kinds occur. The
+  closed `Incomplete` resource table has no provision for a proof goal form
+  yet, so this variant has no `Diagnostic` constructor: a plain error would
+  publish it as `Reject`. The prover has no search bound, so no obligation is
+  `Incomplete` for exhaustion.
 - `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
   Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
 
@@ -160,8 +166,8 @@ arrives, so a module with an undischarged obligation must never reach it. Any
 other refusal is a defect of the route and comes back as `Err`.
 
 No router calls `judge` in the default compile yet: the comparison harness
-below is its only caller outside tests, and prints each rejection's
-diagnostic.
+below is its only caller outside tests, and prints each unproved
+obligation's message with its outcome.
 
 ## Measuring against the current checker
 

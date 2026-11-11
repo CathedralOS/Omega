@@ -150,21 +150,26 @@ pub enum RefusalReason {
 /// `wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a
 /// proof is not proof of falsehood", and "Diagnostics distinguish failed
 /// source checking, invalid proof, unavailable evidence and receiving-policy
-/// refusal." Each cause is a `Reject` with no artifact
-/// (`wiki/spec/packages/review.md`: "Unproved source contracts reject in Psi
-/// checking"). There is no exhaustion cause because the lowered-form prover
-/// has no search or resource bound. A bound added later needs its own cause,
-/// published as `Incomplete` with the resource diagnostic
-/// (`wiki/spec/build/configuration.md`: "Exhaustion leaves an unproved
-/// obligation and a resource diagnostic; it grants no ... runtime fallback").
-/// Which outcome a goal form the prover has no rule for publishes is the open
-/// owner decision `unproved-goal-form-outcome` (`OWNER_QUESTIONS.md`); until
-/// it is settled such a goal is `NoDerivation`, a fail-closed `Reject`.
+/// refusal." Every cause but `NoRuleForGoalForm` publishes `Reject` with no
+/// artifact (`wiki/spec/packages/review.md`: "Unproved source contracts
+/// reject in Psi checking"). `NoRuleForGoalForm` publishes `Incomplete`: the
+/// program may be valid and the prover cannot judge it, which is the
+/// outcome table's "unsupported valid case" (owner ruling on
+/// `unproved-goal-form-outcome`). There is no exhaustion cause because the
+/// lowered-form prover has no search or resource bound. A bound added later
+/// needs its own cause, published as `Incomplete` with the resource
+/// diagnostic (`wiki/spec/build/configuration.md`: "Exhaustion leaves an
+/// unproved obligation and a resource diagnostic; it grants no ... runtime
+/// fallback").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnprovedCause {
-    /// The prover found no derivation of the goal from the knowledge
-    /// available at the obligation's point.
+    /// The prover has rules for the goal's form and found no derivation of
+    /// it from the knowledge available at the obligation's point.
     NoDerivation,
+    /// The prover has no rule for the goal's form (an order or equality over
+    /// non-integers, a shift-left bound, a proposition form it does not
+    /// reason about), so it cannot judge the obligation either way.
+    NoRuleForGoalForm,
     /// The prover built a certificate and the proof kernel refused it: an
     /// invalid proof ("an invalid certificate is `Reject`").
     KernelRefused,
@@ -180,9 +185,15 @@ impl UnprovedCause {
     pub const fn describe(self) -> &'static str {
         match self {
             Self::NoDerivation => "no proof found from the facts available here",
+            Self::NoRuleForGoalForm => "the prover has no rule for this form of goal",
             Self::KernelRefused => "invalid proof: the proof kernel refused the certificate",
             Self::ReturnDoesNotEstablish => "not shown to hold on every normal return",
         }
+    }
+
+    /// True when the outcome is `Incomplete` rather than `Reject`.
+    pub const fn is_incomplete(self) -> bool {
+        matches!(self, Self::NoRuleForGoalForm)
     }
 }
 
