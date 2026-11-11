@@ -28,7 +28,14 @@ pub(super) fn select(
     use IntegerRecordField::{Array, ReferenceArray, ReferenceRecord, Scalar};
     use IntegerSign::{Signed as I, Unsigned as U};
     use StructuralAccess::{MutableBorrow, SharedBorrow};
-    let path = UnsignedArray(4096, 16, SharedBorrow);
+    // A path is any borrowed WCHAR array: the import declares its own length,
+    // and `Call::validate_path` requires the terminator inside that length
+    // before the native call, so no domain on the caller's carrier is trusted.
+    let path = Formal::UnsignedWindow {
+        bits: 16,
+        minimum: 1,
+        access: SharedBorrow,
+    };
     let rows: &[(&[u8], &[u8], &[Formal], Formal, Effect)] = &[
         (
             b"kernel32.dll",
