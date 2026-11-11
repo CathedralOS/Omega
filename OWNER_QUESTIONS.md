@@ -704,3 +704,57 @@ Build realizes no provider.
   leaves backend provider planning and runs at source checking.
 
 Until answered the row stays as recorded and the checker is unchanged.
+
+### Q14 - Does a caller's local loan passed into a terminal machine call end at its last use inside the callee?
+
+Decision name: `terminal-call-carried-loan-lifetime`.
+
+**Customer.** `tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit`
+forms `let read: &[Wide] = &main.source as &[Wide];` in `Main::main`, then
+transitions to its nested machine `inspect(main, read)`. `inspect` reads only
+`read`, then transitions to its sibling `mutate(main)`, which forms a mutable
+view of `main.source` and writes through it. `read` is never used after
+`inspect`. The ledger records the row `rejected`: "statement 6 mutates
+`main.source` while local borrow `read` is still active (borrowed at statement
+4; its last use is at statement 6)".
+
+**Gap.** The current checker keeps a caller-local loan live until a
+machine-entry call completes, including that callee's terminal-transition
+chain. Its comment says *"Machine-entry calls keep their caller's live loans
+through completion; nesting and recursive graph fusion do not change that
+lifetime boundary."* These contracts were checked:
+
+- [Ownership](wiki/spec/language/ownership.md#borrows-and-aliases): *"A loan
+  held by a local closes after the last use of that local and of every loan
+  derived from it, not at the end of the enclosing block."* Read alone, the
+  loan of `read` closes inside `inspect`, so `mutate`'s write is valid.
+- [Terminal calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+  *"No return, cleanup or storage reclamation occurs merely because the call
+  is syntactically final"*, and tail lowering must preserve *"all live
+  backing, loans, custody and completion obligations"*. This keeps storage
+  alive across the chain but does not say whether a loan whose last derived use
+  has passed is still live.
+- [Machines](wiki/spec/language/machines.md#nested-machines-and-identity):
+  nesting *"does not ... retain an enclosing activation"*, which does not decide
+  whether the caller's loan is retained.
+
+The checker is also inconsistent today. A later *read* of the lent storage is
+judged by the receiver's held-run footprint, which ends where the loan stops
+being forwarded. So `runtime_interior_slice_view_mutable_write_exit`, which
+reads `main.pair_bytes` in a successor after its mutable view's last use, is
+accepted once #2489 lets an owner arrive beside a view of its own inline array
+range. A later *write* is judged by the whole-run live-loan check, which is
+why this row rejects.
+
+**Question.**
+
+- **(a)** Does a caller-local loan carried into a terminal machine call close
+  at the last use of every loan derived from it, even inside the callee's tail
+  chain? Then the row is a valid program, and the live-loan write check should
+  use the same held-run footprint that reads already use.
+- **(b)** Or does it stay live until that machine call completes? Then the row
+  must be rewritten, and the read path should be tightened to match, rejecting
+  programs such as `runtime_interior_slice_view_mutable_write_exit` that it
+  currently accepts.
+
+Until answered the row is left as recorded and the checker is unchanged.
