@@ -156,6 +156,10 @@ Dated cost and failure evidence, superseded by a later run.
   a boundary trait that inherits an ordinary trait can be passed, named and
   stored as a static implementation of it, still routed through the slot;
   delete when the board item lands.
+- [`invokes` as an entry ceiling](designs/invokes_entry_ceiling.md): `invokes`
+  bounds synchronous entry into callbacks and inbound entries, and a
+  provider's host calls move to its derived inventory; delete when the board
+  item lands.
 - [Required automatic discharge](designs/required_automatic_discharge.md):
   the obligations every checker proves unaided are order reasoning and range
   propagation, with `--floor-only` to confirm sources need nothing more;
