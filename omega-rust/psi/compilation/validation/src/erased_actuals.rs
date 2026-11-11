@@ -132,11 +132,9 @@ pub fn resolve_leaf(
         } else {
             None
         };
-        let local = named.as_ref().and_then(|(symbol, _)| {
-            program
-                .state_local_declaration(state, *symbol)
-                .map(|(ordinal, local)| (ordinal, local))
-        });
+        let local = named
+            .as_ref()
+            .and_then(|(symbol, _)| program.state_local_declaration(state, *symbol));
         if primitive_lane && local.is_none() {
             return Ok(ErasedLeaf::Value(current));
         }
