@@ -1983,6 +1983,32 @@ fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
     retained.extend([symbol]);
 }
 
+/// A domain's establishment routes name the trait requirement or exact machine
+/// that may issue a value into the domain. Lowering and the checker resolve
+/// those names from the domain itself, not from any expression, so a reached
+/// domain reaches its issuers: a program narrowed to what it reaches must
+/// still hold the trait a route names.
+fn visit_domain_establishment_routes(
+    retained: &mut impl TypedReferences,
+    routes: &[language_semantics::DomainEstablishmentRoute],
+) {
+    for route in routes {
+        match *route {
+            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition: owner,
+                requirement,
+            }
+            | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: owner,
+                requirement,
+            } => retained.extend([owner, requirement]),
+            language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+                retained.extend([machine]);
+            }
+        }
+    }
+}
+
 fn visit_callable_symbol(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -2447,6 +2473,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_type_reference(program, retained, *argument);
         }
         visit_proof_facts(program, retained, domain.facts);
+        visit_domain_establishment_routes(retained, &domain.establishment_routes);
     }
 
     for application in &program.applied_domain_applications {
@@ -2460,6 +2487,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_type_reference(program, retained, application.theory.target_type);
         visit_proof_facts(program, retained, application.theory.facts);
+        visit_domain_establishment_routes(retained, &application.theory.establishment_routes);
         if let Some(selection) = &application.theory.cleanup_selection {
             visit_cleanup_selection(program, retained, selection);
         }
