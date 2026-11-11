@@ -1046,6 +1046,20 @@ pub(crate) mod accesses {
             })
             .flatten();
         for (position, argument) in arguments.iter().enumerate() {
+            /*
+                An erased parameter demands no executable value
+                (wiki/spec/proofs/mathematical_bindings.md), so its argument
+                forms no runtime read or loan. The receiving state likewise
+                installs no incoming-reference tracker for an erased formal;
+                recording an access here would demand a retained backing that
+                no runtime carrier can hold.
+            */
+            if parameters
+                .and_then(|rows| rows.get(position))
+                .is_some_and(|parameter| parameter.relevance.is_erased())
+            {
+                continue;
+            }
             let receiving_type = parameters
                 .and_then(|rows| rows.get(position))
                 .map(|parameter| parameter.type_reference)

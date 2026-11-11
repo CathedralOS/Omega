@@ -61,12 +61,6 @@ impl PackageCompilationSubject {
 }
 
 impl PackageSourceConsumptionCommitment {
-    #[cfg(any(test, feature = "test-support"))]
-    #[doc(hidden)]
-    pub const fn for_test(digest: [u8; 32]) -> Self {
-        Self { digest }
-    }
-
     #[doc(hidden)]
     pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
         Self { digest }

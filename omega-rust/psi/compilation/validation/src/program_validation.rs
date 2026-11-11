@@ -4571,7 +4571,7 @@ fn validate<'program>(
     let mut anonymous_bitwise = Vec::new();
     literals::validate_anonymous_bitwise(program, &mut anonymous_bitwise);
     finish_diagnostics(anonymous_bitwise)?;
-    finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
+    finish_diagnostics(literals::anonymous_integer_landing_errors(program))?;
     trapping_decisions
         .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
     let mut trapping_verdicts = Vec::<(ExpressionHandle, bool)>::new();

@@ -123,7 +123,7 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
                 )));
                 continue;
             }
-            SelectionProvenance::NativeBuild => {
+            SelectionProvenance::NativeBuild | SelectionProvenance::TargetRealization(_) => {
                 continue;
             }
         };

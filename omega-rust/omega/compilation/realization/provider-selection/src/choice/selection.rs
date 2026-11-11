@@ -78,16 +78,30 @@ pub(crate) struct SelectedProviderPlanIndex<Declaration, Origin> {
 struct NativeCandidate<'plan> {
     plan: &'plan ProviderPlan,
     native_build: bool,
+    float_realization: Option<target::CanonicalFloatRealization>,
     slot: ProviderSelectionKey,
     provider: ProviderSelectionKey,
 }
 
 impl<'plan> NativeCandidate<'plan> {
-    fn new(plan: &'plan ProviderPlan, native_build: bool) -> Self {
+    // Only the authenticated sealed float catalog map consults the target's
+    // realization table; the table then classifies the slot by its canonical
+    // operation name, leaving the whole-map slot and lookalikes ordinary.
+    fn new(
+        plan: &'plan ProviderPlan,
+        native_build: bool,
+        canonical_float_map: bool,
+        selected_target: target::TargetProfile,
+    ) -> Self {
+        let slot = provider_slot_key(plan);
+        let float_realization = canonical_float_map
+            .then(|| selected_target.canonical_float_realization(&slot.1))
+            .flatten();
         Self {
             plan,
             native_build,
-            slot: provider_slot_key(plan),
+            float_realization,
+            slot,
             provider: provider_plan_key(plan),
         }
     }
@@ -109,6 +123,14 @@ impl language_semantics::declaration_selection::provider_choices::Candidate
     }
     fn build_keyed(&self) -> bool {
         self.native_build
+    }
+    fn target_realization(&self) -> Option<bool> {
+        self.float_realization.map(|realization| {
+            matches!(
+                realization,
+                target::CanonicalFloatRealization::CatalogIntrinsic { .. }
+            )
+        })
     }
     fn has_requirements(&self) -> bool {
         !self.plan.schema.declaration.methods.is_empty()
@@ -177,7 +199,14 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
         .collect::<Vec<_>>();
     let candidates = provider_candidates
         .iter()
-        .map(|candidate| NativeCandidate::new(&candidate.plan, candidate.native_build))
+        .map(|candidate| {
+            NativeCandidate::new(
+                &candidate.plan,
+                candidate.native_build,
+                candidate.canonical_float_map,
+                selected_target,
+            )
+        })
         .collect::<Vec<_>>();
     let prepared_defaults = defaults
         .iter()
@@ -256,6 +285,10 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
                 slot.1, if candidates.len() == 2 { "two".to_owned() } else { candidates.len().to_string() },
                 candidates.iter().map(|index| { let plan = &plans[*index]; format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()) }).collect::<Vec<_>>().join(", "), slot.1,
             ),
+            Error::SelectedTargetRealization { tier, declaration: index, slot } => format!(
+                "{} selects provider `{}` for canonical float operation `{}`; canonical f32/f64 operations are realized by target `{}`'s declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm",
+                owner(tier), declaration(tier, index).provider_type.authored_path, slot.1, selected_target.target_name(),
+            ),
             Error::OverlappingChoices { first, second } => format!(
                 "selected whole provider maps `{}` and `{}` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners", plans[first].name, plans[second].name,
             ),
@@ -265,10 +298,11 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    Ok(outcome
+    outcome
         .choices
         .into_iter()
-        .map(|choice| SelectedProviderPlanIndex {
+        .map(|choice| {
+            Ok(SelectedProviderPlanIndex {
             candidate: choice.candidate,
             selected_by: match choice.reason {
                 Reason::Override(indices) => SelectionProvenance::BuildOverride(
@@ -284,7 +318,15 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
                         .collect(),
                 ),
                 Reason::UniqueCoveringCandidate => SelectionProvenance::UniqueCoveringCandidate,
+                Reason::TargetRealization => SelectionProvenance::TargetRealization(
+                    candidates[choice.candidate].float_realization.ok_or_else(|| {
+                        vec![diagnostics::Diagnostic::error(
+                            "target-realized provider choice has no declared realization entry",
+                        )]
+                    })?,
+                ),
             },
+            })
         })
-        .collect())
+        .collect()
 }

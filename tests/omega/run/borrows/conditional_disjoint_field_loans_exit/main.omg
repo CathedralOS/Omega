@@ -38,3 +38,14 @@ crashes Trap
     }
     machine failure(application: &mut Main) { Console::exit_process(3); }
 }
+
+// The hosted entry takes no arrival parameters; it owns the program's
+// storage and passes it to `Main::main` explicitly.
+public machine entry_start() reaches Console
+invokes Console
+blocks
+crashes Trap
+{
+    let mut entry_storage: Main = Main { left: Cell { value: 0 }, right: Cell { value: 0 } };
+    block Main::main(&mut entry_storage);
+}

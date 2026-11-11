@@ -78,7 +78,7 @@ expanded list of leaves. A partially moved ancestor cannot be discarded whole.
 An empty complement needs no residual row.
 
 A `Case` path enters the payload namespace of the exact selected sum; it is
-not another owned child. Its active payload fields and any mixed common fields
+not another owned child. Its active payload fields
 participate in the same complement. Inactive cases contribute no values or
 cleanup. Each selected case must remain established at the transfer, and
 conflicting case identities cannot be combined into one residual partition.
