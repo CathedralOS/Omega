@@ -55,7 +55,7 @@ public data Checker {
     reference_backings: [ReferenceOrigin; 256];
     reference_backing_count: u64 in Trapping;
     // Each place's default domain (domains.omg), and the place whose fields a
-    // `where` fact's field names stand for while it is installed.
+    // `requires` fact's field names stand for while it is installed.
     domains: [DomainMark; 256];
     domains_pending: bool;
     fields_parent: u64 in Trapping;
@@ -146,16 +146,10 @@ public data Checker {
     // (wiki/spec/language/termination.md#ranking), so its fixed-integer
     // results are exact rather than carrier obligations.
     exact_body: bool;
-    // While a construction's `where` facts are decided, the fields from
+    // While a construction's `requires` facts are decided, the fields from
     // `field_first` stand for the same argument values.
     field_values: bool;
     field_first: u64 in Trapping;
-    // While a case's own `where` facts are decided or assumed, its payload
-    // fields from `payload_first` stand for the argument values from
-    // `payload_slot`: what a construction writes, or an arm's binders.
-    payload_values: bool;
-    payload_first: u64 in Trapping;
-    payload_slot: u64 in Trapping;
     contribution: Zone;
     // Scratch copies: a runtime-indexed zone is copied out before an
     // operation borrows it and stored back after.
@@ -456,7 +450,6 @@ public machine Checker::prepare_body(checker: &mut Checker, item: MachineItem, i
     checker.minting = false;
     checker.exact_body = item.container == MachineContainer::Measure;
     checker.field_values = false;
-    checker.payload_values = false;
     checker.domains_pending = false;
     checker.fields_parent = 0;
     checker.machine = index;

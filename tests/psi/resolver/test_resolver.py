@@ -95,7 +95,7 @@ def path_domain(handle: int) -> tuple[int, int]:
 
 
 def field_name(handle: int) -> tuple[int, int, int]:
-    """A field a data declaration's `where` fact names bare."""
+    """A field a data declaration's `requires` fact names bare."""
     return (12, handle, 0)
 
 
@@ -950,12 +950,12 @@ def main() -> None:
     )
     rejected(program, "unknown-static-argument-type", b"machine f() { g<Q>(1); }", UNKNOWN_DATA_TYPE, b"Q")
 
-    # Facts: a `requires` fact names its body's parameters, a data `where`
-    # fact its fields.
+    # Facts: a `requires` fact names its body's parameters, a data
+    # `requires` fact its fields.
     accepted(
         program,
         "fact-names",
-        b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
+        b"data Range\nrequires\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine f(x: u64) -> u64\nrequires x > 0\n{\n"
         b"    transition { _ -> g(x) }\n\n"
         b"    machine g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
@@ -1023,7 +1023,7 @@ def main() -> None:
     rejected(
         program,
         "data-fact-names-only-its-fields",
-        b"data A { a: u64; }\ndata B\nwhere\n    a > 0,\n{ b: u64; }",
+        b"data A { a: u64; }\ndata B\nrequires\n    a > 0,\n{ b: u64; }",
         UNKNOWN_NAME,
         b"a > 0",
         length=1,
@@ -2118,7 +2118,7 @@ def main() -> None:
         program,
         "proposition-application-in-a-data-fact",
         b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
-        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
+        b"data Range\nrequires\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (NOT_A_NAME, NOT_A_NAME, NOT_A_NAME, proposition(0), field_name(0), field_name(1), NOT_A_NAME),
     )
@@ -2173,7 +2173,7 @@ def main() -> None:
     rejected(
         program,
         "proposition-inside-a-larger-data-fact",
-        b"proposition P(a: u64);\ndata D\nwhere\n    !P(v),\n{ v: u64; }",
+        b"proposition P(a: u64);\ndata D\nrequires\n    !P(v),\n{ v: u64; }",
         UNSUPPORTED_EXPRESSION,
         b"P",
         2,

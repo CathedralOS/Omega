@@ -9,7 +9,7 @@ use psi::syntax::syntax;
 use psi::types::types;
 
 // The values of a fact tree's nodes, children before parents. A fact
-// (`requires`, `where`) is a proof expression, not executed code: its nodes
+// (`requires`) is a proof expression, not executed code: its nodes
 // take the same values as a body's (places, constants, fixed-integer
 // operators and conversions) but owe no obligations and have no effects,
 // and a call in it is known only by its result type, except a primitive

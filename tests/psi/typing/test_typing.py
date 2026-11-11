@@ -1643,7 +1643,7 @@ def main() -> None:
         program,
         "data-fact-proposition-application",
         b"proposition Ordered(lo: u64, hi: u64) = lo <= hi;\n"
-        b"data Range\nwhere\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
+        b"data Range\nrequires\n    Ordered(lo, hi),\n{ lo: u64; hi: u64; }",
         ((b"Ordered(lo, hi)", "bool"), (b"lo!3", "u64")),
     )
     rejected(
@@ -1693,18 +1693,11 @@ def main() -> None:
         b"n!3",
     )
 
-    # A case's own `where` fact types over its payload fields and the
-    # declaration's fields, and is a Boolean.
-    accepted(
-        program,
-        "case-fact-over-its-payload",
-        b"data Interval { tag: u64; case Empty; case Range(lo: u64, hi: u32) where lo <= 9 && hi > 0 && tag > 0; }",
-        ((b"lo!2", "u64"), (b"hi!2", "u32"), (b"tag!2", "u64"), (b"lo <= 9", "bool")),
-    )
+    # A data declaration's `requires` fact is a Boolean.
     rejected(
         program,
-        "case-fact-is-a-boolean",
-        b"data I { case A(x: u64) where x + 1; }",
+        "data-fact-is-a-boolean",
+        b"data I requires x + 1, { x: u64; }",
         "NotBoolean",
         b"x + 1",
     )

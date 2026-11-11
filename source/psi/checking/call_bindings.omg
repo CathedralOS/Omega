@@ -22,9 +22,6 @@ public data ArgumentScope [copy] {
     field_values: bool;
     field_first: u64 in Trapping;
     fields_parent: u64 in Trapping;
-    payload_values: bool;
-    payload_first: u64 in Trapping;
-    payload_slot: u64 in Trapping;
 }
 
 public machine ArgumentValues::empty(arguments: &mut ArgumentValues)
@@ -56,10 +53,7 @@ crashes Trap
     scope.field_values = checker.field_values;
     scope.field_first = 0;
     scope.fields_parent = checker.fields_parent;
-    scope.payload_values = checker.payload_values;
-    scope.payload_first = 0;
-    scope.payload_slot = 0;
-    transition checker.substituting || checker.field_values || checker.payload_values {
+    transition checker.substituting || checker.field_values {
         true -> active(checker, scope)
         _ -> {}
     }
@@ -78,22 +72,11 @@ crashes Trap
     machine fields(checker: &Checker, scope: &mut ArgumentScope) {
         transition checker.field_values {
             true -> field_roster(checker, scope)
-            _ -> payloads(checker, scope)
+            _ -> next(checker, scope, 0)
         }
     }
     machine field_roster(checker: &Checker, scope: &mut ArgumentScope) {
         scope.field_first = checker.field_first;
-        transition { _ -> payloads(checker, scope) }
-    }
-    machine payloads(checker: &Checker, scope: &mut ArgumentScope) {
-        transition checker.payload_values {
-            true -> payload_roster(checker, scope)
-            _ -> next(checker, scope, 0)
-        }
-    }
-    machine payload_roster(checker: &Checker, scope: &mut ArgumentScope) {
-        scope.payload_first = checker.payload_first;
-        scope.payload_slot = checker.payload_slot;
         transition { _ -> next(checker, scope, 0) }
     }
     machine next(checker: &Checker, scope: &mut ArgumentScope, offset: u64 in Trapping) {
@@ -119,9 +102,6 @@ crashes Trap
     checker.field_values = scope.field_values;
     checker.field_first = scope.field_first;
     checker.fields_parent = scope.fields_parent;
-    checker.payload_values = scope.payload_values;
-    checker.payload_first = scope.payload_first;
-    checker.payload_slot = scope.payload_slot;
     transition { _ -> next(checker, scope, 0) }
     machine next(checker: &mut Checker, scope: &ArgumentScope, offset: u64 in Trapping) {
         transition offset < 64 {
@@ -196,7 +176,6 @@ crashes Trap
     checker.argument_first = first;
     checker.argument_count = arguments.count;
     checker.field_values = false;
-    checker.payload_values = false;
     checker.fields_parent = 0;
     transition { _ -> next(checker, arguments, 0) }
     machine next(checker: &mut Checker, arguments: &ArgumentValues, offset: u64 in Trapping) {
