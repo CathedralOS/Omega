@@ -106,6 +106,15 @@ pub enum Justification {
     /// `fact:branch-condition-transport` as certificate-gated.
     /// `fact_validity.md` has no sentence on it; its availability is ordinary
     /// dominance from the edge.
+    ///
+    /// It is also the justification of what an edge of a `StructuralCase`
+    /// terminator binds, with `holds` true: each payload parameter of the
+    /// arm's block equal to the value its payload leaf holds.
+    /// `wiki/spec/terminal-psi/control_flow.md`: "Selected payload fields
+    /// become scalar parameters on that case's edge before cleanup." Both
+    /// are what taking one edge of a branching terminator makes known. That
+    /// the sum holds the selected case is not a row: a dispatch has no
+    /// Boolean value to state it over, and knowledge names values only.
     BranchCondition { edge: EdgeId, holds: bool },
     /// The checked invariant of a block, available after every arrival
     /// obligation checks. control_flow.md: "There is one row per block;

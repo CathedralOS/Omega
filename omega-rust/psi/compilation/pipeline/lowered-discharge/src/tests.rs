@@ -931,10 +931,12 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(1, "x", ValueType::Scalar(u32_type())),
             field(2, "y", ValueType::Scalar(u32_type())),
         ],
+        cases: Vec::new(),
     });
     records.push(RecordType {
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
+        cases: Vec::new(),
     });
     records
 }
@@ -997,6 +999,13 @@ fn bounded() -> Shaped {
 }
 
 fn elaborate_places(machines: Vec<Shaped>) -> structure_elaboration::Elaboration {
+    elaborate_over(machines, &records())
+}
+
+fn elaborate_over(
+    machines: Vec<Shaped>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+) -> structure_elaboration::Elaboration {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
@@ -1014,7 +1023,7 @@ fn elaborate_places(machines: Vec<Shaped>) -> structure_elaboration::Elaboration
             crashes: CrashCeiling::Authored(Vec::new()),
         });
     }
-    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap()
+    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
 }
 
 fn run_places(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
@@ -2042,4 +2051,597 @@ fn every_use_of_storage_has_exactly_one_verdict() {
         let verdicts = &result.machines.get(machine).unwrap().verdicts;
         assert!(tables.obligations.keys().eq(verdicts.keys()));
     }
+}
+
+// Sums. `Shape` is type 2 beside `Point`: `Dot(at: u32)` is case 1 with field
+// 3, `Pair(l: u32, r: u32)` case 2 with fields 4 and 5, `Boxed(inner: Point)`
+// case 3 with field 6, and `Empty` case 4. `Holder { shape: Shape }` is type
+// 3 with field 7.
+
+use structure_elaboration::CaseType;
+use terminal_check_tables::Construct;
+use terminal_psi::Terminator;
+
+const DOT: usize = 0;
+const PAIR: usize = 1;
+const BOXED: usize = 2;
+const EMPTY: usize = 3;
+
+fn shape() -> ValueType {
+    ValueType::Record(id(2))
+}
+
+fn holder() -> ValueType {
+    ValueType::Record(id(3))
+}
+
+fn sums() -> IdTable<StructuralTypeId, RecordType> {
+    let field = |raw, spelled: &str, value_type| RecordField {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        value_type,
+    };
+    let case = |raw, spelled: &str, fields| CaseType {
+        id: id(raw),
+        identity: spelled.to_owned(),
+        fields,
+    };
+    let scalar = ValueType::Scalar(u32_type());
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        identity: String::from("Point"),
+        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
+        cases: Vec::new(),
+    });
+    records.push(RecordType {
+        identity: String::from("Shape"),
+        fields: Vec::new(),
+        cases: vec![
+            case(1, "Dot", vec![field(3, "at", scalar)]),
+            case(
+                2,
+                "Pair",
+                vec![field(4, "l", scalar), field(5, "r", scalar)],
+            ),
+            case(3, "Boxed", vec![field(6, "inner", point())]),
+            case(4, "Empty", Vec::new()),
+        ],
+    });
+    records.push(RecordType {
+        identity: String::from("Holder"),
+        fields: vec![field(7, "shape", shape())],
+        cases: Vec::new(),
+    });
+    records
+}
+
+fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
+    of_type(ExpressionKind::Case { case, fields }, shape())
+}
+
+/// The `u32` payload field `field` of case `case` of the sum `base` names.
+fn payload(base: Expression, case: usize, field: usize) -> Expression {
+    of_type(
+        ExpressionKind::Payload {
+            base: Box::new(base),
+            case,
+            field,
+        },
+        u32_type().into(),
+    )
+}
+
+fn is_case(subject: Expression, case: usize) -> Expression {
+    of_type(
+        ExpressionKind::IsCase {
+            subject: Box::new(subject),
+            case,
+        },
+        ScalarType::Boolean.into(),
+    )
+}
+
+fn matching(
+    subject: Expression,
+    arms: Vec<(usize, Expression)>,
+    default: Option<Expression>,
+) -> Expression {
+    of_type(
+        ExpressionKind::Match {
+            subject: Box::new(subject),
+            arms,
+            default: default.map(Box::new),
+        },
+        u32_type().into(),
+    )
+}
+
+fn run_sums(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut elaboration = elaborate_over(machines, &sums());
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+/// One machine over the sum types returning `u32`.
+fn over_sums(
+    parameters: Vec<ValueType>,
+    locals: Vec<ValueType>,
+    statements: Vec<Statement>,
+) -> Shaped {
+    Shaped {
+        parameters,
+        locals,
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements,
+    }
+}
+
+/// The values machine 1's knowledge equates on the edges of its dispatches:
+/// each `BranchCondition` row between two values, as (bound, held).
+fn bound_payloads(tables: &MachineTables) -> Vec<(ValueId, ValueId)> {
+    tables
+        .knowledge
+        .iter()
+        .filter_map(|(_, row)| {
+            let Justification::BranchCondition { edge, holds: true } = row.justification else {
+                return None;
+            };
+            assert_eq!(row.available_from, ProgramPoint::Edge(edge));
+            match tables.propositions.get(row.proposition).unwrap() {
+                Proposition::Equal(
+                    ScalarTerm::Value { id: bound, .. },
+                    ScalarTerm::Value { id: held, .. },
+                ) => Some((*bound, *held)),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn a_bound_payload_is_what_its_leaf_was_constructed_with_and_nothing_from_a_sibling_case() {
+    // f() -> u32 {
+    //     let s = Shape::Pair { l: 30, r: 4 };
+    //     match s {
+    //         Shape::Pair { l, r } -> bounded(r) & bounded(l),   // r is 4, l is 30
+    //         Shape::Dot { at } -> bounded(at),                  // nothing is known of `at`
+    //         _ -> 0
+    //     }
+    // }
+    let s = || place(0, shape());
+    let caller = over_sums(
+        Vec::new(),
+        vec![shape()],
+        vec![
+            bind(0, case_of(PAIR, vec![(0, unsigned(30)), (1, unsigned(4))])),
+            returns(matching(
+                s(),
+                vec![
+                    (
+                        PAIR,
+                        and(
+                            call(2, vec![payload(s(), PAIR, 1)]),
+                            call(2, vec![payload(s(), PAIR, 0)]),
+                        ),
+                    ),
+                    (DOT, call(2, vec![payload(s(), DOT, 0)])),
+                ],
+                Some(unsigned(0)),
+            )),
+        ],
+    );
+    let (elaboration, result) = run_sums(vec![caller, bounded()]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert!(
+        uses(&result).iter().all(Result::is_ok),
+        "{:?}",
+        uses(&result)
+    );
+    // The dispatch is block 1's terminator. The `Pair` edge binds its two
+    // parameters to the two constructing operands; the `Dot` edge binds a
+    // parameter nothing is known about, because the last write to storage
+    // its leaf overlays was the other case's payload.
+    let blocks = &elaboration.module.machines[0].blocks;
+    let Terminator::StructuralCase { cases, .. } = &blocks[0].terminator else {
+        panic!("dispatch");
+    };
+    let parameters = |case: usize| -> Vec<ValueId> {
+        let target = cases[case].target;
+        blocks
+            .iter()
+            .find(|block| block.id == target)
+            .unwrap()
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect()
+    };
+    let [thirty, four, ..] = constants(&elaboration)[..] else {
+        panic!("two operands");
+    };
+    let [l, r] = parameters(PAIR)[..] else {
+        panic!("two payload parameters");
+    };
+    assert_eq!(parameters(DOT).len(), 1);
+    assert_eq!(bound_payloads(tables), [(l, thirty), (r, four)]);
+    // `bounded(r)` discharges from the constructing 4 with kernel evidence;
+    // `bounded(l)` is the 30 and `bounded(at)` is unknown.
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let [(first, needs_r), (_, needs_l), (_, needs_at)] = requirements.as_slice() else {
+        panic!("three requirements");
+    };
+    assert_kernel_checked(&elaboration, 1, *first, certificate(needs_r));
+    assert_unproved(needs_l);
+    assert_unproved(needs_at);
+
+    // Two payload fields of one case are disjoint.
+    let leaf = |case: u64, field: u64| {
+        let mut place = *tables.roots.get(id::<PlaceId>(1)).unwrap();
+        for segment in [Segment::Case(id(case)), Segment::Field(id(field))] {
+            let children = &tables.places.get(place).unwrap().children;
+            let found = children
+                .binary_search_by_key(&segment, |(segment, _)| *segment)
+                .unwrap();
+            place = children[found].1;
+        }
+        crate::places::lineage(id(1), &tables.places, place).unwrap()
+    };
+    assert!(!crate::places::overlap(&leaf(2, 4), &leaf(2, 5)));
+}
+
+#[test]
+fn payloads_of_two_cases_under_one_sum_overlap() {
+    // root.Case(1).Field(3) and root.Case(2).Field(4): the two cases overlay
+    // the sum's storage, so their payload fields overlap, as each does the
+    // sum itself; two fields of one case do not.
+    let mut places: IdTable<ExactPlaceId, PlaceRow> = IdTable::default();
+    let row = |origin| PlaceRow {
+        origin,
+        children: Vec::new(),
+        writes: Vec::new(),
+    };
+    let root = places.push(row(PlaceOrigin::Root(id(1))));
+    let mut child = |parent, segment| places.push(row(PlaceOrigin::Projection { parent, segment }));
+    let dot = child(root, Segment::Case(id(1)));
+    let pair = child(root, Segment::Case(id(2)));
+    let at = child(dot, Segment::Field(id(3)));
+    let l = child(pair, Segment::Field(id(4)));
+    let r = child(pair, Segment::Field(id(5)));
+    let of = |place| crate::places::lineage(id(1), &places, place).unwrap();
+    let may = |left, right| {
+        let forward = crate::places::overlap(&of(left), &of(right));
+        assert_eq!(forward, crate::places::overlap(&of(right), &of(left)));
+        forward
+    };
+    assert!(may(at, l));
+    assert!(may(at, r));
+    assert!(may(dot, pair));
+    assert!(may(root, at));
+    assert!(!may(l, r));
+}
+
+/// The verdicts of `f(parameters) -> u32 { locals; statements }` over the sum
+/// types, beside `bounded` as machine 2.
+fn sum_uses(
+    parameters: Vec<ValueType>,
+    locals: Vec<ValueType>,
+    statements: Vec<Statement>,
+) -> (
+    structure_elaboration::Elaboration,
+    Discharge,
+    Vec<Result<(), RefusalReason>>,
+) {
+    let (elaboration, result) =
+        run_sums(vec![over_sums(parameters, locals, statements), bounded()]);
+    let verdicts = uses(&result);
+    (elaboration, result, verdicts)
+}
+
+#[test]
+fn a_payload_read_is_accepted_where_every_reaching_write_constructed_that_case() {
+    let dot = || case_of(DOT, vec![(0, unsigned(3))]);
+    // let s = Shape::Dot { at: 3 }; bounded(s.at)
+    let (elaboration, result, verdicts) = sum_uses(
+        Vec::new(),
+        vec![shape()],
+        vec![
+            bind(0, dot()),
+            returns(call(2, vec![payload(place(0, shape()), DOT, 0)])),
+        ],
+    );
+    assert_eq!(verdicts, [Ok(())]);
+    // The read is the constructing 3, so the requirement discharges.
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let [read] = field_reads(&elaboration)[..] else {
+        panic!("one read");
+    };
+    assert_eq!(read_equals(tables, read), Some(constants(&elaboration)[0]));
+    let requirements = verdicts_of(&elaboration, &result);
+    assert_kernel_checked(
+        &elaboration,
+        1,
+        requirements[0].0,
+        certificate(requirements[0].1),
+    );
+
+    // let s = Shape::Dot { at: 3 }; s.l      -- built as another case
+    let (_, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![shape()],
+        vec![bind(0, dot()), returns(payload(place(0, shape()), PAIR, 0))],
+    );
+    assert_eq!(verdicts, [Err(RefusalReason::Unestablished)]);
+
+    // let s = Shape::Dot { at: 3 }; let t = s; t.at   -- through a whole copy
+    let (elaboration, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![shape(), shape()],
+        vec![
+            bind(0, dot()),
+            bind(1, place(0, shape())),
+            returns(payload(place(1, shape()), DOT, 0)),
+        ],
+    );
+    assert_eq!(verdicts, [Ok(()), Ok(())]);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let [read] = field_reads(&elaboration)[..] else {
+        panic!("one read");
+    };
+    assert_eq!(read_equals(tables, read), Some(constants(&elaboration)[0]));
+
+    // f(s: Shape) -> u32 { s.at }   -- which case a formal holds is not known
+    let (_, _, verdicts) = sum_uses(
+        vec![shape()],
+        Vec::new(),
+        vec![returns(payload(place(0, shape()), DOT, 0))],
+    );
+    assert_eq!(verdicts, [Err(RefusalReason::Unestablished)]);
+}
+
+fn verdicts_of<'a>(
+    elaboration: &structure_elaboration::Elaboration,
+    result: &'a Discharge,
+) -> Vec<(ObligationId, &'a Checked<Discharged>)> {
+    verdicts(elaboration, result, 1, requirement)
+}
+
+/// `h.shape`, the sum field of a `Holder`.
+fn held(slot: usize) -> Expression {
+    of_type(
+        ExpressionKind::Field {
+            base: Box::new(place(slot, holder())),
+            field: 0,
+        },
+        shape(),
+    )
+}
+
+#[test]
+fn a_membership_test_establishes_its_case_on_its_true_edge_and_a_write_to_the_sum_retires_it() {
+    // f(h: Holder) -> u32 { transition h.shape in Shape::Dot { true -> h.shape.at } 0 }
+    let (_, _, verdicts) = sum_uses(
+        vec![holder()],
+        Vec::new(),
+        vec![
+            guarded(is_case(held(0), DOT), payload(held(0), DOT, 0)),
+            returns(unsigned(0)),
+        ],
+    );
+    // The test reads the sum; the read lies on the test's true edge.
+    assert_eq!(verdicts, [Ok(()), Ok(())]);
+
+    // f(h: Holder) -> u32 { transition h.shape in Shape::Dot { true -> 0 } h.shape.at }
+    // The false edge refutes one case and establishes none.
+    let (_, _, verdicts) = sum_uses(
+        vec![holder()],
+        Vec::new(),
+        vec![
+            guarded(is_case(held(0), DOT), unsigned(0)),
+            returns(payload(held(0), DOT, 0)),
+        ],
+    );
+    assert_eq!(verdicts, [Ok(()), Err(RefusalReason::Unestablished)]);
+
+    // f(h: Holder) -> u32 {
+    //     let t = h.shape in Shape::Dot;
+    //     transition t { true -> h.shape.at }      -- nothing written since the test
+    //     0
+    // }
+    let tested = |between: Vec<Statement>| {
+        let mut statements = vec![bind(1, is_case(held(0), DOT))];
+        statements.extend(between);
+        statements.push(guarded(
+            slot(1, ScalarType::Boolean),
+            payload(held(0), DOT, 0),
+        ));
+        statements.push(returns(unsigned(0)));
+        statements
+    };
+    let (_, _, verdicts) = sum_uses(
+        vec![holder()],
+        vec![ScalarType::Boolean.into()],
+        tested(Vec::new()),
+    );
+    assert_eq!(verdicts, [Ok(()), Ok(())]);
+
+    // let mut h = Holder { shape: Shape::Dot { at: 3 } };
+    // let t = h.shape in Shape::Dot;
+    // h.shape = Shape::Empty;                      -- a whole write to the sum
+    // transition t { true -> h.shape.at }          -- the test's fact is retired
+    let mut statements = vec![bind(
+        0,
+        of_type(
+            ExpressionKind::Record {
+                fields: vec![(0, case_of(DOT, vec![(0, unsigned(3))]))],
+            },
+            holder(),
+        ),
+    )];
+    statements.extend(tested(vec![store(0, &[0], case_of(EMPTY, Vec::new()))]));
+    let (_, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![holder(), ScalarType::Boolean.into()],
+        statements.clone(),
+    );
+    assert_eq!(
+        verdicts.last(),
+        Some(&Err(RefusalReason::Unestablished)),
+        "{verdicts:?}"
+    );
+    assert!(verdicts[..verdicts.len() - 1].iter().all(Result::is_ok));
+    // Without the write the same read is accepted.
+    statements.remove(2);
+    let (_, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![holder(), ScalarType::Boolean.into()],
+        statements,
+    );
+    assert!(verdicts.iter().all(Result::is_ok), "{verdicts:?}");
+}
+
+/// `f(s: Shape) -> Point { transition s { arms  _ -> default } }`.
+fn boxed(arm: (usize, Expression), default: Expression) -> Shaped {
+    Shaped {
+        parameters: vec![shape()],
+        locals: Vec::new(),
+        result: point(),
+        requires: Vec::new(),
+        statements: vec![Statement::Dispatch {
+            subject: place(0, shape()),
+            arms: vec![(arm.0, Target::Value(arm.1), nowhere())],
+            default: Some((Target::Value(default), nowhere())),
+            source: nowhere(),
+        }],
+    }
+}
+
+fn inner() -> Expression {
+    of_type(
+        ExpressionKind::Payload {
+            base: Box::new(place(0, shape())),
+            case: BOXED,
+            field: 0,
+        },
+        point(),
+    )
+}
+
+#[test]
+fn a_dispatch_edge_establishes_its_case_and_the_wildcard_edge_establishes_none() {
+    let origin = || point_of(unsigned(0), unsigned(0));
+    // transition s { Shape::Boxed { inner } -> inner   _ -> Point { x: 0, y: 0 } }
+    let (_, result) = run_sums(vec![boxed((BOXED, inner()), origin())]);
+    // The dispatch, the copy of the payload under its edge, and the returns.
+    assert!(
+        uses(&result).iter().all(Result::is_ok),
+        "{:?}",
+        uses(&result)
+    );
+    // transition s { Shape::Dot { .. } -> Point { .. }   _ -> s.inner }
+    // Three cases enter the wildcard arm, so none is established there.
+    let (_, result) = run_sums(vec![boxed((DOT, origin()), inner())]);
+    let refused: Vec<_> = result
+        .machines
+        .get(id(1))
+        .unwrap()
+        .unestablished()
+        .map(|refusal| refusal.detail.as_str())
+        .collect();
+    assert_eq!(
+        refused,
+        ["a case payload is accessed on a path that does not establish its case"]
+    );
+}
+
+#[test]
+fn a_dispatch_that_lists_no_edge_for_a_declared_case_is_unestablished() {
+    let origin = || point_of(unsigned(0), unsigned(0));
+    let mut elaboration = elaborate_over(vec![boxed((BOXED, inner()), origin())], &sums());
+    let block = &mut elaboration.module.machines[0].blocks[0];
+    let dispatch = Construct::Block(block.id);
+    let Terminator::StructuralCase { cases, .. } = &mut block.terminator else {
+        panic!("dispatch");
+    };
+    // Elaboration lists all four declared cases.
+    assert_eq!(cases.len(), 4);
+    cases.pop();
+    let result = discharge(&mut elaboration).unwrap();
+    let verdict = result
+        .machines
+        .get(id(1))
+        .unwrap()
+        .uses
+        .iter()
+        .find(|used| used.at == dispatch)
+        .unwrap()
+        .verdict
+        .clone()
+        .unwrap_err();
+    assert_eq!(verdict.reason, RefusalReason::Unestablished);
+    assert_eq!(
+        verdict.detail,
+        "a dispatch lists no edge for a declared case"
+    );
+}
+
+#[test]
+fn a_fact_from_one_match_arm_does_not_survive_the_join() {
+    // f(s: Shape) -> u32 {
+    //     let n = match s { Shape::Dot { .. } -> 3, _ -> 20 };
+    //     bounded(n)                    -- n is the join's parameter: 3 or 20
+    // }
+    let joined = over_sums(
+        vec![shape()],
+        vec![u32_type().into()],
+        vec![
+            bind(
+                1,
+                matching(
+                    place(0, shape()),
+                    vec![(DOT, unsigned(3))],
+                    Some(unsigned(20)),
+                ),
+            ),
+            returns(call(2, vec![slot(1, u32_type())])),
+        ],
+    );
+    let (elaboration, result) = run_sums(vec![joined, bounded()]);
+    let [(_, after_join)] = verdicts_of(&elaboration, &result)[..] else {
+        panic!("one requirement");
+    };
+    assert_unproved(after_join);
+    // The same call inside the arm that produced the 3 discharges.
+    let inside = over_sums(
+        vec![shape()],
+        Vec::new(),
+        vec![returns(matching(
+            place(0, shape()),
+            vec![(DOT, call(2, vec![unsigned(3)]))],
+            Some(unsigned(20)),
+        ))],
+    );
+    let (elaboration, result) = run_sums(vec![inside, bounded()]);
+    let [(obligation, in_arm)] = verdicts_of(&elaboration, &result)[..] else {
+        panic!("one requirement");
+    };
+    assert_kernel_checked(&elaboration, 1, obligation, certificate(in_arm));
+}
+
+#[test]
+fn a_sum_local_nothing_was_stored_into_is_unestablished() {
+    // let z: Shape; match z { Shape::Dot { at } -> at, _ -> 0 }
+    let (_, _, verdicts) = sum_uses(
+        Vec::new(),
+        vec![shape()],
+        vec![
+            declare(0, shape()),
+            returns(matching(
+                place(0, shape()),
+                vec![(DOT, payload(place(0, shape()), DOT, 0))],
+                Some(unsigned(0)),
+            )),
+        ],
+    );
+    assert_eq!(verdicts, [Err(RefusalReason::Unestablished)]);
 }

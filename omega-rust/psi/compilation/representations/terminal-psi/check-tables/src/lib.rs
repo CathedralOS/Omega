@@ -140,6 +140,15 @@ pub enum RefusalReason {
     /// storage has no assumed zero." It is a structural judgment over the
     /// write log and the lowered graph, so it has no obligation row and no
     /// certificate.
+    ///
+    /// The same reason covers the two structural judgments over a sum. A
+    /// case payload named where its case is not established on every path:
+    /// structural_access.md, "Each `Case` step requires source admission to
+    /// establish the selected case for the same root and prefix at the
+    /// read's observation epoch." And a dispatch with no edge for a declared
+    /// case: `wiki/spec/language/patterns.md`, "Every dispatch must cover
+    /// the admitted subject. Missing runtime coverage is a compile error,
+    /// not an implicit trap or fallthrough."
     Unestablished,
     /// An edge did not account for an incoming conserved obligation exactly
     /// once. ownership.md: "every incoming owned obligation occurs exactly once

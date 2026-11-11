@@ -48,8 +48,8 @@ and `semantic_vocabulary::Proposition`'s structural variants are not used.
 */
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, MachineId, OperationId, PlaceId, Proposition,
-    PsiSemanticId, ScalarTerm, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, OperationId, PlaceId, Proposition,
+    PsiSemanticId, ScalarTerm, StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::values::ValueOrigin;
@@ -57,7 +57,8 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, IdTable, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{
-    Operation, OperationKind, RecordFieldValue, StructuralArgument, StructuralFieldType,
+    Block, Operation, OperationKind, RecordFieldValue, StructuralArgument,
+    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, Terminator,
 };
@@ -139,6 +140,12 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
     }
 }
 
+fn asked_root(asked: Asked<'_>) -> PlaceId {
+    match asked {
+        Asked::Contents(place) | Asked::Case(place) => place.root,
+    }
+}
+
 /// The entry content value of each place that has one, indexed by
 /// `ExactPlaceId - 1`. A derived column over the value table: elaboration
 /// mints at most one such value per place, and a second one is refused
@@ -190,7 +197,9 @@ struct Logged {
 enum Reached {
     /// The one value every path supplies.
     Value(ValueId),
-    /// Every path supplies contents, but not one same named value.
+    /// Asked of a sum: the one case every path establishes it as.
+    Case(StructuralCaseId),
+    /// Every path supplies contents, but not one same named value or case.
     Unknown,
     /// Some path supplies nothing: no store reaches the use along it and the
     /// place held nothing at entry.
@@ -198,9 +207,35 @@ enum Reached {
 }
 
 /// What a place is, by the lowered form's own declarations.
-enum Shape {
+enum Shape<'a> {
     Scalar,
     Typed(StructuralTypeId),
+    /// The payload namespace of one case of a sum: a `Case` segment, which
+    /// holds no storage of its own and is followed by a payload field.
+    Payload(&'a StructuralCaseDeclaration),
+}
+
+/// What the walk is asked about a place.
+#[derive(Clone, Copy)]
+enum Asked<'q> {
+    /// What this scalar leaf, or this sum's discriminator, holds.
+    Contents(&'q Lineage),
+    /// Which case this sum is established as.
+    Case(&'q Lineage),
+}
+
+impl Asked<'_> {
+    /// Whether a logged row ends a path of the walk. For contents, any
+    /// write to an overlapping place. For a case, a write to the sum or to
+    /// a place above it (structural_access.md: "A write to the sum or any
+    /// prefix retires these facts"); a store beneath the sum changes a
+    /// payload and not the case.
+    fn ended_by(self, row: &Lineage) -> bool {
+        match self {
+            Self::Contents(leaf) => overlap(row, leaf),
+            Self::Case(sum) => row.root == sum.root && sum.segments.starts_with(&row.segments),
+        }
+    }
 }
 
 /// One machine's storage as the checker reads it: the write log located in
@@ -311,48 +346,111 @@ impl<'a> Storage<'a> {
         }
     }
 
+    fn field_shape(
+        &self,
+        fields: &'a [StructuralFieldDeclaration],
+        field: semantic_vocabulary::StructuralFieldId,
+        concerns: Construct,
+    ) -> Checked<Shape<'a>> {
+        let declared = fields
+            .iter()
+            .find(|declared| declared.id == field)
+            .ok_or_else(|| self.foreign(concerns, "a field is not of the type it projects"))?;
+        match declared.field_type {
+            StructuralFieldType::Scalar(_) => Ok(Shape::Scalar),
+            StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
+            _ => Err(self.unsupported(concerns, "a field type outside plain data")),
+        }
+    }
+
     /// What the place at `lineage` is: resolved segment by segment against
-    /// the type the previous segment reached.
-    fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape> {
+    /// the type the previous segment reached. A `Case` segment must name a
+    /// declared case of the exact sum it is applied to.
+    fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape<'a>> {
         let mut at = Shape::Typed(self.root_type(place.root, concerns)?);
         for segment in &place.segments {
-            let Shape::Typed(owner) = at else {
-                return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
-            };
-            let StructuralTypeShape::Record { fields, .. } =
-                &self.declaration(owner, concerns)?.shape
-            else {
-                return Err(self.unsupported(concerns, "a projection of storage that is no record"));
-            };
-            let Segment::Field(field) = segment else {
-                return Err(self.unsupported(concerns, "a place through an index or a case"));
-            };
-            let declared = fields
-                .iter()
-                .find(|declared| declared.id == *field)
-                .ok_or_else(|| {
-                    self.foreign(concerns, "a field is not of the record it projects")
-                })?;
-            at = match declared.field_type {
-                StructuralFieldType::Scalar(_) => Shape::Scalar,
-                StructuralFieldType::Structural(nested) => Shape::Typed(nested),
-                _ => return Err(self.unsupported(concerns, "a field type outside plain records")),
+            at = match (at, segment) {
+                (Shape::Scalar, _) => {
+                    return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
+                }
+                (Shape::Typed(owner), Segment::Field(field)) => {
+                    let StructuralTypeShape::Record { fields, .. } =
+                        &self.declaration(owner, concerns)?.shape
+                    else {
+                        return Err(
+                            self.unsupported(concerns, "a field of storage that is no record")
+                        );
+                    };
+                    self.field_shape(fields, *field, concerns)?
+                }
+                (Shape::Typed(owner), Segment::Case(case)) => {
+                    let StructuralTypeShape::Sum { cases } =
+                        &self.declaration(owner, concerns)?.shape
+                    else {
+                        return Err(self.unsupported(concerns, "a case of storage that is no sum"));
+                    };
+                    Shape::Payload(
+                        cases
+                            .iter()
+                            .find(|declared| declared.id == *case)
+                            .ok_or_else(|| {
+                                self.foreign(concerns, "a case is not of the sum it is applied to")
+                            })?,
+                    )
+                }
+                (Shape::Payload(case), Segment::Field(field)) => {
+                    self.field_shape(&case.fields, *field, concerns)?
+                }
+                (Shape::Payload(_), Segment::Case(_)) => {
+                    return Err(self.foreign(concerns, "a case beneath a case"));
+                }
+                (
+                    Shape::Typed(_) | Shape::Payload(_),
+                    Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                ) => {
+                    return Err(self.unsupported(concerns, "a place through an index"));
+                }
             };
         }
         Ok(at)
     }
 
-    /// Every scalar leaf at or beneath `place`, as lineages.
+    /// Every leaf at or beneath `place`, as lineages: each scalar, and each
+    /// sum itself, whose discriminator is contents like any other.
     fn leaves(&self, place: &Lineage, concerns: Construct) -> Checked<Vec<Lineage>> {
         let mut found = Vec::new();
+        let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar => found.push(place.clone()),
+            Shape::Scalar => found.push(at),
             Shape::Typed(structural_type) => {
-                let mut at = place.clone();
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
+            }
+            Shape::Payload(case) => {
+                self.field_leaves(&case.fields, &mut at, &mut found, concerns)?
             }
         }
         Ok(found)
+    }
+
+    fn field_leaves(
+        &self,
+        fields: &[StructuralFieldDeclaration],
+        at: &mut Lineage,
+        found: &mut Vec<Lineage>,
+        concerns: Construct,
+    ) -> Checked<()> {
+        for field in fields {
+            at.segments.push(Segment::Field(field.id));
+            match field.field_type {
+                StructuralFieldType::Scalar(_) => found.push(at.clone()),
+                StructuralFieldType::Structural(nested) => {
+                    self.leaves_of(nested, at, found, concerns)?;
+                }
+                _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
+            }
+            at.segments.pop();
+        }
+        Ok(())
     }
 
     fn leaves_of(
@@ -365,23 +463,21 @@ impl<'a> Storage<'a> {
         match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
             StructuralTypeShape::Record { fields, .. } => {
-                for field in fields {
-                    at.segments.push(Segment::Field(field.id));
-                    match field.field_type {
-                        StructuralFieldType::Scalar(_) => found.push(at.clone()),
-                        StructuralFieldType::Structural(nested) => {
-                            self.leaves_of(nested, at, found, concerns)?;
-                        }
-                        _ => {
-                            return Err(
-                                self.unsupported(concerns, "a field type outside plain records")
-                            );
-                        }
-                    }
+                self.field_leaves(fields, at, found, concerns)?;
+            }
+            // A sum is established when something was stored into it whole,
+            // whatever its case: the sum's own place stands for its
+            // discriminator, and the payload leaves of every case lie under
+            // it. A sum with no payload has only that one leaf.
+            StructuralTypeShape::Sum { cases } => {
+                found.push(at.clone());
+                for case in cases {
+                    at.segments.push(Segment::Case(case.id));
+                    self.field_leaves(&case.fields, at, found, concerns)?;
                     at.segments.pop();
                 }
             }
-            _ => return Err(self.unsupported(concerns, "storage that is no plain record")),
+            _ => return Err(self.unsupported(concerns, "storage that is no plain data")),
         }
         Ok(())
     }
@@ -399,22 +495,33 @@ impl<'a> Storage<'a> {
         let mut segments = Vec::with_capacity(path.len());
         if !path.is_empty() {
             let root_type = self.root_type(root, concerns)?;
-            for length in 1..=path.len() {
+            for (position, segment) in path.iter().enumerate() {
+                // A case step carries its identity; a field step is resolved
+                // by the lowered form against the prefix before it, which
+                // may end in the case whose payload holds the field.
+                if let StructuralPathSegment::Case(case) = segment {
+                    segments.push(Segment::Case(*case));
+                    continue;
+                }
                 let field = terminal_semantics::runtime_structural_field(
                     self.types.iter(),
                     root_type,
-                    &path[..length],
+                    &path[..=position],
                 )
                 .ok_or_else(|| {
                     self.unsupported(
                         concerns,
-                        "a storage path that is not a path of record fields",
+                        "a storage path that is not a path of fields and cases",
                     )
                 })?;
                 segments.push(Segment::Field(field.id));
             }
         }
-        Ok(Lineage { root, segments })
+        let place = Lineage { root, segments };
+        // Resolving the shape checks each case against the sum it is
+        // applied to.
+        self.shape(&place, concerns)?;
+        Ok(place)
     }
 
     fn argument(&self, argument: &StructuralArgument, concerns: Construct) -> Checked<Lineage> {
@@ -442,21 +549,28 @@ impl<'a> Storage<'a> {
                         CanonicalStructuralPathSegment::Field(field) => {
                             segments.push(Segment::Field(*field));
                         }
+                        CanonicalStructuralPathSegment::Case(case) => {
+                            segments.push(Segment::Case(*case));
+                        }
                         CanonicalStructuralPathSegment::FixedIndex(_)
-                        | CanonicalStructuralPathSegment::Case(_)
                         | CanonicalStructuralPathSegment::Referent => {
-                            return Err(self.unsupported(
-                                concerns,
-                                "read through an index, a case or a referent",
-                            ));
+                            return Err(
+                                self.unsupported(concerns, "read through an index or a referent")
+                            );
                         }
                     }
                 }
                 segments.push(Segment::Field(*field));
-                Ok(Some(Lineage {
+                let leaf = Lineage {
                     root: *source,
                     segments,
-                }))
+                };
+                if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar) {
+                    return Err(
+                        self.foreign(concerns, "a scalar read of storage that is no scalar")
+                    );
+                }
+                Ok(Some(leaf))
             }
             OperationKind::PrimitiveScalarRead { source, path } => {
                 self.stored_at(*source, path, concerns).map(Some)
@@ -529,6 +643,27 @@ impl<'a> Storage<'a> {
                     None => Ok(None),
                 }
             }
+            OperationKind::EstablishStructuralCase {
+                result_case,
+                fields,
+            } if produced == Some(written.root) => {
+                let [Segment::Case(case), Segment::Field(field)] = written.segments.as_slice()
+                else {
+                    return Ok(None);
+                };
+                if case != result_case {
+                    return Ok(None);
+                }
+                match fields.iter().find(|operand| operand.field == *field) {
+                    Some(operand) => match &operand.value {
+                        RecordFieldValue::Structural(argument) => {
+                            self.argument(argument, concerns).map(Some)
+                        }
+                        RecordFieldValue::Scalar { .. } => Ok(None),
+                    },
+                    None => Ok(None),
+                }
+            }
             OperationKind::StoreStructuralField {
                 destination,
                 path,
@@ -548,27 +683,42 @@ impl<'a> Storage<'a> {
         }
     }
 
-    /// What one reaching row supplies to `leaf`.
+    fn block(&self, id: BlockId) -> Checked<&'a Block> {
+        self.lowered
+            .blocks
+            .get(index(id.get()))
+            .filter(|block| block.id == id)
+            .ok_or_else(|| self.foreign(Construct::Block(id), "a block is not at its position"))
+    }
+
+    /// What one reaching row supplies to the place asked about.
     fn supplied(
         &self,
         tables: &MachineTables,
         row: &Logged,
-        leaf: &Lineage,
+        asked: Asked<'_>,
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
         if row.on_edge {
             return Err(self.unsupported(concerns, "a write on an edge overlaps a use"));
         }
+        let place = match asked {
+            Asked::Contents(place) | Asked::Case(place) => place,
+        };
         match row.content {
-            Content::Value(value) if row.lineage == *leaf => Ok(Reached::Value(value)),
+            Content::Value(value)
+                if row.lineage == *place && matches!(asked, Asked::Contents(_)) =>
+            {
+                Ok(Reached::Value(value))
+            }
             // A value stored to another overlapping place, or a reference:
-            // the leaf has contents this route cannot name.
+            // the place has contents this route cannot name.
             Content::Value(_) | Content::Reference(_) => Ok(Reached::Unknown),
             Content::Vacated => Err(self.unsupported(concerns, "a hole overlaps a use")),
             Content::Overwritten => {
-                // Only a row on the leaf or above it replaces the leaf whole.
-                let Some(beneath) = leaf.segments.strip_prefix(row.lineage.segments.as_slice())
+                // Only a row on the place or above it replaces it whole.
+                let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice())
                 else {
                     return Ok(Reached::Unknown);
                 };
@@ -576,6 +726,13 @@ impl<'a> Storage<'a> {
                     return Ok(Reached::Unknown);
                 };
                 let operation = self.operation(operation, concerns)?;
+                // The row cannot say which case a construction established:
+                // the operation at the row does.
+                if let (Asked::Case(_), [], Some(case)) =
+                    (asked, beneath, self.established_as(operation, &row.lineage))
+                {
+                    return Ok(Reached::Case(case));
+                }
                 let Some(mut source) = self.moved_from(operation, &row.lineage, concerns)? else {
                     return Ok(Reached::Unknown);
                 };
@@ -586,17 +743,114 @@ impl<'a> Storage<'a> {
                 let before = after
                     .checked_sub(1)
                     .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
-                self.reaching(tables, &source, block, before, budget, concerns)
+                let asked = match asked {
+                    Asked::Contents(_) => Asked::Contents(&source),
+                    Asked::Case(_) => Asked::Case(&source),
+                };
+                self.reaching(tables, asked, block, before, budget, concerns)
             }
         }
     }
 
-    /// What the scalar leaf `leaf` holds on every path to the point
-    /// `up_to` of `block`: the one reaching-content walk.
+    /// The case a construction established the root `written` as, when the
+    /// operation is one and `written` is its whole result.
+    fn established_as(&self, operation: &Operation, written: &Lineage) -> Option<StructuralCaseId> {
+        let produced = operation.result.as_structural().map(|result| result.place);
+        if produced != Some(written.root) || !written.segments.is_empty() {
+            return None;
+        }
+        match &operation.kind {
+            OperationKind::EstablishScalarCase { result_case, .. }
+            | OperationKind::EstablishStructuralCase { result_case, .. } => Some(*result_case),
+            _ => None,
+        }
+    }
+
+    /// What taking an edge from `from` into `into` establishes about the
+    /// case of `sum`, when it establishes anything.
+    /// structural_access.md: "A dominating membership test or dispatch
+    /// supplies that fact."
+    ///
+    /// - An edge of a `StructuralCase` on exactly this place establishes
+    ///   its case. When several of its edges enter the block, as into a
+    ///   wildcard arm, no one case is established.
+    /// - The true edge of a `Conditional` whose condition is the result of
+    ///   a `StructuralCaseMembership` on exactly this place establishes the
+    ///   tested case, when the test stands in the branching block and no
+    ///   write to the sum or a place above it follows the test there.
+    ///
+    /// The false edge establishes nothing: "Otherwise the case holds when
+    /// every other declared case of that sum is refuted" needs proof about
+    /// the other cases and is not decided here.
+    fn edge_selects(
+        &self,
+        tables: &MachineTables,
+        sum: &Lineage,
+        from: BlockId,
+        into: BlockId,
+        concerns: Construct,
+    ) -> Checked<Option<Reached>> {
+        match &self.block(from)?.terminator {
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            } => {
+                if self.stored_at(*source, path, concerns)? != *sum {
+                    return Ok(None);
+                }
+                let mut entering = cases.iter().filter(|edge| edge.target == into);
+                Ok(match (entering.next(), entering.next()) {
+                    (Some(edge), None) => Some(Reached::Case(edge.case)),
+                    (Some(_), Some(_)) => Some(Reached::Unknown),
+                    (None, _) => None,
+                })
+            }
+            Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                if when_true.target != into || when_false.target == into {
+                    return Ok(None);
+                }
+                let origin =
+                    terminal_check_tables::row(&tables.values, *condition, self.machine, concerns)?
+                        .origin;
+                let ValueOrigin::Operation(test) = origin else {
+                    return Ok(None);
+                };
+                let (tested_in, after) = self.graph.locate(ProgramPoint::AfterOperation(test))?;
+                if tested_in != from {
+                    return Ok(None);
+                }
+                let OperationKind::StructuralCaseMembership { source, path, case } =
+                    &self.operation(test, concerns)?.kind
+                else {
+                    return Ok(None);
+                };
+                if self.stored_at(*source, path, concerns)? != *sum {
+                    return Ok(None);
+                }
+                let retired = self.log.iter().any(|row| {
+                    row.block == from
+                        && row.position > after
+                        && Asked::Case(sum).ended_by(&row.lineage)
+                });
+                Ok((!retired).then_some(Reached::Case(*case)))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// What the place asked about holds on every path to the point `up_to`
+    /// of `block`: the one reaching walk. It answers what a scalar leaf
+    /// holds and which case a sum is established as; the two differ only in
+    /// which rows end a path and in what an edge can establish.
     fn reaching(
         &self,
         tables: &MachineTables,
-        leaf: &Lineage,
+        asked: Asked<'_>,
         block: BlockId,
         up_to: usize,
         budget: &mut usize,
@@ -618,9 +872,12 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
                     Reached::Value(known)
                 }
+                (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
+                    Reached::Case(known)
+                }
                 (
-                    Some(Reached::Value(_) | Reached::Unknown),
-                    Reached::Value(_) | Reached::Unknown,
+                    Some(Reached::Value(_) | Reached::Case(_) | Reached::Unknown),
+                    Reached::Value(_) | Reached::Case(_) | Reached::Unknown,
                 ) => Reached::Unknown,
             });
         };
@@ -628,41 +885,63 @@ impl<'a> Storage<'a> {
         let mut walked = vec![false; self.graph.block_count()];
         let mut pending = vec![(block, up_to)];
         while let Some((block, up_to)) = pending.pop() {
-            // The last overlapping write in this block at or before the
-            // point: the latest position, and in one position the later log
-            // entry.
+            // The last row in this block, at or before the point, that ends
+            // the path: the latest position, and in one position the later
+            // log entry.
             let last = self
                 .log
                 .iter()
                 .filter(|row| {
-                    row.block == block && row.position <= up_to && overlap(&row.lineage, leaf)
+                    row.block == block && row.position <= up_to && asked.ended_by(&row.lineage)
                 })
                 .fold(None::<&Logged>, |best, row| match best {
                     Some(best) if best.position > row.position => Some(best),
                     Some(_) | None => Some(row),
                 });
             if let Some(row) = last {
-                supply(self.supplied(tables, row, leaf, budget, concerns)?);
+                supply(self.supplied(tables, row, asked, budget, concerns)?);
                 continue;
             }
             if block == self.graph.entry() {
-                supply(match self.root_kind(leaf.root, concerns)? {
-                    // A formal is initialized storage at entry. Its content
-                    // has a value identity when elaboration minted one.
-                    StructuralPlaceKind::Parameter { .. } => self
-                        .interned(tables, leaf, concerns)?
-                        .and_then(|place| self.entry_contents.get(index(place.get())).copied())
-                        .flatten()
-                        .map_or(Reached::Unknown, Reached::Value),
-                    StructuralPlaceKind::BlockParameter { .. }
-                    | StructuralPlaceKind::Result
-                    | StructuralPlaceKind::OperationResult { .. }
-                    | StructuralPlaceKind::ByteSequenceLiteral { .. }
-                    | StructuralPlaceKind::ProviderAttachment { .. }
-                    | StructuralPlaceKind::TrivialAffineLocal { .. } => Reached::Unestablished,
-                });
+                supply(
+                    match (asked, self.root_kind(asked_root(asked), concerns)?) {
+                        // A formal is initialized storage at entry. Its content
+                        // has a value identity when elaboration minted one.
+                        (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
+                            .interned(tables, leaf, concerns)?
+                            .and_then(|place| self.entry_contents.get(index(place.get())).copied())
+                            .flatten()
+                            .map_or(Reached::Unknown, Reached::Value),
+                        // Which case a formal holds at entry is not known, and
+                        // other storage holds nothing there; that it holds
+                        // nothing is the contents question's answer to give.
+                        (Asked::Case(_), _) => Reached::Unknown,
+                        (
+                            Asked::Contents(_),
+                            StructuralPlaceKind::BlockParameter { .. }
+                            | StructuralPlaceKind::Result
+                            | StructuralPlaceKind::OperationResult { .. }
+                            | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                            | StructuralPlaceKind::ProviderAttachment { .. }
+                            | StructuralPlaceKind::TrivialAffineLocal { .. },
+                        ) => Reached::Unestablished,
+                    },
+                );
             }
+            let mut asked_of: Vec<BlockId> = Vec::new();
             for predecessor in self.graph.predecessors(block)? {
+                // A block that enters by two edges is listed twice.
+                if asked_of.contains(predecessor) {
+                    continue;
+                }
+                asked_of.push(*predecessor);
+                if let Asked::Case(sum) = asked
+                    && let Some(selected) =
+                        self.edge_selects(tables, sum, *predecessor, block, concerns)?
+                {
+                    supply(selected);
+                    continue;
+                }
                 let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
                     self.foreign(
                         Construct::Block(*predecessor),
@@ -718,8 +997,14 @@ impl<'a> Storage<'a> {
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
         let mut budget = self.budget();
-        let Reached::Value(held) =
-            self.reaching(tables, &leaf, block, before, &mut budget, concerns)?
+        let Reached::Value(held) = self.reaching(
+            tables,
+            Asked::Contents(&leaf),
+            block,
+            before,
+            &mut budget,
+            concerns,
+        )?
         else {
             return Ok(None);
         };
@@ -737,6 +1022,73 @@ impl<'a> Storage<'a> {
         )))
     }
 
+    /// What a dispatch binds on one of its edges: each payload parameter of
+    /// the target block equal to the one value its payload leaf holds on
+    /// every path to the dispatch, when there is one. The same answer a
+    /// payload read would get, for the form in which a dispatch delivers a
+    /// payload (control_flow.md: "Selected payload fields become scalar
+    /// parameters on that case's edge before cleanup.").
+    pub(crate) fn payload_equations(
+        &self,
+        tables: &MachineTables,
+        block: &Block,
+    ) -> Checked<Vec<(EdgeId, Proposition)>> {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator
+        else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Block(block.id);
+        let subject = self.stored_at(*source, path, concerns)?;
+        let mut equations = Vec::new();
+        for edge in cases {
+            let target = self.block(edge.target)?;
+            for (position, field) in edge.payload_fields.iter().enumerate() {
+                let parameter = target.parameters.get(position).ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a payload field has no parameter in its arm's block",
+                    )
+                })?;
+                let mut leaf = subject.clone();
+                leaf.segments.push(Segment::Case(edge.case));
+                leaf.segments.push(Segment::Field(*field));
+                let mut budget = self.budget();
+                let Reached::Value(held) = self.reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block.id,
+                    usize::MAX,
+                    &mut budget,
+                    concerns,
+                )?
+                else {
+                    continue;
+                };
+                let held_type =
+                    terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
+                        .scalar_type;
+                if held_type != parameter.scalar_type {
+                    return Err(self.unsupported(
+                        concerns,
+                        "a payload holds a value of another type than its parameter",
+                    ));
+                }
+                equations.push((
+                    edge.edge,
+                    Proposition::Equal(
+                        ScalarTerm::value(parameter.id, parameter.scalar_type),
+                        ScalarTerm::value(held, held_type),
+                    ),
+                ));
+            }
+        }
+        Ok(equations)
+    }
+
     /// The places an operation reads whole or by one leaf.
     fn operation_uses(&self, operation: &Operation) -> Checked<Vec<Lineage>> {
         let concerns = Construct::Operation(operation.id);
@@ -747,13 +1099,22 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishRecord { fields } => fields
+            // structural_access.md: "The source must be readable and
+            // established on every incoming path."
+            OperationKind::StructuralCaseMembership { source, path, .. } => {
+                Ok(vec![self.stored_at(*source, path, concerns)?])
+            }
+            OperationKind::EstablishRecord { fields }
+            | OperationKind::EstablishStructuralCase { fields, .. } => fields
                 .iter()
                 .filter_map(|operand| operand.value.as_structural())
                 .map(|argument| self.argument(argument, concerns))
                 .collect(),
             OperationKind::StoreStructuralField { value, .. } => {
                 Ok(vec![self.argument(value, concerns)?])
+            }
+            OperationKind::StructuralCaseLeafCopy { .. } => {
+                Err(self.unsupported(concerns, "a case leaf copy"))
             }
             // A call's record arguments; every other operation reads no
             // storage, by the lowered form's own accessor.
@@ -765,12 +1126,54 @@ impl<'a> Storage<'a> {
         }
     }
 
-    /// Whether every scalar leaf at or beneath each used place is supplied
-    /// on every path to the point `up_to` of `block`.
-    fn established(
+    /// The place an operation stores into, when it is a store.
+    fn operation_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        let (destination, path, field) = match &operation.kind {
+            OperationKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                ..
+            } => (destination, path, Some(*field)),
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                ..
+            } => (destination, path, *field),
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            } => (destination, path, None),
+            _ => return Ok(None),
+        };
+        let mut stored = self.stored_at(*destination, path, concerns)?;
+        if let Some(field) = field {
+            stored.segments.push(Segment::Field(field));
+            self.shape(&stored, concerns)?;
+        }
+        Ok(Some(stored))
+    }
+
+    /// The two structural judgments of one operation or terminator, in
+    /// order: initialization, then payload access.
+    ///
+    /// Initialization: every leaf at or beneath each place in `used` is
+    /// supplied on every path to the point `up_to` of `block`.
+    ///
+    /// Payload access: for every `Case` step on the path of a place in
+    /// `named`, the sum the step is applied to is established as that case
+    /// on every path to the point. A payload overlays the sum's storage, so
+    /// naming one is sound only there (structural_access.md: "Each `Case`
+    /// step requires source admission to establish the selected case for
+    /// the same root and prefix at the read's observation epoch."). The
+    /// case comes from a dispatch edge, the true edge of a membership test,
+    /// or the construction that every reaching write is.
+    fn judged(
         &self,
         tables: &MachineTables,
         used: &[Lineage],
+        named: &[Lineage],
         block: BlockId,
         up_to: usize,
         concerns: Construct,
@@ -778,8 +1181,14 @@ impl<'a> Storage<'a> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
                 let mut budget = self.budget();
-                if self.reaching(tables, &leaf, block, up_to, &mut budget, concerns)?
-                    == Reached::Unestablished
+                if self.reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block,
+                    up_to,
+                    &mut budget,
+                    concerns,
+                )? == Reached::Unestablished
                 {
                     return Ok(Err(refusal(
                         RefusalReason::Unestablished,
@@ -790,28 +1199,155 @@ impl<'a> Storage<'a> {
                 }
             }
         }
+        for place in named {
+            for (length, segment) in place.segments.iter().enumerate() {
+                let Segment::Case(case) = segment else {
+                    continue;
+                };
+                let sum = Lineage {
+                    root: place.root,
+                    segments: place.segments[..length].to_vec(),
+                };
+                let mut budget = self.budget();
+                if self.reaching(
+                    tables,
+                    Asked::Case(&sum),
+                    block,
+                    up_to,
+                    &mut budget,
+                    concerns,
+                )? != Reached::Case(*case)
+                {
+                    return Ok(Err(refusal(
+                        RefusalReason::Unestablished,
+                        self.machine,
+                        concerns,
+                        "a case payload is accessed on a path that does not establish its case",
+                    )));
+                }
+            }
+        }
         Ok(Ok(()))
     }
 
-    /// One verdict per operation and terminator that reads storage. A
-    /// refusal returned outright concerns the module (an identity that does
-    /// not resolve, storage outside this route); a use that is not
-    /// established is that use's verdict.
+    /// Whether a dispatch lists every declared case of the sum it observes
+    /// exactly once, each with scalar payload fields of that case matching
+    /// its arm block's parameters. A declared case with no edge is the
+    /// program's error (patterns.md: "Every dispatch must cover the admitted
+    /// subject."); anything else wrong with the roster is a module that does
+    /// not describe a dispatch.
+    fn roster(
+        &self,
+        subject: &Lineage,
+        edges: &[terminal_psi::StructuralCaseSuccessorEdge],
+        concerns: Construct,
+    ) -> Checked<Checked<()>> {
+        let Shape::Typed(sum) = self.shape(subject, concerns)? else {
+            return Err(self.foreign(concerns, "a dispatch on storage that is no sum"));
+        };
+        let StructuralTypeShape::Sum { cases } = &self.declaration(sum, concerns)?.shape else {
+            return Err(self.foreign(concerns, "a dispatch on storage that is no sum"));
+        };
+        let mut listed = vec![false; cases.len()];
+        for edge in edges {
+            let position = cases
+                .iter()
+                .position(|case| case.id == edge.case)
+                .ok_or_else(|| self.foreign(concerns, "a dispatch lists a case of another sum"))?;
+            if std::mem::replace(&mut listed[position], true) {
+                return Err(self.foreign(concerns, "a dispatch lists a case twice"));
+            }
+            if !edge.structural_arguments.is_empty() || !edge.cleanup_actions.is_empty() {
+                return Err(self.unsupported(concerns, "storage passed on a dispatch edge"));
+            }
+            let parameters = &self.block(edge.target)?.parameters;
+            if parameters.len() != edge.payload_fields.len() {
+                return Err(self.foreign(
+                    concerns,
+                    "a dispatch edge and its arm's block disagree on the payload",
+                ));
+            }
+            for (position, (field, parameter)) in
+                edge.payload_fields.iter().zip(parameters).enumerate()
+            {
+                let declared = cases[position_of(cases, edge.case)]
+                    .fields
+                    .iter()
+                    .find(|declared| declared.id == *field);
+                let scalar = declared.and_then(|declared| declared.field_type.as_scalar());
+                if scalar != Some(parameter.scalar_type)
+                    || edge.payload_fields[..position].contains(field)
+                {
+                    return Err(self.foreign(
+                        concerns,
+                        "a dispatch edge binds something that is no scalar payload field of its case",
+                    ));
+                }
+            }
+        }
+        if listed.contains(&false) {
+            return Ok(Err(refusal(
+                RefusalReason::Unestablished,
+                self.machine,
+                concerns,
+                "a dispatch lists no edge for a declared case",
+            )));
+        }
+        Ok(Ok(()))
+    }
+
+    /// One verdict per operation and terminator that reads storage or names
+    /// a case payload. A refusal returned outright concerns the module (an
+    /// identity that does not resolve, storage outside this route); a use
+    /// that is not established is that use's verdict.
     pub(crate) fn uses(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
         let mut uses = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
                 let used = self.operation_uses(operation)?;
-                if used.is_empty() {
+                let mut named = used.clone();
+                named.extend(self.operation_destination(operation)?);
+                if named.is_empty() {
+                    continue;
+                }
+                // A store reads nothing, so it is a use only when its
+                // destination lies in a case payload.
+                if used.is_empty()
+                    && !named.iter().any(|place| {
+                        place
+                            .segments
+                            .iter()
+                            .any(|segment| matches!(segment, Segment::Case(_)))
+                    })
+                {
                     continue;
                 }
                 let at = Construct::Operation(operation.id);
                 uses.push(StorageUse {
                     at,
-                    verdict: self.established(tables, &used, block.id, position, at)?,
+                    verdict: self.judged(tables, &used, &named, block.id, position, at)?,
                 });
             }
             let (edge, used) = match &block.terminator {
+                // A dispatch reads its subject, and its roster is judged
+                // with it. It has one edge per case, so it is named by its
+                // block.
+                Terminator::StructuralCase {
+                    source,
+                    path,
+                    cases,
+                } => {
+                    let at = Construct::Block(block.id);
+                    let subject = [self.stored_at(*source, path, at)?];
+                    let verdict = match self.roster(&subject[0], cases, at)? {
+                        Ok(()) => {
+                            self.judged(tables, &subject, &subject, block.id, usize::MAX, at)?
+                        }
+                        Err(missing) => Err(missing),
+                    };
+                    uses.push(StorageUse { at, verdict });
+                    continue;
+                }
                 Terminator::ReturnStructural { edge, source, .. } => (
                     *edge,
                     vec![Lineage {
@@ -872,9 +1408,16 @@ impl<'a> Storage<'a> {
             let at = Construct::Edge(edge);
             uses.push(StorageUse {
                 at,
-                verdict: self.established(tables, &used, block.id, usize::MAX, at)?,
+                verdict: self.judged(tables, &used, &used, block.id, usize::MAX, at)?,
             });
         }
         Ok(uses)
     }
+}
+
+fn position_of(cases: &[StructuralCaseDeclaration], case: StructuralCaseId) -> usize {
+    cases
+        .iter()
+        .position(|declared| declared.id == case)
+        .unwrap_or(usize::MAX)
 }

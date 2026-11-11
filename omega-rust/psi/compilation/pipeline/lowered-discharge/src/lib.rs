@@ -349,6 +349,21 @@ fn machine(
             }
         }
     }
+    // What each edge of a dispatch binds: its payload parameters, each
+    // equal to what the payload leaf holds. Like a branch condition, the
+    // row holds because that edge was taken and is available on it.
+    if knowledge == Knowledge::All {
+        for block in &lowered.blocks {
+            for (edge, equation) in storage.payload_equations(tables, block)? {
+                push_knowledge(
+                    tables,
+                    equation,
+                    ProgramPoint::Edge(edge),
+                    Justification::BranchCondition { edge, holds: true },
+                );
+            }
+        }
+    }
     for invocation in tables.invocations.keys().collect::<Vec<_>>() {
         let row = terminal_check_tables::row(
             &tables.invocations,

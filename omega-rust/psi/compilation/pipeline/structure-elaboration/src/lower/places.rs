@@ -31,6 +31,12 @@ nothing else: lowering never asks what a place holds.
   has new contents; the operation at the row's point names the source, and
   the checker resolves each leaf through it with the same walk it uses for
   a read (`lowered-discharge`, `places`).
+- A case literal writes one `Content::Overwritten` on its fresh root, then
+  `Content::Value(operand)` on each scalar payload leaf and one
+  `Content::Overwritten` on each data payload field. No row can say which
+  case the root was established as: `Content` has no such form, so the
+  checker reads it from the establishing operation at the root's row, as it
+  reads a copy's source.
 - A call's record result is one `Content::Overwritten` on its root: nothing
   here knows the callee's values.
 - A local declared without an initializer writes nothing: its home is
@@ -42,25 +48,29 @@ nothing else: lowering never asks what a place holds.
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IdTable, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, IdTable, IntegerValue, MachineId, OperationId,
+    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::values::ValueOrigin;
-use terminal_check_tables::{Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId};
+use terminal_check_tables::{
+    Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
+};
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, StructuralRecordStorage,
-    StructuralStoreDisposition, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
+    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralRecordStorage, StructuralStoreDisposition, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, Terminator,
 };
 
 use super::{Lowering, Value};
-use crate::body::{Body, Expression, ExpressionKind, RecordType, Statement, ValueType};
+use crate::body::{
+    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, ValueType,
+};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
 /// The module's record types as lowering needs them: the reader's table and,
@@ -76,6 +86,9 @@ pub(crate) struct Records<'a> {
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
     field_identities: IdTable<StructuralTypeId, Vec<TerminalIdentityIndex>>,
+    /// `payload_identities[sum][case][position]`: the same for a payload
+    /// field.
+    payload_identities: IdTable<StructuralTypeId, Vec<Vec<TerminalIdentityIndex>>>,
 }
 
 /// What a module with these record types must declare: Terminal Psi's
@@ -111,52 +124,90 @@ pub(crate) fn declare<'a>(
     let mut field_identities = IdTable::default();
     let mut structural_types = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
+    let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
-        let mut indexes = Vec::with_capacity(record.fields.len());
-        let mut fields = Vec::with_capacity(record.fields.len());
-        for field in &record.fields {
-            let identity = identities.intern(&field.identity);
-            indexes.push(identity);
-            let field_type = match field.value_type {
-                ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
-                ValueType::Record(nested) => {
-                    // A record holds only records declared before it, so the
-                    // table is acyclic and in dependency order.
-                    if nested.get() >= id.get() {
-                        return Err(refuse(
-                            entry,
-                            Construct::Machine,
-                            Unserved::Type("record field of a later record type"),
-                        ));
+        let mut declare_fields = |declared: &[RecordField]| {
+            let mut indexes = Vec::with_capacity(declared.len());
+            let mut fields = Vec::with_capacity(declared.len());
+            for field in declared {
+                let identity = identities.intern(&field.identity);
+                indexes.push(identity);
+                let field_type = match field.value_type {
+                    ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
+                    ValueType::Record(nested) => {
+                        // A data type holds only types declared before it,
+                        // so the table is acyclic and in dependency order.
+                        if nested.get() >= id.get() {
+                            return Err(refuse(
+                                entry,
+                                Construct::Machine,
+                                Unserved::Type("record field of a later record type"),
+                            ));
+                        }
+                        StructuralFieldType::Structural(nested)
                     }
-                    StructuralFieldType::Structural(nested)
-                }
-            };
-            fields.push(StructuralFieldDeclaration {
-                inline_carrier: None,
-                id: field.id,
-                identity,
-                relevance: language_core::BindingRelevance::Relevant,
-                field_type,
-                storage: None,
-            });
+                };
+                fields.push(StructuralFieldDeclaration {
+                    inline_carrier: None,
+                    id: field.id,
+                    identity,
+                    relevance: language_core::BindingRelevance::Relevant,
+                    field_type,
+                    storage: None,
+                });
+            }
+            Ok((indexes, fields))
+        };
+        let (indexes, fields) = declare_fields(&record.fields)?;
+        let mut case_indexes = Vec::with_capacity(record.cases.len());
+        let mut cases = Vec::with_capacity(record.cases.len());
+        for case in &record.cases {
+            let (indexes, fields) = declare_fields(&case.fields)?;
+            case_indexes.push(indexes);
+            cases.push((case, fields));
         }
         field_identities.push(indexes);
-        // The natural layout row of a record with no authored layout: no
-        // policy and no realization. Its nominal native identities are left
-        // absent, as the current pipeline leaves any it cannot supply; they
-        // serve the native layout review, which this route does not reach.
-        native_layouts.insert(
-            id,
-            TerminalIdentityIndex::ABSENT,
-            TerminalIdentityIndex::ABSENT,
-            TerminalIdentityIndex::ABSENT,
-            fields.iter().map(|field| NativeLayoutFieldIdentity {
-                field: field.id,
-                declaration_identity: TerminalIdentityIndex::ABSENT,
-            }),
-            [],
-        );
+        payload_identities.push(case_indexes);
+        let shape = if cases.is_empty() {
+            // The natural layout row of a record with no authored layout:
+            // no policy and no realization. Its nominal native identities
+            // are left absent, as the current pipeline leaves any it cannot
+            // supply; they serve the native layout review, which this route
+            // does not reach. The decoder asks for a row per record and for
+            // none per sum.
+            native_layouts.insert(
+                id,
+                TerminalIdentityIndex::ABSENT,
+                TerminalIdentityIndex::ABSENT,
+                TerminalIdentityIndex::ABSENT,
+                fields.iter().map(|field| NativeLayoutFieldIdentity {
+                    field: field.id,
+                    declaration_identity: TerminalIdentityIndex::ABSENT,
+                }),
+                [],
+            );
+            StructuralTypeShape::Record {
+                fields,
+                storage: StructuralRecordStorage::Packed,
+            }
+        } else if fields.is_empty() {
+            StructuralTypeShape::Sum {
+                cases: cases
+                    .into_iter()
+                    .map(|(case, fields)| StructuralCaseDeclaration {
+                        id: case.id,
+                        identity: identities.intern(&case.identity),
+                        fields,
+                    })
+                    .collect(),
+            }
+        } else {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Type("mixed data"),
+            ));
+        };
         structural_types.push(StructuralTypeDeclaration {
             quotient_carrier: None,
             id,
@@ -165,10 +216,7 @@ pub(crate) fn declare<'a>(
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
-            shape: StructuralTypeShape::Record {
-                fields,
-                storage: StructuralRecordStorage::Packed,
-            },
+            shape,
             scalar_restriction: None,
         });
     }
@@ -217,6 +265,7 @@ pub(crate) fn declare<'a>(
             types,
             primitives,
             field_identities,
+            payload_identities,
         },
         identities: identities.build(),
         structural_types,
@@ -235,13 +284,41 @@ pub(super) enum Bound {
     Home(PlaceId),
 }
 
+/// One step of a path beneath a root: a field of the record `owner`, or the
+/// payload field of one case of the sum `owner`. A payload step is two
+/// segments of the place, `Case` then `Field`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    Field {
+        owner: StructuralTypeId,
+        field: usize,
+    },
+    Payload {
+        owner: StructuralTypeId,
+        case: usize,
+        field: usize,
+    },
+}
+
+/// One dispatch arm the open block lies in. For a case arm: the sum place
+/// the dispatch selected on, the case, and for each payload field in
+/// declaration order the block parameter it arrived as, `None` for a data
+/// payload field, which has no value identity. The wildcard arm has no case.
+/// control_flow.md: "Selected payload fields become scalar parameters on
+/// that case's edge before cleanup."
+#[derive(Debug, Clone)]
+pub(super) struct Chosen {
+    place: ExactPlaceId,
+    case: Option<usize>,
+    parameters: Vec<Option<ValueId>>,
+}
+
 /// The storage a record-typed expression names, before anything is copied.
 struct Located {
     root: PlaceId,
     place: ExactPlaceId,
-    /// The fields from the root to the place, each as the record type that
-    /// declares it and its position there.
-    path: Vec<(StructuralTypeId, usize)>,
+    /// The steps from the root to the place.
+    path: Vec<Step>,
     /// The record type of the place itself.
     record: StructuralTypeId,
     /// The root was produced by this expression's own operation, so no slot
@@ -313,8 +390,7 @@ impl<'a> Lowering<'a> {
     /// The projection of `parent` by `field`, interned: one row per
     /// `(parent, field)` pair, found by binary search of the parent's sorted
     /// children.
-    fn project(&mut self, parent: ExactPlaceId, field: StructuralFieldId) -> Checked<ExactPlaceId> {
-        let segment = Segment::Field(field);
+    fn project(&mut self, parent: ExactPlaceId, segment: Segment) -> Checked<ExactPlaceId> {
         let found = self
             .place_row(parent)?
             .children
@@ -386,33 +462,91 @@ impl<'a> Lowering<'a> {
         match value_type {
             ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record) => {
-                for field in &self.record_type(record)?.fields {
-                    let leaf = self.project(place, field.id)?;
+                let data = self.record_type(record)?;
+                for field in &data.fields {
+                    let leaf = self.project(place, Segment::Field(field.id))?;
                     self.entry_leaves(leaf, field.value_type)?;
+                }
+                // Which case a formal holds is not known, so every case's
+                // payload leaves get their entry content; the checker lets
+                // a read reach one only where that case is established.
+                for case in &data.cases {
+                    let payload = self.project(place, Segment::Case(case.id))?;
+                    for field in &case.fields {
+                        let leaf = self.project(payload, Segment::Field(field.id))?;
+                        self.entry_leaves(leaf, field.value_type)?;
+                    }
                 }
                 Ok(())
             }
         }
     }
 
-    /// The Terminal Psi storage path segment of one field: the interned
-    /// identity its declaration carries. It is written into operations,
-    /// which is the form Terminal Psi gives them; nothing here compares it.
-    fn storage_segment(
-        &self,
-        owner: StructuralTypeId,
-        field: usize,
-    ) -> Checked<StructuralPathSegment> {
-        terminal_check_tables::row(
-            &self.records.field_identities,
-            owner,
-            self.id,
-            Construct::Machine,
-        )?
-        .get(field)
-        .copied()
-        .map(StructuralPathSegment::Field)
-        .ok_or_else(|| self.internal("a field has no declared identity"))
+    /// The declared field or payload field a step selects.
+    fn declared(&self, step: Step) -> Checked<&'a RecordField> {
+        match step {
+            Step::Field { owner, field } => self.record_type(owner)?.fields.get(field),
+            Step::Payload { owner, case, field } => self
+                .record_type(owner)?
+                .cases
+                .get(case)
+                .and_then(|case| case.fields.get(field)),
+        }
+        .ok_or_else(|| self.internal("a field is past its declaration"))
+    }
+
+    fn case_of(&self, owner: StructuralTypeId, case: usize) -> Checked<&'a crate::body::CaseType> {
+        self.record_type(owner)?
+            .cases
+            .get(case)
+            .ok_or_else(|| self.internal("a case is past its sum's declaration"))
+    }
+
+    /// The place one step beneath `parent`, interned.
+    fn step(&mut self, parent: ExactPlaceId, step: Step) -> Checked<ExactPlaceId> {
+        let field = self.declared(step)?.id;
+        let parent = match step {
+            Step::Field { .. } => parent,
+            Step::Payload { owner, case, .. } => {
+                let case = self.case_of(owner, case)?.id;
+                self.project(parent, Segment::Case(case))?
+            }
+        };
+        self.project(parent, Segment::Field(field))
+    }
+
+    /// The Terminal Psi storage path of `steps`: each field by the interned
+    /// identity its declaration carries, each case by its identity. It is
+    /// written into operations, which is the form Terminal Psi gives them;
+    /// nothing here compares it.
+    fn storage_path(&self, steps: &[Step]) -> Checked<Vec<StructuralPathSegment>> {
+        let mut path = Vec::with_capacity(steps.len());
+        for step in steps {
+            let identity = match *step {
+                Step::Field { owner, field } => terminal_check_tables::row(
+                    &self.records.field_identities,
+                    owner,
+                    self.id,
+                    Construct::Machine,
+                )?
+                .get(field),
+                Step::Payload { owner, case, field } => {
+                    path.push(StructuralPathSegment::Case(self.case_of(owner, case)?.id));
+                    terminal_check_tables::row(
+                        &self.records.payload_identities,
+                        owner,
+                        self.id,
+                        Construct::Machine,
+                    )?
+                    .get(case)
+                    .and_then(|fields| fields.get(field))
+                }
+            };
+            path.push(StructuralPathSegment::Field(*identity.ok_or_else(
+                || self.internal("a field has no declared identity"),
+            )?));
+        }
+        Ok(path)
     }
 
     /// Emits an operation whose result is a fresh record root.
@@ -474,18 +608,40 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Field { base, field } => {
                 let mut at = self.located(base)?;
-                let declared = self
-                    .record_type(at.record)?
-                    .fields
-                    .get(*field)
-                    .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
-                at.place = self.project(at.place, declared.id)?;
-                at.path.push((at.record, *field));
+                let step = Step::Field {
+                    owner: at.record,
+                    field: *field,
+                };
+                at.place = self.step(at.place, step)?;
+                at.path.push(step);
+                at.record = record;
+                Ok(at)
+            }
+            ExpressionKind::Payload { base, case, field } => {
+                let mut at = self.located(base)?;
+                let step = Step::Payload {
+                    owner: at.record,
+                    case: *case,
+                    field: *field,
+                };
+                at.place = self.step(at.place, step)?;
+                at.path.push(step);
                 at.record = record;
                 Ok(at)
             }
             ExpressionKind::Record { fields } => {
                 let (root, place) = self.establish(record, fields, expression.source)?;
+                Ok(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                })
+            }
+            ExpressionKind::Case { case, fields } => {
+                let (root, place) =
+                    self.establish_case(record, *case, fields, expression.source)?;
                 Ok(Located {
                     root,
                     place,
@@ -510,6 +666,8 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::IsCase { .. }
+            | ExpressionKind::Match { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
@@ -528,10 +686,7 @@ impl<'a> Lowering<'a> {
         if at.fresh && at.path.is_empty() {
             return Ok(at.root);
         }
-        let mut path = Vec::with_capacity(at.path.len());
-        for (owner, field) in &at.path {
-            path.push(self.storage_segment(*owner, *field)?);
-        }
+        let path = self.storage_path(&at.path)?;
         self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
         let operation = self.operation_identity(expression.source);
         let (root, exact) = self.produce(
@@ -607,7 +762,7 @@ impl<'a> Lowering<'a> {
         )?;
         let at = ProgramPoint::AfterOperation(operation);
         for (field, operand) in roster {
-            let leaf = self.project(exact, field.id)?;
+            let leaf = self.project(exact, Segment::Field(field.id))?;
             match operand {
                 Operand::Scalar(value) => self.write(leaf, at, Content::Value(value))?,
                 // The operand root is named by the establishment's own
@@ -616,6 +771,331 @@ impl<'a> Lowering<'a> {
             }
         }
         Ok((root, exact))
+    }
+
+    /// `S::C { p: x }`: the payload operands in authored order, then one
+    /// establishment of the sum as that case (expressions.md: "Record or
+    /// case literal | Authored field-expression order."). The operation is
+    /// the one the current pipeline emits: `EstablishScalarCase` with no
+    /// field for a case without payload, `EstablishStructuralCase` with the
+    /// payload roster in declaration order otherwise. A plain payload field
+    /// has no declared range, so it carries no obligation.
+    ///
+    /// The root gets one row for its new contents, then one per payload
+    /// field. Which case it now holds is the operation's `result_case`.
+    fn establish_case(
+        &mut self,
+        record: StructuralTypeId,
+        case: usize,
+        fields: &[(usize, Expression)],
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let selected = self.case_of(record, case)?;
+        let declared = &selected.fields;
+        let mut operands: Vec<Option<Operand>> = vec![None; declared.len()];
+        for (position, operand) in fields {
+            let field = declared
+                .get(*position)
+                .ok_or_else(|| self.internal("a literal names a field past its case"))?;
+            let evaluated = match field.value_type {
+                ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
+                ValueType::Record(_) => Operand::Record(self.record(operand)?),
+            };
+            if operands[*position].replace(evaluated).is_some() {
+                return Err(self.internal("a literal names a field twice"));
+            }
+        }
+        let mut roster = Vec::with_capacity(declared.len());
+        let mut initializers = Vec::with_capacity(declared.len());
+        for (field, operand) in declared.iter().zip(operands) {
+            let operand = operand.ok_or_else(|| self.internal("a literal misses a field"))?;
+            roster.push((field, operand));
+            initializers.push(RecordFieldInitializer {
+                field: field.id,
+                value: match operand {
+                    Operand::Scalar(value) => RecordFieldValue::Scalar {
+                        value,
+                        range_obligation: None,
+                    },
+                    Operand::Record(root) => RecordFieldValue::Structural(
+                        StructuralArgument::whole(root, StructuralAccess::Owned),
+                    ),
+                },
+            });
+        }
+        let kind = if initializers.is_empty() {
+            OperationKind::EstablishScalarCase {
+                result_case: selected.id,
+                fields: Vec::new(),
+            }
+        } else {
+            OperationKind::EstablishStructuralCase {
+                result_case: selected.id,
+                fields: initializers,
+            }
+        };
+        let operation = self.operation_identity(source);
+        let (root, exact) = self.produce(operation, record, kind)?;
+        let at = ProgramPoint::AfterOperation(operation);
+        self.write(exact, at, Content::Overwritten)?;
+        if !roster.is_empty() {
+            let payload = self.project(exact, Segment::Case(selected.id))?;
+            for (field, operand) in roster {
+                let leaf = self.project(payload, Segment::Field(field.id))?;
+                match operand {
+                    Operand::Scalar(value) => self.write(leaf, at, Content::Value(value))?,
+                    Operand::Record(_) => self.write(leaf, at, Content::Overwritten)?,
+                }
+            }
+        }
+        Ok((root, exact))
+    }
+
+    /// `subject in S::C`: one `StructuralCaseMembership` on the sum the
+    /// subject names, in place. structural_access.md: "An empty path
+    /// observes the whole root. Relevant record fields ... select the
+    /// original backing without copying or borrowing a child."
+    pub(super) fn case_membership(
+        &mut self,
+        subject: &Expression,
+        case: usize,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let at = self.located(subject)?;
+        let case = self.case_of(at.record, case)?.id;
+        let path = self.storage_path(&at.path)?;
+        self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
+        let operation = self.operation_identity(source);
+        self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::StructuralCaseMembership {
+                source: at.root,
+                path,
+                case,
+            },
+        )
+    }
+
+    /// Ends the open block in the `StructuralCase` that observes the sum
+    /// `subject` names, and returns the block of each arm in `arms` order
+    /// and of the wildcard arm. control_flow.md: "The complete declared case
+    /// roster determines its successors independently of case count".
+    ///
+    /// The roster is built from the declaration's case table, one edge per
+    /// declared case in declaration order: to the arm that names the case,
+    /// else to the wildcard arm. A case with neither is a compile error of
+    /// the program (patterns.md: "Every dispatch must cover the admitted
+    /// subject. Missing runtime coverage is a compile error, not an
+    /// implicit trap or fallthrough."), reported as `Unestablished` at the
+    /// block. A wildcard that no case reaches would never be lowered, so it
+    /// is refused rather than dropped.
+    ///
+    /// Each scalar payload field of an arm's case is one parameter of the
+    /// arm's block, in declaration order.
+    #[allow(clippy::type_complexity)]
+    pub(super) fn select(
+        &mut self,
+        subject: &Expression,
+        arms: &[usize],
+        wildcard: bool,
+        source: SourceOrigin,
+    ) -> Checked<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
+        let at = self.located(subject)?;
+        let data = self.record_type(at.record)?;
+        if data.cases.is_empty() {
+            return Err(self.internal("a dispatch on storage that is no sum"));
+        }
+        let path = self.storage_path(&at.path)?;
+        self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
+        let mut blocks = Vec::with_capacity(arms.len());
+        let mut payloads = Vec::with_capacity(arms.len());
+        for case in arms {
+            let selected = self.case_of(at.record, *case)?;
+            let block = self.block(source);
+            let mut parameters = Vec::with_capacity(selected.fields.len());
+            let mut payload_fields = Vec::new();
+            for field in &selected.fields {
+                parameters.push(match field.value_type {
+                    ValueType::Scalar(scalar_type) => {
+                        let value = self.value(
+                            scalar_type,
+                            ValueOrigin::BlockParameter {
+                                block,
+                                position: self.position(payload_fields.len())?,
+                            },
+                        );
+                        self.parameter(block, value, scalar_type)?;
+                        payload_fields.push(field.id);
+                        Some(value)
+                    }
+                    ValueType::Record(_) => None,
+                });
+            }
+            blocks.push((
+                block,
+                Chosen {
+                    place: at.place,
+                    case: Some(*case),
+                    parameters,
+                },
+            ));
+            payloads.push(payload_fields);
+        }
+        let mut rest: Option<(BlockId, Chosen)> = None;
+        let mut edges = Vec::with_capacity(data.cases.len());
+        for (position, case) in data.cases.iter().enumerate() {
+            let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
+                Some(arm) => (blocks[arm].0, payloads[arm].clone()),
+                None if wildcard => {
+                    let block = match &rest {
+                        Some((block, _)) => *block,
+                        None => {
+                            let block = self.block(source);
+                            rest = Some((
+                                block,
+                                Chosen {
+                                    place: at.place,
+                                    case: None,
+                                    parameters: Vec::new(),
+                                },
+                            ));
+                            block
+                        }
+                    };
+                    (block, Vec::new())
+                }
+                None => {
+                    return Err(Refusal {
+                        reason: RefusalReason::Unestablished,
+                        machine: self.id,
+                        concerns: self.current.map_or(Construct::Machine, Construct::Block),
+                        detail: String::from("a dispatch selects no arm for a declared case"),
+                    });
+                }
+            };
+            let edge = self.edge(Destination::Block(target), source)?;
+            edges.push(StructuralCaseSuccessorEdge {
+                edge,
+                target,
+                case: case.id,
+                payload_fields,
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            });
+        }
+        if wildcard && rest.is_none() {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Transition("wildcard arm that no case reaches"),
+            ));
+        }
+        self.terminate(Terminator::StructuralCase {
+            source: at.root,
+            path,
+            cases: edges,
+        })?;
+        Ok((blocks, rest))
+    }
+
+    /// The scalar payload field `field` of case `case` of the sum `base`
+    /// names. Inside the arm of a dispatch on that same place and case it
+    /// is the arm block's parameter. Anywhere else it is a read whose
+    /// carrier ends in the `Case` step (structural_access.md: "One `Case`
+    /// step may end the carrier when the preceding carrier steps reach a
+    /// sum. The final field is then a relevant scalar payload field of that
+    /// exact declared case."), and whether the case is selected there is
+    /// the checker's judgment.
+    pub(super) fn read_payload(
+        &mut self,
+        base: &Expression,
+        case: usize,
+        field: usize,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let at = self.located(base)?;
+        let bound = self
+            .selected
+            .iter()
+            .rev()
+            .find(|chosen| chosen.place == at.place && chosen.case == Some(case))
+            .and_then(|chosen| chosen.parameters.get(field).copied().flatten());
+        if let Some(value) = bound {
+            return Ok(Value::Scalar(value));
+        }
+        // The one `Case` step a read's carrier may hold is its last.
+        if at
+            .path
+            .iter()
+            .any(|step| matches!(step, Step::Payload { .. }))
+        {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("payload read beneath another case payload"),
+            ));
+        }
+        let selected = self.case_of(at.record, case)?;
+        let declared = selected
+            .fields
+            .get(field)
+            .ok_or_else(|| self.internal("a field is past its case's declaration"))?;
+        let mut path = self.canonical_path(&at.path)?;
+        path.push(CanonicalStructuralPathSegment::Case(selected.id));
+        let leaf = self.step(
+            at.place,
+            Step::Payload {
+                owner: at.record,
+                case,
+                field,
+            },
+        )?;
+        self.name_entry(at.root, leaf, ValueType::Scalar(scalar_type))?;
+        self.read_scalar(at.root, path, declared, scalar_type, source)
+    }
+
+    fn canonical_path(&self, steps: &[Step]) -> Checked<Vec<CanonicalStructuralPathSegment>> {
+        let mut path = Vec::with_capacity(steps.len());
+        for step in steps {
+            if let Step::Payload { owner, case, .. } = *step {
+                path.push(CanonicalStructuralPathSegment::Case(
+                    self.case_of(owner, case)?.id,
+                ));
+            }
+            path.push(CanonicalStructuralPathSegment::Field(
+                self.declared(*step)?.id,
+            ));
+        }
+        Ok(path)
+    }
+
+    fn read_scalar(
+        &mut self,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        declared: &RecordField,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let kind = match scalar_type {
+            ScalarType::Boolean => OperationKind::BooleanStructuralField {
+                source: root,
+                path,
+                field: declared.id,
+            },
+            ScalarType::Integer(_) => OperationKind::ScalarStructuralField {
+                source: root,
+                path,
+                field: declared.id,
+            },
+            ScalarType::IeeeFloat(_) => {
+                return Err(self.internal("a float field reached lowering"));
+            }
+        };
+        let operation = self.operation_identity(source);
+        self.emit(operation, Some(scalar_type), kind)
     }
 
     /// `base.field` of a scalar field: one read operation whose result is a
@@ -631,39 +1111,28 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Checked<Value> {
         let at = self.located(base)?;
-        let mut path = Vec::with_capacity(at.path.len());
-        for (owner, field) in &at.path {
-            let declared = self
-                .record_type(*owner)?
-                .fields
-                .get(*field)
-                .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
-            path.push(CanonicalStructuralPathSegment::Field(declared.id));
+        // A read through a payload names its `Case` step inside the
+        // carrier, where the specification allows it only as the last step.
+        if at
+            .path
+            .iter()
+            .any(|step| matches!(step, Step::Payload { .. }))
+        {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("field read beneath a case payload"),
+            ));
         }
-        let declared = self
-            .record_type(at.record)?
-            .fields
-            .get(field)
-            .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
-        let leaf = self.project(at.place, declared.id)?;
-        self.name_entry(at.root, leaf, ValueType::Scalar(scalar_type))?;
-        let kind = match scalar_type {
-            ScalarType::Boolean => OperationKind::BooleanStructuralField {
-                source: at.root,
-                path,
-                field: declared.id,
-            },
-            ScalarType::Integer(_) => OperationKind::ScalarStructuralField {
-                source: at.root,
-                path,
-                field: declared.id,
-            },
-            ScalarType::IeeeFloat(_) => {
-                return Err(self.internal("a float field reached lowering"));
-            }
+        let path = self.canonical_path(&at.path)?;
+        let step = Step::Field {
+            owner: at.record,
+            field,
         };
-        let operation = self.operation_identity(source);
-        self.emit(operation, Some(scalar_type), kind)
+        let declared = self.declared(step)?;
+        let leaf = self.step(at.place, step)?;
+        self.name_entry(at.root, leaf, ValueType::Scalar(scalar_type))?;
+        self.read_scalar(at.root, path, declared, scalar_type, source)
     }
 
     /// `let x: T;`: reserves the local's storage and stores nothing the
@@ -804,15 +1273,15 @@ impl<'a> Lowering<'a> {
             *terminal_check_tables::row(&self.roots, root, self.id, Construct::Machine)?;
         let mut place = self.exact_root(root)?;
         let (final_field, carrier) = last;
-        let mut storage = Vec::with_capacity(carrier.len());
+        let mut steps = Vec::with_capacity(carrier.len());
         for position in carrier {
-            let declared = self
-                .record_type(record)?
-                .fields
-                .get(*position)
-                .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
-            storage.push(self.storage_segment(record, *position)?);
-            place = self.project(place, declared.id)?;
+            let step = Step::Field {
+                owner: record,
+                field: *position,
+            };
+            let declared = self.declared(step)?;
+            steps.push(step);
+            place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
                 ValueType::Scalar(_) => {
@@ -820,12 +1289,13 @@ impl<'a> Lowering<'a> {
                 }
             };
         }
-        let declared = self
-            .record_type(record)?
-            .fields
-            .get(*final_field)
-            .ok_or_else(|| self.internal("a field is past its record's declaration"))?;
-        let place = self.project(place, declared.id)?;
+        let storage = self.storage_path(&steps)?;
+        let last = Step::Field {
+            owner: record,
+            field: *final_field,
+        };
+        let declared = self.declared(last)?;
+        let place = self.step(place, last)?;
         if value.result != Some(declared.value_type) {
             return Err(self.internal("a stored value has another type than its field"));
         }
