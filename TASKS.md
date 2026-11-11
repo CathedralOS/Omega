@@ -137,8 +137,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Immediate product closure
 
-- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion on a host above 15 GB, and rename Rust's `where_facts` carriers.
-  Acceptance: the four gates pass and no Rust identifier names `where`.
+- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
+  Acceptance: the parser, resolver, typing and checking gates pass.
 
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `depend*` and `BuildInputs`/`BuildSource`/`BuildOutput`.
   Acceptance: root/dependency Builds, generators, and attenuated filesystem providers pass `omega run --both` with legacy Build paths deleted.
