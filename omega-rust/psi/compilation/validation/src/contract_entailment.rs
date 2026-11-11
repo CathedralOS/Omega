@@ -51985,28 +51985,22 @@ pub(crate) mod structural_judgment {
                 }
                 let left = left.into_semantic_value();
                 let right = right.into_semantic_value();
-                if right == value_predicates::boolean_term(true)
-                    && let StructuralTerm::MathematicalBinary {
-                        operator: BinaryOperator::And,
-                        left,
-                        right,
-                    } = &left
-                    && left.is_checked_predicate()
-                    && right.is_checked_predicate()
-                {
-                    self.intake_equation_with_purpose(
-                        *left.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    self.intake_equation_with_purpose(
-                        *right.clone(),
-                        value_predicates::boolean_term(true),
-                        depth + 1,
-                        purpose,
-                    );
-                    return;
+                // A conjunction known true makes each operand true, whether it was
+                // authored in the contract or came back from unfolding a boolean
+                // machine named by it. Only `&&` equated with `true` splits: a false
+                // conjunction and either truth of `||` fix neither operand.
+                if let Some(conjunction) = self.true_conjunction_operands(&left, &right) {
+                    for operand in conjunction.operands {
+                        self.intake_equation_with_purpose(
+                            operand,
+                            value_predicates::boolean_term(true),
+                            depth + 1,
+                            purpose,
+                        );
+                    }
+                    if !conjunction.retained_as_premise {
+                        return;
+                    }
                 }
                 let logical_premise = match (&left, &right) {
                     (StructuralTerm::LogicalNot { .. }, truth)
@@ -77568,6 +77562,11 @@ pub(crate) mod structural_judgment {
             }
         }
 
+        pub(crate) struct TrueConjunction {
+            pub(crate) operands: [StructuralTerm; 2],
+            pub(crate) retained_as_premise: bool,
+        }
+
         impl StructuralJudge<'_> {
             pub(crate) fn boolean_equality_operand(
                 &self,
@@ -77604,6 +77603,50 @@ pub(crate) mod structural_judgment {
                     operand.clone(),
                     boolean_term(if equal { known } else { !known }),
                 ))
+            }
+
+            /// The operands of a conjunction equated with `true`. A mathematical
+            /// conjunction is fully replaced by its operands. An executable boolean
+            /// `&&` is also kept whole, because the integer reader builds its
+            /// premise worlds from retained boolean connectives.
+            pub(crate) fn true_conjunction_operands(
+                &self,
+                predicate: &StructuralTerm,
+                truth: &StructuralTerm,
+            ) -> Option<TrueConjunction> {
+                if boolean_value(truth) != Some(true) {
+                    return None;
+                }
+                match predicate {
+                    StructuralTerm::MathematicalBinary {
+                        operator: BinaryOperator::And,
+                        left,
+                        right,
+                    } if left.is_checked_predicate() && right.is_checked_predicate() => {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: false,
+                        })
+                    }
+                    StructuralTerm::ScalarBinary {
+                        references,
+                        operator: BinaryOperator::And,
+                        meaning,
+                        left,
+                        right,
+                    } if meaning.iter().all(|(primitive, domain)| {
+                        *primitive == PrimitiveType::Bool
+                            && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+                    }) && scalar_operand_is_observed(self.program, references[0], left)
+                        && scalar_operand_is_observed(self.program, references[1], right) =>
+                    {
+                        Some(TrueConjunction {
+                            operands: [*left.clone(), *right.clone()],
+                            retained_as_premise: true,
+                        })
+                    }
+                    _ => None,
+                }
             }
 
             pub(crate) fn identity_equality_operands(
