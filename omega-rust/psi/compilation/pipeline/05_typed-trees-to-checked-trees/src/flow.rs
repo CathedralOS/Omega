@@ -5804,7 +5804,7 @@ mod storage_footprints {
     use checked_trees::{FlowControlFacts, FlowOperandFact};
     use typed_trees::machine::Machine;
     use validation::completed_storage::direct_referent_places;
-    use validation::completed_storage::reference_backing_places;
+    use validation::completed_storage::reference_write_backing_places;
     use validation::{CallFrameResolver, CanonicalPlace, CheckingInput};
 
     pub(super) fn assignment(
@@ -5835,15 +5835,17 @@ mod storage_footprints {
         if frames.assignment_replaces_reference_binding(machine, statement)? {
             return None;
         }
-        reference_backing_places(program, control, target, &[], &mut |_, _| None).map(|places| {
-            places
-                .into_iter()
-                .map(|place| CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments,
-                })
-                .collect()
-        })
+        reference_write_backing_places(program, control, target, &[], &mut |_, _| None).map(
+            |places| {
+                places
+                    .into_iter()
+                    .map(|place| CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments,
+                    })
+                    .collect()
+            },
+        )
     }
 }
 #[path = "flow_transfers.rs"]

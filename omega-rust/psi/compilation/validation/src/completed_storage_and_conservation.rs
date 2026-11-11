@@ -853,6 +853,31 @@ pub mod completed_storage {
                 active: Vec::new(),
                 active_profiles: Vec::new(),
                 projectable: false,
+                write_footprint: false,
+            }
+            .places(operand, path)
+        }
+
+        /*
+            The storage a write through this reference may reach. A view's enclosure
+            is widened to its complete footprint here, not in loan or pointer
+            resolution: those consumers keep the anchor they authenticate.
+        */
+        pub fn reference_write_backing_places(
+            program: &dyn crate::CheckingInput,
+            control: &FlowControlFacts,
+            operand: Handle<FlowOperandFact>,
+            path: &[PlaceSegment],
+            unchanged_loan: &mut UnchangedLoan<'_>,
+        ) -> Option<Vec<CapturedPlace>> {
+            Resolver {
+                program,
+                control,
+                unchanged_loan,
+                active: Vec::new(),
+                active_profiles: Vec::new(),
+                projectable: false,
+                write_footprint: true,
             }
             .places(operand, path)
         }
@@ -870,6 +895,7 @@ pub mod completed_storage {
                 active: Vec::new(),
                 active_profiles: Vec::new(),
                 projectable: true,
+                write_footprint: false,
             }
             .places(operand, path)
         }
@@ -881,6 +907,7 @@ pub mod completed_storage {
             active: Vec<Query>,
             active_profiles: Vec<Handle<FlowOperandRetention>>,
             projectable: bool,
+            write_footprint: bool,
         }
 
         pub(crate) enum ProfileBacking {
@@ -1186,8 +1213,10 @@ pub mod completed_storage {
                     return self.places(enclosing, &[]);
                 }
                 let mut places = self.referents_or_loan(enclosing, &[], storage.referents)?;
-                for place in &mut places {
-                    super::widen_element_anchor(&mut place.segments);
+                if self.write_footprint {
+                    for place in &mut places {
+                        super::widen_element_anchor(&mut place.segments);
+                    }
                 }
                 Some(places)
             }
@@ -1305,6 +1334,7 @@ pub mod completed_storage {
 
     pub use backing::{
         direct_referent_places, projectable_reference_places, reference_backing_places,
+        reference_write_backing_places,
     };
     pub(crate) mod captures {
         use checked_trees::FlowOperandCompletion;

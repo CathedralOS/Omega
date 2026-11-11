@@ -2817,7 +2817,8 @@ mod entry_fields {
             `observed_scalar` does for a scalar referent: it asserts no equality
             with the source bytes, only that later reads of the same view leaf
             see the same contents until the storage graph reports an overlapping
-            write. Recast views therefore carry saved guards on their fields
+            write. It carries no declared field or data bound either: a recast
+            view's type invariants hold only once that view is established. Recast views therefore carry saved guards on their fields
             without a recast-specific case; rows copied from a source record keep
             their source identity and are not replaced.
         */
@@ -2864,15 +2865,10 @@ mod entry_fields {
                     CapturedScalarField {
                         path: projection,
                         carrier,
-                        value: entry_value(
-                            self.program,
-                            reference,
-                            path.last().copied(),
-                            ScopedArithmeticValue::Atom {
-                                identity,
-                                unsigned: super::unsigned(carrier),
-                            },
-                        ),
+                        value: ScopedArithmeticValue::Atom {
+                            identity,
+                            unsigned: super::unsigned(carrier),
+                        },
                     },
                 ));
             }
