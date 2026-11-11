@@ -6227,8 +6227,10 @@ pass/providers/runtime_generic_boundary_relay_places_exit built 2568ms exit:0 @a
 pass/providers/runtime_generic_case_extraction_exit built 3673ms exit:0 @a92f16431042
 pass/providers/runtime_linear_provider_results_exit built 2804ms exit:0 @a92f16431042
 pass/providers/runtime_named_provider_explicit_state_exit built 8563ms exit:70 @a92f16431042
-pass/providers/runtime_provider_mutable_reference_exit built 2513ms exit:0 @a92f16431042
-pass/providers/runtime_provider_mutable_reference_forward_exit built 2219ms exit:0 @a92f16431042
+pass/providers/runtime_provider_mutable_reference_exit rejected 5831ms regressed-from:built+exit:0 @9249502ef973
+	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/providers/runtime_provider_mutable_reference_forward_exit rejected 5829ms regressed-from:built+exit:0 @9249502ef973
+	target legalization failed: ReferenceDisposalConflict { machine: MachineId(1), place: PlaceId(32) }
 pass/providers/runtime_provider_owned_reference_exit built 2433ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_alias_exit built 2561ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_allocation_exit built 4196ms exit:0 @a92f16431042
