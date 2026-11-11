@@ -1900,9 +1900,10 @@ pub mod queries {
                                 .filter(move |domain| {
                                     let name = domain.name.as_str();
                                     name.rsplit("::").next().unwrap_or(name) == owner
-                                        && original
-                                            .symbols
-                                            .same_symbol_source_package(machine.symbol, domain.symbol)
+                                        && original.symbols.same_symbol_source_package(
+                                            machine.symbol,
+                                            domain.symbol,
+                                        )
                                 })
                                 .map(move |domain| (domain.symbol, machine.symbol))
                         }),
