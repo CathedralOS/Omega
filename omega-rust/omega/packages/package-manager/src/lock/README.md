@@ -42,7 +42,10 @@ the source identity is unchanged.
 
 Each `PackageAcceptanceRow` retains the complete canonical readable meaning of
 one admission-claim or external-realization callable, external supply, dangerous
-capability, terminal permission, or restricted build request. The coordinate key
+capability, terminal permission, restricted build request, or independent
+component assumption. A `component_assumption` row names the component
+package, its assumption digest and the description rows bound by it; root
+Product admission rejects any fresh row of that kind the lock does not hold. The coordinate key
 identifies a row; exact
 meaning comparison, not digest-only consent, identifies a policy change.
 The manager owns these inert retained records separately from the compiler's
@@ -98,7 +101,7 @@ Acceptance children use:
 ```text
 acceptance_schema 9
 rows <count>
-row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding>
+row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding|component_assumption>
 key <SHA-256 of canonical row coordinate bytes>
 meaning <byte length>
 <complete canonical readable risk-row text>
