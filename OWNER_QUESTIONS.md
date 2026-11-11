@@ -238,3 +238,75 @@ Until answered, the lowered-form route computes the `Incomplete` verdict but
 has no diagnostic that publishes it. The route is not in the default compile,
 so no program is affected yet; a router that publishes this verdict needs the
 answer first.
+
+### Q5 - May a Build program select a provider for a requirement it declares itself?
+
+Decision name: `build-declared-requirement-provider`.
+
+**Customer.** A Build program that computes a value, such as an array
+length, through a checked helper it declares in its own `build.omg`.
+`tests/omega/pass/build/selected_const_array_length_exit` does this with
+`boundary trait CheckedMath` and has not compiled since #2296.
+
+After #2331 the compiler can name such a requirement during constant
+evaluation. The program still fails, because nothing selects an
+implementation for it. One candidate exists and the compiler may not pick it:
+
+- [Provider selection](wiki/spec/build/provider_selection.md): *"Readiness
+  never searches for a satisfier, chooses the sole visible candidate"* and
+  *"Ordinary product Build::select_provider rows do not select or authorize
+  this Build-host slot"*.
+- [Execution](wiki/spec/build/execution.md): *"No satisfier search, ambient
+  import or default chooses a service implementation."*
+- `Build::await_provider` takes its implementation from a build dependency,
+  which cannot name a trait declared in the depending `build.omg`.
+
+The same call from `build()` at run time fails with
+`ProviderInstallationMissing`, so this is not specific to constants.
+
+The question:
+
+- **(a)** Should a Build program be able to select a provider for a
+  requirement it declares itself, and with what form?
+- **(b)** Or is that part of the fixture stale, to be rewritten without the
+  requirement or retired?
+
+Until answered the fixture stays red and the compiler selects nothing.
+
+### Q6 - Who approves a new rule in the proof kernel?
+
+Decision name: `kernel-rule-admission`.
+
+**Customer.** The checker on the lowered form accepts an obligation only when
+the proof kernel has checked a certificate for it. Seven correct corpus
+programs cannot be accepted because the kernel has no rule for a step their
+proofs need
+([route one measures](wiki/drafts/designs/route_one_measures.md)).
+
+This file's header says a missing operation needed for accepted behavior is
+implementation work. A kernel rule is different in one way: the kernel is the
+part everything else trusts, and a wrong rule has nothing behind it to catch
+it.
+
+The rules asked for:
+
+1. A contradiction between two values with no literal (`low <= high` against
+   a guard `high < low`).
+   [Contracts](wiki/spec/proofs/contracts.md#required-automatic-discharge)
+   lists "contradiction of an unreachable path" among the proofs the compiler
+   must find, so this one may already be owed.
+2. A quotient by a non-literal divisor.
+3. A remainder by a non-literal divisor, bounded by the dividend.
+4. A quotient related to its dividend (`value / 2 <= value`).
+5. Closed evaluation of a bitwise expression, and any rule for xor.
+6. A product related to its operand (`value * value >= value`).
+
+The question:
+
+- **(a)** May a lane add a kernel rule as ordinary implementation work, one
+  rule per pull request with its row in the kernel's rule table and tests?
+- **(b)** Or does each new kernel rule need an owner's approval, and if so
+  which of the six above are approved?
+
+Until answered no kernel rule is added and the seven programs stay unproved
+on the new route. The current checker still accepts them.
