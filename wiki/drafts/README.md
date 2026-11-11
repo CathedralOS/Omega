@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Required automatic discharge](designs/required_automatic_discharge.md):
+  the obligations every checker proves unaided are order reasoning and range
+  propagation, with `--floor-only` to confirm sources need nothing more;
+  delete when the board item lands.
 - [Published write frames](designs/published_write_frames.md): the set of
   places a checked body may write is inferred and published as part of its
   contract, with no new syntax; delete when the board item lands.
