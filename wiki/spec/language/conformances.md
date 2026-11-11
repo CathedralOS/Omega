@@ -1,8 +1,9 @@
 # Named conformances and exact satisfaction
 
-A trait names machine requirements and their laws. A whole-trait conformance is
-one explicitly selected, closed implementation map. An exact machine
-satisfaction edge implements one requirement; it does not claim the whole map.
+A trait names machine requirements and declares the record schema that supplies
+them. A whole-trait conformance is one explicitly selected value of that schema.
+An exact machine satisfaction edge implements one requirement; it does not claim
+the whole record or establish its other constraints.
 
 ## Data and code are independent
 
@@ -152,16 +153,18 @@ universal and does not exclude an implementation from dynamic selection.
 
 A declaration targeting a lifetime-parameterized trait supplies every lifetime
 slot explicitly, in trait declaration order, using its own in-scope binders.
-Repeated selections are legal. Identity retains alpha-normalized declaration-order
-ordinals from the conformance telescope, and that mapping substitutes through
-direct and inherited requirements. Renaming a binder is stable; choosing another
-binder is not. This public-telescope identity differs from an exact satisfaction
-edge's private-binder equality partition.
+Repeated selections are legal. The application retains alpha-normalized
+declaration-order ordinals for checking and substitution through direct and
+inherited requirements. The resulting schema and fields retain their actual
+lifetime arguments and obligations; unused constructor binders add no hidden
+value identity. Renaming a binder is stable. This application mapping differs
+from an exact satisfaction edge's private-binder equality partition.
 
 At a later conformance application, lifetime elision succeeds only when ordinary
 call-site borrow constraints determine one unique complete mapping. Zero or
 conflicting mappings reject; explicit mappings must satisfy the same constraints.
-The resolved mapping remains in semantic identity. Whole-conformance lifetime
+The resolved mapping remains in every schema application, selected operation and
+carried obligation that depends on it. Whole-conformance lifetime
 applications do not gain lifetime constants, higher-ranked argument selection,
 general outlives bounds, variance, or subtyping. Introducing those forms requires
 revisiting this application-matching rule. Separately, a requirement member's
@@ -169,12 +172,13 @@ invocation-lifetime family and its selected body obey
 [universal callable matching](generics.md#invocation-lifetime-families), not merely
 this ordinal application mapping.
 
-The telescope participates in every concrete application's identity. Adding,
-removing, or reordering type, const, or static-machine binders breaks existing
-applications; changing lifetime binders may also make elision ambiguous.
-Published compatibility reporting identifies the declaration change and its
-affected applications. A selected runtime-bearing row creates an exact static
-realization dependency under [component publication](../build/component_publication.md);
+A constructor's telescope determines how its application is checked, not an
+extra identity attached to its result. Changing that telescope can break source
+applications, and changing lifetime binders can make elision ambiguous; neither
+implies that two successfully constructed equal records are different values.
+Published compatibility reporting distinguishes constructor-interface changes
+from resulting-value changes. A selected runtime-bearing field creates an exact
+static realization dependency under [component publication](../build/component_publication.md);
 proof-only evidence retains its proof dependency without pinning runtime code.
 
 ## Implementations are operation records
@@ -183,9 +187,9 @@ Named decision: `operation-record-implementations`, settled 2026-11-09;
 [the design draft](../../drafts/designs/operation_record_implementations.md)
 records the migration. A trait declares its named callable requirements, whose
 identities are preserved, and an ordinary record schema holding one selected
-operation per requirement plus the evidence its laws require. An implementation
-is a value of that schema. A `satisfies` block constructs a named one; ordinary
-code may also construct, pass, project and return such values, including from
+operation per requirement and any explicitly declared ordinary fields. An
+implementation is a value of that schema. A `satisfies` block constructs a named
+one; ordinary code may also construct, pass, project and return such values, including from
 compile-time evaluation. There is no separate implementation-map value model.
 Text in this chapter that speaks of maps, rows and evidence binders describes
 these values under their declaration spelling.
@@ -194,32 +198,84 @@ these values under their declaration spelling.
 const WireCodec: Codec<Message> = Codec {
     encode: (lib_a::encode satisfies Codec<Message>::encode),
     decode: (lib_b::decode satisfies Codec<Message>::decode),
-    round_trip: proofs::wire_round_trip,
 };
 ```
 
-Fields hold [static callable selections](machine_values.md#static-callable-selections).
-A field is either a structural selection or a selection bound to a named
-requirement, which preserves requirement-routed invocation, token binding and
-domain access routes. A trait's operation fields have their requirement types,
-and a literal accepts only a selection already
+Named decisions: `operation-record-source-forms` and
+`implementation-telescope-identity`, settled 2026-11-11. Member declarations
+determine the generated fields mechanically:
+
+| Declaration | Record contents or obligation |
+| --- | --- |
+| `machine member(...) ...;` | A callable selection bound to that exact named requirement, including when resultless or used to establish a theorem. |
+| `field: Type;` | An ordinary value of the declared type. |
+| `field [erased]: Type;` | An ordinary value of that type, without runtime storage; erasure does not determine identity. |
+| A schema `requires` clause | A validity constraint on the assembled record, not an implicit callable field. |
+
+Ordinary record-field syntax and declaration-level `requires` constraints are
+available on trait schemas. Field dependencies use ordinary dependent-record
+checking. There is no separate law or lemma declaration kind and no classification
+by a member's name, resultlessness, body, or runtime erasure. In particular,
+`Trait::positive = proof_machine;` selects a machine when `positive` is declared
+with `machine`; it does not silently supply a proof-irrelevant field.
+
+Operation fields hold [static callable selections](machine_values.md#static-callable-selections).
+Their exact requirement bindings preserve requirement-routed invocation, token
+binding and domain access routes. A trait's operation fields have their
+requirement types, and a literal accepts only a selection already
 [bound to that requirement](#binding-a-machine-to-a-requirement); placing a
 machine in the field does not bind it. Selection stays explicit: constructing or
 importing an implementation makes nothing an ambient default.
 
-Identity is the schema application plus its canonical relevant field values. A
-name creates no identity and grants no authority: two names for one value are
-one implementation, separately declared machines are different selections even
-with identical bodies, and a deliberately distinct policy carries an explicit
-brand. Law fields contain evidence whose identity follows its logical sort. A
-strict proof is irrelevant, a stored theorem selection retains its declaration
-identity, and a relevant witness stays relevant when erased; citing a theorem to
-supply evidence stores no reference to it. A consumer may index a type by an
-operations subrecord and carry the laws as erased evidence. Value identity,
-artifact dependencies and admission provenance remain separate.
+An explicitly typed mathematical-evidence field uses the general
+[logical-evidence application](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+rule, also in ordinary records. A cited machine supplies its checked guarantee
+under the expected evidence type, over the complete admitted parameter family,
+with every premise discharged under the exact subject and operation
+substitution. This does not store a callable selection or invent a satisfaction
+edge. Evidence about one encoder cannot justify another merely because their
+signatures agree. Logical evidence cannot replace execution, mutation, ownership
+transfer or authority; resultlessness and empty effect ceilings do not prove
+eligibility. Record construction cannot assume the constraint it is establishing.
 
-Construction proves the schema's laws for the selected operations, and replacing
-an operation re-establishes them under ordinary invariant rules. One schema
+### Resulting-value identity
+
+Identity is the schema application plus its canonical relevant field values,
+uniformly for empty and generic implementations. A name or unused constructor
+argument creates no additional identity and grants no authority. For an empty
+`Tag`, `Choice<0>` and `Choice<8>` constructing `Tag` are one value, including
+when passed as static arguments; two differently named empty `Tag` constructors
+also yield one value. If `Choice<N>` instead constructs `Tag<N>`, the actual
+schema arguments distinguish `Tag<0>` and `Tag<8>` even without stored fields.
+This does not erase data-type indices, selected machine applications, or carried
+lifetime and custody obligations.
+
+An intended distinction belongs in a schema parameter or ordinary relevant
+field, not a special brand keyword or hidden constructor identity. A wrapper
+distinguishes wrapper values only; projecting the same operations subrecord
+does not retain the wrapper's distinction. Such values are not unforgeable
+capabilities merely because they contain an identity field.
+
+Separately declared machines are different selections even with identical
+bodies; an inline member still declares a new machine. Evidence identity follows
+its actual type: strict proofs of the same complete proposition are irrelevant,
+relevant mathematical witnesses retain their identities even when erased, and
+callable selections retain their declaration/application and requirement-binding
+identities. Proof-relevant `core::Identity` evidence is not silently made strict;
+neither does it automatically store the machine that established it. Value
+identity, artifact dependencies and admission provenance remain separate.
+Canonicalizing equal values cannot discard the dependencies of evidence actually
+used. A consumer may index a type by an operations subrecord and carry explicitly
+typed evidence separately.
+
+### Construction and inherited fields
+
+Construction establishes all field obligations and schema constraints against
+the exact final selections. Replacing an operation requires repairing dependent
+evidence and re-establishing invalidated constraints under ordinary invariant-window
+rules before the record is usable again. Projecting one callable does not export
+guarantees that require other fields. Ordinary fields introduce no implicit
+receiver or captured environment: calls still pass state explicitly. One schema
 serves static and runtime use: a static parameter of the schema,
 `const Order: Ranked<T>`, exposes exact selections for
 specialization, and a runtime value carries callable descriptors under their
@@ -232,9 +288,18 @@ reinterpreted by where the record is used. Contracts stay per operation.
 A default is constructor computation over already-selected prerequisite
 operations, never over the record under construction, and captures nothing; a
 default that needs runtime-selected siblings takes the record or a context as an
-explicit argument. Parent traits contribute one slot per originating requirement,
-so a diamond duplicates nothing and conflicting selections need an explicit
-choice. Transparent refinements are domains over the record. Adapters are checked
+explicit argument. Inheritance contributes fields by originating declaration:
+the same originating member inherited twice is one field, while distinct
+origins remain distinct even if their short names coincide. Inheritance does not
+automatically merge parent implementation values. Construction supplies exactly
+one final value per field; an originating declaration's qualified name is a
+field label, and its short name is shorthand only when unambiguous. For example,
+`Base::encode: left.encode` selects the already-bound field explicitly, without
+rebinding it. Conflicting defaults require explicit initialization; parent order
+never selects a winner. All evidence is checked against the finished record,
+not an operation discarded during construction.
+
+Transparent refinements are domains over the record. Adapters are checked
 transformations from record to record. Operator tokens stay bound to named
 requirements; a static selection chooses the operation and a runtime record uses
 explicit field calls. Build may consume a computed record and still checks exact

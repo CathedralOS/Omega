@@ -59,7 +59,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
 use terminal_codec::ObligationEvidenceSeal;
 
-use crate::{Discharge, discharge, refusal};
+use crate::{Discharge, describe, discharge, refusal};
 
 /// What the route decided for one closure.
 #[derive(Debug)]
@@ -106,6 +106,10 @@ pub struct UnprovedObligation {
     pub cause: UnprovedCause,
     /// The prover's or kernel's own account. Diagnostic text only.
     pub detail: String,
+    /// What was not proved, in the current checker's words for the same
+    /// obligation (`describe`): for example "cannot prove requires contract
+    /// for call halve from run: count > 1". Diagnostic text only.
+    pub statement: String,
     /// For a data type's clause that was not proved again where an open
     /// invariant window is consumed: that consumption point. `site` is then
     /// the write that opened the window.
@@ -125,23 +129,22 @@ pub struct ConsumptionSite {
 }
 
 impl UnprovedObligation {
-    /// The message. It opens with a stable part (the obligation kind and the
-    /// cause) that corpus expectations can match, followed by the prover's
-    /// detail. For an unclosed window it says so, and that the clause was
-    /// left unproved by a prior write, never that it is false.
+    /// The message: what was not proved, then why, in parentheses: the
+    /// cause and the prover's own note. For an unclosed window it says so,
+    /// and that the clause was left unproved by a prior write, never that it
+    /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
             None => format!(
-                "unproved obligation: {}: {} ({})",
-                describe_kind(self.kind),
+                "{} ({}: {})",
+                self.statement,
                 self.cause.describe(),
                 self.detail
             ),
             Some(_) => format!(
-                "unproved obligation: {} inside an open invariant window: a prior write left \
-                 the clause unproved and this use consumes the value before it is proved again: \
-                 {} ({})",
-                describe_kind(self.kind),
+                "{} inside an open default-domain invariant window: a prior write left the clause \
+                 unproved and this use consumes the value before it is proved again ({}: {})",
+                self.statement,
                 self.cause.describe(),
                 self.detail
             ),
@@ -305,6 +308,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 site,
                 cause,
                 detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
                 consumed: None,
             });
         }
@@ -351,6 +355,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 site,
                 cause,
                 detail: refused.detail.clone(),
+                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
                 consumed: Some(ConsumptionSite {
                     at: consumed.at,
                     site: source_of(sources, machine, consumed.at)?,

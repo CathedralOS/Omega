@@ -9685,6 +9685,8 @@ pub(super) fn build_traced(
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
+    /* Shared declaration requirement sets; see `declaration_requirements`. */
+    let mut declaration_requirements = Vec::new();
     for &(owner, state) in fused.iter() {
         trace.phase("state graph: state signature: result and contracts");
         trace.state(Some(state.symbol));
@@ -9763,16 +9765,28 @@ pub(super) fn build_traced(
             };
             requires.push(requirement);
         }
-        requires.extend(
-            validation::state_declaration_predicates(program, &facts.operators, state)
+        let declaration = checked_trees::CheckedDeclarationRequirementSet {
+            clauses: validation::state_declaration_predicates(program, &facts.operators, state)
                 .into_iter()
-                .map(|row| {
-                    checked_trees::CheckedStateContractRequirement::Closed(
-                        checked_trees::ClosedScalarContractValue::Predicate(row.predicate),
-                    )
-                }),
-        );
-        state_requires.push(requires);
+                .map(|row| checked_trees::ClosedScalarContractValue::Predicate(row.predicate))
+                .collect(),
+        };
+        let declaration_requires = if declaration.clauses.is_empty() {
+            None
+        } else {
+            let set = match declaration_requirements
+                .iter()
+                .position(|known| *known == declaration)
+            {
+                Some(set) => set,
+                None => {
+                    declaration_requirements.push(declaration);
+                    declaration_requirements.len() - 1
+                }
+            };
+            Some(u32::try_from(set).ok()?)
+        };
+        state_requires.push((requires, declaration_requires));
         trace.phase("state graph: state signature: parameter signature");
         let (mut structural, scalar) =
             free_structural_scalar_entry_signature_traced(program, shapes, state, &[], trace)?;
@@ -9989,7 +10003,8 @@ pub(super) fn build_traced(
             parameter_storage,
             erased_scalar_parameters: erased_scalar_parameter_plans(program, state)?,
             erased_proof_parameters: erased_proof_parameter_plans(program, state)?,
-            requires: state_requires[state_index].clone(),
+            requires: state_requires[state_index].0.clone(),
+            declaration_requires: state_requires[state_index].1,
             entry_claims: state_entry_claims[state_index].clone(),
             operations,
             place_loans,
@@ -10091,9 +10106,15 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: finish");
-    let mut plan = composed_control::finish_state_graph(program, facts, machine, planned)
-        .map_err(|reason| trace.phase(reason))
-        .ok()?;
+    let mut plan = composed_control::finish_state_graph(
+        program,
+        facts,
+        machine,
+        planned,
+        declaration_requirements,
+    )
+    .map_err(|reason| trace.phase(reason))
+    .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.rank_components = rank_components;
     plan.preserving_rank_edges = preserving_rank_edges;

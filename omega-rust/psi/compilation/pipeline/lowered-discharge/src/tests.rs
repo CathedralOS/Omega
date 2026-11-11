@@ -1084,7 +1084,9 @@ fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
     assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
     assert!(
         diagnostic.message.starts_with(
-            "unproved obligation: operation safety: no proof found from the facts available here ("
+            "exact arithmetic in this machine may overflow `u32`: the operands are not provably \
+             in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found \
+             from the facts available here: "
         ),
         "{}",
         diagnostic.message
@@ -1102,7 +1104,7 @@ fn an_unproved_call_requirement_names_the_callee_clause() {
         unproved[0]
             .reject_diagnostic()
             .message
-            .starts_with("unproved obligation: requires clause 1 of the called machine: "),
+            .starts_with("cannot prove requires clause 1 of the called machine ("),
         "{}",
         unproved[0].reject_diagnostic().message
     );
@@ -1133,7 +1135,7 @@ fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
         unproved[0]
             .reject_diagnostic()
             .message
-            .starts_with("unproved obligation: ensures clause 1 on a normal return: "),
+            .starts_with("cannot prove ensures clause 1 ("),
         "{}",
         unproved[0].reject_diagnostic().message
     );
@@ -1210,8 +1212,8 @@ fn a_goal_form_without_a_rule_is_incomplete_not_rejected() {
     assert_eq!(unproved[0].cause, UnprovedCause::NoRuleForGoalForm);
     assert!(
         unproved[0].message().starts_with(
-            "unproved obligation: requires clause 1 of the called machine: \
-             the prover has no rule for this form of goal ("
+            "cannot prove requires clause 1 of the called machine \
+             (the prover has no rule for this form of goal: "
         ),
         "{}",
         unproved[0].message()
@@ -4487,7 +4489,8 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
         assert_eq!(consumption.site, nowhere());
         assert!(
             entry.message().starts_with(
-                "unproved obligation: requires clause 1 of a data type inside an open invariant window"
+                "cannot prove requires clause 1 of a data type in this machine inside an open \
+                 default-domain invariant window"
             ),
             "{}",
             entry.message()
