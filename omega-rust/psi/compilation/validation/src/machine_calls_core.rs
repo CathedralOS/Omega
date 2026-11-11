@@ -7885,24 +7885,20 @@ pub mod result_overloads {
                         continue;
                     };
                     for target in transition.targets() {
-                        let TransitionTargetNode::Named {
-                            path,
-                            arguments,
-                            source_span,
-                            ..
-                        } = program.statement_table.transition_target(target)
+                        let Some((name, source_span)) =
+                            typed_trees::operator::named_transition_family_path(program, target)
                         else {
                             continue;
                         };
-                        if path.symbol.is_valid() {
-                            continue;
-                        }
-                        let [name] = program.statement_table.name_path_members(path.members) else {
+                        let TransitionTargetNode::Named { arguments, .. } =
+                            program.statement_table.transition_target(target)
+                        else {
                             continue;
                         };
+                        let source_span = &source_span;
                         let Some(entry) = named_machine_overload_family_symbol(
                             program,
-                            name.as_str(),
+                            name,
                             CallOperands {
                                 owner: Some(CallOwner::State {
                                     machine: machine.symbol,
@@ -7983,12 +7979,7 @@ pub mod result_overloads {
         expected_result: Option<TypeReferenceHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<SymbolHandle> {
-        let path = named_call_path(
-            program,
-            call.target.as_str(),
-            call.receiver.is_empty(),
-            call.receiver_symbol,
-        );
+        let path = typed_trees::operator::named_statement_call_family_path(program, call);
         if let Some(resolution) = named_callable_resolution(
             program,
             machine_overloads,
@@ -8064,22 +8055,7 @@ pub mod result_overloads {
         expected_result: Option<TypeReferenceHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<SymbolHandle> {
-        let receiver = if call.receiver.is_valid() {
-            match expression_table(program).expression(call.receiver) {
-                ExpressionNode::Name(path) => {
-                    path.resolved_symbol().unwrap_or_else(SymbolHandle::invalid)
-                }
-                _ => SymbolHandle::invalid(),
-            }
-        } else {
-            SymbolHandle::invalid()
-        };
-        let path = named_call_path(
-            program,
-            call.target.as_str(),
-            !call.receiver.is_valid(),
-            receiver,
-        );
+        let path = typed_trees::operator::named_expression_call_family_path(program, call);
         if let Some(resolution) = named_callable_resolution(
             program,
             machine_overloads,
@@ -8143,34 +8119,6 @@ pub mod result_overloads {
         )
     }
 
-    fn named_call_path<'name>(
-        program: &dyn crate::CheckingInput,
-        target: &'name str,
-        receiver_missing: bool,
-        receiver: SymbolHandle,
-    ) -> Option<std::borrow::Cow<'name, str>> {
-        if receiver_missing {
-            return Some(std::borrow::Cow::Borrowed(target));
-        }
-        if !receiver.is_valid()
-            || !matches!(
-                program.symbols.get(receiver).kind,
-                SymbolKind::Module
-                    | SymbolKind::Data
-                    | SymbolKind::BuiltinType
-                    | SymbolKind::Domain
-                    | SymbolKind::Trait
-                    | SymbolKind::Machine
-            )
-        {
-            return None;
-        }
-        Some(std::borrow::Cow::Owned(format!(
-            "{}::{target}",
-            program.symbols.display_path(receiver, "::")
-        )))
-    }
-
     fn named_callable_resolution(
         program: &dyn crate::CheckingInput,
         machine_overloads: &MachineOverloadIndex,
@@ -8182,11 +8130,8 @@ pub mod result_overloads {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<Option<SymbolHandle>> {
         if let Some(path) = path {
-            let candidates = program.symbols.top_level_candidates_from_source(
-                path,
-                &[SymbolKind::Machine],
-                source_span,
-            );
+            let candidates =
+                typed_trees::operator::named_call_family_members(program, path, source_span);
             let provisional_parameters = candidates.iter().find_map(|symbol| {
                 let machine = program.machine(*symbol)?;
                 (program.machine_states(machine).first()?.symbol == target_symbol).then(|| {
@@ -8383,17 +8328,16 @@ pub mod result_overloads {
         expected_result: Option<TypeReferenceHandle>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<SymbolHandle> {
-        let mut overloads = program
-            .symbols
-            .top_level_candidates_from_source(target_name, &[SymbolKind::Machine], source_span)
-            .into_iter()
-            .filter_map(|symbol| {
-                let machine = program.machine(symbol)?;
-                let identity = program.machine_callable_identity(machine);
-                let callable = program.machine_states(machine).first()?;
-                Some((callable.symbol, identity))
-            })
-            .collect::<Vec<_>>();
+        let mut overloads =
+            typed_trees::operator::named_call_family_members(program, target_name, source_span)
+                .into_iter()
+                .filter_map(|symbol| {
+                    let machine = program.machine(symbol)?;
+                    let identity = program.machine_callable_identity(machine);
+                    let callable = program.machine_states(machine).first()?;
+                    Some((callable.symbol, identity))
+                })
+                .collect::<Vec<_>>();
         if overloads.first().is_some_and(|(_, first)| {
             overloads.iter().any(|(_, candidate)| {
                 program.callable_identity_path(*candidate) != program.callable_identity_path(*first)

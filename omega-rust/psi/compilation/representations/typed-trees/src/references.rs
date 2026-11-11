@@ -3082,6 +3082,14 @@ fn visit_call_expression(
     for operator in crate::operator::named_expression_call_candidates(program, call) {
         visit_symbol(retained, operator.symbol);
     }
+    // Overload selection runs after the walk, so the walk keeps every member
+    // of a named machine family the call may select.
+    if let Some(path) = crate::operator::named_expression_call_family_path(program, call) {
+        let reference = program.expression_table.source_span(expression);
+        for member in crate::operator::named_call_family_members(program, &path, reference) {
+            visit_symbol(retained, member);
+        }
+    }
     visit_symbol(retained, call.static_machine_parameter);
     if call.authored_machine_application.is_valid() {
         visit_symbol(
@@ -3181,6 +3189,13 @@ fn visit_statement(
             for operator in crate::operator::named_statement_call_candidates(program, call) {
                 visit_symbol(retained, operator.symbol);
             }
+            if let Some(path) = crate::operator::named_statement_call_family_path(program, call) {
+                for member in
+                    crate::operator::named_call_family_members(program, &path, call.source_span)
+                {
+                    visit_symbol(retained, member);
+                }
+            }
             visit_symbol(retained, call.static_machine_parameter);
             if call.authored_machine_application.is_valid() {
                 visit_symbol(
@@ -3251,6 +3266,15 @@ fn visit_statement(
                     visit_symbol(retained, path.symbol);
                     visit_symbol(retained, path.receiver_symbol);
                     visit_symbol(retained, path.head_symbol);
+                }
+                if let Some((name, reference)) =
+                    crate::operator::named_transition_family_path(program, target)
+                {
+                    for member in
+                        crate::operator::named_call_family_members(program, name, reference)
+                    {
+                        visit_symbol(retained, member);
+                    }
                 }
             }
         }
