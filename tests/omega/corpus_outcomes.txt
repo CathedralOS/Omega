@@ -16347,18 +16347,12 @@ fail/ownership/nominal_constructor_child_second_transfer rejected 6663ms expecte
 	cannot use `receipt` in machine `main` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 6667ms expected @ee4dbb4b2d56
 	cannot use `first` in machine `main` state `entry` (statement 3) after `first` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
-fail/ownership/owned_content_projection_after_call_result rejected 67059ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$4daa56e32293bdbe$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$8e9b119b70f770d0$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$e6bd8929fe2857bc$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-fail/ownership/owned_content_projection_in_nested_field rejected 66914ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$a245ee05a96680b6$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$5496b69c912d57ba$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$62cb92f84263d19c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-fail/ownership/owned_content_projection_in_parameter rejected 77268ms unexpected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$51e6992130f2afe2$0$11786 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from drop$specialized$bf82e9aebf7306fc$1$11789 state entry after statement 0: value.capacity does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
-	cannot prove automatic cleanup requires at selected edge from retire$specialized$73b786778676d160$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
+fail/ownership/owned_content_projection_after_call_result rejected 42620ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store changes logical conserved Content", gap: None })
+fail/ownership/owned_content_projection_in_nested_field rejected 41067ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "captured scalar store changes logical conserved Content", gap: None })
+fail/ownership/owned_content_projection_in_parameter rejected 42650ms expected @4084860067cd
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "retire_owned", reason: "captured scalar store changes logical conserved Content", gap: None })
 fail/ownership/owned_operand_moves_earlier_argument_loan rejected 2530ms expected @ccdb99ca2214
 	state `conflict_code` receives owned `reordered` while an earlier argument in the same call still borrows it
 	state `direct` receives owned `first` while an earlier argument in the same call still borrows it
