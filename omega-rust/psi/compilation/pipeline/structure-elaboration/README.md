@@ -16,6 +16,16 @@ machine can complete normally and which crash routes it publishes;
 edges and invocations. [canonical.rs](src/canonical.rs) holds the one route to
 Terminal Psi's canonical form for every proposition the crate builds.
 
+Both steps are split by construct family. `read.rs` holds the shared `Program`
+and `Slot`, and each family is a module beside it:
+[machine](src/read/machine.rs) (admission, signatures, the body driver),
+[types](src/read/types.rs), [contracts](src/read/contracts.rs),
+[statements](src/read/statements.rs), [expressions](src/read/expressions.rs),
+[calls](src/read/calls.rs) and [transitions](src/read/transitions.rs).
+`lower.rs` holds the `Lowering` state, the per-machine entry point and
+`finish`, beside [control](src/lower/control.rs) (blocks, edges, arms, crashes,
+returns), [operations](src/lower/operations.rs) and [calls](src/lower/calls.rs).
+
 ## The subset
 
 Machines with one state and a complete body whose formals, locals and result
