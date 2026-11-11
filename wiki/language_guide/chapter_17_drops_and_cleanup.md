@@ -1,13 +1,9 @@
 # Chapter 17: Drops and cleanup
 
-When an owned value reaches the end of its lifetime, Omega checks how it is
-disposed of. Moving it transfers that responsibility. Plain values need no
-cleanup; a resource may need a cleanup operation or an explicit consumer.
+When an owned value goes out of scope, Omega cleans it up. Plain data needs
+nothing. A resource names the machine that releases it.
 
 ## Select automatic cleanup
-
-The type owner chooses a cleanup machine with `dropped by`. This guard releases
-its mutex when consumed; the sketch assumes the mutex's checked release API:
 
 ```omega
 data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
@@ -20,18 +16,12 @@ machine cleanup_mutex_guard<T>(guard: MutexGuard<T>) {
 }
 ```
 
-The cleanup machine takes the guard by value: cleanup ends the value, so the
-machine doing it owns it. The `let` pattern on the last line is what ends the
-guard. It takes the wrapper apart, and each component is then an ordinary
-owned value with its own cleanup; here the only component is a reference,
-which needs none.
+`dropped by` picks the cleanup machine. It takes the value by value, because
+cleanup is the end of it. The `let` pattern on the last line is what ends the
+guard: it takes the wrapper apart into its fields, each of which is then an
+ordinary value.
 
-Until that pattern, the guard is an ordinary `MutexGuard<T>`. If a cleanup
-machine let it reach the end of the body whole, that would be cleanup calling
-itself, and the termination check rejects it.
-
-Owning the value is what lets cleanup hand a component to an operation that
-consumes it:
+Owning the value lets cleanup hand a field to something that consumes it:
 
 ```omega
 data Lease [linear] dropped by end_lease {
@@ -45,13 +35,27 @@ machine end_lease(value: Lease) {
 }
 ```
 
-A cleanup machine is an ordinary machine, so calling `end_lease(move lease)`
-yourself disposes of the lease early.
+There is no `Drop` trait. A cleanup machine is an ordinary machine, and
+calling `end_lease(move lease)` yourself releases the lease early.
 
-### Take a value apart without cleaning it up
+Automatic cleanup has to be something that cannot go wrong: it may not fail,
+wait or crash. Closing a file that can report an error is an explicit call.
 
-The same pattern lets the type's own package offer operations that end the
-value another way, such as handing its parts to the caller:
+## Dispose of a value early
+
+```omega
+omega::core::drop(guard);                                  // run its cleanup now
+
+let closed: CloseResult = block File::close(move file);    // a consumer with a result
+let outcome: TaskOutcome<T> = suspend block Task::finish(move task);
+```
+
+After any of these the name can no longer be used.
+
+## Take a value apart without cleaning it up
+
+The package that declares a type can offer other ways to end a value, such as
+returning its parts:
 
 ```omega
 public machine into_parts(value: Lease) -> LeaseParts {
@@ -60,73 +64,38 @@ public machine into_parts(value: Lease) -> LeaseParts {
 }
 ```
 
-Only machines declared in the package that declares `Lease`, and its selected
-cleanup machine, may write that pattern. Everyone else calls what the package
-makes public. Nothing is skipped by accident: inside the package too, a `Lease`
-that is moved, passed along or left to fall out of scope gets its normal
-cleanup, and only the explicit pattern ends it differently.
+Only machines in the package that declares `Lease` may write that pattern.
+Everyone else calls what the package makes public. Inside the package too, a
+`Lease` that is moved, passed on or falls out of scope gets its normal cleanup;
+only the explicit pattern ends it another way.
 
-The pattern ends the wrapper only. The parts keep their own cleanup and their
-own obligations, and the checker accounts for each. What it cannot check is
-work that exists only as a line in your cleanup machine. If a step must never
-be skipped, hold it as an owned component, for example a linear `Registration`
-that only `unregister` can consume; then every machine that takes the value
-apart has to deal with it.
+The parts keep their own cleanup. If a step must never be skipped, make it a
+field, for example a `[linear]` registration that only `unregister` can
+consume, so that every machine that takes the value apart has to deal with it.
 
-Automatic cleanup must return normally, without failure, suspension, blocking,
-trapping, aborting or process exit. It can use only authority and facts available
-at that point. Closing a resource that may wait or fail therefore needs an
-explicit operation.
+## Values that must be finished
 
-A default domain or named domain may select cleanup. Combining domains must
-resolve to at most one distinct cleanup machine application; field cleanup
-then follows structurally. Removing a qualification does not remove cleanup
-that the value still owes. See [domain-selected cleanup](../spec/language/domains.md#domain-selected-automatic-cleanup).
+A `[linear]` value has no automatic fallback unless its type gives it one. It
+must reach a consumer such as `commit`, `finish` or `abandon` on every path.
+Use it when silently dropping the value would lose something real: a
+transaction, a reservation, a running task.
 
-## Dispose of a value early
+## Cleanup order
 
-Call the ordinary consuming core machine:
+Cleanup runs in reverse declaration order:
 
-```omega
-omega::core::drop(guard);
-// `guard` has moved and cannot be used again.
+```text
+record fields: file, socket        array slots:   0, 1, 2, 3
+cleanup:       socket, file        cleanup:       3, 2, 1, 0
 ```
 
-This uses the same checked cleanup plan as an ordinary lifetime end. No `Drop`
-trait is needed. Generic containers compose their elements' cleanup plans;
-an application rejects if those elements cannot legally be disposed of there.
+Locals are cleaned before the parameters declared before them. If a protocol
+needs another order, write a consumer that does it explicitly.
 
-For protocols with a result or waiting behavior, use their named consumer:
+## Branches
 
-```omega
-let closed: CloseResult = block File::close(move file);
-let outcome: TaskOutcome<T> = suspend block Task::finish(move task);
-```
-
-Handle the result according to its contract. `finish` settles the task;
-`suspend block` only acknowledges how the call may wait.
-
-## Keep linear obligations accounted for
-
-An affine resource may have an automatic fallback. A linear resource must reach
-exactly one authorized disposition. The type owner can authorize automatic
-cleanup when it meets the restrictions above; otherwise use an explicit
-consumer such as `commit`, `unregister`, `finish` or `abandon`.
-
-This matters when abandonment loses external capacity. A sound memory model
-does not make silently losing that capacity appropriate. Such a protocol can
-require an explicit `release` or `abandon` choice, with deployment policy
-restricting abandonment further.
-
-Putting reclamation work into a queue transfers the obligation to the queue.
-Its contract must account for capacity and eventual servicing. The original
-resource has not been released merely because it was enqueued.
-
-## Cleanup on branches and returns
-
-Omega first evaluates outgoing arguments or a return value, then transfers
-their ownership and cleans up values that remain behind. Different branches
-can therefore have different cleanup:
+Each branch cleans up what it does not pass on, so branches that own different
+things still arrive at the same state:
 
 ```text
 branch A owns {file, scratch}     branch B owns {file}
@@ -137,43 +106,7 @@ branch A owns {file, scratch}     branch B owns {file}
                      successor owns {file}
 ```
 
-The successor receives the same required state in either case. Nested machines
-spell their parameters and transfers explicitly; a transfer can reuse storage
-without copying bytes when the storage plan permits it.
-
-If runtime alternatives require different cleanup, represent the difference
-with a sum or another explicit state value. For example, a resource held by
-two possible providers needs enough information to select the right release
-protocol. See [ownership joins](../spec/language/ownership.md).
-
-## Cleanup order
-
-Cleanup follows reverse declaration order. A selected cleanup machine runs
-first; components its pattern did not bind are cleaned in reverse declaration
-order. Arrays clean
-remaining elements from highest index to lowest; sums clean their active
-payload. Locals precede by-value parameters declared before them.
-
-```text
-record fields: file, socket
-cleanup:       socket, file
-
-array slots:   0, 1, 2, 3
-cleanup:       3, 2, 1, 0
-```
-
-Borrow dependencies must fit that order. An owner cannot die before a cleanup
-action that still borrows it. If a protocol needs another sequence, express
-it in an explicit consumer.
-
-A partially evaluated literal differs from a completed record: only the fields
-already established exist. If construction leaves through an ordinary cleanup
-path, those fields are cleaned in reverse evaluation order. A crash performs
-no cleanup.
-
-## Move part of a value
-
-An aggregate with structural cleanup can keep track of its remaining fields:
+## Moving one field out
 
 ```text
 before moving resources.file:   file live,  socket live
@@ -181,37 +114,17 @@ after moving resources.file:    file moved, socket live
 remaining cleanup:             socket
 ```
 
-The moved field's recipient owns its cleanup. A second move of that same field
-rejects. Arrays follow the same rule for identified elements, cleaning the
-remaining indices in descending order.
+A record with no `dropped by` can have a field moved out, and the rest is
+cleaned up as usual. A type with `dropped by` cannot; its package provides
+something like `into_parts`.
 
-A type with a selected cleanup machine cannot have a single field moved out
-this way. Its package provides a consuming operation that takes the whole
-value apart, as `into_parts` does above, if users need its fields. A dynamic index also needs enough evidence to
-identify the unique owned element being removed.
+## Crashes skip cleanup
 
-## Prove cleanup is legal where it runs
+A crash or a process exit abandons values without cleaning them up. For a
+graceful shutdown, finish tasks, release resources and return from the entry
+machine. See [Chapter 16](chapter_16_errors_traps_failure.md).
 
-A cleanup machine can have preconditions. They must hold at the point the
-value dies. For example, a release protocol may require that a transaction
-has transferred its outstanding work to a stable custodian.
+## Where next
 
-If the proof fails, keep the value live, establish the missing fact, or call
-an explicit consumer that handles the current state. A diagnostic names the
-cleanup operation, its missing premise and the outgoing edge.
-
-Body analysis cannot silently add a new caller precondition to make cleanup
-legal. State required facts in the machine's contract. Generic code retains
-the corresponding obligations until its types are substituted.
-
-## Include cleanup in resource planning
-
-Cleanup contributes service reach, work and stack demand to the machine that
-performs it. Cleanup on a loop backedge runs on every iteration, so include
-it in the iteration cost. Termination alone supplies no numeric work bound.
-
-Crashes and canonical process exit abandon obligations instead of cleaning
-them. See [failure and recovery](chapter_16_errors_traps_failure.md).
-The [ownership reference](../spec/language/ownership.md#consumers-and-cleanup)
-and [cleanup representation](../spec/terminal-psi/ownership.md) describe the
-compiler's edge plans, conservation evidence and physical realization.
+[Chapter 18](chapter_18_concurrency.md) covers tasks. The complete rules are
+in [consumers and cleanup](../spec/language/ownership.md#consumers-and-cleanup).

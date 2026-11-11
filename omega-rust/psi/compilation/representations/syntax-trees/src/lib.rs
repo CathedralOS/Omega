@@ -559,6 +559,7 @@ pub(crate) mod tests {
             suspends: false,
             blocks: false,
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }
@@ -1202,6 +1203,7 @@ pub(crate) mod tests {
             suspends: true,
             blocks: true,
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));

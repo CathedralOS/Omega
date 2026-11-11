@@ -6,7 +6,9 @@ false. What changes is only where a row is available, which is a dominance
 question over `ProgramPoint`s.
 */
 
-use semantic_vocabulary::{BlockId, EvidenceTermId, OperationId, PropositionId, ScalarType};
+use semantic_vocabulary::{
+    BlockId, EdgeId, EvidenceTermId, OperationId, PropositionId, ScalarType,
+};
 
 use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint, SelectionSetId};
 
@@ -34,6 +36,12 @@ pub enum ValueOrigin {
     /// An invocation formal. fact_validity.md: "Entry hypotheses bind exact
     /// invocation formals or structural entry paths".
     MachineParameter { position: u32 },
+    /// The machine's scalar result. `wiki/spec/terminal-psi/calls_and_outcomes.md`,
+    /// "Normal results": "Scalar | One typed value with a stable result
+    /// pseudo-value." No operation produces it: it is the value a
+    /// normal-return guarantee names as `result`, and on each normal exit it
+    /// stands for the value that exit returns.
+    MachineResult,
     /// A block parameter, bound by every arrival. control_flow.md: "Scalar
     /// arguments match the complete target telescope; their values may differ
     /// across arrivals."
@@ -56,7 +64,7 @@ pub enum ValueOrigin {
 /// `justification` is not `Derived`; it is computed from these dense
 /// identities, not stored twice.
 ///
-/// `proposition` indexes the module's proposition table. That vocabulary
+/// `proposition` indexes this machine's `MachineTables::propositions`. That vocabulary
 /// (`semantic_vocabulary::Proposition`) still reaches text identities through
 /// its content-conservation variant and names storage by root plus path; see
 /// the crate README, "Open".
@@ -88,6 +96,17 @@ pub enum Justification {
         invocation: InvocationId,
         clause: u32,
     },
+    /// The condition of a `Conditional` terminator, holding on its true edge
+    /// (`holds`) or failing on its false edge, available on that edge.
+    /// `wiki/spec/language/expressions.md`: "Caller preconditions, branch
+    /// facts, guarantees and checked theorems supply evidence under the same
+    /// lifetime and mutation rules as for named calls", and "The right
+    /// operand of `&&` may use the left operand's true-path facts; `||` may
+    /// use its false-path facts." `wiki/spec/proofs/classicality.md` lists
+    /// `fact:branch-condition-transport` as certificate-gated.
+    /// `fact_validity.md` has no sentence on it; its availability is ordinary
+    /// dominance from the edge.
+    BranchCondition { edge: EdgeId, holds: bool },
     /// The checked invariant of a block, available after every arrival
     /// obligation checks. control_flow.md: "There is one row per block;
     /// multiple assertions form a conjunction."

@@ -3694,6 +3694,7 @@ pub(crate) mod trait_defaults {
             blocks: signature.blocks,
             blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             contracts: signature.contracts,
             states: HandleSpan::from_parts(state, 1),
             nested_machines: HandleSpan::empty(),

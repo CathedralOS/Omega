@@ -43,9 +43,59 @@ intermediate calculations or asserted properties of the policy result.
 Runtime range provenance proves that the declared reach may access the region;
 constructing a plan grants no reach and never edits a machine's reach row.
 
-`AccessPlan::new(&schema)` binds the semantic schema and adds no caller restrictions.
+Named decision: `required-issuance-choice`, settled 2026-11-10;
+[the design draft](../../drafts/designs/required_issuance_choice.md) records
+the migration. Every plan states who may introduce its domain qualification.
+`AccessPlan::new(&schema, issuance)` binds the semantic schema and that choice:
+
+```omega
+data Issuance {
+    case Only(routes: [reflect::CallableInfo]);
+    case Unrestricted;
+}
+
+let plan: AccessPlan = AccessPlan::new(
+    &schema,
+    Issuance::Only { routes: [reflect::callable(choose_folder)] }
+);
+```
+
+| Choice | Who may introduce the qualification |
+| --- | --- |
+| `Issuance::Only { routes: [a, b] }` | Those exact routes. |
+| `Issuance::Only { routes: [] }` | Nobody. Values that already carry the qualification still move, lend and forward. |
+| `Issuance::Unrestricted` | This policy adds no issuer restriction. |
+
+No valid plan omits the choice. `Only` is the first case, so a zeroed
+`Issuance`, and a plan record built with `..`, admit nobody; no omitted field
+or zero default selects `Unrestricted`. There is no later operation that sets
+or widens issuance. `Unrestricted` adds no restriction and removes none:
+restrictions inherited from a parent domain or another policy still apply
+under the intersection rule below. Predicates and resource obligations remain
+required under every choice.
+
+Core supplies two policies for a domain that restricts issuance and nothing
+else, so that its issuers appear on its declaration:
+
+```omega
+domain Folder::Writable
+    access IssuedBy<reflect::callable(choose_folder)>;
+
+domain Handle::Open
+    access IssuedByAny<2, [reflect::callable(open_file), reflect::callable(open_dir)]>;
+```
+
+`IssuedBy<const R: reflect::CallableInfo>` and
+`IssuedByAny<const N: u64, const Routes: [reflect::CallableInfo; N]>` are
+ordinary named implementations of `AccessPolicy`. Each places its descriptors
+in `Issuance::Only` and adds no reader or writer rule. A descriptor is
+[descriptive data](../language/reflection.md#typed-declaration-selectors): the
+policy neither invokes the machine nor reflects on the descriptor again, and
+the existing route validation applies to it unchanged.
+
+Apart from issuance, a new plan adds no caller restrictions.
 It starts with empty additional reach and no fabricated backing capabilities.
-Omitting a policy, or omitting one authorization axis in a policy, adds no
+Omitting a policy, or omitting the reader or writer axis in a policy, adds no
 restriction on that axis; it is not deny-all. This default says nothing about
 whether an operation is supported by the carrier, loan, observation contract or
 backing. An unspecified observation never manufactures Stable, External or Atomic
@@ -55,7 +105,6 @@ The policy-construction operations are ordinary core/library APIs, not keywords:
 
 | Operation | Meaning |
 | --- | --- |
-| `AccessPlan::establish(&mut plan, callers)` | Restrict who may introduce this domain qualification. |
 | `AccessPlan::allow_readers(&mut plan, region, callers)` | Restrict readers of this semantic region. |
 | `AccessPlan::allow_writers(&mut plan, region, callers)` | Restrict writers of this semantic region. |
 

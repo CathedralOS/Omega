@@ -21,19 +21,26 @@ It runs in two steps, each one route per construct:
 
 Scalar locals are SSA values: a binding or an assignment names the value it
 holds from then on, and a write never changes a value. In this subset every
-transition arm completes the machine, so the only joins are the short-circuit
-operators, whose join block takes the result as a block parameter. The lowered
-form therefore has no structural places, and the place and write tables stay
-empty: that is what the lowered form implies, not an omission.
+transition arm completes the machine or leaves it with no successor (a crash,
+or a call of a machine with no normal completion), so the only joins are the
+short-circuit operators, whose join block takes the result as a block
+parameter. The lowered form therefore has no structural places, and the place
+and write tables stay empty: that is what the lowered form implies, not an
+omission.
 
 Gaps found against the contract are listed in the crate README, "Findings".
 */
 
 mod body;
+mod canonical;
 mod lower;
+mod outcome;
 mod read;
 
-pub use body::{Body, Expression, ExpressionKind, Signature, Statement, Strict, Target};
+pub use body::{
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+};
+pub use outcome::Outcome;
 
 use semantic_vocabulary::{BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId};
 use symbols::SymbolHandle;
@@ -199,14 +206,16 @@ pub fn elaborate(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration
 
 /// Lowers closed bodies that were already read; `entry` is machine 1.
 /// `elaborate` reads typed trees and then calls this; a checker's tests call
-/// it directly to state scalar programs. It does not refuse recursion: the
-/// reader does that, so a caller passing bodies directly must not pass a
-/// cycle. `machines` is left empty: these bodies have no typed-tree machine.
+/// it directly to state scalar programs. The reader refuses recursion first;
+/// a cycle passed here directly is refused by the outcome pass, which walks
+/// callees first. `machines` is left empty: these bodies have no typed-tree
+/// machine.
 pub fn lower_bodies(
     entry: MachineId,
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
 ) -> Checked<Elaboration> {
+    let outcomes = outcome::outcomes(bodies, signatures)?;
     let mut module = TerminalModule::for_entry(entry);
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
@@ -219,7 +228,7 @@ pub fn lower_bodies(
             )
         })?;
         let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-        let lowered = lower::machine(id, body, signatures)?;
+        let lowered = lower::machine(id, body, signatures, &outcomes)?;
         module.machines.push(lowered.machine);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);

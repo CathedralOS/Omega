@@ -8,7 +8,8 @@ the third piece of
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
 obligation is one that [stage trust](../../../../../wiki/drafts/designs/stage_trust.md)
-rule 2 lets remove a runtime check. It is not wired into the default compile.
+rule 2 lets remove a runtime check. It is not wired into the default compile;
+[the route's verdict](#the-routes-verdict) is what a router will take from it.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
 dominance between program points; [prove.rs](src/prove.rs) is the one prover.
@@ -26,8 +27,10 @@ Any other kind is refused as `Unsupported`; elaboration mints none yet.
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
-(`OperationSemantics`, on its normal successor) and per callee `ensures`
-clause (`CalleeGuarantee`, after the call). A row is passed to the kernel for
+(`OperationSemantics`, on its normal successor), per callee `ensures`
+clause (`CalleeGuarantee`, after the call) and per edge of a conditional
+(`BranchCondition`: the condition is `true` on the true edge and `false` on
+the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
@@ -48,9 +51,23 @@ comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
 image of the operands' bounds the kernel itself computes.
 
+The same prover carries relations between values, with no literal endpoint.
+A comparison between two values searches order steps between values:
+hypotheses relating two values, and `a < a + d` or `a - d < a` from an exact
+result when `0 < d` (`IntegerAddOrder`, `IntegerSubtractOrder`), chained by
+order transitivity. An unsigned `a - b` is safe from `b <= a` through the
+kernel's correlated unsigned subtract. A goal the direct search misses is
+split over a disjunctive fact (a disequality guard transports to `v < k or
+k < v`): each alternative proves the goal as a local assumption or
+contradicts what is known (`DisjunctionElimination`, contradiction
+elimination). Splits do not nest.
+
 `verify_obligation` then decides the whole certificate. Its acceptance records
-whether the mathematical core judged it as well; every certificate in the
-tests was judged (`MathematicalCoreDecision::Judged`).
+whether the mathematical core judged it as well. Most certificates are
+`Judged`; a discreteness step from a transported strict guard (`a < 10` to
+`a <= 9`, `0 < a` to `1 <= a`) is accepted by the rule checker and answered
+`Refused` by the core. Both count as discharged, and the comparison harness
+reports them apart.
 
 ## Why this route and not the arithmetic engine
 
@@ -66,16 +83,17 @@ subset needs, so the prover emits them directly.
 
 ## Findings
 
-1. **No justification for a branch condition.** `Justification` has no
-   variant for the condition of a conditional edge, so a guard such as
-   `when a < 10` gives the arm no knowledge. Obligations that need a guard
-   are `Unproved`. `values.rs` is not this crate's to change.
-2. **Knowledge rows point at a table that does not exist.**
-   `KnowledgeRow::proposition` is a `PropositionId` into "the module's
-   proposition table", which Terminal Psi does not have. This crate mints the
-   proposition in lockstep with the row (`MachineDischarge::propositions`,
-   `PropositionId` n for `KnowledgeId` n). The justification already
-   identifies the proposition, so the field could go.
+1. **Branch facts reach the prover through the kernel.** A `BranchCondition`
+   row states `c == true` (or `false`); the prover transports it through the
+   result equations of Boolean values and constants into the comparison it
+   stands for (`ValueEqualityTransport`, whose conclusion the kernel
+   computes with `check_value_equality_denotation`). The mathematical core
+   does not cover every certificate this makes: a discreteness step from a
+   transported `a < 10` to `a <= 9` is accepted by the rule checker and
+   answered `Refused` by the core. `verify_obligation` accepts such a
+   certificate; the comparison harness counts it apart from `Judged`.
+2. **Knowledge propositions have a table.** `MachineTables::propositions`
+   (machine-local, minted by `push`); `KnowledgeRow::proposition` indexes it.
 3. **Summaries name no proposition.** `Summary` no longer holds
    `requires` and `result_relation`: the callee's clauses live once in its
    `MachineContract`, identified by machine and position, which is what
@@ -107,3 +125,54 @@ Seals are in memory only. Terminal Psi's layout has no place for them yet, so
 they are lost on a byte round trip and do not survive a stored artifact: a
 module lowered from bytes, including one a cache rebuilt, arrives with
 `ObligationEvidence::ReadFromBytes` and zero fingerprints.
+
+## The route's verdict
+
+An obligation the prover cannot discharge is a compile error for the program,
+never a slower guarded form
+([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
+`judge` ([verdict.rs](src/verdict.rs)) is the one function a router takes the
+route's decision from. It discharges an elaborated closure and returns:
+
+- `Accepted`: every obligation of every machine was discharged by a
+  certificate the kernel accepted, with the operation seals for Omega 00.
+- `Rejected`: one `UnprovedObligation` per obligation that was not, each with
+  its kind, its source site from elaboration's correspondence, and its cause
+  (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
+  `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
+  no artifact. It says what was not proved and never that the obligation is
+  false: "Failure to find a proof is not proof of falsehood"
+  ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  and "Unproved source contracts reject in Psi checking"
+  ([review.md](../../../../../wiki/spec/packages/review.md)). A published
+  clause that fails only because a return's guarantee failed is reported
+  once, at that return.
+- `Incomplete`: every unproved obligation's goal has a form the prover has no
+  rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
+  shift-left bound, a proposition form it does not reason about). The program
+  may be valid and the route cannot judge it, so this is the outcome table's
+  "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
+  artifact and no fallback either. `Reject` wins when both kinds occur. The
+  closed `Incomplete` resource table has no provision for a proof goal form
+  yet, so this variant has no `Diagnostic` constructor: a plain error would
+  publish it as `Reject`. The prover has no search bound, so no obligation is
+  `Incomplete` for exhaustion.
+- `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
+  Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
+
+There is no variant for a partly proved closure. Omega 00 accepts every
+obligation of the module it is given and fills evidence only where a seal
+arrives, so a module with an undischarged obligation must never reach it. Any
+other refusal is a defect of the route and comes back as `Err`.
+
+No router calls `judge` in the default compile yet: the comparison harness
+below is its only caller outside tests, and prints each unproved
+obligation's message with its outcome.
+
+## Measuring against the current checker
+
+`omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
+both checkers on corpus programs and prints one line per program and one per
+obligation. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
+so that comparison can count what branch facts buy; the checker uses
+`discharge`.
