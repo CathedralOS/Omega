@@ -79,6 +79,7 @@ pub fn reverify(
         domains,
         &prepared.graph,
         tables,
+        &prepared.types,
     )?;
     let goal = crate::goal(
         &module.machines,
@@ -656,6 +657,7 @@ pub fn reverify_specialization(
         domains,
         &prepared.graph,
         tables,
+        &prepared.types,
     )?;
     let carry = Carry {
         specialization,

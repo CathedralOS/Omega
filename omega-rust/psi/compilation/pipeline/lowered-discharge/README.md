@@ -15,7 +15,8 @@ Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
-it; [prove.rs](src/prove.rs) is the one prover.
+it, from the stores [places/log.rs](src/places/log.rs) derives from the
+operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage.
 
@@ -101,8 +102,63 @@ dominance is computed from the edge table.
 
 A disagreement is a defect of the route, not of the program: the refusal has
 reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
-accepted on it. The write log and the place table are not checked this way
-yet (finding 17).
+accepted on it.
+
+### The tables that say what storage holds
+
+A goal over a field is stated over the value its leaf holds, so a table that
+names another value, another place or another kind of value changes what is
+proved without touching an obligation row. Three tables say what storage
+holds, and none is taken on elaboration's word.
+
+**The write log is derived, then compared.** The walk below does not read
+`MachineTables::writes`. [places/log.rs](src/places/log.rs) derives every
+store from the operation that makes it (`Storage::stores`):
+
+| Operation | What it stores |
+| --- | --- |
+| `EstablishRecord` | each operand into its field of the fresh root: a scalar operand as that value, a record operand as what its source held |
+| `EstablishScalarCase`, `EstablishStructuralCase` | the fresh root established as `result_case`, then each payload operand as above |
+| `EstablishZeroedStructural` | the fresh root zeroed, then a zero constant into each scalar leaf of the zero value that has one |
+| `StructuralLeafCopy` | what its source held, into the fresh root |
+| `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | its value into exactly the leaf it names |
+| `EstablishPrimitiveLocal` | its operand, the zero a scalar local is constructed with, into the fresh home |
+| `StoreStructuralField` | what its source held, into the field it names |
+| a call with a record result | what the callee returned, into the fresh root |
+| a read, a case test, an operation over scalar values alone | nothing |
+
+Any other operation is refused as `Unsupported`: it may store somewhere, and
+an operation left out of the derivation would be a store nothing reaches. The
+log elaboration wrote must then list exactly these stores, per operation and
+in order (`Storage::log_is_stated`). A row with another value or place, a
+missing row, a row at another point and a row no operation makes are each
+refused.
+
+A zero establishment has no operand, so the zero of a leaf has a value
+identity only through a constant. Elaboration emits one zero constant per
+scalar leaf directly before the establishment, in leaf order, and that slot
+is where the derivation looks. A leaf whose slot holds anything else is zero
+with no value identity.
+
+**The place table must be one place per path** (`places_are_interned`). A
+table names a place by its identity: an invocation's record actual, the place
+of an entry content value, a write row. The walk reads that identity as a
+path, so each root's row must be its own, each projection must be listed by
+its parent under its own segment, a parent must come before its projections,
+and a parent's projections must be sorted with one per segment. Two paths
+that share a row would let one field's contents answer for another's.
+
+**The value table must be the lowered form's declarations**
+(`values_are_declared` in [minted.rs](src/minted.rs)). Each formal, the scalar
+result, each block parameter and each scalar operation result must have its
+declared type and the origin of what declares it. The type is what Terminal
+semantics states a goal over and what the kernel bounds a value by; the
+origin is what the payload judgment reads to learn which test a condition is
+the result of. The one row the lowered form does not declare is the content a
+formal's leaf held at entry. Such a value must be of a scalar leaf of a
+formal, with that leaf's declared type, and a place has at most one
+(`Storage::entry_contents_are_of_formals`). Exchanging two entry content
+values of one type renames them and proves nothing, so it is not refused.
 
 ## What a place holds
 
@@ -125,16 +181,16 @@ rows end a path and in what an edge can establish:
   part by two different record fields are disjoint; any other pair of sibling
   segments overlaps, and places under different roots do not. Later lanes
   extend this function (indices, referents) and add no second relation.
-- **Reaching.** Walking the graph back from the use, the last write to an
+- **Reaching.** Walking the graph back from the use, the last store into an
   overlapping place on each path is the one that reaches along it.
-  - `Content::Value(v)` on exactly the leaf supplies `v`.
-  - `Content::Overwritten` on the leaf or above it supplies contents with no
-    value identity, unless the operation at that row is one that moves
-    storage whole: a whole copy, a record operand of a literal, a record
-    stored into a field. Then the leaf holds what the matching leaf of the
-    operation's source held just before it, and the walk continues there.
-    The write log cannot say this (its `Content` has no "copied from"
-    variant), so the source is read from the operation.
+  - A store of the value `v` into exactly the leaf supplies `v`.
+  - A store into the leaf or above it that moves storage whole (a whole
+    copy, a record operand of a literal, a record stored into a field)
+    supplies what the matching leaf of its source held just before it, and
+    the walk continues there.
+  - A call's record result supplies what the callee returned, which has no
+    value identity here; any other overlapping store supplies contents with
+    no value identity.
   - A path that reaches the machine's entry with no write is supplied by the
     place's entry content when its root is a formal, and by nothing
     otherwise.
@@ -205,7 +261,7 @@ serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
 
-It is a structural judgment over the write log and the graph. It is not a
+It is a structural judgment over the stores and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
 prover.
 
@@ -223,7 +279,7 @@ The goal is the clause under the one substitution (`substitute`), with the
 names of the clause standing for what the place holds at the operation's
 normal continuation:
 
-- **A field** becomes the one value the write log says that leaf holds
+- **A field** becomes the one value the stores say that leaf holds
   there, found by the reaching walk: the operand of a construction, the
   zero constant of a zero establishment, the stored value for the written
   field, and for every other field the value that reached the store. For a
@@ -241,8 +297,8 @@ So the goal names values and literals only, and it is proved from the
 knowledge available before the operation
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
 "The obligation binds the initializer or replacement SSA value, never the
-old field contents."). The stored value enters the goal from the write-log
-row, not from a knowledge row, so the completed write contributes no fact to
+old field contents."). The stored value enters the goal from the store the
+operation makes, not from a knowledge row, so the completed write contributes no fact to
 its own proof. A field with no value identity at that point (what a call
 returned, a join of two different stores) or a case no structure decides
 leaves the clause unstated: the obligation is `Unproved`, with a detail that
@@ -476,20 +532,22 @@ subset needs, so the prover emits them directly.
    existing equality steps carry it: a bound on `v` bounds the read, and two
    reads of one leaf are related through the value they share. An unsigned
    `p.x - p.x` over a formal discharges with a `Judged` certificate.
-6. **Edge writes are refused, not placed.** The backward walk moves between
-   blocks. A write logged on one edge reaches only that edge's destination,
-   so a write at `ProgramPoint::Edge` that overlaps a use refuses the
-   machine until the slice that logs one teaches the walk about edges.
-7. **A copy's source is not in the write log.** `Content` cannot name a
-   source place, so the walk reads it from the operation at the row
-   (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
-   value of `StoreStructuralField`). An `Overwritten` row at any other
-   operation keeps its own meaning: contents with no value identity.
+6. **No store is on an edge.** Every store is derived from an operation and
+   takes effect at its normal continuation, and the backward walk moves
+   between blocks. A write row at `ProgramPoint::Edge` or at a block entry
+   is one no operation makes and is refused. The slice that stores on an
+   edge (a return into the result place, a transfer) has to give the walk
+   edges first.
+7. **The write log cannot say what the walk needs.** `Content` has no form
+   for a source place, for the case a construction established or for a
+   call's result, so those stores are all `Overwritten` in the log. The walk
+   reads the derived store (`Stored`), which says each of them, and the log
+   is only compared with it.
 8. **A scalar local with no initializer holds zero, here as in the current
    checker.** `let mut x: u32; f(x)` is accepted with `x == 0` known
-   (`local-without-initializer`). Elaboration logs the zero at the
-   establishing operation, as it does for a data local, and the walk needed
-   no change: the row is one more write that supplies the home. A scalar
+   (`local-without-initializer`). The establishing operation names the
+   zero as its operand, so the home's store is derived from it like any
+   other, and elaboration logs the same row. A scalar
    type that zero does not satisfy would be gated like a data type, but
    none is served: the reader refuses a constrained scalar type.
 
@@ -539,8 +597,8 @@ subset needs, so the prover emits them directly.
 14. **`Reached::Returned` tells a call's result from other unknown
     contents.** The walk could already say "contents with no value
     identity"; a read's type premise needs to know those contents arrived
-    established. It is read from the operation at the row, like a copy's
-    source, by matching the invocation table.
+    established. It is the derived store of an operation that is a call of
+    the module with a record result.
 15. **A requirement over a field of a record actual needs that field to
     hold one named value at the call.** `peek(make())` with
     `requires packet.first == 7` is unproved: what `make` returned has no
@@ -553,18 +611,15 @@ subset needs, so the prover emits them directly.
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
 
-17. **The write log is still taken on elaboration's word.** A read
-    equation, a `DataDomain` goal and a requirement over a field of a record
-    actual all name the value a `WriteRow` says a leaf holds. Rewriting one
-    row's `Content::Value` to another value of the machine turns a rejected
-    construction into an accepted one: in `make(v) -> Paired { neighbor: 17,
-    value: v }` with `1 <= value` unproved, logging `17` for `value` proves
-    the clause over `17`. The lowered operations state the same stores
-    (an operand of a construction, the value of a field store), so the log
-    can be derived here instead of read, which would also retire finding 7.
-    Value rows are in the same position; the one case tried, a formal typed
-    narrower than its declaration, was refused by Terminal semantics as
-    `Unsupported`.
+17. **A data type's `requires` clauses are still taken on elaboration's
+    word.** Terminal Psi's type declaration has no slot for them, so they
+    ride beside the module in `Elaboration::domains` and nothing in the
+    lowered form restates them. A clause weakened or dropped there weakens
+    or drops the `DataDomain` goal of every construction and store of that
+    type, and `owed_are_minted` counts against the same list. A machine's
+    `requires` and `ensures` are not in this position: they are in the
+    module's `MachineContract`. Closing it needs the clauses in the module,
+    or the typed trees as a second source at this check.
 
 ## Evidence seals
 

@@ -182,7 +182,8 @@ being added here.
   (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
   carrier"): knowledge never names a place. A storage observation enters as the value its
   read produced, and what the read equals is one more equation between values,
-  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  derived from the stores the lowered operations make (`lowered-discharge`,
+  `places.rs`), which the write log must restate. No lane uses
   a structural `Proposition` variant in a knowledge row; a contract clause
   that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's

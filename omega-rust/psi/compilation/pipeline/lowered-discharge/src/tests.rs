@@ -1248,7 +1248,7 @@ use structure_elaboration::{RecordField, RecordType};
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{ExactPlaceId, MachineTables};
-use terminal_psi::OperationKind;
+use terminal_psi::{Operation, OperationKind, OperationResult};
 
 fn point() -> ValueType {
     ValueType::Record(id(1))
@@ -1610,9 +1610,10 @@ fn different_values_on_different_arrivals_give_no_equation() {
     //     let c = a && !b;       // the `!b` block is one of two ways to the join
     //     p.x
     // }
-    // As lowered, the one write to `p.x` dominates the read. The subset has
-    // no store yet, so the arm's write is added to the log by hand: what the
-    // checker concludes must follow from the log and the graph alone.
+    // As lowered, the one write to `p.x` dominates the read. The source
+    // language has no statement inside the `!b` block, so a store there is
+    // added by hand: what the checker concludes must follow from the
+    // operations and the graph alone.
     let program = || {
         elaborate_places(vec![Shaped {
             parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
@@ -1642,9 +1643,9 @@ fn different_values_on_different_arrivals_give_no_equation() {
     // The constants 1 and 2 the literal was built with.
     let built = constants(&program());
     let (one, two) = (built[0], built[1]);
-    // What the read equals once `content` is also written to `place` after
-    // the arm's one operation.
-    let with_arm_write = |target: &[u64], content: Option<Content>| {
+    // What the read equals once `value` is also stored into the field
+    // `field` of `p` after the arm's one operation.
+    let with_arm_write = |stored: Option<(u64, ValueId)>| {
         let mut elaboration = program();
         let machine = &elaboration.module.machines[0];
         let OperationKind::EstablishRecord { .. } = machine.blocks[0].operations[2].kind else {
@@ -1667,30 +1668,29 @@ fn different_values_on_different_arrivals_give_no_equation() {
             .unwrap()
             .operations[0]
             .id;
-        let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
-        if let Some(content) = content {
-            let place = projected(tables, root, target);
-            let write = tables.writes.push(WriteRow {
+        if let Some((field, value)) = stored {
+            let tables = elaboration.tables.machines.get(id(1)).unwrap();
+            let place = projected(tables, root, &[field]);
+            store_by_hand(
+                &mut elaboration,
+                arm,
                 place,
-                at: ProgramPoint::AfterOperation(arm),
-                content,
-            });
-            tables.places.get_mut(place).unwrap().writes.push(write);
+                value,
+                field_store(root, field, value),
+            );
         }
         discharge(&mut elaboration).unwrap();
         let read = field_reads(&elaboration)[0];
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         read_equals(tables, read)
     };
-    assert_eq!(with_arm_write(&[], None), Some(one));
+    assert_eq!(with_arm_write(None), Some(one));
     // Another value on the arm: the two arrivals differ.
-    assert_eq!(with_arm_write(&[1], Some(Content::Value(two))), None);
+    assert_eq!(with_arm_write(Some((1, two))), None);
     // The same value on the arm: every arrival still supplies it.
-    assert_eq!(with_arm_write(&[1], Some(Content::Value(one))), Some(one));
+    assert_eq!(with_arm_write(Some((1, one))), Some(one));
     // A write to the sibling `p.y` is disjoint and changes nothing.
-    assert_eq!(with_arm_write(&[2], Some(Content::Value(two))), Some(one));
-    // Unknown new contents of the whole record overlap its field.
-    assert_eq!(with_arm_write(&[], Some(Content::Overwritten)), None);
+    assert_eq!(with_arm_write(Some((2, two))), Some(one));
 }
 
 #[test]
@@ -1806,21 +1806,61 @@ fn uses(result: &Discharge) -> Vec<Result<(), RefusalReason>> {
         .collect()
 }
 
-/// Adds one row to machine 1's write log by hand, at the normal
-/// continuation of `operation`.
-fn log_by_hand(
+/// Adds a store of `value` to machine 1 by hand, directly after the
+/// operation `after`: the store operation `kind` in the lowered form, and
+/// the row elaboration would log for it on `place`. The checker derives what
+/// is stored from the operations and refuses a log that says otherwise, so
+/// a store the source language cannot write has to be in both.
+fn store_by_hand(
     elaboration: &mut structure_elaboration::Elaboration,
+    after: OperationId,
     place: ExactPlaceId,
-    operation: OperationId,
-    content: Content,
+    value: ValueId,
+    kind: OperationKind,
 ) {
+    let machine = &mut elaboration.module.machines[0];
+    let fresh = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .map(|operation| operation.id.get())
+        .max()
+        .unwrap()
+        + 1;
+    let store = id::<OperationId>(fresh);
+    let (block, position) = machine
+        .blocks
+        .iter_mut()
+        .find_map(|block| {
+            let position = block
+                .operations
+                .iter()
+                .position(|operation| operation.id == after)?;
+            Some((block, position))
+        })
+        .unwrap();
+    block.operations.insert(
+        position + 1,
+        Operation::unsuspended(store, OperationResult::Unit, kind),
+    );
     let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
     let write = tables.writes.push(WriteRow {
         place,
-        at: ProgramPoint::AfterOperation(operation),
-        content,
+        at: ProgramPoint::AfterOperation(store),
+        content: Content::Value(value),
     });
     tables.places.get_mut(place).unwrap().writes.push(write);
+}
+
+/// `root.field = value`, for `store_by_hand`.
+fn field_store(root: PlaceId, field: u64, value: ValueId) -> OperationKind {
+    OperationKind::StructuralScalarFieldStore {
+        destination: root,
+        path: Vec::new(),
+        field: id(field),
+        value,
+        range_obligation: None,
+    }
 }
 
 /// The one operation of the block that holds nothing but an integer
@@ -1898,8 +1938,9 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
     //     p.x & q.x                      // a read and a read of the copy
     // }
     // The source language has no statement inside an arm, so the arm's
-    // store is added to the log by hand, on the arm's one operation: what
-    // the checker concludes must follow from the log and the graph alone.
+    // store is added by hand, after the arm's one operation: what the
+    // checker concludes must follow from the operations and the graph
+    // alone.
     let program = || {
         elaborate_places(vec![Shaped {
             parameters: vec![ScalarType::Boolean.into()],
@@ -1914,17 +1955,23 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
             ],
         }])
     };
-    let read_values = |arm_store: Option<Content>| {
+    let read_values = |arm_store: bool| {
         let mut elaboration = program();
-        let (arm, _) = arm_constant(&elaboration);
+        let (arm, in_arm) = arm_constant(&elaboration);
         let p = elaboration.module.machines[0].blocks[0].operations[2]
             .result
             .as_structural()
             .unwrap()
             .place;
-        if let Some(content) = arm_store {
+        if arm_store {
             let leaf = projected(elaboration.tables.machines.get(id(1)).unwrap(), p, &[1]);
-            log_by_hand(&mut elaboration, leaf, arm, content);
+            store_by_hand(
+                &mut elaboration,
+                arm,
+                leaf,
+                in_arm,
+                field_store(p, 1, in_arm),
+            );
         }
         let result = discharge(&mut elaboration).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));
@@ -1933,19 +1980,11 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
         (read_equals(tables, reads[0]), read_equals(tables, reads[1]))
     };
     let one = constants(&program())[0];
-    let (_, in_arm) = arm_constant(&program());
-    assert_eq!(read_values(None), (Some(one), Some(one)));
-    // The arm stores another value into `p.x` and then leaves the machine.
-    // Neither the read nor the copy in the continuation is reached by it:
-    // both still hold what the construction before the branch stored.
-    assert_eq!(
-        read_values(Some(Content::Value(in_arm))),
-        (Some(one), Some(one))
-    );
-    assert_eq!(
-        read_values(Some(Content::Overwritten)),
-        (Some(one), Some(one))
-    );
+    assert_eq!(read_values(false), (Some(one), Some(one)));
+    // The arm stores its own constant into `p.x` and then leaves the
+    // machine. Neither the read nor the copy in the continuation is reached
+    // by it: both still hold what the construction before the branch stored.
+    assert_eq!(read_values(true), (Some(one), Some(one)));
 }
 
 #[test]
@@ -2283,7 +2322,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // scalar local is established as zero. Every arm of this subset completes the machine, so "assigned on one
     // arm, read after the transition" cannot be written; the short-circuit
     // join is the one place two paths meet. The store on its `!b` path is
-    // added to the log by hand.
+    // added by hand.
     let program = |stored_before: bool| {
         let mut statements = vec![declare(2, data(GATED))];
         if stored_before {
@@ -2315,7 +2354,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             &constrained(),
         )
     };
-    let judged = |stored_before: bool, on_one_way: Option<Content>| {
+    let judged = |stored_before: bool, on_one_way: Option<ValueId>| {
         let mut elaboration = program(stored_before);
         let machine = &elaboration.module.machines[0];
         let home = machine.blocks[0]
@@ -2340,10 +2379,34 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             .unwrap();
         let negation = negation.id;
         let read = field_reads(&elaboration)[0];
-        if let Some(content) = on_one_way {
+        if let Some(value) = on_one_way {
             // `g.v`, the one leaf of the local (field identity 7).
             let place = projected(elaboration.tables.machines.get(id(1)).unwrap(), home, &[7]);
-            log_by_hand(&mut elaboration, place, negation, content);
+            store_by_hand(
+                &mut elaboration,
+                negation,
+                place,
+                value,
+                field_store(home, 7, value),
+            );
+            // A store into a `Gated` owes its clause, like the authored one.
+            let store = elaboration.module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .map(|operation| operation.id)
+                .max()
+                .unwrap();
+            let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+            tables
+                .obligations
+                .push(terminal_check_tables::obligations::ObligationRow {
+                    kind: ObligationKind::DataDomain {
+                        operation: store,
+                        clause: 0,
+                    },
+                    created_at: ProgramPoint::AfterOperation(negation),
+                });
         }
         let result = discharge(&mut elaboration).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
@@ -2351,7 +2414,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     };
     // Some u32 value for the hand-written row to store: the zero constant
     // the declaration logged, the first constant of either program.
-    let some_value = Content::Value(constants(&program(false))[0]);
+    let some_value = constants(&program(false))[0];
     // Nothing stored anywhere: only the gated zero reaches the read, so it
     // is unestablished.
     assert_eq!(judged(false, None).0, [Err(RefusalReason::Unestablished)]);
@@ -2359,10 +2422,6 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // because the other way supplies nothing established.
     assert_eq!(
         judged(false, Some(some_value)).0,
-        [Err(RefusalReason::Unestablished)]
-    );
-    assert_eq!(
-        judged(false, Some(Content::Overwritten)).0,
         [Err(RefusalReason::Unestablished)]
     );
     // Stored before the branch: established on both ways, and the read

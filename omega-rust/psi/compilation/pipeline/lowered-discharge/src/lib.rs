@@ -358,7 +358,15 @@ fn machine(
         graph,
         context,
     } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
-    let mut storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
+    let mut storage = places::Storage::new(
+        id,
+        lowered,
+        structural_types,
+        domains,
+        &graph,
+        tables,
+        &types,
+    )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Join predicates first: each is checked on every arrival before it may
@@ -650,7 +658,15 @@ pub(crate) fn prepare(
     minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
-        let storage = places::Storage::new(id, lowered, structural_types, domains, &graph, tables)?;
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            structural_types,
+            domains,
+            &graph,
+            tables,
+            &types,
+        )?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
     }
