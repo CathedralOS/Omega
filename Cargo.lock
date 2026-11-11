@@ -1892,7 +1892,6 @@ dependencies = [
  "program-entry-plan",
  "provider-selection",
  "psi-work",
- "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "source",

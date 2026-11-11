@@ -58,6 +58,7 @@ pub use scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_calling_applications;
 pub use selected_providers::CallingPolicyProviderInputs;
+pub use signature_review::PreparedOpaqueReviewSelection;
 pub use source_preparation::CallingSourcePreparation;
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
