@@ -20537,8 +20537,7 @@ pass/capabilities/windows_provides_import_exit checked 147503ms check-target:win
 pass/cases/arm_field_placement checked 7785ms @b17a1e9569d9
 pass/cases/arm_rename_waive checked 3490ms @ccdb99ca2214
 pass/cases/arm_returns_mut_ref checked 4185ms @ccdb99ca2214
-pass/cases/case_arm_pattern_names rejected 3213ms regressed-from:checked @ccdb99ca2214
-	cannot prove requires contract for call stopped from apply: m.code >= -100 && m.code <= 100 (needs fact `code >= -100 && code <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/cases/case_arm_pattern_names checked 15010ms @fea4cddc5c14
 pass/cases/case_call_premises rejected 1434ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for specification call `empty_only` in machine `symbolic` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `empty_only` in machine `symbolic` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -20546,8 +20545,7 @@ pass/cases/case_payload_member checked 3624ms @ccdb99ca2214
 pass/cases/case_requires_payload checked 3490ms @ccdb99ca2214
 pass/cases/case_union_exhaustive checked 3412ms @ccdb99ca2214
 pass/cases/case_where_common checked 3262ms @ccdb99ca2214
-pass/cases/case_where_match rejected 2973ms regressed-from:checked @ccdb99ca2214
-	cannot prove requires contract for call take from Main::main: main.interval.lo <= main.interval.hi (needs fact `lo <= hi` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/cases/case_where_match checked 15089ms @fea4cddc5c14
 pass/cases/dup_match_order checked 3044ms @ccdb99ca2214
 pass/cases/field_subject_arm_chain checked 3450ms @ccdb99ca2214
 pass/cases/later_arm_requires checked 3834ms @ccdb99ca2214
@@ -21226,10 +21224,9 @@ pass/dependent/boundary_requires_caller_field_extent_compile checked 1937ms @ccd
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 2195ms @ccdb99ca2214
 pass/dependent/case_where_common_field_window checked 2301ms @ccdb99ca2214
 pass/dependent/case_where_equality_bounds_subtraction checked 7370ms @04c53f019837
-pass/dependent/case_where_generic_type_bound_coverage rejected 95ms regressed-from:checked @ccdb99ca2214
-	match over `Value` does not cover `Value::Integer`; add an arm or `_`
-pass/dependent/case_where_match_contributes rejected 2233ms regressed-from:checked @ccdb99ca2214
-	cannot prove requires contract for call take from Main::main: main.interval.lo <= main.interval.hi (needs fact `lo <= hi` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/dependent/case_where_generic_type_bound_coverage checked 15399ms @fea4cddc5c14
+pass/dependent/case_where_generic_type_bound_coverage_exit checked 26405ms check-target:macos_arm64 @fea4cddc5c14
+pass/dependent/case_where_match_contributes checked 8041ms @fea4cddc5c14
 pass/dependent/case_where_zero_decided_first_case checked 3019ms @ccdb99ca2214
 pass/dependent/closed_case_common_and_active_payload_projection checked 7483ms @9af3eb514e16
 pass/dependent/collection_predicate_element_store_restored checked 14982ms @911f6617ba9e
