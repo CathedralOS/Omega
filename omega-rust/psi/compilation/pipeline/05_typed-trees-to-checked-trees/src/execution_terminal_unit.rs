@@ -7185,10 +7185,17 @@ pub(crate) fn build_checked_unit_effect_plans(
                     .collect::<Vec<_>>()
             })
         };
+        let window = ::validation::checking_thread_pool()
+            .current_num_threads()
+            .saturating_mul(4)
+            .max(1);
         let mut attempts = Vec::new();
         attempts.resize_with(bodies.len(), || None);
-        for (index, attempt) in fork_from(&shapes, 0, &(0..bodies.len()).collect::<Vec<_>>()) {
-            attempts[index] = attempt;
+        if window > 1 {
+            let first = (0..bodies.len().min(window)).collect::<Vec<_>>();
+            for (index, attempt) in fork_from(&shapes, 0, &first) {
+                attempts[index] = attempt;
+            }
         }
         let mut log = ChangeLog::default();
         let mut position = 0;
@@ -7209,7 +7216,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 }
                 stale => {
                     attempts[position] = stale;
-                    let roster = (position..bodies.len())
+                    let roster = (position..bodies.len().min(position + window))
                         .filter(|&index| {
                             index == position
                                 || attempts[index]
