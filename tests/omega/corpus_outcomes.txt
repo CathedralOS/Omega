@@ -16881,7 +16881,7 @@ fail/parser/trailing_boundary_clause_after_requires rejected 13780ms expected @c
 fail/places/requires_relation_field_store rejected 6193ms expected @ceef6376eacf
 	machine `main` state `entry` statement 2: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Span`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 3 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Span`) unproved; restore them first
-fail/places/requires_window_open_at_use rejected 12919ms expected @e690a8d8a974
+fail/places/requires_window_open_at_use rejected 10579ms expected @3c2248e5b4af
 	machine `main` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Span`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Span`) unproved; restore them first
 fail/ports/asm_port_in_missing_reach rejected 9548ms expected @8e3c139d8359
@@ -27235,7 +27235,7 @@ pass/parser/invariant_is_an_identifier checked 2769ms @ccdb99ca2214
 pass/parser/move_named_state_transition_exit checked 11035ms check-target:macos_arm64 @ccdb99ca2214
 pass/patterns/named_value_before_negative_integer_pattern_exit checked 3256ms check-target:macos_arm64 @ccdb99ca2214
 pass/places/requires_relation_field_store checked 8354ms check-target:macos_arm64 @ceef6376eacf
-pass/places/requires_window_closed_before_use checked 16297ms check-target:macos_arm64 @e690a8d8a974
+pass/places/requires_window_closed_before_use checked 14347ms check-target:macos_arm64 @3c2248e5b4af
 pass/ports/asm_port_in_immediate checked 12467ms check-target:linux_x86_64 @8e3c139d8359
 pass/progress/provider_receiver_progress_installation checked 2860ms check-target:linux_x86_64 @ccdb99ca2214
 pass/proofs/accepted_axiom_cited_exit rejected 12195ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
