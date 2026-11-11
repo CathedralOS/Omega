@@ -346,8 +346,6 @@ struct StateWalkedApart {
     claim_identities: ClaimIdentityAllocator,
     cleanup_dispositions: ContextualCleanupFacts,
     consulted: ClaimOutcomePreparation,
-    /* Every claim-outcome map the walk looked up (`record_map_reads`). */
-    map_reads: Vec<symbols::SymbolHandle>,
     crossed: bool,
 }
 
@@ -452,7 +450,7 @@ impl PermissionWalkMemory {
             .into_iter()
             .map(|state| {
                 claim_outcomes
-                    .reads_unchanged(&summaries, &state.map_reads, &state.consulted)
+                    .reads_unchanged(&summaries, &state.consulted)
                     .then_some(state)
             })
             .collect();
@@ -641,7 +639,6 @@ fn walk_states_apart<'program>(
             claim_identities,
             cleanup_dispositions: _,
             consulted,
-            map_reads: _,
             crossed: _,
         } = state;
         facts.flow.ownership.adopt_additional_pages(ownership_pages);
@@ -692,7 +689,7 @@ fn walk_state_apart<'program>(
         ..PermissionWalkScratch::default()
     };
     scratch.claim_identities.begin_state(position);
-    let (storage_transfers, map_reads) = super::claim_outcomes::record_map_reads(|| {
+    let storage_transfers = {
         let shared_flow = &shared.flow;
         let shared_content = &shared.qualifications.content;
         let mut facts = CheckFactsWalk {
@@ -736,7 +733,7 @@ fn walk_state_apart<'program>(
             state_flow,
             prepared,
         )
-    });
+    };
     let crossed = worker.ownership.walk_guard.crossed();
     worker.ownership.walk_guard = checked_trees::WalkGuard::default();
     let ownership_pages = worker
@@ -761,7 +758,6 @@ fn walk_state_apart<'program>(
         claim_identities,
         cleanup_dispositions,
         consulted: worker.claim_outcomes.take_consulted(),
-        map_reads,
         crossed,
     }
 }

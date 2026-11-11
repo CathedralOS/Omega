@@ -110,6 +110,9 @@ machine User32Policy::initial(count: u64) -> BoundaryEntryPlan requires count <=
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
+    plan.state.permitted_transitive_use.instruction_pointer = true;
+    plan.state.permitted_transitive_use.stack_pointer = true;
+    plan.state.permitted_transitive_use.control_state = true;
     plan.state.stack = EntryStack::ProviderSelected;
     plan.state.preemption = Preemption::NotApplicable;
     plan

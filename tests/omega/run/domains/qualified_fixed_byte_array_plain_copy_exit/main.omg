@@ -17,7 +17,7 @@ machine retag(tagged: &write Tagged, label: [u8; 8] in Utf8) {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     let mut tagged: Tagged;
     retag(&write tagged, "omega600");
     let copy: [u8; 8] = tagged.label;
@@ -32,5 +32,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

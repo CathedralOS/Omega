@@ -2403,7 +2403,9 @@ pub(crate) fn map_scalar(
         | Scalar::IntegerLiteral { .. }
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
-        Scalar::StructuralSequenceLength { .. } | Scalar::ErasedParameter { .. } => return None,
+        Scalar::StructuralSequenceLength { .. }
+        | Scalar::StructuralLocalField { .. }
+        | Scalar::ErasedParameter { .. } => return None,
     }
     Some(())
 }

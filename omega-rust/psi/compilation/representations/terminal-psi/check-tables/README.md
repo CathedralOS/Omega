@@ -75,6 +75,11 @@ lane has made):
   table below.
 - **A summary term:** a field of `edges::Summary`, cited the same way.
 
+A justification (`values::Justification`) is neither. A lane does not add or
+reuse one for a second meaning: a new reason a knowledge row can hold is a
+change to this contract, made in a pull request of its own whose variant
+quotes the specification sentence it stands for, as the existing ones do.
+
 A lane never adds a table, a second identity for an existing concept, a map
 keyed by an identity, or a field holding a name, a printed expression, a path
 string or a formatted handle. Text appears only in `Refusal::detail`. If a
@@ -120,9 +125,7 @@ being added here.
   one of its edges is not a knowledge row. It lives in the structural payload
   judgment of `lowered-discharge`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
-  knowledge row justified as `Justification::BranchCondition`, whose doc
-  comment states both uses. A justification of its own for an edge binding
-  would be a new variant; the lane did not add one.
+  knowledge row justified as `Justification::DispatchBinding`.
 
 ## Obligation kinds
 

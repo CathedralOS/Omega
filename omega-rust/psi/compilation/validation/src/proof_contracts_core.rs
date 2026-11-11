@@ -9963,6 +9963,7 @@ pub mod relevance {
             validate_unresolved_erased_generic_uses(program, diagnostics);
             validate_erased_binding_qualifiers(program, diagnostics);
             validate_erased_runtime_scalar_formals(program, diagnostics);
+            crate::erased_actuals::validate(program, diagnostics);
         }
 
         fn validate_erased_runtime_scalar_formals(
@@ -9980,10 +9981,28 @@ pub mod relevance {
                         {
                             continue;
                         }
-                        if program
-                            .erased_scalar_observation_type(parameter.type_reference)
-                            .is_some()
-                        {
+                        let lanes = program.erased_scalar_lanes(parameter.type_reference);
+                        // A contract over a record's `bool` field is read by
+                        // the Boolean vocabulary, which names a formal's
+                        // structural slot; an erased record has none.
+                        if let Some(lane) = lanes.iter().find(|lane| {
+                            !lane.fields.is_empty()
+                                && lane.primitive_type == typed_trees::types::PrimitiveType::Bool
+                        }) {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "machine `{}::{}` erased parameter `{}` is a record with `bool` field `{}`; an erased record carries integer and float fields only, so pass that field as its own erased `bool` parameter",
+                                machine.name,
+                                state.name,
+                                parameter.name,
+                                lane.fields
+                                    .iter()
+                                    .map(|field| program.symbols.name(*field))
+                                    .collect::<Vec<_>>()
+                                    .join("."),
+                            )));
+                            continue;
+                        }
+                        if !lanes.is_empty() {
                             continue;
                         }
                         if proof_only.contract_term_carrier(program, parameter.type_reference)

@@ -21,3 +21,31 @@ machine run(flag: bool) crashes Trap {
     verify(result, flag);
 }
 machine main() crashes Trap { run(true); run(false); }
+
+// The separate record-only twin below transports the same field fact through this place.
+// Erased primitive and record references discharge their value-7 requirements at keep_record without runtime witness arguments, reads, storage or cleanup.
+// Expected exit: 0
+data record_Witness { value: i32; }
+machine keep_record(runtime: i32, witness [erased]: &i32, record [erased]: &record_Witness) -> i32
+requires witness == 7
+requires record.value == 7 { runtime }
+machine record_exercise(flag: bool) -> i32 {
+    let runtime: i32 = match flag { true -> 41, false -> 42 };
+    let value: i32 = 7;
+    let record: record_Witness = record_Witness { value: 8 };
+    let witness: &i32 = &value;
+    keep_record(runtime, witness, &record)
+}
+machine record_verify(result: i32, flag: bool) crashes Trap {
+    transition (flag && result == 41) || (!flag && result == 42) {
+        true -> record_done()
+        false -> record_bad()
+    }
+    machine record_done() {}
+    machine record_bad() { crash Trap; }
+}
+machine record_run(flag: bool) crashes Trap {
+    let result: i32 = record_exercise(flag);
+    record_verify(result, flag);
+}
+machine record_main() crashes Trap { record_run(true); record_run(false); }

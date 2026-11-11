@@ -3753,6 +3753,7 @@ pub(crate) mod body_rewriting {
                             .as_mut()
                             .expect("nested static application")
                             .arguments = nested;
+                        reclose_retained_operand_source(program, &mut arguments[index]);
                         changed = true;
                     }
                 }
@@ -3809,6 +3810,46 @@ pub(crate) mod body_rewriting {
                 changed = true;
             }
             Ok(changed)
+        }
+
+        /*
+            An implementation operand such as `Selected<Base + 4>` carries two
+            records of the same selection: its application, and the type
+            reference that keeps the scope it was written in. Closing the
+            application's const operands (`3 + 4` becomes `7`) must close the
+            retained reference too, or the two name different selections and
+            every later check that compares them refuses the operand.
+
+            The reference is rebuilt from the closed operand in the scope that
+            supplied the original one. A reference with no recorded supplier is
+            never compared. One that arrived through a machine parameter, or
+            whose closed operand has no type form yet, is left as it is, so a
+            mismatch there still rejects.
+        */
+        fn reclose_retained_operand_source(
+            program: &mut TypedTrees,
+            argument: &mut StaticMachineArgument,
+        ) {
+            let retained = argument.type_reference;
+            if !retained.is_valid() {
+                return;
+            }
+            let supplier = program
+                .type_reference_table
+                .operand_lifetime_owner(retained);
+            if !supplier.is_valid()
+                || !matches!(
+                    program.type_reference_table.operand_origin(retained),
+                    typed_trees::types::TypeOperandOrigin::Lexical
+                )
+            {
+                return;
+            }
+            let mut closed = argument.clone();
+            closed.type_reference = TypeReferenceHandle::default();
+            if let Ok(rebuilt) = program.static_operand_type_reference_in_scope(&closed, supplier) {
+                argument.type_reference = rebuilt;
+            }
         }
 
         fn closed_const_argument(

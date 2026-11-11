@@ -200,6 +200,7 @@ pub(crate) mod crash_interface {
         match expression {
             CheckedScalarExpression::StorageRead { .. }
             | CheckedScalarExpression::Local { .. }
+            | CheckedScalarExpression::StructuralLocalField { .. }
             | CheckedScalarExpression::ImplementationSelection { .. } => false,
             CheckedScalarExpression::RepresentationView {
                 primitive_type,

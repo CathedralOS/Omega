@@ -7,7 +7,7 @@ machine consume<'scope>(attributes: &Attributes<'scope>) -> u16 {
     final_word(attributes.name.words[3])
 }
 data Main {}
-machine Main::main(main: &mut Main) crashes Trap {
+machine main(main: &mut Main) crashes Trap {
     let mut words: [u16; 4];
     words[3] = 0;
     let name: Name = Name { words: &words };
@@ -27,5 +27,5 @@ machine Main::main(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

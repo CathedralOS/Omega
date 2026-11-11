@@ -3144,7 +3144,7 @@ pub mod transitions {
             caller_machine: &Machine,
             caller_state: &State,
             callee_machine: &Machine,
-            callee_state: &State,
+            completed_reference: TypeReferenceHandle,
             target: typed_trees::statement::TransitionTargetHandle,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
@@ -3155,7 +3155,7 @@ pub mod transitions {
                 .statically_refined_transition_type_reference(target, caller_state.return_type);
             let (Some(expected), Some(actual)) = (
                 shape(program, expected_reference),
-                shape(program, callee_state.return_type),
+                shape(program, completed_reference),
             ) else {
                 return;
             };
@@ -3177,7 +3177,7 @@ pub mod transitions {
                 caller_machine.name,
                 caller_state.name,
                 callee_machine.name,
-                spelling(program, callee_state.return_type),
+                spelling(program, completed_reference),
             )));
         }
 
@@ -3299,12 +3299,36 @@ pub mod transitions {
                 && owner.symbol != current_machine.symbol
                 && let Some(current_state) = current_state
             {
+                /*
+                    A canonical float operation completes with its operands'
+                    arithmetic policy, not with the bare carrier its declaration
+                    names: `value * 3.0f32` over a `Trapping` operand is an
+                    `f32 in Trapping`. The checked type of the call expression
+                    already carries that adapter, so it is the terminal result
+                    here. Operands whose policies disagree yield no checked
+                    type, and the declared carrier is compared instead.
+                */
+                let completed =
+                    crate::machine_calls::calls::selected_float_operation_retains_argument_policy(
+                        program,
+                        owner.symbol,
+                    )
+                    .then(|| {
+                        crate::value_custody::expression_types::expression_result_type_reference(
+                            program,
+                            current_machine,
+                            current_state,
+                            *expression,
+                        )
+                    })
+                    .flatten()
+                    .unwrap_or(state.return_type);
                 terminal_results::validate(
                     program,
                     current_machine,
                     current_state,
                     owner,
-                    state,
+                    completed,
                     target,
                     diagnostics,
                 );
@@ -3332,7 +3356,7 @@ pub mod transitions {
                     current_machine,
                     current_state,
                     owner,
-                    state,
+                    state.return_type,
                     target,
                     diagnostics,
                 );

@@ -457,9 +457,10 @@ clean checkout of that commit on a test VM:
 
 Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
 empty filter the gate passes every fixture name to the runner in one
-environment string, which Linux refuses. Each invocation spends about six
-minutes rebuilding and verifying the runner, and xtask stops a runner at 1800
-seconds, so forty shards of about 440 fixtures is the size that fits. On the
+environment string, which Linux refuses. Before 2026-11-11 each invocation
+spent about six minutes rebuilding the runner (see the freshness paragraph
+below); an unchanged tree now reuses it in under a second. xtask stops a runner
+at 1800 seconds, so forty shards of about 440 fixtures is the size that fits. On the
 two test VMs that is about 22 minutes a shard. To split the work, give each
 host its own `todo.txt` and merge the ledgers by taking each fixture's block
 from the host that stamped it with the new commit. The script's header carries
@@ -804,14 +805,27 @@ the candidate sources as older than those artifacts. Rebuilding the runner alone
 does not establish that its linked compiler dependencies came from the candidate.
 An isolated target directory avoids that ambiguity without deleting peer caches.
 
-Keep lint and build commands on the supported producer's freshness settings to
-avoid rebuilding unchanged dependencies. On the pinned nightly, content freshness
-needs both `CARGO_UNSTABLE_CHECKSUM_FRESHNESS=true` and
-`CARGO_BUILD_FINGERPRINT=content`; the supported producer sets both. Set them on
-direct `mbx build`, `mbx check` and `mbx clippy` commands sharing its target
-directory too. Enabling the unstable feature alone keeps timestamp freshness;
-changing the fingerprint method dirties existing units. See
+Every Cargo command in the repository uses content (checksum) freshness:
+`.cargo/config.toml` sets `unstable.checksum-freshness` and
+`build.fingerprint = "content"`, and the corpus producer sets the same values
+through `CARGO_UNSTABLE_CHECKSUM_FRESHNESS` and `CARGO_BUILD_FINGERPRINT`. Do not
+override either for one command. Cargo stores the method in each unit's
+fingerprint and rebuilds a unit whose method changed, so one timestamp-fresh
+build dirties everything above it. Before the shared setting, `mbx xtask`
+rebuilt xtask's proc-macro dependencies under timestamp freshness on every
+invocation, and the producer then rebuilt the runner graph (126 of its 212
+units on an unchanged warm tree, all 212 after a CLI build): about eleven
+minutes per `cargo xtask corpus` run on a 4-core container. Content
+freshness also keeps a reused runner tied to the measured tree, because a unit
+is fresh only when its source bytes match. See
 [Cargo's checksum freshness contract](https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#checksum-freshness).
+
+The runner also shares the compiler units an ordinary `mbx build -p omega`
+produced, because `corpus_runner`'s dev-dependencies enable no extra features on
+crates the CLI links. A dev-dependency feature on such a crate (for example a
+`test-support` feature on `package-compilation`) gives it and every crate above
+it a second build; only the runner's own test-only crates should compile after
+a CLI build.
 
 For bounded rebuild diagnosis on the pinned Cargo, set
 `CARGO_LOG=cargo::compiler::fingerprint=trace` and retain the actual dirty reasons

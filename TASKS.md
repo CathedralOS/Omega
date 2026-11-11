@@ -62,7 +62,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [landing](wiki/drafts/designs/explicit_integer_landing.md).
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md); settle [landing](wiki/drafts/designs/explicit_integer_landing.md) proof-`Int` peers ([Q3](OWNER_QUESTIONS.md#q3---does-explicit-landing-apply-at-a-proof-level-int-peer)).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
@@ -89,9 +89,15 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
+- **REQUIRED-AUTOMATIC-DISCHARGE.** Meet the [proof floor](wiki/drafts/designs/required_automatic_discharge.md) in both checkers; add `--floor-only`.
+
+- **PUBLISHED-WRITE-FRAMES.** Publish inferred [write frames](wiki/drafts/designs/published_write_frames.md) in interface identity.
+
 - **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate `Token`, samples and tests.
 
-- **SUBSTITUTABLE-SERVICES.** Add the two-wrapper provider fixture and a clock ops bridge per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+- **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
+
+- **BOUNDARY-SLOT-VIEWS.** Implement [slot views](wiki/drafts/designs/boundary_slot_implementation_views.md) with the two-slot clock fixture per [guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
 
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 

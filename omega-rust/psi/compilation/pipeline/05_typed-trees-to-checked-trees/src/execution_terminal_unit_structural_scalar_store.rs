@@ -2324,6 +2324,7 @@ mod primitive {
             | ScalarExpression::StorageRead { .. }
             | ScalarExpression::ErasedParameter { .. }
             | ScalarExpression::StructuralParameterField { .. }
+            | ScalarExpression::StructuralLocalField { .. }
             | ScalarExpression::StructuralParameterIndexedRead { .. } => false,
         }
     }
