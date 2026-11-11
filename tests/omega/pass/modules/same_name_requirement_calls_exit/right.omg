@@ -17,7 +17,17 @@ reaches
 }
 
 public data Runner { }
-public machine Runner::run(runner: &mut Runner) reaches Sink, Console
+// The hosted entry takes no arrival parameters; it owns the runner storage
+// and passes it to `Runner::execute` explicitly.
+public machine Runner::run() reaches Sink, Console
+invokes Sink
+invokes Console
+{
+    let mut runner: Runner = Runner {};
+    Runner::execute(&mut runner);
+}
+
+machine Runner::execute(runner: &mut Runner) reaches Sink, Console
 invokes Sink
 invokes Console
 {

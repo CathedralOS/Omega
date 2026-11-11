@@ -148,6 +148,10 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Record or sum data](designs/record_or_sum_data.md): a `data` declaration
+  holds fields or cases, never both; common fields beside alternatives are a
+  record holding a sum, and `data` declarations nest; delete when the board
+  item lands.
 - [Typed static parameters](designs/typed_static_parameters.md): a static
   code parameter is one typed `const` value, and a machine is bound to a
   requirement only by a declared edge, a selection row or
@@ -164,9 +168,6 @@ Dated cost and failure evidence, superseded by a later run.
   with `dropped by` takes its subject by value, and a consuming pattern in the
   type's own package is what takes such a value apart; delete when the board
   item lands.
-- [Case projection type](designs/case_projection_type.md): `Data::case` names
-  the case-only view that `case as name` binds, so a helper can accept it
-  behind a reference; delete when the board item lands.
 - [Open callable contracts](designs/open_callable_contracts.md): an omitted
   `reaches` or `crashes` is open in every callable contract, and runtime
   callable types and boundary requirements must write both; delete when the

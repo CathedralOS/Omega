@@ -584,3 +584,130 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
         );
     }
 }
+
+/// `local = a * b; return local <operation> operand`: the second operation
+/// is representable only through a bound on the product.
+fn after_a_product(
+    scalar_type: ScalarType,
+    requires: Vec<Proposition>,
+    operation: Strict,
+    operand: IntegerValue,
+) -> Machine {
+    Machine {
+        locals: vec![scalar_type],
+        requires,
+        result: scalar_type,
+        ..machine(
+            vec![scalar_type, scalar_type],
+            vec![
+                Statement::Bind {
+                    slot: 2,
+                    value: strict(Strict::Multiply, slot(0, scalar_type), slot(1, scalar_type)),
+                },
+                returns(strict(
+                    operation,
+                    slot(2, scalar_type),
+                    literal(scalar_type, operand),
+                )),
+            ],
+        )
+    }
+}
+
+fn assert_all_kernel_checked(machine: Machine, expected: usize) {
+    let (elaboration, result) = run(vec![machine]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert_eq!(verdicts.len(), expected);
+    for (obligation, verdict) in verdicts {
+        assert_kernel_checked(
+            &elaboration,
+            &result,
+            1,
+            obligation,
+            verdict.as_ref().unwrap(),
+        );
+    }
+}
+
+#[test]
+fn a_bound_follows_an_earlier_exact_multiply_result() {
+    // a <= 1000 and b <= 1000 give local <= 1_000_000, which is exactly
+    // what the add needs. One more and the add can overflow.
+    let requires = || vec![at_most(1, 1000), at_most(2, 1000)];
+    let headroom = u128::from(u32::MAX) - 1_000_000;
+    assert_all_kernel_checked(
+        after_a_product(
+            u32_type(),
+            requires(),
+            Strict::Add,
+            IntegerValue::Unsigned(headroom),
+        ),
+        2,
+    );
+    let (elaboration, result) = run(vec![after_a_product(
+        u32_type(),
+        requires(),
+        Strict::Add,
+        IntegerValue::Unsigned(headroom + 1),
+    )]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert!(verdicts[0].1.is_ok(), "the multiply itself still fits");
+    assert_unproved(verdicts[1].1);
+}
+
+#[test]
+fn a_signed_multiply_result_is_bounded_on_both_sides() {
+    // a in [-10, 10] and b in [-20, 5] give local in [-200, 200]: the least
+    // product is 10 * -20 and the greatest -10 * -20, neither from the
+    // operands' lower bounds alone.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let range = |position, low, high| {
+        vec![
+            Proposition::LessOrEqual(signed(low), formal(position, i32_type())),
+            Proposition::LessOrEqual(formal(position, i32_type()), signed(high)),
+        ]
+    };
+    let requires = || {
+        let mut requires = range(1, -10, 10);
+        requires.extend(range(2, -20, 5));
+        requires
+    };
+    let maximum = i128::from(i32::MAX);
+    for (operation, fits) in [
+        (Strict::Add, maximum - 200),
+        (Strict::Subtract, maximum - 199),
+    ] {
+        assert_all_kernel_checked(
+            after_a_product(
+                i32_type(),
+                requires(),
+                operation,
+                IntegerValue::Signed(fits),
+            ),
+            2,
+        );
+        let (elaboration, result) = run(vec![after_a_product(
+            i32_type(),
+            requires(),
+            operation,
+            IntegerValue::Signed(fits + 1),
+        )]);
+        assert_unproved(verdicts(&elaboration, &result, 1, safety)[1].1);
+    }
+}
+
+#[test]
+fn a_multiply_result_past_the_carrier_keeps_only_its_carrier_bound() {
+    // a, b <= 100_000 reach 10^10, beyond u32. The multiply's own
+    // obligation is unproved, and its result gains no bound that would let
+    // the add through.
+    let (elaboration, result) = run(vec![after_a_product(
+        u32_type(),
+        vec![at_most(1, 100_000), at_most(2, 100_000)],
+        Strict::Add,
+        IntegerValue::Unsigned(1),
+    )]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert_unproved(verdicts[0].1);
+    assert_unproved(verdicts[1].1);
+}

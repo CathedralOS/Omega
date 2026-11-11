@@ -169,6 +169,19 @@ pub mod item {
                 machine: Machine,
             },
             Synthesized(Machine),
+            /*
+                A selection row, `Trait::member = Existing::machine;`. The
+                implementation is a record of selected operations
+                (wiki/spec/language/conformances.md, "Implementations are
+                operation records"), so this slot holds the named machine
+                itself: no member machine is declared, and the selected
+                declaration keeps its own identity, contract and laws.
+            */
+            Selection {
+                declaring_trait: Identifier,
+                requirement: Identifier,
+                target: HandleSpan<Identifier>,
+            },
         }
 
         impl Default for ConformanceMember {

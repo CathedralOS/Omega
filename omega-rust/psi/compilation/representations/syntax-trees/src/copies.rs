@@ -1335,6 +1335,15 @@ pub(crate) mod item_copies {
                                 requirement_ordinal: *requirement_ordinal,
                                 machine: self.copy_machine(other, machine),
                             },
+                            ConformanceMember::Selection {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => ConformanceMember::Selection {
+                                declaring_trait: declaring_trait.clone(),
+                                requirement: requirement.clone(),
+                                target: self.copy_item_identifier_span(other, *target),
+                            },
                         })
                         .collect::<Vec<_>>();
                     let mut copied_start = arena::Handle::invalid();

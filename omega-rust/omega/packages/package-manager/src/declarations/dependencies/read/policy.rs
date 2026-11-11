@@ -99,6 +99,8 @@ pub(super) fn reject_unprojected_dependency_syntax(
                                 accepted_statements,
                             )?;
                         }
+                        // A selection row names an existing machine and has no body.
+                        ConformanceMember::Selection { .. } => {}
                     }
                 }
             }

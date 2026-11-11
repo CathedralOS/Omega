@@ -204,7 +204,30 @@ structural identity unifies two all-row `satisfies` blocks with the same
 selections, and does not unify a block with an inline member body with any
 other, because *"An inline body still declares a new machine"*.
 
-### Q3 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
+### Q3 - Does explicit landing apply at a proof-level Int peer?
+
+Decision name: `explicit-landing-proof-int-peer`.
+
+An anonymous calculation whose exact history holds a fractional intermediate,
+used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
+in an `ensures` clause), lands as a mathematical integer. Should it reject like
+a fixed-integer destination, and if so how does an author acknowledge it?
+
+- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+  makes implicit integer landing an error and names `as T` with an integer
+  destination `T` as the acknowledgement; it does not say whether the
+  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
+- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
+  lists "proof integer peers" in its sweep and also says "proof-level
+  mathematical operations retain their rules".
+- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
+  program: the contract prover then cannot show the divisor nonzero
+  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
+
+Until answered, the compiler rejects every fixed-integer implicit landing and
+keeps the proof-`Int` peer as a warning.
+
+### Q4 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
 
 Decision name: `implementation-telescope-identity`.
 

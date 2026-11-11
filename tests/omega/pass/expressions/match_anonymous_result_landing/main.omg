@@ -1,11 +1,13 @@
 // Expected exit: 70.
 use omega_language_std::console;
 
+// The anonymous join keeps both arms exact; the whole-expression cast lands
+// the selected arm and acknowledges the `7/2` intermediate.
 machine choose(flag: bool) -> u64 {
-    match flag {
+    (match flag {
         true -> 18446744073709551616 / 18446744073709551616
         false -> 7 / 2 * 2
-    }
+    }) as u64
 }
 
 machine main() -> u64 { choose(true) }
