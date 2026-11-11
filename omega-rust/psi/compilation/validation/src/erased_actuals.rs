@@ -1,11 +1,12 @@
 /*
-    Where the scalar leaves of an erased record actual come from.
+    Where the actual of each erased scalar lane comes from.
 
-    An erased closed record rides one erased scalar lane per scalar field
-    (`TypedTrees::erased_scalar_lanes`). A call must supply each lane without
-    reading the record, so every leaf has to be exactly one of the sources
-    below. This module is the single owner of that decision: source checking
-    refuses a call whose leaf has no source, and checked lowering lowers the
+    An erased primitive rides one erased scalar lane; an erased closed record
+    rides one lane per scalar field (`TypedTrees::erased_scalar_lanes`). A
+    call must supply each lane without reading anything at run time, so every
+    lane has exactly one of the sources below. This module is the single
+    owner of that decision for both kinds of lane: source checking refuses a
+    call whose record leaf has no source, and checked lowering lowers the
     source this module names.
 */
 use diagnostics::Diagnostic;
@@ -14,12 +15,14 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-/// The source of one scalar leaf of an erased record actual.
+/// The source of one erased scalar lane's actual.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErasedLeaf {
     /// The matching erased scalar lane of the caller's own erased formal.
     Formal { position: usize },
-    /// The scalar written at that field of an immutable closed construction.
+    /// A scalar expression lowered as a proof-side value: the primitive
+    /// actual itself, or the scalar written at the lane's field of an
+    /// immutable closed construction.
     Value(ExpressionHandle),
     /// That field of the caller's runtime record formal, observed at its place.
     ParameterField {
@@ -36,23 +39,39 @@ pub enum ErasedLeaf {
 const BOOLEAN_PLACE: &str = "a `bool` field can be supplied only by a record construction or the caller's own erased binding, not observed at a local's or parameter's place";
 const MUTABLE_FORMAL: &str =
     "a `mut` or `const` parameter has no entry place whose field the call can observe";
+const MUTABLE_BORROW: &str = "a `&mut` borrow is not a shared view of the value";
 const NOT_A_LANE: &str = "the path below the caller's binding is not one of its scalar fields";
 const NOT_A_SHARED_BORROW: &str =
     "a reference local names its referent only when it is initialized by a shared borrow";
+const NOT_CLOSED: &str = "the local's initializer does not write that field as a closed value";
 const TEMPORARY: &str = "a temporary has no place to observe; bind it to a local first, or write the record construction in the argument";
+const UNINITIALIZED: &str = "the local is not initialized before the call";
 const UNNAMED_CONSTRUCTION: &str = "a construction written in the argument supplies only fields whose values are closed; bind the record to a local first";
 
 /*
-    Find the scalar leaf `fields` below an erased record actual without
-    reading the record. Shared borrows and immutable shared-reference locals
-    name their referent. The walk ends at the caller's erased formal, whose
-    lane is forwarded; at a closed construction (written in place, bound to an
-    immutable local, or named by a constant), whose field initializer is the
-    leaf; or at a record local or runtime record formal, whose own place is
-    observed (a mutable local always, since its initializer may be stale).
+    Find the source of one erased scalar lane without reading anything at run
+    time. `fields` is the lane's path below the erased formal: empty for a
+    primitive lane, whose actual is itself the scalar, and the field path for
+    a record leaf.
+
+    One walk serves both. Shared borrows and immutable shared-reference
+    locals name their referent, and an immutable local initialized by a
+    closed construction supplies the scalar written at the selected field.
+    The lane kind decides only where the walk stops:
+
+    - A primitive lane stops at the first expression that is not such a
+      local and lowers it as an ordinary proof-side value (a parameter, a
+      constant, a mutable local, arithmetic).
+    - A record leaf stops at the caller's erased formal, whose lane is
+      forwarded; at a closed construction (written in place, bound to an
+      immutable local, or named by a constant), whose field initializer is
+      the leaf; or at a record local or runtime record formal, whose own
+      place is observed (a mutable local always, since its initializer may be
+      stale).
+
     Every other actual is refused with its reason, which source checking
-    reports at the argument: a `mut` formal, a temporary, a `&mut` view, and a
-    `bool` leaf observed at a place (the checked Boolean vocabulary has no
+    reports at the argument: a `mut` formal, a temporary, a `&mut` view, and
+    a `bool` leaf observed at a place (the checked Boolean vocabulary has no
     place observation outside a formal's own contract).
 */
 #[allow(clippy::too_many_arguments)]
@@ -69,6 +88,7 @@ pub fn resolve_leaf(
     let state = program
         .state_by_symbol(state_symbol)
         .ok_or("the calling state is unknown")?;
+    let primitive_lane = fields.is_empty();
     let record_type = match program.type_reference_table.type_reference(formal_type) {
         TypeReferenceNode::Reference { referee, .. } => *referee,
         _ => formal_type,
@@ -100,10 +120,25 @@ pub fn resolve_leaf(
     for _ in 0..=program.expression_table.expression_count() {
         if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(current) {
             if borrow.access != language_core::ReferenceAccess::Shared {
-                return Err("a `&mut` borrow is not a shared view of the record");
+                return Err(MUTABLE_BORROW);
             }
             current = borrow.target;
             continue;
+        }
+        // The place this expression names, when it is rooted at a binding.
+        let named = if static_place_syntax(program, current) {
+            crate::canonical_place_from_expression(program, current)
+                .and_then(|place| Some((place.root.as_symbol()?, place)))
+        } else {
+            None
+        };
+        let local = named.as_ref().and_then(|(symbol, _)| {
+            program
+                .state_local_declaration(state, *symbol)
+                .map(|(ordinal, local)| (ordinal, local))
+        });
+        if primitive_lane && local.is_none() {
+            return Ok(ErasedLeaf::Value(current));
         }
         if let Some(constant) = is_constant(current) {
             let initializer = if constant.authored_initializer.is_valid() {
@@ -139,12 +174,8 @@ pub fn resolve_leaf(
             )?;
             return Ok(ErasedLeaf::Value(leaf));
         }
-        let place = crate::canonical_place_from_expression(program, current)
-            .ok_or("the argument is not a place the caller can name")?;
-        let symbol = place
-            .root
-            .as_symbol()
-            .ok_or("the argument is not rooted at a binding of the calling state")?;
+        let (symbol, place) =
+            named.ok_or("the argument is not a place rooted at a binding of the calling state")?;
         let segments = leaf_segments(&place.segments);
         if let Some((position, parameter)) = authored_parameters
             .iter()
@@ -180,14 +211,17 @@ pub fn resolve_leaf(
                 position: program.erased_scalar_lane_base(authored_parameters, position) + lane,
             });
         }
-        let (ordinal, local) = program
-            .state_local_declaration(state, symbol)
-            .ok_or("the argument is not a local or parameter of the calling state")?;
+        let (ordinal, local) =
+            local.ok_or("the argument is not a local or parameter of the calling state")?;
         if ordinal >= before_statement as usize || !local.initial_value.is_valid() {
-            return Err("the local is not initialized before the call");
+            return Err(UNINITIALIZED);
         }
+        // Where a walk that cannot see through this local stops: a primitive
+        // lane lowers the place as a value, a record leaf observes it.
         let observed = |segments| {
-            if primitive_type == PrimitiveType::Bool {
+            if primitive_lane {
+                Ok(ErasedLeaf::Value(current))
+            } else if primitive_type == PrimitiveType::Bool {
                 Err(BOOLEAN_PLACE)
             } else {
                 Ok(ErasedLeaf::LocalField { symbol, segments })
@@ -201,18 +235,24 @@ pub fn resolve_leaf(
             _ => None,
         };
         if local.is_mutable {
-            // A mutable record's initializer may be stale; only its own place
+            // A mutable local's initializer may be stale; only its own place
             // holds the value the call observes.
-            if reference_access.is_some() {
+            if reference_access.is_some() && !primitive_lane {
                 return Err("a `mut` reference local may be rebound, so its referent is not exact");
             }
             return observed(segments);
         }
-        if let Some(access) = reference_access {
+        if let Some(access) = reference_access
+            && (place.segments.is_empty() || !primitive_lane)
+        {
             let ExpressionNode::Borrow(borrow) =
                 program.expression_table.expression(local.initial_value)
             else {
-                return Err(NOT_A_SHARED_BORROW);
+                return if primitive_lane {
+                    observed(segments)
+                } else {
+                    Err(NOT_A_SHARED_BORROW)
+                };
             };
             if !place.segments.is_empty()
                 || access != language_core::ReferenceAccess::Shared
@@ -231,6 +271,15 @@ pub fn resolve_leaf(
         ) {
             return Ok(ErasedLeaf::Value(leaf));
         }
+        if primitive_lane {
+            // A whole primitive local is its own value; a field of a local
+            // that is not a closed construction has no exact value here.
+            return if place.segments.is_empty() {
+                observed(segments)
+            } else {
+                Err(NOT_CLOSED)
+            };
+        }
         // `let record: Witness = RECORD;` names the constant's value.
         if place.segments.is_empty() && is_constant(local.initial_value).is_some() {
             current = local.initial_value;
@@ -240,7 +289,7 @@ pub fn resolve_leaf(
         // value the callee names; its leaf is observed at the local's place.
         return observed(segments);
     }
-    Err("the argument does not resolve to a record")
+    Err("the argument does not resolve to a value the call can name")
 }
 
 fn static_place_syntax(

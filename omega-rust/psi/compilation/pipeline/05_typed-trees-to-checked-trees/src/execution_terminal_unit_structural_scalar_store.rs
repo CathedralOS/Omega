@@ -2324,7 +2324,6 @@ mod primitive {
             | ScalarExpression::StorageRead { .. }
             | ScalarExpression::ErasedParameter { .. }
             | ScalarExpression::StructuralParameterField { .. }
-            | ScalarExpression::StructuralLocalField { .. }
             | ScalarExpression::StructuralParameterIndexedRead { .. } => false,
         }
     }
@@ -2715,7 +2714,10 @@ mod value {
                 CheckedScalarExpression::IeeeFloatLiteral { .. }
                     | CheckedScalarExpression::Parameter { .. }
                     | CheckedScalarExpression::Local { .. }
-                    | CheckedScalarExpression::StructuralParameterField { .. }
+                    | CheckedScalarExpression::StructuralParameterField {
+                        root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                        ..
+                    }
                     | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
             ),
             checked_trees::CheckedScalarStoreValue::Computation(_) => true,
@@ -3260,7 +3262,9 @@ fn runtime_index_expression(
             Some(
                 checked_trees::CheckedScalarExpression::StructuralParameterField {
                     observation: Default::default(),
-                    parameter_position: selector.parameter_position,
+                    root: checked_trees::CheckedStorageRoot::Parameter {
+                        index: selector.parameter_position,
+                    },
                     path: selector.path.clone(),
                     primitive_type: program.primitive_type_reference(leaf)?,
                 },

@@ -2117,6 +2117,7 @@ pub(crate) mod crash_routes {
                     structural_locals: &[],
                     scalar_bindings: Some(&scalar_bindings),
                     proven_indexes: &[],
+                    erased_actual: false,
                 }
                 .lower_scalar(identities, expression)?;
             lowered_direct_scalar_term(&expression, values, erased)
@@ -3280,33 +3281,6 @@ pub(crate) mod crash_routes {
             )
         }
 
-        /*
-            A scalar field of a caller's structural local, as the proof-side
-            term an erased call actual substitutes for the callee's erased
-            scalar lane. It names the local's place; it emits no operation.
-        */
-        pub(crate) fn lower_structural_local_member_term(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            (place, structural_type, access): (
-                PlaceId,
-                StructuralTypeId,
-                terminal_psi::StructuralAccess,
-            ),
-            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-            expected: ScalarType,
-            structural_types: &[StructuralTypeDeclaration],
-        ) -> Result<ScalarTerm, LoweringError> {
-            lower_observation_term(
-                identities,
-                place,
-                structural_type,
-                access,
-                path,
-                expected,
-                structural_types,
-            )
-        }
-
         pub(crate) fn lower_structural_result_member_term(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             result: &terminal_psi::StructuralResultDeclaration,
@@ -3325,7 +3299,9 @@ pub(crate) mod crash_routes {
             )
         }
 
-        fn lower_observation_term(
+        /// One scalar member below an observation home: a formal's place or
+        /// the place of the root an erased call actual observes.
+        pub(crate) fn lower_observation_term(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             root: PlaceId,
             root_type: StructuralTypeId,
@@ -3832,7 +3808,10 @@ pub(crate) mod crash_routes {
                             checked_scalar_term(identities, expression, self.scalar_parameters, &[])
                         }
                         CheckedScalarExpression::StructuralParameterField {
-                            parameter_position,
+                            root:
+                                checked_trees::CheckedStorageRoot::Parameter {
+                                    index: parameter_position,
+                                },
                             path,
                             primitive_type,
                             ..
@@ -4121,7 +4100,6 @@ pub(crate) mod crash_routes {
             while let Some(expression) = pending.pop() {
                 match expression {
                     CheckedScalarExpression::StructuralParameterField { .. }
-                    | CheckedScalarExpression::StructuralLocalField { .. }
                     | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
                     | CheckedScalarExpression::StructuralSequenceLength { .. }
                     | CheckedScalarExpression::Boolean(_) => return true,
@@ -4386,10 +4364,9 @@ pub(crate) mod crash_routes {
         lowered_direct_scalar_term, lowered_erased_scalar_term, lowered_erased_scalar_terms,
     };
     pub(crate) use structural_members::{
-        lower_byte_predicate_term, lower_sequence_extent_projection_term,
+        lower_byte_predicate_term, lower_observation_term, lower_sequence_extent_projection_term,
         lower_sequence_extent_term, lower_structural_case_membership, lower_structural_identity,
-        lower_structural_indexed_term, lower_structural_local_member_term,
-        lower_structural_member_path, lower_structural_member_term,
+        lower_structural_indexed_term, lower_structural_member_path, lower_structural_member_term,
         lower_structural_result_indexed_term, lower_structural_result_member_term,
     };
     pub(crate) use structural_route_buckets::{

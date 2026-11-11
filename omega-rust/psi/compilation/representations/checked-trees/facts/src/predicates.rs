@@ -338,17 +338,14 @@ pub enum CheckedScalarExpression {
         position: usize,
         primitive_type: typed_trees::types::PrimitiveType,
     },
+    /// One scalar field observed below a storage root, like the indexed read
+    /// and sequence length beside it. A formal root is the ordinary contract
+    /// and body observation. A local root is formed only by
+    /// `erased_actual_local_field`, for an erased call actual, and names the
+    /// local's place as a proof term; it is never an executable read.
     StructuralParameterField {
         observation: typed_trees::expression::ExpressionHandle,
-        parameter_position: u32,
-        path: Vec<CheckedStructuralPredicatePathSegment>,
-        primitive_type: typed_trees::types::PrimitiveType,
-    },
-    /// A scalar field of an immutable structural local, named as a proof-side
-    /// observation of that local's place. Only an erased call actual forms
-    /// one; it is never an executable read.
-    StructuralLocalField {
-        symbol: SymbolHandle,
+        root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
@@ -424,13 +421,30 @@ pub fn u64_integer_literal(
 }
 
 impl CheckedScalarExpression {
+    /*
+        The field of a caller's owned structural local that an erased call
+        actual observes at the local's place. This is the only constructor of
+        a local-rooted field observation: Psi 05 calls it for an erased lane
+        whose source `validation::erased_actuals` resolved to a local, and
+        Psi 06 lowers a local root only where it lowers erased actuals.
+    */
+    pub fn erased_actual_local_field(
+        observation: typed_trees::expression::ExpressionHandle,
+        symbol: SymbolHandle,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+        primitive_type: typed_trees::types::PrimitiveType,
+    ) -> Self {
+        Self::StructuralParameterField {
+            observation,
+            root: CheckedStorageRoot::OwnedLocal { symbol },
+            path,
+            primitive_type,
+        }
+    }
+
     pub fn parameter_observation_projection(&self) -> Option<CheckedStructuralParameterField> {
         let (parameter_position, path) = match self {
-            Self::StructuralParameterField {
-                parameter_position,
-                path,
-                ..
-            } => (*parameter_position, path.clone()),
+            Self::StructuralParameterField { root, path, .. } => (root.parameter()?, path.clone()),
             Self::StructuralParameterIndexedRead {
                 root,
                 path,
@@ -520,7 +534,6 @@ impl CheckedScalarExpression {
             | Self::ErasedParameter { .. }
             | Self::Local { .. }
             | Self::StructuralParameterField { .. }
-            | Self::StructuralLocalField { .. }
             | Self::IntegerLiteral { .. }
             | Self::IeeeFloatLiteral { .. }
             | Self::ImplementationSelection { .. } => false,
@@ -537,7 +550,6 @@ impl CheckedScalarExpression {
             | Self::StorageRead { primitive_type, .. }
             | Self::Local { primitive_type, .. }
             | Self::StructuralParameterField { primitive_type, .. }
-            | Self::StructuralLocalField { primitive_type, .. }
             | Self::StructuralParameterIndexedRead { primitive_type, .. }
             | Self::IntegerBinary { primitive_type, .. }
             | Self::IntegerBitwiseNot { primitive_type, .. }

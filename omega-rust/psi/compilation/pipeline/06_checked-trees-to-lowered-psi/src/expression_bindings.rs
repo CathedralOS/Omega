@@ -1615,6 +1615,26 @@ pub(crate) mod bindings {
                 }
             }
 
+            /// The field binding of a whole established home, with this
+            /// frame's declarations.
+            pub(crate) fn binding_at(
+                &self,
+                home: &terminal_psi::StructuralArgument,
+                structural_type: StructuralTypeId,
+            ) -> Result<StructuralScalarFieldBinding, LoweringError> {
+                if !home.path.is_empty() {
+                    return unsupported("field observation requires a whole storage home");
+                }
+                Ok(StructuralScalarFieldBinding {
+                    source_position: 0,
+                    source: home.place,
+                    access: home.access,
+                    structural_type,
+                    declarations: self.declarations.clone(),
+                    case_payloads: Vec::new(),
+                })
+            }
+
             pub(crate) fn storage_home(
                 &self,
                 root: checked_trees::CheckedStorageRoot,
@@ -1788,36 +1808,6 @@ pub(crate) mod bindings {
             }
         }
 
-        /*
-            Observe one scalar field at the place of a caller's immutable
-            structural local. The same typed path resolution as a formal's field
-            is used; only the root is the local's own place. An erased call
-            actual is the sole producer of this observation.
-        */
-        pub(crate) fn resolve_local(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            fields: &StructuralFieldBindings,
-            (source, access, structural_type): (PlaceId, StructuralAccess, StructuralTypeId),
-            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-            scalar_type: ScalarType,
-        ) -> Result<LoweredDirectExpression, LoweringError> {
-            let binding = StructuralScalarFieldBinding {
-                source_position: 0,
-                source,
-                access,
-                structural_type,
-                declarations: fields.declarations.clone(),
-                case_payloads: Vec::new(),
-            };
-            resolve(
-                identities,
-                std::slice::from_ref(&binding),
-                0,
-                path,
-                scalar_type,
-            )
-        }
-
         pub(crate) fn resolve(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             fields: &[StructuralScalarFieldBinding],
@@ -1838,8 +1828,6 @@ pub(crate) mod bindings {
             position: u32,
             path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         ) -> Result<LoweredDirectExpression, LoweringError> {
-            use super::structural_paths::PreparedStructuralPathSegment as Prepared;
-
             let mut matching = fields
                 .iter()
                 .filter(|field| field.source_position == position);
@@ -1849,6 +1837,21 @@ pub(crate) mod bindings {
             if matching.next().is_some() {
                 return unsupported("runtime field observation has ambiguous bindings");
             }
+            resolve_at(identities, binding, path)
+        }
+
+        /*
+            Observe one scalar field below a readable home. The home decides
+            only the root place: a formal's collected binding, or the
+            established place of the root a field observation names.
+        */
+        pub(crate) fn resolve_at(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            binding: &StructuralScalarFieldBinding,
+            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        ) -> Result<LoweredDirectExpression, LoweringError> {
+            use super::structural_paths::PreparedStructuralPathSegment as Prepared;
+
             let projection = observation_paths::explicit_path(
                 identities,
                 binding.structural_type,
@@ -5261,7 +5264,6 @@ pub(crate) mod bindings {
 
         fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
             match expression {
-                CheckedScalarExpression::StructuralLocalField { .. } => {}
                 CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
                     for step in path {
                         if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) =
@@ -5409,6 +5411,35 @@ pub(crate) mod bindings {
             statement: u32,
             role: CheckedScalarExpressionRole,
         ) -> Result<LoweredDirectExpression, LoweringError> {
+            self.bound_expression_at(identities, checked, state, statement, role, false)
+        }
+
+        /*
+            The checked expression of one erased call or transition actual.
+            This entry is the only executable-side lowering that admits a
+            field observed at a local's place: the result is converted to a
+            proof term for the callee's erased lane and is never emitted.
+        */
+        pub(crate) fn erased_actual_at(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
+            state: symbols::SymbolHandle,
+            statement: u32,
+            role: CheckedScalarExpressionRole,
+        ) -> Result<LoweredDirectExpression, LoweringError> {
+            self.bound_expression_at(identities, checked, state, statement, role, true)
+        }
+
+        fn bound_expression_at(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
+            state: symbols::SymbolHandle,
+            statement: u32,
+            role: CheckedScalarExpressionRole,
+            erased_actual: bool,
+        ) -> Result<LoweredDirectExpression, LoweringError> {
             let Some((_, expression)) = value_facts(checked)
                 .scalar_expressions
                 .bound_expression_at(state, statement, role)
@@ -5460,7 +5491,12 @@ pub(crate) mod bindings {
                     ))),
                 });
             };
-            self.expression(identities, &checked.facts.proven_scalar_indexes, expression)
+            self.expression_in(
+                identities,
+                &checked.facts.proven_scalar_indexes,
+                expression,
+                erased_actual,
+            )
         }
 
         pub(crate) fn established_case_payload(
@@ -5585,6 +5621,21 @@ pub(crate) mod bindings {
             proven_indexes: &[checked_trees::expression::ExpressionHandle],
             expression: &CheckedScalarExpression,
         ) -> Result<LoweredDirectExpression, LoweringError> {
+            self.expression_in(identities, proven_indexes, expression, false)
+        }
+
+        /*
+            `erased_actual` is set only by `erased_actual_at`: only an erased
+            call actual may name a field at a local's place, because that
+            observation becomes a proof term and never a read.
+        */
+        fn expression_in(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            proven_indexes: &[checked_trees::expression::ExpressionHandle],
+            expression: &CheckedScalarExpression,
+            erased_actual: bool,
+        ) -> Result<LoweredDirectExpression, LoweringError> {
             let mut expression = expression.clone();
             self.scalar(&mut expression)?;
             crate::expression_preparation::prepare_expression::PreparedExpressionContext {
@@ -5595,6 +5646,7 @@ pub(crate) mod bindings {
                 structural_locals: &self.structural_locals,
                 scalar_bindings: Some(self),
                 proven_indexes,
+                erased_actual,
             }
             .lower_scalar(identities, &expression)
         }

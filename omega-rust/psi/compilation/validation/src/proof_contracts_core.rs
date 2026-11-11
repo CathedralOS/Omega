@@ -9972,6 +9972,35 @@ pub mod relevance {
             crate::erased_actuals::validate(program, diagnostics);
         }
 
+        /// Whether an expression clause of the machine's contracts names
+        /// exactly the field path `fields` below `parameter`.
+        fn contract_names_field(
+            program: &dyn crate::CheckingInput,
+            machine: &typed_trees::machine::Machine,
+            parameter: symbols::SymbolHandle,
+            fields: &[symbols::SymbolHandle],
+        ) -> bool {
+            let mut expressions = Vec::new();
+            crate::queries::expression_traversal::collect_expression_trees(
+                program,
+                program
+                    .machine_contracts(machine)
+                    .iter()
+                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+                    .filter_map(|fact| fact.as_expression().copied()),
+                &mut expressions,
+            );
+            expressions.iter().any(|expression| {
+                crate::canonical_place_from_expression(program, *expression).is_some_and(|place| {
+                    place.root.as_symbol() == Some(parameter)
+                        && place.segments.len() == fields.len()
+                        && place.segments.iter().zip(fields).all(|(segment, field)| {
+                            matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                        })
+                })
+            })
+        }
+
         fn validate_erased_runtime_scalar_formals(
             program: &dyn crate::CheckingInput,
             diagnostics: &mut Vec<Diagnostic>,
@@ -9990,10 +10019,18 @@ pub mod relevance {
                         let lanes = program.erased_scalar_lanes(parameter.type_reference);
                         // A contract over a record's `bool` field is read by
                         // the Boolean vocabulary, which names a formal's
-                        // structural slot; an erased record has none.
+                        // structural slot; an erased record has none. A
+                        // `bool` field no contract names rides its lane like
+                        // any other field.
                         if let Some(lane) = lanes.iter().find(|lane| {
                             !lane.fields.is_empty()
                                 && lane.primitive_type == typed_trees::types::PrimitiveType::Bool
+                                && contract_names_field(
+                                    program,
+                                    machine,
+                                    parameter.symbol,
+                                    &lane.fields,
+                                )
                         }) {
                             diagnostics.push(Diagnostic::error(format!(
                                 "machine `{}::{}` erased parameter `{}` is a record with `bool` field `{}`; an erased record carries integer and float fields only, so pass that field as its own erased `bool` parameter",

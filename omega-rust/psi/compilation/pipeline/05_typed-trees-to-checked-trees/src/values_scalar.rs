@@ -1552,60 +1552,16 @@ pub(crate) mod call_lowering {
     }
 
     /*
-        Form a proof-side observation contingent on final source admission of the
-        actual's type, scope, borrow and callee precondition. A borrow names its
-        exact referent expression here; it never forms an executable descriptor or
-        load. Located argument rows retain the original authored expression.
-    */
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lower_erased_scalar_argument(
-        state_symbol: symbols::SymbolHandle,
-        before_statement: u32,
-        program: &dyn ::validation::CheckingInput,
-        operators: &CheckedOperatorFacts,
-        expression: ExpressionHandle,
-        parameters: &[StateParameter],
-        authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
-        locals: &[ScalarLocal],
-        expected_type: PrimitiveType,
-        exact_integer_casts: &[validation::ExactIntegerCastFact],
-    ) -> Option<CheckedScalarExpression> {
-        let observation = match program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow)
-                if borrow.access == language_core::ReferenceAccess::Shared =>
-            {
-                borrow.target
-            }
-            _ => expression,
-        };
-        let observation = super::erased_observations::resolve(
-            program,
-            state_symbol,
-            before_statement,
-            observation,
-        )?;
-        lower_return_expression(
-            program,
-            operators,
-            observation,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            expected_type,
-            exact_integer_casts,
-        )
-    }
-
-    /*
-        Lower the actual of one erased scalar lane. A primitive lane keeps the
-        ordinary erased scalar observation. A record leaf is the matching lane
-        of the caller's own erased formal, the scalar the caller wrote at that
-        field of an immutable closed construction, or that field observed at
-        the place of a record local or runtime record formal. Nothing here
-        reads the record at run time. `validation::erased_actuals` owns which
-        of those a leaf is and refuses every other actual at source checking.
+        Lower the actual of one erased scalar lane as a proof-side term.
+        `validation::erased_actuals` owns where the lane's value comes from,
+        for a primitive lane and for a record leaf alike, and refuses every
+        other record actual at source checking; this lowers the source it
+        names. That is the matching lane of the caller's own erased formal, a
+        scalar expression (the primitive actual, or the scalar the caller
+        wrote at that field of an immutable closed construction), or the
+        field observed at the place of a record local or runtime record
+        formal. Nothing here forms an executable descriptor, read or load.
+        Located argument rows retain the original authored expression.
     */
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn lower_erased_lane_argument(
@@ -1622,23 +1578,6 @@ pub(crate) mod call_lowering {
         lane: &typed_trees::proof_only::ErasedScalarLane,
         exact_integer_casts: &[validation::ExactIntegerCastFact],
     ) -> Option<CheckedScalarExpression> {
-        if lane.fields.is_empty() {
-            return lower_erased_scalar_argument(
-                state_symbol,
-                before_statement,
-                program,
-                operators,
-                expression,
-                parameters,
-                authored_parameters,
-                parameter_types,
-                locals,
-                lane.primitive_type,
-                exact_integer_casts,
-            );
-        }
-        // Source checking has already refused an actual with no leaf source;
-        // the same owner names the source lowered here.
         let leaf = validation::erased_actuals::resolve_leaf(
             program,
             state_symbol,
@@ -1660,17 +1599,18 @@ pub(crate) mod call_lowering {
             validation::erased_actuals::ErasedLeaf::ParameterField { position, segments } => {
                 Some(CheckedScalarExpression::StructuralParameterField {
                     observation: expression,
-                    parameter_position: position,
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: position },
                     path: super::structural_fields::structural_projection_path(program, &segments)?,
                     primitive_type: lane.primitive_type,
                 })
             }
             validation::erased_actuals::ErasedLeaf::LocalField { symbol, segments } => {
-                Some(CheckedScalarExpression::StructuralLocalField {
+                Some(CheckedScalarExpression::erased_actual_local_field(
+                    expression,
                     symbol,
-                    path: super::structural_fields::structural_projection_path(program, &segments)?,
-                    primitive_type: lane.primitive_type,
-                })
+                    super::structural_fields::structural_projection_path(program, &segments)?,
+                    lane.primitive_type,
+                ))
             }
             validation::erased_actuals::ErasedLeaf::Value(leaf) => lower_return_expression(
                 program,
@@ -3272,7 +3212,9 @@ pub(crate) mod contract_entry {
                         } else {
                             CheckedScalarExpression::StructuralParameterField {
                                 observation: Default::default(),
-                                parameter_position: position,
+                                root: checked_trees::CheckedStorageRoot::Parameter {
+                                    index: position,
+                                },
                                 path,
                                 primitive_type: primitive,
                             }
@@ -3864,7 +3806,9 @@ pub(crate) mod contract_entry {
                     } else {
                         CheckedScalarExpression::StructuralParameterField {
                             observation: Default::default(),
-                            parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                            root: checked_trees::CheckedStorageRoot::Parameter {
+                                index: u32::try_from(subject.parameter_position).ok()?,
+                            },
                             path: subject.path.clone(),
                             primitive_type,
                         }
@@ -4299,7 +4243,12 @@ pub(crate) mod contract_entry {
                     }
                 }
                 CheckedScalarExpression::Local { .. }
-                | CheckedScalarExpression::StructuralLocalField { .. }
+                | CheckedScalarExpression::StructuralParameterField {
+                    root:
+                        checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                        | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                    ..
+                }
                 | CheckedScalarExpression::StructuralSequenceLength { .. }
                 | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
                 CheckedScalarExpression::RepresentationView { operand, .. } => {
@@ -4316,7 +4265,10 @@ pub(crate) mod contract_entry {
                 CheckedScalarExpression::ConstantApplication { .. }
                 | CheckedScalarExpression::Parameter { .. }
                 | CheckedScalarExpression::ErasedParameter { .. }
-                | CheckedScalarExpression::StructuralParameterField { .. }
+                | CheckedScalarExpression::StructuralParameterField {
+                    root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                    ..
+                }
                 | CheckedScalarExpression::IntegerLiteral { .. }
                 | CheckedScalarExpression::IeeeFloatLiteral { .. }
                 | CheckedScalarExpression::ImplementationSelection { .. } => {}
@@ -6302,26 +6254,25 @@ pub(crate) mod primitive_reference_read {
         if !parameter.relevance.is_erased() || parameter.is_const || parameter.is_mutable {
             return None;
         }
-        let names = path
+        // Resolve the read through the formal's declared type, so the lane is
+        // matched by the field symbols the lane expansion recorded.
+        let (_, segments, _, _) = crate::values::resolve_structural_parameter_path(
+            program,
+            parameters,
+            u32::try_from(authored_position).ok()?,
+            path,
+        )?;
+        let fields = segments
             .iter()
-            .filter_map(|segment| match segment {
-                checked_trees::CheckedStructuralPredicatePathSegment::Referent => None,
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                    Some(Some(identity.name.as_str()))
-                }
-                _ => Some(None),
+            .map(|segment| match segment {
+                facts::PlaceSegment::Field { symbol } => Some(*symbol),
+                _ => None,
             })
             .collect::<Option<Vec<_>>>()?;
         let lanes = program.erased_scalar_lanes(parameter.type_reference);
-        let lane = lanes.iter().position(|lane| {
-            lane.primitive_type == primitive_type
-                && lane.fields.len() == names.len()
-                && lane
-                    .fields
-                    .iter()
-                    .zip(&names)
-                    .all(|(field, name)| program.symbols.name(*field) == *name)
-        })?;
+        let lane = lanes
+            .iter()
+            .position(|lane| lane.primitive_type == primitive_type && lane.fields == fields)?;
         Some((
             ScalarExpression::ErasedParameter {
                 position: program.erased_scalar_lane_base(parameters, authored_position) + lane,
@@ -6570,7 +6521,9 @@ pub(crate) mod result_contract {
                 } else {
                     CheckedScalarExpression::StructuralParameterField {
                         observation: Default::default(),
-                        parameter_position: observed.position,
+                        root: checked_trees::CheckedStorageRoot::Parameter {
+                            index: observed.position,
+                        },
                         path: observed.path,
                         primitive_type,
                     }
@@ -7104,7 +7057,9 @@ pub(crate) mod result_contract {
                 } else {
                     CheckedScalarExpression::StructuralParameterField {
                         observation: Default::default(),
-                        parameter_position,
+                        root: checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                         path,
                         primitive_type,
                     }
@@ -7123,7 +7078,11 @@ pub(crate) mod result_contract {
                     root.parameter()?
                 }
                 CheckedScalarExpression::StructuralParameterField {
-                    parameter_position, ..
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
+                    ..
                 } => *parameter_position,
                 CheckedScalarExpression::Boolean(value) => {
                     let CheckedBooleanExpression::StructuralParameterField {
@@ -7632,7 +7591,7 @@ pub(crate) mod result_contract {
             } else {
                 CheckedScalarExpression::StructuralParameterField {
                     observation: Default::default(),
-                    parameter_position: position,
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: position },
                     path,
                     primitive_type,
                 }
@@ -8603,7 +8562,9 @@ pub(crate) mod scalar_lowering {
                     }
                     CheckedScalarExpression::StructuralParameterField {
                         observation: expression,
-                        parameter_position,
+                        root: checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                         path,
                         primitive_type,
                     }
@@ -8972,7 +8933,10 @@ pub(crate) mod scalar_lowering {
                         crate::flow::canonical_place_from_symbol(*symbol)?
                     }
                     CheckedScalarExpression::StructuralParameterField {
-                        parameter_position,
+                        root:
+                            checked_trees::CheckedStorageRoot::Parameter {
+                                index: parameter_position,
+                            },
                         path,
                         ..
                     } => {
@@ -9814,7 +9778,10 @@ pub(crate) mod scalar_lowering {
                 ScalarExpression::Local { position, .. } => Some(PlaceReadSite::Local(*position)),
                 ScalarExpression::StructuralParameterField {
                     observation,
-                    parameter_position,
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                     path,
                     ..
                 } => Some(PlaceReadSite::StructuralField {
@@ -11616,107 +11583,3 @@ pub(crate) use structural_fields::{
     applied_projection_segments, exclusive_reference, resolve_structural_parameter_path,
     structural_data, structural_parameter_place,
 };
-
-mod erased_observations {
-    /*
-        Proof-side observations retain exact current places without executable reads.
-        Immutable shared descriptors may name their original referent; immutable
-        closed constructors may supply their stored scalar leaf. Neither operation
-        copies a referent's mutable initializer, crosses a recast, changes the
-        authored call actual, or creates an invocation from a captured call result.
-        Source type/loan/scope/precondition validation remains the admission owner.
-    */
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-    use typed_trees::types::TypeReferenceNode;
-
-    pub(crate) fn resolve(
-        program: &dyn ::validation::CheckingInput,
-        state_symbol: symbols::SymbolHandle,
-        before_statement: u32,
-        expression: ExpressionHandle,
-    ) -> Option<ExpressionHandle> {
-        let state = program.state_by_symbol(state_symbol)?;
-        let mut current = expression;
-        let mut visited = Vec::new();
-        loop {
-            if visited.contains(&current)
-                || visited.len() >= program.expression_table.expression_count()
-            {
-                return None;
-            }
-            visited.push(current);
-            if !static_place_syntax(program, current) {
-                return Some(current);
-            }
-            let Some(place) = validation::canonical_place_from_expression(program, current) else {
-                return Some(current);
-            };
-            let Some(symbol) = place.root.as_symbol() else {
-                return Some(current);
-            };
-            let Some((ordinal, local)) = program.state_local_declaration(state, symbol) else {
-                return Some(current);
-            };
-            if ordinal >= before_statement as usize || !local.initial_value.is_valid() {
-                return None;
-            }
-            if local.is_mutable {
-                return Some(current);
-            }
-            if place.segments.is_empty() {
-                if program
-                    .primitive_type_reference(local.type_reference)
-                    .is_some()
-                {
-                    return Some(
-                        validation::closed_scalar_place_projection(
-                            program,
-                            local.initial_value,
-                            local.type_reference,
-                            &[],
-                        )
-                        .map_or(current, |(leaf, _)| leaf),
-                    );
-                }
-                let TypeReferenceNode::Reference { access, .. } = program
-                    .type_reference_table
-                    .type_reference(local.type_reference)
-                else {
-                    return Some(current);
-                };
-                let ExpressionNode::Borrow(borrow) =
-                    program.expression_table.expression(local.initial_value)
-                else {
-                    return Some(current);
-                };
-                if *access != language_core::ReferenceAccess::Shared || borrow.access != *access {
-                    return None;
-                }
-                current = borrow.target;
-                continue;
-            }
-            let (leaf, _) = validation::closed_scalar_place_projection(
-                program,
-                local.initial_value,
-                local.type_reference,
-                &place.segments,
-            )?;
-            return Some(leaf);
-        }
-    }
-
-    fn static_place_syntax(
-        program: &dyn ::validation::CheckingInput,
-        mut expression: ExpressionHandle,
-    ) -> bool {
-        for _ in 0..program.expression_table.expression_count() {
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Name(_) => return true,
-                ExpressionNode::Member(member) => expression = member.receiver,
-                ExpressionNode::Indexed(indexed) => expression = indexed.collection,
-                _ => return false,
-            }
-        }
-        false
-    }
-}

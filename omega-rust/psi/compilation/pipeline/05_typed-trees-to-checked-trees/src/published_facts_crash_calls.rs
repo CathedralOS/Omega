@@ -2317,7 +2317,12 @@ mod route_substitution {
         match expression {
             CheckedScalarExpression::ConstantApplication { .. }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
-            | CheckedScalarExpression::StructuralLocalField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
             CheckedScalarExpression::RepresentationView {
                 primitive_type,
@@ -2344,7 +2349,10 @@ mod route_substitution {
             | CheckedScalarExpression::ErasedParameter { .. }
             | CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StorageRead { .. }
-            | CheckedScalarExpression::StructuralParameterField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                ..
+            }
             | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::ImplementationSelection { .. } => true,
@@ -2607,7 +2615,12 @@ mod route_substitution {
             CheckedScalarExpression::ErasedParameter { .. } => return None,
             CheckedScalarExpression::Local { .. }
             | CheckedScalarExpression::StorageRead { .. }
-            | CheckedScalarExpression::StructuralLocalField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            }
             | CheckedScalarExpression::StructuralSequenceLength { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::RepresentationView {
@@ -2620,7 +2633,10 @@ mod route_substitution {
                 )?),
             },
             CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 primitive_type,
                 ..
@@ -2634,7 +2650,9 @@ mod route_substitution {
                 )?;
                 CheckedScalarExpression::StructuralParameterField {
                     observation: Default::default(),
-                    parameter_position: leaf.parameter_position,
+                    root: checked_trees::CheckedStorageRoot::Parameter {
+                        index: leaf.parameter_position,
+                    },
                     path: leaf.path,
                     primitive_type: *primitive_type,
                 }
@@ -3507,7 +3525,10 @@ mod summary_predicates {
         fn scalar(value: &Scalar) -> bool {
             match value {
                 Scalar::Parameter { .. }
-                | Scalar::StructuralParameterField { .. }
+                | Scalar::StructuralParameterField {
+                    root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                    ..
+                }
                 | Scalar::IntegerLiteral { .. }
                 | Scalar::IeeeFloatLiteral { .. }
                 | Scalar::ImplementationSelection { .. } => true,
@@ -3533,7 +3554,12 @@ mod summary_predicates {
                 Scalar::ConstantApplication { .. }
                 | Scalar::ErasedParameter { .. }
                 | Scalar::Local { .. }
-                | Scalar::StructuralLocalField { .. }
+                | Scalar::StructuralParameterField {
+                    root:
+                        checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                        | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                    ..
+                }
                 | Scalar::StorageRead { .. } => false,
             }
         }
@@ -4202,7 +4228,10 @@ mod entry_paths {
                     *self.scalars.as_ref()?.get(*position)?,
                 )),
                 Scalar::StructuralParameterField {
-                    parameter_position,
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                     path,
                     ..
                 } => self.project(*parameter_position, path),

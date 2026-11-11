@@ -1173,6 +1173,7 @@ pub(crate) mod prepare_expression {
             structural_locals: &[],
             scalar_bindings: None,
             proven_indexes,
+            erased_actual: false,
         }
         .lower_scalar(identities, expression)
     }
@@ -1203,6 +1204,9 @@ pub(crate) mod prepare_expression {
             &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
         pub(crate) scalar_bindings: Option<&'a crate::expression_preparation::bindings::ScalarBindings>,
         pub(crate) proven_indexes: &'a [checked_trees::expression::ExpressionHandle],
+        /// The expression is an erased call actual, the only place a field
+        /// may be observed at a local's root.
+        pub(crate) erased_actual: bool,
     }
 
     #[derive(Clone, Copy)]
@@ -1223,38 +1227,35 @@ pub(crate) mod prepare_expression {
                         "pending contract constant cannot be emitted as an executable value",
                     ))
                 }
-                CheckedScalarExpression::StructuralLocalField {
-                    symbol,
+                CheckedScalarExpression::StructuralParameterField {
+                    root:
+                        root @ (checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                        | checked_trees::CheckedStorageRoot::ViewLocal { .. }),
                     path,
                     primitive_type,
+                    ..
                 } => {
-                    // Formed only for an erased call actual: the observation
-                    // becomes a proof term over the local's place.
-                    let home = self
-                        .structural_locals
-                        .iter()
-                        .find(|local| {
-                            local.root == facts::PlaceRoot::Symbol(*symbol)
-                                && local.argument.path.is_empty()
-                        })
-                        .map(|local| {
-                            (
-                                local.argument.place,
-                                local.argument.access,
-                                local.structural_type,
-                            )
-                        })
-                        .ok_or(LoweringError::MissingDependencyRosterEntry {
-                            identity_kind: "structural local place",
-                            role: "erased call actual observation",
-                        })?;
-                    crate::expression_preparation::bindings::structural_fields::resolve_local(
-                        identities,
-                        self.structural_fields,
-                        home,
-                        path,
-                        terminal_scalar_type(*primitive_type)?,
-                    )
+                    // The lowering entry, not the producer, admits this root:
+                    // only an erased call actual names a field at a local's
+                    // place, and it becomes a proof term over that place.
+                    if !self.erased_actual {
+                        return unsupported(
+                            "a field observed at a local's place is not an executable value",
+                        );
+                    }
+                    let scalar_type = terminal_scalar_type(*primitive_type)?;
+                    let (home, structural_type) = self.storage_home(*root)?;
+                    let binding = self.structural_fields.binding_at(&home, structural_type)?;
+                    let observation =
+                        crate::expression_preparation::bindings::structural_fields::resolve_at(
+                            identities, &binding, path,
+                        )?;
+                    if observation.scalar_type() != scalar_type {
+                        return unsupported(
+                            "runtime field observation changes its declared scalar type",
+                        );
+                    }
+                    Ok(observation)
                 }
                 CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                     .sequence_observation(
@@ -1314,7 +1315,10 @@ pub(crate) mod prepare_expression {
                     scalar_type: terminal_scalar_type(*primitive_type)?,
                 }),
                 CheckedScalarExpression::StructuralParameterField {
-                    parameter_position,
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                     path,
                     primitive_type,
                     ..
