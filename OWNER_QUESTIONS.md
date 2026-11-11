@@ -67,80 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - May a consumer re-verify a carried proof instead of searching for it again?
-
-Decision name: `specialization-certificate-reuse`.
-
-This asks for a confirmation of a reading, not a new rule. Read in context, the
-two clauses below appear to agree; the line between "a result" and "a proof"
-is ours, so the owner should confirm it before the checker is built on it.
-
-**Customer.** Rebuilding the checker on the lowered form
-([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md))
-retires stage 05's source-text hash cache for dependency-body judgments
-(`05_typed-trees-to-checked-trees/src/checking.rs`), and
-[what each stage may trust](wiki/drafts/designs/stage_trust.md) makes the
-checker accept an obligation only when the proof kernel has verified a proof
-of it. Generic specializations and dependency checks then need one settled
-rule for what proof work may be carried forward and what must be repeated in
-each consumer.
-
-**The two clauses.**
-
-- [Generic declarations](wiki/spec/language/generics.md#closed-applications-and-canonical-identity):
-  *"Root Build controls recorded proof-discovery effort. An unresolved
-  obligation may need a larger search allowance or an explicit theorem, but an
-  unequal key is not evidence of mathematical inequality. Carry checked
-  derivations through specialization and published artifacts without
-  re-searching under a consumer's smaller discovery budget. Ordinary formation,
-  custody and trust obligations remain in force."* The paragraphs before it
-  are about proof effort never changing identity: *"A caller's proof budget
-  cannot change inferred arguments, declaration matching, or specialization
-  keys."*
-- [Validation subjects](wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)
-  (ratified 2026-11-08): *"No result is reused: a consumer checks every
-  dependency declaration it needs afresh, and the full-package gate is a claim
-  about the library, not evidence a consumer consumes in place of checking."*
-  The same chapter says what a check of a demanded declaration is: *"a generic
-  body under its requirements, a selected conformance with its laws, a lemma
-  with valid evidence"*, and *"no fact used to accept a product may come from
-  an unchecked declaration."*
-
-**The reading to confirm.** The first clause is about proof search and the
-second about checking. A consumer does not search again for a proof that was
-already found: the derivation is carried through specialization, with concrete
-arguments substituted. A consumer does check again: it works out for itself
-what must be proved from its own program, and runs the carried derivation
-through the proof kernel against that goal. A derivation that no longer fits
-(the program changed, an assumption is missing, it is attached to another
-obligation) fails that check and is never accepted on the strength of having
-passed before. A pass verdict from an earlier compile is never used in place
-of checking.
-
-**If the reading is wrong, the alternatives are:**
-
-- **Search again in every consumer.** "No result is reused" also forbids
-  carried derivations, so each specialized body is proved from scratch in each
-  consumer, and the generics clause's discovery-budget sentence is amended to
-  match.
-- **Trust a checked template for every admitted use.** Checking a generic body
-  under its requirements suffices for all concrete selections, with only the
-  instantiation bounds re-checked and no derivation re-verified per use.
-
-**Not asked here.** How a separately built, host-trusted artifact is consumed
-is governed by `psi-execution-admission` in
-[Psi product](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-(*"receipt does not require kernel replay"*) and is not changed by this
-question, which concerns a dependency checked from source.
-
-**Withdrawn.** An earlier entry, `evidence-gated-check-removal`, asked whether
-native code should keep a runtime check when an obligation lacks
-kernel-checked evidence. It is withdrawn without a ruling: the compiler will
-not trade runtime speed for a checker defect. Kernel-checked evidence is the
-checker's own acceptance bar and a failed proof is a compile error, which
-needs no change to `psi-execution-admission`.
-
-### Q2 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
+### Q1 - What source forms spell a brand, a stored theorem selection, an explicit choice between conflicting parent selections, and a computed record offered to Build?
 
 Decision name: `operation-record-source-forms`.
 
@@ -203,3 +130,111 @@ One reading the implementer applies meanwhile, stated so it can be corrected:
 structural identity unifies two all-row `satisfies` blocks with the same
 selections, and does not unify a block with an inline member body with any
 other, because *"An inline body still declares a new machine"*.
+
+### Q2 - Does explicit landing apply at a proof-level Int peer?
+
+Decision name: `explicit-landing-proof-int-peer`.
+
+An anonymous calculation whose exact history holds a fractional intermediate,
+used as the peer of a proof-level `Int` operand (`embed(7i32) / (1 / 2 * 4)`
+in an `ensures` clause), lands as a mathematical integer. Should it reject like
+a fixed-integer destination, and if so how does an author acknowledge it?
+
+- [numeric_values.md](wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
+  makes implicit integer landing an error and names `as T` with an integer
+  destination `T` as the acknowledgement; it does not say whether the
+  unbounded proof `Int` is such a `T`, and no `as Int` cast exists.
+- [explicit_integer_landing.md](wiki/drafts/designs/explicit_integer_landing.md)
+  lists "proof integer peers" in its sweep and also says "proof-level
+  mathematical operations retain their rules".
+- Landing in `i32` and embedding (`embed((1 / 2 * 4) as i32)`) is not the same
+  program: the contract prover then cannot show the divisor nonzero
+  (`tests/omega/pass/proofs/proof_integer_quotient_remainder`).
+
+Until answered, the compiler rejects every fixed-integer implicit landing and
+keeps the proof-`Int` peer as a warning.
+
+### Q3 - Do an implementation's own static arguments stay in its identity when no field depends on them, and are two empty implementations of one trait the same value?
+
+Decision name: `implementation-telescope-identity`.
+
+**Customer.** `OPERATION-RECORD-IMPLEMENTATIONS` on [TASKS.md](TASKS.md)
+(human-set priority) requires structural identity: *"Two names for the same
+selections are one implementation"*. Selection rows landed in `#2315`; the next
+step unifies implementations by their selections. Library and corpus code
+relies today on implementations that select nothing: 283 `.omg` files declare an
+empty `Name satisfies Trait {}` block as a marker, and
+`tests/omega/fail/traits/implementation_value_own_const_mismatch` pins that
+`Holder<Choice<ZERO>>` is not `Holder<Choice<EIGHT>>` for
+`Choice<const Value: u64> satisfies Tag {}`. The product requirement is a
+marker or phantom-indexed implementation that keeps two uses apart at compile
+time, which those sources already express.
+
+**Gap.** Two ratified passages of
+[conformances](wiki/spec/language/conformances.md) give different answers and
+neither names this case:
+
+- Before the operation-record section: *"The telescope participates in every
+  concrete application's identity. Adding, removing, or reordering type, const,
+  or static-machine binders breaks existing applications"*. Read alone,
+  `Choice<ZERO>` and `Choice<EIGHT>` differ.
+- [Implementations are operation records](wiki/spec/language/conformances.md#implementations-are-operation-records):
+  *"Identity is the schema application plus its canonical relevant field
+  values. A name creates no identity and grants no authority: two names for
+  one value are one implementation"*. The schema application of both is `Tag`
+  and neither has a field, so read alone they are one value, and so are any
+  two empty implementations of one trait.
+
+The same section says *"a deliberately distinct policy carries an explicit
+brand"*, whose spelling is the subject of `operation-record-source-forms`
+above, so the marker implementations cannot be migrated to brands yet.
+
+**Questions for Zac.**
+
+- **(a)** Is an implementation's own telescope application part of its identity
+  under the operation-record rule even when no selected field mentions the
+  binder, so `Choice<ZERO>` and `Choice<EIGHT>` stay distinct?
+- **(b)** Are two differently named, non-generic, empty implementations of one
+  trait one value, or does an implementation with no selections keep the
+  identity of its declaration until brands exist?
+
+Reading applied meanwhile, stated so it can be corrected: structural identity
+unifies only non-generic implementations that have at least one row and whose
+rows are all selection rows. Empty and generic implementations keep their
+current declaration-and-argument identity.
+
+### Q4 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+
+Decision name: `unproved-goal-form-publication`.
+
+A correct program can state an obligation in a form the prover has no rule
+for. The author then needs to be told that the compiler could not finish, not
+that the program is wrong, or they will rewrite valid code to work around a
+compiler gap. The outcome itself is ruled (Jarod, 2026-11-11): such a goal is
+`Incomplete`; `Reject` stays for a goal whose form the prover has rules for
+but cannot establish from what the program states. What is not settled is how
+that `Incomplete` is published.
+
+- [compiler_request.md](wiki/spec/build/compiler_request.md#outcomes) defines
+  `Incomplete` as "a named resource/search limit or unsupported valid case" and
+  says the outcomes "do not invent new wire tags or host exit codes".
+- Its scalar-resource table assigns one `Incomplete` code per named provision
+  and is closed at codes 1–35. Codes 27–35 are proof-search bounds, each with
+  a nonzero limit; none names a goal form. Codes 15–25 are coverage provisions
+  with limit 0 for source forms a stage does not yet cover, each with a source
+  coordinate.
+- [review.md](wiki/spec/packages/review.md) says "Unproved source contracts
+  reject in Psi checking", which reads the other way for the same case unless
+  it is limited to goals the prover has rules for.
+
+The questions:
+
+- **(a)** Does this case get a new row in that table (a coverage provision
+  with limit 0 whose coordinate is the identity of the obligation left
+  unproved), or does it publish under an existing code?
+- **(b)** Should the sentence in review.md be narrowed to match the ruling?
+
+Until answered, the lowered-form route computes the `Incomplete` verdict but
+has no diagnostic that publishes it. The route is not in the default compile,
+so no program is affected yet; a router that publishes this verdict needs the
+answer first.

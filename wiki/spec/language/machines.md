@@ -78,7 +78,7 @@ This includes nested `requires machine` hypotheses of mathematical
 declarations; see
 [machine header delimiters](state_contracts.md#machine-header-delimiters).
 
-A fixed operator token after `machine`, as in `machine + Vec2::add(...)`, binds
+A fixed operator token after `machine`, as in `machine + add(...)`, binds
 expression syntax to the same named machine. This is not a separate executable
 species or an alternate contract system. [Operator declarations](expressions.md#operator-declarations)
 owns token selection and family ownership; the ordinary supply rules below own

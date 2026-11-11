@@ -1,22 +1,133 @@
 # Data, literals, and lexical framing
 
-`data` declares fields, cases, or both. Fields belong to the value. A record has
-only fields; a sum has only cases; a mixed declaration has common fields plus
-one active case and its payload. Machines access values through their explicit
-parameters. Runtime callable fields store explicit machine values; they do not
+`data` declares a record or a sum. A record has only fields. A sum has only
+cases, one of which is active with its payload. Machines access values through
+their explicit parameters. Runtime callable fields store explicit machine values; they do not
 attach machine declarations or an implicit receiver to data. See
 [machine values](machine_values.md) and [some data binders](some_packages.md).
-
-Inline case declarations form a consecutive tail after all common fields.
-A common field after the first inline case is retired. Named and positional
-[data decomposition](patterns.md#data-and-case-decomposition) expose the common
-fields in authored order followed by one case-only view. This source order does
-not constrain a selected layout policy's physical placement or add a case-group
-schema member, number or discriminator.
 
 `data Name<Parameters> = TypeExpression;` instead declares a
 [transparent type alias](generics.md#transparent-type-aliases). It introduces
 no fields, cases, nominal carrier or storage wrapper.
+
+## Records, sums and nested declarations
+
+Named decision: `record-or-sum-data`, settled 2026-11-10;
+[the design draft](../../drafts/designs/record_or_sum_data.md) records the
+migration. A data body that declares both a field and a case rejects. Common
+fields and alternatives are combined by holding a sum in a record's field:
+
+```omega
+data Command {
+    command_id: u64;
+    op: Operation;
+
+    data Operation {
+        case GetUser(user_id: u64);
+        case CountUsers;
+    }
+}
+
+machine targets_one_user(op: &Command::Operation) -> bool { ... }
+
+let command = Command {
+    command_id: 17,
+    op: Command::Operation::GetUser { user_id: 42 },
+};
+```
+
+`command.op` is an ordinary field and `Command::Operation` an ordinary sum: it
+is constructed, moved, borrowed, returned, stored and passed as a generic
+argument under the rules for any other type.
+
+**Nested declarations.** A data body may contain `data` declarations after its
+fields or cases, to any depth, in a record or a sum. A nested declaration
+introduces a name and nothing else: no field, case, constructor argument,
+positional pattern component or cleanup action. It is visible throughout the
+enclosing declaration, including before its text, and elsewhere as
+`Owner::Name`. Nesting only scopes the name. The nested type has its own
+default domain and cleanup selection, neither owes nor satisfies its owner's
+invariants, captures no value of its owner, and may be held by any declaration
+that can name it. A type that several declarations hold is declared at module
+scope and held in a field the same way.
+
+**A field declared with its type.** `name: data Type { ... };` in a field or
+case-payload position means exactly the member `name: Type` together with the
+nested declaration `data Type { ... }` in the enclosing data declaration:
+
+```omega
+data Command {
+    command_id: u64;
+
+    op: data Operation {
+        case GetUser(user_id: u64);
+        case CountUsers;
+    };
+}
+```
+
+A type declared in a case payload is named under the enclosing data, as in
+`Source::Node`; a case is not a scope. The inline form introduces no parameters
+of its own, so a nested type that takes its own arguments is declared
+separately and applied at the field. Each name is declared once, and a later
+member refers to it by name.
+
+**Names.** Nested data shares its owner's one member namespace with cases and
+attached domains, and a collision rejects. A nested
+[alias](generics.md#transparent-type-aliases), `data Header = SharedHeader;`,
+is transparent under the owner's name.
+
+**Visibility.** A nested data declaration inherits its owner's visibility,
+recursively, as [fields and cases do](modules.md#visibility), and takes no
+`public` of its own. Referring to a separately declared type in a field does
+not change that type's visibility. Domain-owned access restrictions govern
+operations on a nested type's values and do not hide its name.
+
+**Generic context.** A nested declaration may use its owner's ordinary static
+parameters, and they are part of its identity under the rule for
+[nested machines](generics.md#applications-and-specialization):
+
+```omega
+data Envelope<T> {
+    body: data Body {
+        case Value(value: T);
+        case Empty;
+    };
+}
+
+let body: Envelope<u32>::Body = Envelope<u32>::Body::Value { value: 7 };
+```
+
+`Envelope<u32>::Body` and `Envelope<bool>::Body` are distinct types whether or
+not the body mentions `T`, and no `Envelope` value is needed to construct one.
+Type identity selects no representation; see
+[schema and layout](reflection.md#schema-and-layout). An owner's
+[`some` binder](some_packages.md#declaration-and-construction) is a per-value
+witness, not a parameter of the owner's type, and is not inherited. A field
+passes it to a parameter the nested type declares:
+
+```omega
+data Packet<'a, some S> {
+    payload: Payload<S>;
+
+    data Payload<U> {
+        value: &'a U;
+    }
+}
+```
+
+The nested type is `Packet<'a>::Payload<U>`. Runtime-value indices are likewise
+passed explicitly.
+
+A sum held in a field has the same representation freedoms and obligations as
+any other field; nesting adds no packing restriction and no size guarantee. A
+[layout plan](../layouts/plans.md#home-layout-realization) preserves ordinary
+references, reads, writes, loans and representation commitments for it, a
+reference to the field denotes its
+[original storage](../terminal-psi/structural_access.md#referent-identity),
+and an optional packing that cannot preserve an otherwise valid use is not
+selected. Nesting and holding by value add no schema member, number or
+discriminator beyond the field itself.
 
 ## Construction and case identity
 
@@ -28,18 +139,22 @@ data Reading {
     #1 sensor_id: u32;
     #2 recorded_at_ms: u64;
     #3 sequence: u32;
+    #4 state: State;
 
-    #10 case WarmingUp;
-    #11 case Sample(#1 temperature_celcius: i32);
-    #12 case Fault(#1 code: u32);
+    data State {
+        #1 case WarmingUp;
+        #2 case Sample(#1 temperature_celcius: i32);
+        #3 case Fault(#1 code: u32);
+    }
 }
 ```
 
 The spelling is `#N case Name`, not `case #N Name`. Unnumbered alternatives
 remain `case Name`; there is no shared `case { ... }` declaration block.
 Cases remain distinct mutually exclusive schema members, not simultaneously
-present record fields. Payload fields retain their own identity scopes, so the
-payload's `#1` does not identify a common field. Existing numbering,
+present record fields. Each declaration and each payload has its own identity
+scope, so a payload's `#1` identifies neither a case nor a field of the record
+that holds the sum. Existing numbering,
 retirement, declaration-order and stable-identity rules are unchanged by this
 prefix migration. There is no extra case-group field, number or discriminator.
 
@@ -75,11 +190,9 @@ field. `Type { }` is exhaustive only when there are no runtime fields.
 The marker is neither record-update/spread syntax nor a pattern rest binding;
 it changes no array length, range endpoint or positional-call rule.
 
-For a case literal, the same marker covers omitted common fields and fields of
-the explicitly selected active payload. It does not select a case, initialize
-inactive payloads or bypass case constraints. A bare payload-free case value is
-exhaustive only when it also has no runtime common fields; otherwise use its
-case literal with explicit common fields or `..`. Nested literals each govern
+For a case literal, the same marker covers omitted fields of the explicitly
+selected active payload. It does not select a case, initialize inactive
+payloads or bypass case constraints. Nested literals each govern
 their own omissions; an outer marker does not authorize omissions inside an
 authored inner literal.
 
@@ -95,21 +208,19 @@ Field and case-payload relationships belong to the data declaration's ordinary
 and payload type spellings do not carry bracketed scalar range suffixes. Construction and every
 restoring write prove the owning default-domain clauses.
 
-Case-bearing values use a case literal, not record-only construction. Common
-and payload fields may be named together and evaluate exactly once in authored
-order. This is construction syntax, not flattened case-pattern binding: patterns
-separate common fields from the case view under [dispatch](patterns.md#data-and-case-decomposition).
-Common fields are accessible independently of the active case; payload
-fields require the corresponding case knowledge. Partial construction and
+A sum value is written as a case literal, and a record holding a sum supplies
+it as an ordinary field initializer. Initializers evaluate exactly once in
+authored order. A record's fields are accessible independently of the case
+active in any sum it holds; payload fields require the corresponding case
+knowledge. Partial construction and
 disposal follow [ownership order](ownership.md#construction-and-disposal-order).
 
 A case implicitly declares its same-named domain. `Type::Case` therefore denotes
-case membership in domain position. A payload-free case with no runtime common
-fields can also denote a
+case membership in domain position. A payload-free case can also denote a
 constructed value; other case values use a case literal, including `..` when
 runtime fields are omitted.
-Cases and attached domains retain their member namespace; data does not own
-machine declarations. Collisions reject rather than selecting by priority.
+Cases, nested data and attached domains share their owner's member namespace;
+data does not own machine declarations. Collisions reject rather than selecting by priority.
 Pattern rules are defined
 in [dispatch](patterns.md).
 
@@ -126,8 +237,8 @@ tag assignment. Foreign codes cross in their declared integer carrier and use
 ordinary checked mapping machines, including an explicit unknown-code outcome.
 No raw integer silently establishes a sum value.
 
-The ordinary case-bearing zero representation selects the first declared case
-and recursively zeroed common fields/payload. That is accessible only after the
+The ordinary zero representation of a sum selects the first declared case
+and a recursively zeroed payload. That is accessible only after the
 active value's default-domain obligations hold; inactive payloads need no
 establishment. Zero does not imply semantic emptiness or authority. A payload-free
 first case is not required. [Home-layout realization](../layouts/plans.md#home-layout-realization)
@@ -139,8 +250,8 @@ Stable external placement uses
 [layout policies](../layouts/plans.md), not inferred native offsets.
 
 Value equality and domain membership are distinct. For executable structural
-equality, compare common fields, case identity, and the active payload, never
-inactive storage/padding. Primitive and payload-free-sum equality is intrinsic;
+equality, compare a record's fields, and a sum's case identity and active
+payload, never inactive storage/padding. Primitive and payload-free-sum equality is intrinsic;
 records and payload-bearing sums select the declared synthesis/conformance
 required by [Equatable](conformances.md#core-equality-acquisition). Adding a
 payload requires that declaration rather than silently changing tag equality
@@ -178,7 +289,7 @@ data Interval
 
 The data clause uses ordinary well-formed contract propositions, including
 Boolean combinations, exact type equality, and value couplings. It may name
-enclosing generic parameters, common fields, `self`, and otherwise lexically
+enclosing generic parameters, fields, `self`, and otherwise lexically
 available contract names. Accessing `self.lo` or `self.hi` above requires the
 Range case established by the preceding conjunct. Use ordinary guarded formation
 and case reasoning: inactive payloads cannot be projected, and a predicate
@@ -190,14 +301,34 @@ obligation does not select an implementation or manufacture evidence; ordinary
 [explicit selection](conformances.md) and [proof-term rules](../proofs/contracts.md)
 still apply.
 
-Let Fields describe common-field validity, Payload(i) the selected payload's
-validity, and Predicate(self) all data-level `requires` clauses. The complete
-default-domain condition is:
+Let Fields describe a record's field validity, Payload(i) a sum's selected
+payload validity, and Predicate(self) all data-level `requires` clauses. The
+complete default-domain condition is:
 
 ```text
-Fields AND Predicate(self) AND
-    OR over cases i (active_case == i AND Payload(i))
+record:  Fields AND Predicate(self)
+sum:     Predicate(self) AND
+             OR over cases i (active_case == i AND Payload(i))
 ```
+
+A record that holds a sum relates the sum's case to its other fields and
+parameters by testing the field place:
+
+```omega
+data Command<T>
+    requires ((self.op in Operation::GetUser) && T == User)
+       || ((self.op in Operation::CountUsers) && T == u64)
+{
+    command_id: u64;
+    op: Operation;
+}
+```
+
+A case predicate takes any place as its subject, and the fact it establishes
+concerns that exact place. Matching `command.op` of an established
+`Command<T>` combines the selected case with `Command`'s predicates, so the
+`GetUser` arm holds `T == User`. A constraint about the sum alone belongs on
+the sum; one relating it to its holder's fields belongs on the holder.
 
 Omitted data predicates contribute true, not a waiver of payload validity.
 Inactive payloads have no establishment or ownership obligation. In a

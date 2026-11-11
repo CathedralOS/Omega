@@ -16,6 +16,7 @@ pub(crate) fn check_product_source(
     rollback: &crate::OptimizationRollback,
     reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
+    frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
         source_completion_accounting,
@@ -33,6 +34,73 @@ pub(crate) fn check_product_source(
     let symbol_sources = typed.symbols.source_map();
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
+    // Validation subjects: the root package is checked in full; a dependency
+    // only where the root package or one of the Build's selections reaches it.
+    let library_slice = psi_compiler::LibrarySliceRequest {
+        root_package: package_inputs.map(PackageCompilationInputs::root),
+    };
+    let mut demanded = external_roots.clone();
+    // The target realization table supplies canonical float operations, so,
+    // as for the Build activation, the sealed catalog map and its public
+    // requirements stay whether or not the program names them.
+    demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
+    for selection in layout_scopes
+        .iter()
+        .flat_map(|scope| &scope.provider_declarations)
+        .chain(&build.provider_selections)
+        .chain(&build.default_provider_selections)
+    {
+        use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
+        demanded.push(selection.provider_type.symbol);
+        match &selection.subject {
+            ProviderSelectionSubject::BoundaryTrait(identity)
+            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                demanded.push(identity.symbol);
+            }
+            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                demanded.extend(family.coordinates().iter().map(|row| row.symbol));
+            }
+        }
+    }
+    for scope in &layout_scopes {
+        demanded.extend(scope.entry_declarations.iter().flatten().copied());
+    }
+    demanded.extend(
+        build
+            .opaque_representation_selections
+            .iter()
+            .map(|selection| selection.opaque()),
+    );
+    // Representation and provider requests are read back from the Build
+    // machine that made them.
+    demanded.extend(computed_build_config.selected_build_machine_symbol);
+    // A bound root slot takes its boundary schema from the target's entry
+    // contract source. Nothing in the program names that schema, so those
+    // sources are subjects too.
+    let mut entry_contracts = Vec::new();
+    for binding in &build.root_bindings {
+        if let Some((owner, _)) = binding.slot.rsplit_once("::")
+            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
+            && let Some(package) = profile.program_entry_slot().physical_contract_package
+        {
+            entry_contracts.push(package);
+        }
+    }
+    let typed = validation::execution_projection::project_subject_program(
+        &typed,
+        // ponytail: every source that is not bundled with the toolchain is a
+        // subject, so a dependency from the package graph is still checked in
+        // full. Narrow to the root package when the root source set reaches
+        // this point as request state.
+        |file| {
+            file.origin == source::SourceOrigin::User
+                || entry_contracts.iter().any(|package| {
+                    file.path.strip_prefix(&file.package_root).ok()
+                        == Some(std::path::Path::new(package.package_relative_source()))
+                })
+        },
+        &demanded,
+    );
     let source_admission = psi_compiler::SourceAdmission {
         external_roots: &external_roots,
         layout_scopes: &layout_scopes,
@@ -80,32 +148,36 @@ pub(crate) fn check_product_source(
         .iter()
         .chain(reuse.prior.sibling_product_checks.iter())
         .collect();
-    let outcome = timings
-        .record_result(TYPED_TREES_TO_CHECKED_TREES, || {
-            let started = std::time::Instant::now();
-            let result = psi_compiler::CheckRequest {
-                program: typed,
-                admission: source_admission,
-                previous: &previous,
-                retain: reuse.retain,
-                library_slice: psi_compiler::LibrarySliceRequest {
-                    root_package: package_inputs.map(PackageCompilationInputs::root),
-                },
-            }
-            .check();
-            if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_product_source_check(
-                    started.elapsed(),
-                );
-            }
-            result
-        })
-        .map_err(|mut diagnostics| {
-            if let Some(sources) = symbol_sources.as_deref() {
-                super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-            }
-            diagnostics
-        })?;
+    let mut judged = None;
+    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
+        let started = std::time::Instant::now();
+        let result = psi_compiler::CheckRequest {
+            program: typed,
+            admission: source_admission,
+            previous: &previous,
+            retain: reuse.retain,
+            library_slice,
+        }
+        .check_keeping_typed_frontier(frontier.is_some().then_some(&mut judged));
+        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
+            artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
+        }
+        result
+    });
+    // The entries are this request's, so they are paired with the trees here,
+    // before a rejection below returns and drops the Build configuration.
+    if let (Some(frontier), Some(typed)) = (frontier, judged) {
+        *frontier = Some(super::typed_frontier::TypedFrontier {
+            typed,
+            entries: external_roots.clone(),
+        });
+    }
+    let outcome = outcome.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    })?;
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,

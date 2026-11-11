@@ -652,8 +652,8 @@ mod evidence_seal_tests {
         ScalarTerm, ScalarType,
     };
     use structure_elaboration::{
-        Body, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict, Target,
-        Unpositioned,
+        Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
+        Target, Unpositioned,
     };
     use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
@@ -670,7 +670,7 @@ mod evidence_seal_tests {
     fn slot(slot: usize) -> Expression {
         Expression {
             kind: ExpressionKind::Slot(slot),
-            result: Some(u32_type()),
+            result: Some(u32_type().into()),
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),
         }
     }
@@ -697,12 +697,12 @@ mod evidence_seal_tests {
                 left: Box::new(slot(0)),
                 right: Box::new(slot(1)),
             },
-            result: Some(u32_type()),
+            result: Some(u32_type().into()),
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),
         };
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
         bodies.push(Body {
-            slots: vec![u32_type(), u32_type()],
+            slots: vec![u32_type().into(), u32_type().into()],
             statements: vec![Statement::Arm {
                 guard: None,
                 target: Target::Value(sum),
@@ -711,14 +711,16 @@ mod evidence_seal_tests {
         });
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         signatures.push(Signature {
-            parameters: vec![u32_type(), u32_type()],
-            result: Some(u32_type()),
+            parameters: vec![u32_type().into(), u32_type().into()],
+            result: Some(u32_type().into()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
         });
         let entry = MachineId::new(1).unwrap();
         let mut elaboration =
-            structure_elaboration::lower_bodies(entry, &bodies, &signatures).unwrap();
+            structure_elaboration::lower_bodies(entry, &bodies, &signatures, &IdTable::default())
+                .unwrap();
         let discharge = lowered_discharge::discharge(&mut elaboration).unwrap();
         let seals = discharge.operation_seals(&elaboration).unwrap();
         assert_eq!(seals.len(), 1, "the add's safety obligation is discharged");

@@ -92,7 +92,9 @@ generic parameter list, including inside a boundary trait. Its selected member
 has a matching ordered binder contract and must satisfy the requirement for
 every admitted application, not only one chosen map. The caller supplies exact
 implementation evidence under the ordinary static application rules; Build
-provider selection does not fill or replace it. Trait-level captured binders
+provider selection does not fill or replace it. A boundary trait named as the
+argument is [the slot's own view](#boundary-slots-as-static-implementations),
+which is source selection, not provider selection. Trait-level captured binders
 and requirement-local fresh binders retain distinct identities. See
 [generic machine requirements](generics.md#generic-machine-requirements).
 
@@ -240,6 +242,90 @@ slots, realizations and admission separately: packing a selection into a record
 registers no provider and manufactures no satisfaction, establishment or cleanup
 authority. Related types remain explicit parameters and hidden types use
 [`some`](some_packages.md); no associated-type surface is introduced.
+
+## Boundary slots as static implementations
+
+Named decision: `boundary-slot-implementation-views`, settled 2026-11-10;
+[the design draft](../../drafts/designs/boundary_slot_implementation_views.md)
+records the acceptance cases. A boundary trait that inherits an ordinary trait
+has a static implementation value of that parent whose operations are the
+slot's own boundary requirements. Code that takes an implementation receives
+the slot the way it receives any other implementation:
+
+```omega
+boundary trait TimeObservation {}
+
+trait ClockOps<S> {
+    machine now(state: &mut S) -> u64
+        reaches TimeObservation
+        crashes none;
+}
+
+boundary trait WallClock: ClockOps<NoState> {}
+
+machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+    entry.at = C::now(clock);
+}
+
+stamp<NoState, WallClock>(&mut none, &mut entry);
+
+const RealClock: ClockOps<NoState> = WallClock;       // the same value, named
+stamp<NoState, RealClock>(&mut none, &mut entry);
+
+stamp<SimClock, Simulated>(&mut sim, &mut entry);     // an ordinary implementation
+```
+
+**Which parent.** The view is of an exact ordinary-parent application that the
+boundary trait declares, directly or transitively. It is a projection of
+declared inheritance: a trait with matching signatures that is not a declared
+parent rejects, and no implementation is searched for. Where several declared
+parent applications fit a position, an annotation selects one. The annotation
+selects a parent the declaration already names. It creates no
+[binding](#binding-a-machine-to-a-requirement); the inheritance clause is the
+declared edge.
+
+**A static value.** The view may be passed as a static argument, named by a
+`const`, forwarded, held in a static record field, and have one member
+projected. Every such use keeps the slot route. It does not materialize at run
+time: a runtime callable or runtime operation record over a boundary operation
+is built from an authored local proxy machine under
+[component boundaries](machine_values.md#representation-and-component-boundaries),
+because a boundary call keeps its calling plan and code-lifetime obligations.
+
+**Identity.** The value identifies the boundary slot, the parent application
+and the inherited member mapping. Two slots viewed as one parent are different
+values even when Build selects the same provider for both, and aliases of one
+view are one value. The selected provider is not part of the value: it stays a
+realization, artifact and admission dependency under
+[provider selection](../build/provider_selection.md). Selecting another
+provider leaves `stamp<NoState, WallClock>` the same application and the same
+guarantees, and may change its results within the slot's published contract.
+
+**Calls.** Calling a projected member is the same boundary demand as calling
+the slot by path, `WallClock::now(&mut none)`. Naming, forwarding and storing
+the view reach nothing.
+
+**Contract.** The members carry the slot's complete published contract: reach,
+crashes, suspension, blocking, guarantees and write frame. An application over
+the view receives that contract and never a narrower fact about the selected
+provider. The parent's requirements must therefore be ones a boundary
+requirement can carry, with `reaches` and `crashes` written under
+[open callable contracts](effects.md#open-callable-contracts); an inherited
+open contract is never closed by inspecting a provider. A written reach is a
+ceiling, so an ordinary implementation of the same parent may publish less,
+and an application over it receives what it publishes.
+
+**Laws.** The view carries the parent's complete law and evidence obligations,
+tied to the slot. Supply discharges them under the existing checking and
+admission rules, and forming the view grants no trust or authority. A relevant
+witness field whose identity the slot's public contract does not fix makes the
+view unavailable; a provider-private witness is never inserted.
+
+The parent's signature is the slot's signature. The state parameter in this
+example comes from choosing `ClockOps<NoState>` as the slot's interface, not
+from the view. A consumer that needs a different signature is still served by
+an ordinary implementation that calls the slot; the view removes only the
+bridge that would forward unchanged.
 
 ## Complete row identity
 

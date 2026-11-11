@@ -1,0 +1,38 @@
+// MUST be rejected; accepted today. `risky` is private and writes
+// `crashes none`, yet its `bad` arm runs `crash Trap;`. Stage 01 parses
+// `crashes none` but publishes no contract row for it, so stage 05 reads the
+// private body as if the clause were omitted, infers a `Trap` route for it,
+// and `main` covers that route with its own `crashes Trap`. The author's
+// promise of no crash route is silently replaced by the route it forbade.
+//
+// Rule broken (wiki/spec/language/effects.md, "Static binder contract
+// dependencies"): "An explicit empty value, `reaches none`, `crashes none`,
+// `suspends false` or `blocks false`, promises the empty value and rejects
+// any body or selection that violates it." Omission requests inference only
+// when the clause is absent: "Private checked bodies may omit any of the
+// three to request inference."
+//
+// Accepting run: cloud Linux x86_64 container, compiler built at
+// be9049e487a (main) with `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p
+// omega`; `target/debug/omega --check main.omg < /dev/null` exits 0 with
+// "compiled 28 source file(s) from main.omg; wrote_output=false". Not run
+// natively.
+//
+// Twin: the same program with `public machine risky` is rejected on the same
+// host and commit, as `fail/effects/crashes_none_rejects_trap` pins: "machine
+// `risky` has an uncovered Trap crash at statement 1; publish a same-cause
+// `crashes` route whose guard covers this site".
+//
+// Structure-only elaboration (`structure-elaboration`) already refuses this
+// body: the typed trees keep the authored clause as
+// `Machine::declares_no_crash_route`.
+//
+// Move to `fail/effects/` with its golden row when the checker rejects it.
+machine risky(ready: bool) crashes none {
+    transition ready { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() reaches none crashes Trap {
+    risky(true);
+}

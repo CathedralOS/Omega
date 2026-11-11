@@ -1,5 +1,5 @@
-public const SIZE: u64 = 7 / 2 * 2;
-public const MATCH_SIZE: u64 = ((match true { true -> 7 / 2, false -> 9 / 2 }) * 2) + 0u64;
+public const SIZE: u64 = (7 / 2 * 2) as u64;
+public const MATCH_SIZE: u64 = (((match true { true -> 7 / 2, false -> 9 / 2 }) * 2) as u64) + 0u64;
 public const ENABLED: bool = SIZE == 7;
 public const SIZES: [u64; 2] = [SIZE * 2, 3];
 data Buffer<const Size: u64> { value: [u8; Size]; }

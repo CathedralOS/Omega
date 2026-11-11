@@ -293,6 +293,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect::<Vec<_>>();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &view_roster,
@@ -4691,14 +4692,16 @@ pub(crate) mod inner {
                                 "Unit closure references an unknown checked service",
                             ),
                         )?;
-                        let identity = service_declaration_identity(checked, definition.symbol)?;
+                        let identity =
+                            service_declaration_identity(identities, checked, definition.symbol)?;
                         Ok((*service, definition, identity))
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
-            selected_definitions.sort_by(|left, right| left.2.cmp(&right.2));
+            selected_definitions
+                .sort_by(|left, right| identities.text(left.2).cmp(&identities.text(right.2)));
             if selected_definitions
                 .iter()
-                .any(|(_, _, identity)| identity.is_empty())
+                .any(|(_, _, identity)| identities.text(*identity).is_none_or(str::is_empty))
                 || selected_definitions
                     .windows(2)
                     .any(|pair| pair[0].2 == pair[1].2)
@@ -4724,7 +4727,7 @@ pub(crate) mod inner {
                     parents.dedup();
                     Ok(ServiceDeclaration {
                         id: lookup_service_id(&service_ids, source)?,
-                        identity: identities.intern(&identity),
+                        identity,
                         parents,
                     })
                 })
@@ -6293,6 +6296,7 @@ pub(crate) mod inner {
                     .map(|parameter| (parameter.position, parameter.clone()))
                     .collect();
                 let views = crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
@@ -9203,7 +9207,7 @@ pub(crate) mod inner {
                     next_value,
                 )?;
                 let erased_scalar_parameters =
-                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters)?
+                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters, true)?
                         .into_iter()
                         .map(|scalar_type| {
                             Ok(ValueDeclaration {
@@ -11420,6 +11424,7 @@ pub(crate) mod inner {
                 &declared_result,
                 &signature.erased_scalar_parameters,
                 &crate::scalar_lowering::contracts::ContractViewNamespace {
+                    locals: &[],
                     scalar_applications,
                     constant_values: &checked.typed.constant_recipe_closure.values,
                     parameters: &evaluation.structural_parameters,
@@ -13039,6 +13044,22 @@ pub(crate) mod inner {
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+            let caller_local_observations = structural_locals
+                .iter()
+                .filter_map(|local| {
+                    let facts::PlaceRoot::Symbol(symbol) = local.root else {
+                        return None;
+                    };
+                    local.argument.path.is_empty().then_some(
+                        crate::scalar_lowering::contracts::ContractLocalObservation {
+                            symbol,
+                            place: local.argument.place,
+                            structural_type: local.structural_type,
+                            access: local.argument.access,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
             let erased_arguments = erased_scalar_arguments
                 .iter()
                 .map(|argument| {
@@ -13057,6 +13078,7 @@ pub(crate) mod inner {
                             scalar_applications,
                             constant_values: &checked.typed.constant_recipe_closure.values,
                             parameters: caller_observation_parameters,
+                            locals: &caller_local_observations,
                             structural_types,
                             ..crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY
                         },
@@ -13868,7 +13890,7 @@ pub(crate) mod inner {
             qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
             next_value: &mut u64,
         ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-            let carriers = lower_unit_scalar_parameter_types(parameters)?;
+            let carriers = lower_unit_scalar_parameter_types(parameters, false)?;
             let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
             let authored = checked.state_parameters(declaration);
             parameters
@@ -13917,13 +13939,21 @@ pub(crate) mod inner {
             Ok(declared)
         }
 
+        /*
+            Scalar parameters and erased scalar lanes both arrive in source
+            order. Runtime scalar parameters each own their authored position.
+            An erased record formal owns one lane per scalar leaf, so its
+            consecutive lanes share a position (`leaves_share_position`).
+        */
         pub(crate) fn lower_unit_scalar_parameter_types(
             parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+            leaves_share_position: bool,
         ) -> Result<Vec<ScalarType>, LoweringError> {
-            if parameters
-                .windows(2)
-                .any(|pair| pair[0].source_position >= pair[1].source_position)
-            {
+            if parameters.windows(2).any(|pair| {
+                pair[0].source_position > pair[1].source_position
+                    || (!leaves_share_position
+                        && pair[0].source_position == pair[1].source_position)
+            }) {
                 return unsupported("Unit scalar parameters are not in strict source order");
             }
             parameters
@@ -15898,12 +15928,66 @@ pub(crate) mod inner {
         use crate::emission::operation_emission::place_declarations::operation_result_place;
         use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
+        /// Whether a receiver can replay every one of these memberships from
+        /// the literal operands of an array construction.
+        ///
+        /// Construction itself establishes no qualification evidence. The only
+        /// memberships it may state are byte predicates, which a receiver
+        /// re-evaluates over the literal octets. Any other checked membership,
+        /// such as a predicate over `u16` elements, is added by `qualify`.
+        pub(crate) fn replayed_at_construction(
+            domains: &[terminal_psi::StructuralDomainDeclaration],
+            qualifications: &[semantic_vocabulary::StructuralDomainId],
+        ) -> bool {
+            qualifications.iter().all(|identity| {
+                domains
+                    .iter()
+                    .any(|domain| domain.id == *identity && domain.byte_predicate.is_some())
+            })
+        }
+
+        /// Adds checked memberships to a completed array by a whole-value
+        /// copy, the same transfer that qualifies a local built by stores.
+        pub(crate) fn qualify(
+            constructed: semantic_vocabulary::PlaceId,
+            structural_type: StructuralTypeId,
+            multiplicity: StructuralMultiplicity,
+            mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+            next_place: &mut u64,
+            operations: &mut OperationBuffer,
+        ) -> Result<StructuralPlaceDeclaration, LoweringError> {
+            qualifications.sort();
+            qualifications.dedup();
+            let copy = operations.allocate();
+            let qualified = place_id(allocate_dense(next_place)?);
+            let mut result =
+                structural_result_declaration(qualified, structural_type, multiplicity);
+            if let terminal_psi::OperationResult::Structural(result) = &mut result {
+                result.qualifications = qualifications;
+            }
+            operations.push(Operation::unsuspended(
+                copy,
+                result,
+                OperationKind::StructuralLeafCopy {
+                    source: constructed,
+                    path: Vec::new(),
+                },
+            ));
+            Ok(operation_result_place(qualified, copy, structural_type))
+        }
+
+        /// Emits one array construction and returns the place that holds the
+        /// checked value. `private_places` receives the construction place
+        /// when a qualifying copy follows it.
+        #[allow(clippy::too_many_arguments)]
         pub(crate) fn emit(
             result: &CheckedUnitStructuralResultBindingPlan,
             mut qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+            domains: &[terminal_psi::StructuralDomainDeclaration],
             elements: &[ValueDeclaration],
             types: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
             next_place: &mut u64,
+            private_places: &mut Vec<StructuralPlaceDeclaration>,
             operations: &mut OperationBuffer,
         ) -> Result<StructuralPlaceDeclaration, LoweringError> {
             let structural_type = lookup_type_id(types, &result.type_identity)?;
@@ -15911,22 +15995,37 @@ pub(crate) mod inner {
             let place = place_id(allocate_dense(next_place)?);
             qualifications.sort();
             qualifications.dedup();
-            let mut result = structural_result_declaration(
+            let replayed = replayed_at_construction(domains, &qualifications);
+            let mut constructed = structural_result_declaration(
                 place,
                 structural_type,
                 StructuralMultiplicity::Unrestricted,
             );
-            if let terminal_psi::OperationResult::Structural(result) = &mut result {
-                result.qualifications = qualifications;
+            if replayed
+                && let terminal_psi::OperationResult::Structural(constructed) = &mut constructed
+            {
+                constructed.qualifications = qualifications.clone();
             }
             operations.push(Operation::unsuspended(
                 id,
-                result,
+                constructed,
                 OperationKind::EstablishScalarArray {
                     elements: elements.iter().map(|element| element.id).collect(),
                 },
             ));
-            Ok(operation_result_place(place, id, structural_type))
+            let construction = operation_result_place(place, id, structural_type);
+            if replayed {
+                return Ok(construction);
+            }
+            private_places.push(construction);
+            qualify(
+                place,
+                structural_type,
+                StructuralMultiplicity::Unrestricted,
+                qualifications,
+                next_place,
+                operations,
+            )
         }
     }
     pub(crate) mod view_ranges {

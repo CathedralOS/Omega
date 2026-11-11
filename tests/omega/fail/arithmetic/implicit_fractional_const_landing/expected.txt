@@ -1,0 +1,2 @@
+`7/2` cannot land implicitly as integer `7` in `u64`
+cast the complete anonymous expression with `as`

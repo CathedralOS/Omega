@@ -42,7 +42,7 @@ X86Inspect satisfies SelectedInspect {
     {
         SelectedBodyCheck::require_tag(17u64);
             application.ledger.count = count as u64 in Wrapping;
-            (line[0] as u64 in Wrapping + application.ledger.count) == 42
+            ((line[0] as u64 in Wrapping) + application.ledger.count) == 42
     }
 }
 
@@ -52,7 +52,7 @@ ArmInspect satisfies SelectedInspect {
     {
         SelectedBodyCheck::require_tag(29u64);
             application.ledger.count = count as u64 in Wrapping;
-            (line[0] as u64 in Wrapping + application.ledger.count) == 42
+            ((line[0] as u64 in Wrapping) + application.ledger.count) == 42
     }
 }
 

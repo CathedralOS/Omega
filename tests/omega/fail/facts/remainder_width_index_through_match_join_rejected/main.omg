@@ -14,7 +14,7 @@ machine pick(value: u64, buckets: &[u8], flag: bool) -> u8
 requires buckets.len > 0 && buckets.len < 100
 {
     let width: u64 = match flag {
-        true -> buckets.len as u64 + 1,
+        true -> (buckets.len as u64) + 1,
         false -> measure(buckets)
     };
     buckets[value % width]

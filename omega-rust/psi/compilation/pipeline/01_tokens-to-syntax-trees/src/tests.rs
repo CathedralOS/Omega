@@ -752,26 +752,38 @@ pub(crate) mod bindings_and_conformances {
     }
 
     #[test]
-    fn reference_rows_are_retired() {
+    fn selection_row_names_its_slot_and_the_existing_machine() {
         let source = r#"
         trait Ranked<Item> { machine rank_value(value: &Item) -> u32; }
         data Card { power: u32; }
-        machine Card::stable_rank_value(value: &Card) -> u32 { }
         PowerOrder satisfies Ranked<Card> {
-            Ranked::rank_value = Card::stable_rank_value;
+            Ranked::rank_value = ranking::stable_rank_value;
         }
     "#;
 
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let diagnostic = parse_syntax_trees(&tokens).expect_err("a reference row must reject");
-        assert!(
-            diagnostic
-                .message
-                .contains("reference row (`Trait::member = Existing::machine;`) is retired"),
-            "unexpected diagnostic: {}",
-            diagnostic.message
+        let parsed = super::parse_source(source, "a selection row should parse");
+        let conformance = super::root_conformance(&parsed, "conformance root item");
+        let [member] = parsed.items.conformance_members(conformance.members) else {
+            panic!("one retained conformance member");
+        };
+        let syntax_trees::item::ConformanceMember::Selection {
+            declaring_trait,
+            requirement,
+            target,
+        } = member
+        else {
+            panic!("the member is a selection row");
+        };
+        assert_eq!(declaring_trait.as_str(&parsed), "Ranked");
+        assert_eq!(requirement.as_str(&parsed), "rank_value");
+        assert_eq!(
+            parsed
+                .items
+                .identifier_path_members(*target)
+                .iter()
+                .map(|member| member.as_str(&parsed))
+                .collect::<Vec<_>>(),
+            ["ranking", "stable_rank_value"]
         );
     }
 
@@ -2859,6 +2871,21 @@ pub(crate) mod definitions_and_contracts {
                 .capability_contracts(quiet.contracts)
                 .is_empty()
         );
+        // With no contract row, the authored promise is kept as its own
+        // fact, so a later stage can tell it from an omitted clause.
+        assert!(quiet.declares_no_crash_route);
+        let omitted = super::parse_source(
+            "machine quiet() -> u64 { 7 }",
+            "an omitted crashes clause parses",
+        );
+        let omitted_quiet = omitted
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("quiet machine");
+        assert!(!omitted_quiet.declares_no_crash_route);
 
         for (rejected, message) in [
             (

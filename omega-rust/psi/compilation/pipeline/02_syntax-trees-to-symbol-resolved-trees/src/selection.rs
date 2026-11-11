@@ -865,7 +865,7 @@ pub(crate) mod conformance_blocks {
         own implementation's rows. A default body that names a row outside its
         trait's surface is rejected here, where that implementation is known: the
         trait author cannot see what a particular implementation adds.
-        A member sealed onto the existing machine it forwards to remains that ordinary machine: it has no
+        A machine named by a selection row remains that ordinary machine: it has no
         enclosing conformance context and may be shared by several blocks.
     */
     pub(crate) fn route_conformance_requirement_calls(

@@ -90,17 +90,18 @@ checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
-package-compilation = { path = "../../packages/package-compilation", features = ["test-support"] }
 language-core = { path = "../../../psi/foundation/language-core" }
 # Route one corpus probe (examples/structure_elaboration_corpus.rs).
 structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
+# Route one side-by-side comparison (examples/route_one_comparison.rs).
+lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
 # through SHA-2 and semantic vocabulary, rebuilding the heavy Psi graph for
-# corpus_runner after an ordinary CLI build. This affects test artifacts only;
-# package test-support still stays out of the shipped CLI.
+# corpus_runner after an ordinary CLI build. This affects test artifacts only.
+# Keep dev-dependency features off crates the CLI also links for the same reason.
 libc = { version = "0.2.186", features = ["extra_traits"] }
 
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
@@ -155,6 +156,12 @@ path = "tests/product_query_suspension.rs"
 [[test]]
 name = "anonymous_module_owner"
 path = "tests/anonymous_module_owner.rs"
+
+# The typed-frontier seam returns Psi 04's trees for programs the current
+# checker rejects, and a distinct outcome for programs that stop earlier.
+[[test]]
+name = "typed_frontier"
+path = "tests/typed_frontier.rs"
 
 [[test]]
 name = "package_review"

@@ -21,7 +21,7 @@ machine flag<const Value: bool>() -> bool { Value }
 machine main() blocks crashes Trap {
     let named: i32 = block choose<Selected<BASE + 4>>(5, 6);
     let invoked: i32 = block choose<Selected<three() + 4>>(5, 6);
-    let rational: i32 = block choose<Selected<(3 / 2) * 4>>(5, 6);
+    let rational: i32 = block choose<Selected<((3 / 2) * 4) as i32>>(5, 6);
     let direct_value: i32 = direct<(2 * 4)>();
     let nested: i32 = block choose<Selected<direct<(2 + 1)>() + 4>>(5, 6);
     let shifted: i32 = block choose<Selected<EIGHT >> 1>>(5, 6);

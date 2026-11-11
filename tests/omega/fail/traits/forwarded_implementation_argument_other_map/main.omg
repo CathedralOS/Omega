@@ -1,0 +1,32 @@
+// Expected error: PlainDoubling is declared over Plain, so it cannot be supplied
+// where the caller names Other as the implementation it applies to.
+trait Reading {
+    machine read(value: u8) -> u8;
+}
+Plain satisfies Reading {
+    machine read(value: u8) -> u8 { value }
+}
+Other satisfies Reading {
+    machine read(value: u8) -> u8 { value }
+}
+
+trait Doubling<Reader satisfies Reading> {
+    machine twice(value: u8) -> u8;
+}
+PlainDoubling satisfies Doubling<Plain> {
+    machine twice(value: u8) -> u8 { Plain::read(Plain::read(value)) }
+}
+
+machine apply<Reader satisfies Reading, Double satisfies Doubling<Reader>>(value: u8) -> u8 {
+    Double::twice(value)
+}
+
+machine main() crashes Trap {
+    let got: u8 = apply<Other, PlainDoubling>(7u8);
+    transition got == 7u8 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

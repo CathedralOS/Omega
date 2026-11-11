@@ -19,7 +19,7 @@ machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches Console {
         transition divisor > 0 { true -> emit(main, value, divisor) _ -> done() }
     }
     machine emit(main: &mut Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
-        Console::write_byte(((value/divisor)%10) as i32 + 48);
+        Console::write_byte((((value/divisor)%10) as i32) + 48);
         transition { _ -> digits(main, value, divisor/10) }
     }
     machine done() { }

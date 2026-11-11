@@ -1335,6 +1335,15 @@ pub(crate) mod item_copies {
                                 requirement_ordinal: *requirement_ordinal,
                                 machine: self.copy_machine(other, machine),
                             },
+                            ConformanceMember::Selection {
+                                declaring_trait,
+                                requirement,
+                                target,
+                            } => ConformanceMember::Selection {
+                                declaring_trait: declaring_trait.clone(),
+                                requirement: requirement.clone(),
+                                target: self.copy_item_identifier_span(other, *target),
+                            },
                         })
                         .collect::<Vec<_>>();
                     let mut copied_start = arena::Handle::invalid();
@@ -1697,6 +1706,7 @@ pub(crate) mod item_copies {
                 suspends: machine.suspends,
                 blocks: machine.blocks,
                 admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
+                declares_no_crash_route: machine.declares_no_crash_route,
                 contracts: self.copy_capability_contract_span(other, machine.contracts),
                 states: self.copy_state_handle_span(other, machine.states),
                 nested_machines,

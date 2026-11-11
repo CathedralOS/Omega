@@ -2915,6 +2915,9 @@ pub(crate) mod trait_defaults {
         if equatable.parameter_names.len() != 1
             || members.iter().any(|member| match member {
                 ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == EQUALS,
+                ConformanceMember::Selection { requirement, .. } => {
+                    requirement.as_str(syntax) == EQUALS
+                }
                 ConformanceMember::Synthesized(_) => true,
                 ConformanceMember::TraitDefault { .. } => false,
             })
@@ -3691,6 +3694,7 @@ pub(crate) mod trait_defaults {
             blocks: signature.blocks,
             blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
             admitted_same_stack_bytes: 0,
+            declares_no_crash_route: false,
             contracts: signature.contracts,
             states: HandleSpan::from_parts(state, 1),
             nested_machines: HandleSpan::empty(),
@@ -5183,7 +5187,11 @@ pub(crate) mod type_aliases {
                     for member in members {
                         let (ConformanceMember::Machine(machine)
                         | ConformanceMember::Synthesized(machine)
-                        | ConformanceMember::TraitDefault { machine, .. }) = member;
+                        | ConformanceMember::TraitDefault { machine, .. }) = member
+                        else {
+                            // A selection row names an existing machine and has no body.
+                            continue;
+                        };
                         self.machine(syntax, &machine, &bound)?;
                     }
                 }

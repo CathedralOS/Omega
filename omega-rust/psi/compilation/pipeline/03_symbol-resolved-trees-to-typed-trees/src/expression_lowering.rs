@@ -408,12 +408,15 @@ pub(crate) mod expression {
             let members = lower_name_path_members_into_table(source, target, path.members);
             let member_symbols = lower_name_path_member_symbols_into_table(source, target, path);
 
-            typed::expression::TableNamePath::new(
-                members,
-                member_symbols,
-                path.head_symbol,
-                path.symbol,
-            )
+            typed::expression::TableNamePath {
+                reserved_result_of: path.reserved_result_of,
+                ..typed::expression::TableNamePath::new(
+                    members,
+                    member_symbols,
+                    path.head_symbol,
+                    path.symbol,
+                )
+            }
         }
 
         fn lower_name_path_member_symbols_into_table(
@@ -1239,7 +1242,11 @@ pub(crate) mod expression {
                                 .target_trees
                                 .type_reference_table
                                 .insert_type_reference_handles(semantic_domain_arguments);
-                            if semantic_domain.is_empty() && !cast.form.is_recast() {
+                            // A domain entry has no carrier until its run is accounted for.
+                            if semantic_domain.is_empty()
+                                && !cast.form.is_recast()
+                                && cast.form.entry().is_none()
+                            {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     self.target_trees,
