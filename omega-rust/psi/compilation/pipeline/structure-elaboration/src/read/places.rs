@@ -16,10 +16,12 @@ read: a payload member is the payload field its symbol names.
 
 The slice served is copy-eligible plain data: a record whose fields, or a sum
 whose payload fields, are builtin integers, `bool` or other such data.
-Everything else about a `data` declaration is refused by name, and later
-slices add to these functions rather than replace them: data `requires`
-(`type data requires`), custody (`type data with custody`), common fields
-beside cases (`type mixed data`). Stores into a record's fields are read in
+A declaration's `requires` is read into `RecordType::requires` by the clause
+reader the machine contracts use (`contracts`), over `self` and its fields;
+a `requires` on a case is refused (`type data requires`). Everything else
+about a `data` declaration is refused by name, and later slices add to these
+functions rather than replace them: custody (`type data with custody`),
+common fields beside cases (`type mixed data`). Stores into a record's fields are read in
 `statements`, dispatch over a sum in `transitions`.
 */
 
@@ -34,6 +36,7 @@ use typed_trees::expression::{
     TableMemberExpression, TableStructLiteral,
 };
 
+use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -49,7 +52,7 @@ pub(super) struct RecordSource {
 }
 
 /// What a member's field symbol names in its receiver's data type.
-enum Member {
+pub(super) enum Member {
     Field(usize),
     Payload { case: usize, field: usize },
 }
@@ -176,12 +179,42 @@ impl Program<'_> {
             identity,
             fields: declared,
             cases: case_types,
+            requires: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
             fields: field_symbols,
             cases: case_symbols,
         });
+        // The declaration's `requires`, read once the fields and cases it
+        // names have their identities, by the clause reader the machine
+        // contracts use.
+        let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let scope = ClauseScope {
+            slots: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a data clause"),
+            formal_fields: false,
+            subject: Some(DataSubject {
+                record,
+                symbol: data.predicate_subject_symbol,
+                root,
+            }),
+        };
+        let facts = super::span(
+            &typed.proof_facts,
+            data.where_facts,
+            id,
+            "data requires span",
+        )?;
+        let mut requires = Vec::with_capacity(facts.len());
+        for fact in facts {
+            requires.push(self.clause(id, &scope, self.fact(id, fact)?)?);
+        }
+        self.records
+            .get_mut(record)
+            .ok_or_else(|| unserved("record identity"))?
+            .requires = requires;
         Ok(ValueType::Record(record))
     }
 
@@ -211,7 +244,11 @@ impl Program<'_> {
         terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)
     }
 
-    fn data_type(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordType> {
+    pub(super) fn data_type(
+        &self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&RecordType> {
         terminal_check_tables::row(&self.records, record, id, Construct::Machine)
     }
 
@@ -233,7 +270,7 @@ impl Program<'_> {
     /// What the field symbol of a member names in `record`: a field, or a
     /// payload field of one of its cases. Each field symbol is one
     /// declaration, so at most one answer exists.
-    fn member_of(
+    pub(super) fn member_of(
         &self,
         id: MachineId,
         record: StructuralTypeId,
@@ -634,12 +671,6 @@ fn record_shape<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    if !data.where_facts.is_empty()
-        || data.predicate_subject_symbol.is_valid()
-        || data.predicate_subject_type.is_valid()
-    {
-        return unserved("data requires");
-    }
     // Copy eligibility (`places_foundation_lane.md`): "data with no disposal
     // obligation, no linear or affine field, no reference field and no
     // attached `Drop`". ownership.md: "Plain unrestricted primitive-array,
@@ -652,9 +683,9 @@ fn record_shape<'m>(
     if data.properties.carry.is_some() {
         return unserved("data with a carry policy");
     }
-    if data.zero_gated {
-        return unserved("zero-gated data");
-    }
+    // `zero_gated` is not read: whether the zero value satisfies the
+    // declaration's `requires` is this route's own proof question, asked
+    // where a local of the type is declared without an initializer.
     if !data.retired_identities.is_empty() {
         return unserved("data with retired field identities");
     }
@@ -687,9 +718,8 @@ fn record_shape<'m>(
         }
     }
     // Common fields beside cases: a case literal names no common field
-    // (`Token::Mark { kind: 2 }`), so what they hold after construction is
-    // the zero-initialization question `OWNER_QUESTIONS.md` records as
-    // `local-without-initializer`. Refused until it is answered.
+    // (`Token::Mark { kind: 2 }`), so what they hold after construction
+    // is a rule of its own that no slice of this lane lowers yet.
     if fields && cases {
         return unserved("mixed data");
     }
@@ -733,10 +763,9 @@ mod tests {
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
         assert_eq!(record_shape(machine(), &data, &members, |_| &[]), Ok(()));
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 11] = [
-            ("type data requires", |data, _| {
-                data.where_facts = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
-            }),
+        // A declaration-level `requires` is no longer refused here: its
+        // clauses are read by the clause reader. A case-level one still is.
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 10] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Affine;
             }),

@@ -34,8 +34,12 @@ A record value is storage. A record formal, and every operation that
 produces a record (a literal, a whole copy, a call), is a root place; a
 member path is a projection of one, interned on first use; and every
 establishment and store is logged in the forward write log as what that one
-operation stored (`lower/places.rs`). A local declared without an initializer
-is reserved storage with no content until a store reaches it. A machine with no record has no structural place, and
+operation stored (`lower/places.rs`). A data local declared without an
+initializer holds its type's zero value; a scalar local declared that way is
+reserved storage with no content until a store reaches it. A data type's
+`requires` clauses are read with the contract clause reader and owed, as
+`DataDomain` obligations, by every operation that forms or changes a value
+of the type. A machine with no record has no structural place, and
 its place, root and write tables stay empty.
 
 Gaps found against the contract are listed in the crate README, "Findings".
@@ -49,7 +53,7 @@ mod read;
 
 pub use body::{
     Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, ValueType,
+    Statement, Strict, Target, ValueType, self_place,
 };
 pub use outcome::Outcome;
 
@@ -125,6 +129,13 @@ pub struct Elaboration {
     pub sources: IdTable<MachineId, MachineSources>,
     /// The typed-tree machine each `MachineId` elaborates. The entry is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
+    /// The `requires` clauses of each data type the module declares, by the
+    /// type's identity and in authored order, as `RecordType::requires`
+    /// states them. They ride here because Terminal Psi's type declaration
+    /// has no slot for them: the current pipeline proves them on checked
+    /// trees and its Terminal module carries none. A `DataDomain` obligation
+    /// names its clause by position among these.
+    pub domains: IdTable<StructuralTypeId, Vec<semantic_vocabulary::Proposition>>,
 }
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -264,11 +275,16 @@ pub fn lower_bodies(
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
     }
+    let mut domains = IdTable::default();
+    for (_, record) in records.iter() {
+        domains.push(record.requires.clone());
+    }
     Ok(Elaboration {
         module,
         tables,
         sources,
         machines: IdTable::default(),
+        domains,
     })
 }
 

@@ -1,15 +1,20 @@
 /*
 The contract family of the reader: `requires`, `ensures` and `crashes` clauses
 read into propositions over the formals, and the identity of the reserved
-`result`.
+`result`. A data declaration's `requires` is read by the same clause reader,
+with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
-use semantic_vocabulary::{MachineId, Proposition, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    StructuralCaseSubject, StructuralTypeId, ValueId,
+};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
@@ -24,6 +29,29 @@ pub(super) struct ClauseScope<'s> {
     /// machine's one state; see `TableNamePath::reserved_result_of`).
     pub(super) owner: SymbolHandle,
     pub(super) result: ResultTerm,
+    /// Set for a clause of a data declaration's `requires`: the type whose
+    /// value `self` is. Such a clause may also test a case and be a
+    /// disjunction, because it never enters the module's contracts: the
+    /// checker replaces its names by values before it is a goal.
+    pub(super) subject: Option<DataSubject>,
+    /// Whether a term may project a record formal (`p.first`): so for an
+    /// entry `requires` clause, whose term is then the field of the
+    /// formal's place, about what that place holds at entry
+    /// (fact_validity.md: "Entry hypotheses bind exact invocation formals
+    /// or structural entry paths"). A crash route guard and an `ensures`
+    /// clause may not, yet.
+    pub(super) formal_fields: bool,
+}
+
+/// The value a data declaration's `requires` is about.
+#[derive(Clone, Copy)]
+pub(super) struct DataSubject {
+    pub(super) record: StructuralTypeId,
+    /// The symbol stage 02 gave the clause's `self`; invalid when the
+    /// declaration never names it.
+    pub(super) symbol: SymbolHandle,
+    /// The root that stands for `self` in the clause (`body::self_place`).
+    pub(super) root: PlaceId,
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +99,29 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        // `self in S::C`, in a data clause only. Stage 01 writes a case test
+        // as `CaseMembership` or as `Equal` against a case name; in both the
+        // right operand names a case, which is what makes it one.
+        if matches!(
+            operator,
+            BinaryOperator::CaseMembership | BinaryOperator::Equal
+        ) && let Some(case) = self.named_case(binary.right)
+        {
+            if scope.subject.is_none() {
+                return unserved("case membership");
+            }
+            let Some((root, path, ValueType::Record(sum))) =
+                self.projected(id, scope, binary.left)?
+            else {
+                return unserved("case test of something that is not a sum");
+            };
+            let case = self.case_position(id, sum, case)?;
+            let case = self.data_type(id, sum)?.cases[case].id;
+            return Ok(Proposition::StructuralCaseMembership {
+                subject: StructuralCaseSubject::new(root, path),
+                case,
+            });
+        }
         let comparison = match operator {
             BinaryOperator::And => {
                 let mut conjuncts = Vec::new();
@@ -80,8 +131,24 @@ impl Program<'_> {
                         other => conjuncts.push(other),
                     }
                 }
+                // A data clause keeps its authored order: it is never
+                // encoded, and a conjunct that tests the case guards the
+                // conjuncts that project its payload.
+                if scope.subject.is_some() {
+                    return Ok(Proposition::Conjunction(conjuncts));
+                }
                 return canonical::clauses(conjuncts, Repeated::Refuse, id)
                     .map(Proposition::Conjunction);
+            }
+            BinaryOperator::Or if scope.subject.is_some() => {
+                let mut disjuncts = Vec::new();
+                for side in [binary.left, binary.right] {
+                    match self.clause(id, scope, side)? {
+                        Proposition::Disjunction(inner) => disjuncts.extend(inner),
+                        other => disjuncts.push(other),
+                    }
+                }
+                return Ok(Proposition::Disjunction(disjuncts));
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -120,6 +187,7 @@ impl Program<'_> {
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
+            BinaryOperator::Equal if scope.subject.is_some() => Ok(Proposition::Equal(left, right)),
             BinaryOperator::Equal => canonical::equal(left, right, id),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
@@ -158,6 +226,9 @@ impl Program<'_> {
                     ResultTerm::Absent(why) => unserved(why),
                 }
             }
+            ExpressionNode::Name(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
+            }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
                 // A record formal is a place, not a value: a clause can only
@@ -186,9 +257,19 @@ impl Program<'_> {
                     scalar_type,
                 ))
             }
-            // `p.first == 7`, `result.count <= 5`: a clause term over the
-            // entry content of a formal's place or over the result root.
-            // Served by the slice that states clauses over places.
+            // `self.value`, `self.from.x`: a field of the value a data
+            // clause is about.
+            ExpressionNode::Member(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
+            }
+            // `p.first == 7` in an entry `requires`: the field of a record
+            // formal's place.
+            ExpressionNode::Member(_) if scope.formal_fields => {
+                self.field_term(id, scope, expression)
+            }
+            // `result.count <= 5`, and a formal's field in any other
+            // clause: a term over the result root or over entry content
+            // that no slice serves yet.
             ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
@@ -205,5 +286,148 @@ impl Program<'_> {
             }
             _ => unserved("term other than a formal or literal"),
         }
+    }
+
+    /// A scalar field of the value a data clause is about, as the term
+    /// Terminal Psi gives a field of storage: the root and the dense field
+    /// and case identities down to the field.
+    fn field_term(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<(ScalarTerm, ScalarType)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let Some((root, path, value_type)) = self.projected(id, scope, expression)? else {
+            return unserved("term other than a field of the value or a literal");
+        };
+        match value_type {
+            ValueType::Scalar(ScalarType::Integer(scalar_type)) => Ok((
+                ScalarTerm::IntegerField {
+                    root,
+                    path,
+                    scalar_type,
+                },
+                ScalarType::Integer(scalar_type),
+            )),
+            ValueType::Scalar(ScalarType::Boolean) => {
+                Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
+            }
+            ValueType::Scalar(ScalarType::IeeeFloat(_)) => unserved("float field in a clause"),
+            ValueType::Record(_) => unserved("data value compared whole in a clause"),
+        }
+    }
+
+    /// The storage a clause's expression names. In a data clause: `self`, a
+    /// field named bare, or a member path beneath either. In a machine's
+    /// entry clause: a record formal, whose root is its place, or a member
+    /// path beneath one. `None` for an expression that names no storage.
+    /// Every step is resolved from a symbol; a name or member the typed
+    /// trees hold only as a spelling is refused.
+    fn projected(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
+        if scope.subject.is_none() && !scope.formal_fields {
+            return Ok(None);
+        }
+        let spelling = |what| refuse(id, Construct::Machine, Unserved::Spelling(what));
+        if !expression.is_valid() {
+            return Ok(None);
+        }
+        let (root, base, record, symbol) = match self.typed.expression_table.expression(expression)
+        {
+            ExpressionNode::Name(path) => {
+                if !path.symbol.is_valid() {
+                    return Err(spelling("clause name without a symbol"));
+                }
+                let Some(subject) = scope.subject else {
+                    // A record formal is its root place: lowering mints the
+                    // record formals' places first, so the `k`-th record
+                    // formal is place `k + 1` (`Signature::parameters`).
+                    if path.reserved_result_of.is_valid() {
+                        return Ok(None);
+                    }
+                    let slot = self.slot_of(id, scope.slots, path)?;
+                    let ValueType::Record(record) = scope.slots[slot].value_type else {
+                        return Ok(None);
+                    };
+                    let earlier = scope.slots[..slot]
+                        .iter()
+                        .filter(|formal| formal.value_type.scalar().is_none())
+                        .count();
+                    let root = PlaceId::new(earlier as u64 + 1).ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Contract("formal place identity"),
+                        )
+                    })?;
+                    return Ok(Some((root, Vec::new(), ValueType::Record(record))));
+                };
+                if subject.symbol.is_valid() && path.symbol == subject.symbol {
+                    return Ok(Some((
+                        subject.root,
+                        Vec::new(),
+                        ValueType::Record(subject.record),
+                    )));
+                }
+                // A field named bare is that field of `self`.
+                (subject.root, Vec::new(), subject.record, path.symbol)
+            }
+            ExpressionNode::Member(member) => {
+                if !member.member_symbol.is_valid() {
+                    return Err(spelling("clause member without a field symbol"));
+                }
+                let Some((root, base, ValueType::Record(record))) =
+                    self.projected(id, scope, member.receiver)?
+                else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("member of something that is not data"),
+                    ));
+                };
+                (root, base, record, member.member_symbol)
+            }
+            ExpressionNode::Indexed(_)
+            | ExpressionNode::TypeExpression(_)
+            | ExpressionNode::Match(_)
+            | ExpressionNode::SavedSubject(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Atomic(_)
+            | ExpressionNode::Binary(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Call(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::Range(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::ZeroValue(_) => return Ok(None),
+        };
+        let mut path = base;
+        let data = self.data_type(id, record)?;
+        let value_type = match self.member_of(id, record, symbol)? {
+            Member::Field(field) => {
+                path.push(CanonicalStructuralPathSegment::Field(data.fields[field].id));
+                data.fields[field].value_type
+            }
+            Member::Payload { case, field } => {
+                let owner = &data.cases[case];
+                path.push(CanonicalStructuralPathSegment::Case(owner.id));
+                path.push(CanonicalStructuralPathSegment::Field(
+                    owner.fields[field].id,
+                ));
+                owner.fields[field].value_type
+            }
+        };
+        Ok(Some((root, path, value_type)))
     }
 }

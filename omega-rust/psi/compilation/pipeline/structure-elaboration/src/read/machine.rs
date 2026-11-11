@@ -230,6 +230,13 @@ impl<'t> Program<'t> {
             slots: &slots,
             owner: state.symbol,
             result: ResultTerm::Absent("result in an entry clause"),
+            subject: None,
+            formal_fields: false,
+        };
+        // Only an entry `requires` may project a record formal.
+        let required = ClauseScope {
+            formal_fields: true,
+            ..entry
         };
         let exit = ClauseScope {
             result: match result {
@@ -265,7 +272,7 @@ impl<'t> Program<'t> {
             match contract.kind {
                 SignatureContractKind::Requires => {
                     for fact in facts {
-                        requires.push(self.clause(id, &entry, self.fact(id, fact)?)?);
+                        requires.push(self.clause(id, &required, self.fact(id, fact)?)?);
                     }
                 }
                 SignatureContractKind::Ensures => {

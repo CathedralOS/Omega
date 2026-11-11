@@ -15,7 +15,7 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    CrashCause, IntegerValue, MachineId, Proposition, ScalarType, StructuralCaseId,
+    CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
     StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::CrashRouteBucket;
@@ -70,6 +70,27 @@ pub struct RecordType {
     /// is named by its position here and by its `StructuralCaseId`, fixed
     /// once by the reader from the case's symbol.
     pub cases: Vec<CaseType>,
+    /// The clauses of the declaration's `requires`, in authored order: the
+    /// type's default domain (`wiki/spec/language/dependent_values.md`: "A
+    /// data declaration's field qualifications and `requires` clauses define
+    /// its default domain"). Each is a clause over `self`, in the form
+    /// Terminal Psi gives a clause over storage: a field of `self` is a
+    /// field term whose root is `self_place()` and whose path is the dense
+    /// field and case identities from the value down to the field, and
+    /// `self in S::C` is a case-membership proposition on such a path.
+    /// Nothing proves or knows a clause in this form: the checker replaces
+    /// every field term by the value a place holds, and every case test by
+    /// whether the place is that case, before it states a goal
+    /// (`lowered-discharge`).
+    pub requires: Vec<Proposition>,
+}
+
+/// The root that stands for `self` in a data type's `requires` clauses
+/// (`RecordType::requires`). A clause belongs to a type, not a machine, so
+/// this names no storage: it is the one root such a clause can name, and it
+/// is replaced before the clause is used.
+pub fn self_place() -> Option<PlaceId> {
+    PlaceId::new(1)
 }
 
 /// One case of a sum: its payload fields in declaration order. A payload
@@ -108,7 +129,11 @@ pub struct Signature {
     pub result: Option<ValueType>,
     /// Entry `requires` clauses over the formals, in Terminal Psi's canonical
     /// order (`MachineContract::requires` must strictly increase). A clause's
-    /// position here is its position in every `CallRequirement`.
+    /// position here is its position in every `CallRequirement`. A term
+    /// that projects a record formal (`p.first`) is a field term whose root
+    /// is that formal's place: the `k`-th record formal, counting from zero
+    /// and skipping scalar formals, is the machine's place `k + 1`. It
+    /// speaks of what the place holds at entry.
     pub requires: Vec<Proposition>,
     /// Normal-return guarantees over the formals and the result pseudo-value,
     /// in authored order.
@@ -157,13 +182,27 @@ pub enum Statement {
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
-    /// `let x: T;`: a local declared without an initializer. Its storage is
-    /// reserved and nothing is stored into it: the checker treats every use
-    /// that a store does not reach on every path as unestablished.
-    /// `wiki/spec/language/state_contracts.md`: "Uninitialized storage has no
-    /// assumed zero." A scalar slot declared this way is a storage home, not
-    /// an SSA value: it is written by `Store` with an empty path and read
-    /// through its place.
+    /// `let x: T;`: a local declared without an initializer.
+    ///
+    /// A data local is zero-established: its storage holds the zero
+    /// representation, a record's scalar fields zero and a sum its first
+    /// declared case with a zeroed payload
+    /// (`wiki/spec/language/data_and_literals.md`: "The ordinary zero
+    /// representation of a sum selects the first declared case and a
+    /// recursively zeroed payload."). It is an established value when the
+    /// zero satisfies the type's `requires`; otherwise the type is gated
+    /// and the storage may not be observed before a store establishes it
+    /// (`wiki/spec/language/dependent_values.md`: "If zero satisfies the
+    /// default domain, the value is zero-constructible. Otherwise the type
+    /// is gated: construction or checked qualification must establish the
+    /// domain before observation.").
+    ///
+    /// A scalar local's storage is reserved and nothing is stored into it:
+    /// the checker treats every use that a store does not reach on every
+    /// path as unestablished. `wiki/spec/language/state_contracts.md`:
+    /// "Uninitialized storage has no assumed zero." A scalar slot declared
+    /// this way is a storage home, not an SSA value: it is written by
+    /// `Store` with an empty path and read through its place.
     ///
     /// `home` is, for a scalar slot, the text identity of its type as the
     /// typed trees render it. Terminal Psi declares the primitive type of
