@@ -99,7 +99,11 @@ pub(super) struct Logged {
     pub(super) stored: Stored,
 }
 
-fn foreign(machine: MachineId, concerns: Construct, detail: &str) -> terminal_check_tables::Refusal {
+fn foreign(
+    machine: MachineId,
+    concerns: Construct,
+    detail: &str,
+) -> terminal_check_tables::Refusal {
     refusal(RefusalReason::ForeignIdentity, machine, concerns, detail)
 }
 
@@ -126,7 +130,8 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
             ));
         }
     }
-    let mut writes: Vec<Vec<terminal_check_tables::WriteId>> = vec![Vec::new(); tables.places.len()];
+    let mut writes: Vec<Vec<terminal_check_tables::WriteId>> =
+        vec![Vec::new(); tables.places.len()];
     for (write, row) in tables.writes.iter() {
         writes
             .get_mut(index(row.place.get()))
@@ -211,7 +216,10 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
 
 impl Storage<'_> {
     /// Every store of the machine, in block and operation order.
-    pub(super) fn stores(&self, value_types: &IdTable<ValueId, ScalarType>) -> Checked<Vec<Logged>> {
+    pub(super) fn stores(
+        &self,
+        value_types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<Vec<Logged>> {
         let mut log = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
@@ -246,7 +254,9 @@ impl Storage<'_> {
                     root: result.place,
                     segments: Vec::new(),
                 })
-                .ok_or_else(|| self.foreign(concerns, "an operation that makes storage has no place"))
+                .ok_or_else(|| {
+                    self.foreign(concerns, "an operation that makes storage has no place")
+                })
         };
         let beneath = |place: &Lineage, steps: &[Segment]| -> Checked<Lineage> {
             let mut leaf = place.clone();
@@ -281,7 +291,10 @@ impl Storage<'_> {
                 let root = fresh()?;
                 for field in fields {
                     rows.push((
-                        beneath(&root, &[Segment::Case(*result_case), Segment::Field(field.field)])?,
+                        beneath(
+                            &root,
+                            &[Segment::Case(*result_case), Segment::Field(field.field)],
+                        )?,
                         Stored::Value(field.value),
                     ));
                 }
@@ -294,7 +307,10 @@ impl Storage<'_> {
                 let root = fresh()?;
                 for field in fields {
                     rows.push((
-                        beneath(&root, &[Segment::Case(*result_case), Segment::Field(field.field)])?,
+                        beneath(
+                            &root,
+                            &[Segment::Case(*result_case), Segment::Field(field.field)],
+                        )?,
                         operand(&field.value)?,
                     ));
                 }
@@ -313,7 +329,8 @@ impl Storage<'_> {
                     .checked_sub(leaves.len())
                     .map(|first| &block.operations[first..position]);
                 for (slot, (leaf, scalar_type)) in leaves.into_iter().enumerate() {
-                    let zero = constants.and_then(|constants| zero_constant(&constants[slot], scalar_type));
+                    let zero = constants
+                        .and_then(|constants| zero_constant(&constants[slot], scalar_type));
                     if let Some(zero) = zero {
                         rows.push((leaf, Stored::Value(zero)));
                     }

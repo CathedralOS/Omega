@@ -1965,7 +1965,13 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
             .place;
         if arm_store {
             let leaf = projected(elaboration.tables.machines.get(id(1)).unwrap(), p, &[1]);
-            store_by_hand(&mut elaboration, arm, leaf, in_arm, field_store(p, 1, in_arm));
+            store_by_hand(
+                &mut elaboration,
+                arm,
+                leaf,
+                in_arm,
+                field_store(p, 1, in_arm),
+            );
         }
         let result = discharge(&mut elaboration).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));

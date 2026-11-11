@@ -416,7 +416,10 @@ fn values_are_declared(
             .get_mut(index(value.id.get()))
             .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
         if slot.replace((value.scalar_type, origin)).is_some() {
-            return Err(foreign(value.id, "the lowered form declares one value twice"));
+            return Err(foreign(
+                value.id,
+                "the lowered form declares one value twice",
+            ));
         }
         Ok(())
     };

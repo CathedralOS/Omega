@@ -58,9 +58,9 @@ and `semantic_vocabulary::Proposition`'s structural variants are not used.
 */
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, OperationId,
-    PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, MachineId, OperationId, PlaceId, Proposition,
+    PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use terminal_check_tables::bindings::{PlaceOrigin, PlaceRow, Segment};
 use terminal_check_tables::edges::Actual;
@@ -70,10 +70,10 @@ use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, IdTable, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{
-    Block, Operation, OperationKind, StructuralArgument,
-    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, Terminator,
+    Block, Operation, OperationKind, StructuralArgument, StructuralCaseDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    Terminator,
 };
 
 use crate::graph::Graph;
