@@ -312,7 +312,11 @@ and that application's complete original requirement roster. It is not another
 provider plan or a union of independently selected rows. A whole descendant
 choice can settle automatic ancestor selection only when the complete demanded
 application agrees; it cannot suppress a competing authored choice. Shared
-realizer code does not merge selecting owners. Erased runtime-carrier identities
+realizer code does not merge selecting owners. Two selected owners compete for
+an inherited receiver when its declaration and every calling plan's promise
+(convention placements and effective machine-state contract) agree; the
+owner-bound application commitment names the selecting owner and its policy, so
+different policies publishing one promise still compete. Erased runtime-carrier identities
 cannot establish agreement between region-bearing applications.
 
 Service schemas retain linear routed-parameter claims structurally: exact
