@@ -3052,7 +3052,13 @@ pub mod expression_owners {
                     None,
                 ));
             }
-            let (_, signature) = program.machine_parameter_signature(state_symbol)?;
+            // A callable binder keeps its contract under the binder itself. Read
+            // it from there: a binder on a bodyless trait requirement has no
+            // machine row, so a search through machines never finds it and its
+            // nested `requires` and `ensures` clauses are left without types.
+            let signature = program
+                .retained_static_machine_contract(state_symbol)?
+                .signature();
             Some(environment_from_parameters(
                 state_symbol,
                 program.state_signature_parameters(signature),
