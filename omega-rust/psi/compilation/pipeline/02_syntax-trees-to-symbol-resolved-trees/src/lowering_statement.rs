@@ -231,6 +231,7 @@ pub(in crate::lowering) mod hoist_temps {
                         type_is_inferred,
                         is_operand_capture,
                         relevance: language_core::BindingRelevance::Relevant,
+                        pattern_fields: Default::default(),
                     },
                 }));
                 (name, source_span)
@@ -1265,6 +1266,7 @@ mod statement_nodes {
                             type_is_inferred: true,
                             is_operand_capture: false,
                             relevance: language_core::BindingRelevance::Relevant,
+                            pattern_fields: Default::default(),
                         },
                     }));
                 }

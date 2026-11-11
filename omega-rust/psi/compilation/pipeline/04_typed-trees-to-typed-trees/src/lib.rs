@@ -132,6 +132,84 @@ pub(crate) mod assignment_destinations {
     }
 }
 
+/*
+    A record pattern (`let { a, b as _ } = subject;`) reaches this stage as a
+    marker local whose roster holds only what the author spelled. Here, where
+    the subject's declared type is settled, each row receives the symbol of the
+    field it names in that record and the marker the record's own symbol, so
+    checking and later readers decide coverage by identity and never read a
+    spelling again. A row naming no field, or one spelling two fields share,
+    stays without a symbol; a subject that is not a plain record leaves the
+    whole roster unresolved, and checking rejects both.
+*/
+pub(crate) mod record_patterns {
+    use crate::tables::{expressions_of, expressions_of_mut};
+    use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::statement::StatementNode;
+
+    pub(crate) fn prepare(program: &mut TypedTrees) {
+        let mut resolutions = Vec::new();
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for handle in state.statement_nodes.handles() {
+                    let Some(local) = program.statement_table.statement(handle).as_local_data()
+                    else {
+                        continue;
+                    };
+                    if local.role != language_core::LocalBindingRole::RecordPattern {
+                        continue;
+                    }
+                    let Ok(data) =
+                        validation::record_pattern_subject(program, machine, state, local)
+                    else {
+                        resolutions.push((handle, SymbolHandle::invalid(), Vec::new()));
+                        continue;
+                    };
+                    let roster = expressions_of(program)
+                        .match_fields(local.pattern_fields)
+                        .iter()
+                        .map(|row| {
+                            let mut named = program
+                                .data_members(data)
+                                .iter()
+                                .filter_map(|member| member.as_field())
+                                .filter(|field| field.name.as_str() == row.member.as_str());
+                            let field_symbol = match (named.next(), named.next()) {
+                                (Some(field), None) => field.symbol,
+                                _ => SymbolHandle::invalid(),
+                            };
+                            typed_trees::expression::TableMatchField {
+                                field_symbol,
+                                ..row.clone()
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    resolutions.push((handle, data.symbol, roster));
+                }
+            }
+        }
+        for (handle, subject, roster) in resolutions {
+            /*
+                Each marker receives rows of its own: a specialized body may
+                still share its template's rows, and the two subjects need not
+                be the same record.
+            */
+            let pattern_fields = if subject.is_valid() {
+                Some(expressions_of_mut(program).insert_match_fields(roster))
+            } else {
+                None
+            };
+            if let StatementNode::LocalData(local) = program.statement_table.statement_mut(handle) {
+                local.pattern_subject = subject;
+                if let Some(pattern_fields) = pattern_fields {
+                    local.pattern_fields = pattern_fields;
+                }
+            }
+        }
+    }
+}
+
 pub(crate) mod expression_roots {
     use typed_trees::TypedTrees;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};

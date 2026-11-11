@@ -7863,6 +7863,7 @@ pub mod result_overloads {
                     is_operand_capture: false,
                     relevance: language_core::BindingRelevance::Relevant,
                     reflected_query_origin: None,
+                    ..Default::default()
                 });
         }
         changed_owners.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));

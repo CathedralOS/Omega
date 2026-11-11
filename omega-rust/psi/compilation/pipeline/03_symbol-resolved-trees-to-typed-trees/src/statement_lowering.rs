@@ -1395,7 +1395,30 @@ pub(crate) mod statement {
                         lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
                     }
                 };
+                let roster = crate::tables::resolved_expressions(lowerer.source_trees)
+                    .match_fields(local_data.pattern_fields)
+                    .iter()
+                    .map(|field| {
+                        use resolved::expression::MatchFieldAction as Authored;
+                        use typed::expression::{MatchFieldAction, TableMatchField};
+                        TableMatchField {
+                            component: field.component,
+                            member: crate::lowerer::name::lower_name(&field.member),
+                            field_symbol: field.field_symbol,
+                            action: match &field.action {
+                                Authored::Bind(binding) => MatchFieldAction::Bind(
+                                    crate::lowerer::name::lower_name(binding),
+                                ),
+                                Authored::Waive | Authored::Equal(_) => MatchFieldAction::Waive,
+                            },
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let pattern_fields = crate::tables::expression_table_mut(&mut lowerer.typed_trees)
+                    .insert_match_fields(roster);
                 Ok(typed::statement::StatementNode::LocalData(TableLocalData {
+                    pattern_fields,
+                    pattern_subject: symbols::SymbolHandle::invalid(),
                     role: local_data.role,
                     symbol: local_data.symbol,
                     name: crate::lowerer::name::lower_name(&local_data.name),

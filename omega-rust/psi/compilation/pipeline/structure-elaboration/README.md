@@ -25,7 +25,7 @@ and `Slot`, and each family is a module beside it:
 [statements](src/read/statements.rs), [expressions](src/read/expressions.rs),
 [calls](src/read/calls.rs), [transitions](src/read/transitions.rs),
 [places](src/read/places.rs) (data declarations, record and case literals,
-member paths, case tests and patterns) and [subjects](src/read/subjects.rs)
+member paths, case tests, case patterns and record patterns) and [subjects](src/read/subjects.rs)
 (which declarations a compilation must judge besides those its entries call). `lower.rs` holds the `Lowering` state, the per-machine entry point and
 `finish`, beside [control](src/lower/control.rs) (blocks, edges, arms, crashes,
 returns), [operations](src/lower/operations.rs), [calls](src/lower/calls.rs)
@@ -167,6 +167,14 @@ serves:
 - whole assignment to a `mut` local, `r = R { ... }` and `r = other;`;
 - a local declared without an initializer: `let mut r: R;` holds the zero
   value of `R`, and `let mut x: u32;` holds zero;
+- the record pattern `let { a, b as c, d as _ } = r;` over a place: each
+  bound field is the ordinary local that follows the pattern's marker, a
+  field read of the subject, and the marker itself lowers to nothing. The
+  pattern is served when its roster names every field of the subject's
+  record ([patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings):
+  "A pattern that can fail rejects; a binding introduces no hidden branch,
+  trap, fallback or runtime assertion."). One that omits a field is refused
+  as `statement record pattern that omits a field`;
 - a `requires` on the declaration, over `self` and its fields
   ([Data `requires`](#data-requires)).
 
@@ -218,9 +226,10 @@ the slice that serves it:
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
-| `let { a, b } = r;` | `statement record pattern binding` (finding 20) |
-| a directly authored payload member, `s.at` and `s.at = x` | `spelling member without a field symbol` (finding 19) |
-| a field of a data payload binding, `inner.x` | `spelling member without a field symbol`; from a closed body, `expression field read beneath a case payload` |
+| a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
+| a store into a payload member, `s.at = x` | `statement store into a case payload` |
+| a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
+| a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
 | `crash` in a case arm | `transition crash in a case arm` (finding 21) |
 | `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
@@ -229,7 +238,7 @@ the slice that serves it:
 | a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |
 | a clause that names a record formal whole, an `ensures` or crash guard that projects a formal, and any clause that projects `result` | `contract record formal named whole in a clause`, `contract clause that projects a formal or result`, `contract result of a record machine` |
 | `==` and `!=` between records or between two sum values | `expression operator on a record` |
-| a field or literal type the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol` |
+| a field, literal type or pattern roster the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol`, `spelling record pattern without a resolved subject`, `spelling record pattern field without a symbol` |
 
 A named constant never reaches this crate as a name: stage 04 and build-time
 evaluation replace each use with the constant's materialized initializer, so a
@@ -265,6 +274,13 @@ that still resolves to a constant is refused as `expression const`.
   "Its case identity must belong to the exact selected sum type; matching
   case spellings in another type supply no authority."). A member's
   `case_variant` is a spelling and is never read.
+- **Record patterns** are covered by the roster on the pattern's marker
+  local (`TableLocalData::pattern_fields`, `pattern_subject`), which typed
+  preparation resolves against the subject's declared record: the marker's
+  record symbol must be the declaration of the subject's own record type, and
+  each row's field symbol one of its fields. A row without a symbol, or a
+  roster resolved against another record, is refused; no row's spelling is
+  read.
 - **Text identities** exist in one place only. Terminal Psi's own type and
   field declarations carry an interned text
   (`StructuralTypeDeclaration::identity`), and `StructuralLeafCopy` names a
@@ -694,23 +710,30 @@ worked around by adding to `terminal-check-tables`.
     `validation` (`validate_match_coverage`, `validate_for_subject`,
     `validate_destructure_exhaustiveness`), which runs after the typed trees
     this route reads are frozen. So this route decides the first two itself.
-19. **A directly authored payload member has no field symbol.** `s.at` and
-    `s.at = x` on a sum reach the typed trees as a member with a name and an
-    invalid `member_symbol`; so does a field of a data payload binding,
-    `inner.x`. Resolving one would mean comparing the name with the payload
-    fields' names, so each is refused as a spelling. The payload members
-    this route reads are the ones stage 01 substitutes for pattern bindings,
-    which carry the field symbol. Serving the rest needs the symbol recorded
-    where the member is typed.
-20. **A record pattern's field roster exists only as text.**
-    `let { x, y as _ } = p;` reaches the typed trees as a marker local named
-    `__destructure#x#y` followed by one ordinary field-read local per bound
-    field. Which fields the pattern mentions is in the marker's name and
-    nowhere else, and the current checker splits and compares it by spelling.
+19. **A directly authored payload member carries its field symbol.** `s.at`
+    and `s.at = x` on a sum used to reach the typed trees as a member with a
+    name and an invalid `member_symbol`, and so did a field of a data payload
+    binding, `inner.x`. Stage 03 now records the payload field's symbol (a
+    `SymbolKind::Field` under the case's `SymbolKind::Variant`) where it
+    completes a member against its receiver's declared type, when no common
+    field and exactly one case declares that spelling, and types a field of
+    a payload binding through the binding's own field symbol. So this route
+    reads `s.at` as the payload member it is, and the lowered form's payload
+    access judgment decides whether the sum holds that case there. A spelling
+    two cases share still arrives without a symbol and is refused as one;
+    the member's `case_variant` stays unset and is not needed.
+20. **A record pattern carries its field roster as symbols.**
+    `let { x, y as _ } = p;` reaches the typed trees as a marker local
+    followed by one ordinary field-read local per bound field. The marker
+    used to name its fields only in its own name (`__destructure#x#y`), which
+    the current checker split and compared by spelling. It now carries a
+    roster (`TableLocalData::pattern_fields`, one row per named field, bound
+    or waived) that typed preparation resolves against the subject's declared
+    record (`pattern_subject`), and `validate_destructure_exhaustiveness`
+    and this route both decide coverage from those symbols.
     [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
-    requires the pattern to name every field, and accepting the marker
-    without checking that would accept `let { x } = p;`. It stays refused
-    until the marker carries its fields' symbols.
+    requires the pattern to name every field, so a roster that omits one is
+    refused here as it is rejected there.
 21. **A crash inside a case arm has no exact site guard.** The guard is the
     conjunction of the branch decisions before the crash, each a value equal
     to a Boolean. Which case a dispatch selected is not a value, so the arm

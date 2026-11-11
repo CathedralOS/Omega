@@ -1470,6 +1470,7 @@ pub use proof_contracts::relevance::dispatch_subject_of_erased_binding;
 pub use proof_contracts::{
     contract_argument_root, contract_structure, expression_owners, mathematical_applications,
 };
+pub use value_custody::destructure::record_pattern_subject;
 pub use value_custody::field_domains::readable_fixed_array_elements;
 pub use value_custody::partial_affine_residuals::{
     CaseSelectedCleanupPartition, CaseSelectedCleanupRegion, CleanupCaseCondition,

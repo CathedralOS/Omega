@@ -3219,6 +3219,14 @@ fn visit_statement(
         }
         StatementNode::LocalData(local) => {
             visit_type_reference(program, retained, local.type_reference);
+            for field in program.expression_table.match_fields(local.pattern_fields) {
+                if field.field_symbol.is_valid() {
+                    visit_symbol(retained, field.field_symbol);
+                }
+            }
+            if local.pattern_subject.is_valid() {
+                visit_symbol(retained, local.pattern_subject);
+            }
         }
         StatementNode::Assignment(assignment) => {
             if retained.derived_declaration_references() {
