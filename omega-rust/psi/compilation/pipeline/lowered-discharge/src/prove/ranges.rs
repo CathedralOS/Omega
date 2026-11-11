@@ -29,7 +29,9 @@ provisional rule; its mathematical core does not derive it.
 use std::cmp::Ordering;
 
 use proof_admission::{
-    IntegerAffineWitness, ProofRule, check_integer_affine_witness, map_integer_affine_bound,
+    IntegerAffineWitness, IntegerCastChainWitness, PrimitiveJudgment, ProofRule,
+    check_integer_affine_witness, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness, map_integer_affine_bound,
 };
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType,
@@ -334,5 +336,103 @@ impl Prover<'_> {
                 witness,
             },
         ))
+    }
+
+    /// A bound on `subject`, the output of the widening or exact cast
+    /// `expression` that axiom `axiom` defines: the operand's bound with its
+    /// literal restated in the output's carrier (`IntegerCastBound`; "A
+    /// checked root-bound child maps the same mathematical endpoint into the
+    /// final carrier"). An operand bound outside the output's carrier maps
+    /// to nothing, which leaves the output its carrier bound.
+    pub(super) fn cast_bound(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (ScalarTerm::IntegerWiden {
+            source_type,
+            operand,
+            ..
+        }
+        | ScalarTerm::IntegerExactCast {
+            source_type,
+            operand,
+            ..
+        }) = expression
+        else {
+            return None;
+        };
+        let ScalarTerm::Value { id, .. } = operand.as_ref() else {
+            return None;
+        };
+        let root = self.bound(*id, direction)?;
+        let literal = source_type.exact_cast_value_to(integer, root.literal)?;
+        let conclusion = Self::oriented(
+            subject,
+            ScalarTerm::integer(integer, literal).ok()?,
+            direction,
+        );
+        let witness = IntegerCastChainWitness {
+            root: operand.as_ref().clone(),
+            target: subject.clone(),
+            definition_axioms: vec![axiom],
+        };
+        let chain = check_integer_cast_chain_witness(self.context, self.axioms, &witness).ok()?;
+        check_integer_cast_bound_conversion(&chain, &root.proof.conclusion, &conclusion).ok()?;
+        Some(Bound {
+            literal,
+            proof: node(
+                conclusion,
+                ProofRule::IntegerCastBound {
+                    root_bound: Box::new(root.proof),
+                    witness,
+                },
+            ),
+        })
+    }
+
+    /// `value <= limit` (or `limit <= value`) over mathematical integers,
+    /// the representability goal of an exact cast: the value's bound in its
+    /// own carrier, restated over its mathematical value, then the closed
+    /// relation between that bound and the limit.
+    pub(super) fn value_in_carrier(
+        &mut self,
+        source_type: IntegerType,
+        value: semantic_vocabulary::ValueId,
+        term: &IntegerMathTerm,
+        limit: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
+        let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
+        let bound = self.bound(value, direction).ok_or("value has no bound")?;
+        let literal = IntegerMathTerm::literal(bound.literal);
+        let (restated, endpoint) = match direction {
+            Direction::Upper => (
+                Proposition::IntegerMathLessOrEqual(term.clone(), literal),
+                0,
+            ),
+            Direction::Lower => (
+                Proposition::IntegerMathLessOrEqual(literal, term.clone()),
+                1,
+            ),
+        };
+        // Substituting the value for itself changes nothing; the rule lets
+        // a carrier order conclude over the mathematical value.
+        let unchanged = super::primitive(
+            Proposition::Equal(subject.clone(), subject),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        let mathematical = node(
+            restated,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(bound.proof),
+                equality: Box::new(unchanged),
+                endpoint,
+            },
+        );
+        self.land(mathematical, term, limit, direction)
     }
 }

@@ -544,6 +544,69 @@ fn every_exact_operation_is_partial_by_the_policy_catalog() {
     }
 }
 
+fn sized(sign: IntegerSign, bits: u16) -> ScalarType {
+    ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
+}
+
+/// `return a as target`, over one formal of type `from`.
+fn cast_of_formal(from: ScalarType, target: ScalarType) -> (TerminalMachine, MachineTables) {
+    let body = Body {
+        slots: scalars(vec![from]),
+        statements: vec![returns(expression(
+            ExpressionKind::Cast(Box::new(slot(0, from))),
+            Some(target),
+        ))],
+    };
+    lower(body, vec![signature(vec![from], Some(target))])
+}
+
+#[test]
+fn a_cast_is_one_exact_conversion_and_only_a_partial_one_owes_safety() {
+    // domains.md, "Carrier casts": "exact widening, or narrowing with
+    // representability proved."
+    let conversion = |machine: &TerminalMachine| {
+        let [operation] = &block(machine, 1).operations[..] else {
+            panic!("one operation");
+        };
+        operation.kind.clone()
+    };
+    let formal: ValueId = id(1);
+    // u8 to u32, and u8 to i16, lose nothing: no obligation.
+    for target in [u32_type(), sized(IntegerSign::Signed, 16)] {
+        let (machine, tables) = cast_of_formal(sized(IntegerSign::Unsigned, 8), target);
+        assert_eq!(
+            conversion(&machine),
+            OperationKind::IntegerWiden { operand: formal }
+        );
+        assert_eq!(obligations(&tables), []);
+        assert_module_and_tables_agree(&machine, &tables);
+    }
+    // Narrowing, a change of sign at one width, and signed to a wider
+    // unsigned each exclude some operand values.
+    for (from, target) in [
+        (u32_type(), sized(IntegerSign::Unsigned, 8)),
+        (u32_type(), sized(IntegerSign::Signed, 32)),
+        (sized(IntegerSign::Signed, 8), u32_type()),
+    ] {
+        let (machine, tables) = cast_of_formal(from, target);
+        let OperationKind::IntegerExactCast {
+            operand,
+            obligation,
+        } = conversion(&machine)
+        else {
+            panic!("an exact cast");
+        };
+        assert_eq!(operand, formal);
+        let operation = block(&machine, 1).operations[0].id;
+        assert_eq!(
+            obligations(&tables),
+            [ObligationKind::OperationSafety { operation }]
+        );
+        assert_eq!(obligation, id(1));
+        assert_module_and_tables_agree(&machine, &tables);
+    }
+}
+
 #[test]
 fn a_value_machine_that_falls_off_its_end_is_refused() {
     let body = Body {

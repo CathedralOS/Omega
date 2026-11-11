@@ -153,6 +153,28 @@ impl Lowering<'_> {
                     OperationKind::IntegerBitwiseNot { operand },
                 )
             }
+            ExpressionKind::Cast(operand_expression) => {
+                let operand = self.scalar(operand_expression)?;
+                let (ScalarType::Integer(from), Some(ScalarType::Integer(to))) =
+                    (self.result_type(operand_expression)?, result)
+                else {
+                    return Err(self.internal("a cast between carriers that are not integers"));
+                };
+                let operation = self.operation_identity(source);
+                // Widening is total. Any other conversion is exact only
+                // where the value is representable, which is its obligation.
+                let kind = if from.can_widen_to(to) {
+                    OperationKind::IntegerWiden { operand }
+                } else if from != to && from.can_exact_cast_to(to) {
+                    OperationKind::IntegerExactCast {
+                        operand,
+                        obligation: self.safety(operation, source)?,
+                    }
+                } else {
+                    return Err(self.internal("a cast with no exact conversion"));
+                };
+                self.emit(operation, result, kind)
+            }
             ExpressionKind::Strict {
                 operation,
                 left: left_expression,

@@ -89,6 +89,7 @@ impl Program<'_> {
                         | ExpressionKind::Strict { .. }
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
+                        | ExpressionKind::Cast(_)
                         | ExpressionKind::ShortCircuit { .. }
                         | ExpressionKind::Call { .. } => {
                             return Err(unserved("store into a value that is not a local"));

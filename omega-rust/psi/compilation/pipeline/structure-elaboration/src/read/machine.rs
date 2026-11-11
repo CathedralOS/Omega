@@ -1220,7 +1220,9 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(left, binder, out);
             spans(right, binder, out);
         }
-        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand) => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -1333,7 +1335,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             expression_slot_uses(left, uses);
             expression_slot_uses(right, uses);
         }
-        ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand) => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {
