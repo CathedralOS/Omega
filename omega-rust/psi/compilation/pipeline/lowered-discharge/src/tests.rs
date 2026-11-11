@@ -1062,7 +1062,7 @@ fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
     assert_eq!(diagnostic.severity, diagnostics::DiagnosticSeverity::Error);
     assert!(
         diagnostic.message.starts_with(
-            "unproved obligation: operation safety: no proof from the facts available here ("
+            "unproved obligation: operation safety: no proof found from the facts available here ("
         ),
         "{}",
         diagnostic.message

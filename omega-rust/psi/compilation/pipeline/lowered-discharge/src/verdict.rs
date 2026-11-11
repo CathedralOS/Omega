@@ -14,6 +14,16 @@ obligation, or handed back whole to Psi 05 and 06 because the route does not
 serve some construct in it (`RefusalReason::Unsupported`; the design: "falling
 back to Psi 05 and 06 on any `RefusalReason::Unsupported`").
 
+The specification says the same: `wiki/spec/packages/review.md`, "Unproved
+source contracts reject in Psi checking"; `wiki/spec/build/configuration.md`,
+an unproved obligation "grants no equality, inequality, implementation
+selection or runtime fallback". A rejection names what was not proved and
+why, and never claims the obligation is false
+(`wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a proof
+is not proof of falsehood"; `wiki/spec/terminal-psi/fact_validity.md`: "The
+false premise must be proved, not inferred from search failure"). The
+diagnostic is an ordinary `Reject` error; no new outcome tag or exit code.
+
 `Unsupported` wins over `Unproved`: an unproved obligation in a closure the
 route cannot judge whole is the current checker's to decide. That is not a
 weaker check; Psi 05 and 06 still judge the closure. Any other refusal is a

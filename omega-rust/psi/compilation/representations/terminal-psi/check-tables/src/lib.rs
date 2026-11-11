@@ -145,12 +145,28 @@ pub enum RefusalReason {
 
 /// Why an obligation's evidence did not check. Closed like `RefusalReason`:
 /// a prover that finds a new way to fail names it here.
+///
+/// None of these claims the obligation is false.
+/// `wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a
+/// proof is not proof of falsehood", and "Diagnostics distinguish failed
+/// source checking, invalid proof, unavailable evidence and receiving-policy
+/// refusal." Each cause is a `Reject` with no artifact
+/// (`wiki/spec/packages/review.md`: "Unproved source contracts reject in Psi
+/// checking"). There is no exhaustion cause because the lowered-form prover
+/// has no search or resource bound. A bound added later needs its own cause,
+/// published as `Incomplete` with the resource diagnostic
+/// (`wiki/spec/build/configuration.md`: "Exhaustion leaves an unproved
+/// obligation and a resource diagnostic; it grants no ... runtime fallback").
+/// Which outcome a goal form the prover has no rule for publishes is the open
+/// owner decision `unproved-goal-form-outcome` (`OWNER_QUESTIONS.md`); until
+/// it is settled such a goal is `NoDerivation`, a fail-closed `Reject`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnprovedCause {
     /// The prover found no derivation of the goal from the knowledge
     /// available at the obligation's point.
     NoDerivation,
-    /// The prover built a certificate and the proof kernel refused it.
+    /// The prover built a certificate and the proof kernel refused it: an
+    /// invalid proof ("an invalid certificate is `Reject`").
     KernelRefused,
     /// A normal return does not establish a published `ensures` clause: the
     /// guarantee owed on that return edge is unproved or was never owed.
@@ -159,12 +175,13 @@ pub enum UnprovedCause {
 
 impl UnprovedCause {
     /// The cause as a program diagnostic states it. Stable wording: corpus
-    /// expectations match it.
+    /// expectations match it. It says what was not shown, never that the
+    /// obligation is false.
     pub const fn describe(self) -> &'static str {
         match self {
-            Self::NoDerivation => "no proof from the facts available here",
-            Self::KernelRefused => "the proof kernel refused the certificate",
-            Self::ReturnDoesNotEstablish => "a normal return does not establish it",
+            Self::NoDerivation => "no proof found from the facts available here",
+            Self::KernelRefused => "invalid proof: the proof kernel refused the certificate",
+            Self::ReturnDoesNotEstablish => "not shown to hold on every normal return",
         }
     }
 }

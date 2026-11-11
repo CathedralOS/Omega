@@ -140,7 +140,15 @@ route's decision from. It discharges an elaborated closure and returns:
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`: no derivation, the kernel refused the certificate, or a
   normal return does not establish an `ensures` clause). `diagnostic()` turns
-  it into the program error, `unproved obligation: <kind>: <cause> (<detail>)`.
+  it into the program error, `unproved obligation: <kind>: <cause> (<detail>)`,
+  an ordinary `Reject` with no artifact. It says what was not proved and never
+  that the obligation is false: "Failure to find a proof is not proof of
+  falsehood" ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
+  and "Unproved source contracts reject in Psi checking"
+  ([review.md](../../../../../wiki/spec/packages/review.md)). The prover has
+  no search bound, so nothing here is `Incomplete`. Whether a goal form the
+  prover has no rule for should be `Reject`, `Incomplete` or a fallback is the
+  open owner decision `unproved-goal-form-outcome`.
   A published clause that fails only because a return's guarantee failed is
   reported once, at that return.
 - `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
