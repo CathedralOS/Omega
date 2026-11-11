@@ -8481,35 +8481,27 @@ fail/facts/exact_sub_guard_through_target_body_rejected rejected 682ms expected 
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `deduct` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/exclusive_match_arm_through_call_result_rejected rejected 2336ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_call_result_rejected rejected 2584ms expected @a642366b7e67
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-	cannot prove requires contract for call choose from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_match_arm_through_const_name_rejected rejected 1871ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_const_name_rejected rejected 1854ms expected @a642366b7e67
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/exclusive_match_arm_through_field_rejected rejected 2675ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_field_rejected rejected 1800ms expected @a642366b7e67
 	statement 3 mutates `pair.left` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/exclusive_match_arm_through_local_rejected rejected 1721ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_local_rejected rejected 1953ms expected @a642366b7e67
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/exclusive_match_arm_through_match_join_rejected rejected 2475ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_match_join_rejected rejected 1883ms expected @a642366b7e67
 	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/exclusive_match_arm_through_other_machine_rejected rejected 2293ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_other_machine_rejected rejected 1928ms expected @a642366b7e67
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_match_arm_through_other_state_rejected rejected 2026ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_other_state_rejected rejected 1961ms expected @a642366b7e67
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_match_arm_through_parameter_rejected rejected 1781ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_parameter_rejected rejected 2057ms expected @a642366b7e67
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_match_arm_through_target_body_rejected rejected 2161ms expected @ccdb99ca2214
+fail/facts/exclusive_match_arm_through_target_body_rejected rejected 2032ms expected @a642366b7e67
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exclusive_observation_exposure_through_call_result_rejected rejected 2616ms expected @ccdb99ca2214
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exclusive_observation_exposure_through_const_name_rejected rejected 2756ms expected @ccdb99ca2214
@@ -10331,23 +10323,23 @@ fail/facts/match_join_multi_variant_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `exercise` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `exercise` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_join_place_read_through_call_result_rejected rejected 6236ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_call_result_rejected rejected 2168ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_const_name_rejected rejected 6164ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_const_name_rejected rejected 2086ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_field_rejected rejected 5574ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_field_rejected rejected 1887ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from main: match choose() { true => shared holder.chosen, false => shared holder.spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_local_rejected rejected 5601ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_local_rejected rejected 2242ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_match_join_rejected rejected 6757ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_match_join_rejected rejected 2224ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from main: match choose() { true => shared chosen, false => shared spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_other_machine_rejected rejected 6233ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_other_machine_rejected rejected 2092ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_other_state_rejected rejected 6020ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_other_state_rejected rejected 2105ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from pick: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_parameter_rejected rejected 6990ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_parameter_rejected rejected 1954ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_join_place_read_through_target_body_rejected rejected 5670ms expected @f632a980b2a0
+fail/facts/match_join_place_read_through_target_body_rejected rejected 2166ms expected @a642366b7e67
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
@@ -10372,23 +10364,23 @@ fail/facts/match_loan_last_use_through_parameter_rejected rejected 2600ms expect
 fail/facts/match_loan_last_use_through_target_body_rejected rejected 6273ms expected @bc49525b6c1a
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/facts/match_primitive_local_origin_through_call_result_rejected rejected 2087ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_call_result_rejected rejected 1921ms expected @a642366b7e67
 	cannot prove ensures contract for exit from select at statement 3: result == 17
-fail/facts/match_primitive_local_origin_through_const_name_rejected rejected 2372ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_const_name_rejected rejected 2015ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_field_rejected rejected 2460ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_field_rejected rejected 2034ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_local_rejected rejected 2733ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_local_rejected rejected 1977ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_match_join_rejected rejected 1935ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_match_join_rejected rejected 1990ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from main: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_other_machine_rejected rejected 1928ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_other_machine_rejected rejected 2140ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_other_state_rejected rejected 2323ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_other_state_rejected rejected 2047ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from pick: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_parameter_rejected rejected 2266ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_parameter_rejected rejected 2039ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_primitive_local_origin_through_target_body_rejected rejected 2609ms expected @ccdb99ca2214
+fail/facts/match_primitive_local_origin_through_target_body_rejected rejected 1863ms expected @a642366b7e67
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -23490,23 +23482,15 @@ pass/facts/exact_sub_guard_through_other_machine_exit checked 3315ms check-targe
 pass/facts/exact_sub_guard_through_other_state_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_sub_guard_through_parameter_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_sub_guard_through_target_body_exit checked 3489ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_match_arm_through_call_result_exit rejected 2448ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call choose from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/exclusive_match_arm_through_const_name_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_match_arm_through_field_exit checked 3270ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_match_arm_through_local_exit checked 4160ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_match_arm_through_match_join_exit checked 3820ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_match_arm_through_other_machine_exit rejected 3074ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/exclusive_match_arm_through_other_state_exit rejected 2502ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call choose from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/exclusive_match_arm_through_parameter_exit rejected 2904ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/exclusive_match_arm_through_target_body_exit rejected 2793ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/exclusive_match_arm_through_call_result_exit checked 6988ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_const_name_exit checked 6975ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_field_exit checked 7025ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_local_exit checked 7043ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_match_join_exit checked 7030ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_other_machine_exit checked 6993ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_other_state_exit checked 6810ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_parameter_exit checked 6872ms check-target:macos_arm64 @a642366b7e67
+pass/facts/exclusive_match_arm_through_target_body_exit checked 6813ms check-target:macos_arm64 @a642366b7e67
 pass/facts/exclusive_observation_exposure_through_call_result_exit checked 3815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_const_name_exit checked 3796ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_field_exit checked 3559ms check-target:macos_arm64 @ccdb99ca2214
@@ -24203,20 +24187,16 @@ pass/facts/match_join_multi_variant_bound_through_other_machine_exit checked 348
 pass/facts/match_join_multi_variant_bound_through_other_state_exit checked 10747ms check-target:macos_arm64 @66cf4ee152c3+wt
 pass/facts/match_join_multi_variant_bound_through_parameter_exit checked 11063ms check-target:macos_arm64 @69da047140ea
 pass/facts/match_join_multi_variant_bound_through_target_body_exit checked 3301ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_join_place_read_through_call_result_exit checked 12303ms check-target:macos_arm64 @f632a980b2a0
-pass/facts/match_join_place_read_through_const_name_exit checked 11845ms check-target:macos_arm64 @f632a980b2a0
-pass/facts/match_join_place_read_through_field_exit checked 10698ms check-target:macos_arm64 @f632a980b2a0
-pass/facts/match_join_place_read_through_local_exit checked 11352ms check-target:macos_arm64 @f632a980b2a0
-pass/facts/match_join_place_read_through_match_join_exit checked 12301ms check-target:macos_arm64 @f632a980b2a0
-pass/facts/match_join_place_read_through_other_machine_exit rejected 9109ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
-	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+pass/facts/match_join_place_read_through_call_result_exit checked 6712ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_const_name_exit checked 6976ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_field_exit checked 6358ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_local_exit checked 7121ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_match_join_exit checked 6863ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_other_machine_exit checked 6526ms check-target:macos_arm64 @a642366b7e67
 pass/facts/match_join_place_read_through_other_state_exit rejected 10484ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
 	cannot prove requires contract for call read_field from pick: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
-pass/facts/match_join_place_read_through_parameter_exit rejected 10319ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
-	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
-pass/facts/match_join_place_read_through_target_body_exit rejected 10682ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
-	cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
-	cannot prove requires contract for call read_field from ArmApply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
+pass/facts/match_join_place_read_through_parameter_exit checked 6625ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_join_place_read_through_target_body_exit checked 6758ms check-target:macos_arm64 @a642366b7e67
 pass/facts/match_loan_last_use_through_call_result_exit checked 8121ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/match_loan_last_use_through_const_name_exit checked 9037ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/match_loan_last_use_through_field_exit checked 7561ms check-target:macos_arm64 @bc49525b6c1a
@@ -24226,21 +24206,15 @@ pass/facts/match_loan_last_use_through_other_machine_exit checked 8777ms check-t
 pass/facts/match_loan_last_use_through_other_state_exit checked 8084ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/match_loan_last_use_through_parameter_exit checked 8628ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/match_loan_last_use_through_target_body_exit checked 8415ms check-target:macos_arm64 @bc49525b6c1a
-pass/facts/match_primitive_local_origin_through_call_result_exit checked 3496ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_const_name_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_field_exit checked 4047ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_local_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_match_join_exit checked 3541ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_other_machine_exit rejected 2371ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_primitive_local_origin_through_other_state_exit checked 3484ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_primitive_local_origin_through_parameter_exit rejected 8153ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_primitive_local_origin_through_target_body_exit rejected 3507ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read_origin from apply: joined == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_primitive_local_origin_through_call_result_exit checked 5868ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_const_name_exit checked 6706ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_field_exit checked 5797ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_local_exit checked 6099ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_match_join_exit checked 6529ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_other_machine_exit checked 6811ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_other_state_exit checked 6118ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_parameter_exit checked 6773ms check-target:macos_arm64 @a642366b7e67
+pass/facts/match_primitive_local_origin_through_target_body_exit checked 6258ms check-target:macos_arm64 @a642366b7e67
 pass/facts/match_projected_product_custody_through_call_result_exit checked 3940ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/match_projected_product_custody_through_const_name_exit checked 3180ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/match_projected_product_custody_through_field_exit checked 3374ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
