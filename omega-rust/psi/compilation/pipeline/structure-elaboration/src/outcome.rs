@@ -128,20 +128,12 @@ impl Walk<'_> {
             CrashCeiling::Inferred => {
                 canonical::routes(causes.iter().map(|cause| (*cause, CrashRouteGuard::Truth)))
             }
-            // The author promised no crash route, so nothing is inferred. A
-            // body that structure reaches a crash from keeps the promise only
-            // if every such route is disproved, which is proof work this
-            // crate does not do: it is refused, never published as a route.
-            CrashCeiling::DeclaredNone => {
-                if !causes.is_empty() {
-                    return Err(refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Contract("`crashes none` on a body with a crash route"),
-                    ));
-                }
-                Vec::new()
-            }
+            // The author promised no crash route, so nothing is inferred and
+            // none is published. Each crash site the body reaches then owes
+            // coverage by no route, which holds only where the site is
+            // unreachable: lowered-discharge proves that from what is known
+            // there (`requires d != 0` against a `d == 0` guard) or rejects.
+            CrashCeiling::DeclaredNone => Vec::new(),
         };
         let outcome = Outcome {
             completes_normally,

@@ -6660,6 +6660,48 @@ mod instruction_effects {
             )
         }
 
+        /*
+            A destination reached through a loaded descriptor (for example the
+            second reference hop of `envelope.holder.word.value`) is captured
+            under that load's expression. Name it by the place the descriptor
+            was loaded from, resolved before the event's own statement, so it
+            meets the requested receiver in the same canonical form. Resolving
+            at the event, not at the query, keeps a later rebind of that
+            descriptor distinct; an unresolvable load fails the match.
+        */
+        fn event_addresses(
+            program: &dyn validation::CheckingInput,
+            facts: checked_trees::CheckFactsRef<'_>,
+            flow: &FlowStateFact,
+            state: &typed_trees::state::State,
+            event_statement: usize,
+            captured: Vec<CanonicalPlace>,
+        ) -> Option<Vec<CanonicalPlace>> {
+            let mut addresses = Vec::new();
+            for place in captured {
+                let facts::PlaceRoot::Expression(load) = place.root else {
+                    addresses.push(place);
+                    continue;
+                };
+                let source = place_at(program, state.symbol, event_statement, load)?;
+                for mut resolved in crate::flow::stored_views::address_before_statement(
+                    program,
+                    facts.semantic,
+                    facts.flow.control,
+                    state,
+                    flow.statements,
+                    event_statement,
+                    source,
+                )? {
+                    resolved.segments.extend_from_slice(&place.segments);
+                    if !addresses.contains(&resolved) {
+                        addresses.push(resolved);
+                    }
+                }
+            }
+            Some(addresses)
+        }
+
         pub(super) fn matches_store(
             program: &dyn validation::CheckingInput,
             facts: checked_trees::CheckFactsRef<'_>,
@@ -6715,7 +6757,14 @@ mod instruction_effects {
                 crate::flow::atomic_effects::release_store(program, machine, state, authored)?;
             let row = facts.flow.state_statement(flow, statement_index)?;
             let destination = facts.flow.control.operands.get(row.store_target);
-            let actual = captured_places(facts, destination)?;
+            let actual = event_addresses(
+                program,
+                facts,
+                flow,
+                state,
+                statement_index,
+                captured_places(facts, destination)?,
+            )?;
             let [receiver, value] = required else {
                 return None;
             };

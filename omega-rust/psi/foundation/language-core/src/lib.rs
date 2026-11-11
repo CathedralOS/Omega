@@ -8,7 +8,8 @@ catalog contracts and scratch-register tables (`inline_assembly`), operator
 spellings (`operator_spelling`), compiler-owned layout query names
 (`data_layout_queries`), evaluated constant values (`constant_value`), and core
 surface operation descriptors (`activation_storage`, `descriptor_tables`,
-`layout_storage`, `static_interrupts`).
+`layout_storage`, `static_interrupts`), and the sealed intrinsic catalog of
+bundled declarations that receive compiler custody (`sealed_intrinsics`).
 */
 
 /*
@@ -29,6 +30,7 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 
 pub mod atomic;
 pub mod inline_assembly;
+pub mod sealed_intrinsics;
 mod source_semantics;
 
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
@@ -401,19 +403,6 @@ pub mod static_interrupts {
                 Self::Context => 1,
                 Self::BeginCompletion => 2,
                 Self::FinishCompletion => 3,
-            }
-        }
-
-        pub fn from_core_declaration(name: &str, source: &[u8]) -> Option<Self> {
-            if source != CORE_DECLARATIONS {
-                return None;
-            }
-            match name {
-                "X86StaticInterruptScope::run" => Some(Self::Install),
-                "view_static_interrupt_context" => Some(Self::Context),
-                "begin_static_interrupt_completion" => Some(Self::BeginCompletion),
-                "finish_static_interrupt_completion" => Some(Self::FinishCompletion),
-                _ => None,
             }
         }
     }

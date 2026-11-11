@@ -1828,7 +1828,7 @@ pub mod write_only_borrows {
                                     program, referee,
                                 )?;
                                 if matches!(endpoint, ProjectionEndpoint::Referent)
-                        && !crate::declarations::data_queries::data_field_is_where_independent(
+                        && !crate::declarations::data_queries::data_field_is_requires_independent(
                             program, owner, field,
                         )
                     {
@@ -1943,7 +1943,7 @@ pub mod write_only_borrows {
         ) -> Option<&'program DataField> {
             let definition = projection_record(program, root)?;
             let field = crate::exact_self_field(program, machine(program, root)?, expression)?;
-            crate::declarations::data_queries::data_field_is_where_independent(
+            crate::declarations::data_queries::data_field_is_requires_independent(
                 program, definition, field,
             )
             .then_some(field)
@@ -2018,7 +2018,7 @@ pub mod write_only_borrows {
                 symbol,
                 name,
             )?;
-            crate::declarations::data_queries::data_field_is_where_independent(
+            crate::declarations::data_queries::data_field_is_requires_independent(
                 program, definition, field,
             )
             .then_some(field)
@@ -2305,7 +2305,7 @@ pub mod write_only_borrows {
         type_reference: TypeReferenceHandle,
     ) -> Option<&DataDefinition> {
         let definition = write_only_data_shape(program, type_reference)?;
-        definition.where_facts.is_empty().then_some(definition)
+        definition.requires_facts.is_empty().then_some(definition)
     }
 
     fn write_only_data_shape(
@@ -2324,7 +2324,7 @@ pub mod write_only_borrows {
         symbol: SymbolHandle,
     ) -> Option<&DataDefinition> {
         let definition = closed_write_only_data_shape_by_symbol(program, symbol)?;
-        definition.where_facts.is_empty().then_some(definition)
+        definition.requires_facts.is_empty().then_some(definition)
     }
 
     fn closed_write_only_data_shape_by_symbol(

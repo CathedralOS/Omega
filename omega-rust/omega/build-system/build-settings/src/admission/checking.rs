@@ -79,10 +79,15 @@ pub(crate) fn prepare_checked_build(
             }
         }
     }
+    // Validation subjects: as on the product side, a source the toolchain
+    // bundles is not a subject, so the core Build that settles provider
+    // defaults checks only what its entry and selections reach.
+    let is_subject = |file: &source::SourceFile| file.origin == source::SourceOrigin::User;
     let projection = validation::execution_projection::project_build_program(
         typed,
         entry,
         &selected_declarations,
+        is_subject,
     )?;
     build_time_evaluation::admit_toolchain_build_activation(&projection)?;
     let mut pending = Vec::new();
@@ -99,6 +104,7 @@ pub(crate) fn prepare_checked_build(
             typed,
             entry,
             &selected_declarations,
+            is_subject,
         )?
     };
     let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
@@ -177,6 +183,7 @@ pub(crate) fn prepare_checked_build(
                 typed,
                 entry,
                 &selected_declarations,
+                is_subject,
             )?
         } else {
             provisional

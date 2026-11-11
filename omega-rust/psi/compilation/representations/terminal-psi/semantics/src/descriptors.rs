@@ -6024,6 +6024,7 @@ pub mod descriptor_results {
                     let (mut machine, source) = forked_history(&[2]);
                     let _ = machine.flow.remove(&position(3));
                     let types = [StructuralTypeDeclaration {
+                        requires: Vec::new(),
                         quotient_carrier: None,
                         id: source.carrier,
                         identity: TerminalIdentityIndex(1),
@@ -7075,6 +7076,7 @@ pub mod descriptor_results {
                 let array = StructuralTypeId::new(2).unwrap();
                 let subject = PlaceId::new(1).unwrap();
                 let declaration = |id, shape| StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id,
                     identity: TerminalIdentityIndex(id.get() as u32),
@@ -7174,6 +7176,7 @@ pub mod descriptor_results {
                 let carrier = StructuralTypeId::new(1).unwrap();
                 let domain_id = StructuralDomainId::new(1).unwrap();
                 let types = vec![StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
                     identity: TerminalIdentityIndex(1),
@@ -8501,6 +8504,7 @@ pub mod descriptor_results {
                 let copy = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
                 let carrier = StructuralTypeId::new(1).unwrap();
                 let types = vec![StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
                     identity: TerminalIdentityIndex(1),
@@ -9696,6 +9700,7 @@ pub mod descriptor_results {
                 let mut module = TerminalModule::declarations();
                 let carrier = StructuralTypeId::new(1).unwrap();
                 module.structural_types.push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
                     identity: TerminalIdentityIndex(1),

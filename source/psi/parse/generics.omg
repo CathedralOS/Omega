@@ -17,7 +17,7 @@ use psi::tokens::tokens;
 //
 // An evidence binder names an implementation of the trait application it
 // satisfies, not a type; a machine or proposition binder takes its signature
-// from a `where` contract of its declaration.
+// from a `requires machine` contract of its declaration.
 // Lifetimes precede every other binder. Each parameter is retained as soon
 // as it is whole, so a rejection keeps every parameter before it. Repeated
 // names are a resolution question, not a grammar one.

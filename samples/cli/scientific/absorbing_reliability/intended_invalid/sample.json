@@ -1,6 +1,6 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "assignment stores a value not provably within its data's `where` facts"
+    "this write left the `requires` facts of `main` (data `Main`) unproved"
   ]
 }

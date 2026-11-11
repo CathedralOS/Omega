@@ -63,6 +63,7 @@ pub(crate) mod activation_storage {
                         "activation backing type identity overflows",
                     ))?;
                 types.push(StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id: crate::shared::terminal_identities::structural_type_id(next),
                     identity: key,

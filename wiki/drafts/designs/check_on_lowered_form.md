@@ -353,7 +353,8 @@ that cannot fail cannot hold work back, and work went ahead
    - The parameter is an implementation parameter. A type or value parameter
      is not served, and the check tables have no row for a value of an
      abstract type
-     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)).
+     ([what the lowered form does not carry](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)); [lowered type generics](lowered_type_generics.md) proposes how it
+     could be.
    - The route is not the compile path. `omega run --both` runs the program
      through the current pipeline; the generic check and the carried
      certificates run in the `generic_certificate_carry` example on the same
@@ -726,7 +727,11 @@ overwrites; a rank premise across a pause.
   covers call occurrences only and depends on `checked-trees`, so `#2286`
   carries per-machine `MachineSources` over dense identities with explicit
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
-  remaining families is checked as each lane lands.
+  remaining families is checked as each lane lands. First measurement, on
+  41% of `fail/`: [route one diagnostics](route_one_diagnostics.md). Where
+  the route rejects the defect it points at the right construct, but no
+  message states the failing condition, and most wrong-site rejections come
+  from one prover gap; nothing found yet is missing from the lowered form.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
   premise of this record and is unmeasured. Condition 4 of
   [the gate](#the-gate) is the first measurement of it, on one scope.

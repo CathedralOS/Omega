@@ -2478,7 +2478,7 @@ crashes Trap
 
 // The scope of expression `index` outside every machine: a domain's
 // predicate facts see its generic parameters, a transparent proposition's
-// fact its own, a data declaration's or case's `where` facts the data's; a
+// fact its own, a data declaration's or case's `requires` facts the data's; a
 // constant's value has no generic parameters. Only casts and static
 // applications ask, so the scan is rare.
 machine Resolver::detached_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope
@@ -2576,7 +2576,7 @@ crashes Trap
 
     machine clause(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let fact: Clause = SyntaxTrees::clause(syntax, first + offset);
-        let factual: bool = fact.kind == ClauseKind::Requires || fact.kind == ClauseKind::Ensures || fact.kind == ClauseKind::Where;
+        let factual: bool = fact.kind == ClauseKind::Requires || fact.kind == ClauseKind::Ensures;
         let holds: bool = Resolver::tree_holds(syntax, factual, fact.expression, index);
         transition holds {
             true -> yes()

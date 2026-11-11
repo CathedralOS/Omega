@@ -923,6 +923,7 @@ pub(crate) mod reference_origins {
                 ]
                 .into_iter()
                 .map(|(id, shape)| StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     id,
                     identity: TerminalIdentityIndex(1),
@@ -3223,6 +3224,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn sum_image_offsets_and_array_extent_share_the_selected_tag_geometry() {
             let declaration = |value, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
@@ -3384,6 +3386,7 @@ pub(crate) mod reference_storage_geometry {
         fn extent_discovery_visits_unknown_siblings_but_respects_storage_and_erasure() {
             let application = |value| ScalarApplicationId::new(value).unwrap();
             let declaration = |value, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
@@ -3490,6 +3493,7 @@ pub(crate) mod reference_storage_geometry {
             let dependency = ScalarApplicationId::new(1).unwrap();
             let mut types = [
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
@@ -3501,6 +3505,7 @@ pub(crate) mod reference_storage_geometry {
                     shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
                 },
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
@@ -3549,6 +3554,7 @@ pub(crate) mod reference_storage_geometry {
         fn canonical_parent_keeps_authored_child_width_and_codec() {
             let types = [
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
@@ -3573,6 +3579,7 @@ pub(crate) mod reference_storage_geometry {
                     },
                 },
                 StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
@@ -3608,6 +3615,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
             let types = [StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,

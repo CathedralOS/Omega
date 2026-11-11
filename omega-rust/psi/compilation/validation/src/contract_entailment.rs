@@ -12533,7 +12533,7 @@ pub(crate) mod zero_predicates {
         program: &dyn crate::CheckingInput,
         definition: &DataDefinition,
     ) -> bool {
-        if !definition.type_parameters.is_empty() || definition.where_facts.is_empty() {
+        if !definition.type_parameters.is_empty() || definition.requires_facts.is_empty() {
             return false;
         }
         let mut parameters = Vec::new();
@@ -12581,7 +12581,7 @@ pub(crate) mod zero_predicates {
             false,
         );
         program
-        .conjunctive_proof_facts(definition.where_facts)
+        .conjunctive_proof_facts(definition.requires_facts)
         .all(|fact| {
             let Some(expression) = fact.as_expression() else {
                 return false;
@@ -21319,7 +21319,7 @@ pub(crate) mod call_handbacks {
                             .any(|field| field.symbol == symbol)
                             .then_some(variant)
                     });
-                    if crate::declarations::data_queries::data_field_is_where_independent(
+                    if crate::declarations::data_queries::data_field_is_requires_independent(
                         program, definition, field,
                     ) || judged_parents
                         .contains(&(parent.clone(), variant.map(|variant| variant.symbol)))
@@ -21353,12 +21353,12 @@ pub(crate) mod call_handbacks {
                         || receiver.is_some_and(|receiver| {
                             program
                                 .proof_facts
-                                .span_or_empty(definition.where_facts)
+                                .span_or_empty(definition.requires_facts)
                                 .iter()
                                 .chain(variant.into_iter().flat_map(|variant| {
                                     program
                                         .proof_facts
-                                        .span_or_empty(variant.where_facts)
+                                        .span_or_empty(variant.requires_facts)
                                         .iter()
                                 }))
                                 .all(|fact| {
@@ -40759,7 +40759,7 @@ pub(crate) mod specification_calls {
             if let Some(pending) = pending_data_subject(program, owner_symbol, *argument)
                 && crate::field_domains::readable_nominal_definition(program, required_type)
                     .is_some_and(|required| {
-                        required.symbol == pending.symbol && !required.where_facts.is_empty()
+                        required.symbol == pending.symbol && !required.requires_facts.is_empty()
                     })
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -41043,7 +41043,7 @@ pub(crate) mod specification_calls {
         mut expression: ExpressionHandle,
     ) -> Option<&typed_trees::data::DataDefinition> {
         let definition = program.data_definition_by_symbol(owner)?;
-        if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
+        if !definition.predicate_subject_symbol.is_valid() || definition.requires_facts.is_empty() {
             return None;
         }
         let mut visited = Vec::new();
@@ -50287,7 +50287,7 @@ pub(crate) mod structural_judgment {
                         definition.name, variant.name, admitted, subject_type, admitted_subject
                     );
                 }
-                if !definition.where_facts.is_empty() && admitted {
+                if !definition.requires_facts.is_empty() && admitted {
                     let mut complete = true;
                     let mut projections = Vec::new();
                     for field in program
@@ -50343,7 +50343,7 @@ pub(crate) mod structural_judgment {
                             });
                             bindings.push((name, admitted_subject.clone()));
                         }
-                        for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                        for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                             if let ProofFact::Expression(expression) = fact {
                                 self.intake_instantiated_predicate(
                                     definition.symbol,
@@ -50356,7 +50356,7 @@ pub(crate) mod structural_judgment {
                         }
                     }
                 }
-                for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51159,7 +51159,7 @@ pub(crate) mod structural_judgment {
                     bindings.push((field.name.to_string(), projected.clone()));
                     self.intake_admitted_data_predicates(projected_type, projected, active);
                 }
-                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                     if let ProofFact::Expression(expression) = fact {
                         self.intake_instantiated_predicate(
                             definition.symbol,
@@ -51193,7 +51193,7 @@ pub(crate) mod structural_judgment {
                 }
                 if !program
                     .proof_facts
-                    .span_or_empty(definition.where_facts)
+                    .span_or_empty(definition.requires_facts)
                     .is_empty()
                     || !program.data_application_value_fields(reference).is_empty()
                 {
@@ -61335,11 +61335,23 @@ pub(crate) mod structural_judgment {
                             // invariant with it, wherever the value was read from.
                             // A field reached only through a runtime array index is
                             // otherwise invisible to the entry-parameter facts.
+                            // A pending recast view is the exception: until its
+                            // predicate is proved over the source storage it is not
+                            // yet a valid value, and admitting the predicate here
+                            // would let the cast establish itself.
+                            let admits = !crate::value_custody::recasts::pending_views::withholds_default_predicate(
+                                self.program,
+                                scope.0,
+                                scope.1,
+                                local.initial_value,
+                            );
                             completed.paths.map(|paths| {
                                 paths
                                     .into_iter()
                                     .map(|mut path| {
-                                        if let Some(value) = path.observed_value().cloned() {
+                                        if admits
+                                            && let Some(value) = path.observed_value().cloned()
+                                        {
                                             path.judge.intake_admitted_value_predicates(
                                                 local.type_reference,
                                                 value,
@@ -75189,6 +75201,9 @@ pub(crate) mod structural_judgment {
         pub(crate) struct CapturedStoreDestination {
             coordinate: Option<CapturedStorageCoordinate>,
             frame: facts::NormalizedWriteFrame,
+            // What cleanup of the displaced value and of temporaries that die
+            // inside the statement may write, beyond the destination itself.
+            cleanup: facts::NormalizedWriteFrame,
             version: Option<StorageVersion>,
             value_expression: ExpressionHandle,
             stored_type: TypeReferenceHandle,
@@ -76701,9 +76716,13 @@ pub(crate) mod structural_judgment {
                 if coordinate.is_none() && !self.requires_value_preservation() {
                     return None;
                 }
+                let cleanup = self
+                    .frame_resolver()?
+                    .statement_cleanup_write_frame(machine, statement);
                 Some(CapturedStoreDestination {
                     coordinate,
                     frame,
+                    cleanup,
                     version: self.statement_node_storage_version(state, statement),
                     value_expression: statement.as_assignment()?.value,
                     stored_type,
@@ -76806,8 +76825,35 @@ pub(crate) mod structural_judgment {
                 value: super::StructuralTerm,
             ) -> Option<()> {
                 let destination_value_expression = destination.value_expression;
+                // The store displaces the destination's old value, whose
+                // `dropped by` hook may write through exclusive references it
+                // held. Those places are not the destination, so a value that
+                // is disjoint from the destination is not thereby untouched:
+                // nothing is carried across the store, and the cleanup places
+                // join the written set.
+                let cleanup_free = destination
+                    .cleanup
+                    .complete_paths()
+                    .is_some_and(<[String]>::is_empty);
+                let written_paths = if cleanup_free {
+                    destination.frame.complete_paths().map(<[String]>::to_vec)
+                } else {
+                    destination
+                        .frame
+                        .complete_paths()
+                        .zip(destination.cleanup.complete_paths())
+                        .map(|(stored, cleanup)| {
+                            let mut paths = stored.to_vec();
+                            for path in cleanup {
+                                if !paths.contains(path) {
+                                    paths.push(path.clone());
+                                }
+                            }
+                            paths
+                        })
+                };
                 let mut preserved = Vec::new();
-                if let Some(written) = &destination.coordinate {
+                if let Some(written) = destination.coordinate.as_ref().filter(|_| cleanup_free) {
                     let frames = self.frame_resolver()?;
                     for stored in self.stored_values.iter() {
                         if !stored
@@ -76852,11 +76898,7 @@ pub(crate) mod structural_judgment {
                         ));
                     }
                 }
-                self.observe_storage_effects(
-                    state,
-                    destination.frame.complete_paths(),
-                    destination.version,
-                )?;
+                self.observe_storage_effects(state, written_paths.as_deref(), destination.version)?;
                 for (coordinate, current) in preserved {
                     self.retain_storage_value(coordinate, current, false);
                 }
@@ -77217,7 +77259,7 @@ pub(crate) mod structural_judgment {
             let Some((low, high)) = stored_integer_domain(stored) else {
                 return false;
             };
-            let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+            let Some(bounds) = crate::data_requires_field_intervals(program, definition) else {
                 return false;
             };
             let mut named = false;
@@ -85850,7 +85892,7 @@ pub(crate) mod type_consequences {
                         let Some(binary) = program.expression_table.binary_node(expression) else {
                             continue;
                         };
-                        let relevant = !definition.where_facts.is_empty()
+                        let relevant = !definition.requires_facts.is_empty()
                             || crate::expression_result_type_reference(
                                 program,
                                 machine,
@@ -86422,7 +86464,7 @@ pub(crate) mod type_consequences {
             })
             || crate::field_domains::readable_nominal_definition(program, reference).is_some_and(
                 |definition| {
-                    relevant(definition.where_facts)
+                    relevant(definition.requires_facts)
                         || definition
                             .generic_instance
                             .and_then(|application| {
@@ -86433,7 +86475,7 @@ pub(crate) mod type_consequences {
                                 };
                                 program.unique_data_definition_by_symbol(*base_symbol)
                             })
-                            .is_some_and(|template| relevant(template.where_facts))
+                            .is_some_and(|template| relevant(template.requires_facts))
                         || program
                             .data_members(definition)
                             .iter()
@@ -86446,7 +86488,7 @@ pub(crate) mod type_consequences {
                                     )
                                 }
                                 typed_trees::data::DataMember::Variant(variant) => {
-                                    !variant.where_facts.is_empty()
+                                    !variant.requires_facts.is_empty()
                                         || program.data_payload_fields(variant).iter().any(
                                             |field| {
                                                 type_carries_predicate_context(
@@ -88811,7 +88853,20 @@ pub(crate) mod structural_terms {
             if cast.form.recast_access() != Some(language_semantics::ReferenceAccess::Shared) {
                 return None;
             }
-            if !super::scalar_operand_is_observed(program, source, &value) {
+            // A shared recast reads the place it borrows, so its operand term
+            // can arrive as the borrow's shared observation (`&f32` over the
+            // scalar) while `source` names the borrowed carrier (`f32`). That
+            // observation holds exactly the scalar, so it is observed for the
+            // recast; the representation below normalizes through the shell.
+            let borrowed_observation = crate::reference_shell(program, source).is_none()
+                && super::shared_inline_observation_type(program, &value).is_some_and(|observed| {
+                    crate::reference_shell(program, observed).is_some_and(|shell| {
+                        shell.access == language_semantics::ReferenceAccess::Shared
+                            && crate::declared_carriers_match(program, source, shell.referee)
+                    })
+                });
+            if !borrowed_observation && !super::scalar_operand_is_observed(program, source, &value)
+            {
                 return None;
             }
             let source_carrier = match crate::reference_shell(program, source) {

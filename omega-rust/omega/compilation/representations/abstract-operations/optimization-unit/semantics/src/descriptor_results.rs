@@ -447,6 +447,7 @@ mod scalar_expressions {
                     .collect::<Result<Vec<_>, _>>()
                     .unwrap();
                 let types = [StructuralTypeDeclaration {
+                    requires: Vec::new(),
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(1),
                     shape: StructuralTypeShape::Sum {

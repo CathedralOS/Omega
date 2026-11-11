@@ -2,9 +2,9 @@
 Decode plain `Build` configuration settings from the root `&mut Build` parameter
 after normal Terminal interpreter return.
 
-`extract` reads the seven plain configuration fields (`subsystem`, `identifier`,
+`extract` reads the eight plain configuration fields (`subsystem`, `identifier`,
 `freestanding`, `optimizations`, `x86_deployment_features`,
-`privileged_services`, `elf_interpreter`) out of borrowed entry `0` of the
+`privileged_services`, `elf_interpreter`, `tests`) out of borrowed entry `0` of the
 completed `TerminalInstance` and passes the reconstructed `BuildTimeValue::Struct`
 to `BuildValueAdmission::extract`.
 
@@ -65,6 +65,7 @@ pub fn extract(
                 | "x86_deployment_features"
                 | "privileged_services"
                 | "elf_interpreter"
+                | "tests"
         ) {
             continue;
         }

@@ -129,6 +129,12 @@ being added here.
   judgment of `lowered-discharge`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
   knowledge row justified as `Justification::DispatchBinding`.
+- **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
+  names its domain by a `DomainSemanticId`; a data `requires` clause has no
+  such identity (its clauses ride in `Elaboration::domains`, by type and
+  position). An invariant window on one is therefore the opening write's
+  `DataDomain` row, followed to its consumption points by
+  `lowered-discharge`, and not a conserved row here.
 
 ## Obligation kinds
 
@@ -182,7 +188,8 @@ being added here.
   (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
   carrier"): knowledge never names a place. A storage observation enters as the value its
   read produced, and what the read equals is one more equation between values,
-  derived from the write log (`lowered-discharge`, `places.rs`). No lane uses
+  derived from the stores the lowered operations make (`lowered-discharge`,
+  `places.rs`), which the write log must restate. No lane uses
   a structural `Proposition` variant in a knowledge row; a contract clause
   that could only be stated as one is refused.
 - **Contract propositions have no table.** Terminal Psi keeps a machine's

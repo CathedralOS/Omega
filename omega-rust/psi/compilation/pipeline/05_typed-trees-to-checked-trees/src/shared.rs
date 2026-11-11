@@ -179,6 +179,11 @@ pub(crate) mod authored_selections {
                             .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
                         match operation {
                             "prepare" | "select" => 1,
+                            "prepare_tests"
+                                if binding.operation == BuildOperation::TestGroupRegistration =>
+                            {
+                                1
+                            }
                             "bind_native" if binding.operation == BuildOperation::NativeBinding => {
                                 3
                             }
@@ -248,6 +253,26 @@ pub(crate) mod authored_selections {
                             )
                             .with_source_span(span));
                         }
+                    } else if operation == "prepare_tests"
+                        && !argument_type(arguments[0]).is_some_and(|reference| {
+                            let referee =
+                                match program.type_reference_table.type_reference(reference) {
+                                    TypeReferenceNode::Reference { referee, .. } => *referee,
+                                    _ => reference,
+                                };
+                            exact_build_prelude_data(
+                                program,
+                                program.type_reference_table.type_symbol(referee),
+                                "BuildTests",
+                            )
+                        })
+                    {
+                        // The evaluator authenticates the exact facet cell; the
+                        // checker requires its compiler-owned type.
+                        return Err(Diagnostic::error(
+                            "test group registration requires the Build's compiler-owned `tests` facet",
+                        )
+                        .with_source_span(span));
                     } else if operation == "bind_description"
                         && !argument_type(arguments[1]).is_some_and(|reference| {
                             type_reference_names_exact_prelude_data(

@@ -1505,6 +1505,17 @@ pub mod expression {
                 span
             }
 
+            /// A record pattern's field roster: it names no expression, so
+            /// the rows copy as they stand.
+            pub(crate) fn copy_pattern_fields(
+                &mut self,
+                source: ExpressionSource<'_>,
+                fields: HandleSpan<super::TableMatchField>,
+            ) -> HandleSpan<super::TableMatchField> {
+                let fields = source.table(self).match_fields(fields).to_vec();
+                self.insert_match_fields(fields)
+            }
+
             pub(crate) fn copy_transition_pattern(
                 &mut self,
                 source: ExpressionSource<'_>,

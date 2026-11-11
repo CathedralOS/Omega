@@ -8684,6 +8684,7 @@ pub(crate) mod structural_type_foundations {
                 IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
             );
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -8733,6 +8734,7 @@ pub(crate) mod structural_type_foundations {
             let element = StructuralTypeId::new(1).expect("element");
             let array = StructuralTypeId::new(2).expect("array");
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
@@ -8746,6 +8748,7 @@ pub(crate) mod structural_type_foundations {
                 )),
             });
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,

@@ -127,7 +127,7 @@ pub mod item {
             pub properties: DataProperties,
             pub quotient: Option<QuotientDefinition>,
             pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
-            pub where_facts: HandleSpan<ProofFact>,
+            pub requires_facts: HandleSpan<ProofFact>,
             pub members: HandleSpan<DataMember>,
         }
 
@@ -289,7 +289,7 @@ pub mod item {
             pub identity: Option<u64>,
             pub name: Identifier,
             pub payload: HandleSpan<DataField>,
-            pub where_facts: HandleSpan<ProofFact>,
+            pub requires_facts: HandleSpan<ProofFact>,
             pub retired_payload_identities: Vec<u64>,
         }
 
@@ -446,6 +446,11 @@ pub mod item {
             pub contracts: HandleSpan<CapabilityContract>,
             pub default_body: HandleSpan<crate::statement::StatementHandle>,
             pub terminates_guarantee: bool,
+            /// The requirement wrote `crashes none`. That clause publishes no
+            /// contract row, so this is the only record that the empty crash
+            /// set was authored rather than omitted, which for a requirement
+            /// defers to the selected member's routes.
+            pub declares_no_crash_route: bool,
         }
     }
     pub(crate) mod proof_items {

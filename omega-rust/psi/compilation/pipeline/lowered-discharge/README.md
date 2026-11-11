@@ -15,7 +15,8 @@ Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
-it; [prove.rs](src/prove.rs) is the one prover.
+it, from the stores [places/log.rs](src/places/log.rs) derives from the
+operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage.
 
@@ -26,16 +27,17 @@ it; [prove.rs](src/prove.rs) is the one prover.
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
-| `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)) | the same, before the operation |
+| `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
 | `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
-| `CrashCoverage` | the site guard's clauses (a `Crash` terminator's; a call site has none) and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none) | the same, before the crashing terminator or call |
+| `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 
 Any other kind is refused as `Unsupported`; elaboration mints none yet.
 
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
-(`MachineDischarge::uses`). Initialization: a use that some path reaches
+(`MachineDischarge::uses`), and it follows each invariant window to the
+points that consume it (`MachineDischarge::windows`). Initialization: a use that some path reaches
 with nothing established is refused. Payload access: a case payload named where
 its case is not established on every path is refused, and so is a dispatch
 with no edge for a declared case. All three are refused with reason
@@ -61,7 +63,9 @@ versions."),
 per edge of a conditional (`BranchCondition`: the condition is `true` on the
 true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
-value its payload leaf holds, when there is one). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
+value its payload leaf holds, when there is one, and holds each clause of
+its storage's type that a payload read at the head of the arm could state;
+see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
@@ -99,10 +103,79 @@ machine does not make would be a premise nothing established. An edge row
 must have the source and destination of its terminator's edge, since
 dominance is computed from the edge table.
 
+The data `requires` clauses come to the discharge in a table beside the
+module (`Elaboration::domains`), and they are the goal of every `DataDomain`
+row and the premise a read of an arrived value learns from its type. The
+module's own type declarations state them
+(`StructuralTypeDeclaration::requires`, part of the encoded module and so of
+its identity), so `domains_are_declared` ([minted.rs](src/minted.rs)) refuses
+a table that is not exactly those clauses, type by type and in authored
+order. A clause weakened, strengthened, dropped or moved to another type in
+the table would otherwise change what is proved for every construction,
+store and read of the type.
+
 A disagreement is a defect of the route, not of the program: the refusal has
 reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
-accepted on it. The write log and the place table are not checked this way
-yet (finding 17).
+accepted on it.
+
+### The tables that say what storage holds
+
+A goal over a field is stated over the value its leaf holds, so a table that
+names another value, another place or another kind of value changes what is
+proved without touching an obligation row. Three tables say what storage
+holds, and none is taken on elaboration's word.
+
+**The write log is derived, then compared.** The walk below does not read
+`MachineTables::writes`. [places/log.rs](src/places/log.rs) derives every
+store from the operation that makes it (`Storage::stores`):
+
+| Operation | What it stores |
+| --- | --- |
+| `EstablishRecord` | each operand into its field of the fresh root: a scalar operand as that value, a record operand as what its source held |
+| `EstablishScalarCase`, `EstablishStructuralCase` | the fresh root established as `result_case`, then each payload operand as above |
+| `EstablishZeroedStructural` | the fresh root zeroed, then a zero constant into each scalar leaf of the zero value that has one |
+| `StructuralLeafCopy` | what its source held, into the fresh root |
+| `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | its value into exactly the leaf it names |
+| `EstablishPrimitiveLocal` | its operand, the zero a scalar local is constructed with, into the fresh home |
+| `StoreStructuralField` | what its source held, into the field it names |
+| a call with a record result | what the callee returned, into the fresh root |
+| a read, a case test, an operation over scalar values alone | nothing |
+
+Any other operation is refused as `Unsupported`: it may store somewhere, and
+an operation left out of the derivation would be a store nothing reaches. The
+log elaboration wrote must then list exactly these stores, per operation and
+in order (`Storage::log_is_stated`). A row with another value or place, a
+missing row, a row at another point and a row no operation makes are each
+refused.
+
+A zero establishment has no operand, so the zero of a leaf has a value
+identity only through a constant. Elaboration emits one zero constant per
+scalar leaf directly before the establishment, in leaf order, and that slot
+is where the derivation looks. A leaf whose slot holds anything else is zero
+with no value identity.
+
+**The place table must be one place per path** (`places_are_interned`). A
+table names a place by its identity: an invocation's record actual, the place
+of an entry content value, a write row. The walk reads that identity as a
+path, so each root's row must be its own, each projection must be listed by
+its parent under its own segment, a parent must come before its projections,
+and a parent's projections must be sorted with one per segment. Two paths
+that share a row would let one field's contents answer for another's.
+
+**The value table must be the lowered form's declarations**
+(`values_are_declared` in [minted.rs](src/minted.rs)). Each formal, the scalar
+result, each block parameter and each scalar operation result must have its
+declared type and the origin of what declares it. The type is what Terminal
+semantics states a goal over and what the kernel bounds a value by; the
+origin is what the payload judgment reads to learn which test a condition is
+the result of. The one row the lowered form does not declare is the content a
+formal's leaf held at entry. Such a value must be of a scalar leaf of a
+formal, with that leaf's declared type
+(`Storage::entry_contents_are_of_formals`). Since the lowered form declares
+none of them, nothing in it says which identity belongs to which leaf, so
+they must be in the order of their leaves (`entry_contents` in
+[places.rs](src/places.rs)): two rows of one type that exchange their
+leaves are refused, and so is a second value for one leaf.
 
 ## What a place holds
 
@@ -125,16 +198,16 @@ rows end a path and in what an edge can establish:
   part by two different record fields are disjoint; any other pair of sibling
   segments overlaps, and places under different roots do not. Later lanes
   extend this function (indices, referents) and add no second relation.
-- **Reaching.** Walking the graph back from the use, the last write to an
+- **Reaching.** Walking the graph back from the use, the last store into an
   overlapping place on each path is the one that reaches along it.
-  - `Content::Value(v)` on exactly the leaf supplies `v`.
-  - `Content::Overwritten` on the leaf or above it supplies contents with no
-    value identity, unless the operation at that row is one that moves
-    storage whole: a whole copy, a record operand of a literal, a record
-    stored into a field. Then the leaf holds what the matching leaf of the
-    operation's source held just before it, and the walk continues there.
-    The write log cannot say this (its `Content` has no "copied from"
-    variant), so the source is read from the operation.
+  - A store of the value `v` into exactly the leaf supplies `v`.
+  - A store into the leaf or above it that moves storage whole (a whole
+    copy, a record operand of a literal, a record stored into a field)
+    supplies what the matching leaf of its source held just before it, and
+    the walk continues there.
+  - A call's record result supplies what the callee returned, which has no
+    value identity here; any other overlapping store supplies contents with
+    no value identity.
   - A path that reaches the machine's entry with no write is supplied by the
     place's entry content when its root is a formal, and by nothing
     otherwise.
@@ -172,8 +245,9 @@ If some path supplies nothing, the use's verdict is a refusal with reason
 `Unestablished`, concerning that operation or edge.
 
 A local declared without an initializer is zero-constructed
-(`local-without-initializer`), so in an elaborated program the path that
-supplies nothing is the zeroed storage of a gated type, described next. The
+(`local-without-initializer`), so in an elaborated program every path
+supplies something: the zeros of the declaration, which are a value unless
+the type is gated, described next. The
 sentence "An unestablished local cannot be read"
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
 governs declared shared view locals, which the references lane owns and this
@@ -192,10 +266,17 @@ Otherwise the type is gated: construction or checked qualification must
 establish the domain before observation."). The refusal then sits at the
 observation, not at the declaration, because "Zeroing storage is permitted
 independently of establishing a value.": the clause's verdict is
-`Discharged::Gated`, which rejects nothing by itself, and the walk answers
-`Unestablished` for whatever that declaration's rows supply, so every read,
-copy, argument and return they reach is refused. A store into a leaf
-supplies that leaf again.
+`Discharged::Window`, which rejects nothing by itself, and the declaration
+opens an initial-establishment window for that clause on the place
+([Invariant windows](#invariant-windows)). A store that proves the clause
+closes it, so `let mut g: Both; g.a = 3; g.b = 2; take(g)` is accepted when
+each store proves its field's clause. A use that observes a leaf the
+declaration zeroed while some clause's window is still open is
+`Unestablished`, with the declaration named beside it
+(`UnestablishedUse::declared`): `let mut g: Both; g.a = 3; take(g)` is
+refused at `take(g)`, because `g.b` is still the zero `1 <= b` fails on. A
+read of a leaf a store wrote observes that store, not zeroed storage, and is
+established as before.
 
 A scalar local declared without an initializer is zero-constructed by the
 same rule: elaboration logs the zero constant on its home at
@@ -205,7 +286,7 @@ serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
 
-It is a structural judgment over the write log and the graph. It is not a
+It is a structural judgment over the stores and the graph. It is not a
 proposition, so it has no obligation row, no certificate and no part in the
 prover.
 
@@ -223,7 +304,7 @@ The goal is the clause under the one substitution (`substitute`), with the
 names of the clause standing for what the place holds at the operation's
 normal continuation:
 
-- **A field** becomes the one value the write log says that leaf holds
+- **A field** becomes the one value the stores say that leaf holds
   there, found by the reaching walk: the operand of a construction, the
   zero constant of a zero establishment, the stored value for the written
   field, and for every other field the value that reached the store. For a
@@ -241,18 +322,115 @@ So the goal names values and literals only, and it is proved from the
 knowledge available before the operation
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
 "The obligation binds the initializer or replacement SSA value, never the
-old field contents."). The stored value enters the goal from the write-log
-row, not from a knowledge row, so the completed write contributes no fact to
+old field contents."). The stored value enters the goal from the store the
+operation makes, not from a knowledge row, so the completed write contributes no fact to
 its own proof. A field with no value identity at that point (what a call
 returned, a join of two different stores) or a case no structure decides
 leaves the clause unstated: the obligation is `Unproved`, with a detail that
 says which, never dropped and never assumed.
 
 A store whose written value is shown to keep its clauses discharges them
-there. One that is not shown to keep a clause would open an invariant window,
-which this route does not have yet: its verdict is `Unsupported`, so the
-whole closure goes back to the current checker and is never rejected for it
-(finding 12).
+there. One that is not shown to keep a clause opens an invariant window,
+described next; it is never refused at the store.
+
+### Invariant windows
+
+[Dependent values](../../../../../wiki/spec/language/dependent_values.md#invariant-windows):
+"A write known to preserve the default domain keeps it established.
+Otherwise the write opens a window on the place, whose actual new contents
+remain available to ordinary flow reasoning. The domain must be proved again
+at the next consumption point". So `let mut s = Span { low: 1, high: 9 };
+s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
+`low <= high`, the second restores it, and only then is `s` consumed.
+
+- **Opening.** A store's `DataDomain` clause that is not proved over the
+  values the place holds after it, or a zero establishment's clause that
+  zero does not satisfy, opens one window: on the exact place of the type
+  that owns the clause (`s` for `Span`, `w.span` for a `Span` inside a
+  `Wrap`, each enclosing type separately), for that one clause. The
+  obligation is the window's identity; its verdict is `Discharged::Window`,
+  which keeps why the clause was not proved there. A construction makes a
+  value and opens nothing: its unproved clause is still `Unproved`.
+- **Preserving.** A store that writes no storage a clause names (the
+  places the one substitution meets in the clause, `Storage::untouched`)
+  keeps that clause as it was: `Discharged::Preserved`, no window and no
+  closing. A store that proves a clause over the place's values is a
+  restoring write ("Construction and every restoring write prove the owning
+  default-domain clauses"), and closes that clause's window on that place.
+  Any other store beneath an open place changes its contents and nothing
+  else.
+- **Open or closed.** The one reaching walk answers it: going back from a
+  point, the last row that is the opening write, a restoring store of the
+  same place and clause, or a write that replaces the place whole (to it or
+  above it) ends a path. The opening write supplies `Open`, the others
+  `Closed`, and a path that reaches the entry `Closed`. A window open on one
+  arrival is open at the join.
+- **Consumption points.** The list in the specification, mapped to what
+  this subset lowers:
+
+  | Specification | Lowered construct |
+  | --- | --- |
+  | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read or a dispatch's bound payload beneath the place that takes a clause of its storage's type as a premise (`read_premises` or `payload_premises` not empty). A field read or dispatch with no premise, and a case test, rely on nothing and consume nothing. |
+  | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). Borrows are refused by elaboration. |
+  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". Loans are refused by elaboration. |
+  | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
+
+  "A call need not close an unrelated domain window when its complete
+  access, effect and outcome contracts prove that it cannot observe or
+  expose the broken coupling ... Unknown access/effects are treated
+  conservatively." The tables hold no callee summary to prove that from
+  (`CheckTables::summaries` stays empty), so no call is treated as
+  unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
+  `same(7)`, as the current checker rejects it. Using the exception needs a
+  summary term for a callee's access and effects.
+
+  A window a zero establishment opened is consumed by every read under its
+  root that still observes a leaf of the window's place the declaration
+  zeroed, a field read included, and by no call or exit that does not read
+  it (zeroed storage holds no value a callee could observe, and "Failed
+  initial establishment instead creates no value"): "A zeroed storage representation can be
+  accessed as an established value only after its default-domain
+  obligations hold."
+- **Proved again.** At each consumption point the window reaches open, the
+  clause is stated by the same substitution over what the place holds there
+  (`Storage::consumptions`) and decided by the same `decide`, from the
+  knowledge dominating the point, under the window's obligation identity.
+  One `WindowUse` per (window, consumption point) holds the kernel's
+  evidence or the refusal. A consumption on an edge is proved at that edge;
+  any other before its operation.
+- **Rejected.** An unproved clause at a consumption point rejects the
+  program with both sites
+  ("An unclosed window rejects with both the opening write or storage cast
+  and the failing consumption point."): the `UnprovedObligation` carries the
+  opening write's site in `site` and the consumption point in `consumed`,
+  and its diagnostic is placed at the consumption. For a window a zero
+  establishment opened, the use is `Unestablished` instead and names the
+  declaration. Each open window is reported once, at the first consumption
+  point in program order that fails; the later ones keep their own
+  verdicts.
+- **No second window.** A store that does not prove a clause while that
+  clause's window on the same place is already open opens no window of its
+  own: the window stays open and names the store that opened it, as the
+  current checker's "a prior write left ... FALSE" does. Into zeroed
+  storage, a store that does not prove its clause keeps its own window,
+  because the leaf it wrote no longer holds the zero.
+
+A window lends nothing: no knowledge row is added for it, a read of a leaf
+the machine stored gets no type premise (as before), and a read of an
+arrived leaf that does take a premise is itself a consumption point, so it
+is accepted only where the open clause is proved again. That premise is of
+a clause naming only the one leaf it reads, which no store elsewhere can
+break.
+
+A window is a structural judgment plus a proof question, not a conserved
+obligation row. `ObligationKind::DomainDebt` names its domain by a
+`DomainSemanticId`, and a data `requires` clause has none: it lives in
+`Elaboration::domains` by type and position. Minting `DomainDebt` would also
+need a disposition on every edge, which elaboration does not lay yet (it
+refuses any conserved obligation at a no-successor edge) and this crate
+does not check. The `DataDomain` row of the opening write already names the
+type, the place (through its operation) and the clause, so the debt reuses
+its identity.
 
 ### What a read learns from its type
 
@@ -277,11 +455,18 @@ lies in, stated on the read's fresh value and justified by the read
   written value where it was written, and the read equation names that
   value. A store that broke the clause therefore lends it to no read.
 - The clause names that one leaf and no other, and any case it tests is
-  established at the read by structure. A clause that relates two fields is
-  no premise on one read.
+  established at the read by structure: by a construction, by a dominating
+  true edge of a membership test, or by the dispatch edge that entered the
+  block (the one walk of [Payload access](#payload-access)). The case is
+  asked of the place the read observes the value through, the copy when
+  the value was copied: a test or dispatch on the copy establishes it
+  there, and the place the value arrived in may have been written since.
+  A clause testing a case of a type above the observed storage's root is
+  not stated. A clause that relates two fields is no premise on one read.
 
 A clause that cannot be stated adds no row; nothing is assumed in its place.
-A payload parameter of a dispatch edge gets no such row (finding 13).
+A payload parameter of a dispatch edge gets the same rows, stated on the
+parameter ([What a dispatch binds](#what-a-dispatch-binds)).
 
 ### Payload access
 
@@ -342,6 +527,20 @@ there is one. The row is available on that edge and justified as its
 constructed as resolves to no value, because the last write to storage it
 overlays was another case's.
 
+Each parameter also gets the rows a payload read at the head of its arm's
+block would take from its type
+([What a read learns from its type](#what-a-read-learns-from-its-type)):
+the same `Storage::premises`, under the same two conditions, stated on the
+parameter, available on the edge and justified as its `DispatchBinding`.
+Asked at the head of the arm, a case test of the clause is decided by the
+edge that entered it: `self in C` is true on the `C` edge and false on any
+other, so `(self in Empty) || ((self in Ready) && (self.value <= 50))`
+leaves `value <= 50` on the `Ready` edge. An arm several edges enter, the
+wildcard, establishes no case, and a clause that tests one is not stated.
+A dispatch whose payloads take a premise relies on the domain of every
+place those leaves lie in, so it is a consumption point of a window open
+there, as such a read is.
+
 The case itself is not a knowledge row. A dispatch has no Boolean value to
 state it over, and knowledge names values only; it is the structural
 judgment above and nothing else.
@@ -390,8 +589,13 @@ kernel's correlated unsigned subtract. A goal the direct search misses is
 split over a disjunctive fact (a disequality guard transports to `v < k or
 k < v`): each alternative proves the goal as a local assumption or
 contradicts what is known (`DisjunctionElimination`, contradiction
-elimination). Splits do not nest. A goal still unproved is tried last as a
-goal on an unreachable path: when an order fact known at the point
+elimination). Splits do not nest. An implication, the goal at a call
+that may crash, is proved by assuming its premise and proving its conclusion
+(`ImplicationIntroduction`): under a callee's route `d == 0`, the caller's
+`requires d != 0` (`d < 0 or 0 < d`) splits into two contradictions, and
+`Falsehood` follows. A goal still unproved is tried last as a
+goal on an unreachable path, and so is `Falsehood`, which a crash site owes
+when its machine publishes no route for its cause: when an order fact known at the point
 contradicts the bounds of its own endpoints (`requires count >= 10` under the
 guard `count < 5`), chaining the two gives a closed false relation between
 literals, whose denotation is `Falsehood`, and the goal follows
@@ -476,20 +680,22 @@ subset needs, so the prover emits them directly.
    existing equality steps carry it: a bound on `v` bounds the read, and two
    reads of one leaf are related through the value they share. An unsigned
    `p.x - p.x` over a formal discharges with a `Judged` certificate.
-6. **Edge writes are refused, not placed.** The backward walk moves between
-   blocks. A write logged on one edge reaches only that edge's destination,
-   so a write at `ProgramPoint::Edge` that overlaps a use refuses the
-   machine until the slice that logs one teaches the walk about edges.
-7. **A copy's source is not in the write log.** `Content` cannot name a
-   source place, so the walk reads it from the operation at the row
-   (`StructuralLeafCopy`, a structural operand of `EstablishRecord`, the
-   value of `StoreStructuralField`). An `Overwritten` row at any other
-   operation keeps its own meaning: contents with no value identity.
+6. **No store is on an edge.** Every store is derived from an operation and
+   takes effect at its normal continuation, and the backward walk moves
+   between blocks. A write row at `ProgramPoint::Edge` or at a block entry
+   is one no operation makes and is refused. The slice that stores on an
+   edge (a return into the result place, a transfer) has to give the walk
+   edges first.
+7. **The write log cannot say what the walk needs.** `Content` has no form
+   for a source place, for the case a construction established or for a
+   call's result, so those stores are all `Overwritten` in the log. The walk
+   reads the derived store (`Stored`), which says each of them, and the log
+   is only compared with it.
 8. **A scalar local with no initializer holds zero, here as in the current
    checker.** `let mut x: u32; f(x)` is accepted with `x == 0` known
-   (`local-without-initializer`). Elaboration logs the zero at the
-   establishing operation, as it does for a data local, and the walk needed
-   no change: the row is one more write that supplies the home. A scalar
+   (`local-without-initializer`). The establishing operation names the
+   zero as its operand, so the home's store is derived from it like any
+   other, and elaboration logs the same row. A scalar
    type that zero does not satisfy would be gated like a data type, but
    none is served: the reader refuses a constrained scalar type.
 
@@ -509,38 +715,34 @@ subset needs, so the prover emits them directly.
     a false edge, of a formal, of another case) are exercised by tests over
     closed bodies, not yet by a corpus program.
 
-11. **A gated declaration has a verdict that is neither a discharge nor a
-    refusal.** `Discharged::Gated` holds why the zero value's clause was not
-    proved. It exists because the specification puts the refusal at the
-    observation, and an `Unproved` verdict at the declaration would reject
-    `let mut g: Gated; g = Gated { .. };`, which the current checker
-    accepts. One over-refusal remains: after `g.a = 3;` on a gated two-field
-    type, the leaf no store reached is still supplied by the gated
-    declaration, so a use of `g` is `Unestablished` even when the clauses
-    hold of `(3, 0)`.
-12. **Invariant windows are not built yet.** A store may break a clause
-    and a later store restore it before the value is consumed
-    (dependent_values.md, "A write known to preserve the default domain
-    keeps it established. Otherwise the write opens a window on the place
-    ... The domain must be proved again at the next consumption point").
-    This route proves a store's clauses where it can and refuses the
-    closure as `Unsupported` where it cannot, so such a program is judged
-    by the current checker. The sentence "Terminal Psi opens no invariant
-    window on a field" in structural_access.md is about predicate-bearing
-    byte-view fields and does not govern data `requires`. The conserved
-    `DomainDebt` obligation is where a window will live.
-13. **A payload parameter carries no clause of its type.** A dispatch edge
-    binds a payload as a block parameter with no read operation, and the
-    tables have no justification for "the type of the storage an edge bound
-    this from". The equation with the value the leaf holds is filed under
-    `BranchCondition` (finding 9); the clause is not filed under it too, so
-    `match b { Byte { value } -> .. }` on a formal learns nothing of `value`
-    from `ByteRead`'s `requires`.
+11. **A write that opens a window has a verdict that is neither a
+    discharge nor a refusal.** `Discharged::Window` holds why the clause
+    was not proved at the store or the zero establishment. The
+    specification puts the refusal at the consumption, and an `Unproved`
+    verdict at the write would reject `let mut g: Gated; g = Gated { .. };`
+    and `s.low = 12; s.high = 20;`, which the current checker accepts.
+12. **Invariant windows are judged, not handed back.** See
+    [Invariant windows](#invariant-windows). The sentence "Terminal Psi
+    opens no invariant window on a field" in structural_access.md is about
+    predicate-bearing byte-view fields and does not govern data `requires`.
+    Two consequences of the reaching walk: a window closed on one arrival
+    and open on another is open at the join, and when the two arrivals hold
+    different values the clause has no value to be stated over, so it is
+    unproved there. Every arm of this subset completes the machine, so the
+    only join is a short-circuit `&&`/`||`, where no store can be written;
+    no expressible program is over-refused by it today.
+13. **A payload parameter carries the clause of its type through its
+    edge.** A dispatch edge binds a payload as a block parameter with no
+    read operation, so the clause is not justified by a read's
+    `OperationSemantics`: it is filed under the edge's
+    `Justification::DispatchBinding`, beside the equation with the value
+    the leaf holds. `match b { Byte { value } -> .. }` on a formal, or on a
+    copy of one, learns `value <= 255` from `ByteRead`'s `requires`.
 14. **`Reached::Returned` tells a call's result from other unknown
     contents.** The walk could already say "contents with no value
     identity"; a read's type premise needs to know those contents arrived
-    established. It is read from the operation at the row, like a copy's
-    source, by matching the invocation table.
+    established. It is the derived store of an operation that is a call of
+    the module with a record result.
 15. **A requirement over a field of a record actual needs that field to
     hold one named value at the call.** `peek(make())` with
     `requires packet.first == 7` is unproved: what `make` returned has no
@@ -552,19 +754,6 @@ subset needs, so the prover emits them directly.
     clause `low <= high` is unproved: `high` has no value there. Stating a
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
-
-17. **The write log is still taken on elaboration's word.** A read
-    equation, a `DataDomain` goal and a requirement over a field of a record
-    actual all name the value a `WriteRow` says a leaf holds. Rewriting one
-    row's `Content::Value` to another value of the machine turns a rejected
-    construction into an accepted one: in `make(v) -> Paired { neighbor: 17,
-    value: v }` with `1 <= value` unproved, logging `17` for `value` proves
-    the clause over `17`. The lowered operations state the same stores
-    (an operand of a construction, the value of a field store), so the log
-    can be derived here instead of read, which would also retire finding 7.
-    Value rows are in the same position; the one case tried, a formal typed
-    narrower than its declaration, was refused by Terminal semantics as
-    `Unsupported`.
 
 ## Evidence seals
 
@@ -600,15 +789,21 @@ route's decision from. It discharges an elaborated closure and returns:
   certificate the kernel accepted and every use of storage is established,
   with the operation seals for Omega 00.
 - `Rejected`, for a use of storage: one `UnestablishedUse` per operation or
-  edge that some path reaches with nothing stored into what it reads, with
-  its source site. `reject_diagnostic()` gives `unestablished storage:
+  edge that some path reaches with nothing stored into what it reads, or
+  that observes the zeroed storage of a gated type, with its source site
+  and, for the latter, the declaration's. `reject_diagnostic()` gives `unestablished storage:
   <detail>`. One such use rejects the program even when every unproved
   obligation would only be `Incomplete`.
 - `Rejected`: one `UnprovedObligation` per obligation that was not, each with
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
   `unproved obligation: <kind>: <cause> (<detail>)`, an ordinary `Reject` with
-  no artifact. It says what was not proved and never that the obligation is
+  no artifact. A clause not proved again where an open invariant window is
+  consumed is one such entry with `consumed` set: `unproved obligation:
+  <kind> inside an open invariant window: a prior write left the clause
+  unproved and this use consumes the value before it is proved again:
+  <cause> (<detail>)`, placed at the consumption, with
+  `opening_diagnostic()` placed at the write. It says what was not proved and never that the obligation is
   false: "Failure to find a proof is not proof of falsehood"
   ([compiler_request.md](../../../../../wiki/spec/build/compiler_request.md#outcomes)),
   and "Unproved source contracts reject in Psi checking"
@@ -641,10 +836,28 @@ obligation's message with its outcome.
 
 `omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
 both checkers on corpus programs and prints one line per program, one per
-obligation and one per unestablished use of storage; a program with such a
-use is `route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
+obligation, one per unestablished use of storage and one per consumption
+point of an invariant window; a program with such a use is
+`route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
+
+It also measures the route's diagnostics on programs the current checker
+rejects, so a lane can see whether its errors would lead a programmer to the
+defect. With `--every-machine` it also roots the route at each of the
+fixture's own machines, which reaches fixtures that bind no entry. For each
+program both checkers reject it prints a `quality` line: whether the route's
+messages contain the fixture's `expected.txt` fragments, and how the route's
+error sites compare with the current checker's. `--tally` reads the output
+back and prints the three counts:
+
+```
+target/debug/examples/route_one_comparison --every-machine <fixture>/main.omg ... > out.tsv < /dev/null
+target/debug/examples/route_one_comparison --tally < out.tsv
+```
+
+The measurement on `fail/` is in
+[route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#diagnostics-on-must-reject-programs).
 
 ## Reusing a saved proof (experiment)
 

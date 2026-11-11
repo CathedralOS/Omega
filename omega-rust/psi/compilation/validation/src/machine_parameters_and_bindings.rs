@@ -4778,6 +4778,7 @@ pub mod machine_parameters {
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::ServiceAudit
                         | BuildOperation::AssumedBindingContract
+                        | BuildOperation::TestGroupRegistration
                 )
             )
         {
@@ -7980,7 +7981,7 @@ pub mod static_bindings {
             } else {
                 let prior = program
                     .data_definition_by_symbol(supplier.symbol)
-                    .map(|data| data.where_facts)
+                    .map(|data| data.requires_facts)
                     .or_else(|| {
                         program
                             .domain_definition(supplier.symbol)

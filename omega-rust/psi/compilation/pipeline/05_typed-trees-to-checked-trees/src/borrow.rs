@@ -5567,6 +5567,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let mut incoming = statement_entry
                 .iter()
@@ -7495,6 +7496,7 @@ mod loans {
                 is_operand_capture: false,
                 relevance: language_core::BindingRelevance::Relevant,
                 reflected_query_origin: None,
+                ..Default::default()
             };
             let contents = borrow_carrying_data_loans(
                 program,
@@ -7572,6 +7574,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
         let expression_loans = |expression| {
             let mut value = returned_value.clone();
@@ -7910,6 +7913,7 @@ mod loans {
             is_operand_capture: false,
             relevance: language_core::BindingRelevance::Relevant,
             reflected_query_origin: None,
+            ..Default::default()
         };
 
         let loans = binding_borrow_loans(
@@ -8580,7 +8584,7 @@ mod state {
     use validation::CallFrameResolver;
     use validation::borrow_contracts::retained_lifetime_owner_paths;
     use validation::peel_declared_constraints;
-    use validation::reference_result_custody::declared_carrier_references;
+    use validation::reference_result_custody::declared_carrier_inventory;
     use validation::reference_result_custody::input_carrier_type;
     use validation::reference_result_custody::origin_place_segments;
     use validation::reference_shell;
@@ -9204,10 +9208,21 @@ mod state {
             let Some(carrier) = carrier else {
                 continue;
             };
-            let Some(sources) = declared_carrier_references(program, carrier) else {
+            /*
+                Each known leaf is an incoming descriptor this state receives, so
+                it gets its entry tracker even beside an opaque type-parameter
+                field: `envelope.destination` in `Envelope<'s, M>` is as concrete
+                as in a record without `M`. An opaque field gets no tracker, which
+                is what the whole carrier got before. Nothing is lost by that: the
+                body sees such a field only as its parameter type, never as a
+                reference, so no descriptor read of it is formed here, and every
+                completeness judgment still uses `declared_carrier_references`,
+                which refuses a carrier with an opaque leaf.
+            */
+            let Some(inventory) = declared_carrier_inventory(program, carrier) else {
                 continue;
             };
-            for source in sources {
+            for source in inventory.known {
                 let Some(segments) =
                     origin_place_segments(program, carrier, source.path.iter().cloned())
                 else {

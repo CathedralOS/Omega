@@ -2887,7 +2887,7 @@ mod entry_fields {
         if let Some(field) = field {
             let owner = program.symbols.get(field).parent;
             if let Some(data) = program.data_definition_by_symbol(owner)
-                && let Some(intervals) = validation::data_where_field_intervals(program, data)
+                && let Some(intervals) = validation::data_requires_field_intervals(program, data)
                 && let Some((_, lo, hi)) = intervals.iter().find(|(symbol, ..)| *symbol == field)
             {
                 if let Some(lo) = lo {
@@ -4915,6 +4915,19 @@ impl<'program> CurrentScalarValues<'program> {
                 StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {}
                 StatementNode::LocalData(local) => {
                     values.retire_operand_effects(local.initial_value);
+                    // An unnamed temporary of the initializer dies inside this
+                    // statement, and its cleanup may write a tracked place. The
+                    // statement snapshot carries those writes; only a statement
+                    // that has any pays for the walk.
+                    if frames.is_none_or(|frames| {
+                        frames
+                            .statement_cleanup_write_frame(machine, statement)
+                            .complete_paths()
+                            .is_none_or(|paths| !paths.is_empty())
+                    }) {
+                        let at = values.statement_snapshot(ordinal);
+                        values.retire_unpreserved(at);
+                    }
                     let actuals = values.capture_call_actuals(local.initial_value);
                     let value = values.capture(program, machine, state, local.initial_value);
                     let conditions = values.capture_conditions(local.initial_value, 0);

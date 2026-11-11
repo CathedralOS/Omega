@@ -1143,7 +1143,7 @@ pub(crate) mod exhaustiveness {
 
     fn variant_is_impossible(program: &SymbolResolvedTrees, variant: &DataVariant) -> bool {
         program
-            .proof_facts(variant.where_facts)
+            .proof_facts(variant.requires_facts)
             .iter()
             .any(|fact| match fact {
                 resolved::domain::ProofFact::Expression(expression) => {

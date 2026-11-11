@@ -1,3 +1,4 @@
+// Expected exit: 41
 use omega::language::core::matrix_layout;
 use omega_language_std::console;
 data Main { }

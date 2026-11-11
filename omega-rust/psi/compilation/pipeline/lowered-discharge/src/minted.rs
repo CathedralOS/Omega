@@ -38,6 +38,9 @@ by the lowered form's own call operations and terminators.
 
 `DataDomain` rows are counted by `Storage::owed_are_minted`, which needs the
 place walk to know which clauses a write owes; their point is checked here.
+The clauses they are goals of come from a table beside the module
+(`Elaboration::domains`); `domains_are_declared` refuses that table unless it
+is the `requires` each type declaration of the module states.
 
 A disagreement is a defect of the route, not of the program, so it is a
 `ForeignIdentity` refusal: `judge` returns it as `Err` and nothing is
@@ -45,15 +48,19 @@ accepted on it.
 */
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, PsiSemanticId, ScalarType,
-    ValueId,
+    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition, PsiSemanticId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
+use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
-use terminal_psi::{ModuleInvocationInputs, OperationKind, TerminalMachine, Terminator};
+use terminal_psi::{
+    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+};
 
 use crate::{refusal, semantics_refusal, terminal_machine};
 
@@ -247,6 +254,7 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<()> {
+    values_are_declared(id, lowered, tables)?;
     let mut minted = Minted {
         machine: id,
         machines,
@@ -474,6 +482,108 @@ pub(crate) fn follow_the_lowered_form(
     Ok(())
 }
 
+/// Refuses a value table that is not the values the lowered form declares:
+/// each formal, the scalar result, each block parameter and each scalar
+/// operation result, under its own identity, with its declared type and the
+/// origin of what declares it.
+///
+/// The type of a value is what Terminal semantics states an operation's goal
+/// over and what the kernel bounds the value by, and its origin is what the
+/// payload judgment reads to learn which test a condition is the result of.
+/// The one kind of row the lowered form does not declare is the content a
+/// formal's leaf held at entry, which no operation produces; `places` checks
+/// those against the formal's type. A declared value restated as one would
+/// make a read of that leaf equal to it.
+fn values_are_declared(
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> Checked<()> {
+    let foreign = |value: ValueId, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Value(value),
+            detail,
+        )
+    };
+    let mut declared: Vec<Option<(ScalarType, ValueOrigin)>> = vec![None; tables.values.len()];
+    let mut declare = |value: ValueDeclaration, origin: ValueOrigin| -> Checked<()> {
+        let slot = declared
+            .get_mut(index(value.id.get()))
+            .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
+        if slot.replace((value.scalar_type, origin)).is_some() {
+            return Err(foreign(
+                value.id,
+                "the lowered form declares one value twice",
+            ));
+        }
+        Ok(())
+    };
+    // A scalar formal's position is its place among all the formals.
+    let mut scalars = lowered.parameters.iter();
+    for (position, kind) in lowered.parameter_order.iter().enumerate() {
+        if !matches!(kind, BoundaryParameterKind::Scalar) {
+            continue;
+        }
+        let Some(formal) = scalars.next() else {
+            break;
+        };
+        declare(
+            *formal,
+            ValueOrigin::MachineParameter {
+                position: crate::position(position, id)?,
+            },
+        )?;
+    }
+    if let Some(formal) = scalars.next() {
+        return Err(foreign(
+            formal.id,
+            "a scalar formal has no position among the formals",
+        ));
+    }
+    if let TerminalMachineResult::Scalar(result) = &lowered.result {
+        declare(*result, ValueOrigin::MachineResult)?;
+    }
+    for block in &lowered.blocks {
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            declare(
+                *parameter,
+                ValueOrigin::BlockParameter {
+                    block: block.id,
+                    position: crate::position(position, id)?,
+                },
+            )?;
+        }
+        for operation in &block.operations {
+            if let Some(result) = operation.result.as_scalar() {
+                declare(result, ValueOrigin::Operation(operation.id))?;
+            }
+        }
+    }
+    for ((value, row), declared) in tables.values.iter().zip(&declared) {
+        match declared {
+            Some((scalar_type, origin)) => {
+                if row.scalar_type != *scalar_type || row.origin != *origin {
+                    return Err(foreign(
+                        value,
+                        "a value row is not the value the lowered form declares under its identity",
+                    ));
+                }
+            }
+            None => {
+                if !matches!(row.origin, ValueOrigin::EntryContent { .. }) {
+                    return Err(foreign(
+                        value,
+                        "a value row that nothing in the lowered form declares",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Minted<'_> {
     /// One normal return owes one `NormalGuarantee` per `ensures` clause, on
     /// its edge. The lowered form does not name these rows, so each is found
@@ -501,4 +611,48 @@ impl Minted<'_> {
         }
         Ok(())
     }
+}
+
+/// Refuses a table of data `requires` clauses that is not the one the
+/// module's type declarations state. The clauses are the goals of every
+/// `DataDomain` obligation and the premises a read of established storage
+/// learns from its type, so a clause weakened, strengthened, dropped, added
+/// or moved to another type in the table would change what is proved for
+/// every construction, store and read of that type without touching the
+/// lowered form. The declaration is what the module carries into its
+/// encoding and identity; the table must restate it exactly, in authored
+/// order, since a `DataDomain` obligation names its clause by position.
+///
+/// A type the table has no row for is one whose declaration states none: a
+/// scalar local's primitive home, declared after the data types.
+pub(crate) fn domains_are_declared(
+    id: MachineId,
+    declarations: &[StructuralTypeDeclaration],
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+) -> Checked<()> {
+    let foreign = |detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            detail,
+        )
+    };
+    for (structural_type, _) in domains.iter() {
+        if !declarations
+            .iter()
+            .any(|declaration| declaration.id == structural_type)
+        {
+            return Err(foreign("a row of requires clauses names no declared type"));
+        }
+    }
+    for declaration in declarations {
+        let restated = domains.get(declaration.id).map_or(&[][..], Vec::as_slice);
+        if restated != declaration.requires.as_slice() {
+            return Err(foreign(
+                "a data type's requires clauses are not the ones its declaration states",
+            ));
+        }
+    }
+    Ok(())
 }

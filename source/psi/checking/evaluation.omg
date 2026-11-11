@@ -152,7 +152,7 @@ crashes Trap
 
 // The value of the expression tree node `handle`, which has been evaluated.
 // A linear term's interval is read from the zone again: facts installed
-// after the node was evaluated (a field's `where` facts, an assumption)
+// after the node was evaluated (a field's `requires` facts, an assumption)
 // hold of it too.
 public machine Checker::value_at(checker: &Checker, handle: u64 in Trapping) -> Value
 crashes Trap
