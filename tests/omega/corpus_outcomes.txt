@@ -2241,16 +2241,19 @@ fail/build/captured_named_input_missing_slot rejected 578ms expected published:n
 	named build input `absent` is not assigned to this activation at OperationId(28) in MachineId(6)/BlockId(30) at Some(OperationId(28))
 fail/build/captured_source_write_grant_refused rejected 1627ms expected published:none @ccdb99ca2214
 	required output `admitted.txt` of `build` failed: captured source write grant denied at OperationId(66) in MachineId(13)/BlockId(74) at Some(OperationId(66))
-fail/build/component_assumption_malformed checked 3155ms @ccdb99ca2214
-fail/build/component_assumption_other_builder rejected 61ms expected @ccdb99ca2214
+fail/build/component_assumption_malformed rejected 1483ms expected @3236fd5c5d9d
+	qualified call `accept_component_assumption` has no resolved callable declaration
+fail/build/component_assumption_other_builder rejected 1202ms expected @3236fd5c5d9d
 	the compiler-owned Build activation cannot be copied into local `other`
 	source cannot construct the compiler-owned Build activation
-fail/build/component_assumption_short checked 3485ms @ccdb99ca2214
-fail/build/component_assumption_swapped rejected 7232ms expected @32c7663ba3ad
-	argument `builder` for state `accept_component_assumption` is declared `&mut` (`&mut Build`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-	argument `digest` for state `accept_component_assumption` expects `&[u8]`, got `named value`; expected carrier `ref(slice(named(name(u8))))`, declared place carrier `named(name(nominal\\(toolchain-owner\\,path\\(Build\\)\\)))`
-fail/build/component_assumption_wrong_arity rejected 376ms expected @ccdb99ca2214
-	state `accept_component_assumption` expects 2 argument(s), got 1
+fail/build/component_assumption_policy_missing rejected 5419ms expected @3236fd5c5d9d
+	independent component package 5989e09e90ae301680004fdcacecf0f7f91d3f14283594cb082fe1983bc59c0b assumes register-access:2:513, which no accepted lock row of the consuming project covers; review it with omega update
+fail/build/component_assumption_short rejected 1363ms expected @3236fd5c5d9d
+	qualified call `accept_component_assumption` has no resolved callable declaration
+fail/build/component_assumption_swapped rejected 905ms expected @3236fd5c5d9d
+	qualified call `accept_component_assumption` has no resolved callable declaration
+fail/build/component_assumption_wrong_arity rejected 873ms expected @3236fd5c5d9d
+	qualified call `accept_component_assumption` has no resolved callable declaration
 fail/build/component_borrowed_access_refused rejected 1375ms expected @017c32ace00f
 	argument `value` for state `touch` is declared `&mut` (`&mut Token`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/component_declaration_scalar_conditions rejected 3678ms expected @ccdb99ca2214
@@ -7285,23 +7288,23 @@ fail/facts/completed_integer_carrier_bounds_through_parameter_rejected rejected 
 	data `Bound` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/completed_integer_carrier_bounds_through_target_body_rejected rejected 10280ms expected @4815ea579d91
 	data `Bound` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/component_scalar_lending_through_call_result_rejected rejected 9012ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_call_result_rejected rejected 9797ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_const_name_rejected rejected 8952ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_const_name_rejected rejected 8810ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_field_rejected rejected 8495ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_field_rejected rejected 9608ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_local_rejected rejected 8000ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_local_rejected rejected 10116ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_match_join_rejected rejected 7999ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_match_join_rejected rejected 9485ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_other_machine_rejected rejected 8367ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_other_machine_rejected rejected 9092ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_other_state_rejected rejected 7888ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_other_state_rejected rejected 8366ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_parameter_rejected rejected 8514ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_parameter_rejected rejected 8143ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms expected @1c738b2ffe7e
+fail/facts/component_scalar_lending_through_target_body_rejected rejected 7062ms expected @c8b6cad770cc
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_through_call_result_rejected rejected 4862ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
@@ -20577,13 +20580,8 @@ pass/build/captured_named_input_required_output checked 7211ms published:files/n
 pass/build/captured_source_generated_constant checked 11948ms published:files/generated.omg @ccdb99ca2214
 pass/build/checked_context_core_identity_exit rejected 698ms @ccdb99ca2214
 	Terminal Build: Execution(ScalarApplicationEvaluation("ordinary execution requires admission of retained scalar conditions"))
-pass/build/component_assumption_acceptance checked 3563ms @ccdb99ca2214
-pass/build/component_assumption_mechanism checked 7622ms @0af7c594a1c0
-pass/build/component_assumption_policy_accepted checked 3952ms @ccdb99ca2214
-pass/build/component_assumption_policy_changed checked 4054ms @ccdb99ca2214
-pass/build/component_assumption_policy_missing checked 3616ms @ccdb99ca2214
-pass/build/component_assumption_reborrow checked 2772ms @ccdb99ca2214
-pass/build/component_assumption_user_declaration checked 3193ms @ccdb99ca2214
+pass/build/component_assumption_policy_accepted checked 12287ms check-target:linux_x86_64 @c8b6cad770cc
+pass/build/component_assumption_user_declaration checked 2404ms @c8b6cad770cc
 pass/build/component_borrowed_continuation checked 84537ms check-target:macos_arm64 terminal-runtime.mutable_lender_entry:unrequested terminal-runtime.reborrow_lender_entry:unrequested terminal-runtime.shared_lender_entry:unrequested terminal-runtime.owned_entry:unrequested terminal-runtime.guest_lender_entry:unrequested terminal-runtime.nested_lender_entry:unrequested terminal-runtime.borrowed_entry:unrequested terminal-runtime.write_lender_entry:unrequested terminal-runtime.owned_materialized_entry:unrequested terminal-inspections:match @017c32ace00f
 pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/component_scalar_borrowed_continuation checked 14890ms check-target:macos_arm64 terminal-runtime.entry:match terminal-inspections:match @1c738b2ffe7e
@@ -20629,9 +20627,9 @@ pass/build/interrupt_return_debug_marker checked 82959ms check-target:linux_x86_
 pass/build/interrupt_return_helper_debug_marker checked 81840ms check-target:linux_x86_64 @b8802407f2c4
 pass/build/layout_query_constant_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/named_map_target_family_rows_exit checked 40091ms check-target:macos_arm64 @a4f3937d72ab
-pass/build/native_component_case_cycle checked 6940ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/native_component_case_loan_cycle checked 7041ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/native_component_case_cycle checked 14418ms check-target:macos_arm64 @c8b6cad770cc
+pass/build/native_component_case_loan_cycle checked 15194ms check-target:macos_arm64 @c8b6cad770cc
+pass/build/native_component_reuse checked 12010ms check-target:macos_arm64 @c8b6cad770cc
 pass/build/native_component_reuse_foreign rejected 13896ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @bbcd76b6ba0a
 	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
 pass/build/native_row_outranks_scoped_implementations_exit checked 13552ms check-target:macos_arm64 @4815ea579d91
@@ -22993,15 +22991,15 @@ pass/facts/completed_integer_carrier_bounds_through_other_machine_exit checked 1
 pass/facts/completed_integer_carrier_bounds_through_other_state_exit checked 14606ms check-target:macos_arm64 @4815ea579d91
 pass/facts/completed_integer_carrier_bounds_through_parameter_exit checked 15967ms check-target:macos_arm64 @4815ea579d91
 pass/facts/completed_integer_carrier_bounds_through_target_body_exit checked 16055ms check-target:macos_arm64 @4815ea579d91
-pass/facts/component_scalar_lending_through_call_result_exit checked 14476ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_const_name_exit checked 16593ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_field_exit checked 16736ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_local_exit checked 17170ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_match_join_exit checked 15842ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_other_machine_exit checked 15115ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_other_state_exit checked 15762ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_parameter_exit checked 14541ms check-target:macos_arm64 @1c738b2ffe7e
-pass/facts/component_scalar_lending_through_target_body_exit checked 16696ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_call_result_exit checked 15057ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_const_name_exit checked 15151ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_field_exit checked 14583ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_local_exit checked 14798ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_match_join_exit checked 14865ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_other_machine_exit checked 14957ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_other_state_exit checked 15314ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_parameter_exit checked 12556ms check-target:macos_arm64 @c8b6cad770cc
+pass/facts/component_scalar_lending_through_target_body_exit checked 13564ms check-target:macos_arm64 @c8b6cad770cc
 pass/facts/compound_index_guard_through_call_result_exit checked 8940ms check-target:macos_arm64 @68a9db4f4b07
 pass/facts/compound_index_guard_through_const_name_exit checked 7871ms check-target:macos_arm64 @68a9db4f4b07
 pass/facts/compound_index_guard_through_field_exit checked 8179ms check-target:macos_arm64 @68a9db4f4b07

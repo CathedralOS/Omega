@@ -18,6 +18,8 @@ use crate::record::PackagePolicyTerminalPermissions;
 use crate::record::PackageReviewDangerousAuthority;
 use crate::record::PackageReviewDangerousAuthoritySlack;
 
+mod component_assumptions;
+pub(crate) use component_assumptions::PackagePolicyComponentAssumption;
 mod native_bindings;
 pub(crate) use native_bindings::PackagePolicyNativeBinding;
 mod boundary_owners;
@@ -47,6 +49,7 @@ pub struct PackagePolicyBaseline {
     pub(crate) assumed_bindings: Vec<String>, // Build-host requests in issue order without host paths or live grants.
     pub(crate) service_audits: Vec<PackageReviewNominalIdentity>,
     pub(crate) restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
+    pub(crate) component_assumptions: Vec<PackagePolicyComponentAssumption>,
 }
 
 impl PackagePolicyBaseline {

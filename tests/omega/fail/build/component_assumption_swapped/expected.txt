@@ -1,1 +1,1 @@
-argument `digest` for state `accept_component_assumption` expects `&[u8]`
+qualified call `accept_component_assumption` has no resolved callable declaration

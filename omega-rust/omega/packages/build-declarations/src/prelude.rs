@@ -311,16 +311,6 @@ public machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) {
 // physical mechanism classifier, independently of receiver permissions.
 public machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) {
 }
-// Independent-component assumption acceptance
-// (wiki/spec/build/component_publication.md): a verified component
-// description binds its environment-mediating mechanisms — an immediate
-// port-space write, a declared physical mechanism — by digest. The
-// consuming build accepts one exact digest per call, authored as the same
-// lowercase hex spelling verification diagnostics report. The declaration
-// is harvested statically with its authored span; the declared body is the
-// evaluator no-op.
-public machine Build::accept_component_assumption(builder: &mut Build, digest: &[u8]) {
-}
 // Ordinary boundary calls carry evaluated operands. Installation requires exact
 // toolchain provenance and the activation's original facets or issued markers.
 public boundary trait BuildFilesystemOperations {

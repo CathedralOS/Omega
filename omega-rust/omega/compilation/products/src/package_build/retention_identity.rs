@@ -222,7 +222,6 @@ impl BuildOutputIdentity<'_> {
             root_bindings,
             behavior_exclusions,
             service_audits,
-            accepted_component_assumptions,
             test_groups,
         } = config;
         self.settings(settings);
@@ -429,17 +428,6 @@ impl BuildOutputIdentity<'_> {
             let crate::ServiceAuditRegistration { identity, name } = audit;
             self.digest.string(identity);
             self.digest.string(name);
-        }
-        self.digest.len(accepted_component_assumptions.len());
-        for acceptance in accepted_component_assumptions {
-            let trust_model::AuthoredComponentAssumptionAcceptance {
-                digest,
-                selecting_machine,
-                source_span,
-            } = acceptance;
-            self.digest.raw(digest);
-            self.symbol(*selecting_machine)?;
-            self.occurrence(*source_span)?;
         }
         Ok(())
     }
