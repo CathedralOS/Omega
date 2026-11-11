@@ -219,11 +219,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
   Acceptance: `console_exit_process_exit` (warm `< 50%` cold), `bounded_activation`, Windows filesystem fixtures, `Independent` builds, and `blocking-executor` pass `--both`.
 
-## Connected scientific library
-
-- **W100-CONNECTED.** Complete `source/library/core/{matrix_layout,float_accuracy,complex,linear_algebra}.omg` and `samples/cli/scientific/w100/` through `omega run --both`.
-  Acceptance: those core modules and `samples/cli/scientific/w100/` execute via `omega run --both` against frozen mathematical oracles.
-
 ## P5 - Cathedral over general Omega primitives
 
 - **EXTENT-LIBRARY-TRANSFORMS.** (covers **CONSERVATION-CONTRACT**, **TERMINAL-CONTENT-CLAIMS**, **BOUNDARY-ISSUANCE**, **BUMP-ALLOCATOR-CANARY**, **UEFI-PHYSICAL-SEMANTIC-ENTRY**, **AP-BRINGUP**, **ADDRESS-TRANSLATION-CANARY**, **EXCEPTION-ROOTS-AND-TIMER**) Complete [extent/run contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts), core primitives, Vec/bump, UEFI handoff and Cathedral AP/MMU/interrupt canaries.

@@ -7334,6 +7334,7 @@ pub mod result_overloads {
 
     use crate::frozen_program::expression_table;
     use diagnostics::Diagnostic;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
     use source::SourceSpan;
     use symbols::{SymbolHandle, SymbolKind};
     use typed_trees::TypedTrees;
@@ -7600,32 +7601,41 @@ pub mod result_overloads {
         let machine_overloads = MachineOverloadIndex::new(program);
         let mut diagnostics = Vec::new();
 
-        let expression_updates = expression_table(program)
-            .expression_entries()
-            .filter_map(|(handle, expression)| {
+        let mut inherited = SpecializationSelections::new(program);
+        let mut expression_updates = Vec::new();
+        for copies in [false, true] {
+            for (handle, expression) in expression_table(program).expression_entries() {
                 let ExpressionNode::Call(call) = expression else {
-                    return None;
+                    continue;
                 };
-                let expected = expected_calls.get(&handle).copied();
-                selected_named_expression_callable_symbol(
-                    program,
-                    &machine_overloads,
-                    call,
-                    expression_owners.get(&handle.arena_index()).copied(),
-                    expression_owners
-                        .get(&handle.arena_index())
-                        .map(|owner| owner.source_span())
-                        .unwrap_or_else(|| expression_table(program).source_span(handle)),
-                    expected,
-                    &mut diagnostics,
-                )
-                .map(|selected| (handle, selected))
-            })
-            .collect::<Vec<_>>();
+                let owner = expression_owners.get(&handle.arena_index()).copied();
+                if owner.is_some_and(|owner| inherited.is_copy(owner.symbol())) != copies {
+                    continue;
+                }
+                let occurrence = checked_call_occurrence(program, handle);
+                let selected = inherited.inherit(copies, occurrence).or_else(|| {
+                    selected_named_expression_callable_symbol(
+                        program,
+                        &machine_overloads,
+                        call,
+                        owner,
+                        owner
+                            .map(|owner| owner.source_span())
+                            .unwrap_or_else(|| expression_table(program).source_span(handle)),
+                        expected_calls.get(&handle).copied(),
+                        &mut diagnostics,
+                    )
+                });
+                if let Some(selected) = selected {
+                    inherited.record(copies, occurrence, selected);
+                    expression_updates.push((handle, selected));
+                }
+            }
+        }
 
         let mut statement_updates = Vec::new();
         let mut operator_statement_updates = Vec::new();
-        for machine in program.machines() {
+        for (copies, machine) in inherited.templates_then_copies(program.machines()) {
             for state in program.machine_states(machine) {
                 for (index, statement) in program
                     .statement_table
@@ -7634,22 +7644,27 @@ pub mod result_overloads {
                     let Some(call) = statement.as_call() else {
                         continue;
                     };
-                    if let Some(selected) = selected_named_statement_callable_symbol(
-                        program,
-                        &machine_overloads,
-                        call,
-                        Some(CallOwner::State {
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            source_span: call.source_span,
-                        }),
-                        program
-                            .symbols
-                            .symbol_source_span(machine.symbol)
-                            .unwrap_or(call.source_span),
-                        None,
-                        &mut diagnostics,
-                    ) {
+                    let occurrence = call.authored_call_selection;
+                    let selected = inherited.inherit(copies, occurrence).or_else(|| {
+                        selected_named_statement_callable_symbol(
+                            program,
+                            &machine_overloads,
+                            call,
+                            Some(CallOwner::State {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                source_span: call.source_span,
+                            }),
+                            program
+                                .symbols
+                                .symbol_source_span(machine.symbol)
+                                .unwrap_or(call.source_span),
+                            None,
+                            &mut diagnostics,
+                        )
+                    });
+                    if let Some(selected) = selected {
+                        inherited.record(copies, occurrence, selected);
                         if let Some(operator) = program.operator_definition_by_symbol(selected) {
                             if !operator.return_type.is_valid() {
                                 statement_updates.push((
@@ -7695,7 +7710,8 @@ pub mod result_overloads {
             }
         }
 
-        let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+        let transition_updates =
+            selected_transition_call_symbols(program, &mut inherited, &mut diagnostics);
 
         if !diagnostics.is_empty() {
             return Err(diagnostics);
@@ -7867,10 +7883,11 @@ pub mod result_overloads {
 
     fn selected_transition_call_symbols(
         program: &dyn crate::CheckingInput,
+        inherited: &mut SpecializationSelections,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Vec<(TransitionTargetHandle, SymbolHandle, SymbolHandle)> {
         let mut updates = Vec::new();
-        for machine in program.machines() {
+        for (copies, machine) in inherited.templates_then_copies(program.machines()) {
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     let Some(transition) = statement.as_transition() else {
@@ -7882,38 +7899,151 @@ pub mod result_overloads {
                         else {
                             continue;
                         };
-                        let TransitionTargetNode::Named { arguments, .. } =
-                            program.statement_table.transition_target(target)
+                        let TransitionTargetNode::Named {
+                            arguments,
+                            authored_call_selection,
+                            ..
+                        } = program.statement_table.transition_target(target)
                         else {
                             continue;
                         };
-                        let source_span = &source_span;
-                        let Some(entry) = named_machine_overload_family_symbol(
-                            program,
-                            name,
-                            CallOperands {
-                                owner: Some(CallOwner::State {
-                                    machine: machine.symbol,
-                                    state: state.symbol,
-                                    source_span: *source_span,
-                                }),
-                                static_arguments: &[],
-                                arguments: program.statement_table.expression_handles(*arguments),
-                            },
-                            *source_span,
-                            state.return_type.is_valid().then_some(state.return_type),
-                            diagnostics,
-                        ) else {
-                            continue;
-                        };
-                        if let Some(owner) = program.machine_holding_state(entry) {
-                            updates.push((target, owner.symbol, machine.symbol));
+                        let occurrence = *authored_call_selection;
+                        let selected = inherited.inherit(copies, occurrence).or_else(|| {
+                            let entry = named_machine_overload_family_symbol(
+                                program,
+                                name,
+                                CallOperands {
+                                    owner: Some(CallOwner::State {
+                                        machine: machine.symbol,
+                                        state: state.symbol,
+                                        source_span,
+                                    }),
+                                    static_arguments: &[],
+                                    arguments: program
+                                        .statement_table
+                                        .expression_handles(*arguments),
+                                },
+                                source_span,
+                                state.return_type.is_valid().then_some(state.return_type),
+                                diagnostics,
+                            )?;
+                            Some(program.machine_holding_state(entry)?.symbol)
+                        });
+                        if let Some(selected) = selected {
+                            inherited.record(copies, occurrence, selected);
+                            updates.push((target, selected, machine.symbol));
                         }
                     }
                 }
             }
         }
         updates
+    }
+
+    /*
+        A specialization copy keeps the selection its generic template made for
+        the same authored occurrence. generics.md requires specialization to
+        "preserve checked application identities", and a generic body checks
+        each admitted alternative under its own type equation: in
+        `(T == f32 && to_bits(result) == ..) || (T == f64 && to_bits(result) == ..)`
+        the second `to_bits` is `to_bits(f64)`. Re-selecting in the `f32` copy
+        would read that statically false alternative with `result: f32` and
+        choose `to_bits(f32)`, a different declaration for one authored call.
+        Templates and ordinary machines therefore select first; a copy reuses
+        the recorded choice and selects itself only where its template recorded
+        none. The authored-occurrence consistency check stays the guard.
+    */
+    struct SpecializationSelections {
+        copies: Vec<bool>,
+        template_selections: Vec<Option<SymbolHandle>>,
+    }
+
+    impl SpecializationSelections {
+        fn new(program: &dyn crate::CheckingInput) -> Self {
+            let mut copies = vec![false; program.symbols.symbols().len() + 1];
+            for specialization in &program.machine_specializations {
+                if let Some(slot) = copies.get_mut(specialization.instance.arena_index() as usize) {
+                    *slot = true;
+                }
+            }
+            Self {
+                copies,
+                template_selections: Vec::new(),
+            }
+        }
+
+        /// Every machine paired with whether it is a copy, templates first.
+        fn templates_then_copies<'program>(
+            &self,
+            machines: impl IntoIterator<Item = &'program typed_trees::machine::Machine>,
+        ) -> Vec<(bool, &'program typed_trees::machine::Machine)> {
+            let mut ordered = machines
+                .into_iter()
+                .map(|machine| (self.is_copy(machine.symbol), machine))
+                .collect::<Vec<_>>();
+            ordered.sort_by_key(|(copy, _)| *copy);
+            ordered
+        }
+
+        fn is_copy(&self, machine: SymbolHandle) -> bool {
+            machine.is_valid()
+                && self
+                    .copies
+                    .get(machine.arena_index() as usize)
+                    .copied()
+                    .unwrap_or(false)
+        }
+
+        fn inherit(
+            &self,
+            copy: bool,
+            occurrence: Option<AuthoredDeclarationSelectionOccurrenceId>,
+        ) -> Option<SymbolHandle> {
+            if !copy {
+                return None;
+            }
+            self.template_selections
+                .get(occurrence?.ordinal() as usize)
+                .copied()
+                .flatten()
+        }
+
+        fn record(
+            &mut self,
+            copy: bool,
+            occurrence: Option<AuthoredDeclarationSelectionOccurrenceId>,
+            selected: SymbolHandle,
+        ) {
+            let Some(occurrence) = occurrence.filter(|_| !copy) else {
+                return;
+            };
+            let index = occurrence.ordinal() as usize;
+            if self.template_selections.len() <= index {
+                self.template_selections.resize(index + 1, None);
+            }
+            self.template_selections[index].get_or_insert(selected);
+        }
+    }
+
+    fn checked_call_occurrence(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        expression_table(program)
+            .authored_selection_occurrences(expression)
+            .find(|occurrence| {
+                program
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|selection| {
+                        matches!(
+                            selection.target(),
+                            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(
+                                language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall
+                            )
+                        )
+                    })
+            })
     }
 
     fn family_boundary_overloads<'program>(
