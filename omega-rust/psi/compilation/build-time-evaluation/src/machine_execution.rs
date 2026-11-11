@@ -4052,8 +4052,10 @@ pub(crate) mod admission {
                         ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                     },
                 )
-                .map(BuildTimeOperationEvaluation::into_measured)
                 .map_err(String::from)
+                .and_then(|evaluation| {
+                    crate::MeasuredEvaluation::from_checked(evaluation.into_measured())
+                })
         }
 
         pub fn admitted_program_machine_closure_symbols(
@@ -4281,16 +4283,15 @@ pub(crate) mod admission {
                         &mut arguments,
                         Some(custody),
                     )?;
-                    let measured = self
-                        .accounting
-                        .evaluate(
+                    let measured =
+                        crate::machine_execution::build_machines::evaluate_checked_invocation(
                             checked_interpreter::BuildMachineProgram::Checked(checked),
-                            BuildMachineEvaluationRequest {
-                                operators: &self.selected_operators,
-                                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                            },
-                        )
-                        .map(BuildTimeOperationEvaluation::into_measured)?;
+                            checked,
+                            machine_symbol,
+                            arguments,
+                            &self.selected_operators,
+                            &self.accounting,
+                        )?;
                     require_const_evaluable_result(program, machine, measured.value())?;
                     Ok(measured)
                 }
@@ -4339,16 +4340,14 @@ pub(crate) mod admission {
                 &mut arguments,
                 Some(custody),
             )?;
-            let measured = self
-                .accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Checked(checked),
-                    BuildMachineEvaluationRequest {
-                        operators: &admission.selected_operators,
-                        ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                    },
-                )
-                .map(BuildTimeOperationEvaluation::into_measured)?;
+            let measured = crate::machine_execution::build_machines::evaluate_checked_invocation(
+                checked_interpreter::BuildMachineProgram::Checked(checked),
+                checked,
+                machine_symbol,
+                arguments,
+                &admission.selected_operators,
+                &self.accounting,
+            )?;
             require_const_evaluable_result(execution, machine, measured.value())?;
             Ok(measured)
         }
@@ -4837,6 +4836,173 @@ pub(crate) mod build_machines {
         FilesystemSponsorLimits as BuildMachineFilesystemSponsorLimits,
         FsGrants as BuildMachineFilesystemGrants,
     };
+
+    /// Evaluate one admitted invocation of a checked machine on Terminal Psi.
+    ///
+    /// We produce the invocation artifact for exactly `symbol`, bind each
+    /// compiler-materialized argument to the entry's scalar or structural
+    /// parameter list in source order (the artifact splits one source list into
+    /// those two ordered lists), run the instance under the pure work budget,
+    /// and read the returned value back through the shared value bridge. A
+    /// value the bridge cannot represent refuses the invocation; no other
+    /// engine is tried.
+    pub(crate) fn evaluate_checked_invocation(
+        program: BuildMachineProgram<'_>,
+        checked: &checked_trees::CheckedTrees,
+        symbol: SymbolHandle,
+        arguments: Vec<crate::BuildTimeValue>,
+        operators: &[crate::SelectedBuildTimeBinaryOperator],
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
+    ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
+        use crate::terminal_values::{
+            input_contents, result_value, scalar_argument, scalar_result,
+        };
+        use terminal_interpreter::{
+            TerminalExecutionResult, TerminalExecutionStatus, TerminalStructuralInputs,
+            TerminalStructuralValue,
+        };
+        super::selected_operators::validate_selected_operators(&checked.typed, operators)?;
+        accounting.evaluate_terminal_invocation(
+            program,
+            symbol,
+            &arguments,
+            operators,
+            |meter, retained_artifact| {
+                let toolchain_sources = source::source_identity::toolchain_source_identities(
+                    checked.symbols.source_files(),
+                )?;
+                let mut production = psi_terminal_production::TerminalProductionRequest::new(
+                    checked,
+                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
+                    &toolchain_sources,
+                );
+                production.publication = terminal_codec::TerminalPublication::Invocation;
+                let produced = production
+                    .produce(
+                        Default::default(),
+                        &mut psi_terminal_production::UnmeasuredProduction,
+                    )
+                    .map_err(|error| error.to_string())?;
+                *retained_artifact = Some(Arc::new(produced));
+                let artifact = retained_artifact
+                    .as_ref()
+                    .ok_or("invocation Terminal production lost its exact artifact")?;
+                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
+                let entry = program
+                    .entry()
+                    .map_err(|error| format!("invocation Terminal entry: {error:?}"))?;
+                if entry.scalar_parameters.len() + entry.structural_parameters.len()
+                    != arguments.len()
+                {
+                    return Err(format!(
+                        "invocation supplies {} argument(s) to a Terminal entry with {} parameter(s)",
+                        arguments.len(),
+                        entry.scalar_parameters.len() + entry.structural_parameters.len(),
+                    ));
+                }
+                let mut scalars = Vec::with_capacity(entry.scalar_parameters.len());
+                let mut contents = Vec::with_capacity(entry.structural_parameters.len());
+                let mut structural = Vec::with_capacity(entry.structural_parameters.len());
+                for argument in &arguments {
+                    let scalar_shaped = matches!(
+                        argument,
+                        crate::BuildTimeValue::Int(_) | crate::BuildTimeValue::Bool(_)
+                    );
+                    if scalar_shaped && scalars.len() < entry.scalar_parameters.len() {
+                        let parameter = entry.scalar_parameters[scalars.len()];
+                        scalars.push(scalar_argument(parameter.scalar_type, argument)?);
+                        continue;
+                    }
+                    let index = structural.len();
+                    let parameter = entry.structural_parameters.get(index).ok_or(
+                        "invocation argument has no matching Terminal parameter",
+                    )?;
+                    let ordinal =
+                        u32::try_from(index).map_err(|_| "too many structural arguments")?;
+                    contents.push(input_contents(
+                        &program,
+                        ordinal,
+                        parameter.structural_type,
+                        argument,
+                    )?);
+                    structural.push(TerminalStructuralValue::minted(
+                        u64::from(ordinal) + 1,
+                        parameter.structural_type,
+                        Vec::new(),
+                    ));
+                }
+                if scalars.len() != entry.scalar_parameters.len() {
+                    return Err("invocation arguments differ from the Terminal entry's scalar parameters".into());
+                }
+                let result_type = entry
+                    .result
+                    .structural()
+                    .map(|result| result.structural_type);
+                let account = meter.invocation_account().cloned();
+                let mut instance = program
+                    .instantiate(terminal_interpreter::TerminalInstantiation {
+                        scalar_arguments: &scalars,
+                        structural_inputs: TerminalStructuralInputs {
+                            arguments: &structural,
+                            contents: &contents,
+                            ..Default::default()
+                        },
+                        account: account.as_ref(),
+                        ..Default::default()
+                    })
+                    .map_err(|error| format!("invocation Terminal arguments: {error:?}"))?;
+                numeric_imports::install(&program, &mut instance, &checked.typed, operators)?;
+                let status = instance
+                    .invoke(meter)
+                    .map_err(|error| format!("invocation Terminal execution failed: {error:?}"))?;
+                let value = match status {
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                        crate::BuildTimeValue::Unit
+                    }
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
+                        scalar_result(value)?
+                    }
+                    TerminalExecutionStatus::Complete(
+                        TerminalExecutionResult::Structural(_)
+                        | TerminalExecutionResult::ScalarCase(_)
+                        | TerminalExecutionResult::ScalarArray(_),
+                    ) => result_value(
+                        &instance,
+                        result_type.ok_or("invocation result has no structural declaration")?,
+                    )?,
+                    TerminalExecutionStatus::SponsorExhausted(_) => {
+                        return Err(format!(
+                            "invocation Terminal execution exhausted its work budget after {} units",
+                            meter.usage().total_units(),
+                        ));
+                    }
+                    TerminalExecutionStatus::Crashed(crash) => {
+                        return Err(format!("invocation Terminal execution crashed: {crash:?}"));
+                    }
+                    other => {
+                        return Err(format!(
+                            "invocation Terminal execution did not complete as a pure value: {other:?}"
+                        ));
+                    }
+                };
+                let cells = value
+                    .retained_cell_count()
+                    .ok_or("invocation result cell count overflowed")?;
+                let bytes = value
+                    .retained_text_byte_count()
+                    .ok_or("invocation result payload count overflowed")?;
+                if let Some(account) = &account {
+                    account
+                        .charge_result_custody(cells, bytes)
+                        .map_err(|error| format!("invocation result custody: {error}"))?;
+                }
+                instance
+                    .close()
+                    .map_err(|error| format!("invocation Terminal close: {error:?}"))?;
+                Ok(value)
+            },
+        )
+    }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum BuildMachineExecutionMode {

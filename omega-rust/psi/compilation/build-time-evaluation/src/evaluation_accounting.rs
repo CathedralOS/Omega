@@ -343,6 +343,7 @@ impl PureEvaluationRecord {
                     && matches!(
                         &receipt.outcome,
                         PureTerminalEvaluationOutcome::Returned { .. }
+                            | PureTerminalEvaluationOutcome::Materialized { .. }
                     )
             }
         }
@@ -359,10 +360,101 @@ impl PureEvaluationRecord {
 
 pub(crate) const PURE_PSI_WORK_BUDGET: u64 = 100_000;
 
+/// A build-time value with the engine-tagged usage record of the evaluation
+/// that produced it. Both engines publish `BuildEvaluationUsage`, whose
+/// measurement identity names the work and storage schedules, so consumers
+/// such as evaluated binding digests never interpret one engine's counts as
+/// another's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasuredEvaluation<T> {
+    value: T,
+    usage: evaluation_accounting::BuildEvaluationUsage,
+}
+
+impl<T> MeasuredEvaluation<T> {
+    pub(crate) fn new(value: T, usage: evaluation_accounting::BuildEvaluationUsage) -> Self {
+        Self { value, usage }
+    }
+
+    pub(crate) fn from_checked(
+        measured: checked_interpreter::MeasuredEvaluation<T>,
+    ) -> Result<Self, String> {
+        let (value, usage) = measured.into_parts();
+        let usage = checked_interpreter::capture_checked_build_evaluation_usage(usage, None)
+            .map_err(|reason| format!("checked evaluation usage is invalid: {reason:?}"))?;
+        Ok(Self { value, usage })
+    }
+
+    pub const fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub const fn usage(&self) -> evaluation_accounting::BuildEvaluationUsage {
+        self.usage
+    }
+
+    pub fn into_value(self) -> T {
+        self.value
+    }
+
+    pub fn into_parts(self) -> (T, evaluation_accounting::BuildEvaluationUsage) {
+        (self.value, self.usage)
+    }
+}
+
+// A standalone pure evaluation has no package sponsor. Its private account
+// enforces the pure work budget; storage is measured, not capped, exactly as
+// the checked evaluator measured cells without a ceiling.
+fn pure_terminal_invocation_account()
+-> Result<evaluation_accounting::EvaluationInvocationAccount, String> {
+    let limits = evaluation_accounting::BuildEvaluationSponsorLimits::new(
+        PURE_PSI_WORK_BUDGET,
+        1,
+        1,
+        1,
+        u64::MAX,
+        u64::MAX,
+        u64::MAX,
+        u64::MAX,
+    )
+    .ok_or("pure Terminal evaluation limits are invalid")?;
+    let measurement = evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+    };
+    evaluation_accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)
+        .map_err(|error| format!("pure Terminal evaluation sponsor: {error:?}"))?
+        .begin_invocation(measurement, PURE_PSI_WORK_BUDGET)
+        .map_err(|error| format!("pure Terminal evaluation account: {error:?}"))
+}
+
+// The private sponsor above is not a package session, so the published record
+// carries only the invocation's own counts, like an unsponsored checked record.
+fn unsponsored(
+    usage: evaluation_accounting::BuildEvaluationUsage,
+) -> evaluation_accounting::BuildEvaluationUsage {
+    evaluation_accounting::BuildEvaluationUsage {
+        sponsor_schema_version: None,
+        session_work_budget: None,
+        session_build_log_byte_ceiling: None,
+        session_filesystem_attempt_ceiling: None,
+        session_live_filesystem_handle_ceiling: None,
+        session_live_storage_cell_ceiling: None,
+        session_live_payload_byte_ceiling: None,
+        session_result_storage_cell_ceiling: None,
+        session_result_payload_byte_ceiling: None,
+        session_peak_live_filesystem_handles: 0,
+        session_peak_live_storage_cells: 0,
+        session_peak_live_payload_bytes: 0,
+        ..usage
+    }
+}
+
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub struct PureTerminalEvaluationReceipt {
     source_program: Arc<PureEvaluationProgram>,
     machine: symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     program: Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
     outcome: PureTerminalEvaluationOutcome,
@@ -372,8 +464,18 @@ pub struct PureTerminalEvaluationReceipt {
 
 #[derive(Debug, Clone, compiler_storage::Record)]
 pub enum PureTerminalEvaluationOutcome {
-    Returned { value: TerminalExecutionResult },
-    Failed { reason: String },
+    Returned {
+        value: TerminalExecutionResult,
+    },
+    // A Terminal invocation whose result the compiler read back from the
+    // completed instance, with the storage measurement of that invocation.
+    Materialized {
+        value: BuildTimeValue,
+        usage: evaluation_accounting::BuildEvaluationUsage,
+    },
+    Failed {
+        reason: String,
+    },
 }
 
 impl PureTerminalEvaluationReceipt {
@@ -383,6 +485,10 @@ impl PureTerminalEvaluationReceipt {
 
     pub fn machine(&self) -> symbols::SymbolHandle {
         self.machine
+    }
+
+    pub fn arguments(&self) -> &[BuildTimeValue] {
+        &self.arguments
     }
 
     pub fn operators(&self) -> &[SelectedBuildTimeBinaryOperator] {
@@ -420,9 +526,18 @@ impl PureTerminalEvaluationReceipt {
         if attributed != Some(self.usage.total_units()) {
             return Err("source-completion Terminal work attribution is inconsistent".to_owned());
         }
+        if let PureTerminalEvaluationOutcome::Materialized { usage, .. } = &self.outcome {
+            usage.validate().map_err(|reason| {
+                format!("source-completion Terminal storage usage is invalid: {reason:?}")
+            })?;
+            if usage.work_units != self.usage.total_units() {
+                return Err("source-completion Terminal work and storage records differ".into());
+            }
+        }
         if matches!(
             &self.outcome,
             PureTerminalEvaluationOutcome::Returned { .. }
+                | PureTerminalEvaluationOutcome::Materialized { .. }
         ) {
             crate::validate_selected_operators(self.source_program.typed(), &self.operators)?;
             if self.program.is_none() {
@@ -572,6 +687,7 @@ impl EvaluationAccounting {
             let receipt = PureTerminalEvaluationReceipt {
                 source_program,
                 machine,
+                arguments: Vec::new(),
                 operators,
                 program: artifact,
                 outcome: match &evaluation {
@@ -583,6 +699,73 @@ impl EvaluationAccounting {
                     },
                 },
                 usage: meter.into_usage(),
+                work_budget: PURE_PSI_WORK_BUDGET,
+            };
+            receipt.validate_charge()?;
+            state
+                .lock()
+                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
+                .receipts[ordinal] = Some(PureEvaluationRecord::Terminal(receipt));
+        }
+        evaluation
+    }
+
+    /// Run one admitted checked invocation as a Terminal program and record the
+    /// exact arguments, artifact, materialized value, work and storage usage.
+    /// The caller's `execute` owns production, instantiation and readback; it
+    /// pays every charge through `meter`, whose invocation account supplies the
+    /// storage measurement returned with the value.
+    pub(crate) fn evaluate_terminal_invocation(
+        &self,
+        program: BuildMachineProgram<'_>,
+        machine: symbols::SymbolHandle,
+        arguments: &[BuildTimeValue],
+        operators: &[SelectedBuildTimeBinaryOperator],
+        execute: impl FnOnce(
+            &mut psi_work::WorkMeter,
+            &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
+        ) -> Result<BuildTimeValue, String>,
+    ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
+        if !matches!(
+            program,
+            BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
+        ) {
+            return Err("Terminal source-completion accounting requires checked input".to_owned());
+        }
+        let account = pure_terminal_invocation_account()?;
+        let input = self.reserve_invocation(program)?;
+        let recorded = input
+            .as_ref()
+            .map(|_| (arguments.to_vec(), operators.to_vec()));
+        let mut meter = psi_work::WorkMeter::with_invocation(account.clone(), None)
+            .map_err(|error| format!("pure Terminal work meter: {error:?}"))?;
+        let mut artifact = None;
+        let evaluation = execute(&mut meter, &mut artifact).and_then(|value| {
+            let usage = account
+                .snapshot()
+                .map_err(|error| format!("pure Terminal usage: {error:?}"))?;
+            Ok(MeasuredEvaluation::new(value, unsponsored(*usage.record())))
+        });
+        let work = meter.into_usage();
+        if let (Some(state), Some((ordinal, source_program)), Some((arguments, operators))) =
+            (&self.state, input, recorded)
+        {
+            let receipt = PureTerminalEvaluationReceipt {
+                source_program,
+                machine,
+                arguments,
+                operators,
+                program: artifact,
+                outcome: match &evaluation {
+                    Ok(measured) => PureTerminalEvaluationOutcome::Materialized {
+                        value: measured.value().clone(),
+                        usage: measured.usage(),
+                    },
+                    Err(reason) => PureTerminalEvaluationOutcome::Failed {
+                        reason: reason.clone(),
+                    },
+                },
+                usage: work,
                 work_budget: PURE_PSI_WORK_BUDGET,
             };
             receipt.validate_charge()?;
