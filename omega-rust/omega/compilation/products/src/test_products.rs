@@ -52,7 +52,13 @@ impl std::fmt::Display for TestRosterEntry {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let target = self.target.target_name();
         match (&self.test, &self.status) {
-            (Some(test), TestRosterStatus::Passed { engines, unavailable }) => {
+            (
+                Some(test),
+                TestRosterStatus::Passed {
+                    engines,
+                    unavailable,
+                },
+            ) => {
                 write!(
                     formatter,
                     "test `{test}` in group `{}` (target `{target}`): passed on {}",

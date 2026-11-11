@@ -99,6 +99,21 @@ pub(crate) fn select_test_roots(
                     .with_source_span(group.source_span),
                 ]);
             }
+            // A test entry receives only arguments its installed runner
+            // contract establishes; this runner installs none, so a
+            // parameterized satisfier cannot run and is reported, not dropped.
+            if typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.parameters.count() != 0)
+            {
+                return Err(vec![
+                    Diagnostic::error(format!(
+                        "test `{test_path}` in group `{group_path}` is not runnable: its entry takes parameters, and no installed runner contract supplies them"
+                    ))
+                    .with_source_span(group.source_span),
+                ]);
+            }
             tests.push((test_path, machine.symbol));
         }
         tests.sort_by(|left, right| left.0.cmp(&right.0));
