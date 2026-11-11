@@ -7458,6 +7458,7 @@ run/domains/checked_provider_issued_field built 4860ms exit:0 interpreter-exit:0
 run/domains/checked_provider_issued_root built 4510ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/completed_membership_after_earlier_guarantee built 4336ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/current_record_predicate_captures built 2735ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+run/domains/domain_cast_accounting_exit built 13158ms exit:0 interpreter-exit:0 interpreter:agrees @2c1d6e77dc92
 run/domains/fixed_byte_array_content_observations_exit rejected 1974ms interpreter:unchecked @5f668826adf3+wt
 	cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 7
 run/domains/fixed_byte_array_empty_observations_exit rejected 2003ms interpreter:unchecked @5f668826adf3+wt
