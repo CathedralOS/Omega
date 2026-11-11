@@ -3628,24 +3628,15 @@ pass/facts/open_index_distributivity_through_other_machine_exit built 8609ms exi
 pass/facts/open_index_distributivity_through_other_state_exit built 8511ms exit:0 @af2cbd5e6837
 pass/facts/open_index_distributivity_through_parameter_exit built 9128ms exit:0 @af2cbd5e6837
 pass/facts/open_index_distributivity_through_target_body_exit built 8480ms exit:0 @af2cbd5e6837
-pass/facts/open_record_const_implementation_through_call_result_exit rejected 2141ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 106ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 2311ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 2152ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2341ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 2271ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 2238ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 2297ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2273ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit built 103325ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_const_name_exit built 52262ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_field_exit built 153064ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_local_exit built 55590ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_match_join_exit built 56585ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_other_machine_exit built 57038ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_other_state_exit built 67050ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_parameter_exit built 34390ms exit:0 @f3951e500514
+pass/facts/open_record_const_implementation_through_target_body_exit built 34627ms exit:0 @f3951e500514
 pass/facts/outcome_structural_evidence_through_call_result_exit built 13619ms exit:0 stdout:match @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_const_name_exit built 15706ms exit:0 stdout:match @5f668826adf3+wt
 pass/facts/outcome_structural_evidence_through_field_exit built 3840ms exit:0 stdout:match @5f668826adf3+wt
