@@ -1647,6 +1647,37 @@ changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
 
+### Warm build for cloud sessions
+
+A Claude Code cloud session starts in a fresh container with nothing built, and
+`mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
+container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
+container set up like a session and publishes the build directory, about
+270 MB compressed, on the `warm-build-linux-x86_64` prerelease. The
+SessionStart hook in `.claude/settings.json` runs
+`bash tools/warm_build.sh session-start`, which unpacks it into the primary
+checkout's `target/` and into `.agents/worktree/worker-1/target` before the
+session's first command. Measured on the same container: 3 s to restore, then
+25 s for `mbx build -p omega`, which reruns the `compiler` build script and
+recompiles 4 crates.
+
+That holds only while the checkout's compiler sources match the published
+commit. A change to a foundation crate recompiles every workspace crate above
+it: the same restored build, three commits away with `language-core` changed,
+took 673 s. The hook prints the published commit and says whether the sources
+match; basing new work on that commit keeps the first build short.
+
+`mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
+on Cargo's checksum freshness, Cargo then passes
+`-Zchecksum-hash-algorithm=blake3` to rustc, and mbx 1.29.2 bypasses its cache
+for a flag it does not model: a full build reports `0 hits, 0 misses, 213
+bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
+`mbx` still schedules builds and manages target directories.
+
+The hook also sets `gc.min_free_size` to 5 GiB when it is unset. The
+container's disk reports 252 GB while a session may use about 30 GB of it, so
+the default floor described below is 25 GiB and one compiler build crosses it.
+
 ### Build cache placement
 
 `mbx` computes its garbage-collection floor per disk, not per cache:
