@@ -19544,6 +19544,9 @@ fail/traits/nested_trait_callback_unknown_type_rejected rejected 631ms expected 
 	machine-parameter requirement `Callback` state `Callback` parameter `value` references unknown data type `Missing`
 fail/traits/nominal_invocation_type_argument_not_reselected rejected 713ms expected @ccdb99ca2214
 	machine argument `wrong_context` for `Routine` does not refine `Callback`: parameter 1 expects `u64`, got `bool`
+fail/traits/omitted_requirement_crashes_reach_generic_caller rejected 5870ms expected @3cffc7d30e7a
+	call from `advance$specialized$a5a3bae642674f4c$0$4640` to `apply` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `advance$specialized$a5a3bae642674f4c$0$4640` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/traits/ordinary_selection_name_missing_conformance_region rejected 212ms expected @ccdb99ca2214
 	generic conformance `ReadingMap` has 1 erased lifetime parameter(s), but this application supplies none and no unique ordinary borrow constraint is available; write the lifetime argument explicitly
 fail/traits/ordinary_trait_inherits_boundary rejected 801ms expected @ccdb99ca2214
@@ -28511,6 +28514,7 @@ pass/traits/inherited_region_application_identity_exit checked 12686ms check-tar
 pass/traits/named_contract_arithmetic_refinement checked 17731ms check-target:macos_arm64 @6b1c338126fa
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/omitted_requirement_crashes_ruled_out_exit checked 6769ms check-target:macos_arm64 @3cffc7d30e7a
 pass/traits/operator_machine_add checked 3752ms @ccdb99ca2214
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3586ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/private_generic_requirement_owned_exit checked 2993ms check-target:macos_arm64 @b852a38544d0
