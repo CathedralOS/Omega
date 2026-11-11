@@ -1,5 +1,8 @@
 /*
-The statement family of the reader: local bindings and assignment to them.
+The statement family of the reader: local bindings and assignment to scalar
+locals. A record local is bound once by its initializer; storing into a field
+of it and replacing it whole are refused here until the slice that serves
+them.
 */
 
 use semantic_vocabulary::MachineId;
@@ -8,7 +11,7 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{TableAssignment, TableLocalData};
 
 use super::{Program, Slot};
-use crate::body::Statement;
+use crate::body::{Statement, ValueType};
 use crate::{Unserved, refuse};
 
 impl Program<'_> {
@@ -18,14 +21,49 @@ impl Program<'_> {
         slots: &[Slot],
         assignment: &TableAssignment,
     ) -> Checked<Statement> {
-        let ExpressionNode::Name(path) = self.node(id, assignment.target)? else {
+        let path = match self.node(id, assignment.target)? {
+            ExpressionNode::Name(path) => path,
+            ExpressionNode::Member(_) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Statement("field store"),
+                ));
+            }
+            ExpressionNode::Indexed(_)
+            | ExpressionNode::TypeExpression(_)
+            | ExpressionNode::Match(_)
+            | ExpressionNode::SavedSubject(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Atomic(_)
+            | ExpressionNode::Binary(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Cast(_)
+            | ExpressionNode::Call(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::Range(_)
+            | ExpressionNode::StructLiteral(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::ZeroValue(_) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Statement("assignment to a projected place"),
+                ));
+            }
+        };
+        let slot = self.slot_of(id, slots, path)?;
+        let ValueType::Scalar(scalar_type) = slots[slot].value_type else {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Statement("assignment to a projected place"),
+                Unserved::Statement("whole assignment of a record"),
             ));
         };
-        let slot = self.slot_of(id, slots, path)?;
         if !slots[slot].assignable {
             return Err(refuse(
                 id,
@@ -33,8 +71,8 @@ impl Program<'_> {
                 Unserved::Statement("assignment to an immutable binding"),
             ));
         }
-        let value = self.expression(id, slots, assignment.value, Some(slots[slot].scalar_type))?;
-        if value.result != Some(slots[slot].scalar_type) {
+        let value = self.expression(id, slots, assignment.value, Some(scalar_type))?;
+        if value.result != Some(ValueType::Scalar(scalar_type)) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -84,11 +122,16 @@ impl Program<'_> {
         // A declared type is the initializer's expected type; without one the
         // local takes the initializer's type.
         let declared = if local.type_reference.is_valid() {
-            Some(self.scalar_type(id, local.type_reference)?)
+            Some(self.value_type(id, local.type_reference)?)
         } else {
             None
         };
-        let value = self.expression(id, slots, local.initial_value, declared)?;
+        let value = self.expression(
+            id,
+            slots,
+            local.initial_value,
+            declared.and_then(ValueType::scalar),
+        )?;
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,
@@ -105,7 +148,7 @@ impl Program<'_> {
         }
         let slot = Slot {
             symbol: local.symbol,
-            scalar_type: value_type,
+            value_type,
             assignable: local.is_mutable,
         };
         Ok((

@@ -4,7 +4,7 @@ gate), their signatures and formals, the call-graph recursion refusal, and
 the driver that reads one body statement by statement.
 */
 
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -15,7 +15,7 @@ use typed_trees::statement::StatementNode;
 
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
-use crate::body::{Body, CrashCeiling, Signature, Statement, Target};
+use crate::body::{Body, CrashCeiling, Signature, Statement, Target, ValueType};
 use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
@@ -181,7 +181,7 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
-    fn signature(&self, id: MachineId, symbol: SymbolHandle) -> Checked<Signature> {
+    fn signature(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<Signature> {
         let typed = self.typed;
         let (machine, state) = self.declaration(id, symbol)?;
         self.machine_shape(id, machine)?;
@@ -201,20 +201,24 @@ impl<'t> Program<'t> {
         let mut parameters = Vec::with_capacity(formals.len());
         let mut slots = Vec::with_capacity(formals.len());
         for formal in formals {
-            let scalar_type = self.formal(id, formal)?;
-            parameters.push(scalar_type);
+            let value_type = self.formal(id, formal)?;
+            parameters.push(value_type);
             slots.push(Slot {
                 symbol: formal.symbol,
-                scalar_type,
+                value_type,
                 assignable: false,
             });
         }
         let result = self.result_type(id, state.return_type)?;
-        // The result pseudo-value is the value right after the formals
-        // (`Signature::result`), owned by the machine's one state: stage 02
-        // records the entry state as the owner of a machine contract's
-        // reserved `result`.
-        let result_value = ValueId::new(formals.len() as u64 + 1).ok_or_else(|| {
+        // The result pseudo-value is the value right after the scalar
+        // formals (`Signature::result`), owned by the machine's one state:
+        // stage 02 records the entry state as the owner of a machine
+        // contract's reserved `result`.
+        let scalar_formals = parameters
+            .iter()
+            .filter(|parameter| parameter.scalar().is_some())
+            .count();
+        let result_value = ValueId::new(scalar_formals as u64 + 1).ok_or_else(|| {
             refuse(
                 id,
                 Construct::Machine,
@@ -228,7 +232,13 @@ impl<'t> Program<'t> {
         };
         let exit = ClauseScope {
             result: match result {
-                Some(scalar_type) => ResultTerm::Named(result_value, scalar_type),
+                Some(ValueType::Scalar(scalar_type)) => {
+                    ResultTerm::Named(result_value, scalar_type)
+                }
+                // A clause over a record result projects it
+                // (`result.field`), which a later slice serves from the
+                // result place.
+                Some(ValueType::Record(_)) => ResultTerm::Absent("result of a record machine"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
             ..entry
@@ -326,7 +336,7 @@ impl<'t> Program<'t> {
         })
     }
 
-    fn formal(&self, id: MachineId, formal: &StateParameter) -> Checked<ScalarType> {
+    fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
                 id,
@@ -355,7 +365,7 @@ impl<'t> Program<'t> {
                 Unserved::Parameter("erased parameter"),
             ));
         }
-        self.scalar_type(id, formal.type_reference)
+        self.value_type(id, formal.type_reference)
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
@@ -373,9 +383,9 @@ impl<'t> Program<'t> {
         let mut slots: Vec<Slot> = formals
             .iter()
             .zip(&signature.parameters)
-            .map(|(formal, scalar_type)| Slot {
+            .map(|(formal, value_type)| Slot {
                 symbol: formal.symbol,
-                scalar_type: *scalar_type,
+                value_type: *value_type,
                 assignable: false,
             })
             .collect();
@@ -411,7 +421,11 @@ impl<'t> Program<'t> {
                     Statement::Evaluate(self.call_statement(id, &slots, call)?)
                 }
                 StatementNode::Expression(expression) => {
-                    let expected = if last { signature.result } else { None };
+                    let expected = if last {
+                        signature.result.and_then(ValueType::scalar)
+                    } else {
+                        None
+                    };
                     let expression = self.expression(id, &slots, *expression, expected)?;
                     match (last, signature.result) {
                         (true, Some(result)) => {
@@ -458,7 +472,7 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(Body {
-            slots: slots.iter().map(|slot| slot.scalar_type).collect(),
+            slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })
     }

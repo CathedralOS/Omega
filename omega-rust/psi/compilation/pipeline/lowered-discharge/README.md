@@ -12,7 +12,9 @@ rule 2 lets remove a runtime check. It is not wired into the default compile;
 [the route's verdict](#the-routes-verdict) is what a router will take from it.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). [graph.rs](src/graph.rs) answers
-dominance between program points; [prove.rs](src/prove.rs) is the one prover.
+dominance between program points; [places.rs](src/places.rs) says what a
+place holds when a field read observes it; [prove.rs](src/prove.rs) is the
+one prover.
 
 ## What it decides
 
@@ -27,13 +29,53 @@ Any other kind is refused as `Unsupported`; elaboration mints none yet.
 Hypotheses come only from the lowered form and the tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block), per operation result equation
-(`OperationSemantics`, on its normal successor), per callee `ensures`
-clause (`CalleeGuarantee`, after the call) and per edge of a conditional
-(`BranchCondition`: the condition is `true` on the true edge and `false` on
-the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
+(`OperationSemantics`, on its normal successor), per field read whose place
+holds one value on every path to it (`OperationSemantics` of the read; see
+below), per callee `ensures` clause (`CalleeGuarantee`, after the call) and
+per edge of a conditional (`BranchCondition`: the condition is `true` on the
+true edge and `false` on the false edge). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## Reads of places
+
+A field read produces a fresh value. It gets the row `read == v` when `v` is
+the one value its place holds on every path to it
+([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md):
+"A primitive read may introduce an equality between its copied SSA result
+and an exact reaching stored SSA value. Every actual predecessor must supply
+that same value"). [places.rs](src/places.rs) finds that from the tables
+alone:
+
+- **The place.** The read's root is `roots[source]`, and each field of its
+  path is one binary search of a parent's `children`.
+- **Overlap.** One function answers whether two places may share storage: a
+  place overlaps itself, its ancestors and its descendants; two places that
+  part by two different record fields are disjoint; any other pair of sibling
+  segments overlaps, and places under different roots do not. Later lanes
+  extend this function (indices, referents) and add no second relation.
+- **Reaching.** Walking the graph back from the read, the first write to an
+  overlapping place on each path is the one that reaches along it. A write of
+  `Content::Value(v)` to exactly the read place supplies `v`. Any other
+  overlapping write supplies no value. A path that reaches the machine's
+  entry with no write is supplied by the place's entry content
+  (`ValueOrigin::EntryContent`).
+
+One value from every arrival gives the equation. Different values on
+different arrivals, or contents with no value identity, give none: the read
+is still well formed and nothing is known about it. A path that reaches the
+entry of a place with no entry content is a table that does not describe the
+module, and the machine is refused.
+
+Knowledge names values only. No row states a proposition about a place and
+no structural `Proposition` variant is used, so the prover gained no
+field-aware path: it sees one more equation between two values.
+
+A call's actuals are replaced into the callee's clauses by position in the
+scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
+actual. A record actual is a place and no clause term can name it, because
+elaboration refuses a clause that names or projects a record formal.
 
 ## The prover
 
@@ -103,6 +145,15 @@ subset needs, so the prover emits them directly.
    shift route (`map_direct_shift_left_bound`); this prover does not build
    its evidence, so an exact `<<` whose count is not a literal zero is
    `Unproved`.
+5. **The read equation needs no kernel rule.** `read == v` is passed to the
+   kernel as a semantic axiom, like every operation equation, and the
+   existing equality steps carry it: a bound on `v` bounds the read, and two
+   reads of one leaf are related through the value they share. An unsigned
+   `p.x - p.x` over a formal discharges with a `Judged` certificate.
+6. **Edge writes are refused, not placed.** The backward walk moves between
+   blocks. A write logged on one edge reaches only that edge's destination,
+   so a write at `ProgramPoint::Edge` that overlaps a read refuses the
+   machine until the slice that logs one teaches the walk about edges.
 
 ## Evidence seals
 

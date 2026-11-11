@@ -1,12 +1,14 @@
 /*
-The reader: one machine's frozen typed trees resolved into the closed scalar
-body. This is where identity is fixed (`check_on_lowered_form.md`, "Identity
+The reader: one machine's frozen typed trees resolved into the closed body. This is where identity is fixed (`check_on_lowered_form.md`, "Identity
 is fixed before elaboration"):
 
 - A type is scalar only through `SymbolTable::builtin_type_atom` on its
   resolved symbol: the compiler-installed root slot, never the spelling. The
   typed trees' own `PrimitiveType::from_name` classifies by spelling and is
   not used. A `Named` type whose symbol is invalid is refused as a spelling.
+- A type is a record only through its `SymbolKind::Data` symbol and that
+  symbol's declaration; a field is its declaration position, found from the
+  field symbol on the literal or member (`places`).
 - A name is a slot only when its path has one member and a valid symbol equal
   to a formal's or local's symbol. A name with no symbol is refused.
 - The reserved `result` of a contract keeps invalid symbols, but its name
@@ -25,17 +27,18 @@ mod calls;
 mod contracts;
 mod expressions;
 mod machine;
+mod places;
 mod statements;
 mod transitions;
 mod types;
 
 use arena::Arena;
-use semantic_vocabulary::{CrashCause, IdTable, MachineId, ScalarType};
+use semantic_vocabulary::{CrashCause, IdTable, MachineId, StructuralTypeId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
 
-use crate::body::Signature;
+use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
@@ -45,12 +48,22 @@ pub(crate) struct Program<'t> {
     pub signatures: IdTable<MachineId, Signature>,
     /// Every direct call read so far, as (caller, callee).
     calls: Vec<(MachineId, MachineId)>,
+    /// Every record type a formal, local, result, field or literal named, in
+    /// discovery order; a nested record is discovered before its owner.
+    pub records: IdTable<StructuralTypeId, RecordType>,
+    /// The symbols each record type was resolved from, by the same identity.
+    record_sources: IdTable<StructuralTypeId, places::RecordSource>,
+    /// The data declarations being resolved, outermost first: a declaration
+    /// reached again while on this stack contains itself.
+    resolving: Vec<SymbolHandle>,
+    /// How many `StructuralFieldId`s the records above hold.
+    fields_minted: u64,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
 struct Slot {
     symbol: SymbolHandle,
-    scalar_type: ScalarType,
+    value_type: ValueType,
     assignable: bool,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
@@ -80,6 +93,10 @@ impl<'t> Program<'t> {
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             calls: Vec::new(),
+            records: IdTable::default(),
+            record_sources: IdTable::default(),
+            resolving: Vec::new(),
+            fields_minted: 0,
         }
     }
 }
@@ -127,7 +144,7 @@ mod tests {
     use super::*;
     use language_core::ReferenceAccess;
     use numerics::literals::{FloatFormat, IntegerLiteral};
-    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ValueId};
+    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId};
     use symbols::{SymbolNameRef, SymbolTableBuilder, builtin_type_symbols};
     use typed_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath,
@@ -313,6 +330,188 @@ mod tests {
         );
     }
 
+    /// Record constructs this slice does not serve are each refused under
+    /// their own name, and a member or literal the typed trees hold only as a
+    /// spelling is refused as a spelling, before anything is read from it.
+    #[test]
+    fn each_place_expression_outside_the_slice_is_refused_by_name() {
+        use typed_trees::expression::{
+            TableMatchExpression, TableMemberExpression, TableStructLiteral,
+        };
+        let typed = TypedTrees::default();
+        let member = |case_variant| {
+            ExpressionNode::Member(TableMemberExpression {
+                receiver: ExpressionHandle::invalid(),
+                member_symbol: SymbolHandle::invalid(),
+                member: Default::default(),
+                case_variant,
+            })
+        };
+        let cases = [
+            (
+                member(Some(Default::default())),
+                "expression case payload member",
+            ),
+            (member(None), "spelling member without a field symbol"),
+            (
+                ExpressionNode::StructLiteral(TableStructLiteral {
+                    case_name: Some(Default::default()),
+                    ..Default::default()
+                }),
+                "expression case literal",
+            ),
+            (
+                ExpressionNode::StructLiteral(TableStructLiteral::default()),
+                "spelling record literal without a type symbol",
+            ),
+            (
+                ExpressionNode::Match(TableMatchExpression::default()),
+                "expression match",
+            ),
+        ];
+        for (node, expected) in cases {
+            assert_eq!(refused(&typed, node), expected);
+        }
+    }
+
+    /// A record local is bound once: storing into a field of it, replacing
+    /// it whole, declaring it without an initializer and destructuring it
+    /// are each refused by name, as is a named constant.
+    #[test]
+    fn each_place_statement_outside_the_slice_is_refused_by_name() {
+        use semantic_vocabulary::StructuralTypeId;
+        use typed_trees::expression::TableMemberExpression;
+        use typed_trees::name::Identifier;
+        use typed_trees::statement::{TableAssignment, TableLocalData};
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Local, SymbolNameRef::Static("p")),
+                (SymbolKind::Const, SymbolNameRef::Static("LIMIT")),
+            ],
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let local = children.handles().next().unwrap();
+        let constant = children.handles().nth(1).unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let whole = name(&mut typed, local, "p");
+        let named_constant = name(&mut typed, constant, "LIMIT");
+        let projected =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: whole,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: Default::default(),
+                    case_variant: None,
+                }));
+        let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let slots = [Slot {
+            symbol: local,
+            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            assignable: true,
+        }];
+        let mut program = Program::new(&typed);
+        let mut assigned = |target| {
+            program
+                .assignment(
+                    machine(),
+                    &slots,
+                    &TableAssignment {
+                        target,
+                        value,
+                        ..Default::default()
+                    },
+                )
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(assigned(projected), "statement field store");
+        assert_eq!(assigned(whole), "statement whole assignment of a record");
+        let mut declared = |role, initial_value| {
+            program
+                .local(
+                    machine(),
+                    &slots,
+                    &TableLocalData {
+                        role,
+                        symbol: constant,
+                        name: Identifier::generated("q"),
+                        type_reference: TypeReferenceHandle::invalid(),
+                        initial_value,
+                        is_mutable: false,
+                        type_is_inferred: false,
+                        is_operand_capture: false,
+                        relevance: language_core::BindingRelevance::Relevant,
+                        reflected_query_origin: None,
+                    },
+                )
+                .map(drop)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            declared(
+                language_core::LocalBindingRole::Value,
+                ExpressionHandle::invalid()
+            ),
+            "statement uninitialized local"
+        );
+        assert_eq!(
+            declared(language_core::LocalBindingRole::RecordPattern, whole),
+            "statement record pattern binding"
+        );
+        assert_eq!(
+            declared(language_core::LocalBindingRole::ArmPattern, whole),
+            "statement arm pattern binding"
+        );
+        assert_eq!(
+            program
+                .expression(machine(), &slots, named_constant, None)
+                .unwrap_err()
+                .detail,
+            "expression const"
+        );
+        // A contract clause can neither name a record formal whole nor
+        // project it: clauses over places belong to a later slice.
+        let scope = ClauseScope {
+            slots: &slots,
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let term = |handle| {
+            program
+                .term(machine(), &scope, handle, None)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            term(projected),
+            "contract clause that projects a formal or result"
+        );
+        assert_eq!(
+            term(whole),
+            "contract record formal named whole in a clause"
+        );
+    }
+
     /// A type is `u32` by its builtin slot. A declaration spelled `u32` is a
     /// different symbol and is refused as nominal; a `Named` type with no
     /// symbol is refused as a spelling.
@@ -348,7 +547,7 @@ mod tests {
                 access: ReferenceAccess::Shared,
                 lifetime: None,
             });
-        let program = Program::new(&typed);
+        let mut program = Program::new(&typed);
         assert_eq!(
             program.scalar_type(machine(), builtin),
             Ok(ScalarType::Integer(

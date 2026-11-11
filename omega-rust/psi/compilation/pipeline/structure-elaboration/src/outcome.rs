@@ -205,6 +205,17 @@ impl Walk<'_> {
             ExpressionKind::Not(operand) | ExpressionKind::BitwiseNot(operand) => {
                 self.expression(machine, operand)
             }
+            ExpressionKind::Field { base, .. } => self.expression(machine, base),
+            // Operands in authored order; the establishment itself cannot
+            // crash or fail to complete.
+            ExpressionKind::Record { fields } => {
+                for (_, operand) in fields {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             ExpressionKind::Strict { left, right, .. } => {
                 Ok(self.expression(machine, left)? && self.expression(machine, right)?)
             }
