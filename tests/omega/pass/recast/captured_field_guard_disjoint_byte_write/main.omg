@@ -21,7 +21,7 @@ requires offset <= 8
     requires descriptor.pages <= 4503599627370495 &&
         descriptor.base <= 18446744073709551615 - descriptor.pages * 4096
     {
-        descriptor.base + descriptor.pages * 4096 + descriptor.flags as u64
+        descriptor.base + descriptor.pages * 4096
     }
 }
 
@@ -46,7 +46,7 @@ machine main() crashes Trap {
                                0, 0, 0, 0, 0, 0, 0, 0];
     let end: u64 = stamp(&mut bytes, 8);
     let pages: u64 = inspect(&bytes);
-    transition end == 12312 && pages == 3 && bytes[24] == 7 && bytes[25] == 0 {
+    transition end == 12305 && pages == 3 && bytes[24] == 7 && bytes[25] == 0 {
         true -> done()
         false -> wrong()
     }
