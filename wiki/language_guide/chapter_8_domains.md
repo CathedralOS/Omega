@@ -205,8 +205,10 @@ public domain Cell::Controlled
 
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
-        let mut plan: AccessPlan = AccessPlan::new(&schema);
-        AccessPlan::establish(&mut plan, [reflect::callable(create_cell)]);
+        let mut plan: AccessPlan = AccessPlan::new(
+            &schema,
+            Issuance::Only { routes: [reflect::callable(create_cell)] }
+        );
         AccessPlan::allow_readers(
             &mut plan, TypeSchema::root(&schema), [reflect::callable(read_cell)]
         );
@@ -241,7 +243,18 @@ let forged: Cell in Controlled = Cell { value: 1 } as +Controlled;   // Rejected
 
 Only `create_cell` may cast to `Controlled`, and only the listed machines may
 read or write. This is a compile-time rule, not secrecy: the layout is still
-public. See the
+public.
+
+A plan always says who may create values of the domain; there is no way to
+build one without that choice. When that is the only thing you want to
+restrict, use the stock policy and skip writing one:
+
+```omega
+domain Folder::Writable
+    access IssuedBy<reflect::callable(choose_folder)>;
+```
+
+See the
 [access reference](../spec/language/domains.md#domain-owned-read-and-write-authority).
 
 ## Domains with parameters
