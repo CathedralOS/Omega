@@ -7788,6 +7788,15 @@ pub fn declared_carrier_inventory(
             }
             return Some(());
         }
+        // A length this declaration cannot evaluate, such as a const parameter,
+        // leaves the element count unknown: the array is opaque here.
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            opaque.push(path.clone());
+            return Some(());
+        }
         if let TypeReferenceNode::Slice { element_type } =
             program.type_reference_table.type_reference(reference)
         {
