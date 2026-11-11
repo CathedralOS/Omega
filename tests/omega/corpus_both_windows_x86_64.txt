@@ -7370,6 +7370,8 @@ run/arithmetic/policy_operator_division_matches_policy_domains built 160659ms ex
 run/arithmetic/policy_operator_exact_result_fact built 262299ms exit:70 interpreter-exit:70 interpreter:agrees @bbdd9fe6f61f
 run/arithmetic/policy_operator_minimum_quotient_traps built 45128ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
 run/arithmetic/policy_operator_minimum_remainder_traps built 42557ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
+run/arithmetic/policy_operator_shift_count_traps built 118756ms exit:-1073741795 interpreter:trapped @f68e4a615c25
+run/arithmetic/policy_operator_target_body built 93188ms exit:70 interpreter-exit:70 interpreter:agrees @f68e4a615c25
 run/arithmetic/policy_operator_zero_divisor_traps built 44851ms exit:-1073741795 interpreter:trapped @c08c4d97d44d
 run/arithmetic/policy_operators_match_policy_domains built 84264ms exit:70 interpreter-exit:70 interpreter:agrees @a7dc8e823f6e
 run/borrows/affine_produced_membership_move built 3298ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
