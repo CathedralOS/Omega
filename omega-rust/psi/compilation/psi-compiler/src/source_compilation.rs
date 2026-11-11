@@ -435,6 +435,12 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
+            let native_bindings = build_time_evaluation::native_bindings::collect(
+                Arc::make_mut(&mut self.input).typing.typed_mut(),
+                request.activation,
+                request.declared,
+                request.native_bindings,
+            )?;
             let typed = self.typed();
             let representations =
                 representation_planning::collect_opaque_representation_selections(
@@ -443,12 +449,6 @@ mod product_policy {
                     request.declared,
                     request.executed,
                 )?;
-            let native_bindings = build_time_evaluation::native_bindings::collect(
-                typed,
-                request.activation,
-                request.declared,
-                request.native_bindings,
-            )?;
             let grants = build_time_evaluation::product_policy::collect_product_root_grants(
                 typed,
                 request.activation,

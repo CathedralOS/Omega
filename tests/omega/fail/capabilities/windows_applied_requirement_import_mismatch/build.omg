@@ -1,0 +1,14 @@
+// Bind `Magnitude<i32>::of`; the program uses `Magnitude<u32>::of`.
+
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "windows_applied_requirement_import_mismatch");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind<Magnitude<i32>::of>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    });
+}

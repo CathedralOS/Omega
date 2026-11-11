@@ -78,9 +78,14 @@ impl PreparedNativeBuildBindings {
                         signature: signature.symbol,
                         identity: typed.trait_requirement_callable_identity_text(owner, signature),
                         method: signature.name.as_str().to_owned(),
-                        surface: services.retain_declaration(
-                            ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
-                        ),
+                        surface: match &selection.application_identity {
+                            None => services.retain_declaration(
+                                ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
+                            ),
+                            Some(application) => {
+                                services.retain_application(owner.symbol, application)
+                            }
+                        },
                     })
                 })();
                 PreparedNativeBuildBinding {
@@ -132,6 +137,12 @@ impl PreparedNativeBuildBindings {
             if selected_target != Some(target) {
                 continue;
             }
+            // A generic boundary has a surface only for the applications the
+            // product uses. A row bound at an application nothing uses has no
+            // slot to supply, and a use at any other application never sees it.
+            if requirement.surface.is_none() && selection.application_identity.is_some() {
+                continue;
+            }
             let prepared = requirement
                 .surface
                 .as_ref()
@@ -145,6 +156,8 @@ impl PreparedNativeBuildBindings {
                 candidate.provenance.schema.symbol() == requirement.owner
                     && candidate.plan.target == target.target_name()
                     && candidate.plan.origin_package_identity == Some(selection.supplier_package)
+                    && candidate.plan.application_identity()
+                        == selection.application_identity.as_deref()
             });
             let index = match group {
                 Some(index) => index,
@@ -156,21 +169,32 @@ impl PreparedNativeBuildBindings {
                         .map(|byte| format!("{byte:02x}"))
                         .collect::<String>();
                     let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
-                    let name = crate::satisfies_plan_name(
+                    let mut name = crate::satisfies_plan_name(
                         target.target_name(),
                         trait_name_text(&schema),
                         &provider,
                     );
+                    // As a named implementation's plan does, the plan carries
+                    // the closed application it supplies in its identity.
+                    let mut identities = ProviderIdentityTable::default();
+                    let provider_application = match &selection.application_identity {
+                        Some(application) => {
+                            name.push_str("::");
+                            name.push_str(application);
+                            identities.intern(application)
+                        }
+                        None => Default::default(),
+                    };
                     plans.push(DerivedProviderPlan {
                         plan: ProviderPlan {
                             name,
                             provider_type: provider,
                             provider_type_package_identity: Some(selection.supplier_package),
-                            provider_application: Default::default(),
+                            provider_application,
                             target: target.target_name().to_owned(),
                             schema,
                             rows: Vec::new(),
-                            identities: ProviderIdentityTable::default(),
+                            identities,
                             origin_package_identity: Some(selection.supplier_package),
                             origin_package: supplier,
                             digest_memo: Default::default(),

@@ -35,6 +35,9 @@ pub mod provider_declarations {
     pub struct ProviderDeclarationRequest<'rows> {
         pub rows: &'rows [ProviderDeclarationRow<'rows>],
         pub named_application: Option<NamedProviderApplication>,
+        /// Portable identity of the closed boundary application a native
+        /// Build plan supplies; present exactly when its boundary is generic.
+        pub native_application: Option<&'rows str>,
         pub installation_reach: bool,
     }
 
@@ -74,7 +77,12 @@ pub mod provider_declarations {
                                     })
                             });
                 let applications = if matches!(row.application, ProviderApplicationView::External) {
-                    self.provider_external_applications(row, row_index, request.named_application)
+                    self.provider_external_applications(
+                        row,
+                        row_index,
+                        request.named_application,
+                        request.native_application,
+                    )
                 } else {
                     Ok(Vec::new())
                 };
@@ -155,6 +163,7 @@ pub mod provider_declarations {
             row: &ProviderDeclarationRow<'_>,
             row_index: usize,
             named: Option<NamedProviderApplication>,
+            native_application: Option<&str>,
         ) -> Result<Vec<String>, String> {
             use typed_trees::trait_definition::AppliedTraitScope;
             let typed = &self.typed;
@@ -183,10 +192,12 @@ pub mod provider_declarations {
                             "native Import origin cannot substitute a named implementation".into(),
                         );
                     }
-                    if !owner.is_boundary
-                        || !typed.trait_type_parameters(owner).is_empty()
-                        || !owner.lifetime_parameters.is_empty()
-                    {
+                    // A native row has no realization to read an application
+                    // from, so a generic boundary must arrive with the closed
+                    // application the Build row named, and only then.
+                    let generic = !typed.trait_type_parameters(owner).is_empty()
+                        || !owner.lifetime_parameters.is_empty();
+                    if !owner.is_boundary || generic != native_application.is_some() {
                         return Err(
                             "native Import origin lost its closed boundary declaration".into()
                         );
@@ -252,10 +263,20 @@ pub mod provider_declarations {
                 .closed_requirement_applications()
                 .filter(|application| {
                     application.template == row.requirement
-                        && typed.requirement_application_matches_scope(
-                            application.signature.symbol,
-                            &scope,
-                        )
+                        && match (realization, native_application) {
+                            (None, Some(bound)) => {
+                                typed
+                                    .type_identity_text(
+                                        application.portable_trait_application_identity,
+                                    )
+                                    .as_deref()
+                                    == Some(bound)
+                            }
+                            _ => typed.requirement_application_matches_scope(
+                                application.signature.symbol,
+                                &scope,
+                            ),
+                        }
                 })
             {
                 let required = typed.state_signature_type_parameters(signature);

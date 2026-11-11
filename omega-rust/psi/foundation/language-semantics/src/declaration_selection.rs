@@ -1125,6 +1125,10 @@ mod product {
         pub source: NativeBindingSource,
         pub requirement: symbols::RetainedDeclaration,
         pub requirement_identity: String,
+        /// Portable identity of the owning boundary's closed static
+        /// application when the requirement belongs to a generic boundary;
+        /// a receiving package matches it against its own use sites.
+        pub requirement_application: Option<String>,
         pub dependency_alias: Option<String>,
     }
 

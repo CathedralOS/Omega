@@ -58,6 +58,14 @@ impl TerminalBuildBindingAdapter {
                 "native Build call disagrees with its designated operation",
             ));
         }
+        // The executed record carries no static environment, so an applied
+        // requirement written inside a generic Build helper would lose the
+        // helper's own arguments. Refuse it instead of binding a guess.
+        if call.static_environment.is_some() {
+            return Err(refuse(
+                "an applied native binding requirement must be written in a Build machine without static parameters",
+            ));
+        }
         let schema = call
             .native_locator
             .as_ref()

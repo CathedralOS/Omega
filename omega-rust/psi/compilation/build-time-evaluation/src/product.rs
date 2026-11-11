@@ -36,6 +36,11 @@ pub mod native_bindings {
     pub struct NativeBindingSelection {
         pub subject: SymbolHandle,
         pub requirement: SymbolHandle,
+        /// Portable identity of the owning boundary's closed application
+        /// (`Owner<Arguments>`); `None` for a boundary without parameters.
+        /// Provider planning keys the supplied slot on it, so a use at
+        /// another application finds no supply from this row.
+        pub application_identity: Option<String>,
         pub target: ProductTarget,
         pub locator: NativeBindingLocator,
         pub producer: language_semantics::declaration_selection::NativeBindingProducer,
@@ -44,10 +49,28 @@ pub mod native_bindings {
         pub source_span: source::SourceSpan,
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct ResolvedRequirement {
+        subject: SymbolHandle,
+        requirement: SymbolHandle,
+        application_identity: Option<String>,
+    }
+
+    /*
+        Resolve the one requirement operand of a native binding.
+
+        A bare `Owner::member` names a requirement of a boundary without
+        parameters. `Owner<Arguments>::member` names the same member under one
+        closed application of a generic boundary; preparing it needs the
+        authoring Build machine, because the arguments are ordinary names in
+        that machine's scope. The application is reduced to its portable
+        identity text, which is what a use site in any package compares.
+    */
     fn requirement(
-        typed: &TypedTrees,
+        typed: &mut TypedTrees,
         request: &ProductDeclarationRequest,
-    ) -> Result<(SymbolHandle, SymbolHandle), Diagnostic> {
+        author: Option<SymbolHandle>,
+    ) -> Result<ResolvedRequirement, Diagnostic> {
         request.validate_shape().map_err(Diagnostic::error)?;
         if request.operation != BuildOperation::NativeBinding {
             return Err(Diagnostic::error(
@@ -59,13 +82,99 @@ pub mod native_bindings {
                 "native binding lost its exact requirement operand",
             ));
         };
-        let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
-        .ok_or_else(|| Diagnostic::error(format!("native binding operand `{}` does not resolve to one visible Product boundary requirement", operand.path)).with_source_span(operand.source_span))?;
-        requirement_owner(typed, symbol).map_err(Diagnostic::error)
+        if operand.application.is_none() {
+            return requirement_bare(typed, request);
+        }
+        let refuse = |reason: &str| Diagnostic::error(reason).with_source_span(operand.source_span);
+        let author = author.ok_or_else(|| {
+            refuse("applied native binding requirement has no authoring Build machine")
+        })?;
+        let prepared = typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            typed, operand, author, None,
+        )
+        .map_err(|mut errors| {
+            if errors.is_empty() {
+                refuse("applied native binding requirement was refused")
+            } else {
+                errors.swap_remove(0)
+            }
+        })?;
+        let (_, signature) = typed
+            .trait_machine_signature(prepared.requirement)
+            .ok_or_else(|| refuse("applied native binding requirement lost its signature"))?;
+        if !typed.state_signature_type_parameters(signature).is_empty()
+            || !signature.lifetime_parameters.is_empty()
+        {
+            return Err(refuse(
+                "Build::bind cannot yet bind a requirement member that has static parameters of its own",
+            ));
+        }
+        let scope = prepared.trait_scope.ok_or_else(|| {
+            refuse(
+                "an applied native binding requirement must apply its owning boundary, as in `Owner<Arguments>::member`",
+            )
+        })?;
+        let identity = scope
+            .scope(typed)
+            .and_then(|scope| scope.portable_application_identity(typed))
+            .and_then(|identity| typed.type_identity_text(identity))
+            .ok_or_else(|| {
+                refuse(
+                    "native binding requires a closed static boundary application: every argument of the owning boundary must be a closed type",
+                )
+            })?;
+        requirement_owner(typed, prepared.requirement, Some(identity))
+            .map_err(|reason| refuse(&reason))
+    }
+
+    /// The bare `Owner::member` form, which needs no preparation.
+    fn requirement_bare(
+        typed: &TypedTrees,
+        request: &ProductDeclarationRequest,
+    ) -> Result<ResolvedRequirement, Diagnostic> {
+        request.validate_shape().map_err(Diagnostic::error)?;
+        if request.operation != BuildOperation::NativeBinding {
+            return Err(Diagnostic::error(
+                "native binding has the wrong designated operation",
+            ));
+        }
+        let [operand] = request.operands.as_ref() else {
+            return Err(Diagnostic::error(
+                "native binding lost its exact requirement operand",
+            ));
+        };
+            let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
+            .ok_or_else(|| Diagnostic::error(format!("native binding operand `{}` does not resolve to one visible Product boundary requirement", operand.path)).with_source_span(operand.source_span))?;
+            requirement_owner(typed, symbol, None)
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(operand.source_span))
+    }
+
+    /*
+        Find the Build machine whose body wrote an applied native request, so
+        a request that was declared but never executed is still checked.
+    */
+    fn formation_author(
+        typed: &TypedTrees,
+        request: &ProductDeclarationRequest,
+    ) -> Option<SymbolHandle> {
+        if request
+            .operands
+            .iter()
+            .all(|operand| operand.application.is_none())
+        {
+            return None;
+        }
+        let occurrences = typed_trees::product_operand::collect_product_selection_occurrences(typed);
+        let mut owners = occurrences
+            .iter()
+            .filter(|occurrence| typed.same_product_request_source(&occurrence.request, request))
+            .map(|occurrence| typed.symbols.authored_origin(occurrence.machine));
+        let owner = owners.next()?;
+        owners.all(|other| other == owner).then_some(owner)
     }
 
     pub fn collect(
-        typed: &TypedTrees,
+        typed: &mut TypedTrees,
         activation: Option<SymbolHandle>,
         declared: &[std::sync::Arc<ProductDeclarationRequest>],
         executed: &[ExecutedNativeBinding],
@@ -74,7 +183,8 @@ pub mod native_bindings {
             .iter()
             .filter(|request| request.operation == BuildOperation::NativeBinding)
         {
-            requirement(typed, request)
+            let author = formation_author(typed, request);
+            requirement(typed, request, author)
                 .map_err(|error| vec![error.with_source_span(request.source_span)])?;
         }
         if executed.is_empty() {
@@ -97,10 +207,14 @@ pub mod native_bindings {
                     "executed native binding has no retained source formation request",
                 ));
             }
-            let (subject, selected) = requirement(typed, &event.request)
-                .map_err(|error| vec![error.with_source_span(span)])?;
             let author = resolve_build_request_author(typed, event.selecting_machine)
                 .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
+            let ResolvedRequirement {
+                subject,
+                requirement: selected,
+                application_identity,
+            } = requirement(typed, &event.request, Some(author))
+                .map_err(|error| vec![error.with_source_span(span)])?;
             let supplier_package =
                 typed
                     .symbols
@@ -110,6 +224,7 @@ pub mod native_bindings {
                     })?;
             if selections.iter().any(|prior| {
                 prior.requirement == selected
+                    && prior.application_identity == application_identity
                     && prior.target == event.target
                     && prior.supplier_package == supplier_package
                     && prior.locator != event.locator
@@ -124,6 +239,7 @@ pub mod native_bindings {
             selections.push(NativeBindingSelection {
                 subject,
                 requirement: selected,
+                application_identity,
                 target: event.target,
                 locator: event.locator.clone(),
                 producer: scope.producer,
@@ -149,14 +265,44 @@ pub mod native_bindings {
             executed: &[ExecutedNativeBinding],
         ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
         {
+            let mut applied: Option<typed_trees::TypedTrees> = None;
             let declarations = formations
                 .iter()
                 .map(|formation| {
                     let source = formation
                         .seal(package)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                    let (_, selected) = super::requirement(typed, &formation.request)
-                        .map_err(|error| vec![error])?;
+                    let author = formation
+                        .request
+                        .operands
+                        .iter()
+                        .any(|operand| operand.application.is_some())
+                        .then(|| {
+                            typed_trees::product_operand::resolve_build_request_author(
+                                typed,
+                                formation.author,
+                            )
+                        })
+                        .transpose()
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    let super::ResolvedRequirement {
+                        requirement: selected,
+                        application_identity,
+                        ..
+                    } = match author {
+                        // Preparing an applied operand interns its argument
+                        // types, and capture reads trees that are already
+                        // sealed. Only the identity text and the declared
+                        // requirement symbol leave this block, both valid in
+                        // the sealed trees, so prepare on a private copy.
+                        Some(_) => super::requirement(
+                            applied.get_or_insert_with(|| typed.clone()),
+                            &formation.request,
+                            author,
+                        ),
+                        None => super::requirement_bare(typed, &formation.request),
+                    }
+                    .map_err(|error| vec![error])?;
                     let program = typed.product_declarations();
                     let (owner, signature) =
                         program.trait_machine_signature(selected).ok_or_else(|| {
@@ -191,6 +337,7 @@ pub mod native_bindings {
                         requirement: anchor,
                         requirement_identity: program
                             .trait_requirement_callable_identity_text(owner, signature),
+                        requirement_application: application_identity,
                         dependency_alias,
                     })
                 })
@@ -270,8 +417,16 @@ pub mod native_bindings {
                         }),
                 )
                 .map_err(refuse)?;
-            let (subject, requirement) =
-                requirement_owner(program, selected).map_err(|reason| refuse(&reason))?;
+            let ResolvedRequirement {
+                subject,
+                requirement,
+                application_identity,
+            } = requirement_owner(
+                program,
+                selected,
+                declaration.requirement_application.clone(),
+            )
+            .map_err(|reason| refuse(&reason))?;
             let (owner, signature) = program
                 .trait_machine_signature(requirement)
                 .ok_or_else(|| refuse("lost its exact Product signature"))?;
@@ -312,7 +467,7 @@ pub mod native_bindings {
                     "is not visible under its original Product package and temporal scope",
                 ));
             }
-            resolved.push(Some((subject, requirement)));
+            resolved.push(Some((subject, requirement, application_identity)));
         }
         let mut selections = Vec::with_capacity(intents.len());
         for intent in intents {
@@ -323,7 +478,9 @@ pub mod native_bindings {
                         "captured native effect lost its declared source occurrence",
                     )]
                 })?;
-            let Some((subject, requirement)) = resolved[intent.declaration as usize] else {
+            let Some((subject, requirement, application_identity)) =
+                resolved[intent.declaration as usize].clone()
+            else {
                 continue;
             };
             let span = typed
@@ -337,6 +494,7 @@ pub mod native_bindings {
             selections.push(NativeBindingSelection {
                 subject,
                 requirement,
+                application_identity,
                 target: intent.target,
                 locator: intent.locator.clone(),
                 producer: declaration.source.producer.clone(),
@@ -348,10 +506,17 @@ pub mod native_bindings {
         Ok(selections)
     }
 
+    /*
+        Join a requirement to its boundary and to the application it was bound
+        at. A generic boundary has one slot per closed application, so a member
+        of it without an application names no slot and is refused; a boundary
+        without parameters has exactly one slot and carries no application.
+    */
     fn requirement_owner(
         typed: &TypedTrees,
         symbol: SymbolHandle,
-    ) -> Result<(SymbolHandle, SymbolHandle), String> {
+        application_identity: Option<String>,
+    ) -> Result<ResolvedRequirement, String> {
         let owner = typed
             .traits()
             .iter()
@@ -363,10 +528,19 @@ pub mod native_bindings {
                         .any(|signature| signature.symbol == symbol)
             })
             .ok_or("native binding requirement lost its exact boundary declaration")?;
-        if !typed.trait_type_parameters(owner).is_empty() || !owner.lifetime_parameters.is_empty() {
-            return Err("native binding requires a closed static boundary application".into());
+        let generic =
+            !typed.trait_type_parameters(owner).is_empty() || !owner.lifetime_parameters.is_empty();
+        if generic && application_identity.is_none() {
+            return Err(format!(
+                "native binding requires a closed static boundary application: `{}` has static parameters, so name the application it is bound at, as in `{}<Arguments>::member`",
+                owner.name, owner.name,
+            ));
         }
-        Ok((owner.symbol, symbol))
+        Ok(ResolvedRequirement {
+            subject: owner.symbol,
+            requirement: symbol,
+            application_identity: application_identity.filter(|_| generic),
+        })
     }
 }
 pub mod product_declarations {

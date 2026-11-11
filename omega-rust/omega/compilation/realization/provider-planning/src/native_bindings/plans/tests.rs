@@ -29,6 +29,7 @@ fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSu
         .record();
     NativeBuildSupply {
         selection: NativeBindingSelection {
+            application_identity: None,
             subject: Default::default(),
             requirement: Default::default(),
             target,

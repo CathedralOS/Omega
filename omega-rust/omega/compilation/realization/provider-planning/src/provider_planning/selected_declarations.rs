@@ -57,6 +57,10 @@ pub(crate) fn capture_plan_declarations(
     let declarations = checked.provider_declarations(ProviderDeclarationRequest {
         rows: &rows,
         named_application: provider.named_application,
+        native_application: (provider.named_application.is_none()
+            && provider.row_realizations.iter().any(|row| matches!(row, crate::ProviderRowRealization::BuildNative(_))))
+        .then(|| plan.application_identity())
+            .flatten(),
         installation_reach: !matches!(
             provider.schema,
             crate::ProviderSchemaDeclaration::BoundaryOperator(_)

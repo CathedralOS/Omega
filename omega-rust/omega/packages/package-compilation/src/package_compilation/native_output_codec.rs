@@ -1,4 +1,4 @@
-// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x02`)
+// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x03`)
 // for the native declarations, foreign/syscall locators, and `NativeBuildEvaluation`
 // carried inside a `PackageBuildHandoff`. Decoding reconstructs inert anchors
 // without granting source visibility, host backing, or native execution authority.
@@ -43,6 +43,13 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
             source::SourceResolutionStratum::DependencyActivationExtension => 2,
         });
         string(output, &declaration.requirement_identity);
+        match &declaration.requirement_application {
+            None => output.push(0),
+            Some(application) => {
+                output.push(1);
+                string(output, application);
+            }
+        }
         match &declaration.dependency_alias {
             None => output.push(0),
             Some(alias) => {
@@ -97,7 +104,7 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
 
 pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v2\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v3\0");
     let anchors = bundle
         .native_declarations()
         .iter()
@@ -118,7 +125,7 @@ pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
 }
 
 pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
-    let mut output = b"OMG-NATIVE-OUTPUTS\x02".to_vec();
+    let mut output = b"OMG-NATIVE-OUTPUTS\x03".to_vec();
     let anchors = bundle
         .native_declarations()
         .iter()
@@ -152,7 +159,7 @@ pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
 
 pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
     let mut cursor = ObservationCursor::new(bytes);
-    let magic = b"OMG-NATIVE-OUTPUTS\x02";
+    let magic = b"OMG-NATIVE-OUTPUTS\x03";
     if cursor.bytes(magic.len())? != magic {
         return None;
     }
@@ -175,6 +182,11 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
             _ => return None,
         };
         let requirement_identity = read_string(&mut cursor)?;
+        let requirement_application = match cursor.u8()? {
+            0 => None,
+            1 => Some(read_string(&mut cursor)?),
+            _ => return None,
+        };
         let dependency_alias = match cursor.u8()? {
             0 => None,
             1 => Some(read_string(&mut cursor)?),
@@ -193,6 +205,7 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
             },
             requirement,
             requirement_identity,
+            requirement_application,
             dependency_alias,
         });
     }

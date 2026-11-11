@@ -1457,6 +1457,44 @@ pub(crate) mod catalog {
             })
         }
 
+        /*
+            Retain the surface of one closed application of a generic boundary,
+            found by its portable identity text. Only applications the program
+            actually uses have a surface, so an application nothing uses
+            returns None: no slot exists for it to supply.
+        */
+        pub fn retain_application(
+            self,
+            declaration: SymbolHandle,
+            portable_identity: &str,
+        ) -> Option<RetainedServiceSurface> {
+            let program = self.context.typed;
+            let mut origin = None;
+            for root in program.applied_trait_roots() {
+                root.visit(program, &mut |scope| {
+                    if origin.is_some() || scope.declaration.symbol != declaration {
+                        return;
+                    }
+                    let identity = scope
+                        .portable_application_identity(program)
+                        .and_then(|identity| program.type_identity_text(identity));
+                    if identity.as_deref() == Some(portable_identity) {
+                        origin = Some(ServiceOrigin::Application {
+                            declaration,
+                            argument_owner: scope.argument_owner,
+                            application: scope.application_identity(program).unwrap_or_default(),
+                        });
+                    }
+                });
+            }
+            let record = self.catalog.record(origin?);
+            self.catalog.view(self.catalog.records.get(record))?;
+            Some(RetainedServiceSurface {
+                catalog: Arc::clone(self.catalog),
+                record,
+            })
+        }
+
         pub fn named_application(
             self,
             declaration: SymbolHandle,

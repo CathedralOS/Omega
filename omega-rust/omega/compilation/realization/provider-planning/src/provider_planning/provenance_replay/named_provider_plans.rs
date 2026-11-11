@@ -192,7 +192,13 @@ pub(super) fn derive(
                                         *symbol == machine.symbol
                                     }
                                     Some(ProviderRowRealization::BuildNative(origin)) => {
+                                        // A native row bound at one closed
+                                        // application of a generic boundary
+                                        // is not joined here: this join has
+                                        // no application of the boundary to
+                                        // compare it with.
                                         origin.requirement == row.requirement
+                                            && candidate.plan.application_identity().is_none()
                                             && typed.machine_trait_conformances(machine).iter().any(
                                                 |edge| edge.requirement_symbol == row.requirement,
                                             )

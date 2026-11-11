@@ -1968,7 +1968,12 @@ pub(crate) mod product_selections {
             None
         };
         let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
-        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider));
+        // A native binding names its requirement together with the owning
+        // boundary's static application (`Owner<Args>::member`); every other
+        // requirement-role operand still names a bare declaration.
+        let nominal_application = operand.application.is_some()
+            && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider))
+                || (operation == BuildOperation::NativeBinding && position == 0));
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {
