@@ -1,2 +1,0 @@
-addition_is_correct
-subtraction_is_correct
