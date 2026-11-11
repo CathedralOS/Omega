@@ -795,6 +795,7 @@ fn decide(
             Justification::EntryRequirement { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {
                 assumption_rows.push(row);
