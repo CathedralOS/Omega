@@ -508,6 +508,7 @@ dependencies = [
  "layout",
  "layout-plans",
  "libc",
+ "lowered-discharge",
  "lowered-psi",
  "machine-code",
  "machine-emission",
