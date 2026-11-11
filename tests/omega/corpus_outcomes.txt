@@ -495,6 +495,8 @@ fail/asm/atomic_release_disposition_wrong_value rejected 2413ms expected @ccdb99
 fail/asm/atomic_release_disposition_wrong_width rejected 2007ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from finish at statement 1: proposition:fact:atomic_release_written<AtomicU64,u32>(shared word.value,37)
 	linear value `ack` reaches scope exit without being consumed or transferred in machine `finish` state `entry`
+fail/asm/atomic_release_two_hop_rebound_descriptor rejected 4471ms expected @7ffd2e963e9d
+	cannot prove ensures contract for exit from Confirmation::finish at statement 3: proposition:fact:atomic_release_written<AtomicU64,u64>(shared envelope.holder.word.value,1); no exact incoming reference origin for envelope
 fail/asm/backward_write_stale_ensures rejected 1791ms expected @ccdb99ca2214
 	cannot prove asm `ensures` fact at block exit in Subject::change state `change` (statement 5): subject.ready
 fail/asm/borrow_read_after_backward_write rejected 2180ms expected @ccdb99ca2214
@@ -790,6 +792,8 @@ fail/atomics/atomic_record_shared_replacement rejected 5506ms expected @8d52a857
 	machine `reset` state `entry` assignment cannot write `word` because it is not mutable in this state (if `word` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/atomic_store_receive_ordering_rejected rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/atomics/atomic_store_receive_ordering_rejected/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
+fail/atomics/atomic_store_under_exclusive_loan rejected 4608ms expected @7ffd2e963e9d
+	statement 2 mutates `cell.counter` while local borrow `exclusive` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/atomics/case_payload_non_event_write rejected 629ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` assignment cannot write `choice` because it is not mutable in this state (if `choice` is undeclared -- a typo -- no such field or local exists)
 fail/atomics/fence_authored_bodyless_lookalike rejected 38ms expected @ccdb99ca2214
@@ -19928,8 +19932,8 @@ pass/atomics/runtime_mixed_common_atomic_cell_exit checked 7729ms check-target:m
 pass/atomics/runtime_nested_case_payload_atomic_event_exit checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_projected_state_operands_exit checked 3643ms check-target:macos_arm64 @ccdb99ca2214
 pass/atomics/runtime_shared_case_waived_atomic_exit checked 16443ms check-target:macos_arm64 @ccdb99ca2214
-pass/atomics/runtime_stored_reference_atomic_events_exit checked 4038ms check-target:macos_arm64 @ccdb99ca2214
-pass/atomics/selected_reference_atomic_provider checked 3875ms check-target:linux_x86_64 @ccdb99ca2214
+pass/atomics/runtime_stored_reference_atomic_events_exit checked 7162ms check-target:macos_arm64 @7ffd2e963e9d
+pass/atomics/selected_reference_atomic_provider checked 6946ms check-target:linux_x86_64 @7ffd2e963e9d
 pass/atomics/shared_receiver_atomic_store checked 16167ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/blocking_executor_custody_claims_compile checked 4916ms check-target:macos_arm64 @ccdb99ca2214
 pass/blockexec/runtime_selected_worker_body_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
