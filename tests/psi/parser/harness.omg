@@ -335,7 +335,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedArrayElement -> parse_diagnostic(parser_harness, output, 192)
             ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
             ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200)
-            ParseDiagnosticCode::RetiredWhereMachineRequirement -> parse_diagnostic(parser_harness, output, 201)
+            ParseDiagnosticCode::RetiredWhereClause -> parse_diagnostic(parser_harness, output, 201)
             ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
             ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
         }
@@ -1413,7 +1413,6 @@ crashes Trap
             ClauseKind::Crashes -> clause_kind(parser_harness, output, index, clause, 5)
             ClauseKind::Requires -> clause_kind(parser_harness, output, index, clause, 6)
             ClauseKind::Ensures -> clause_kind(parser_harness, output, index, clause, 7)
-            ClauseKind::Where -> clause_kind(parser_harness, output, index, clause, 8)
             ClauseKind::Satisfies -> clause_kind(parser_harness, output, index, clause, 9)
             ClauseKind::Terminates -> clause_kind(parser_harness, output, index, clause, 10)
         }

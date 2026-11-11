@@ -19,7 +19,7 @@ crashes Trap
 
     machine next(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let reaches: bool = Parser::at_word(parser, input, "reaches");
-        transition reaches none {
+        transition reaches {
             true -> admit(parser, input, owner, ClauseKind::Reaches)
             _ -> invokes_word(parser, input, owner)
         }
@@ -86,30 +86,25 @@ crashes Trap
         let terminates: bool = Parser::at_word(parser, input, "terminates");
         transition terminates {
             true -> admit(parser, input, owner, ClauseKind::Terminates)
-            _ -> where_word(parser, input, owner)
+            _ -> retired_where(parser, input)
         }
     }
 
-    // A contract's clauses also end at the next `requires machine` contract,
-    // which its owner reads.
-    machine where_word(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let facts: bool = Parser::at_word(parser, input, "where");
-        let contract: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
-        transition facts && contract {
-            true -> reject(parser, input, ParseDiagnosticCode::RetiredWhereMachineRequirement)
-            _ -> predicate_where(parser, input, owner, facts)
-        }
-    }
-
-    machine predicate_where(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, facts: bool) {
-        transition facts {
-            true -> admit(parser, input, owner, ClauseKind::Where)
+    // `where` is retired from Omega source; `requires` states every predicate
+    // and callable requirement it introduced
+    // (wiki/spec/language/state_contracts.md#requirement-clauses). It is
+    // refused at its own token in every clause position, so no owner can
+    // read it as a fact or let it fall through to an unrelated expectation.
+    machine retired_where(parser: &mut Parser, input: &TokenStream) {
+        let retired: bool = Parser::at_word(parser, input, "where");
+        transition retired {
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredWhereClause)
             _ -> done()
         }
     }
 
     machine admit(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        let retired: bool = owner == ClauseOwner::DataCase && (kind == ClauseKind::Where || kind == ClauseKind::Requires);
+        let retired: bool = owner == ClauseOwner::DataCase && kind == ClauseKind::Requires;
         transition retired {
             true -> reject(parser, input, ParseDiagnosticCode::RetiredCasePredicate)
             _ -> admit_owner(parser, input, owner, kind)
@@ -136,7 +131,6 @@ crashes Trap
             ClauseKind::Crashes -> crashes_cause(parser, input, owner)
             ClauseKind::Requires -> fact(parser, input, owner, kind)
             ClauseKind::Ensures -> fact(parser, input, owner, kind)
-            ClauseKind::Where -> fact(parser, input, owner, kind)
             ClauseKind::Satisfies -> satisfied_trait(parser, input, owner)
             ClauseKind::Terminates -> termination(parser, input, owner)
         }
@@ -694,13 +688,12 @@ crashes Trap
         transition clause.kind {
             ClauseKind::Requires -> fact_separator(parser, input, owner, clause.kind)
             ClauseKind::Ensures -> fact_separator(parser, input, owner, clause.kind)
-            ClauseKind::Where -> fact_separator(parser, input, owner, clause.kind)
             ClauseKind::Satisfies -> fact_separator(parser, input, owner, clause.kind)
             _ -> next(parser, input, owner)
         }
     }
 
-    // `requires`, `ensures` and `where` facts continue after `,`, each its
+    // `requires` and `ensures` facts continue after `,`, each its
     // own clause row of the same kind; a trailing comma ends them. Contract
     // lists in non-callable declarations retain their own punctuation.
     machine fact_separator(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
@@ -708,7 +701,7 @@ crashes Trap
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition comma {
             true -> fact_continues(parser, input, owner, kind)
-            _ -> contract_semicolon(parser, input, owner, kind, semicolon && kind != ClauseKind::Where)
+            _ -> contract_semicolon(parser, input, owner, kind, semicolon)
         }
     }
 
@@ -863,29 +856,26 @@ crashes Trap
     let crashes: bool = Parser::at_word(parser, input, "crashes");
     let requires: bool = Parser::at_word(parser, input, "requires");
     let ensures: bool = Parser::at_word(parser, input, "ensures");
-    let facts: bool = Parser::at_word(parser, input, "where");
     let satisfies: bool = Parser::at_word(parser, input, "satisfies");
     let terminates: bool = Parser::at_word(parser, input, "terminates");
-    reaches || invokes || suspends || blocks || crashes || requires || ensures || facts || satisfies || terminates
+    reaches || invokes || suspends || blocks || crashes || requires || ensures || satisfies || terminates
 }
 
 // Which clauses each owner admits: a machine, trait member or contract every
-// clause but `where`, a refinement member the operational axes it narrows
-// (`reaches`, `suspends`, `blocks`, `terminates`), a state its arrival
-// `requires` and a domain its predicate `requires`. A data declaration admits
-// its default-domain `requires` only; its retired `where` spelling is refused.
-// A case admits neither: case-local predicates are written on the data
-// declaration.
+// clause, a refinement member the operational axes it narrows (`reaches`,
+// `suspends`, `blocks`, `terminates`) and a domain its predicate `requires`.
+// A data declaration admits its default-domain `requires` only. A case admits
+// none: case-local predicates are written on the data declaration. The
+// retired `where` never reaches this table.
 machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
     transition owner {
-        ClauseOwner::Machine -> machine_clause(kind)
-        ClauseOwner::TraitMember -> machine_clause(kind)
-        ClauseOwner::Contract -> machine_clause(kind)
+        ClauseOwner::Machine -> admitted()
+        ClauseOwner::TraitMember -> admitted()
+        ClauseOwner::Contract -> admitted()
         ClauseOwner::Refinement -> narrowing(kind)
         ClauseOwner::Domain -> arrival(kind)
         ClauseOwner::Data -> data_clause(kind)
         ClauseOwner::DataCase -> refused()
-        _ -> declaration(kind)
     }
 
     machine data_clause(kind: ClauseKind) -> bool {
@@ -905,23 +895,9 @@ machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
         }
     }
 
-    machine machine_clause(kind: ClauseKind) -> bool {
-        transition kind {
-            ClauseKind::Where -> refused()
-            _ -> admitted()
-        }
-    }
-
     machine arrival(kind: ClauseKind) -> bool {
         transition kind {
             ClauseKind::Requires -> admitted()
-            _ -> refused()
-        }
-    }
-
-    machine declaration(kind: ClauseKind) -> bool {
-        transition kind {
-            ClauseKind::Where -> admitted()
             _ -> refused()
         }
     }
