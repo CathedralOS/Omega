@@ -821,6 +821,14 @@ fn observe_retained_terminal(
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
     }
+    if fixture_dir
+        .join(terminal_execution::ABSENT_MACHINES_ORACLE)
+        .exists()
+    {
+        let absent = terminal_execution::absent_machines(artifact.view().module(), fixture_dir);
+        observation.facts.extend(absent.facts);
+        observation.diagnostics.extend(absent.diagnostics);
+    }
     observation
 }
 
@@ -1515,7 +1523,10 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .ok()
         .flatten()
         .is_some();
-    let terminal_target_oracle = fixture_dir.join(terminal_execution::TARGET_ORACLE).exists();
+    let terminal_target_oracle = fixture_dir.join(terminal_execution::TARGET_ORACLE).exists()
+        || fixture_dir
+            .join(terminal_execution::ABSENT_MACHINES_ORACLE)
+            .exists();
     // A host-specific oracle promises this host's physical presentation of
     // the exit status; it overrides the portable one in `tools/corpus_gate.py`.
     let runnable = tier == "run"

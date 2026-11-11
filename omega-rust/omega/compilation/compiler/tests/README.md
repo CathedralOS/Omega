@@ -53,6 +53,12 @@ or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
 fixtures must bind the running host; missing execution fails the oracle.
+`expected_absent_terminal_machines.txt` lists source machine names, one per
+line, that the application's own Terminal program must not contain. Registered
+test roots are separate selections, so this shows that test-only machines stay
+out of the published application. The record gains
+`terminal-machines-absent:match`, or `:present` with the retained declarations.
+
 `expected_stdout.txt` and `expected_stderr.txt` also opt a fixture into execution
 and independently constrain each engine's captured stream. Matching exits cannot
 excuse missing/different output, and `--record` cannot bless that result. Captures

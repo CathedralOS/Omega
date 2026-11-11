@@ -14,6 +14,70 @@ mod terminal_fences;
 
 pub(super) const TARGET_ORACLE: &str = "expected_terminal_targets.txt";
 
+/// Machines that must not appear in the application's own Terminal program,
+/// one source machine name per line. Registered test roots are separate
+/// selections (wiki/spec/build/testing.md#products-reuse-and-native-harnesses),
+/// so their test-only machines never join the application's published code.
+pub(super) const ABSENT_MACHINES_ORACLE: &str = "expected_absent_terminal_machines.txt";
+
+/// Inspect the application's retained Terminal module for the listed machines.
+/// A listed name matches a declaration whose canonical path is that name or
+/// ends with `::name`; a missing or empty oracle is itself a failure.
+pub(super) fn absent_machines(
+    module: &terminal_psi::TerminalModule,
+    fixture_dir: &std::path::Path,
+) -> Observation {
+    let text = match std::fs::read_to_string(fixture_dir.join(ABSENT_MACHINES_ORACLE)) {
+        Ok(text) => text,
+        Err(error) => {
+            return Observation {
+                facts: vec!["terminal-machines-absent:unavailable".to_owned()],
+                diagnostics: vec![format!("cannot read {ABSENT_MACHINES_ORACLE}: {error}")],
+            };
+        }
+    };
+    let names: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    if names.is_empty() {
+        return Observation {
+            facts: vec!["terminal-machines-absent:unavailable".to_owned()],
+            diagnostics: vec![format!("{ABSENT_MACHINES_ORACLE} names no machine")],
+        };
+    }
+    let present: Vec<String> = module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.declaration.as_ref())
+        .filter_map(|declaration| module.identities.text(declaration.machine.identity()))
+        .filter(|path| {
+            names.iter().any(|name| {
+                *path == *name
+                    || path
+                        .strip_suffix(name)
+                        .is_some_and(|prefix| prefix.ends_with("::"))
+            })
+        })
+        .map(str::to_owned)
+        .collect();
+    if present.is_empty() {
+        Observation {
+            facts: vec!["terminal-machines-absent:match".to_owned()],
+            diagnostics: Vec::new(),
+        }
+    } else {
+        Observation {
+            facts: vec!["terminal-machines-absent:present".to_owned()],
+            diagnostics: vec![format!(
+                "application Terminal program retains machines {ABSENT_MACHINES_ORACLE} excludes: {}",
+                present.join(", ")
+            )],
+        }
+    }
+}
+
 /// Long executable witnesses may author a larger sponsor allowance without
 /// changing their program or weakening exhaustion into a successful outcome.
 pub(super) fn work_budget(fixture_dir: &std::path::Path) -> Result<u64, String> {
