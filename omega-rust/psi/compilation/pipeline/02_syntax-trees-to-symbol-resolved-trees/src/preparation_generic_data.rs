@@ -4736,9 +4736,7 @@ fn normalize_generic_data_in_mode(
             .collect::<Vec<_>>();
         super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
         let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
+        report_preparation_diagnostics(warnings)?;
         return Ok(syntax);
     };
     let selection = ConstantSelection::with_retained_base(
@@ -4757,10 +4755,26 @@ fn normalize_generic_data_in_mode(
     let mut warnings = Vec::new();
     desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?;
     deduplicate_generic_warnings(&mut warnings);
+    report_preparation_diagnostics(warnings)?;
+    Ok(syntax)
+}
+
+/* Preparation collects const-argument landing diagnostics beside folded
+values. Warnings are printed; an error (implicit integer landing after a
+fractional intermediate) rejects instead of being printed and folded. */
+pub(super) fn report_preparation_diagnostics(
+    diagnostics: Vec<Diagnostic>,
+) -> Result<(), Vec<Diagnostic>> {
+    let (errors, warnings): (Vec<_>, Vec<_>) =
+        diagnostics.into_iter().partition(Diagnostic::is_error);
     for warning in warnings {
         eprintln!("{warning}");
     }
-    Ok(syntax)
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 /*

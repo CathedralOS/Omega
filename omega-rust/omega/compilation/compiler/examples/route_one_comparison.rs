@@ -11,14 +11,15 @@
 //!
 //!     program <path> current=<accepted|rejected> current_us=<n> route=<..> route_us=<n> ...
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
+//!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
 //!     use <path> <machine> <operation or edge> unestablished <detail>
 //!
-//! `route` is `accepted` when every obligation is discharged and every use of
-//! storage is established, `rejected` when some use of storage is
-//! unestablished (a compile error by the new route, as an unproved
-//! obligation is, whatever the obligations say), `refused` when an
-//! obligation is unproved or refused, `outside` when elaboration does not
-//! serve the program and `refused-module` when discharge cannot read it.
+//! `route=` is `lowered_discharge::judge`'s verdict: `accepted`, `rejected`
+//! (one `diagnostic` line per unproved obligation and one `use` line per use
+//! of storage that is not established, the compile errors the program gets on
+//! this route), `incomplete` (the prover has no rule for some
+//! goal's form), `fallback` (an unsupported obligation hands the closure to
+//! the current checker) or `defect`.
 //!
 //! A program the current checker rejects has no typed trees here, so the new
 //! route cannot run on it (`route=unreached`). This is a measuring tool, not a
@@ -30,7 +31,7 @@ mod fixture_package_inputs;
 use std::path::Path;
 use std::time::Instant;
 
-use lowered_discharge::{Knowledge, discharge_with};
+use lowered_discharge::{Knowledge, RouteVerdict, UnprovedObligation, discharge_with, judge};
 use proof_admission::{AcceptedFactRoute, MathematicalCoreDecision};
 use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
@@ -203,6 +204,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             return format!("{head}\troute=outside\t{}", one_line(&refusal.detail));
         }
     };
+    let for_verdict = elaboration.clone();
     let mut without_branches = elaboration.clone();
     let mut intervals_only = elaboration.clone();
     let discharged = discharge_with(&mut elaboration, Knowledge::All);
@@ -301,7 +303,7 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 }
                 Err(refusal) => {
                     let outcome = match refusal.reason {
-                        RefusalReason::Unproved => {
+                        RefusalReason::Unproved(_) => {
                             counts[3] += 1;
                             "unproved"
                         }
@@ -351,17 +353,46 @@ fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             ));
         }
     }
-    let route = if unestablished > 0 {
-        "rejected"
-    } else if counts[3] + counts[4] == 0 {
-        "accepted"
-    } else {
-        "refused"
+    // The route's own verdict, the one a router takes: an unproved obligation
+    // rejects the program with a diagnostic, an unsupported one hands the
+    // closure back to the current checker.
+    let route = match judge(Ok(for_verdict)) {
+        Ok(RouteVerdict::Accepted(_)) => "accepted",
+        // The unestablished uses were reported above, one `use` line each.
+        Ok(RouteVerdict::Rejected { unproved, .. }) => {
+            report(main, &unproved, "reject", lines);
+            "rejected"
+        }
+        Ok(RouteVerdict::Incomplete(unproved)) => {
+            report(main, &unproved, "incomplete", lines);
+            "incomplete"
+        }
+        Ok(RouteVerdict::FallBack(_)) => "fallback",
+        Err(_) => "defect",
     };
     format!(
         "{head}\troute={route}\troute_us={route_us}\tobligations={}\tjudged={}\tcore_refused={}\tunproved={}\trefused_other={}\tneeded_relation={}\tneeded_branch={}\tpublished_held={}\tuses={uses}\tunestablished={unestablished}",
         counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]
     )
+}
+
+/// One `diagnostic` line per unproved obligation, with its outcome.
+fn report(main: &Path, unproved: &[UnprovedObligation], outcome: &str, lines: &mut Vec<String>) {
+    for entry in unproved {
+        let site = match entry.site {
+            structure_elaboration::SourceOrigin::Authored(span) => {
+                format!("bytes {}..{}", span.span.start, span.span.end)
+            }
+            other => format!("{other:?}"),
+        };
+        lines.push(format!(
+            "diagnostic\t{}\t{}\t{}\t{outcome}\t{site}\t{}",
+            main.display(),
+            entry.machine.get(),
+            entry.obligation.get(),
+            one_line(entry.message())
+        ));
+    }
 }
 
 fn main() {

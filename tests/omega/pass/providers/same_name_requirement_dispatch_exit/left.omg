@@ -6,7 +6,17 @@ public data Provider {}
 machine Provider::emit() -> i32 satisfies Sink::emit { 11 }
 
 public data Runner { }
-public machine Runner::run(context: &mut Runner) reaches Sink, Console
+// The hosted entry takes no arrival parameters; it owns the runner storage
+// and passes it to `Runner::execute` explicitly.
+public machine Runner::run() reaches Sink, Console
+invokes Sink
+invokes Console
+{
+    let mut context: Runner = Runner {};
+    Runner::execute(&mut context);
+}
+
+machine Runner::execute(context: &mut Runner) reaches Sink, Console
 invokes Sink
 invokes Console
 {

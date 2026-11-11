@@ -570,6 +570,15 @@ pub fn review_fixture(
     profiles: &[TargetProfile],
     product: compiler::CompilationProduct,
 ) -> Result<ReviewedFixtureCompilation, Vec<Diagnostic>> {
+    review_fixture_recording(discovered, profiles, product, None)
+}
+
+fn review_fixture_recording(
+    discovered: DiscoveredFixture,
+    profiles: &[TargetProfile],
+    product: compiler::CompilationProduct,
+    mut record: Option<&mut Option<FrontierRecord>>,
+) -> Result<ReviewedFixtureCompilation, Vec<Diagnostic>> {
     let DiscoveredFixture {
         authored_root_path,
         root_path,
@@ -671,10 +680,7 @@ pub fn review_fixture(
         root.inputs = inputs.clone().with_semantic_role_discovery(true);
         let build = orchestration::prepare_package(session.compiler(), discovery, &mut completed)
             .map_err(|error| error.failure.into_diagnostics())?;
-        let preliminary = session
-            .compiler()
-            .check_package_build(build)
-            .map_err(|error| error.into_diagnostics())?;
+        let preliminary = check_package(session.compiler(), build, record.as_deref_mut())?;
         for (owner, _) in inputs.packages() {
             let required =
                 dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
@@ -811,6 +817,15 @@ pub fn check_fixture(
     target: &str,
     rollback: compiler::OptimizationRollback,
 ) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    check_fixture_recording(prepared, target, rollback, None)
+}
+
+fn check_fixture_recording(
+    prepared: &mut ReviewedFixtureCompilation,
+    target: &str,
+    rollback: compiler::OptimizationRollback,
+    record: Option<&mut Option<FrontierRecord>>,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
     if prepared.package_inputs.is_some() {
         let profile =
             TargetProfile::from_canonical_target_name(target).map_err(|error| vec![error])?;
@@ -829,11 +844,7 @@ pub fn check_fixture(
             &mut prepared.completed,
         )
         .map_err(|error| error.failure.into_diagnostics())?;
-        prepared
-            .session
-            .compiler()
-            .check_package_build(build)
-            .map_err(|error| error.into_diagnostics())
+        check_package(prepared.session.compiler(), build, record)
     } else {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
         request.build = prepared.execution.take().ok_or_else(|| {
@@ -842,9 +853,18 @@ pub fn check_fixture(
             )]
         })?;
         request.optimization_rollback = rollback;
-        orchestration::check_source(prepared.session.compiler(), request)
-            .result
-            .map_err(|error| error.into_diagnostics())
+        match record {
+            None => orchestration::check_source(prepared.session.compiler(), request)
+                .result
+                .map_err(|error| error.into_diagnostics()),
+            Some(record) => record_frontier_check(
+                orchestration::check_source_keeping_typed_frontier(
+                    prepared.session.compiler(),
+                    request,
+                ),
+                record,
+            ),
+        }
     }
 }
 
@@ -940,4 +960,157 @@ fn dangerous_service_bindings(
         )?);
     }
     Ok(bindings)
+}
+
+/// The last answer the typed-frontier seam gave during one fixture's review
+/// and check. Review and check return on the first failing step, so a failure
+/// belongs to the check recorded here only when that check itself rejected.
+enum FrontierRecord {
+    Reached {
+        frontier: Box<compiler::TypedFrontier>,
+        rejected: bool,
+    },
+    Stopped,
+}
+
+fn check_package(
+    session: &mut compiler::CompilationSession,
+    build: compiler::PackageBuild,
+    record: Option<&mut Option<FrontierRecord>>,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    match record {
+        None => session
+            .check_package_build(build)
+            .map_err(|error| error.into_diagnostics()),
+        Some(record) => record_frontier_check(
+            session.check_keeping_typed_frontier(compiler::TypedFrontierRequest::Package(build)),
+            record,
+        ),
+    }
+}
+
+fn record_frontier_check(
+    check: compiler::TypedFrontierCheck,
+    record: &mut Option<FrontierRecord>,
+) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
+    match check {
+        compiler::TypedFrontierCheck::Reached { frontier, verdict } => {
+            let (rejected, result) = match verdict {
+                compiler::CurrentCheckerVerdict::Accepted(checked) => (false, Ok(*checked)),
+                compiler::CurrentCheckerVerdict::Rejected(failure) => {
+                    (true, Err(failure.into_diagnostics()))
+                }
+            };
+            *record = Some(FrontierRecord::Reached { frontier, rejected });
+            result
+        }
+        compiler::TypedFrontierCheck::StoppedBeforeTypedFrontier(failure) => {
+            *record = Some(FrontierRecord::Stopped);
+            Err(failure.into_diagnostics())
+        }
+    }
+}
+
+/// One fixture's ordinary review and check, with the Product's frozen typed
+/// trees whenever Psi 04 completed. This is what a harness comparing a second
+/// checker calls: it sees rejected programs as well as accepted ones.
+pub enum FixtureFrontierCheck {
+    /// The current checker accepted and fixture review finished.
+    Accepted {
+        frontier: Box<compiler::TypedFrontier>,
+        checked: Box<compiler::CheckedCompilation>,
+    },
+    /// Psi 04 completed and the current checker then rejected the program.
+    Rejected {
+        frontier: Box<compiler::TypedFrontier>,
+        diagnostics: Vec<Diagnostic>,
+    },
+    /// The current checker accepted, then this harness's own fixture
+    /// acceptance (entry, service or permission policy) refused. The trees
+    /// are the accepted check's.
+    ReviewRefused {
+        frontier: Box<compiler::TypedFrontier>,
+        diagnostics: Vec<Diagnostic>,
+    },
+    /// No typed frontier exists: discovery, the Build, Psi 00 through 03 or
+    /// Psi 04 itself failed.
+    StoppedBeforeTypedFrontier(Vec<Diagnostic>),
+}
+
+/// Discover, review and check `main` as `check_fixture` does, on
+/// `preferred_target` when the fixture binds it and on its first bound target
+/// otherwise, keeping the typed frontier of the last check that ran.
+pub fn check_fixture_keeping_typed_frontier(
+    main: &Path,
+    preferred_target: &str,
+) -> FixtureFrontierCheck {
+    let mut record = None;
+    let checked = (|| {
+        let snapshot = fixture_build_snapshot(main)?;
+        let discovered = discover_fixture(
+            main,
+            package_compilation::BuildExecutionInputs {
+                snapshot,
+                ..Default::default()
+            },
+        )?;
+        let target = discovered
+            .targets
+            .iter()
+            .find(|target| target.as_str() == preferred_target)
+            .or_else(|| discovered.targets.first())
+            .cloned();
+        let profile = TargetProfile::from_omega_target_name(target.as_deref())
+            .map_err(|error| vec![error])?;
+        let mut prepared = review_fixture_recording(
+            discovered,
+            &[profile],
+            compiler::CompilationProduct::Check,
+            Some(&mut record),
+        )?;
+        check_fixture_recording(
+            &mut prepared,
+            profile.target_name(),
+            Default::default(),
+            Some(&mut record),
+        )
+    })();
+    match (checked, record) {
+        (
+            Ok(checked),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: false,
+            }),
+        ) => FixtureFrontierCheck::Accepted {
+            frontier,
+            checked: Box::new(checked),
+        },
+        (
+            Err(diagnostics),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: true,
+            }),
+        ) => FixtureFrontierCheck::Rejected {
+            frontier,
+            diagnostics,
+        },
+        (
+            Err(diagnostics),
+            Some(FrontierRecord::Reached {
+                frontier,
+                rejected: false,
+            }),
+        ) => FixtureFrontierCheck::ReviewRefused {
+            frontier,
+            diagnostics,
+        },
+        (Err(diagnostics), Some(FrontierRecord::Stopped) | None) => {
+            FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics)
+        }
+        (Ok(_), _) => FixtureFrontierCheck::StoppedBeforeTypedFrontier(vec![Diagnostic::error(
+            "the fixture check succeeded without recording its typed frontier",
+        )]),
+    }
 }

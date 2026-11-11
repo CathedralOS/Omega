@@ -4,10 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-
-[features]
-test-support = []
-
 [dependencies]
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }

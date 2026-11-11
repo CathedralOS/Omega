@@ -21,6 +21,7 @@ mod product_queries;
 mod product_selections;
 mod source_build;
 mod source_checking;
+pub(crate) mod typed_frontier;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
@@ -406,6 +407,7 @@ impl SourceCompilation {
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         selections: &mut psi_compiler::ProductSelections,
+        frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let prepared = self.source.complete(returned?, None, None)?;
         Ok(select_completed_build(
@@ -415,6 +417,7 @@ impl SourceCompilation {
             &self.rollback,
             self.reuse,
             selections,
+            frontier,
         ))
     }
 
@@ -438,6 +441,7 @@ impl SourceCompilation {
             &self.rollback,
             self.reuse,
             selections,
+            None,
         )
     }
 }
@@ -530,6 +534,7 @@ pub(super) fn select_completed_build(
     rollback: &crate::OptimizationRollback,
     settled_check_reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
+    frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
         .built
@@ -542,6 +547,7 @@ pub(super) fn select_completed_build(
             rollback,
             settled_check_reuse,
             selections,
+            frontier,
         )
     }) {
         Ok(source) => crate::execution_settlement::select_product_target(

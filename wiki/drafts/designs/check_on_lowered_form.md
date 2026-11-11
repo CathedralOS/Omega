@@ -253,7 +253,8 @@ groups rather than ten simultaneous sessions:
 1. **Places foundation first:** records, fields, cases, constants and
    expressions, so `ExactPlaceId` projections, structural roots and the forward
    write log (`places`, `roots`, `writes`, all empty in the scalar spine) are
-   built once.
+   built once. [Places foundation lane](places_foundation_lane.md) is the
+   staged plan: scope, tables, corpus slice, measures and worker brief.
 2. **First parallel group (five lanes):** references, loans, windows, ownership
    and cleanup; calls and callee summaries; loops, recursion and termination;
    integers, floats, casts and domains; proofs, evidence and quotients.

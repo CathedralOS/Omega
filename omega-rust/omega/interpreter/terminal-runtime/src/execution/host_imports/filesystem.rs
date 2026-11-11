@@ -144,7 +144,10 @@ enum Formal {
     Signed(u16),
     Unsigned(u16),
     UnsignedArray(u64, u16, StructuralAccess),
-    ByteWindow {
+    /// A borrowed fixed array of unsigned integers of this width holding at
+    /// least `minimum` elements; the declared length is the caller's own.
+    UnsignedWindow {
+        bits: u16,
         minimum: u64,
         access: StructuralAccess,
     },
@@ -408,7 +411,7 @@ impl FilesystemContext {
                     structural += 1;
                 }
                 ByteView(_)
-                | Formal::ByteWindow { .. }
+                | Formal::UnsignedWindow { .. }
                 | IntegerReference(_, _, _)
                 | Formal::IntegerRecord { .. }
                 | Formal::SignedRecordArray { .. } => structural += 1,
@@ -506,9 +509,14 @@ fn matches_parameters(
                 let value = declaration.structural_parameters.get(structural);
                 structural += 1;
                 match (value, expected) {
-                    (Some(value), Formal::ByteWindow { minimum, access })
-                        if value.access == *access =>
-                    {
+                    (
+                        Some(value),
+                        Formal::UnsignedWindow {
+                            bits,
+                            minimum,
+                            access,
+                        },
+                    ) if value.access == *access => {
                         let Some(StructuralTypeShape::FixedArray { length, .. }) = program
                             .structural_type(value.structural_type)
                             .map(|row| &row.shape)
@@ -523,7 +531,7 @@ fn matches_parameters(
                             layouts,
                             value.structural_type,
                             IntegerSign::Unsigned,
-                            8,
+                            *bits,
                             Some(count),
                         )
                     }

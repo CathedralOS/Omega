@@ -314,15 +314,21 @@ impl CompilationSession {
         &mut self,
         build: PackageBuild,
     ) -> Result<super::CheckedCompilation, CompileFailure> {
-        super::run_on_compile_thread(|| {
-            let ((), selected) = self
-                .select_build_batch(vec![((), build.source)])
-                .pop()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error("package checking lost its selected root")]
-                })?;
-            selected.finish_check().result
-        })
+        super::run_on_compile_thread(|| self.check_package_build_selecting(build, None))
+    }
+
+    // One package check, on the calling compile thread. `frontier` is the
+    // optional slot `check_keeping_typed_frontier` reads afterwards.
+    pub(super) fn check_package_build_selecting(
+        &mut self,
+        build: PackageBuild,
+        frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
+    ) -> Result<super::CheckedCompilation, CompileFailure> {
+        let ((), selected) = self
+            .select_build_batch(vec![((), build.source)], frontier)
+            .pop()
+            .ok_or_else(|| vec![Diagnostic::error("package checking lost its selected root")])?;
+        selected.finish_check().result
     }
 
     pub fn produce_package_build_provider(
@@ -347,6 +353,7 @@ impl CompilationSession {
                 &rollback,
                 self.reuse(),
                 &mut self.selections,
+                None,
             )?;
             self.retain(&checked.retained_checks);
             Ok(psi_compiler::BuildProviderProductionRequest {
@@ -387,7 +394,7 @@ impl CompilationSession {
                 pending.push(((position, owner, cache), build.source));
             }
             let mut requests = Vec::new();
-            for (owner, selected) in self.select_build_batch(pending) {
+            for (owner, selected) in self.select_build_batch(pending, None) {
                 let request = match selected.result {
                     Ok(selected) => Ok(crate::product_execution::ProductRequest::Component {
                         checked: selected.into_checked_compilation(),
@@ -445,7 +452,9 @@ impl CompilationSession {
                 })
                 .collect();
             let mut products = Vec::new();
-            for ((owner, root, product, permissions), selected) in self.select_build_batch(builds) {
+            for ((owner, root, product, permissions), selected) in
+                self.select_build_batch(builds, None)
+            {
                 let request = selected
                     .result
                     .map(
