@@ -34,12 +34,18 @@ enum Expected {
     /// A subject declaration is outside what the route lowers, so the
     /// current checker decides the whole compilation.
     FallsBack,
+    /// The route lowers the whole program and an obligation of the uncalled
+    /// machine has a goal form the prover has no rule for: not accepted,
+    /// and reported as incomplete rather than as a proof failure.
+    Incomplete,
 }
 
 /// Thirteen `fail/` programs with an empty entry and a defect in an uncalled
 /// machine, all of which the route accepted when it lowered only the entry's
-/// calls. They are the five the route now rejects and one program for each of
-/// eight different reasons it hands a compilation back. `#2317` counted 13
+/// calls. They are the five the route now rejects, one program for each of
+/// seven different reasons it hands a compilation back, and one it now lowers
+/// and stops at a goal form it has no rule for (it handed that one back when
+/// this list was made). `#2317` counted 13
 /// such programs without recording which, so this list is re-derived: it
 /// includes the four that PR names.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
@@ -81,7 +87,7 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     ),
     (
         "tests/omega/fail/proofs/normal_return_expression_statement_is_not_return",
-        Expected::FallsBack,
+        Expected::Incomplete,
     ),
     (
         "tests/omega/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
@@ -300,10 +306,10 @@ fn wrong_verdicts(programs: &[(&str, Expected)]) -> Vec<String> {
         let found = match route_verdict(&frontier).1 {
             Ok(RouteVerdict::Rejected { .. }) => Some(Expected::Rejected),
             Ok(RouteVerdict::FallBack(_)) => Some(Expected::FallsBack),
-            // Accepted is the defect these tests pin. `Incomplete` and a
-            // refusal that is not a fallback are not expected of any of
-            // these programs either.
-            Ok(RouteVerdict::Accepted(_) | RouteVerdict::Incomplete(_)) | Err(_) => None,
+            Ok(RouteVerdict::Incomplete(_)) => Some(Expected::Incomplete),
+            // Accepted is the defect these tests pin. A refusal that is not
+            // a fallback is not expected of any of these programs either.
+            Ok(RouteVerdict::Accepted(_)) | Err(_) => None,
         };
         if found != Some(*expected) {
             wrong.push(format!("{fixture}: expected {expected:?}, found {found:?}"));
@@ -540,13 +546,15 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
 ];
 
 /// Writes `declaration` and an empty entry as a package under the
-/// repository's ignored `target` directory (the fixture loader takes only
-/// paths inside the repository), checks it, and returns the route's verdict.
+/// repository's ignored `build` directory (the fixture loader takes only
+/// paths inside the repository, and `target` may be a link to a cache
+/// outside it, as `mbx` makes it), checks it, and returns the route's
+/// verdict.
 /// The Build binds `main` for the four hosted targets, as the corpus
 /// fixtures' Builds do.
 fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
     let root = repo_root()
-        .join("target")
+        .join("build")
         .join("lowered_route_subjects")
         .join(name);
     std::fs::create_dir_all(&root).expect("staging directory");
