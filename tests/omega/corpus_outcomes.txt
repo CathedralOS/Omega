@@ -54,12 +54,15 @@ fail/arithmetic/boolean_shift_guard_overwritten rejected 672ms expected @ccdb99c
 	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/boolean_shift_guard_subject_written rejected 793ms expected @ccdb99ca2214
 	shift count in machine `shift` state `entry` return value is provably out of range and can never execute for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
-fail/arithmetic/bounded_assignment_unproven rejected 44203ms expected @08a2dd067a58
-	machine `Main::main` state `main` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/arithmetic/bounded_assignment_unproven rejected 21080ms expected @bc49525b6c1a
+	cannot complete a call at statement 2 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/arithmetic/bounded_call_unproven rejected 2580ms expected @ccdb99ca2214
 	cannot prove requires contract for call wounded from Main::main: main.health > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/arithmetic/bounded_store_consumed_before_repair rejected 5310ms expected @46cdd6b85b82+wt
-	machine `Counter::replace` state `replace` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/arithmetic/bounded_store_consumed_before_repair rejected 2650ms expected @bc49525b6c1a
+	machine `Counter::replace` state `replace` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `Counter::replace` state `replace` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `Counter::replace` state `replace`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/arithmetic/call_argument_snapshot_not_current_field rejected 7546ms expected @d663540513b7
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/call_result_index_selector_revision rejected 1518ms expected @ccdb99ca2214
@@ -190,12 +193,12 @@ fail/arithmetic/full_width_literal_requires_representable_carrier rejected 752ms
 	literal `18446744073709551615` does not fit its `i64` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
 	literal `18446744073709551615` does not fit its `u8` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
 	literal `18446744073709551616` does not fit its `u64` suffix -- a width suffix chooses the literal's type at the spelling, and the spelled value must fit that type's range (suffixes read VALUES, not bit patterns: spell `-1i8`, not `0xFFi8`)
-fail/arithmetic/guarded_read_count_exceeds_target rejected 5898ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/arithmetic/guarded_read_count_exceeds_target rejected 2944ms expected @bc49525b6c1a
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
 fail/arithmetic/guarded_read_count_stale_before_assignment rejected 7565ms expected @1e566db50bf5
 	cannot complete a call at statement 3 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
-fail/arithmetic/guarded_read_count_unguarded_arrival rejected 7147ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/arithmetic/guarded_read_count_unguarded_arrival rejected 2532ms expected @bc49525b6c1a
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
 fail/arithmetic/immutable_unsigned_mask_false_floor_rejected rejected 2111ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from invalid at statement 0: value & 16 >= 17
 fail/arithmetic/immutable_unsigned_shift_invalid_count_rejected rejected 728ms expected @ccdb99ca2214
@@ -415,10 +418,10 @@ fail/arithmetic/unsigned_quotient_underbound_rejected rejected 2759ms expected @
 	cannot prove ensures contract for exit from invalid at statement 0: result >= 0 && result <= 9223372036854775806
 fail/arithmetic/widened_result_does_not_grant_stricter_bound rejected 2612ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from widen_and_consume: widen_u8_to_u16(value) <= 254 (needs fact `value <= 254` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/arithmetic/widened_result_predicate_invalid_write rejected 5310ms expected @46cdd6b85b82+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/arithmetic/wrapping_guard_does_not_bound_original rejected 5280ms expected @46cdd6b85b82+wt
-	machine `bounded` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/arithmetic/widened_result_predicate_invalid_write rejected 2584ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `widened` (data `ByteResult`) unproved; restore them first
+fail/arithmetic/wrapping_guard_does_not_bound_original rejected 3958ms expected @bc49525b6c1a
+	cannot complete a call at statement 2 in machine `bounded` state `entry`: this write left the `requires` facts of `values` (data `Values`) unproved; restore them first
 fail/arithmetic/wrapping_target_plain_operands_rejected rejected 15133ms expected @ccdb99ca2214
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
@@ -1446,8 +1449,8 @@ fail/borrows/indexed_carrier_replacement_stays_borrowed rejected 2327ms expected
 fail/borrows/indexed_carrier_state_local_escape rejected 3838ms expected @ccdb99ca2214
 	state `leave` receives a carried loan of local `local`, whose storage ends at the source state exit without a complete retained-home relation
 	machine `invalid` stores a borrowed value without a complete normal-exit backing relation
-fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant rejected 7141ms expected @46cdd6b85b82+wt
-	machine `change` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/borrows/indexed_exclusive_primitive_loan_preserves_field_invariant rejected 3107ms expected @bc49525b6c1a
+	cannot complete return from machine `change` state `entry`: this write left the `requires` facts of `main.rows[*].cells[*]` (data `Byte`) unproved; restore them first
 fail/borrows/indexed_shared_primitive_loan_cannot_mutate rejected 1018ms expected @911f6617ba9e
 	mutable argument `selected_value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/indexed_shared_primitive_loan_frozen_selector_retains_backing rejected 3980ms expected @911f6617ba9e
@@ -1727,11 +1730,11 @@ fail/borrows/reassigned_reference_preserves_child_backing rejected 2211ms expect
 	statement 3 mutates `main.first.left` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/reassigned_view_cannot_escape_local_backing rejected 2044ms expected @ccdb99ca2214
 	machine `reject` returns a view borrowing the local `items`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/reassigned_view_conflicts_with_captured_child rejected 2168ms expected @ccdb99ca2214
+fail/borrows/reassigned_view_conflicts_with_captured_child rejected 2940ms expected @bc49525b6c1a
 	statement 2 creates local borrow `view` while local borrow `view` is still active (borrowed at statement 0)
 	statement 2 creates local borrow `view` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-	statement 2 borrows `items[1..3]` while local borrow `view` is still active (borrowed at statement 0)
-	statement 2 borrows `items[1..3]` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 2 borrows `items[1..3]` while local borrow `view` is still active (borrowed at statement 0) in machine `reject`, state `entry`, statement 2
+	statement 2 borrows `items[1..3]` while local borrow `child` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit) in machine `reject`, state `entry`, statement 2
 fail/borrows/reassigned_view_uses_new_extent rejected 2093ms expected @ccdb99ca2214
 	cannot prove index `1` is within length 1
 fail/borrows/reborrowed_call_view_keeps_backing_loan rejected 2149ms expected @ccdb99ca2214
@@ -1781,10 +1784,10 @@ fail/borrows/reference_join_escaping_alternative rejected 2285ms expected @ccdb9
 fail/borrows/reference_record_duplicate_mutable rejected 136147ms expected @b45dc4f7989c
 	statement 4 borrows `main.first` while local borrow `pair` is still active (borrowed at statement 4; its last use is at statement 4) in machine `Main::main`, state `main`, statement 4
 	`pair` holds `main.first` as mutable more than once
-fail/borrows/reference_record_field_predicate_invalid_store rejected 5310ms expected @46cdd6b85b82+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/borrows/reference_record_index_predicate_invalid_store rejected 5279ms expected @46cdd6b85b82+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/borrows/reference_record_field_predicate_invalid_store rejected 2575ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `cell` (data `Cell`) unproved; restore them first
+fail/borrows/reference_record_index_predicate_invalid_store rejected 2477ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `selection` (data `Selection`) unproved; restore them first
 fail/borrows/reference_record_mutable_shared_overlap rejected 58875ms expected @911f6617ba9e
 	statement 4 borrows `main.first.value` while local borrow `view` is still active (borrowed at statement 4; its last use is at statement 5)
 	`view` holds `main.first` as both mutable and read-only
@@ -2641,8 +2644,8 @@ fail/build/wire_compatibility_fabricated_activation rejected 30ms expected @ccdb
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/wire_compatibility_unknown_fact rejected 3987ms expected @4815ea579d91
 	unknown wire compatibility fact `Imaginary`
-fail/calling/call_plan_count_invalid_handback rejected 19862ms expected @6685712c7bf8
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/calling/call_plan_count_invalid_handback rejected 15525ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `plan` (data `CallPlan`) unproved; restore them first
 fail/calling/native_field_path_empty rejected 15341ms expected @ccdb99ca2214
 	data `NativePlace` case `Field` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/calls/affine_call_local_moved_twice rejected 3833ms expected @ccdb99ca2214
@@ -2969,9 +2972,9 @@ fail/calls/selected_crash_private_forwarding_rejected rejected 7473ms expected @
 	call from `safe` to `forward$specialized$ec85689150bfd083$0$2656` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/calls/selected_local_owner_reuse rejected 1673ms expected @ccdb99ca2214
 	cannot use `token` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
-fail/calls/selector_field_predicate_upper_bound rejected 7413ms expected @46cdd6b85b82+wt
-	machine `replace_row` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-	machine `replace_position` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/calls/selector_field_predicate_upper_bound rejected 2431ms expected @bc49525b6c1a
+	cannot complete return from machine `replace_row` state `entry`: this write left the `requires` facts of `cursor` (data `Cursor`) unproved; restore them first
+	cannot complete return from machine `replace_position` state `entry`: this write left the `requires` facts of `cursor` (data `Cursor`) unproved; restore them first
 fail/calls/stale_returned_loan_drops_count rejected 2454ms expected @ccdb99ca2214
 	cannot prove requires contract for call push from stored: main.values.count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `loan(main).count < 4`
 fail/calls/state_arrival_call_result_above_bound rejected 3157ms expected @ccdb99ca2214
@@ -4405,18 +4408,18 @@ fail/data/unbounded_integer_field rejected 584ms expected @ccdb99ca2214
 	data `Counter` field `calls` stores unbounded integer type `UInt`, which has no runtime representation; use a sized integer such as `u64` or `i64`, or declare the field `[erased]` to keep it proof-only
 fail/data/zero_length_byte_literal_length_rejected rejected 12497ms expected @ccdb99ca2214
 	quoted byte literal has 1 source byte(s), but owned fixed byte array `[u8; 0]` requires exactly 0; fixed-array literal copying neither truncates nor pads
-fail/dependent/applied_default_domain_mutable_requirement_stale rejected 2654ms expected @911f6617ba9e
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/dependent/applied_default_domain_unrelated_bound rejected 2196ms expected @911f6617ba9e
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction rejected 2137ms expected @911f6617ba9e
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/applied_default_domain_mutable_requirement_stale rejected 5243ms expected @bc49525b6c1a
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `Counter::set$specialized$e90186bf06f41592$0$4634` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/dependent/applied_default_domain_unrelated_bound rejected 4637ms expected @bc49525b6c1a
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/dependent/applied_default_domain_wrapping_is_not_integer_subtraction rejected 5980ms expected @bc49525b6c1a
+	cannot complete return from machine `Counter::set` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `Counter::set$specialized$e494a37996d9545e$0$4634` state `set`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/dependent/borrowed_coupled_invalid_zero rejected 2006ms expected @911f6617ba9e
 	data `Coupled` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/dependent/borrowed_coupled_unrestored_count rejected 1945ms expected @911f6617ba9e
-	data `Coupled`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/borrowed_coupled_unrestored_count rejected 4695ms expected @bc49525b6c1a
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `record` (data `Coupled`) unproved; restore them first
 fail/dependent/case_where_generic_type_bound_impossible_case rejected 7459ms expected @4815ea579d91
 	data `Value` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -4464,8 +4467,16 @@ fail/dependent/computed_slice_index_wrong_descriptor rejected 2041ms expected @c
 	cannot prove index `selected` is within unknown slice length of `cells` in invalid::entry
 fail/dependent/data_requires_boundary_opaque rejected 12ms expected @ccdb99ca2214
 	tests/omega/fail/dependent/data_requires_boundary_opaque/main.omg:1:23: opaque `boundary data` has no visible fields for default-domain predicates
-fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 882ms expected @ddc8d6fcecbc
-	machine `tail` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 3600ms expected @bc49525b6c1a
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
 fail/dependent/data_requires_empty_clause rejected 8ms expected @ccdb99ca2214
 	tests/omega/fail/dependent/data_requires_empty_clause/main.omg:1:23: expected expression
 fail/dependent/data_requires_future_formation rejected 226ms expected @5c5c178f82c7
@@ -4511,10 +4522,10 @@ fail/dependent/dependent_forward_after_write_rejected rejected 46052ms expected 
 fail/dependent/dependent_range_on_field_rejected rejected 68810ms expected @f78c2623a68c
 	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
-fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 1076ms expected @911f6617ba9e
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `debt.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `stale.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `transport.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 3185ms expected @bc49525b6c1a
+	cannot complete return from machine `existing_debt` state `entry`: this write left the `requires` facts of `debt.cells[0]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `stale_snapshot` state `entry`: this write left the `requires` facts of `stale.cells[0]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `finish` state `entry`: this write left the `requires` facts of `transport.cells[0]` (data `Cell`) unproved; restore them first
 	machine `missing_elements` state `entry` statement 3: reading `raw[0].value` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `u64[in Positive]`
 	machine `missing_elements` state `entry` statement 3: reading `raw[0].value` crosses an open default-domain invariant window before data `Gated` is established: the zeroed representation is not yet a `Gated` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/inactive_payload_cannot_supply_common_fact rejected 3501ms expected @911f6617ba9e
@@ -4564,8 +4575,8 @@ fail/dependent/state_arrival_byte_predicate_unproven_rejected rejected 1544ms ex
 	cannot prove requires contract for call checked from Main::main: valid_utf8(main.buffer[0..1]) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `valid_utf8(view)`
 fail/dependent/stored_observation_overlapping_alias_write rejected 1555ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from exercise: pair.left == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/dependent/stored_predicate_same_spelled_missing_field rejected 993ms expected @911f6617ba9e
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/stored_predicate_same_spelled_missing_field rejected 2971ms expected @bc49525b6c1a
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `record` (data `Pair`) unproved; restore them first
 fail/dependent/symbolic_collection_consequence_requires_inspection rejected 2331ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from uncited_cell at statement 0: values[selected] >= 0 && values[selected] <= 255
 	cannot prove ensures contract for exit from wrong_subject at statement 0: values[selected] >= 0 && values[selected] <= 255
@@ -4587,8 +4598,8 @@ fail/dependent/symbolic_slice_predicate_store_requires_establishment rejected 67
 	cannot prove ensures contract for exit from nested_store_wrong_storage at statement 0: valid_values(other) == true
 fail/dependent/transitive_call_frame_invalidates_written_fact_rejected rejected 1294ms expected @ccdb99ca2214
 	exact arithmetic in machine `Main::main` state `main` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/dependent/zero_gated_record_field_store_unproven rejected 36250ms expected @08a2dd067a58
-	machine `wound` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/dependent/zero_gated_record_field_store_unproven rejected 14141ms expected @bc49525b6c1a
+	cannot complete return from machine `wound` state `entry`: this write left the `requires` facts of `player` (data `Player`) unproved; restore them first
 fail/dependent/zero_storage_prefix_does_not_establish rejected 1108ms expected @911f6617ba9e
 	machine `read_pending` state `entry` statement 2: reading `pending.number` crosses an open default-domain invariant window before data `Pending` is established: the zeroed representation is not yet a `Pending` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/applied_generic_carrier_wrong_arguments rejected 1499ms expected @b74b1a5036b8+wt
@@ -4970,9 +4981,8 @@ fail/domains/private_arrival_unguarded_qualification_rejected rejected 2417ms ex
 	`as ... in Positive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/domains/qualified_explicit_buffer_length_contract rejected 4327ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from wrong at statement 0: result.len == buffer.used
-fail/domains/qualified_explicit_buffer_write_only_invariant rejected 1255ms expected @911f6617ba9e
-	machine `corrupt` state `entry` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through closed invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a closed literal-ranged integer primitive proven in range at the store, an integer primitive carrying only an arithmetic-policy constraint, or a carrier qualified only by plain declared domains whose membership is proven on the stored value, a whole eligible statically discardable record or closed statically discardable material sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or statically discardable material records or sums, one relevant primitive field beneath a literal fixed-array record element, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds byte element whose predicate-only fixed carrier membership is independently preserved, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, named or non-plain domain qualification, range stores into a domain-qualified carrier, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/qualified_explicit_buffer_write_only_invariant rejected 2425ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
 fail/domains/qualified_explicit_buffer_write_only_replacement rejected 1196ms expected @911f6617ba9e
 	data `Buffer` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/domains/qualified_fixed_byte_array_borrowed_short_literal rejected 133ms expected @ccdb99ca2214
@@ -4984,8 +4994,8 @@ fail/domains/qualified_fixed_byte_array_constructor_snapshot rejected 1870ms exp
 	cannot prove requires contract for call observe_after from checked: row.bytes in [u8; N]::Utf8 (invalidated by prior mutation of row.bytes[0]; row.bytes is part of [u8; N]::Utf8) in state `entry`
 fail/domains/qualified_fixed_byte_array_constructor_stale rejected 3193ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: row.bytes in [u8; N]::Utf8 (invalidated by prior mutation of row.bytes[0]; row.bytes is part of [u8; N]::Utf8) in state `entry`
-fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected 7653ms expected @46cdd6b85b82+wt
-	machine `set_count` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/qualified_fixed_byte_array_explicit_buffer_unbounded_count rejected 2389ms expected @bc49525b6c1a
+	cannot complete return from machine `set_count` state `entry`: this write left the `requires` facts of `buffer` (data `TextBuffer`) unproved; restore them first
 fail/domains/qualified_fixed_byte_array_immutable_parameter rejected 829ms expected @ccdb99ca2214
 	machine `corrupt` state `entry` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/domains/qualified_fixed_byte_array_invalid_mutation rejected 7517ms expected @e3aa2896cd34
@@ -5115,8 +5125,8 @@ fail/domains/returned_fixed_array_ascii_write_invalidates rejected 2143ms expect
 	cannot prove requires contract for call length from corrupt: owner in [u8; N]::Ascii (invalidated by prior mutation of owner[0]; owner is part of [u8; N]::Ascii) in state `entry`
 fail/domains/returned_fixed_array_utf8_split_invalidates rejected 1750ms expected @ccdb99ca2214
 	cannot prove requires contract for call length from corrupt: owner in [u8; N]::Utf8 (invalidated by prior mutation of owner[0]; owner is part of [u8; N]::Utf8) in state `entry`
-fail/domains/returned_record_scalar_predicate_invalidation rejected 10484ms expected @46cdd6b85b82+wt
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/domains/returned_record_scalar_predicate_invalidation rejected 2469ms expected @bc49525b6c1a
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
 fail/domains/routed_domain_as_rejected rejected 1785ms expected @ccdb99ca2214
 	`as ... in Token::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Token::Issued`; an annotation cannot establish routed qualification
@@ -7564,27 +7574,27 @@ fail/facts/core_integer_endpoint_through_target_body_rejected rejected 3764ms ex
 	cannot prove requires contract for call consume from LinuxX86EndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 	cannot prove requires contract for call consume from MacEndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 	cannot prove requires contract for call consume from LinuxArmEndpointProbe::probe: (entry() as u32) == 0xffffffff (needs fact `value == 0xffffffff` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-fail/facts/correlated_invariant_store_through_call_result_rejected rejected 16924ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_const_name_rejected rejected 16878ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/correlated_invariant_store_through_call_result_rejected rejected 2379ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_const_name_rejected rejected 2187ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/correlated_invariant_store_through_field_rejected rejected 2579ms expected @e9d6fffb32c9
 	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
-fail/facts/correlated_invariant_store_through_local_rejected rejected 16022ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_match_join_rejected rejected 6345ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_other_machine_rejected rejected 6336ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_other_state_rejected rejected 6305ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_parameter_rejected rejected 9447ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/correlated_invariant_store_through_target_body_rejected rejected 5529ms expected @46cdd6b85b82+wt
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-	machine `advance` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/correlated_invariant_store_through_local_rejected rejected 2977ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_match_join_rejected rejected 2531ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_other_machine_rejected rejected 2370ms expected @bc49525b6c1a
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_other_state_rejected rejected 2290ms expected @bc49525b6c1a
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_parameter_rejected rejected 2645ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/correlated_invariant_store_through_target_body_rejected rejected 2615ms expected @bc49525b6c1a
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+	cannot complete return from machine `advance` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/facts/crash_entry_ieee_view_through_call_result_rejected rejected 7385ms expected @b4b6a0d362e1+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_through_const_name_rejected rejected 7315ms expected @b4b6a0d362e1+wt
@@ -8037,35 +8047,23 @@ fail/facts/descriptor_payload_exclusive_loan_through_parameter_rejected rejected
 fail/facts/descriptor_payload_exclusive_loan_through_target_body_rejected rejected 18079ms expected @57a69f8b8ad1
 	statement 3 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
-fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected rejected 2009ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_call_result_rejected rejected 4280ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected rejected 2441ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_const_name_rejected rejected 5068ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/descriptor_range_exclusive_loan_through_field_rejected rejected 3029ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_field_rejected rejected 6825ms expected @bc49525b6c1a
 	statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/descriptor_range_exclusive_loan_through_local_rejected rejected 2661ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_local_rejected rejected 2756ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected rejected 3613ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_match_join_rejected rejected 5157ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected rejected 3221ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_other_machine_rejected rejected 3119ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected rejected 2820ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_other_state_rejected rejected 5230ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
-	machine `pick` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 3: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
-fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected rejected 3739ms expected @ccdb99ca2214
+fail/facts/descriptor_range_exclusive_loan_through_parameter_rejected rejected 2660ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected rejected 18079ms expected @57a69f8b8ad1
+fail/facts/descriptor_range_exclusive_loan_through_target_body_rejected rejected 5176ms expected @bc49525b6c1a
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/facts/descriptor_replacement_order_through_call_result_rejected rejected 2393ms expected @ccdb99ca2214
@@ -10356,24 +10354,24 @@ fail/facts/match_join_place_read_through_target_body_rejected rejected 5670ms ex
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
 	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.other == 17 (needs fact `place.other == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.other == 17`
-fail/facts/match_loan_last_use_through_call_result_rejected rejected 1991ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_call_result_rejected rejected 2629ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_loan_last_use_through_const_name_rejected rejected 2243ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_const_name_rejected rejected 2813ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_loan_last_use_through_field_rejected rejected 1952ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_field_rejected rejected 2827ms expected @bc49525b6c1a
 	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
 	statement 3 mutates `box` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/match_loan_last_use_through_local_rejected rejected 2527ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_local_rejected rejected 2958ms expected @bc49525b6c1a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_loan_last_use_through_match_join_rejected rejected 1926ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_match_join_rejected rejected 2827ms expected @bc49525b6c1a
 	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/match_loan_last_use_through_other_machine_rejected rejected 1894ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_other_machine_rejected rejected 2355ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/facts/match_loan_last_use_through_other_state_rejected rejected 2093ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_other_state_rejected rejected 2550ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
-fail/facts/match_loan_last_use_through_parameter_rejected rejected 2573ms expected @ccdb99ca2214
+fail/facts/match_loan_last_use_through_parameter_rejected rejected 2600ms expected @bc49525b6c1a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/facts/match_loan_last_use_through_target_body_rejected rejected 21487ms expected @57a69f8b8ad1
+fail/facts/match_loan_last_use_through_target_body_rejected rejected 6273ms expected @bc49525b6c1a
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/facts/match_primitive_local_origin_through_call_result_rejected rejected 2087ms expected @ccdb99ca2214
@@ -15870,8 +15868,8 @@ fail/inline_asm/asm_interrupt_control_wrong_target rejected 4616ms expected @ccd
 	native artifact provider supply failed: reachable machine `nominal(package-owner(32:9cb88ba74737cd2b9b151dde1557c78a6bb9d3f1bca5cc56f37f041c7914381e),path(main))` carries checked assembly whose catalog requires x86_64, which the realized target `linux_arm64` does not provide; scope that assembly to a target the catalog admits for x86_64, or build a target that provides it
 fail/inline_asm/asm_mov_bracket_memory rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/inline_asm/asm_mov_bracket_memory/main.omg:12:9: asm instruction `mov` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
-fail/inline_asm/asm_msr_destination_predicate rejected 5417ms expected @46cdd6b85b82+wt
-	machine `Main::main` state `main` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/inline_asm/asm_msr_destination_predicate rejected 6008ms expected @bc49525b6c1a
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/inline_asm/asm_msr_destination_width rejected 1574ms expected @0af7c594a1c0
 	asm instruction `rdmsr` operand `destination` requires an exact `u64` writable place for target register `edx:eax`, found `u32`
 	store in machine `Main::main` state `main` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -15893,8 +15891,8 @@ fail/inline_asm/asm_service_requires_core_owner rejected 3235ms expected @baac73
 	machine `write_port` uses asm instruction `out`, which reaches canonical service `PortIo`, but that service identity is unavailable: the core service is unavailable in this body's dependency context; add `use omega::language::core::assembly;`
 fail/inline_asm/asm_sti_requires_machine_authority rejected 288ms expected @03522ca11fdf
 	machine `main` uses asm instruction `sti`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_system_register_destination_predicate rejected 6794ms expected @46cdd6b85b82+wt
-	machine `Main::main` state `main` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/inline_asm/asm_system_register_destination_predicate rejected 5737ms expected @bc49525b6c1a
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/inline_asm/asm_system_register_destination_width rejected 631ms expected @0af7c594a1c0
 	asm instruction `read_sctlr_el1` operand `destination` requires an exact `u64` writable place for target register `sctlr_el1`, found `u32`
 	store in machine `Main::main` state `main` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
@@ -16314,16 +16312,20 @@ fail/machines/private_frontier_enum_guard_invalid_bound rejected 3452ms expected
 	cannot prove requires contract for call capture from typed: place - 1 < 256 (needs fact `index < 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/machines/private_frontier_enum_guard_missing_bound rejected 4449ms expected @8d52a8575c51
 	cannot prove requires contract for call capture from typed: place - 1 < 256 (needs fact `index < 256` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/machines/private_frontier_guarded_counter_cycle_invalid rejected 6744ms expected @46cdd6b85b82+wt
-	machine `copy` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/machines/private_frontier_guarded_counter_cycle_invalid rejected 6858ms expected @bc49525b6c1a
+	machine `copy` state `entry` statement 3: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `copy` state `entry` statement 3: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `copy` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/machines/private_trapping_missing_prior_guard rejected 3416ms expected @ccdb99ca2214
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/machines/private_trapping_reversed_prior_guard rejected 2748ms expected @ccdb99ca2214
 	call from `locate` to `payload` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/machines/private_trapping_signed_pair_missing rejected 3190ms expected @ccdb99ca2214
 	call from `divide` to `quotient` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/machines/private_where_store_through_cycle_control rejected 1737ms expected @ba463c24b333+wt
-	machine `next` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/machines/private_where_store_through_cycle_control rejected 4381ms expected @bc49525b6c1a
+	machine `next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
+	machine `next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 2 in machine `next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
 fail/machines/retired_projected_data_call_expression rejected 977ms expected @ccdb99ca2214
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
 fail/machines/retired_projected_data_call_statement rejected 1122ms expected @ccdb99ca2214
@@ -18061,16 +18063,17 @@ fail/providers/windows_filesystem_host_unprovided_on_linux rejected 101677ms exp
 	no provider is selected for boundary requirement `WindowsFilesystemHost::last_error`, which the program entry reaches on target `linux_x86_64`
 fail/providers/windows_gui_host_unprovided_on_linux rejected 12315ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `WindowsGuiHost::foreground_window`, which the program entry reaches on target `linux_x86_64`
-fail/range/element_view_field_domain_occurrence rejected 5086ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/range/element_view_field_domain_occurrence rejected 2847ms expected @bc49525b6c1a
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `cells[0]` (data `Cell`) unproved; restore them first
 fail/range/funnel_guard_one_edge_unguarded rejected 82943ms expected @4e466851bcbe
 	cannot prove requires contract for call push from other: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_copy_stale_after_write rejected 74087ms expected @4e466851bcbe
 	cannot prove requires contract for call store from stale: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_runtime_index_collection_write rejected 2165ms expected @f78c2623a68c
 	cannot complete return from machine `interpose` state `entry`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
-fail/range/indexed_field_range_runtime_write_rejected rejected 38813ms expected @08a2dd067a58
-	machine `Main::main` state `main` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/range/indexed_field_range_runtime_write_rejected rejected 13241ms expected @bc49525b6c1a
+	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first
 fail/range/indexed_field_window_different_positions rejected 3476ms expected @f78c2623a68c
 	cannot complete return from machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
 fail/range/indexed_field_window_inherited_debt rejected 2288ms expected @f78c2623a68c
@@ -18083,8 +18086,8 @@ fail/range/indexed_field_window_overlapping_concrete_debt rejected 2073ms expect
 	cannot complete return from machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
 fail/range/nested_array_element_view_out_of_bounds rejected 2128ms expected @ccdb99ca2214
 	cannot prove index `2` is within length 2
-fail/range/refined_element_view_outside_field_domain rejected 6297ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/range/refined_element_view_outside_field_domain rejected 2800ms expected @bc49525b6c1a
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `cells[*]` (data `Cell`) unproved; restore them first
 fail/ranges/array_window_copy_requires_element_qualification rejected 699ms expected @911f6617ba9e
 	array window replacement source must preserve the complete destination element type, including its qualifications
 fail/ranges/borrowed_array_literal_element_out_of_range rejected 723ms expected @911f6617ba9e
@@ -18103,12 +18106,12 @@ fail/ranges/borrowed_case_payload_other_case rejected 2180ms expected @02f650a3c
 	cannot prove subslice range end bound `0..__transition_subject#16.loose_length` is within slice length 4
 fail/ranges/case_payload_domain_literal_out_of_range rejected 11913ms expected @ccdb99ca2214
 	construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`
-fail/ranges/correlated_store_all_predecessors rejected 6040ms expected @46cdd6b85b82+wt
-	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/ranges/correlated_store_rhs_retires_bound rejected 4413ms expected @46cdd6b85b82+wt
-	machine `write` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/ranges/correlated_store_selector_retires_bound rejected 7212ms expected @46cdd6b85b82+wt
-	machine `write` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/ranges/correlated_store_all_predecessors rejected 2482ms expected @bc49525b6c1a
+	cannot complete return from machine `store` state `entry`: this write left the `requires` facts of `output` (data `Limited`) unproved; restore them first
+fail/ranges/correlated_store_rhs_retires_bound rejected 2195ms expected @bc49525b6c1a
+	cannot complete return from machine `write` state `entry`: this write left the `requires` facts of `output` (data `Limited`) unproved; restore them first
+fail/ranges/correlated_store_selector_retires_bound rejected 2135ms expected @bc49525b6c1a
+	cannot complete return from machine `write` state `entry`: this write left the `requires` facts of `output[0]` (data `Limited`) unproved; restore them first
 fail/ranges/correlated_store_unsafe_intermediate rejected 940ms expected @911f6617ba9e
 	exact arithmetic in machine `write` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/ranges/guarded_case_payload_other_bound rejected 1456ms expected @2c185c80180f
@@ -18263,7 +18266,7 @@ fail/recast/recast_mut_record_fact_fenced rejected 2628ms unexpected @3bbe5c131a
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants
 fail/recast/recast_mut_record_where_bounds_differ rejected 613ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
-fail/recast/recast_mut_record_where_write_out_of_range rejected 2680ms unexpected @3bbe5c131a15
+fail/recast/recast_mut_record_where_write_out_of_range rejected 2412ms expected @bc49525b6c1a
 	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.source` (data `SignedRecord`) unproved; restore them first
 fail/recast/recast_mut_where_bounded_field_widened rejected 991ms expected @911f6617ba9e
 	machine `Main::main` state `main`: a mutable recast must prove fact implication in BOTH directions; source and target constraints are not proven representation-equivalent
@@ -18279,7 +18282,7 @@ fail/recast/recast_shared_record_where_strengthening_rejected rejected 2271ms ex
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `TightReading` are not representation-compatible
 fail/recast/recast_size_mismatch_rejected rejected 12060ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `i64` is 8 bytes, target `f32` is 4 bytes
-fail/recast/recast_slice_where_invalid_indexed_store rejected 2514ms unexpected @3bbe5c131a15
+fail/recast/recast_slice_where_invalid_indexed_store rejected 2357ms expected @bc49525b6c1a
 	cannot complete return from machine `write_invalid` state `entry`: this write left the `requires` facts of `values[*]` (data `Exact`) unproved; restore them first
 fail/recast/recast_slice_where_strengthening rejected 1013ms expected @911f6617ba9e
 	machine `Main::main` state `main`: slice recast `[TooNarrow]` does not preserve exact byte tiling and source-to-target fact implication; raw storage cannot establish element facts
@@ -19280,8 +19283,10 @@ fail/time/duration_constant_unnormalized rejected 228270ms expected @08a2dd067a5
 	data `Duration` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/time/instant_constant_unnormalized rejected 222664ms expected @08a2dd067a58
 	data `Instant` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/time/instant_mutation_leaves_invalid_return rejected 226570ms expected @08a2dd067a58
-	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/time/instant_mutation_leaves_invalid_return rejected 17222ms expected @bc49525b6c1a
+	machine `corrupt` state `entry` statement 1: reading `instant` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Instant`
+	machine `corrupt` state `entry` statement 1: the next whole-value read of `instant` occurs inside an OPEN invariant window: a prior write left data `Instant`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `instant` (data `Instant`) unproved; restore them first
 fail/time/system_time_constant_unnormalized rejected 225251ms expected @08a2dd067a58
 	data `SystemTime` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/traits/applied_conformance_exact_edge_result_region rejected 2558ms expected @ccdb99ca2214
@@ -20384,7 +20389,7 @@ pass/borrows/runtime_qualified_owner_reference_storage_exit checked 8053ms check
 pass/borrows/runtime_qualified_returned_descriptor_exit checked 3782ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_qualified_statement_descriptor_replacement_exit checked 3911ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reassigned_view_capture_exit checked 3671ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_reassigned_view_return_exit checked 3339ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_reassigned_view_return_exit checked 8251ms check-target:macos_arm64 @bc49525b6c1a
 pass/borrows/runtime_recast_mut_loan_field_write_exit checked 19297ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_record_byte_region_loan_exit checked 15911ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_record_carried_loan_state_return_exit checked 16439ms check-target:macos_arm64 @ccdb99ca2214
@@ -23294,15 +23299,15 @@ pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit checked 
 pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit checked 5566ms check-target:macos_arm64 @5ec3b07d751a
 pass/facts/descriptor_payload_exclusive_loan_through_parameter_exit checked 3330ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_payload_exclusive_loan_through_target_body_exit checked 28120ms check-target:macos_arm64 @57a69f8b8ad1
-pass/facts/descriptor_range_exclusive_loan_through_call_result_exit checked 3728ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_const_name_exit checked 3551ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_field_exit checked 3411ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_local_exit checked 3512ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_match_join_exit checked 4173ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_other_state_exit checked 5548ms check-target:macos_arm64 @5ec3b07d751a
-pass/facts/descriptor_range_exclusive_loan_through_parameter_exit checked 3378ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_target_body_exit checked 18052ms check-target:macos_arm64 @57a69f8b8ad1
+pass/facts/descriptor_range_exclusive_loan_through_call_result_exit checked 9840ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_const_name_exit checked 9249ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_field_exit checked 9144ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_local_exit checked 7749ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_match_join_exit checked 8170ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit checked 7703ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_other_state_exit checked 8269ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_parameter_exit checked 8103ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/descriptor_range_exclusive_loan_through_target_body_exit checked 8671ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/descriptor_replacement_order_through_call_result_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_through_const_name_exit checked 3732ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_replacement_order_through_field_exit checked 4009ms check-target:macos_arm64 @ccdb99ca2214
@@ -24208,15 +24213,15 @@ pass/facts/match_join_place_read_through_parameter_exit rejected 10319ms check-t
 pass/facts/match_join_place_read_through_target_body_exit rejected 10682ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
 	cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
 	cannot prove requires contract for call read_field from ArmApply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
-pass/facts/match_loan_last_use_through_call_result_exit checked 3843ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_const_name_exit checked 3501ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_field_exit checked 3892ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_local_exit checked 3764ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_match_join_exit checked 3865ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_other_machine_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_other_state_exit checked 3824ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_parameter_exit checked 3035ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_loan_last_use_through_target_body_exit checked 23524ms check-target:macos_arm64 @57a69f8b8ad1
+pass/facts/match_loan_last_use_through_call_result_exit checked 8121ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_const_name_exit checked 9037ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_field_exit checked 7561ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_local_exit checked 7770ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_match_join_exit checked 7725ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_other_machine_exit checked 8777ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_other_state_exit checked 8084ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_parameter_exit checked 8628ms check-target:macos_arm64 @bc49525b6c1a
+pass/facts/match_loan_last_use_through_target_body_exit checked 8415ms check-target:macos_arm64 @bc49525b6c1a
 pass/facts/match_primitive_local_origin_through_call_result_exit checked 3496ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_primitive_local_origin_through_const_name_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_primitive_local_origin_through_field_exit checked 4047ms check-target:macos_arm64 @ccdb99ca2214
@@ -27316,9 +27321,7 @@ pass/ownership/runtime_indexed_replacement_effectful_singleton_exit checked 1421
 pass/ownership/runtime_indexed_replacement_index_one_exit checked 13610ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_known_case_scalar_call_exit checked 11294ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_linear_case_payload_forward_exit checked 10784ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_local_subslice_element_window_exit rejected 13122ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot establish assignment invariants: source parent type is unavailable
-	cannot establish assignment invariants: source parent type is unavailable
+pass/ownership/runtime_local_subslice_element_window_exit checked 8355ms check-target:macos_arm64 @bc49525b6c1a
 pass/ownership/runtime_match_conditional_observation_cleanup_exit checked 23391ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_expression_moves_selected_payload_exit checked 12222ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_nested_observation_cleanup_exit checked 14857ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -28001,7 +28004,7 @@ pass/slices/guarded_slice_parameter_min_length_tail_compile checked 2522ms @ccdb
 pass/slices/guarded_slice_parameter_successor_index_compile checked 2836ms @ccdb99ca2214
 pass/slices/inclusive_subslice_bounds checked 3317ms @ccdb99ca2214
 pass/slices/inclusive_subslice_literal_bounds_compile checked 3051ms @ccdb99ca2214
-pass/slices/let_matched_mutable_window checked 3249ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/let_matched_mutable_window checked 6994ms check-target:macos_arm64 @bc49525b6c1a
 pass/slices/live_view_edge_write checked 3174ms @ccdb99ca2214
 pass/slices/local_array_element_view_exit checked 42878ms check-target:macos_arm64 @1e29a538216e
 pass/slices/local_record_array_state_view_exit checked 36035ms check-target:macos_arm64 @4815ea579d91
@@ -28017,7 +28020,7 @@ pass/slices/mutable_field_range_local_initializer_exit checked 2569ms check-targ
 pass/slices/mutable_field_range_scalar_initializer_exit checked 3344ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/mutable_matched_window_length checked 3389ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/narrowed_view_return checked 3120ms @ccdb99ca2214
-pass/slices/narrowed_view_window checked 3184ms @ccdb99ca2214
+pass/slices/narrowed_view_window checked 3950ms @bc49525b6c1a
 pass/slices/negated_mutable_array_call_exit checked 3928ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/nested_captured_element_store checked 2427ms @ccdb99ca2214
 pass/slices/nested_operand_view checked 3778ms @ccdb99ca2214
@@ -28971,7 +28974,7 @@ run/domains/qualified_fixed_byte_array_view_element_store_exit checked 5567ms ch
 run/domains/qualified_fixed_byte_array_write_only_exit checked 2786ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_vec_byte_view_exit checked 8520ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_record_transfer checked 3020ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/qualified_record_view_reference_erased_storage_exit checked 3388ms check-target:macos_arm64 @ccdb99ca2214
+run/domains/qualified_record_view_reference_erased_storage_exit checked 5427ms check-target:macos_arm64 @bc49525b6c1a
 run/domains/qualified_record_view_state_arrival_exit checked 3530ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/semantic_predicate_domain_admission checked 16686ms check-target:macos_arm64 @4815ea579d91
 run/domains/structural_predicate_casts checked 2784ms check-target:macos_arm64 @ccdb99ca2214

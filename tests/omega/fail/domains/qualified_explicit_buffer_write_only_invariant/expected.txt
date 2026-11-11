@@ -1,1 +1,1 @@
-write-only projection
+this write left the `requires` facts of `buffer` (data `Buffer`) unproved
