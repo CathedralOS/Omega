@@ -160,7 +160,9 @@ session_start() {
   local stamp=$(primary_root)/.agents/worktree/worker-1/target/.warm-build.txt commit
   [ -f "$stamp" ] || return 0
   commit=$(manifest_value "$stamp" commit)
-  if git -C "$(primary_root)" diff --quiet "$commit" HEAD -- $COMPILED 2>/dev/null; then
+  if ! git -C "$(primary_root)" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    echo "warm build: commit ${commit:0:12} is not in this clone, so its distance from this checkout is unknown"
+  elif git -C "$(primary_root)" diff --quiet "$commit" HEAD -- $COMPILED; then
     echo "warm build: this checkout's compiler sources match it; the first build takes under a minute"
   else
     echo "warm build: compiler sources here differ from commit ${commit:0:12}, so the first build recompiles" \
