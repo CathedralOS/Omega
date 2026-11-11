@@ -163,6 +163,13 @@ path = "tests/anonymous_module_owner.rs"
 name = "typed_frontier"
 path = "tests/typed_frontier.rs"
 
+# The checker on the lowered form judges every declaration a check claims: a
+# defect in a machine the entry never calls is rejected or handed back, never
+# accepted.
+[[test]]
+name = "lowered_route_subjects"
+path = "tests/lowered_route_subjects.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"

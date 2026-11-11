@@ -44,6 +44,11 @@ pub(crate) fn check_product_source(
     // as for the Build activation, the sealed catalog map and its public
     // requirements stay whether or not the program names them.
     demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
+    // What the Build's selections name: the providers it selected and what
+    // each provides, the layout scopes' entries, and the opaque
+    // representations it chose. A check claims these with their closure
+    // (validation_subjects.md, "the obligations of the Build's selections").
+    let mut selected = Vec::new();
     for selection in layout_scopes
         .iter()
         .flat_map(|scope| &scope.provider_declarations)
@@ -51,26 +56,27 @@ pub(crate) fn check_product_source(
         .chain(&build.default_provider_selections)
     {
         use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
-        demanded.push(selection.provider_type.symbol);
+        selected.push(selection.provider_type.symbol);
         match &selection.subject {
             ProviderSelectionSubject::BoundaryTrait(identity)
             | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                demanded.push(identity.symbol);
+                selected.push(identity.symbol);
             }
             ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                demanded.extend(family.coordinates().iter().map(|row| row.symbol));
+                selected.extend(family.coordinates().iter().map(|row| row.symbol));
             }
         }
     }
     for scope in &layout_scopes {
-        demanded.extend(scope.entry_declarations.iter().flatten().copied());
+        selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
-    demanded.extend(
+    selected.extend(
         build
             .opaque_representation_selections
             .iter()
             .map(|selection| selection.opaque()),
     );
+    demanded.extend(selected.iter().copied());
     // Representation and provider requests are read back from the Build
     // machine that made them.
     demanded.extend(computed_build_config.selected_build_machine_symbol);
@@ -170,6 +176,8 @@ pub(crate) fn check_product_source(
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed,
             entries: external_roots.clone(),
+            subject: package_inputs.map(PackageCompilationInputs::root),
+            selected,
         });
     }
     let outcome = outcome.map_err(|mut diagnostics| {

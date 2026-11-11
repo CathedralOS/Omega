@@ -276,12 +276,26 @@ that cannot fail cannot hold work back, and work went ahead
    the complete semantic dependency closure those declarations require.
    Everything else is outside the check's claim." The route's scope is neither
    of the two in use today:
-   - *The route is too narrow.* `structure_elaboration::elaborate` lowers only
-     what the program entry calls. The specification's closure "starts from
-     every declaration of every subject, including unused ones". `#2317`
-     found 13 `fail/` programs the route accepts because the defect is in a
-     machine the entry never calls (quoted in route one measures, not
-     re-measured here).
+   - *The route was too narrow.* `structure_elaboration::elaborate` lowered
+     only what the program entry calls. The specification's closure "starts
+     from every declaration of every subject, including unused ones". `#2317`
+     found 13 `fail/` programs the route accepted because the defect is in a
+     machine the entry never calls (quoted in route one measures). That half
+     is closed: `elaborate` takes the request's entries, what its Build
+     selected and its subject package, makes every selected and every subject
+     declaration a root, and refuses the compilation as `Unsupported` for one
+     it cannot lower. A sweep found
+     49 such `fail/` programs; none is accepted now, and the compiler test
+     `lowered_route_subjects` pins it
+     ([route one measures](route_one_measures.md#2-verdict-agreement)).
+     Still open for this condition: the closure also names "the Build and
+     preparation entries the compile executes". The route roots neither the
+     Build program, which the Build activation checks with the current
+     checker, nor the bound target's entry-contract source
+     (`std/targets/<target>/entry.omg`), which the current checker keeps as
+     a subject. Which check judges them when the route governs is undecided,
+     and until it is the route's verdict does not cover a whole compilation.
+     `Build::validate` rows are not handled either; nothing implements them.
    - *The current pipeline is too wide*, and this record must not copy it:
      see [the library correction](#the-library-is-a-dependency-not-a-subject).
 

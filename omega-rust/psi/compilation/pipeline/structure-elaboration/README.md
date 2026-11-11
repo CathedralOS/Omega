@@ -23,9 +23,10 @@ and `Slot`, and each family is a module beside it:
 [machine](src/read/machine.rs) (admission, signatures, the body driver),
 [types](src/read/types.rs), [contracts](src/read/contracts.rs),
 [statements](src/read/statements.rs), [expressions](src/read/expressions.rs),
-[calls](src/read/calls.rs), [transitions](src/read/transitions.rs) and
+[calls](src/read/calls.rs), [transitions](src/read/transitions.rs),
 [places](src/read/places.rs) (data declarations, record and case literals,
-member paths, case tests and patterns). `lower.rs` holds the `Lowering` state, the per-machine entry point and
+member paths, case tests and patterns) and [subjects](src/read/subjects.rs)
+(which declarations a compilation must judge besides those its entries call). `lower.rs` holds the `Lowering` state, the per-machine entry point and
 `finish`, beside [control](src/lower/control.rs) (blocks, edges, arms, crashes,
 returns), [operations](src/lower/operations.rs), [calls](src/lower/calls.rs)
 and [places](src/lower/places.rs) (roots, projections, the write log, record
@@ -52,7 +53,71 @@ naming the construct (`expression match`, `type reference`, `call no-normal
 call inside an expression`, ...): a reference, slice, loop, recursion
 through a cycle, generic, callable value, suspension, assembly, cast, float,
 domain or service reach is never skipped, approximated or passed through. A
-refusal anywhere in the closure refuses the whole closure.
+refusal anywhere in the compilation refuses the whole compilation.
+
+### What one compilation elaborates
+
+Every machine the check claims is lowered, not only the ones the entry calls.
+A machine nothing calls still has a body that can overflow, break its own
+`ensures` or call another machine without its `requires`; left out of the
+module, it would be accepted with no obligation and no refusal.
+[Validation subjects](../../../../../wiki/spec/build/validation_subjects.md)
+sets the scope: "every declaration of the subject packages is valid, and
+every declaration they depend on is valid", and the closure "starts from
+every declaration of every subject, including unused ones".
+
+`elaborate` therefore takes a `Compilation`: the Build's bound entries, the
+declarations its selections name, and the subject package of the request.
+The typed trees cannot supply the subject, because they hold declarations of
+other packages too (the bundled library's among them) and the subject "is
+decided by the request, not by where source lives". The roots are, in
+`MachineId` order:
+
+1. the entries, the first being the module's entry;
+2. every machine the Build's selections name (a layout scope's entry, a
+   selected provider), whichever package declares it: the closure includes
+   "the obligations of the Build's selections";
+3. every machine declared in a subject source file, in declaration order,
+   including a specialization instance, whose symbol derives from its
+   template's declaration;
+4. every machine those call, in discovery order, whichever package declares
+   it.
+
+A selected data type is resolved as a record. A selection of anything else
+(a trait, a requirement, an operator family) is refused as `declaration Build
+selection that is not a machine or a data type`: the route does not judge a
+provider against what it provides.
+
+`read/subjects.rs` decides whose a declaration is from the source file of its
+symbol: a toolchain file or a file of another admitted package is a
+dependency, judged only when something reaches it; any other Product-scope
+file is the subject's. A declaration with no source file is refused.
+
+Subject declarations that are not machines are also roots. A `data`
+declaration is resolved as a record, so one outside the record subset refuses
+the compilation even when no machine names it. Every other kind (`const`,
+`domain`, `operator`, `trait`, a conformance, a proposition, a measure, a
+mathematical definition, a type alias, a wire schema, a machine token
+binding) is refused as `declaration <kind>`: the route judges none of them
+yet.
+
+Two sets the specification's closure names are not roots, so the route's
+verdict does not cover them and a router must not treat it as if it did.
+The closure includes "the Build and preparation entries the compile
+executes":
+
+- **The Build program in `build.omg`.** It is read under the Build's
+  dependency scope, and the Build activation checks it with the current
+  checker before it runs and before these trees exist.
+- **The bound target's entry-contract source**
+  (`source/library/std/targets/<target>/entry.omg`), whose machines plan the
+  entry boundary. The current checker keeps that whole source as a subject
+  (`check_product_source`); here it is a toolchain file, so its machines are
+  judged only if something reaches them.
+
+Which check judges these two when the route governs a Product compilation is
+undecided. Making them roots today would refuse every program with a bound
+entry, since neither is inside the lowered subset.
 
 ### Records
 

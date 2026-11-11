@@ -32,6 +32,17 @@ pub struct TypedFrontier {
     /// The Build's bound program roots, in the order the checker received
     /// them. Empty when the Build binds no entry.
     pub entries: Vec<symbols::SymbolHandle>,
+    /// The package this check was asked to validate, as the checker's own
+    /// library slice takes it. `None` for a source checked outside a package.
+    /// A second checker needs it to know which declarations the check claims
+    /// (`wiki/spec/build/validation_subjects.md`); the trees hold every
+    /// package's declarations and do not say.
+    pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// The declarations the Build's selections name: selected providers and
+    /// what each provides, layout-scope entries and chosen opaque
+    /// representations. The check claims them and their closure even when no
+    /// entry reaches them.
+    pub selected: Vec<symbols::SymbolHandle>,
 }
 
 /// What the current checker concluded about a program that reached it.
