@@ -642,10 +642,8 @@ impl<'plans> FlowBuildContext<'plans> {
         let expression = self
             .guard_expression_at(program, state, statement, expression)?
             .clone();
-        let dbg = std::env::var_os("OMEGA_DBG").is_some();
-        if dbg { eprintln!("DBG guard stmt={statement} expr={expression:?}"); }
         boolean_predicates::bind_current_expression(program, state, expression, value, |operand| {
-            let r = super::observations::current_scalar_observation(
+            super::observations::current_scalar_observation(
                 program,
                 self,
                 state,
@@ -653,9 +651,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 writes,
                 unknown_write,
                 operand.scalar()?,
-            );
-            if dbg { eprintln!("DBG  operand={operand:?} -> {r:?}"); }
-            r
+            )
         })
     }
 
