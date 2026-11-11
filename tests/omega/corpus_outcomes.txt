@@ -19795,7 +19795,7 @@ fail/wire/field_reuses_reserved_number rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/wire/field_reuses_reserved_number/main.omg:12:1: stable identity #3 is declared more than once among record fields and their retired identities
 fail/wire/layout_domain_on_stored_bytes rejected 7607ms expected @ccdb99ca2214
 	data `Main` field `buffer` declares `in OmegaLayout<CounterMessage>` on owned stored bytes; a layout domain is a fact about bytes ESTABLISHED by validate/encode, never declared on storage (a zeroed buffer holds no valid encoding). Hold the value (`CounterMessage`) and encode at the edge, or carry the fact on a borrowed view (`&[u8] in OmegaLayout<CounterMessage>`)
-fail/wire/packed_field_on_scalar_member rejected 22626ms expected @73ce8a96933d
+fail/wire/packed_field_on_scalar_member rejected 21807ms expected @4315b456f590
 	generic machine `CompactBinary::packed_field` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `fields` state `fields::entry`: Type slot `Element` has no proposal; Const slot `N` has no proposal
 fail/wire/proof_only_wire_field_rejected rejected 25860ms expected @1e29a538216e
 	machine `CompactBinary::plan_scalar` requires type predicate does not hold for the supplied arguments
@@ -28758,7 +28758,7 @@ pass/wire/codec_state_local_types_exit checked 47475ms check-target:macos_arm64 
 pass/wire/fixed_vec_member_through_qualified_path checked 45353ms @1e29a538216e
 pass/wire/fixed_vec_wire_member checked 41750ms @1e29a538216e
 pass/wire/library_compact_binary_packed_decode_exit checked 31510ms check-target:macos_arm64 @6fd07112da3c
-pass/wire/library_compact_binary_packed_reflection_exit checked 36809ms check-target:macos_arm64 @73ce8a96933d
+pass/wire/library_compact_binary_packed_reflection_exit checked 36899ms check-target:macos_arm64 @4315b456f590
 pass/wire/library_compact_binary_predicate_decode_exit checked 42947ms check-target:macos_arm64 @1e29a538216e
 pass/wire/library_compact_binary_reflection_exit checked 64287ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/library_compact_binary_scalar_bound_exit checked 45173ms check-target:macos_arm64 @1e29a538216e
@@ -28776,10 +28776,10 @@ pass/wire/runtime_wire_decode_predicate_capture_exit checked 53004ms check-targe
 pass/wire/runtime_wire_decode_ranged_field_exit checked 55802ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 53024ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 51688ms check-target:macos_arm64 @1e29a538216e
-pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 53553ms check-target:macos_arm64 @73ce8a96933d
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 53800ms check-target:macos_arm64 @4315b456f590
 pass/wire/runtime_wire_encode_byte_slice_exit checked 59910ms check-target:macos_arm64 @1e29a538216e
-pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 54432ms check-target:macos_arm64 @73ce8a96933d
-pass/wire/runtime_wire_exact_array_without_count_exit checked 54386ms check-target:macos_arm64 @73ce8a96933d
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 52795ms check-target:macos_arm64 @4315b456f590
+pass/wire/runtime_wire_exact_array_without_count_exit checked 54510ms check-target:macos_arm64 @4315b456f590
 pass/wire/runtime_wire_policy_authored_plan_exit checked 55220ms check-target:macos_arm64 @6fd07112da3c
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 77728ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 72202ms check-target:macos_arm64 @1e29a538216e
