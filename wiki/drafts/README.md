@@ -232,6 +232,9 @@ Dated cost and failure evidence, superseded by a later run.
   then check on that form, replacing Psi 05, validation and Psi 06 after one
   proven route.
 
+- [Route one measures](designs/route_one_measures.md): the eight gate
+  measures of that route and the verdict against its stop rule.
+
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
   compiler rules for stage outputs and `"validated"` claims, and the rule that
   the checker accepts only kernel-verified proofs and rejects the rest at
