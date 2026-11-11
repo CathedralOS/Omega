@@ -24240,35 +24240,15 @@ pass/facts/may_write_codec_through_other_machine_exit checked 18795ms check-targ
 pass/facts/may_write_codec_through_other_state_exit checked 18562ms check-target:macos_arm64 @9637a7912c043bc9c8c27d151d8953c35b942516
 pass/facts/may_write_codec_through_parameter_exit checked 18387ms check-target:macos_arm64 @9637a7912c043bc9c8c27d151d8953c35b942516
 pass/facts/may_write_codec_through_target_body_exit checked 21176ms check-target:macos_arm64 @9637a7912c043bc9c8c27d151d8953c35b942516
-pass/facts/may_write_computed_receiver_through_call_result_exit rejected 15802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 6)
-pass/facts/may_write_computed_receiver_through_const_name_exit rejected 15345ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 6)
-pass/facts/may_write_computed_receiver_through_field_exit rejected 13583ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 4 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 5)
-	statement 4 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 5)
-pass/facts/may_write_computed_receiver_through_local_exit rejected 15709ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 6)
-pass/facts/may_write_computed_receiver_through_match_join_exit rejected 15260ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 6 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 7)
-	statement 6 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 5; its last use is at statement 7)
-pass/facts/may_write_computed_receiver_through_other_machine_exit rejected 13329ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 6)
-pass/facts/may_write_computed_receiver_through_other_state_exit rejected 13283ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 5 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 4; its last use is at statement 6)
-pass/facts/may_write_computed_receiver_through_parameter_exit rejected 12324ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 2 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 0; its last use is at statement 3)
-	statement 2 creates local borrow `selected` while local borrow `entry` is still active (borrowed at statement 1; its last use is at statement 3)
-pass/facts/may_write_computed_receiver_through_target_body_exit rejected 12978ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	statement 3 creates local borrow `selected` while local borrow `probe` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 creates local borrow `selected` while local borrow `probe` is still active (borrowed at statement 2; its last use is at statement 4)
-	statement 3 creates local borrow `selected` while local borrow `probe` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 creates local borrow `selected` while local borrow `probe` is still active (borrowed at statement 2; its last use is at statement 4)
+pass/facts/may_write_computed_receiver_through_call_result_exit checked 15838ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_const_name_exit checked 16171ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_field_exit checked 15984ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_local_exit checked 17311ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_match_join_exit checked 19629ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_other_machine_exit checked 14398ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_other_state_exit checked 16466ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_parameter_exit checked 17270ms check-target:macos_arm64 @5aa4c148db93
+pass/facts/may_write_computed_receiver_through_target_body_exit checked 15084ms check-target:macos_arm64 @5aa4c148db93
 pass/facts/may_write_named_state_through_call_result_exit checked 4700ms check-target:macos_arm64 @03a8bd68bb45d05f948d8d23bb1a1e172829c38d
 pass/facts/may_write_named_state_through_const_name_exit checked 5656ms check-target:macos_arm64 @03a8bd68bb45d05f948d8d23bb1a1e172829c38d
 pass/facts/may_write_named_state_through_field_exit checked 4890ms check-target:macos_arm64 @03a8bd68bb45d05f948d8d23bb1a1e172829c38d
@@ -27413,7 +27393,7 @@ pass/proofs/copied_descriptor_keeps_capture_extent checked 2816ms @ccdb99ca2214
 pass/proofs/core_identity_ieee_reflexivity_exit checked 16415ms check-target:macos_arm64 identity-formation-controls:match terminal-inspections:match @245a25f49fe9
 pass/proofs/declaration_call_requires checked 50241ms @b3bfe3d87507
 pass/proofs/declaration_constructed_data_identity checked 11911ms @089c0a150e63
-pass/proofs/declaration_predicate_calls_exit checked 7959ms check-target:macos_arm64 @911f6617ba9e
+pass/proofs/declaration_predicate_calls_exit checked 6410ms check-target:macos_arm64 @2e1278cd4d1c
 pass/proofs/declaration_synthesized_equality_value_context checked 14587ms check-target:macos_arm64 @089c0a150e63
 pass/proofs/declaration_view_call_requirement checked 3764ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/defined_proposition_premises checked 3151ms @ccdb99ca2214
@@ -28961,19 +28941,13 @@ run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms che
 run/float/folded_anonymous_operator_custody_exit checked 80180ms check-target:macos_arm64 @c3cb68d51f3f
 run/generics/implementation_parameter_contract checked 6970ms check-target:macos_arm64 @a0eb7649491b
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
-run/layouts/placed_ram_capture_forwarding rejected 17650ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	tests/omega/run/layouts/placed_ram_capture_forwarding/main.omg:249:56: `+` after a cast begins a domain entry such as `+Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) + ...`
-run/layouts/placed_ram_capture_helper rejected 18370ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	tests/omega/run/layouts/placed_ram_capture_helper/main.omg:235:56: `+` after a cast begins a domain entry such as `+Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) + ...`
-run/layouts/placed_ram_capture_retirement rejected 16605ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	tests/omega/run/layouts/placed_ram_capture_retirement/main.omg:235:56: `+` after a cast begins a domain entry such as `+Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) + ...`
-run/layouts/placed_ram_capture_return rejected 11371ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @7c05fde39892
-	tests/omega/run/layouts/placed_ram_capture_return/main.omg:235:56: `+` after a cast begins a domain entry such as `+Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) + ...`
-run/layouts/placed_ram_original_backing incomplete 413458ms check-target:macos_arm64 @ff514b7f093c
-	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
+run/layouts/placed_ram_capture_forwarding checked 46995ms check-target:macos_arm64 @5aa4c148db93
+run/layouts/placed_ram_capture_helper checked 44408ms check-target:macos_arm64 @5aa4c148db93
+run/layouts/placed_ram_capture_retirement checked 44099ms check-target:macos_arm64 @5aa4c148db93
+run/layouts/placed_ram_capture_return checked 33797ms check-target:macos_arm64 @5aa4c148db93
+run/layouts/placed_ram_original_backing checked 25604ms check-target:macos_arm64 @5aa4c148db93
 run/layouts/placed_ram_scalar_types checked 86938ms check-target:macos_arm64 @22bc78f48dca
-run/layouts/placed_ram_stored_field_return incomplete 335250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
-	`mutate` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::entry`
+run/layouts/placed_ram_stored_field_return checked 25321ms check-target:macos_arm64 @5aa4c148db93
 run/layouts/placed_stable_array checked 4633ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_distinct_fields checked 3994ms check-target:macos_arm64 @ccdb99ca2214
 run/layouts/placed_stable_nested_array checked 3272ms check-target:macos_arm64 @ccdb99ca2214
