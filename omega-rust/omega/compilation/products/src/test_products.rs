@@ -27,6 +27,60 @@ impl std::fmt::Display for TestRootIdentity {
     }
 }
 
+// One row of the published test roster
+// (wiki/spec/build/testing.md#execution-plan), in roster order. A group that is
+// disabled or has no tests is reported as such and never counts as a pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestRosterEntry {
+    pub group: String,
+    pub test: Option<String>, // `None` for a row describing the whole group.
+    pub target: target::TargetProfile,
+    pub status: TestRosterStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TestRosterStatus {
+    Passed {
+        engines: Vec<String>,     // Engines that ran the test and saw it return.
+        unavailable: Vec<String>, // Engines that could not run it, with the reason.
+    },
+    GroupDisabled,
+    GroupWithoutTests,
+}
+
+impl std::fmt::Display for TestRosterEntry {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let target = self.target.target_name();
+        match (&self.test, &self.status) {
+            (Some(test), TestRosterStatus::Passed { engines, unavailable }) => {
+                write!(
+                    formatter,
+                    "test `{test}` in group `{}` (target `{target}`): passed on {}",
+                    self.group,
+                    engines.join(", ")
+                )?;
+                if !unavailable.is_empty() {
+                    write!(formatter, "; not run on {}", unavailable.join("; "))?;
+                }
+                Ok(())
+            }
+            (_, TestRosterStatus::GroupDisabled) => write!(
+                formatter,
+                "group `{}` (target `{target}`): disabled; its tests were not run",
+                self.group
+            ),
+            (_, TestRosterStatus::GroupWithoutTests) => write!(
+                formatter,
+                "group `{}` (target `{target}`): registered with no tests; nothing ran",
+                self.group
+            ),
+            (None, TestRosterStatus::Passed { .. }) => {
+                write!(formatter, "group `{}` (target `{target}`)", self.group)
+            }
+        }
+    }
+}
+
 // One test product awaiting native completion. A production failure is kept
 // beside its identity: an enabled test that cannot be produced makes the run
 // incomplete rather than disappearing from the roster.

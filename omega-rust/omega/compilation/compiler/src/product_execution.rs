@@ -446,6 +446,7 @@ impl RequestedTerminalCompilation {
                         subsystem,
                         settlement,
                         tests: Vec::new(),
+                        test_notes: Vec::new(),
                     },
                 )));
             }

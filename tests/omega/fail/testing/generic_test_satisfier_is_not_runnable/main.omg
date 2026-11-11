@@ -1,0 +1,43 @@
+// Discovery never guesses generic arguments: a generic satisfier of a
+// registered group is reported as not runnable and refuses the build rather
+// than being silently left out of the roster. This twin of
+// run/testing/registered_group_runs_on_both_engines differs only in the
+// subtraction test's static parameter.
+trait Tests {
+    machine arithmetic()
+        crashes Trap;
+}
+
+machine addition_is_correct()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 2u32 + 3u32 != 5u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine subtraction_is_correct<T>()
+satisfies Tests::arithmetic
+crashes Trap
+{
+    transition 5u32 - 3u32 != 2u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine main() { }

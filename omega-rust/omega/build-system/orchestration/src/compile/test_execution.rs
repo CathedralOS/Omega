@@ -18,7 +18,9 @@ or standard input is delegated to the interpreter, and selected test services
 (virtual filesystems) are not yet supported.
 */
 
-use compilation_products::{CompileReport, PendingTestProduct, TestRootIdentity};
+use compilation_products::{
+    CompileReport, PendingTestProduct, TestRootIdentity, TestRosterEntry, TestRosterStatus,
+};
 use compiler::CompilationOutput;
 use diagnostics::Diagnostic;
 use terminal_runtime::{
@@ -35,28 +37,40 @@ enum EngineOutcome {
     Failed(String),
 }
 
-pub(crate) fn run_tests(tests: Vec<PendingTestProduct>) -> Result<(), Vec<Diagnostic>> {
+// The executed roster, in roster order, followed by the groups that ran
+// nothing. Any failed or incomplete invocation refuses the whole run.
+pub(crate) fn run_tests(
+    tests: Vec<PendingTestProduct>,
+    notes: Vec<TestRosterEntry>,
+) -> Result<Vec<TestRosterEntry>, Vec<Diagnostic>> {
     let mut failures = Vec::new();
+    let mut roster = Vec::with_capacity(tests.len() + notes.len());
     for test in tests {
-        if let Err(reason) = run_test(test.product.map_err(join), &test.identity) {
-            failures.push(Diagnostic::error(format!(
+        match run_test(test.product.map_err(join), &test.identity) {
+            Ok(status) => roster.push(TestRosterEntry {
+                group: test.identity.group.clone(),
+                test: Some(test.identity.test.clone()),
+                target: test.identity.target,
+                status,
+            }),
+            Err(reason) => failures.push(Diagnostic::error(format!(
                 "{} {reason} (target `{}`)",
                 test.identity,
                 test.identity.target.target_name()
-            )));
+            ))),
         }
     }
-    if failures.is_empty() {
-        Ok(())
-    } else {
-        Err(failures)
+    if !failures.is_empty() {
+        return Err(failures);
     }
+    roster.extend(notes);
+    Ok(roster)
 }
 
 fn run_test(
     product: Result<Box<compilation_products::PendingNativeProduct>, String>,
     identity: &TestRootIdentity,
-) -> Result<(), String> {
+) -> Result<TestRosterStatus, String> {
     let product = product.map_err(|reason| format!("cannot be produced: {reason}"))?;
     let report = match super::native_completion::complete_native(*product) {
         Ok(CompilationOutput::Report(report)) => report,
@@ -74,24 +88,27 @@ fn run_test(
     } else {
         EngineOutcome::Unavailable("its target does not execute on this host".to_owned())
     };
-    let mut executed = false;
+    let mut engines = Vec::new();
     let mut unavailable = Vec::new();
     for (engine, outcome) in [("Psi interpreter", interpreted), ("native", native)] {
         match outcome {
-            EngineOutcome::Passed => executed = true,
+            EngineOutcome::Passed => engines.push(engine.to_owned()),
             EngineOutcome::Failed(reason) => {
                 return Err(format!("failed on the {engine} engine: {reason}"));
             }
             EngineOutcome::Unavailable(reason) => unavailable.push(format!("{engine}: {reason}")),
         }
     }
-    if !executed {
+    if engines.is_empty() {
         return Err(format!(
             "has no runnable engine ({}); the test run is incomplete",
             unavailable.join("; ")
         ));
     }
-    Ok(())
+    Ok(TestRosterStatus::Passed {
+        engines,
+        unavailable,
+    })
 }
 
 fn interpret(report: &CompileReport, target: target::TargetProfile) -> EngineOutcome {

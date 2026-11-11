@@ -42,6 +42,7 @@ pub struct PendingNativeProduct {
     pub subsystem: u16,
     pub settlement: CompileReportSettlement,
     pub tests: Vec<crate::PendingTestProduct>, // Registered test roots, in roster order; run before this application succeeds.
+    pub test_notes: Vec<crate::TestRosterEntry>, // Disabled or empty groups, reported beside the executed roster.
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,9 +185,20 @@ pub struct CompileReport {
     pub source_file_count: usize,
     wrote_output: bool,
     timings: Vec<PhaseTiming>,
+    test_roster: Vec<crate::TestRosterEntry>, // Registered tests run before this report succeeded.
 }
 
 impl CompileReport {
+    #[must_use]
+    pub fn with_test_roster(mut self, roster: Vec<crate::TestRosterEntry>) -> Self {
+        self.test_roster = roster;
+        self
+    }
+
+    pub fn test_roster(&self) -> &[crate::TestRosterEntry] {
+        &self.test_roster
+    }
+
     fn shell(root_path: PathBuf, source_file_count: usize, product: CompileProduct) -> Self {
         Self {
             source_completion_accounting: Default::default(),
@@ -196,6 +208,7 @@ impl CompileReport {
             root_path,
             source_file_count,
             wrote_output: false,
+            test_roster: Vec::new(),
             timings: Vec::new(),
         }
     }
