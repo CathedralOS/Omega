@@ -4810,8 +4810,17 @@ pub(crate) mod trait_and_machine_tables {
                 })
         }
 
+        /*
+            A machine's `crashes` clause is a ceiling its body and calls are
+            checked against, instead of a request to infer the routes, when
+            anything fixes that ceiling: a public or bodyless declaration, an
+            authored route, or `crashes none`. The last leaves no contract row
+            to find, so a private body that wrote it is told from one that
+            omitted the clause by `declares_no_crash_route` alone.
+        */
         pub fn machine_publishes_crash_ceiling(&self, machine: &machine::Machine) -> bool {
             machine.is_public
+                || machine.declares_no_crash_route
                 || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || self.machine_contracts(machine).iter().any(|contract| {
                     matches!(

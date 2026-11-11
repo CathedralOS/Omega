@@ -1,0 +1,2 @@
+call from `risky` to `bad` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+machine `risky` has an uncovered Trap crash at statement 1; publish a same-cause `crashes` route whose guard covers this site
