@@ -5009,13 +5009,6 @@ pub(crate) fn finalize_domain_instance_identities(
     program: &mut TypedTrees,
     declarations: &DeclarationSelection,
 ) -> Result<(), Diagnostic> {
-    if program
-        .domain_definitions()
-        .iter()
-        .all(|domain| domain.type_parameters.is_empty())
-    {
-        return Ok(());
-    }
     let references =
         typed_trees::references::collect_selected_program_references(program, declarations);
     finalize_referenced_domain_instance_identities(program, references)
@@ -5025,10 +5018,24 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     program: &mut TypedTrees,
     references: typed_trees::references::ProgramReferences,
 ) -> Result<(), Diagnostic> {
+    // Membership facts of plain domains also receive their identity below: an
+    // authored `ensures result in D` is lowered without one. So the pass may be
+    // skipped only when no domain is generic and every referenced membership
+    // already has its identity. A program narrowed to its validation subjects
+    // can lose every generic domain and still hold such a membership.
     if program
         .domain_definitions()
         .iter()
         .all(|domain| domain.type_parameters.is_empty())
+        && references.proof_facts.iter().all(|handle| {
+            program
+                .proof_facts
+                .get(*handle)
+                .as_membership()
+                .is_none_or(|membership| {
+                    !membership.domain_symbol.is_valid() || membership.semantic_domain.is_valid()
+                })
+        })
     {
         return Ok(());
     }
