@@ -1,0 +1,14 @@
+data Descriptor { pages: u64; base: u64; flags: u8; tag: u8; pad: [u8; 6]; }
+machine t(bytes: &mut [u8; 32]) -> u8
+{
+    let clear: bool = bytes[24] == 0;
+    let descriptor: &mut Descriptor = &mut bytes[8] as &mut Descriptor;
+    descriptor.flags = 7;
+    transition clear {
+        true -> need(bytes)
+        _ -> 1
+    }
+    machine need(bytes: &mut [u8; 32]) -> u8
+    requires bytes[24] == 0
+    { bytes[24] }
+}

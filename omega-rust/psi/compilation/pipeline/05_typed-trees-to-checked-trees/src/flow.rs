@@ -4913,7 +4913,7 @@ mod statements {
     use super::entry_origins::extend_invocation_observations;
     use super::exits::append_transition_flow_facts;
     use super::expression::append_statement_calls;
-    use super::mutation::close_storage_places_over_origins;
+    use super::mutation::close_storage_places_over_written_origins;
     use super::operand_contexts::binding_origin_is_stable;
     use super::reference_spans::appended_span_since;
     use super::reference_spans::filter_constraint_refs;
@@ -5412,11 +5412,22 @@ mod statements {
                             )
                         })
                         .and_then(|origins| {
-                            close_storage_places_over_origins(
+                            let authored = statement
+                                .as_assignment()
+                                .and_then(|assignment| {
+                                    validation::canonical_place_from_expression(
+                                        program,
+                                        assignment.target,
+                                    )
+                                })
+                                .into_iter()
+                                .collect::<Vec<_>>();
+                            close_storage_places_over_written_origins(
                                 program,
                                 state,
                                 statement_index,
                                 places.clone(),
+                                &authored,
                                 &origins,
                             )
                         })
