@@ -4917,13 +4917,36 @@ mod loans {
             let mut output = Vec::new();
             for source in completed {
                 let selected = effects.iter().any(|effect| {
+                    let destination = &effect.destination.local_segments;
+                    // A fixed store installs exactly the loans its destination covers.
+                    // A store at a runtime-selected element (`slots[position]`) installs
+                    // a loan whose owner path holds `DynamicIndex` there. Coverage, which
+                    // decides retirement, never holds for that segment, so the new loan
+                    // is selected by the destination's shape: `DynamicIndex` stands for
+                    // the selected element, whose index expression belongs to the callee
+                    // frame. Loans the statement already carried in stay out either way.
+                    let installed = if effect.may_select {
+                        destination.len() <= source.owner_path.len()
+                            && source.owner_path.iter().zip(destination).all(
+                                |(owner, place)| match (owner, place) {
+                                    (
+                                        super::BorrowOwnerSegment::DynamicIndex,
+                                        facts::PlaceSegment::Index { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. },
+                                    ) => true,
+                                    _ => {
+                                        super::owner_segment_matches_place_segment(
+                                            program, owner, place,
+                                        ) == Some(true)
+                                    }
+                                },
+                            )
+                    } else {
+                        super::place_path_covers_owner(program, destination, &source.owner_path)
+                    };
                     source.storage_owner
                         == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
-                        && super::place_path_covers_owner(
-                            program,
-                            &effect.destination.local_segments,
-                            &source.owner_path,
-                        )
+                        && installed
                         && (!effect.may_select
                             || !incoming.iter().any(|entry| entry.handle == source.handle))
                 });
