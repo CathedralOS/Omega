@@ -1687,6 +1687,13 @@ published for commit `fd5aef2f7`: 14 s to restore both, then
 `mbx build -p omega` took 30 s in the primary checkout, where it reran the
 `compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 
+The hook does not depend on the environment's setup script for the restore
+itself. A session started in an environment that never ran
+`tools/agent_setup.sh` has no `zstd` to unpack the archive with, so the hook
+installs it and resolves the pinned toolchain once before the two restores
+start; it then says that `mbx` is missing, which still needs
+`bash tools/agent_setup.sh` before the first build.
+
 That holds only while the checkout's compiler sources match the published
 commit. A change to a foundation crate recompiles every workspace crate above
 it: the same restored build, three commits away with `language-core` changed,

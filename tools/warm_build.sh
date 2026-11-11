@@ -104,6 +104,9 @@ restore() (
     echo "warm build: $slot kept, $dir/target already holds a build"
     return 0
   fi
+  # Say what is missing before the 270 MB download, not after it.
+  command -v zstd >/dev/null ||
+    fail "$slot: zstd is not installed, so the archive cannot be unpacked; run bash tools/agent_setup.sh"
   stage=$root/.agents/worktree/.warm-$slot.$$
   mkdir -p "$stage"
   trap 'rm -rf "$stage"' EXIT
@@ -130,8 +133,10 @@ restore() (
   fetch "$asset" "$stage/$asset" || fail "$slot: download of $asset failed"
   echo "$(manifest_value "$manifest" sha256)  $stage/$asset" | sha256sum --check --status ||
     fail "$slot: $asset does not match its published digest"
-  zstd -dc "$stage/$asset" | tar -xf - -C "$stage"
-  cp "$manifest" "$stage/target/.warm-build.txt"
+  # session-start calls restore under `||`, where bash ignores `set -e`, so
+  # each step that can fail names its own failure.
+  zstd -dc "$stage/$asset" | tar -xf - -C "$stage" || fail "$slot: could not unpack $asset"
+  cp "$manifest" "$stage/target/.warm-build.txt" || fail "$slot: $asset holds no target directory"
   # One rename publishes the whole build. It fails if a build appeared in the
   # meantime, and that build then stays untouched.
   # mbx leaves `target` as a link into its cache. After its collector removes
@@ -143,6 +148,22 @@ restore() (
   echo "warm build: $slot restored commit ${commit:0:12} into $dir/target in $(($(date +%s) - started)) s"
 )
 
+# What both restores need, done once before they run side by side. A session
+# in an environment whose setup script does not run tools/agent_setup.sh has
+# neither: without zstd no archive unpacks, and the first `rustc` in each slot
+# starts its own install of the pinned toolchain, two downloads into one rustup
+# directory where one deletes the file the other is about to rename.
+prepare_session() {
+  if ! command -v zstd >/dev/null && [ "$(id -u)" = 0 ] && command -v apt-get >/dev/null; then
+    # A fresh container has no package lists, so install alone finds nothing.
+    { apt-get update -qq && apt-get install -y -qq zstd; } >/dev/null 2>&1 || true
+  fi
+  toolchain "$(primary_root)" >/dev/null 2>&1 || true
+  command -v mbx >/dev/null ||
+    echo "warm build: mbx is not installed, so this environment's setup script did not run" \
+      "tools/agent_setup.sh; run \`bash tools/agent_setup.sh\` before the first build"
+}
+
 session_start() {
   # Other hosts keep their builds between sessions and have nothing to restore.
   [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || return 0
@@ -153,6 +174,7 @@ session_start() {
   if command -v mbx >/dev/null && [ -z "$(mbx settings get gc.min_free_size 2>/dev/null)" ]; then
     mbx settings set gc.min_free_size 5GiB >/dev/null 2>&1 || true
   fi
+  prepare_session
   # Both at once: each is a 270 MB download, and the session waits for this hook.
   local slot
   for slot in primary worker; do
