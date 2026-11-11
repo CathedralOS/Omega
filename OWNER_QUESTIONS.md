@@ -275,3 +275,39 @@ Reading applied meanwhile, stated so it can be corrected: structural identity
 unifies only non-generic implementations that have at least one row and whose
 rows are all selection rows. Empty and generic implementations keep their
 current declaration-and-argument identity.
+
+### Q5 - How does the compiler publish `Incomplete` for a proof goal whose form the prover has no rule for?
+
+Decision name: `unproved-goal-form-publication`.
+
+A correct program can state an obligation in a form the prover has no rule
+for. The author then needs to be told that the compiler could not finish, not
+that the program is wrong, or they will rewrite valid code to work around a
+compiler gap. The outcome itself is ruled (Jarod, 2026-11-11): such a goal is
+`Incomplete`; `Reject` stays for a goal whose form the prover has rules for
+but cannot establish from what the program states. What is not settled is how
+that `Incomplete` is published.
+
+- [compiler_request.md](wiki/spec/build/compiler_request.md#outcomes) defines
+  `Incomplete` as "a named resource/search limit or unsupported valid case" and
+  says the outcomes "do not invent new wire tags or host exit codes".
+- Its scalar-resource table assigns one `Incomplete` code per named provision
+  and is closed at codes 1–35. Codes 27–35 are proof-search bounds, each with
+  a nonzero limit; none names a goal form. Codes 15–25 are coverage provisions
+  with limit 0 for source forms a stage does not yet cover, each with a source
+  coordinate.
+- [review.md](wiki/spec/packages/review.md) says "Unproved source contracts
+  reject in Psi checking", which reads the other way for the same case unless
+  it is limited to goals the prover has rules for.
+
+The questions:
+
+- **(a)** Does this case get a new row in that table (a coverage provision
+  with limit 0 whose coordinate is the identity of the obligation left
+  unproved), or does it publish under an existing code?
+- **(b)** Should the sentence in review.md be narrowed to match the ruling?
+
+Until answered, the lowered-form route computes the `Incomplete` verdict but
+has no diagnostic that publishes it. The route is not in the default compile,
+so no program is affected yet; a router that publishes this verdict needs the
+answer first.
