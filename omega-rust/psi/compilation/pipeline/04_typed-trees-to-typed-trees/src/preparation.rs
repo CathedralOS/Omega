@@ -1996,7 +1996,7 @@ pub fn prepare_typed_trees(
         };
         materialized +=
             crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
-        crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+        instantiate_requirement_applications(&mut program)?;
         materialized +=
             crate::monomorphization::generate_requirement_provider_specializations(&mut program)?;
         let unavailable =
@@ -2026,10 +2026,10 @@ pub fn prepare_typed_trees(
     validation::resolve_dynamic_call_targets(&mut program)?;
     let signature_type_start = program.type_reference_table.type_reference_count();
     crate::monomorphization::instantiate_dynamic_slots(&mut program)?;
-    crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+    instantiate_requirement_applications(&mut program)?;
     while crate::monomorphization::prepare_installed_interrupts(&mut program)? {
         specialize_machine_calls(&mut program, !request.admits_pending_inputs)?;
-        crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+        instantiate_requirement_applications(&mut program)?;
     }
     array_extents::normalize(&mut program, type_frontier);
     data_applications::elaborate_new_types(&mut program, signature_type_start)?;
@@ -2087,7 +2087,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
         specialize_machine_calls(program, false)?;
         let mut materialized =
             crate::monomorphization::generate_dynamic_family_specializations(program)?;
-        crate::monomorphization::instantiate_requirement_applications(program)?;
+        instantiate_requirement_applications(program)?;
         materialized +=
             crate::monomorphization::generate_requirement_provider_specializations(program)?;
         if materialized == 0 && program.closed_requirement_applications().count() == signatures {
@@ -2128,6 +2128,14 @@ pub(crate) fn specialize_machine_calls(
     program: &mut TypedTrees,
     enforce_complete_concrete_selections: bool,
 ) -> Result<DeclarationSelection, Vec<Diagnostic>> {
+    specialize_machine_calls_unchecked(program, enforce_complete_concrete_selections)
+        .map_err(|refusal| invalid_binding_behind(program, refusal))
+}
+
+fn specialize_machine_calls_unchecked(
+    program: &mut TypedTrees,
+    enforce_complete_concrete_selections: bool,
+) -> Result<DeclarationSelection, Vec<Diagnostic>> {
     data_applications::retain_declared_field_scopes(program)?;
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
@@ -2137,4 +2145,28 @@ pub(crate) fn specialize_machine_calls(
         program,
         enforce_complete_concrete_selections,
     )
+}
+
+fn instantiate_requirement_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    crate::monomorphization::instantiate_requirement_applications(program)
+        .map_err(|refusal| invalid_binding_behind(program, refusal))
+}
+
+/*
+    Specialization dispatches through each closed application's bindings. A
+    binding that names an implementation its bound does not admit therefore
+    makes specialization refuse with whichever internal agreement it tripped
+    first, such as "selected map disagrees with its supplying evidence bound".
+    The binding check owns that mistake and names it for the author. When it
+    finds one in the program as far as it was specialized, that is the cause
+    and it is reported instead. Any other refusal stands as it is, and no
+    refusal becomes an acceptance.
+*/
+fn invalid_binding_behind(program: &TypedTrees, refusal: Vec<Diagnostic>) -> Vec<Diagnostic> {
+    let checking = validation::CheckingContext::new(program);
+    match validation::static_bindings::validate_static_machine_bindings(&checking, &mut Vec::new())
+    {
+        Err(bindings) if !bindings.is_empty() => bindings,
+        _ => refusal,
+    }
 }
