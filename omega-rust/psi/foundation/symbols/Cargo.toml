@@ -11,5 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 compiler-storage = { path = "../compiler-storage" }
 arena = { path = "../arena" }
+language-core = { path = "../language-core" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }
 source = { path = "../source" }

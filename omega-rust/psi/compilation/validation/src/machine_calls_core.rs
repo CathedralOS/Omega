@@ -1673,18 +1673,9 @@ pub mod compiler_operations {
             let original = program
                 .machine_specialization(machine.symbol)
                 .map_or(machine.symbol, |application| application.template);
-            if program.symbol_toolchain_relative_path(original)
-                != Some(std::path::Path::new("static_interrupt.omg"))
-            {
-                return Ok(None);
-            }
-            authenticate_source(program, original, DECLARATIONS)?;
-            let identity = program
-                .normalized_hermetic_symbol_identity(original)
-                .map_err(|_| "static interrupt operation lost its exact core declaration")?;
-            let Some(operation) = identity.strip_prefix("toolchain::").and_then(|name| {
-                StaticInterruptOperation::from_core_declaration(name, DECLARATIONS)
-            }) else {
+            let Some(language_core::sealed_intrinsics::SealedIntrinsic::StaticInterrupt(operation)) =
+                program.symbols.sealed_intrinsic(original)
+            else {
                 return Ok(None);
             };
             let template = program
