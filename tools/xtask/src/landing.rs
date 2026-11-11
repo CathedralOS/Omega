@@ -23,38 +23,53 @@ const LAND_WAIT_SECONDS: u64 = 1800;
 
 /// The verdict for a commit from its check runs: `green`, `red`, `pending`
 /// (a required check is still running) or `missing` (one never started).
-fn required_checks_verdict(nodes: &[Value], head: &str) -> (String, String) {
+fn required_checks_verdict(jobs: &[Value], workflows: &[Value], head: &str) -> (String, String) {
     let mut running = Vec::new();
     let mut missing = Vec::new();
-    for (required, _) in REQUIRED_CHECKS {
-        let latest = nodes
+    for (required, path) in REQUIRED_CHECKS {
+        let sources: Vec<_> = workflows
             .iter()
-            .filter(|n| n["name"].as_str() == Some(required))
-            // New attempts get new check-run IDs even before they start. A
-            // queued retry must not let an older success authorize queueing.
-            .max_by_key(|n| n["id"].as_u64());
-        let Some(run) = latest else {
+            .filter(|run| run["path"] == *path)
+            .collect();
+        if sources.is_empty() {
             missing.push(*required);
             continue;
-        };
-        let status = run["status"].as_str().unwrap_or("");
-        if status != "completed" {
-            running.push(format!("{required} is {}", status.to_ascii_lowercase()));
+        }
+        if sources.iter().any(|run| run["status"] != "completed") {
+            running.push(format!("{required} has a pending workflow attempt"));
             continue;
         }
-        let conclusion = run["conclusion"].as_str().unwrap_or("");
-        if conclusion != "success" {
-            return (
-                "red".to_owned(),
-                format!("{required} concluded {}", conclusion.to_ascii_lowercase()),
-            );
+        let candidates: Vec<_> = jobs.iter().filter(|job| job["name"] == *required).collect();
+        if candidates.len() != sources.len() {
+            missing.push(*required);
+            continue;
+        }
+        // Only current-attempt jobs reach here. Across reruns of older runs,
+        // compare actual job start times, never opaque database IDs. Tied
+        // times authorize queueing only when every tied job succeeded.
+        let latest = candidates
+            .iter()
+            .map(|job| job["started_at"].as_str().unwrap_or(""))
+            .max();
+        for job in candidates
+            .iter()
+            .filter(|job| job["started_at"].as_str() == latest)
+        {
+            if job["status"] != "completed" {
+                running.push(format!("{required} is not completed"));
+            } else if job["conclusion"] != "success" {
+                return (
+                    "red".to_owned(),
+                    format!("{required} concluded {}", job["conclusion"]),
+                );
+            }
         }
     }
     if !missing.is_empty() {
         return (
             "missing".to_owned(),
             format!(
-                "{} has not run on {head}. Both checks start on a push to the PR branch and when the base changes to main; a description edit starts only `compiler-check`. If one of those happened a moment ago, run this again in a minute; otherwise push the branch again.",
+                "{} has no current required job on {head}; inspect the official workflows in Actions before retrying.",
                 missing.join(" and ")
             ),
         );
@@ -174,104 +189,216 @@ fn head_check(root: &Path, remote: &str, head: &str) -> Result<(String, String),
     })
 }
 
+fn rest_list(
+    api: &mut impl FnMut(&str) -> Result<Value, String>,
+    endpoint: &str,
+    field: &str,
+) -> Result<Vec<Value>, String> {
+    let mut records = Vec::new();
+    let mut total = None;
+    let separator = if endpoint.contains('?') { '&' } else { '?' };
+    for page in 1.. {
+        let response = api(&format!("{endpoint}{separator}per_page=100&page={page}"))?;
+        let count = response["total_count"]
+            .as_u64()
+            .ok_or("List response has no total_count")?;
+        if total.is_some_and(|previous| previous != count) {
+            return Err("List changed during pagination; retry the head check.".to_owned());
+        }
+        total = Some(count);
+        let rows = response[field]
+            .as_array()
+            .ok_or_else(|| format!("List response has no {field} array"))?;
+        if rows.len() > 100 || records.len() as u64 + rows.len() as u64 > count {
+            return Err("List response exceeds its declared page or total count.".to_owned());
+        }
+        records.extend_from_slice(rows);
+        if records.len() as u64 == count {
+            break;
+        }
+        if rows.len() != 100 {
+            return Err("Incomplete page; refusing a partial verdict.".to_owned());
+        }
+    }
+    if records
+        .iter()
+        .any(|row| row["id"].as_u64().filter(|id| *id != 0).is_none())
+    {
+        return Err("List contains an invalid record ID.".to_owned());
+    }
+    records.sort_unstable_by_key(|row| row["id"].as_u64());
+    if records
+        .windows(2)
+        .any(|pair| pair[0]["id"] == pair[1]["id"])
+    {
+        return Err("Duplicate record IDs; refusing an incomplete or changing list.".to_owned());
+    }
+    Ok(records)
+}
+
+fn known_check_status(value: &Value) -> bool {
+    matches!(
+        value.as_str(),
+        Some("queued" | "in_progress" | "completed" | "waiting" | "pending" | "requested")
+    )
+}
+
 fn head_check_with_api(
     repository: &str,
     head: &str,
     mut api: impl FnMut(&str) -> Result<Value, String>,
 ) -> Result<(String, String), String> {
-    // GitHub can omit a commit's rollup while its real jobs are available.
-    // Read the complete job list, then authenticate the required jobs against
-    // their workflow runs; an unavailable aggregate is never a success.
-    let mut runs = Vec::new();
-    let mut total = None;
-    for page in 1.. {
-        let response = api(&format!(
-            "repos/{repository}/commits/{head}/check-runs?filter=all&per_page=100&page={page}"
-        ))?;
-        let count = response["total_count"]
-            .as_u64()
-            .ok_or("Check response has no total_count")?;
-        if total.is_some_and(|previous| previous != count) {
-            return Err("Check list changed during pagination; retry the head check.".to_owned());
-        }
-        total = Some(count);
-        let rows = response["check_runs"]
-            .as_array()
-            .ok_or("Check response has no check_runs array")?;
-        if rows.len() > 100 || runs.len() as u64 + rows.len() as u64 > count {
-            return Err("Check response exceeds its declared page or total count.".to_owned());
-        }
-        runs.extend_from_slice(rows);
-        if runs.len() as u64 == count {
-            break;
-        }
-        if rows.len() != 100 {
-            return Err("Incomplete check-run page; refusing a partial verdict.".to_owned());
-        }
+    // GitHub can omit the rollup while real jobs are available. Independent
+    // workflow discovery also catches a new run or rerun before it has a job.
+    let checks = rest_list(
+        &mut api,
+        &format!("repos/{repository}/commits/{head}/check-runs?filter=all"),
+        "check_runs",
+    )?;
+    if checks
+        .iter()
+        .any(|run| run["head_sha"].as_str() != Some(head))
+    {
+        return Err("Check run has a different source head.".to_owned());
     }
-    for run in &runs {
-        if run["id"].as_u64().filter(|id| *id != 0).is_none()
-            || run["head_sha"].as_str() != Some(head)
-        {
-            return Err("Check run has an invalid ID or a different source head.".to_owned());
+    let mut current_workflows = Vec::new();
+    let mut current_jobs = Vec::new();
+    for (required, path) in REQUIRED_CHECKS {
+        let file = path
+            .rsplit('/')
+            .next()
+            .ok_or("Required workflow has no file name")?;
+        let workflows = rest_list(
+            &mut api,
+            &format!("repos/{repository}/actions/workflows/{file}/runs?head_sha={head}"),
+            "workflow_runs",
+        )?;
+        let mut identity = None;
+        let mut numbers = Vec::new();
+        for run in &workflows {
+            let workflow_id = run["workflow_id"]
+                .as_u64()
+                .filter(|id| *id != 0)
+                .ok_or("Workflow has no identity")?;
+            if identity.is_some_and(|previous| previous != workflow_id) {
+                return Err("Workflow identity changed; attempt order is ambiguous.".to_owned());
+            }
+            identity = Some(workflow_id);
+            let number = run["run_number"]
+                .as_u64()
+                .filter(|n| *n != 0)
+                .ok_or("Workflow has no run number")?;
+            numbers.push(number);
+            if run["head_sha"].as_str() != Some(head)
+                || run["path"].as_str() != Some(path)
+                || !run["repository"]["full_name"]
+                    .as_str()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(repository))
+                || run["run_attempt"].as_u64().filter(|n| *n != 0).is_none()
+                || !known_check_status(&run["status"])
+            {
+                return Err(
+                    "Workflow does not match its repository, head, path or current attempt."
+                        .to_owned(),
+                );
+            }
         }
-    }
-    runs.sort_unstable_by_key(|run| run["id"].as_u64());
-    if runs.windows(2).any(|pair| pair[0]["id"] == pair[1]["id"]) {
-        return Err("Duplicate check-run IDs; refusing an incomplete or changing list.".to_owned());
-    }
-    for run in &runs {
-        let Some((_, workflow)) = REQUIRED_CHECKS
-            .iter()
-            .find(|(name, _)| run["name"].as_str() == Some(name))
-        else {
-            continue;
-        };
-        if !matches!(
-            run["status"].as_str(),
-            Some("queued" | "in_progress" | "completed" | "waiting" | "pending" | "requested")
-        ) {
-            return Err(format!(
-                "Required check {} has an unknown status.",
-                run["name"]
-            ));
+        numbers.sort_unstable();
+        if numbers.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err("Duplicate workflow run numbers; attempt order is ambiguous.".to_owned());
         }
-        if run["app"]["id"].as_u64() != Some(GITHUB_ACTIONS_APP_ID)
-            || run["app"]["slug"].as_str() != Some("github-actions")
-        {
-            return Err(format!(
-                "Required check {} is not from GitHub Actions.",
-                run["name"]
-            ));
-        }
-        let suite = run["check_suite"]["id"]
-            .as_u64()
-            .filter(|id| *id != 0)
-            .ok_or("Required check has no check-suite identity")?;
-        let response = api(&format!(
-            "repos/{repository}/actions/runs?check_suite_id={suite}&head_sha={head}&per_page=100"
-        ))?;
-        let workflows = response["workflow_runs"]
-            .as_array()
-            .ok_or("Workflow response has no workflow_runs array")?;
-        if response["total_count"].as_u64() != Some(1) || workflows.len() != 1 {
-            return Err("Required check has no unique workflow run.".to_owned());
-        }
-        let source = &workflows[0];
-        if source["check_suite_id"].as_u64() != Some(suite)
-            || source["head_sha"].as_str() != Some(head)
-            || source["path"].as_str() != Some(workflow)
-            || !source["repository"]["full_name"]
+        let newest = numbers.last().copied();
+        // GitHub documents run_number as increasing for new runs of one
+        // workflow. An older run's first attempt is superseded; a rerun may
+        // have happened later, so its current attempt must also be considered.
+        for run in workflows.iter().filter(|run| {
+            run["run_number"].as_u64() == newest
+                || run["run_attempt"].as_u64().is_some_and(|n| n > 1)
+        }) {
+            current_workflows.push(run.clone());
+            if run["status"] != "completed" {
+                continue;
+            }
+            let id = run["id"].as_u64().ok_or("Workflow has no run ID")?;
+            let attempt = run["run_attempt"]
+                .as_u64()
+                .ok_or("Workflow has no current attempt")?;
+            let suite = run["check_suite_id"]
+                .as_u64()
+                .filter(|id| *id != 0)
+                .ok_or("Workflow has no check-suite identity")?;
+            let canonical_repository = run["repository"]["full_name"]
                 .as_str()
-                .is_some_and(|name| name.eq_ignore_ascii_case(repository))
-        {
-            return Err(format!(
-                "Required check {} does not match its repository, source head and workflow.",
-                run["name"]
-            ));
+                .ok_or("Workflow has no repository identity")?;
+            let jobs = rest_list(
+                &mut api,
+                &format!("repos/{repository}/actions/runs/{id}/attempts/{attempt}/jobs"),
+                "jobs",
+            )?;
+            let selected: Vec<_> = jobs.iter().filter(|job| job["name"] == *required).collect();
+            if selected.len() > 1 {
+                return Err(format!(
+                    "Required job {required} is ambiguous within one attempt."
+                ));
+            }
+            for job in selected {
+                if job["run_id"].as_u64() != Some(id)
+                    || job["run_attempt"].as_u64() != Some(attempt)
+                    || job["head_sha"].as_str() != Some(head)
+                    || !known_check_status(&job["status"])
+                {
+                    return Err(format!(
+                        "Required job {required} does not match its current workflow attempt."
+                    ));
+                }
+                let check = checks
+                    .iter()
+                    .find(|check| {
+                        job["check_run_url"].as_str()
+                            == Some(&format!(
+                                "https://api.github.com/repos/{canonical_repository}/check-runs/{}",
+                                check["id"]
+                            ))
+                    })
+                    .ok_or_else(|| {
+                        format!("Required job {required} has no exact check-run receipt.")
+                    })?;
+                if check["name"] != *required
+                    || check["app"]["id"].as_u64() != Some(GITHUB_ACTIONS_APP_ID)
+                    || check["app"]["slug"].as_str() != Some("github-actions")
+                    || check["check_suite"]["id"].as_u64() != Some(suite)
+                    || check["status"] != job["status"]
+                    || check["conclusion"] != job["conclusion"]
+                {
+                    return Err(format!(
+                        "Required job {required} has a mismatched producer, suite or check state."
+                    ));
+                }
+                let started = job["started_at"]
+                    .as_str()
+                    .ok_or("Required job has no start time; attempt order is unavailable")?;
+                // GitHub's UTC second-resolution form sorts chronologically.
+                // Other forms need explicit normalization, never raw ordering.
+                if started.len() != 20
+                    || !started.bytes().enumerate().all(|(i, c)| match i {
+                        4 | 7 => c == b'-',
+                        10 => c == b'T',
+                        13 | 16 => c == b':',
+                        19 => c == b'Z',
+                        _ => c.is_ascii_digit(),
+                    })
+                {
+                    return Err("Required job start time has an unsupported format.".to_owned());
+                }
+                current_jobs.push(job.clone());
+            }
         }
     }
-    Ok(required_checks_verdict(&runs, head))
+    Ok(required_checks_verdict(
+        &current_jobs,
+        &current_workflows,
+        head,
+    ))
 }
 
 fn validate_head(pr: &Value, expected: &str) -> Result<(), String> {
@@ -517,282 +644,365 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        head_check_with_api, required_checks_verdict, subcommand_and_first_argument, validate_head,
-    };
+    use super::{head_check_with_api, rest_list, subcommand_and_first_argument, validate_head};
     use serde_json::{Value, json};
-
-    // Branch protection requires both checks. A PR can have a green
-    // `compiler-check` and no `workspace-clippy` run at all, as one retargeted
-    // without a push did before `lint-when-mergeable.yml`, and that must not
-    // read as green.
-    #[test]
-    fn a_required_check_that_never_ran_is_missing_not_green() {
-        let run = |name: &str, status: &str, conclusion: &str| {
-            serde_json::json!({
-                "id": if name == "compiler-check" { 1 } else { 2 },
-                "name": name,
-                "status": status,
-                "conclusion": conclusion,
-                "started_at": "2026-11-10T00:00:00Z",
-            })
-        };
-        let both = [
-            run("compiler-check", "completed", "success"),
-            run("workspace-clippy", "completed", "success"),
-        ];
-        assert_eq!(required_checks_verdict(&both, "abc").0, "green");
-
-        let (verdict, why) =
-            required_checks_verdict(&[run("compiler-check", "completed", "success")], "abc");
-        assert_eq!(verdict, "missing");
-        assert!(why.contains("workspace-clippy has not run on abc"));
-
-        let running = [
-            run("compiler-check", "completed", "success"),
-            run("workspace-clippy", "in_progress", ""),
-        ];
-        assert_eq!(required_checks_verdict(&running, "abc").0, "pending");
-
-        let failed = [
-            run("compiler-check", "completed", "failure"),
-            run("workspace-clippy", "completed", "success"),
-        ];
-        assert_eq!(required_checks_verdict(&failed, "abc").0, "red");
-    }
 
     const REPOSITORY: &str = "CathedralOS/Omega";
     const HEAD: &str = "5c91c558035a5e9c45501c99b97440721a28f239";
 
-    fn successful_runs() -> Vec<Value> {
-        vec![
-            json!({
-                "id": 130842405903u64, "name": "compiler-check", "head_sha": HEAD,
-                "status": "completed", "conclusion": "success",
-                "app": {"id": 15368, "slug": "github-actions"},
-                "check_suite": {"id": 116760391297u64},
-            }),
-            json!({
-                "id": 130842418520u64, "name": "workspace-clippy", "head_sha": HEAD,
-                "status": "completed", "conclusion": "success",
-                "app": {"id": 15368, "slug": "github-actions"},
-                "check_suite": {"id": 116760400518u64},
-            }),
-        ]
+    fn fixture() -> Value {
+        let mut checks = Vec::new();
+        let mut jobs = Vec::new();
+        let mut workflows = Vec::new();
+        for (name, file, id, suite, check) in [
+            (
+                "compiler-check",
+                "compiler.yml",
+                43115526581u64,
+                116760391297u64,
+                130842405903u64,
+            ),
+            (
+                "workspace-clippy",
+                "repository-lint.yml",
+                43115530214u64,
+                116760400518u64,
+                130842418520u64,
+            ),
+        ] {
+            checks.push(json!({"id":check,"name":name,"head_sha":HEAD,"status":"completed","conclusion":"success","app":{"id":15368,"slug":"github-actions"},"check_suite":{"id":suite}}));
+            jobs.push(json!({"id":check,"run_id":id,"run_attempt":1,"name":name,"head_sha":HEAD,"status":"completed","conclusion":"success","started_at":"2026-11-11T22:53:53Z","check_run_url":format!("https://api.github.com/repos/{REPOSITORY}/check-runs/{check}")}));
+            workflows.push(json!({"id":id,"workflow_id":suite,"run_number":100,"run_attempt":1,"status":"completed","check_suite_id":suite,"path":format!(".github/workflows/{file}"),"head_sha":HEAD,"repository":{"full_name":REPOSITORY}}));
+        }
+        json!({"checks":checks,"jobs":jobs,"compiler_runs":[workflows[0]],"lint_runs":[workflows[1]]})
     }
 
-    fn workflow_response(endpoint: &str) -> Value {
-        let (suite, path) = if endpoint.contains("check_suite_id=116760391297&") {
-            (116760391297u64, ".github/workflows/compiler.yml")
-        } else {
-            assert!(endpoint.contains("check_suite_id=116760400518&"));
-            (116760400518u64, ".github/workflows/repository-lint.yml")
-        };
-        assert_eq!(
-            endpoint,
-            format!(
-                "repos/{REPOSITORY}/actions/runs?check_suite_id={suite}&head_sha={HEAD}&per_page=100"
-            )
-        );
-        json!({"total_count": 1, "workflow_runs": [{
-            "head_sha": HEAD, "check_suite_id": suite, "path": path,
-            "repository": {"full_name": REPOSITORY},
-        }]})
-    }
-
-    fn check_runs(runs: &[Value]) -> Result<(String, String), String> {
-        head_check_with_api(REPOSITORY, HEAD, |endpoint| {
-            if endpoint.contains("/check-runs?") {
-                assert!(endpoint.ends_with("filter=all&per_page=100&page=1"));
-                Ok(json!({"total_count": runs.len(), "check_runs": runs}))
+    fn fixture_response(f: &Value, endpoint: &str) -> Value {
+        assert!(endpoint.starts_with(&format!("repos/{REPOSITORY}/")));
+        assert!(endpoint.ends_with("per_page=100&page=1"));
+        let (field, rows) = if endpoint.contains("/check-runs?") {
+            assert!(endpoint.contains(&format!("/commits/{HEAD}/check-runs?filter=all&")));
+            ("check_runs", f["checks"].as_array().unwrap().clone())
+        } else if endpoint.contains("/workflows/") {
+            assert!(endpoint.contains(&format!("head_sha={HEAD}&")));
+            let key = if endpoint.contains("/compiler.yml/") {
+                "compiler_runs"
             } else {
-                Ok(workflow_response(endpoint))
-            }
+                assert!(endpoint.contains("/repository-lint.yml/"));
+                "lint_runs"
+            };
+            ("workflow_runs", f[key].as_array().unwrap().clone())
+        } else {
+            let parts: Vec<_> = endpoint.split('/').collect();
+            let id: u64 = parts[5].parse().unwrap();
+            let attempt: u64 = parts[7].parse().unwrap();
+            assert_eq!(parts[6], "attempts");
+            (
+                "jobs",
+                f["jobs"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|job| job["run_id"] == id && job["run_attempt"] == attempt)
+                    .cloned()
+                    .collect(),
+            )
+        };
+        json!({"total_count":rows.len(),field:rows})
+    }
+
+    fn check(f: &Value) -> Result<(String, String), String> {
+        head_check_with_api(REPOSITORY, HEAD, |endpoint| {
+            Ok(fixture_response(f, endpoint))
         })
+    }
+
+    // A new run deliberately has smaller database IDs than the old success.
+    fn add_compiler_attempt(
+        f: &mut Value,
+        coordinates: (u64, u64, u64, u64),
+        started: &str,
+        outcome: (&str, &str),
+    ) {
+        let (id, number, attempt, check) = coordinates;
+        let mut run = f["compiler_runs"][0].clone();
+        run["id"] = json!(id);
+        run["run_number"] = json!(number);
+        run["run_attempt"] = json!(attempt);
+        run["status"] = json!(outcome.0);
+        f["compiler_runs"].as_array_mut().unwrap().push(run);
+        let mut job = f["jobs"][0].clone();
+        job["id"] = json!(check);
+        job["run_id"] = json!(id);
+        job["run_attempt"] = json!(attempt);
+        job["started_at"] = json!(started);
+        job["status"] = json!(outcome.0);
+        job["conclusion"] = json!(outcome.1);
+        job["check_run_url"] = json!(format!(
+            "https://api.github.com/repos/{REPOSITORY}/check-runs/{check}"
+        ));
+        f["jobs"].as_array_mut().unwrap().push(job);
+        let mut receipt = f["checks"][0].clone();
+        receipt["id"] = json!(check);
+        receipt["status"] = json!(outcome.0);
+        receipt["conclusion"] = json!(outcome.1);
+        f["checks"].as_array_mut().unwrap().push(receipt);
     }
 
     #[test]
     fn real_jobs_do_not_depend_on_a_commit_rollup() {
-        // PR #2465 returned a null aggregate alongside these two real jobs.
-        // The exercised ingress must request job records, not that aggregate.
+        let f = fixture();
         let mut requests = Vec::new();
-        let verdict = head_check_with_api(REPOSITORY, HEAD, |endpoint| {
+        let result = head_check_with_api(REPOSITORY, HEAD, |endpoint| {
             requests.push(endpoint.to_owned());
-            if endpoint.contains("/check-runs?") {
-                assert_eq!(endpoint, format!(
-                    "repos/{REPOSITORY}/commits/{HEAD}/check-runs?filter=all&per_page=100&page=1"
-                ));
-                Ok(json!({"total_count": 2, "check_runs": successful_runs()}))
-            } else {
-                Ok(workflow_response(endpoint))
-            }
-        }).unwrap();
-        assert_eq!(verdict.0, "green");
-        assert_eq!(requests.len(), 3);
-        assert!(!requests.iter().any(|request| request.contains("graphql")));
-    }
-
-    #[test]
-    fn required_jobs_are_authenticated_before_the_verdict() {
-        for (path, replacement) in [
-            (vec!["head_sha"], json!("another-head")),
-            (vec!["id"], Value::Null),
-            (vec!["status"], json!("unrecognized")),
-            (vec!["app", "id"], json!(99)),
-            (vec!["app", "slug"], json!("another-app")),
-            (vec!["check_suite", "id"], Value::Null),
-        ] {
-            let mut runs = successful_runs();
-            let mut field = &mut runs[0];
-            for key in path {
-                field = &mut field[key];
-            }
-            *field = replacement;
-            assert!(check_runs(&runs).is_err());
-        }
-        for (path, replacement) in [
-            (vec!["head_sha"], json!("another-head")),
-            (vec!["path"], json!(".github/workflows/unrelated.yml")),
-            (vec!["repository", "full_name"], json!("another/repository")),
-            (vec!["check_suite_id"], json!(123)),
-        ] {
-            let error = head_check_with_api(REPOSITORY, HEAD, |endpoint| {
-                if endpoint.contains("/check-runs?") {
-                    return Ok(json!({"total_count": 2, "check_runs": successful_runs()}));
-                }
-                let mut response = workflow_response(endpoint);
-                let mut field = &mut response["workflow_runs"][0];
-                for key in &path {
-                    field = &mut field[*key];
-                }
-                *field = replacement.clone();
-                Ok(response)
-            })
-            .unwrap_err();
-            assert!(error.contains("does not match"), "{error}");
-        }
-    }
-
-    #[test]
-    fn a_missing_job_or_an_unstarted_retry_cannot_use_an_older_success() {
-        let runs = successful_runs();
-        assert_eq!(check_runs(&runs[..1]).unwrap().0, "missing");
-        for (status, conclusion, expected) in [
-            ("queued", Value::Null, "pending"),
-            ("in_progress", Value::Null, "pending"),
-            ("completed", json!("failure"), "red"),
-            ("completed", json!("skipped"), "red"),
-            ("completed", json!("neutral"), "red"),
-            ("completed", json!("cancelled"), "red"),
-            ("completed", Value::Null, "red"),
-        ] {
-            let mut attempts = runs.clone();
-            let mut retry = runs[0].clone();
-            retry["id"] = json!(130842418521u64);
-            retry["status"] = json!(status);
-            retry["conclusion"] = conclusion;
-            retry["started_at"] = Value::Null;
-            attempts.insert(0, retry);
-            assert_eq!(check_runs(&attempts).unwrap().0, expected);
-            attempts.reverse();
-            assert_eq!(check_runs(&attempts).unwrap().0, expected);
-        }
-        let mut attempts = runs;
-        let mut old_failure = attempts[0].clone();
-        old_failure["id"] = json!(1);
-        old_failure["conclusion"] = json!("failure");
-        attempts.push(old_failure);
-        assert_eq!(check_runs(&attempts).unwrap().0, "green");
-    }
-
-    fn first_page() -> Vec<Value> {
-        let mut rows: Vec<_> = (1..=98)
-            .map(|id| json!({"id": id, "head_sha": HEAD, "name": "unrequired"}))
-            .collect();
-        rows.extend(successful_runs());
-        rows
-    }
-
-    #[test]
-    fn later_pages_can_block_successes_from_the_first_page() {
-        let mut requests = Vec::new();
-        let verdict = head_check_with_api(REPOSITORY, HEAD, |endpoint| {
-            requests.push(endpoint.to_owned());
-            if endpoint.contains("/check-runs?") {
-                let rows = if endpoint.ends_with("page=1") {
-                    first_page()
-                } else {
-                    assert!(endpoint.ends_with("page=2"));
-                    let mut failed = successful_runs().remove(0);
-                    failed["id"] = json!(130842418521u64);
-                    failed["conclusion"] = json!("failure");
-                    vec![failed]
-                };
-                Ok(json!({"total_count": 101, "check_runs": rows}))
-            } else {
-                Ok(workflow_response(endpoint))
-            }
+            Ok(fixture_response(&f, endpoint))
         })
         .unwrap();
-        assert_eq!(verdict.0, "red");
-        assert!(requests[1].ends_with("page=2"));
+        assert_eq!(result.0, "green");
+        assert_eq!(requests.len(), 5);
+        assert!(!requests.iter().any(|request| request.contains("graphql")));
+        assert_eq!(
+            head_check_with_api("cathedralos/omega", HEAD, |endpoint| {
+                Ok(fixture_response(
+                    &f,
+                    &endpoint.replacen("cathedralos/omega", REPOSITORY, 1),
+                ))
+            })
+            .unwrap()
+            .0,
+            "green"
+        );
     }
 
     #[test]
-    fn incomplete_or_changing_pages_and_transport_errors_refuse() {
-        for response in [
-            Value::Null,
-            json!({"total_count": 2}),
-            json!({"total_count": 3, "check_runs": successful_runs()}),
-            json!({"total_count": 1, "check_runs": successful_runs()}),
+    fn chronology_does_not_depend_on_check_or_workflow_database_ids() {
+        for (status, conclusion, expected) in [
+            ("queued", "", "pending"),
+            ("in_progress", "", "pending"),
+            ("completed", "failure", "red"),
+            ("completed", "success", "green"),
         ] {
-            assert!(head_check_with_api(REPOSITORY, HEAD, |_| Ok(response.clone())).is_err());
-        }
-        for second in [
-            Err("GitHub unavailable".to_owned()),
-            Ok(json!({"total_count": 102, "check_runs": []})),
-            Ok(json!({"total_count": 101, "check_runs": []})),
-            Ok(json!({"total_count": 101, "check_runs": [first_page()[0].clone()]})),
-        ] {
-            assert!(
-                head_check_with_api(REPOSITORY, HEAD, |endpoint| {
-                    assert!(endpoint.contains("/check-runs?"));
-                    if endpoint.ends_with("page=1") {
-                        Ok(json!({"total_count": 101, "check_runs": first_page()}))
-                    } else {
-                        second.clone()
-                    }
-                })
-                .is_err()
+            let mut f = fixture();
+            add_compiler_attempt(
+                &mut f,
+                (1, 101, 1, 2),
+                "2026-11-11T23:00:00Z",
+                (status, conclusion),
             );
+            assert_eq!(check(&f).unwrap().0, expected);
+            f["compiler_runs"].as_array_mut().unwrap().reverse();
+            f["checks"].as_array_mut().unwrap().reverse();
+            assert_eq!(check(&f).unwrap().0, expected);
+        }
+        let mut f = fixture();
+        f["checks"][0]["conclusion"] = json!("failure");
+        f["jobs"][0]["conclusion"] = json!("failure");
+        add_compiler_attempt(
+            &mut f,
+            (1, 101, 1, 2),
+            "2026-11-11T23:00:00Z",
+            ("completed", "success"),
+        );
+        assert_eq!(check(&f).unwrap().0, "green");
+    }
+
+    #[test]
+    fn queued_new_run_and_rerun_cannot_reuse_old_attempt_jobs() {
+        let mut f = fixture();
+        let mut queued = f["compiler_runs"][0].clone();
+        queued["id"] = json!(1);
+        queued["run_number"] = json!(101);
+        queued["status"] = json!("queued");
+        f["compiler_runs"].as_array_mut().unwrap().push(queued);
+        assert_eq!(check(&f).unwrap().0, "pending");
+        let mut f = fixture();
+        f["compiler_runs"][0]["run_attempt"] = json!(2);
+        f["compiler_runs"][0]["status"] = json!("queued");
+        assert_eq!(check(&f).unwrap().0, "pending");
+        f["compiler_runs"][0]["status"] = json!("completed");
+        assert_eq!(check(&f).unwrap().0, "missing");
+    }
+
+    #[test]
+    fn old_initial_runs_are_superseded_but_later_reruns_are_not() {
+        let mut f = fixture();
+        let mut old = f["compiler_runs"][0].clone();
+        old["id"] = json!(999999999999u64);
+        old["run_number"] = json!(99);
+        old["status"] = json!("queued");
+        f["compiler_runs"].as_array_mut().unwrap().push(old);
+        assert_eq!(check(&f).unwrap().0, "green");
+        f["compiler_runs"][1]["run_attempt"] = json!(2);
+        assert_eq!(check(&f).unwrap().0, "pending");
+        for (started, expected) in [
+            ("2026-11-11T23:00:00Z", "red"),
+            ("2026-11-11T22:00:00Z", "green"),
+        ] {
+            let mut f = fixture();
+            add_compiler_attempt(&mut f, (1, 99, 2, 2), started, ("completed", "failure"));
+            assert_eq!(check(&f).unwrap().0, expected);
+        }
+        let mut f = fixture();
+        add_compiler_attempt(
+            &mut f,
+            (1, 99, 2, 2),
+            "2026-11-11T22:53:53Z",
+            ("completed", "failure"),
+        );
+        assert_eq!(check(&f).unwrap().0, "red");
+    }
+
+    #[test]
+    fn authentication_and_unknown_attempt_metadata_refuse() {
+        for (root, field, value) in [
+            ("checks", vec!["head_sha"], json!("wrong")),
+            ("checks", vec!["app", "id"], json!(99)),
+            ("checks", vec!["app", "slug"], json!("wrong")),
+            ("checks", vec!["check_suite", "id"], json!(0)),
+            ("checks", vec!["status"], json!("unknown")),
+            ("compiler_runs", vec!["head_sha"], json!("wrong")),
+            (
+                "compiler_runs",
+                vec!["repository", "full_name"],
+                json!("wrong/repo"),
+            ),
+            (
+                "compiler_runs",
+                vec!["path"],
+                json!(".github/workflows/wrong.yml"),
+            ),
+            ("compiler_runs", vec!["workflow_id"], Value::Null),
+            ("compiler_runs", vec!["check_suite_id"], json!(0)),
+            ("compiler_runs", vec!["run_attempt"], Value::Null),
+            ("compiler_runs", vec!["run_number"], Value::Null),
+            ("compiler_runs", vec!["status"], json!("unknown")),
+            ("jobs", vec!["head_sha"], json!("wrong")),
+            (
+                "jobs",
+                vec!["check_run_url"],
+                json!("https://api.github.com/repos/other/repo/check-runs/1"),
+            ),
+            ("jobs", vec!["started_at"], Value::Null),
+            ("jobs", vec!["started_at"], json!("not-a-time")),
+        ] {
+            let mut f = fixture();
+            let mut slot = &mut f[root][0];
+            for key in field {
+                slot = &mut slot[key];
+            }
+            *slot = value;
+            assert!(check(&f).is_err(), "{root}: {f}");
         }
     }
 
     #[test]
-    fn missing_ambiguous_or_partial_workflow_receipts_refuse() {
-        for response in [
-            Value::Null,
-            json!({"total_count": 0, "workflow_runs": []}),
-            json!({"total_count": 2, "workflow_runs": workflow_response(
-                "repos/CathedralOS/Omega/actions/runs?check_suite_id=116760391297&head_sha=5c91c558035a5e9c45501c99b97440721a28f239&per_page=100"
-            )["workflow_runs"]}),
+    fn missing_jobs_and_non_success_conclusions_cannot_authorize_queueing() {
+        let mut f = fixture();
+        f["compiler_runs"] = json!([]);
+        assert_eq!(check(&f).unwrap().0, "missing");
+        let mut f = fixture();
+        f["jobs"].as_array_mut().unwrap().remove(0);
+        assert_eq!(check(&f).unwrap().0, "missing");
+        for conclusion in [
+            "failure",
+            "skipped",
+            "neutral",
+            "cancelled",
+            "timed_out",
+            "unknown",
+            "",
         ] {
-            assert!(
-                head_check_with_api(REPOSITORY, HEAD, |endpoint| {
-                    if endpoint.contains("/check-runs?") {
-                        Ok(json!({"total_count": 2, "check_runs": successful_runs()}))
-                    } else {
-                        Ok(response.clone())
-                    }
-                })
-                .is_err()
+            let mut f = fixture();
+            f["jobs"][0]["conclusion"] = json!(conclusion);
+            f["checks"][0]["conclusion"] = json!(conclusion);
+            assert_eq!(check(&f).unwrap().0, "red");
+        }
+    }
+
+    #[test]
+    fn mixed_workflow_identities_duplicate_numbers_and_duplicate_jobs_refuse() {
+        for field in ["workflow_id", "run_number"] {
+            let mut f = fixture();
+            add_compiler_attempt(
+                &mut f,
+                (1, 101, 1, 2),
+                "2026-11-11T23:00:00Z",
+                ("completed", "success"),
             );
+            f["compiler_runs"][1][field] = if field == "workflow_id" {
+                json!(1)
+            } else {
+                json!(100)
+            };
+            assert!(check(&f).is_err());
+        }
+        let mut f = fixture();
+        let mut extra = f["jobs"][0].clone();
+        extra["id"] = json!(1);
+        f["jobs"].as_array_mut().unwrap().push(extra);
+        assert!(check(&f).is_err());
+    }
+
+    #[test]
+    fn every_page_is_required_even_when_the_first_contains_success() {
+        let f = fixture();
+        let mut requests = Vec::new();
+        let verdict = head_check_with_api(REPOSITORY, HEAD, |endpoint| {
+            requests.push(endpoint.to_owned());
+            if endpoint.contains("/check-runs?") {
+                if endpoint.ends_with("page=1") {
+                    let mut rows = f["checks"].as_array().unwrap().clone();
+                    rows.extend((1..=98).map(|id| json!({"id":id,"head_sha":HEAD})));
+                    Ok(json!({"total_count":101,"check_runs":rows}))
+                } else {
+                    Ok(json!({"total_count":101,"check_runs":[{"id":99,"head_sha":"wrong"}]}))
+                }
+            } else {
+                Ok(fixture_response(&f, endpoint))
+            }
+        });
+        assert!(verdict.is_err());
+        assert_eq!(requests.len(), 2);
+    }
+
+    #[test]
+    fn pagination_errors_and_unknown_shapes_are_not_empty_successes() {
+        for field in ["check_runs", "workflow_runs", "jobs"] {
+            for response in [
+                Value::Null,
+                json!({"total_count":1,field:[]}),
+                json!({"total_count":0,field:[{"id":1}]}),
+            ] {
+                assert!(
+                    rest_list(&mut |_| Ok(response.clone()), "repos/test/list", field).is_err()
+                );
+            }
+            let rows: Vec<_> = (1..=100).map(|id| json!({"id":id})).collect();
+            for second in [
+                Err("unavailable".to_owned()),
+                Ok(json!({"total_count":102,field:[]})),
+                Ok(json!({"total_count":101,field:[]})),
+                Ok(json!({"total_count":101,field:[{"id":1}]})),
+            ] {
+                assert!(
+                    rest_list(
+                        &mut |endpoint| if endpoint.ends_with("page=1") {
+                            Ok(json!({"total_count":101,field:rows}))
+                        } else {
+                            second.clone()
+                        },
+                        "repos/test/list",
+                        field
+                    )
+                    .is_err()
+                );
+            }
         }
     }
 
     #[test]
     fn expected_head_and_base_fences_are_unchanged() {
-        let mut pr = json!({"baseRefName": "main", "headRefOid": HEAD});
+        let mut pr = json!({"baseRefName":"main","headRefOid":HEAD});
         assert!(validate_head(&pr, HEAD).is_ok());
         assert!(validate_head(&pr, "another-head").is_err());
         pr["headRefOid"] = json!("0".repeat(40));
@@ -802,16 +1012,20 @@ mod tests {
         assert!(validate_head(&pr, HEAD).is_err());
     }
 
-    // The documented `land <pr> --expected-head <sha>` form and the explicit
-    // subcommand forms must reach the same parser position for the number.
     #[test]
     fn a_leading_pull_request_number_selects_land() {
         let args = |words: &[&str]| words.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
-        let documented = args(&["2236", "--expected-head", "abc"]);
-        assert_eq!(subcommand_and_first_argument(&documented), ("land", 0));
-        let explicit = args(&["land", "2236", "--expected-head", "abc"]);
-        assert_eq!(subcommand_and_first_argument(&explicit), ("land", 1));
-        let status = args(&["status"]);
-        assert_eq!(subcommand_and_first_argument(&status), ("status", 1));
+        assert_eq!(
+            subcommand_and_first_argument(&args(&["2236", "--expected-head", "abc"])),
+            ("land", 0)
+        );
+        assert_eq!(
+            subcommand_and_first_argument(&args(&["land", "2236", "--expected-head", "abc"])),
+            ("land", 1)
+        );
+        assert_eq!(
+            subcommand_and_first_argument(&args(&["status"])),
+            ("status", 1)
+        );
     }
 }
