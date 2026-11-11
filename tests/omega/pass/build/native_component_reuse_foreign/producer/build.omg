@@ -1,3 +1,4 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::package(builder, "native_component_producer");
     Build::select_provider<Reading, Reader>(builder, linux_arm64);
@@ -10,4 +11,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<Reading, Reader>(builder, local_unchecked);
     Build::select_provider<Reading, Reader>(builder, alpha_bootstrap);
     Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
+
+    Build::bind<NativeAbsolute::absolute>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" },
+    });
 }
