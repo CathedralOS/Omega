@@ -7,10 +7,10 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-pass/filesystem/create_dir_all_existing_file_exit built 186945ms exit:0 interpreter-exit:0 interpreter:agrees @3820ec8611b6+wt
-pass/filesystem/create_dir_all_symlink_kind_exit built 197360ms exit:0 interpreter-exit:0 interpreter:agrees @3820ec8611b6+wt
-pass/filesystem/cross_linux_value_syscalls checked 179650ms @3820ec8611b6+wt
-pass/filesystem/dir_walk_wrappers_exit built 151973ms exit:70 interpreter-exit:70 interpreter:agrees @3820ec8611b6+wt
+pass/filesystem/create_dir_all_existing_file_exit built 219907ms exit:0 interpreter-exit:0 interpreter:agrees @5d7e5e930f2c
+pass/filesystem/create_dir_all_symlink_kind_exit built 210894ms exit:0 interpreter-exit:0 interpreter:agrees @5d7e5e930f2c
+pass/filesystem/cross_linux_value_syscalls checked 211223ms @5d7e5e930f2c
+pass/filesystem/dir_walk_wrappers_exit built 220784ms exit:70 interpreter-exit:70 interpreter:agrees @5d7e5e930f2c
 pass/filesystem/native_close built 78965ms @3820ec8611b6
 pass/filesystem/native_crud built 79897ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3820ec8611b6
 pass/filesystem/native_errno built 79405ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3820ec8611b6
@@ -28,11 +28,11 @@ pass/filesystem/runtime_portable_directory_names_exit built 214800ms exit:0 inte
 pass/filesystem/runtime_portable_metadata_availability_exit built 163145ms exit:0 interpreter-exit:0 interpreter:agrees @ffa505f7f74f
 pass/filesystem/runtime_portable_metadata_exit built 165149ms exit:0 interpreter-exit:0 interpreter:agrees @ffa505f7f74f
 pass/filesystem/runtime_portable_permissions_exit built 129143ms exit:0 interpreter-exit:0 interpreter:agrees @ffa505f7f74f
-pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 266859ms exit:0 interpreter-exit:0 interpreter:agrees @3820ec8611b6+wt
+pass/filesystem/runtime_portable_unknown_directory_kinds_exit built 308699ms exit:0 interpreter-exit:0 interpreter:agrees @5d7e5e930f2c
 pass/filesystem/runtime_posix_borrowed_directory_link_exit built 73002ms exit:0 interpreter-exit:0 interpreter:agrees @3820ec8611b6
 pass/filesystem/runtime_posix_borrowed_view_io_exit built 67482ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3820ec8611b6
 pass/filesystem/runtime_posix_native_storage_bounds_exit built 54964ms exit:0 interpreter-exit:0 interpreter:agrees @3820ec8611b6
 pass/filesystem/runtime_posix_read_runtime_range_view_exit built 54610ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3820ec8611b6
-pass/filesystem/windows_lock_has_empty_reach checked 64346ms @3820ec8611b6+wt
-pass/filesystem/wrapper_lock_metadata_exit built 178557ms exit:70 interpreter-exit:70 interpreter:agrees @3820ec8611b6+wt
-pass/filesystem/wrapper_open_with_exit built 142716ms exit:70 interpreter-exit:70 interpreter:agrees @3820ec8611b6+wt
+pass/filesystem/windows_lock_has_empty_reach checked 52369ms @5d7e5e930f2c
+pass/filesystem/wrapper_lock_metadata_exit built 209732ms exit:70 interpreter-exit:70 interpreter:agrees @5d7e5e930f2c
+pass/filesystem/wrapper_open_with_exit built 134878ms exit:70 interpreter-exit:70 interpreter:agrees @5d7e5e930f2c
