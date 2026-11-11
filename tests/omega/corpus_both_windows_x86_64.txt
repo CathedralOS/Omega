@@ -7527,6 +7527,7 @@ run/domains/structural_qualification_cast_transitions built 2623ms exit:0 interp
 run/domains/structural_qualification_cast_values built 2317ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/structural_qualification_nested_values built 2362ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/domains/vacuous_tag_call_arguments built 2972ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+run/domains/wide_array_literal_membership_exit built 5599ms exit:0 interpreter-exit:0 interpreter:agrees @4c0bff834db8
 run/domains/zero_field_call_formation_exit built 2381ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 run/dyn_finite_family_runtime_dispatch built 7048ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 run/facts/double_indexed_rmw_through_call_result_traps built 4919ms exit:-1073741795 interpreter:trapped @5f668826adf3+wt
