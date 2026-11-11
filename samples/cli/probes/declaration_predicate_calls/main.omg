@@ -37,7 +37,7 @@ data Text [copy] { bytes: [u8; 3]; tag: u8; }
 domain Text::Ready requires ascii_only(self.bytes) && self.tag == 1;
 domain Mixed::Valid
 requires self.child in Bounded::Small, self.tag == 1;
-domain<T> T::Accepted requires self == self;
+domain<T> T::Accepted requires core::Identity<T>(self, self);
 data Counter { value: u64; }
 data CounterResult [copy] { value: u64; }
 domain CounterResult::One requires self.value == 1;
