@@ -7,6 +7,9 @@ claimed. Amended the same day after every line of `omega-rust` was read at
 `457adf4a11f`; [what that read changed](#what-the-full-read-changed) lists the
 amendments, and the records are in the
 [compiler atlas](../../../.agents/atlas/compiler-2026-11-10/README.md).
+Amended 2026-11-11 after an outside review: route one's stop rule could not be
+evaluated, so [a four-condition gate](#the-gate) replaces it, and no new
+construct family is added until that gate passes.
 
 The checker proves facts about source trees and then hands them to lowering,
 which turns the trees into explicit values, places, blocks and edges. Facts are
@@ -239,17 +242,210 @@ before variants are added. Route one is:
   construct is added. Four more, each with a target the old code misses:
   obligations discharged with kernel-checked evidence (all of the subset's);
   decisions keyed on text (none); steps that drop without a refusal (none);
-  routes that can prove one kind of obligation (one; a call's `requires` has
-  about twenty today, tried in order). [Route one measures](route_one_measures.md)
-  records all eight and the verdict against the stop rule.
-- **Stop rule.** If the route is not clearly smaller than what it replaces,
-  cannot reach agreement on the widened subset, or cannot prove two-value
-  relations through its single certificate route, the replacement stops and
-  this record is withdrawn in favor of migrating in place.
+  meanings one kind of obligation has (one, wherever the value sits;
+  [restated below](#one-meaning-per-obligation)). [Route one measures](route_one_measures.md)
+  records all eight and the verdict against the stop rule this record first
+  carried.
+- **Gate.** [The gate](#the-gate) below. It replaces the stop rule, which
+  could not be evaluated.
 
-After route one passes its gate, `structure-elaboration` is split into per-family
-modules and the remaining construct families run in two dependency-ordered
-groups rather than ten simultaneous sessions:
+### The gate
+
+The route may not grow to another construct family until one bounded
+experiment passes. The experiment has four conditions, and it passes only when
+all four hold on `main`. Each one answers a question the route has not yet
+answered about itself: whether it checks the right declarations, whether a
+mistake in its own list of proof duties would be noticed, whether it can
+handle generic code at all, and whether it lets any old code be deleted.
+
+This replaces the stop rule this record first carried: "If the route is not
+clearly smaller than what it replaces, cannot reach agreement on the widened
+subset, or cannot prove two-value relations through its single certificate
+route, the replacement stops and this record is withdrawn in favor of
+migrating in place." [Route one measures](route_one_measures.md#verdict-against-the-stop-rule)
+found that rule could not be evaluated. "Clearly smaller" had no number to
+compare, because the route retired no old code. Agreement failed for
+classified causes that the rule did not tell apart from a failure of the
+design. Only the two-value clause could be decided, and it passed. A rule
+that cannot fail cannot hold work back, and work went ahead
+([below](#started-before-the-gate-and-paused)).
+
+1. **The checking scope is the one the specification gives.**
+   [Validation subjects](../../spec/build/validation_subjects.md) says a check
+   "fully validates the packages selected as its subjects and freshly checks
+   the complete semantic dependency closure those declarations require.
+   Everything else is outside the check's claim." The route's scope is neither
+   of the two in use today:
+   - *The route is too narrow.* `structure_elaboration::elaborate` lowers only
+     what the program entry calls. The specification's closure "starts from
+     every declaration of every subject, including unused ones". `#2317`
+     found 13 `fail/` programs the route accepts because the defect is in a
+     machine the entry never calls (quoted in route one measures, not
+     re-measured here).
+   - *The current pipeline is too wide*, and this record must not copy it:
+     see [the library correction](#the-library-is-a-dependency-not-a-subject).
+
+   Passes when, for the gate's scope, the declarations the route checks are
+   exactly every declaration of the subject package plus what those
+   declarations and the Build's selections demand; an unused subject
+   declaration with an invalid body is rejected; an unused subject declaration
+   that depends on an invalid dependency declaration is rejected; and a
+   dependency declaration nothing demands is not checked and supplies no fact.
+
+2. **A wrong obligation list is caught, and tests show it.** Elaboration
+   writes both the lowered program and the list of obligations that program
+   owes ("mints every obligation", `structure-elaboration` README). The prover
+   then proves what is on the list. If elaboration leaves a bounds check off
+   the list, or states it about the wrong value, every obligation on the list
+   is still proved and the program is accepted. The decision's second step
+   says obligations are reconstructed from the module; today they are read
+   from the list the same code wrote. The existing test
+   `every_obligation_has_exactly_one_verdict` checks that each listed
+   obligation gets a verdict, not that the list is the right one.
+
+   Passes when a check that shares no code with the minting step derives what
+   each operation, call, return and construction owes from the lowered
+   module itself, and tests show it refuses each of these: an obligation
+   removed from the list, an obligation whose goal was weakened, and an
+   obligation attached to a different operation or value than the one that
+   owes it. Each test changes only the list and leaves the module alone.
+
+3. **One generic body goes the whole way.** The route has no generic code:
+   a generic is refused as `Unsupported`. How a generic body is checked is
+   still an [open question](#open-questions), and the answer on reusing proofs
+   depends on a step that "is not built yet". The gate asks for one body, not
+   the generics lane.
+
+   Passes when one generic machine is checked once as written, against its
+   declared requirements and with its parameters left abstract; is specialized
+   for one concrete selection; that specialization is checked again, with the
+   consumer working out its own goals and `proof/admission` deciding the
+   carried certificates against them without a new search; and the resulting
+   program passes `omega run --both` with exit 0. Its negative twin, which
+   differs only in the generic's own contract or argument, is rejected.
+   The re-check mechanism (`reverify`) is in open `#2309` and is not on `main`.
+
+4. **For one fully supported scope, old code is retired and the result is
+   measured.** A scope is fully supported when every program in it is governed
+   by the route with no fallback: nothing in the program or in the closure it
+   demands returns `RefusalReason::Unsupported`. Route one measures found
+   that the route "retires none of Psi 05, validation or Psi 06".
+
+   Passes when, for one such scope, the code in those three stages that only
+   that scope needed is deleted on `main`, the scope's corpus rows are still
+   green with the old route unable to serve them, and the record states,
+   from the landed diffs, the lines deleted, the lines the route needed for
+   that scope, and check time before and after. The gate sets no ratio in
+   advance: the old rule's "clearly smaller" failed because it named no
+   number. Both numbers are reported side by side, and if the route's lines
+   exceed the lines retired, the record says so beside the result.
+
+The conditions are deliberately small: one scope, one generic body, three
+kinds of wrong list. Passing them does not show the replacement will finish.
+It shows the four things that had been assumed. Agreement between the two
+checkers stays a measure and is reported as before; it is not a gate
+condition, because a disagreement can be a prover gap, an error in the
+current checker or an open question, and only reading tells which.
+
+Withdrawing this record in favor of migrating in place remains the owner's
+decision. The gate sets no deadline and no automatic withdrawal.
+
+#### One meaning per obligation
+
+The measure first read "routes that can prove one kind of obligation (one; a
+call's `requires` has about twenty today, tried in order)". That wording
+counted the wrong thing. What must be one is the *meaning* of an obligation:
+what has to hold, stated once from the operation that owes it, and the same
+whether the value it speaks about is a local, a field, a parameter, a call
+result, the result of a join, a named constant, or a value in another state,
+another machine or a Build-selected body. How the obligation gets proved may
+vary. Several proof methods are allowed behind one meaning, as long as each
+ends in evidence the proof kernel accepts.
+
+So the measure is two counts per obligation kind, each with target one:
+definitions of the goal, and ways an obligation can be accepted (the kernel
+deciding a certificate). The prover's five methods (a known fact, a closed
+relation, bounds and order chains, affine arithmetic, one case split) are
+five methods behind one meaning, and adding a sixth does not break the
+measure. The 27 routes the current checker tries for a call's `requires`
+fail it for a different reason than their number: none emits evidence, and
+by their names several are chosen by where the value comes from
+(`parameter_domain_grants`, `subslice_grants_domain`,
+`value_call_return_domain_grants`), so the same requirement can be decided
+differently in different places.
+
+#### The library is a dependency, not a subject
+
+Route one measures concluded that "every program, the one-line ones
+included, runs 45% of those stages' instrumented lines to check the bundled
+library", and offered keeping the route "until the library enters the
+subset". The measurement is right about what the current pipeline does. It
+is not what the specification requires, and the conclusion drawn from it is
+withdrawn.
+
+[Validation subjects](../../spec/build/validation_subjects.md): "Being
+bundled with the toolchain, vendored, located in the workspace or editable
+does not make a package a subject. A dependency is a dependency." A program
+that is checked or built is the subject. The bundled library enters its
+check only through the closure its declarations and Build selections demand.
+`#2257` (open draft, quoted, not re-measured) counted a one-line program
+running the proof stage on 837 machines and reaching 8.
+
+Two consequences for the gate:
+
+- The size comparison in condition 4 is made on the scope of condition 1.
+  A scope can be fully supported without the whole library being supported:
+  it needs only the library declarations its programs demand.
+- The whole library is still checked in two cases, and neither is "every
+  program". A library package is checked in full when it is itself a
+  subject, and "the toolchain's own release validation checks each bundled
+  library as a subject". So the three old stages cannot be deleted outright
+  until the route supports the library as a subject. Retiring the code one
+  scope needed, which condition 4 asks for, does not wait for that.
+
+No result is reused across checks: "a consumer checks every dependency
+declaration it needs afresh".
+
+#### Started before the gate, and paused
+
+The plan below said the lanes after route one would start once its gate
+passed. Two started before any gate was evaluated. This is the state on
+`main` at `c7371d3dc` and in the open pull requests on 2026-11-11.
+
+| Lane | State | What exists |
+| --- | --- | --- |
+| Places (records, fields, cases, patterns, data `requires`) | started, on `main` | `#2328` split `structure-elaboration` into per-family modules. `#2332` records and field reads, `#2337` field stores, whole assignment and locals without an initializer, `#2343` sums, case dispatch and patterns, `#2356` payload-binding justification, `#2362` data `requires` at construction and every store. |
+| Numbers (integers, floats, casts and domains) | started, not on `main` | `#2365` (open draft): result bounds for divide, remainder, shift and bitwise operations, described as that lane's first slice. It reports 4 of the 12 prover gaps in route one measures now agreeing (quoted). |
+| Loops, recursion and termination | paused | A staging plan on branch `work/docs-loops-recursion-termination-lane` (`d352f7e36`). No pull request is open for it and no code exists. |
+| Proofs, evidence and quotients | paused | `#2366` (open draft, marked do not land): erased scalar bindings, the first of eleven planned slices, with the lane's plan file. |
+| Every other lane | not started | |
+
+Also open from route one itself: `#2317` (join predicates and crash
+coverage, draft) and `#2309` (re-verifying a saved proof, tests only).
+`#2321` landed the verdict a router would take from the route. By its own
+description no router exists in the default compile, so the route governs no
+program.
+
+The three route crates were 9,463 lines of Rust at `82d2ea5d5`, where route
+one measures counted them, and are 21,576 at `c7371d3dc`, tests included
+(`structure-elaboration` 11,082, `lowered-discharge` 9,392,
+`terminal-check-tables` 1,102). None of the six places commits on `main`
+touches a file in Psi 05, validation or Psi 06 (`git show --stat`).
+
+What the pause means: until the gate passes, no construct family is added to
+the route, and the loops and proofs lanes stay where they stopped. The
+places work that landed stays. Work that a gate condition needs goes ahead,
+and so does closing a case where the route accepts an invalid program.
+Whether the open drafts `#2365` and `#2317` serve a gate condition is for
+their review to decide, not this record.
+
+### After the gate
+
+After [the gate](#the-gate) passes, the remaining construct families run in
+two dependency-ordered groups rather than ten simultaneous sessions. The
+split of `structure-elaboration` into per-family modules and part of the
+places foundation have already landed
+([above](#started-before-the-gate-and-paused)):
 
 1. **Places foundation first:** records, fields, cases, constants and
    expressions, so `ExactPlaceId` projections, structural roots and the forward
@@ -465,7 +661,8 @@ overwrites; a rank premise across a pause.
   (rigid) type, constant and machine parameters checked once against their
   declared requirements and never encoded to `PSITERM\0` bytes, while concrete
   specializations emit concrete modules; keeping a tree-level check is the
-  fallback only if that fails.
+  fallback only if that fails. Condition 3 of [the gate](#the-gate) runs this
+  test on one body before the lane exists.
 - **Evidence coverage.** Validation's automation "does not emit kernel
   evidence for every accepted obligation". How much of it can emit evidence
   the admission kernel accepts is not measured across the full language yet;
@@ -494,7 +691,8 @@ overwrites; a rank premise across a pause.
   `Unpositioned` reasons; whether that suffices for every diagnostic across the
   remaining families is checked as each lane lands.
 - **Size.** That the replacement is far smaller than 792,000 lines is the
-  premise of this record and is unmeasured until route one's gate.
+  premise of this record and is unmeasured. Condition 4 of
+  [the gate](#the-gate) is the first measurement of it, on one scope.
 - **Reuse of checked results. Answered 2026-11-11 (Jarod), decision
   `specialization-certificate-reuse`:** a proof that was found once is carried
   forward, and every consumer checks it again. The consumer works out its own
@@ -555,7 +753,8 @@ What that does to this record:
 - **The kernel covers less than this record assumed**, so the census is now
   the first step of route one.
 - **Nothing in the read measures the replacement.** It shows what the current
-  code is, not that the new checker will be smaller. The stop rule stands.
+  code is, not that the new checker will be smaller. The stop rule this
+  bullet relied on has since been replaced by [the gate](#the-gate).
 
 ## Method
 

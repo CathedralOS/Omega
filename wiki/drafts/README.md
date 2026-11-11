@@ -234,10 +234,11 @@ Dated cost and failure evidence, superseded by a later run.
 - [Check on the lowered form](designs/check_on_lowered_form.md): architecture
   decision. Elaborate typed trees to unsealed Terminal Psi by structure alone,
   then check on that form, replacing Psi 05, validation and Psi 06 after one
-  proven route.
+  proven route. Further construct families wait on its four-condition gate.
 
 - [Route one measures](designs/route_one_measures.md): the eight gate
-  measures of that route and the verdict against its stop rule.
+  measures of that route and the verdict against its first stop rule, since
+  replaced by the gate.
 
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
   compiler rules for stage outputs and `"validated"` claims, and the rule that
