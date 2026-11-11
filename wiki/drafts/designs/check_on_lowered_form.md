@@ -593,18 +593,21 @@ code and are not yet confirmed by a run:
 
 The full read added seven places that accept on missing or mismatched input.
 Each was traced on 2026-11-10 at `c118c914794`, and the probes were run on the
-Mac mini. One accepts an invalid program; the other six are closed or not
+Mac mini. One accepted an invalid program and has since been closed; the other
+six are closed or not
 reached:
 
-- **Accepts an invalid program.** The default-domain driver skips its
-  end-of-state window check when the state contains any crash statement, even
-  one that cannot run (`domains_and_predicates.rs:13606`, `:13689`). A write
+- **Accepted an invalid program; closed.** The default-domain driver skipped
+  its end-of-state window check when the state contained any crash statement,
+  even one that cannot run (`domains_and_predicates.rs` `walk_state`). A write
   that breaks a data `requires`, then a complete dispatch whose arms all
-  return, then a dead `crash Trap;` is accepted. Without the crash, the same
-  program is rejected. Witness: `pending/dependent/data_requires_return_beside_dead_crash`,
-  accepted by `omega --check`. A crash beside a normal exit on another path cannot be
-  written: the parser makes `crash` an unguarded statement that ends the
-  dispatch.
+  return, then a dead `crash Trap;` was accepted. Without the crash, the same
+  program was rejected. The driver now checks open windows at each returning
+  row of the dispatch and lets only a crash row that ends the dispatch abandon
+  one. Witness: `fail/dependent/data_requires_return_beside_dead_crash`, now
+  rejected with a recorded ledger row. A crash beside a normal exit on another
+  path cannot be written: the parser makes `crash` an unguarded statement that
+  ends the dispatch.
 - A linear carry fact crosses a call when its place label text equals the
   argument's spelling (`flow_calls.rs:419`). This adds nothing beyond
   `places_match`, which already compares labels made from bare symbol names
