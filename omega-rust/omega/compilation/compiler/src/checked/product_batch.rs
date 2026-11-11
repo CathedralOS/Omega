@@ -102,6 +102,7 @@ impl CompilationSession {
                                             .computed_build_config
                                             .independent_components(),
                                         tests: Vec::new(),
+                                        test_notes: Vec::new(),
                                     },
                                 ));
                                 continue;
@@ -122,6 +123,7 @@ impl CompilationSession {
                             result: Err(CompileFailure::from(diagnostics.clone())),
                             independent_components: discovery,
                             tests: Vec::new(),
+                            test_notes: Vec::new(),
                         },
                     ));
                     for (position, owner, member) in members {
@@ -132,6 +134,7 @@ impl CompilationSession {
                                 result: Err(CompileFailure::from(diagnostics.clone())),
                                 independent_components: member.build().independent_components(),
                                 tests: Vec::new(),
+                                test_notes: Vec::new(),
                             },
                         ));
                     }
@@ -143,8 +146,9 @@ impl CompilationSession {
             let mut outcome = crate::execution_settlement::select_product_target(&source, prepared);
             if outcome.result.is_ok() {
                 match super::test_roots::select_test_roots(&source, target) {
-                    Ok(roots) => {
-                        for root in roots {
+                    Ok(selection) => {
+                        outcome.test_notes = selection.notes;
+                        for root in selection.roots {
                             let prepared =
                                 capture_beside_publication(&root.source, target, &inputs);
                             let selected = crate::execution_settlement::select_product_target(

@@ -297,6 +297,7 @@ pub(crate) struct SelectedCompileOutcome {
         compilation_products::TestRootIdentity,
         Result<SelectedProductTarget, CompileFailure>,
     )>,
+    pub(crate) test_notes: Vec<compilation_products::TestRosterEntry>,
 }
 
 impl SelectedCompileOutcome {
@@ -523,5 +524,6 @@ pub(crate) fn select_product_target(
             .map_err(CompileFailure::from),
         independent_components: source.computed_build_config.independent_components(),
         tests: Vec::new(),
+        test_notes: Vec::new(),
     }
 }

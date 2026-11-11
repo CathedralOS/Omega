@@ -475,6 +475,11 @@ impl CompilationSession {
                     _ => None,
                 };
                 let mut identities = Vec::new();
+                let notes = if test_product.is_some() {
+                    selected.test_notes
+                } else {
+                    Vec::new()
+                };
                 if let Some(test_product) = test_product {
                     for (identity, result) in selected.tests {
                         requests.push((
@@ -511,11 +516,11 @@ impl CompilationSession {
                         crate::CompilationProductError::Production(failure.into_diagnostics())
                     });
                 requests.push(((position, None), request));
-                applications.push((owner, identities));
+                applications.push((owner, identities, notes));
             }
             let mut outputs: Vec<_> = applications
                 .iter()
-                .map(|(_, identities)| (None, Vec::with_capacity(identities.len())))
+                .map(|(_, identities, _)| (None, Vec::with_capacity(identities.len())))
                 .collect();
             for ((position, test), output) in crate::target_batch::produce_products(requests) {
                 match test {
@@ -526,7 +531,7 @@ impl CompilationSession {
             Ok(applications
                 .into_iter()
                 .zip(outputs)
-                .map(|((owner, identities), (application, tests))| {
+                .map(|((owner, identities, notes), (application, tests))| {
                     let application = application.unwrap_or_else(|| {
                         Err(vec![Diagnostic::error(
                             "product batch lost a requested application",
@@ -535,6 +540,7 @@ impl CompilationSession {
                     });
                     let application = application.map(|output| match output {
                         crate::CompilationOutput::Native(mut pending) => {
+                            pending.test_notes = notes;
                             pending.tests = identities
                                 .into_iter()
                                 .zip(tests)

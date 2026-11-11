@@ -12,7 +12,9 @@ Terminal program retains, so each copy publishes its own Terminal program and
 none of its test-only machines join the application's roots.
 */
 
-use compilation_products::{CheckedProductSource, TestRootIdentity};
+use compilation_products::{
+    CheckedProductSource, TestRootIdentity, TestRosterEntry, TestRosterStatus,
+};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
@@ -21,16 +23,41 @@ pub(crate) struct TestRootSource {
     pub(crate) source: CheckedProductSource,
 }
 
+pub(crate) struct TestRootSelection {
+    pub(crate) roots: Vec<TestRootSource>,
+    // Disabled groups and groups with no satisfiers, reported but never run.
+    pub(crate) notes: Vec<TestRosterEntry>,
+}
+
 // The roster for one application occurrence and target, in deterministic
-// group-registration then test-path order. An empty roster means no enabled
-// group exists, or every registered group has no satisfiers.
+// group-registration then test-path order.
 pub(crate) fn select_test_roots(
     source: &CheckedProductSource,
     target: target::TargetProfile,
-) -> Result<Vec<TestRootSource>, Vec<Diagnostic>> {
+) -> Result<TestRootSelection, Vec<Diagnostic>> {
     let config = &source.computed_build_config.config;
-    if config.test_groups.is_empty() || config.settings.tests_disabled {
-        return Ok(Vec::new());
+    let typed = &source.program.typed;
+    let note = |requirement, status| TestRosterEntry {
+        group: typed.symbols.display_path(requirement, "::"),
+        test: None,
+        target,
+        status,
+    };
+    if config.settings.tests_disabled {
+        return Ok(TestRootSelection {
+            roots: Vec::new(),
+            notes: config
+                .test_groups
+                .iter()
+                .map(|group| note(group.requirement, TestRosterStatus::GroupDisabled))
+                .collect(),
+        });
+    }
+    if config.test_groups.is_empty() {
+        return Ok(TestRootSelection {
+            roots: Vec::new(),
+            notes: Vec::new(),
+        });
     }
     // Pruning keeps only application roots; running tests against that
     // program would depend on optional dead-code elimination.
@@ -39,8 +66,8 @@ pub(crate) fn select_test_roots(
             "registered test groups cannot run against a checked program pruned to its application roots",
         )]);
     }
-    let typed = &source.program.typed;
     let mut roots = Vec::new();
+    let mut notes = Vec::new();
     for group in &config.test_groups {
         let package = typed
             .symbols
@@ -72,9 +99,29 @@ pub(crate) fn select_test_roots(
                     .with_source_span(group.source_span),
                 ]);
             }
+            // A test entry receives only arguments its installed runner
+            // contract establishes; this runner installs none, so a
+            // parameterized satisfier cannot run and is reported, not dropped.
+            if typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.parameters.count() != 0)
+            {
+                return Err(vec![
+                    Diagnostic::error(format!(
+                        "test `{test_path}` in group `{group_path}` is not runnable: its entry takes parameters, and no installed runner contract supplies them"
+                    ))
+                    .with_source_span(group.source_span),
+                ]);
+            }
             tests.push((test_path, machine.symbol));
         }
         tests.sort_by(|left, right| left.0.cmp(&right.0));
+        // A group with no tests ran nothing; it is not evidence that any
+        // test passed, so it is reported rather than silently omitted.
+        if tests.is_empty() {
+            notes.push(note(group.requirement, TestRosterStatus::GroupWithoutTests));
+        }
         for (test_path, symbol) in tests {
             let mut computed = (*source.computed_build_config).clone();
             computed.config.root_bindings = vec![provider_planning::program_entry::RootBinding {
@@ -98,5 +145,5 @@ pub(crate) fn select_test_roots(
             });
         }
     }
-    Ok(roots)
+    Ok(TestRootSelection { roots, notes })
 }
