@@ -97,9 +97,35 @@ on which nothing was stored into it
 ([structural access](../../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary):
 "An unestablished local cannot be read"); it is a structural judgment over the
 write log and the graph, with no obligation row and no certificate, and the
-places foundation lane added it as a reason, not as a table. `Unsupported`
+places foundation lane added it as a reason, not as a table. The lane's two
+structural judgments over a sum report through the same reason: a case
+payload named where its case is not established on every path
+(structural_access.md: "Each `Case` step requires source admission to
+establish the selected case for the same root and prefix at the read's
+observation epoch"), and a dispatch that has no edge for a declared case
+([patterns](../../../../../../wiki/spec/language/patterns.md): "Missing
+runtime coverage is a compile error, not an implicit trap or fallthrough").
+`Unsupported`
 means the checker does not serve the construct and says nothing about the
 program.
+
+## What the tables cannot say yet
+
+Each was met by a lane, reported, and read from the lowered form instead of
+being added here.
+
+- **Where a copy's contents came from.** `Content` has no "what that other
+  place held". A whole copy logs `Overwritten` and the checker reads the
+  source from the operation at the row.
+- **Which case a construction established.** No `Content` form names a
+  case, so a case literal logs `Overwritten` on its root and the checker
+  reads `result_case` from the establishing operation at the row.
+- **That a sum holds a case on an edge.** A `StructuralCase` terminator has
+  no Boolean value, and knowledge names values only, so the case selected on
+  one of its edges is not a knowledge row. It lives in the structural payload
+  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  (each payload parameter equals the value its payload leaf holds) and is a
+  knowledge row justified as `Justification::DispatchBinding`.
 
 ## Obligation kinds
 

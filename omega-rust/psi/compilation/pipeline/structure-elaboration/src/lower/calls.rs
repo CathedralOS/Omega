@@ -91,6 +91,10 @@ impl Lowering<'_> {
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_)
             | ExpressionKind::Record { .. }
+            | ExpressionKind::Case { .. }
+            | ExpressionKind::Payload { .. }
+            | ExpressionKind::IsCase { .. }
+            | ExpressionKind::Match { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)

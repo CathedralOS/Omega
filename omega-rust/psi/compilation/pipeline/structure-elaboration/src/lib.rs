@@ -48,8 +48,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement,
-    Strict, Target, ValueType,
+    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
+    Statement, Strict, Target, ValueType,
 };
 pub use outcome::Outcome;
 
@@ -84,6 +84,8 @@ pub enum Unpositioned {
     ShortCircuitJoin,
     /// The block a guarded arm falls through to when its guard is false.
     DispatchContinuation,
+    /// The join block of a value-position `match` and the jumps into it.
+    MatchJoin,
     /// The Unit completion after a unit machine's last statement.
     ImplicitReturn,
     /// The block a call continues in after the edge that retires the homes

@@ -110,8 +110,23 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
-            ExpressionKind::Record { .. } => {
-                Err(self.internal("a record literal has a scalar type"))
+            ExpressionKind::Payload { base, case, field } => {
+                let scalar_type = self.result_type(expression)?;
+                self.read_payload(base, *case, *field, scalar_type, source)
+            }
+            ExpressionKind::IsCase { subject, case } => {
+                self.case_membership(subject, *case, source)
+            }
+            ExpressionKind::Match {
+                subject,
+                arms,
+                default,
+            } => {
+                let scalar_type = self.result_type(expression)?;
+                self.match_value(subject, arms, default.as_deref(), scalar_type, source)
+            }
+            ExpressionKind::Record { .. } | ExpressionKind::Case { .. } => {
+                Err(self.internal("a data literal has a scalar type"))
             }
             ExpressionKind::Not(operand) => {
                 let operand = self.scalar(operand)?;
