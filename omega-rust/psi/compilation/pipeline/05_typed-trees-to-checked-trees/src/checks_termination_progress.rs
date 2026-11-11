@@ -1453,6 +1453,28 @@ mod machine_summaries {
         // The flow target may be the bare requirement. Its exact source call
         // retains the selected bound and the corresponding premise parameters.
         if let Some(signature) = flow_call_public_signature(program, machine, state, call).ok()? {
+            // A call that names a member of a named implementation directly
+            // runs that one machine. Where its requirement is silent about
+            // termination, the member's own published promise applies. A call
+            // through a binder keeps only what the bound publishes.
+            if !signature.termination_guarantee.promises_termination()
+                && let Some(site) = find_call_site(
+                    program,
+                    machine,
+                    state,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                && let Some(member) = validation::direct_named_member_machine(program, machine, site)
+                && let language_semantics::TerminationInterface::Published(guarantee) =
+                    &member.termination_plan.interface
+                && guarantee.promises_termination()
+            {
+                return Some((
+                    SelectedCallProgress { guarantee },
+                    call_target_parameters(program, call.target_symbol),
+                ));
+            }
             return Some((
                 SelectedCallProgress {
                     guarantee: &signature.termination_guarantee,

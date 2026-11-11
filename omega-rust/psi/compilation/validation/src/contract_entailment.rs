@@ -42115,6 +42115,20 @@ pub(crate) mod specification_calls {
         }
     }
 
+    /// The machine a call runs when it names a member of a named
+    /// implementation directly, rather than reaching it through a binder.
+    /// Such a call may rely on that member's own published contract.
+    pub fn direct_named_member_machine<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        site: crate::CallSite<'_>,
+    ) -> Option<&'program Machine> {
+        let caller = program
+            .machine_holding_state(caller)
+            .map_or(caller, |machine| machine.symbol);
+        direct_named_member_contract(program, caller, site).map(|member| member.machine)
+    }
+
     pub fn invocation_is_fact_only(
         program: &dyn crate::CheckingInput,
         target: SymbolHandle,
@@ -82485,12 +82499,31 @@ pub(crate) mod structural_judgment {
                     _ => None,
                 }
             });
-            if let Some(signature) = signature {
+            // A call that names a member of a named implementation directly runs
+            // that one machine. When its requirement publishes no closed value
+            // contract, the member's own checked contract may still do so; a
+            // call through a binder has no such member and stays refused.
+            let direct_member = call.static_requirement_dispatch.is_some()
+                && matches!(
+                    super::specification_calls::selected_call_contract(
+                        self.program,
+                        lexical_owner,
+                        call,
+                    ),
+                    Some(super::specification_calls::SelectedCallContract::Concrete(..))
+                );
+            if let Some(signature) = signature
+                && (!direct_member
+                    || crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                        self.program,
+                        signature,
+                    ))
+            {
                 return crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
                     self.program, signature,
                 );
             }
-            if call.static_requirement_dispatch.is_some() {
+            if call.static_requirement_dispatch.is_some() && !direct_member {
                 return false;
             }
             let target =
