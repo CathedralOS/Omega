@@ -46,3 +46,7 @@ Partitions are disjoint and cover every `+wt` row at the pin. Merged rows were t
 ## Recording note
 
 `tools/swarm/safe_record.sh` aborts on Linux (macOS `vm_stat` gate). Shard workers used `nice -n 19 mbx xtask corpus --record --filter …` directly, as documented in shard reports.
+
+## Integration fix
+
+Shard 5’s millis-restoration pass left 184 header lines with two `NNNms` tokens (unparseable by `parse_records`). The reconcile commit keeps the **restored** timing (second token), matching `tools/testing.md` § Attributing a move.
