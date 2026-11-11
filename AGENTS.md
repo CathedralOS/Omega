@@ -339,7 +339,9 @@ reads the allowed lanes from this table:
   Claim an idle pool slot (`worker-1`, `worker-2`, …) via
   `cargo xtask worktree acquire <lane>-<topic>`, which resets an idle `worker-N`
   checkout to `origin/main` in place so its fixed path and warm `target/` cache
-  stay 100% valid across tasks. Release finished slots with
+  stay 100% valid across tasks. In a cloud session the slot instead starts at
+  the commit its restored build was published for; rebase onto `origin/main`
+  only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
 - **No `facts/` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under
