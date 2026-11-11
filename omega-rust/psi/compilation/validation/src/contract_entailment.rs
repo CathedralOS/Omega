@@ -88841,7 +88841,20 @@ pub(crate) mod structural_terms {
             if cast.form.recast_access() != Some(language_semantics::ReferenceAccess::Shared) {
                 return None;
             }
-            if !super::scalar_operand_is_observed(program, source, &value) {
+            // A shared recast reads the place it borrows, so its operand term
+            // can arrive as the borrow's shared observation (`&f32` over the
+            // scalar) while `source` names the borrowed carrier (`f32`). That
+            // observation holds exactly the scalar, so it is observed for the
+            // recast; the representation below normalizes through the shell.
+            let borrowed_observation = crate::reference_shell(program, source).is_none()
+                && super::shared_inline_observation_type(program, &value).is_some_and(|observed| {
+                    crate::reference_shell(program, observed).is_some_and(|shell| {
+                        shell.access == language_semantics::ReferenceAccess::Shared
+                            && crate::declared_carriers_match(program, source, shell.referee)
+                    })
+                });
+            if !borrowed_observation && !super::scalar_operand_is_observed(program, source, &value)
+            {
                 return None;
             }
             let source_carrier = match crate::reference_shell(program, source) {
