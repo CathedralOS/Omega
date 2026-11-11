@@ -842,6 +842,23 @@ point of an invariant window; a program with such a use is
 so that comparison can count what branch facts buy; the checker uses
 `discharge`.
 
+It also measures the route's diagnostics on programs the current checker
+rejects, so a lane can see whether its errors would lead a programmer to the
+defect. With `--every-machine` it also roots the route at each of the
+fixture's own machines, which reaches fixtures that bind no entry. For each
+program both checkers reject it prints a `quality` line: whether the route's
+messages contain the fixture's `expected.txt` fragments, and how the route's
+error sites compare with the current checker's. `--tally` reads the output
+back and prints the three counts:
+
+```
+target/debug/examples/route_one_comparison --every-machine <fixture>/main.omg ... > out.tsv < /dev/null
+target/debug/examples/route_one_comparison --tally < out.tsv
+```
+
+The measurement on `fail/` is in
+[route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#diagnostics-on-must-reject-programs).
+
 ## Reusing a saved proof (experiment)
 
 [reuse.rs](src/reuse.rs) is an experiment the owner asked to see before
