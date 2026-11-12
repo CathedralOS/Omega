@@ -51,10 +51,6 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
   Acceptance: one portable call selects per-target implementations from one Terminal artifact under `omega run --both`.
 
-- **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
-  - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; profile remaining `select_provider` cost inside this item.
-  Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
-
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
   - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Repair UEFI release custody and positional dispatch per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.

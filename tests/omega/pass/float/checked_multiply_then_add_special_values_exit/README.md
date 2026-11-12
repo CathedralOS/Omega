@@ -1,6 +1,7 @@
 # Checked multiply-then-add realization
 
-Owning task: `TARGET-REALIZED-FLOAT-ARITHMETIC` in [TASKS.md](../../../../../TASKS.md).
+Requirement: target-realized canonical float arithmetic, established through a
+selected checked machine under the public operation contract.
 
 The selected checked machine must round multiplication before addition for both
 binary32 and binary64. The witness covers an underflow tie, the normal/subnormal
@@ -23,7 +24,6 @@ body's call, storage and machine-state plans use ordinary provider realization.
 The selected realization report must retain its actual identity and the target's
 ISA and floating-control obligations.
 
-Governing contracts: [numeric values](../../../../../wiki/spec/language/numeric_values.md#target-realization-and-control-state)
-and [the accepted decision](../../../../../wiki/drafts/designs/target_realized_float_arithmetic.md).
+Governing contract: [numeric values](../../../../../wiki/spec/language/numeric_values.md#target-realization-and-control-state).
 Qualification records identify the exact producer and actual target; merely
 compiling the other target bindings is not hardware execution evidence.

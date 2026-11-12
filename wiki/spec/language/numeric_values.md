@@ -795,9 +795,17 @@ contracts and are realized by the selected target's declared realization table,
 not by Build provider selection. For each canonical operation a target package
 declares one entry: a catalog intrinsic, a checked Omega machine satisfying the
 operation's contract, or unsupported. The realization plan retains the chosen
-entry with its ISA-feature admission and floating-control obligations. A program
-using an unsupported operation on its target rejects, naming the operation and
-the target constraint. Build programs neither select nor override canonical
+entry with its ISA-feature admission and floating-control obligations. Native
+realization reports identify the emitted operation and scalar application,
+selected implementation, target, ISA-feature and floating-control admissions,
+and exact selected-plan identity. An admitted catalog inventory is distinct
+from operations actually used by the emitted product. Transitive operations
+inside a selected checked body are included; checking or producing Terminal
+Psi alone provides no native instruction-use evidence. Checked machines contribute
+their ordinary calling-plan, storage and machine-state costs, including any
+transitive callees; selecting a checked realization does not waive those
+obligations. A program using an unsupported operation on its target rejects,
+naming the operation and the target constraint. Build programs neither select nor override canonical
 float realizations; a program needing a particular algorithm calls a named
 machine. Format records do not teach machine encodings; new instructions need
 the checked instruction catalog. Hardware meaning remains admitted vendor

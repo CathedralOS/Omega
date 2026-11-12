@@ -329,21 +329,24 @@ fn used_float_realization_plans(report: &CompileReport) -> std::collections::Has
         .collect::<std::collections::HashSet<_>>();
     let module = terminal.semantic_module();
     let mut operations = std::collections::HashSet::new();
-    let mut requirements = std::collections::HashSet::new();
+    let mut boundaries = std::collections::HashSet::new();
     for machine in &module.machines {
         for operation in machine.operations() {
             if !emitted.contains(&(machine.id, operation.id.into())) {
                 continue;
             }
             operations.insert(operation.id);
-            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind
-                && let Some(declaration) = module.boundary_machine(boundary)
-                && let Some(identity) = module.identities.text(declaration.identity)
-            {
-                requirements.insert(identity);
+            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind {
+                boundaries.insert(boundary);
             }
         }
     }
+    let requirements = module
+        .boundary_machines
+        .iter()
+        .filter(|declaration| boundaries.contains(&declaration.id))
+        .filter_map(|declaration| module.identities.text(declaration.identity))
+        .collect::<std::collections::HashSet<_>>();
     let mut used = coverage
         .into_iter()
         .flat_map(|coverage| coverage.realizations().rows())

@@ -1,14 +1,12 @@
 # Named multiply-then-add
 
-From the repository root, settle the local standard-library dependency and run:
+From the repository root, run the focused native/Terminal qualification:
 
 ```sh
-python3 tools/benchmark/benchmark.py prepare --root tests/omega/pass/float/named_provider_multiply_then_add_exit/main.omg --target macos_arm64 --omega target/release/omega
-target/release/omega run --both tests/omega/pass/float/named_provider_multiply_then_add_exit/main.omg
+mbx xtask qualify --runtime pass/float/named_provider_multiply_then_add_exit --output build/qualify-multiply-then-add
 ```
 
-Expected native exit: **70**. In PowerShell use `python` and the built
-`target/release/omega.exe`, selecting `windows_x86_64` during preparation.
+Expected native and Terminal exit: **70**.
 
 Binary32 and binary64 cancellation distinguish two rounded operations from
 fused multiply-add's nonzero residual. The binary32 result is consumed by a

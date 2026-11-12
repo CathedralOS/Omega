@@ -217,11 +217,6 @@ Dated cost and failure evidence, superseded by a later run.
   witnesses as construction witnesses and the linear-first lifecycle; delete
   when the board item lands.
 
-- [Target-realized float arithmetic](designs/target_realized_float_arithmetic.md):
-  canonical `f32`/`f64` operations realized from the selected target's declared
-  table instead of Build provider selection, closing the bulk-selection
-  question; delete when the board item lands.
-
 - [Operation-record implementations](designs/operation_record_implementations.md):
   implementations as ordinary records of static callable selections and
   evidence, selection rows restored, structural identity and one schema for

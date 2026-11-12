@@ -207,8 +207,12 @@ Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
 normal invocations do not collect optional timing measurements.
 `--report-file <path>` writes the produced compile report (product, target,
-summary, and publication lines) as a plain-text observation file; there is no
-`--output-only` switch. Required proof and installation
+summary, and publication lines) as a plain-text observation file. Native reports
+also name canonical float realizations used by emitted operations, with their
+implementation, target, ISA/control admissions and selected-plan identity.
+This includes transitive operations inside checked bodies, not unused catalog
+entries. Check-only and Terminal-only reports make no native-use claim.
+There is no `--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
 [compiler product contract](../../compilation/compiler/README.md#product-boundaries-and-observations).
 
