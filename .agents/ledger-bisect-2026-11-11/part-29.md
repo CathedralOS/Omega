@@ -13,9 +13,9 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 | Rows | Kind | Diagnostic | Witness | Break | PR | Mechanism | Status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
 | 1 | pass/run rejected | `two_children` has no executable body | `pass/ownership/runtime_match_conditional_observation_cleanup_exit` | `22f215eb3e7d` | 2078 | case-pattern common-field preservation stopped lowering two_children observation cleanup (#2078) | bisected |
-| 1 | incomplete | `main` has no executable body: structural result loan | `run/borrows/returned_descriptor_entry_snapshot` | `77271bfb9134` | 1794 | incoming backing / stored-call structural result loans stopped lowering returned descriptor entry (#1794) | bisected |
-| 1 | incomplete | `main` has no executable body: captured origin paths | `run/slices/returned_record_fixed_array_window` | `e8fb4b1364b0` | 1432 | psi: select case-where equality bodies through Build (#1432) — captured-origin path loweri | bisected |
-| 1 | pass/run rejected | cannot prove requires contract for call capacity from geom | `pass/proofs/reviewed_mathematical_data_contract_exit` | `` |  |  | propagated |
+| 1 | incomplete | `main` has no executable body: structural result loan | `run/borrows/returned_descriptor_entry_snapshot` | `77271bfb9134` | 1794 | incoming backing for stored-call structural result loans stopped lowering returned descriptor entry (#1794) | bisected |
+| 1 | incomplete | `main` has no executable body: captured origin paths | `run/slices/returned_record_fixed_array_window` | `e8fb4b1364b0` | 1432 | case-where equality Build selection broke reference-result captured-origin lowering (#1432) | bisected |
+| 1 | pass/run rejected | cannot prove requires contract for call capacity from geom | `pass/proofs/reviewed_mathematical_data_contract_exit` | `6326c6ae7aa9` | 2166 | binder contract dependency ratification dropped geometry capacity requires facts (#2166) | bisected |
 
 ## Members
 
@@ -30,6 +30,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 - good (first-parent search): `bd78ac0d130b`
 ### c3
 - `pass/proofs/reviewed_mathematical_data_contract_exit`
+- good (first-parent search): `11bdd2fe41ff`
 
 ## Fixed on main
 

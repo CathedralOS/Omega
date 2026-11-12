@@ -1,0 +1,4 @@
+running '/agent/repos/omega/.agents/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 619 revisions left to test after this (roughly 9 steps)
+[0a5f30f6cddeed0cc2ef4514d0a6ee1fc4a31f8e] psi: form trait-contract operators on generic carriers (#1857)
+running '/agent/repos/omega/.agents/ledger-bisect-tools/bisect_witness.sh'

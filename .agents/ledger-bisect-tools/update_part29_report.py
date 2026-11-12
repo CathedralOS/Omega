@@ -10,7 +10,9 @@ PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 
 MECHANISM = {
     "c0": "case-pattern common-field preservation stopped lowering two_children observation cleanup (#2078)",
-    "c1": "incoming backing / stored-call structural result loans stopped lowering returned descriptor entry (#1794)",
+    "c1": "incoming backing for stored-call structural result loans stopped lowering returned descriptor entry (#1794)",
+    "c2": "case-where equality Build selection broke reference-result captured-origin lowering (#1432)",
+    "c3": "binder contract dependency ratification dropped geometry capacity requires facts (#2166)",
 }
 
 CLUSTERS = [
