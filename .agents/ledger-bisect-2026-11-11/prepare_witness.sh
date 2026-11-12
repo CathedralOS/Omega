@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="${1:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:?}"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$ROOT"
 git show "$PIN:tests/omega/corpus_outcomes.txt" >/tmp/ledger-bisect-pin-corpus_outcomes.txt
