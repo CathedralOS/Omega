@@ -36,6 +36,23 @@ mechanism_from_diff() {
   fi
   echo "$subj — ${files[0]}"
 }
+linear_first_compiler_bad() {
+  local good="$1" pin="$2"
+  local c t found=""
+  while IFS= read -r c; do
+    git checkout -q "$c" 2>/dev/null || continue
+    commit_is_ledger_only "$c" && continue
+    set +e
+    "$SCRIPT" >/dev/null 2>&1
+    t=$?
+    set -e
+    if [[ "$t" -eq 1 ]]; then
+      found="$c"
+      break
+    fi
+  done < <(git rev-list --first-parent --reverse "${good}..${pin}")
+  echo "$found"
+}
 if ! GOOD="$(nice -n 19 "$FIND_GOOD" "$WITNESS")"; then
   python3 - "$OUT_JSON" "$WITNESS" <<'PY'
 import json, sys
@@ -115,9 +132,19 @@ if [[ -n "$BREAK" && "$RC" -le 1 && "$BREAK" != "$PIN" ]] && ! commit_is_ledger_
   PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
   MECH="$(mechanism_from_diff "$BREAK")"
 elif [[ -n "$BREAK" ]] && commit_is_ledger_only "$BREAK"; then
-  MECH="git bisect landed on ledger-only commit ${BREAK:0:12}; witness script should skip these — re-run"
+  MECH="git bisect landed on ledger-only commit ${BREAK:0:12}; linear scan"
 elif [[ -n "$BREAK" && "$BREAK" == "$PIN" ]]; then
   MECH="bisect reported PIN as first bad but witness was already broken at 741270df — check good commit or bisect_test"
+fi
+if [[ "$STATUS" != "bisected" ]]; then
+  FB="$(linear_first_compiler_bad "$GOOD" "$PIN")"
+  if [[ -n "$FB" && "$FB" != "$PIN" ]] && ! commit_is_ledger_only "$FB"; then
+    BREAK="$FB"
+    STATUS=bisected
+    RC=0
+    PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
+    MECH="$(mechanism_from_diff "$BREAK") (linear scan after skip-heavy bisect)"
+  fi
 fi
 python3 - "$OUT_JSON" "$WITNESS" "$BREAK" "$PR" "$MECH" "$STATUS" "$RC" "$GOOD" "$STABILITY" <<'PY'
 import json, sys
