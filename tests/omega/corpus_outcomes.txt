@@ -27940,7 +27940,7 @@ pass/relevance/erased_reference_receiver_field_exit checked 3777ms check-target:
 pass/relevance/erased_signature_param checked 3361ms @ccdb99ca2214
 pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
-pass/relevance/runtime_static_proof_namespace_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
+pass/relevance/runtime_static_proof_namespace_exit checked 27771ms check-target:macos_arm64 @98e615c5c08f
 pass/resources/owned_extent_label_erasure_exit checked 25697ms check-target:macos_arm64 @089c0a150e63
 pass/slices/bounded_byte_parameter_range_exit checked 3766ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/byte_sequence_literal_tail_return_compile checked 3719ms check-target:macos_arm64 @ccdb99ca2214
