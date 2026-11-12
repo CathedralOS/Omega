@@ -65,6 +65,8 @@ fn prepared(supplies: &[NativeBuildSupply]) -> PreparedNativeBuildBindings {
                     owner: Default::default(),
                     signature: Default::default(),
                     identity: REQUIREMENT.into(),
+                    declared_identity: REQUIREMENT.into(),
+                    calling_signature: None,
                     method: "now".into(),
                     surface: None,
                 }),
