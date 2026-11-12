@@ -103,7 +103,7 @@ pub struct CompileReportSettlement {
     build_outputs: Option<RetainedBuildOutputs>,
     build_observation: Option<BuildObservationIdentity>,
     timings: Vec<PhaseTiming>,
-    float_realizations: Vec<String>,
+    float_realizations: Vec<([u8; 32], String)>,
 }
 
 impl ProductReportPlan {
@@ -123,7 +123,6 @@ impl ProductReportPlan {
             .map_err(|error| vec![error])?;
         let source_file_count = checked.sources().source_file_count();
         let timings = checked.timings().phases().to_vec();
-        let float_realizations = selected_float_realizations(checked)?;
         if requested == RequestedCompileProduct::Check {
             requested
                 .admit_build_requirements(checked.build_admission().artifact_only(), &rollback)?;
@@ -134,7 +133,6 @@ impl ProductReportPlan {
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
-                            .with_float_realizations(float_realizations)
                             .with_timings(timings),
                     )
                 })
@@ -153,7 +151,6 @@ impl ProductReportPlan {
                             .with_source_completion_accounting(
                                 checked.source_completion_accounting().clone(),
                             )
-                            .with_float_realizations(float_realizations)
                             .with_timings(timings),
                     )
                 })
@@ -176,7 +173,7 @@ impl ProductReportPlan {
             build_outputs,
             build_observation: checked.build().observation_identity(),
             timings,
-            float_realizations,
+            float_realizations: selected_float_realizations(checked)?,
         };
         match product {
             ProductReportRequest::Terminal(_) => Ok(CheckedProductReport::Terminal {
@@ -267,6 +264,34 @@ impl CompileReportSettlement {
                 "produced report differs from the admitted product kind",
             ));
         }
+        // Selection checks the complete canonical map. Execution observations
+        // instead follow the finished product's exact operator coverage, which
+        // also retains operations inside selected checked bodies. Catalog rows
+        // that supplied no emitted operator are not observed realizations.
+        let coverage = report
+            .retained_terminal_artifact()
+            .and_then(|artifact| artifact.native_realization_proposal())
+            .map(|proposal| &proposal.boundary_applications().coverage)
+            .or_else(|| {
+                report
+                    .retained_native_artifact()
+                    .and_then(|artifact| artifact.boundary_application_coverage())
+            })
+            .or_else(|| {
+                report
+                    .retained_dynamic_elf_artifact()
+                    .and_then(|artifact| artifact.boundary_application_coverage())
+            });
+        let used = coverage
+            .into_iter()
+            .flat_map(|coverage| coverage.realizations().rows())
+            .map(|realization| *realization.selected_plan_digest())
+            .collect::<std::collections::HashSet<_>>();
+        let float_realizations = self
+            .float_realizations
+            .into_iter()
+            .filter_map(|(plan, description)| used.contains(&plan).then_some(description))
+            .collect();
         report
             .with_build_outputs(self.build_outputs, self.build_observation)
             .map(|report| {
@@ -277,7 +302,7 @@ impl CompileReportSettlement {
                 };
                 report
                     .with_source_completion_accounting(self.source_completion_accounting)
-                    .with_float_realizations(self.float_realizations)
+                    .with_float_realizations(float_realizations)
                     .with_timings(timings)
             })
             .map_err(diagnostics)
@@ -288,29 +313,20 @@ fn diagnostics(message: &'static str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(message)]
 }
 
-// Describe only demanded canonical slots, using the chosen row's retained
-// identity. Merely appearing in the target catalog is not observed use.
+// Capture descriptions against exact selected-plan identities while the
+// selection provenance is available. The finished artifact determines use.
 fn selected_float_realizations(
     checked: &CheckedCompilation,
-) -> Result<Vec<String>, Vec<Diagnostic>> {
+) -> Result<Vec<([u8; 32], String)>, Vec<Diagnostic>> {
     use effects::provider_plan::ProviderBinding;
     use provider_planning::ProviderSelectionProvenance;
     use target::CanonicalFloatRealization;
-    let demanded = checked
-        .providers()
-        .boundary_provider_demands
-        .iter()
-        .map(|plan| plan.schema_identity_digest())
-        .collect::<std::collections::HashSet<_>>();
     let mut rows = Vec::new();
     for selected in &checked.execution().selected_provider_provenance {
         let ProviderSelectionProvenance::TargetRealization(realization) = selected.selected_by
         else {
             continue;
         };
-        if !demanded.contains(&selected.plan.schema_identity_digest()) {
-            continue;
-        }
         let [row] = selected.plan.rows.as_slice() else {
             return Err(diagnostics(
                 "canonical float realization report lost its exact row",
@@ -338,9 +354,10 @@ fn selected_float_realizations(
                 ));
             }
         };
-        rows.push(format!("float realization: {}; kind={kind}; implementation={implementation}; target={}; isa={}; controls={}; plan={:02x?}",
+        let plan = *selected.plan.identity_digest().as_bytes();
+        rows.push((plan, format!("float realization: {}; kind={kind}; implementation={implementation}; target={}; isa={}; controls={}; plan={plan:02x?}",
             selected.plan.identity_text(row.requirement_identity), selected.plan.target,
-            isa.report_name(), controls.report_name(), selected.plan.identity_digest().as_bytes()));
+            isa.report_name(), controls.report_name())));
     }
     Ok(rows)
 }
