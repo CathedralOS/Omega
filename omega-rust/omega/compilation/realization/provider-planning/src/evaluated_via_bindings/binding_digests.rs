@@ -4,7 +4,8 @@
 // runtime payload, leaving bit requirements to the materialization judgment.
 
 use crate::evaluated_via_bindings::MATERIALIZER_SCHEMA_VERSION;
-use build_time_evaluation::{BuildTimeValue, CURRENT_EVALUATION_SEMANTICS};
+use build_time_evaluation::CURRENT_EVALUATION_SEMANTICS;
+use build_time_values::BuildTimeValue;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{

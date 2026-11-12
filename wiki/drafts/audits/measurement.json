@@ -1,0 +1,19 @@
+{
+  "commit": "3bbe5c131a15666f68a700f499783f04910e8143",
+  "host_desc": "linux x86_64",
+  "counts": {
+    "fixed": 930,
+    "broken": 360,
+    "host_only": 6,
+    "missing": 0,
+    "total": 1296
+  },
+  "host_only": [
+    "pass/filesystem/runtime_portable_copy_errors_exit",
+    "pass/filesystem/runtime_portable_directory_names_exit",
+    "pass/filesystem/runtime_portable_metadata_exit",
+    "pass/filesystem/runtime_portable_zero_descriptor_exit",
+    "pass/filesystem/windows_wrapper_results_exit",
+    "pass/filesystem/wrapper_lock_metadata_exit"
+  ]
+}

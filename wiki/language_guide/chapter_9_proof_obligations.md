@@ -48,6 +48,13 @@ Code that needs only these compiles everywhere. See
 
 ## When the compiler cannot see it
 
+If the prover has no rule for a goal's form, the compiler reports `Incomplete`
+and identifies the obligation it could not prove. A supported goal that cannot
+be established from the stated premises reports `Reject`; an exhausted
+proof-search budget reports `Incomplete` with the limit it reached. None of
+these outcomes accepts the program. See
+[unproved goal form publication](../spec/build/compiler_request.md#unproved-goal-form-publication).
+
 If a fact is true but the compiler cannot work it out, you have four choices:
 
 1. **Branch on it.** Test the condition and handle both outcomes.

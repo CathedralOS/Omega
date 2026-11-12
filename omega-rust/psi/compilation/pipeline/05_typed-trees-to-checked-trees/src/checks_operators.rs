@@ -2811,7 +2811,8 @@ mod requires {
                 .context_view(semantic.contexts.get(*context))
                 .facts()
                 .any(|fact| {
-                    matches!(fact.payload, FactPayload::CaseValue { variant, value: true } if variant == case)
+                    crate::flow::zero_case_at(program, semantic, fact, &place) == Some(case)
+                        || matches!(fact.payload, FactPayload::CaseValue { variant, value: true } if variant == case)
                         && matches!(fact.place, FactPlace::Place(candidate) if
                         crate::flow::canonical_place_from_semantic_place(
                             program,

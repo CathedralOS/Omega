@@ -376,15 +376,6 @@ impl<T> MeasuredEvaluation<T> {
         Self { value, usage }
     }
 
-    pub(crate) fn from_checked(
-        measured: checked_interpreter::MeasuredEvaluation<T>,
-    ) -> Result<Self, String> {
-        let (value, usage) = measured.into_parts();
-        let usage = checked_interpreter::capture_checked_build_evaluation_usage(usage, None)
-            .map_err(|reason| format!("checked evaluation usage is invalid: {reason:?}"))?;
-        Ok(Self { value, usage })
-    }
-
     pub const fn value(&self) -> &T {
         &self.value
     }
