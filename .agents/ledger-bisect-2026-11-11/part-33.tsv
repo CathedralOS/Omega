@@ -1,0 +1,12 @@
+fixture	class	first_diagnostic	cluster_id
+pass/facts/data_where_standing_borrowed_field_array_const_name	still broken	state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/data_where_standing_borrowed_field_array_field	still broken	state `read` receives `envelope.holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/data_where_standing_borrowed_field_array_other_machine	still broken	state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/data_where_standing_borrowed_field_array_other_state	still broken	state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/data_where_standing_borrowed_field_array_parameter	still broken	state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/data_where_standing_borrowed_field_array_target_body	still broken	state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence	data_where_standing_borrowed_field_array
+pass/facts/static_callback_reach_requirement_telescope	still broken	`quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `Anchor::anchor`, but the implementation promises `Anchor::anchor`	static_callback_reach
+fail/facts/static_callback_reach_requirement_telescope_requirement	fixed on main		
+pass/facts/target_family_contract_operand/field	fixed on main		
+pass/generics/runtime_inferred_index_statement_call_exit	fixed on main		
+fail/control_flow/arm_pattern_rest_unknown_field	fixed on main		
