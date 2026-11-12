@@ -39,7 +39,7 @@ machine CombatSystem::fight(
         random: &mut RandomState,
         round: &mut CombatRound
     ) {
-        let reward: Reward;
+        let mut reward: Reward;
         RewardTables::roll_enemy_reward(&mut combat_system.rewards, event.enemy, random, &mut reward);
         PlayerSystem::grant_reward(&mut combat_system.player_system, player, reward);
         PlayerSystem::grant_xp(&mut combat_system.player_system, player, event.enemy.xp_reward);

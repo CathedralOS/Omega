@@ -21,7 +21,7 @@ machine MazeBuilder::build(
     seed: u64 in Wrapping,
     level: &mut Level
 ) {
-    let random: RandomState;
+    let mut random: RandomState;
     Random::seed(seed, &mut random);
     MazeBuilder::clear_level(maze_builder, level);
 
@@ -246,7 +246,7 @@ machine MazeBuilder::blank_exit() -> Exit {
 }
 
 machine MazeBuilder::empty_enemy() -> Enemy {
-    let enemy: Enemy;
+    let mut enemy: Enemy;
     enemy.kind = EnemyKind::Bat;
     EnemyName::set(&mut enemy.name, "");
     enemy.max_health = 1;

@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) {
     main.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
     Blob::encode(&sample, &mut main.buffer, &mut main.written);
-    let decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
+    let mut decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
     Blob::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
     Blob::encode(&decoded, &mut main.buffer2, &mut main.written2);
     let matches: bool = main.verdict == WireVerdict::Sound

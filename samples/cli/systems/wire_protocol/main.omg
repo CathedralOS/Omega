@@ -71,7 +71,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
     SensorPacketCodec::encode(&msg, &mut main.buffer, &mut main.written);
 
-    let decoded: SensorPacketValue = SensorPacketValue {
+    let mut decoded: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
             room_id: 0
         },

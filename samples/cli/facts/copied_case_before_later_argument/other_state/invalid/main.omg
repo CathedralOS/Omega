@@ -15,7 +15,7 @@ requires before in Slot::Present
 }
 
 machine main() crashes Trap {
-    let chosen: Slot = Slot::Absent {};
+    let mut chosen: Slot = Slot::Absent {};
     transition { _ -> inspect(chosen) }
     machine inspect(mut chosen: Slot) {
         let observed: u64 = read_payload(chosen, set_to_absent(&mut chosen));
