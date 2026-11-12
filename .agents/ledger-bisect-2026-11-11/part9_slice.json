@@ -13,6 +13,10 @@
         "pass/facts/may_write_computed_receiver_through_const_name_exit"
       ],
       "members": [
+        "pass/facts/computed_record_window_through_call_result_exit",
+        "pass/facts/computed_record_window_through_const_name_exit",
+        "pass/facts/computed_record_window_through_field_exit",
+        "pass/facts/computed_record_window_through_local_exit",
         "pass/facts/computed_record_window_through_other_machine_exit",
         "pass/facts/computed_record_window_through_other_state_exit",
         "pass/facts/computed_record_window_through_target_body_exit",

@@ -1,12 +1,11 @@
-fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected	fixed_on_main		fixed
-fail/facts/data_where_standing_mutable_recast_stronger_rejected	fixed_on_main		fixed
-fail/generics/record_const_foreign_nominal_carrier	fixed_on_main		fixed
-fail/ownership/selected_storage_join_unrelated_root	fixed_on_main		fixed
-pass/borrows/runtime_returned_nonzero_nested_window_exit	still_broken	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state gra	incomplete-lowering
+fixture	pin_class	diagnostic_short	cluster_slug
+pass/facts/computed_record_window_through_call_result_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary
+pass/facts/computed_record_window_through_const_name_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary
+pass/facts/computed_record_window_through_field_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary
+pass/facts/computed_record_window_through_local_exit	still_broken	Terminal boundary application has no unique exact selected row: requirement `named-callable(path(nominal\\(toolchain-owner\\,path\\(Float::equal\\)	index-9-float-boundary
 pass/facts/computed_record_window_through_other_machine_exit	fixed_on_main		fixed
 pass/facts/computed_record_window_through_other_state_exit	fixed_on_main		fixed
 pass/facts/computed_record_window_through_target_body_exit	fixed_on_main		fixed
-pass/facts/matched_field_windows_through_other_state_exit	still_broken	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (sta	incomplete-lowering
 pass/facts/may_write_computed_receiver_through_call_result_exit	fixed_on_main		fixed
 pass/facts/may_write_computed_receiver_through_const_name_exit	fixed_on_main		fixed
 pass/facts/may_write_computed_receiver_through_field_exit	fixed_on_main		fixed
@@ -16,5 +15,11 @@ pass/facts/may_write_computed_receiver_through_other_machine_exit	fixed_on_main	
 pass/facts/may_write_computed_receiver_through_other_state_exit	fixed_on_main		fixed
 pass/facts/may_write_computed_receiver_through_parameter_exit	fixed_on_main		fixed
 pass/facts/may_write_computed_receiver_through_target_body_exit	fixed_on_main		fixed
-pass/ownership/runtime_match_nested_observation_cleanup_exit	still_broken	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13	conflicting-structural-home
+pass/borrows/runtime_returned_nonzero_nested_window_exit	still_broken	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state gra	incomplete-lowering
+pass/facts/matched_field_windows_through_other_state_exit	still_broken	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (sta	incomplete-lowering
 pass/slices/runtime_returned_nested_array_window_home_exit	still_broken	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state gra	incomplete-lowering
+fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected	fixed_on_main		fixed
+fail/facts/data_where_standing_mutable_recast_stronger_rejected	fixed_on_main		fixed
+fail/ownership/selected_storage_join_unrelated_root	fixed_on_main		fixed
+fail/generics/record_const_foreign_nominal_carrier	fixed_on_main		fixed
+pass/ownership/runtime_match_nested_observation_cleanup_exit	still_broken	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13	conflicting-structural-home

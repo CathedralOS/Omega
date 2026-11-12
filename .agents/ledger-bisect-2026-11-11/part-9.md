@@ -2,74 +2,101 @@
 
 Measured commit: `51e8c45c793007f211d0d9baee7de16767172444` (PIN). Host: linux x86_64, `OMEGA_CORPUS_JOBS=1`. Regression queue slice: prior report cluster indices `9, 49, 89, 129, 169, 209` (226 clusters sorted by row count desc, tie-break diagnostic `LC_ALL=C`).
 
-## PIN re-measurement summary
+## PIN re-measurement summary (all 24 rows)
 
 | Class | Count |
 | --- | ---: |
-| fixed on main (slice members) | 16 |
-| still broken (PIN) | 4 |
+| fixed on PIN (meets ledger expectation) | 16 |
+| still broken on PIN | 8 |
+| **total slice rows** | **24** |
 
-Member recovery: 20 of 24 report rows located in `regressed_fixtures.txt` + report branch corpus batches (cluster index 9 lists 16 rows but only 12 `computed_record_window` / `may_write_computed_receiver` transports appear in the sweep list).
+Member recovery for report cluster index **9** (16 rows): from PR [#2359](https://github.com/cathedralos/omega/pull/2359) report `wiki/drafts/audits/ledger_regressions_2026-11-11.md` (measured `741270df60f7`), rank-9 cluster witness `pass/facts/computed_record_window_through_target_body_exit`, shown members plus `(+13 more)`. Full set = all nine `may_write_computed_receiver_through_*_exit` sweep rows plus seven `computed_record_window_through_*_exit` transports (the four not listed in `regressed_fixtures.txt` at 741270df: `call_result`, `const_name`, `field`, `local`). None of the 24 rows are unrecoverable.
 
-## Still-broken clusters at PIN (re-clustered by first diagnostic)
+## Still-broken clusters at PIN (bisected)
 
-| Rows | Kind | Diagnostic | Witness | Breaking commit | PR | Mechanism | Status |
+| Rows | Kind | Diagnostic (PIN) | Witness | First bad | PR | Good parent | Mechanism |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 3 | pass/run incomplete | `` `main` calls `forward`; `forward` has no executable body `` (returned reference sources) | `pass/borrows/runtime_returned_nonzero_nested_window_exit` | `2476d1be220` | 1604 | #1604 extends reference-result custody / captured-return validation so returned-reference machine transitions stop lowering | bisected |
-| 1 | pass/run rejected | `terminal-artifact production failed: Lowering(ConflictingStructuralValueHome` | `pass/ownership/runtime_match_nested_observation_cleanup_exit` | `22f215eb3e7` | 2078 | #2078 reshapes case-value matching so match-observation cleanup lowers two owned homes into one structural value | bisected |
+| 3 | incomplete | `` `main` calls `forward`; `forward` has no executable body `` (`returned reference sources`) | `pass/borrows/runtime_returned_nonzero_nested_window_exit` | `2476d1be2203009f1b32b8164bb6224c562c3bd5` | 1604 | `c15929193d3993f264c54338440f4e1405dff0f6` | see below |
+| 1 | rejected | `Lowering(ConflictingStructuralValueHome` | `pass/ownership/runtime_match_nested_observation_cleanup_exit` | `22f215eb3e7d9814cb3e29f42856e56bb57e60ed` | 2078 | `5fe672430be9a1c5560d74bb5102f4f70ddfba68` | see below |
 
-### Members (`ConflictingStructuralValueHome`)
-
-- `pass/ownership/runtime_match_nested_observation_cleanup_exit`
-
-### Members (`returned-reference-sources incomplete`)
+### Cluster 1 members (report index 49)
 
 - `pass/borrows/runtime_returned_nonzero_nested_window_exit`
 - `pass/facts/matched_field_windows_through_other_state_exit`
 - `pass/slices/runtime_returned_nested_array_window_home_exit`
 
-**Bisect methodology (lead #2):** Fixed copies at `/tmp/ledger_bisect_corpus_outcomes.txt` and `/tmp/ledger_bisect_witness_pin.json` from PIN; `bisect_test.py` compares runtime outcome/diagnostic to PIN (not per-revision ledger). `bisect_witness.sh` skips ledger-only commits (exit 125). Good commit from first-parent walk/binary search toward PIN. Tooling copied to `/tmp/ledger-bisect-tools` so historical checkouts keep scripts.
+### Cluster 2 members (report index 209)
 
-**Cluster returned-reference:** bad=`51e8c45c7930`, good=`c15929193d39`. Stability: PIN deterministic bad; `22f12808` deterministic good.
+- `pass/ownership/runtime_match_nested_observation_cleanup_exit`
 
-**Cluster conflicting-home:** bad=`51e8c45c7930`, good=`5fe672430bea`.
+### Report cluster index 9 — partial still broken at PIN (4 of 16)
 
-## Prior-report slice rows now fixed on PIN
+Ledger expects `checked`; PIN rejects on terminal `Float::equal` boundary selection (distinct from the report’s `leading`/`entry` borrow diagnostic at 741270df).
 
-| Report index | Rows (report) | Witness (report) | PIN outcome |
+- `pass/facts/computed_record_window_through_call_result_exit`
+- `pass/facts/computed_record_window_through_const_name_exit`
+- `pass/facts/computed_record_window_through_field_exit`
+- `pass/facts/computed_record_window_through_local_exit`
+
+## Mechanism (first-bad commits)
+
+**#1604 (`2476d1be2203009f1b32b8164bb6224c562c3bd5`) — incomplete lowering / returned reference sources**
+
+`omega-rust/psi/compilation/validation/src/machine_calls/reference_result_custody/captured_returns/invocation_returns.rs`, `impl Captures` — `invocation_return_origins` / `completed_descriptor_sources`: replaces lifetime-frame `reference_result_transports` with `target_sources(call.target_symbol, …)` and re-reads stored reference slots at the invocation’s storage cut (outer write-only pointer vs inner record slot), so completion edges require fuller captured-origin graphs before state-graph lowering reaches terminator `returned reference sources`.
+
+```rust
+// invocation_returns.rs (2476d1be) — excerpt
+let relative = self.target_sources(call.target_symbol, active)?;
+// ...
+let carrier = super::super::input_carrier_type(self.program, reference).unwrap_or(reference);
+// ... read inner slot at current storage cut ...
+return self.completed_descriptor_sources(
+    state, operand, &actual_path, expected, &relative, current, &mut Vec::new(),
+);
+```
+
+**#2078 (`22f215eb3e7d9814cb3e29f42856e56bb57e60ed`) — `ConflictingStructuralValueHome`**
+
+`omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs`, `retain_completed_structural_homes`: when match/case-value evaluation registers a second owned `StructuralLocalBinding` at the same expression root, lowering fails closed with `LoweringError::ConflictingStructuralValueHome` (producer cites `unit_structural_values.rs` / `expression_bindings.rs` in the witness diagnostic).
+
+```rust
+// expression_bindings.rs — retain_completed_structural_homes (post-#2078)
+if existing.argument != home.argument || existing.structural_type != home.structural_type {
+    return Err(LoweringError::ConflictingStructuralValueHome { root: home.root, ... });
+}
+```
+
+## Witness stability (3× `bisect_test.py` exit codes)
+
+Detached worktrees at first-parent good vs first bad (`0` = meets ledger, `1` = reproduces PIN regression class). Full log: `.agents/ledger-bisect-2026-11-11/work/stability_matrix.txt`.
+
+| Cluster | Commit | Witness / members | run1 | run2 | run3 |
+| --- | --- | --- | ---: | ---: | ---: |
+| 1 parent | `c15929193d39` | `runtime_returned_nonzero_nested_window_exit` | 0 | 0 | 0 |
+| 1 parent | `c15929193d39` | `matched_field_windows_through_other_state_exit` | 0 | 0 | 0 |
+| 1 parent | `c15929193d39` | `runtime_returned_nested_array_window_home_exit` | 0 | 0 | 0 |
+| 1 bad | `2476d1be2203` | all three members above | 1 | 1 | 1 |
+| 2 parent | `d25889014d5e` | `runtime_match_nested_observation_cleanup_exit` | 0 | 0 | 0 |
+| 2 bad | `22f215eb3e7` | same witness | 1 | 1 | 1 |
+
+## Rows fixed on PIN (remaining 16)
+
+| Report index | Rows | Witness | PIN class |
 | ---: | ---: | --- | --- |
-| 9 | 16 | `pass/facts/computed_record_window_through_target_body_exit` | all 12 recovered members pass ledger expectation (`checked` or `built`) |
-| 89 | 2 | `fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected` | `rejected` with expected unexpected |
+| 9 | 12 | `pass/facts/computed_record_window_through_target_body_exit` | `checked` / `incomplete` meeting ledger |
+| 89 | 2 | `fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected` | `rejected` unexpected |
 | 129 | 1 | `fail/ownership/selected_storage_join_unrelated_root` | `rejected` unexpected |
 | 169 | 1 | `fail/generics/record_const_foreign_nominal_carrier` | `rejected` unexpected |
 
-Fixed member lines:
+Fixed members (index 9 — twelve transports):
 
-- `pass/facts/computed_record_window_through_other_machine_exit` — fixed (checked at PIN)
-- `pass/facts/computed_record_window_through_other_state_exit` — fixed (checked at PIN)
-- `pass/facts/computed_record_window_through_target_body_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_call_result_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_const_name_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_field_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_local_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_match_join_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_other_machine_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_other_state_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_parameter_exit` — fixed (checked at PIN)
-- `pass/facts/may_write_computed_receiver_through_target_body_exit` — fixed (checked at PIN)
-- `fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected` — fixed (rejected unexpected)
-- `fail/facts/data_where_standing_mutable_recast_stronger_rejected` — fixed (rejected unexpected)
-- `fail/ownership/selected_storage_join_unrelated_root` — fixed (rejected unexpected)
-- `fail/generics/record_const_foreign_nominal_carrier` — fixed (rejected unexpected)
+- `pass/facts/computed_record_window_through_other_machine_exit`, `…_other_state_exit`, `…_target_body_exit`
+- `pass/facts/may_write_computed_receiver_through_{call_result,const_name,field,local,match_join,other_machine,other_state,parameter,target_body}_exit`
 
-## Commands
+Plus index 89/129/169 members listed in `part-9.tsv`.
 
-```bash
-# PIN re-measure (direct corpus_runner)
-OMEGA_CORPUS_JOBS=1 OMEGA_CORPUS_FIXTURE_FILTER=<members.csv> OMEGA_CORPUS_RECORDS=.agents/ledger-bisect-2026-11-11/work/pin_observed.txt \
-  target/bisect-pool/debug/build/compiler/*/out/corpus_runner-* </dev/null
+## Bisect methodology
 
-# Bisect (fixed PIN ledger + witness observation in /tmp)
-BISECT_WITNESS=pass/borrows/runtime_returned_nonzero_nested_window_exit \
-  .agents/ledger-bisect-2026-11-11/tools/run_cluster_bisect.sh ...
-```
+Fixed copies at `/tmp/ledger_bisect_corpus_outcomes.txt` and per-fixture `/tmp/ledger_bisect_witness_pin.json` from PIN observations in `.agents/ledger-bisect-2026-11-11/work/pin_observed.txt`. `bisect_test.py` compares runtime outcome/diagnostic to PIN (not per-revision ledger). Good anchors: cluster 1 `c15929193d3993f264c54338440f4e1405dff0f6`; cluster 2 `5fe672430be9a1c5560d74bb5102f4f70ddfba68` (full SHA from `git rev-parse`).
+
+Branch head (this session): `work/ledger-bisect-part-9`.
