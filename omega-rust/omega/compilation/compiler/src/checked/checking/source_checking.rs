@@ -78,6 +78,16 @@ pub(crate) fn check_product_source(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
+    // Every admitted native supply needs its exact boundary and signature for
+    // calling-policy validation and trust disclosure, even when its target or
+    // requirement is unused. Keep that checked closure through subject
+    // projection just as for an ordinary provider selection.
+    selected.extend(
+        build
+            .native_bindings
+            .iter()
+            .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
+    );
     // Psi 05 re-forms each representation choice from its named conformance,
     // which may live in a dependency the program never names, so the
     // conformance is a subject alongside the opaque type it represents.

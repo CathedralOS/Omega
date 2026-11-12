@@ -2,6 +2,9 @@ A dependency's completed Build binds its own private raw requirement. The
 consumer selects only the public checked provider and calls its portable API;
 it neither repeats native coordinates nor acquires visibility of the private
 requirement. The actual signed result must agree in native and Terminal Psi.
+The dependency also supplies a separate unused boundary on macOS. Its exact
+owner and signature remain checked for native-binding disclosure even on Linux,
+where that supply forms no executable provider candidate.
 
 This is the private package-output rung of Cathedral's Windows UI adapter
 migration. Its paired rejection names that private requirement from the
