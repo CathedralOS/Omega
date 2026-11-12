@@ -20630,13 +20630,7 @@ pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:mac
 pass/build/same_leaf_runner_entry_left_exit checked 40012ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/same_leaf_runner_entry_right_exit checked 40083ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/segment_selector_reload checked 77704ms check-target:linux_x86_64 @2b8a1382008c
-pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
-	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-13` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-17` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-21` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-25` has non-hermetic source origin `User`"))
+pass/build/selected_const_array_length_exit checked 17101ms check-target:macos_arm64 @5482b092e70b
 pass/build/separate_build_product_imports_exit checked 8375ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_slot_family_rows_exit checked 39605ms check-target:macos_arm64 @a4f3937d72ab
