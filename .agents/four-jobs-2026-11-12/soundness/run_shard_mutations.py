@@ -200,8 +200,8 @@ def run_both_checkers(main_omg: Path, timeout_s: int) -> tuple[str, str]:
     route = "error"
     for line in p.stdout.splitlines():
         if line.startswith("program\t") or line.startswith("program "):
-            m_cur = re.search(r"\bcurrent=([a-z_]+)", line)
-            m_route = re.search(r"\broute=([a-z_]+)", line)
+            m_cur = re.search(r"\bcurrent=([\w-]+)", line)
+            m_route = re.search(r"\broute=([\w-]+)", line)
             if m_cur:
                 current = m_cur.group(1)
             if m_route:
@@ -254,7 +254,9 @@ def append_tsv(path: Path, row: Iterable[str]) -> None:
         f.write("\t".join(row) + "\n")
 
 
-def _md_lines(shard: int, counters: Counters, holes_md: list[str]) -> list[str]:
+def _md_lines(
+    shard: int, counters: Counters, holes_md: list[str], totals: dict[str, int]
+) -> list[str]:
     return [
         "# Soundness mutations shard " + str(shard),
         "",
@@ -274,18 +276,26 @@ def _md_lines(shard: int, counters: Counters, holes_md: list[str]) -> list[str]:
         "## Counts",
         "",
         f"- Fixtures visited this run: {counters.fixtures}",
-        f"- Originals skipped (not accepted): {counters.originals_skipped}",
-        f"- Mutants generated: {counters.mutants_generated}",
-        f"- Mutants run: {counters.mutants_run}",
-        f"- Kept holes (confirmed-invalid): {counters.kept_holes}",
-        f"- Disagreements among kept: {counters.kept_disagree}",
-        f"- Discarded valid: {counters.discarded_valid}",
-        f"- Discarded no rule quote: {counters.discarded_no_rule}",
+        f"- Fixtures completed (progress file): {_progress_count(shard)}",
+        f"- Originals skipped (not accepted): {totals['originals_skipped']}",
+        f"- Mutants generated (this run): {counters.mutants_generated}",
+        f"- Mutants run (cumulative): {totals['mutants_run']}",
+        f"- Kept holes (confirmed-invalid): {totals['kept_holes']}",
+        f"- Disagreements among kept: {totals['kept_disagree']}",
+        f"- Discarded valid: {totals['discarded_valid']}",
+        f"- Discarded no rule quote: {totals['discarded_no_rule']}",
         "",
         "## Confirmed holes and disagreements",
         "",
         *holes_md,
     ]
+
+
+def _progress_count(shard: int) -> int:
+    progress = REPO / f".agents/four-jobs-2026-11-12/soundness/shard-{shard}.progress"
+    if not progress.exists():
+        return 0
+    return sum(1 for line in progress.read_text().splitlines() if line.strip())
 
 
 def main() -> int:
@@ -356,12 +366,10 @@ def main() -> int:
 
             current, route = run_both_checkers(mdir / "main.omg", args.timeout)
 
+            compile_fail = {"stopped", "unreached", "defect", "error", "timeout"}
             accept_hole = current == "accepted" or route == "accepted"
-            disagree = (
-                current != route
-                and "timeout" not in (current, route)
-                and current not in ("", "error")
-                and route not in ("", "error")
+            disagree = current != route and not (
+                current in compile_fail and route in compile_fail
             )
             keep = accept_hole or disagree
 
@@ -415,13 +423,79 @@ def main() -> int:
 
         if counters.fixtures % 25 == 0:
             md.write_text(
-                "\n".join(_md_lines(args.shard, counters, holes_md)),
+                "\n".join(
+                    _md_lines(
+                        args.shard,
+                        counters,
+                        _holes_from_tsv(tsv),
+                        _totals_from_tsv(tsv),
+                    )
+                ),
                 encoding="utf-8",
             )
 
-    md.write_text("\n".join(_md_lines(args.shard, counters, holes_md)), encoding="utf-8")
+    holes_md = _holes_from_tsv(tsv)
+    totals = _totals_from_tsv(tsv)
+    md.write_text(
+        "\n".join(_md_lines(args.shard, counters, holes_md, totals)),
+        encoding="utf-8",
+    )
     print(counters)
     return 0
+
+
+def _totals_from_tsv(tsv: Path) -> dict[str, int]:
+    counts = {
+        "mutants_run": 0,
+        "kept_holes": 0,
+        "kept_disagree": 0,
+        "discarded_valid": 0,
+        "discarded_no_rule": 0,
+        "originals_skipped": 0,
+    }
+    if not tsv.exists():
+        return counts
+    for line in tsv.read_text().splitlines()[1:]:
+        parts = line.split("\t")
+        if len(parts) < 6:
+            continue
+        kind, hand, current, route = parts[1], parts[5], parts[3], parts[4]
+        if kind == "_original_not_accepted":
+            counts["originals_skipped"] += 1
+            continue
+        if kind.startswith("_"):
+            continue
+        counts["mutants_run"] += 1
+        if hand == "confirmed-invalid":
+            counts["kept_holes"] += 1
+            if current != route:
+                counts["kept_disagree"] += 1
+        elif hand == "discarded-no-rule":
+            counts["discarded_no_rule"] += 1
+        elif hand == "discarded-valid":
+            counts["discarded_valid"] += 1
+    return counts
+
+
+def _holes_from_tsv(tsv: Path) -> list[str]:
+    rows: list[str] = []
+    if not tsv.exists():
+        return rows
+    for line in tsv.read_text().splitlines()[1:]:
+        parts = line.split("\t")
+        if len(parts) < 8 or parts[5] != "confirmed-invalid":
+            continue
+        rel, kind, mrel, current, route, _, spec_path, spec_quote = parts[:8]
+        rows.append(
+            f"### {rel} — {kind}\n\n"
+            f"- Original: `{rel}`\n"
+            f"- Mutant: `{mrel}`\n"
+            f"- Current checker: `{current}`; route: `{route}`\n"
+            f"- Hand check: **confirmed-invalid**\n"
+            f"- Spec ({spec_path}):\n\n"
+            f"> {spec_quote}\n"
+        )
+    return rows
 
 
 if __name__ == "__main__":
