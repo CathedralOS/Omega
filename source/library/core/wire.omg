@@ -1,6 +1,4 @@
 use omega::language::core::reflect;
-use omega::language::core::fixed_vec;
-use omega::language::core::numeric_conversion;
 
 // WIRE CODEC REQUIREMENTS (language guide chapter 21).
 //

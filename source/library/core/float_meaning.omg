@@ -9,9 +9,6 @@
 // recursion has no runtime layout. Target providers state identity of this
 // meaning in contracts; they do not pass it across runtime boundaries.
 
-use omega::language::core::int;
-use omega::language::core::nat;
-use omega::language::core::rat;
 
 public data Sign [copy] {
     case Negative;

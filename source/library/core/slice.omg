@@ -5,7 +5,7 @@ use omega::language::core::slice_views;
 
 public machine slice_index<Element [copy]>(items: &[Element], index: u64) -> Element
 requires index < items.len {
-    core::slice_views::element<Element>(items, index)
+    slice_views::element<Element>(items, index)
 }
 
 public machine slice_range<'backing, Element>(
@@ -13,7 +13,7 @@ public machine slice_range<'backing, Element>(
 ) -> &'backing [Element]
 requires start <= end && end <= items.len
 ensures result.len == end - start {
-    core::slice_views::subslice<Element>(items, start, end)
+    slice_views::subslice<Element>(items, start, end)
 }
 
 // The remaining named views share one boundary trait. A selected implementation

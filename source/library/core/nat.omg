@@ -22,7 +22,6 @@ machine Nat::Descending(value: u64) -> u64;
 // below -- ops via `satisfies CommutativeSemiring<Nat>::<op>`, laws via the lemma
 // machines binding the law slots (each proof machine-checked against the
 // declared law, forall-to-forall).
-use omega::language::core::algebra;
 
 // Nat is ordinary recursive data, proof-only by the computed classification:
 // recursive data has no layout, and every runtime consumption refuses with the

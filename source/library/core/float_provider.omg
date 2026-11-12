@@ -2,8 +2,6 @@
 // exact public arithmetic requirement; the selected target's realization
 // table binds that recorded relation, and Build never selects it. The
 // compiler catalog supplies intrinsic execution only for this sealed map.
-use omega::language::core::float_format;
-use omega::language::core::float_meaning;
 
 trait FloatNativeOperations {
     machine float_add_f32_f32(left: f32, right: f32) -> f32;

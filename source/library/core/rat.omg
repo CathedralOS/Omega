@@ -16,9 +16,6 @@
 // lands, proof-static index admission rechecks a positive denominator,
 // cancelled signed coordinates, and gcd-reduced magnitude/denominator.
 
-use omega::language::core::nat;
-use omega::language::core::nat_metric;
-use omega::language::core::int;
 
 public data Rat {
     num: IntPair;
