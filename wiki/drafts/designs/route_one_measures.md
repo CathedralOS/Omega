@@ -187,6 +187,15 @@ is renamed on each return edge. All 45 reach a verdict there.
   remainder rows), each unproved obligation is true. The contradictory-guard
   and multiply rows are classified by `#2317`'s family readings, which name
   them.
+- **The contradictory-guard row since then.** Run one program at a time
+  with the harness below at `main` `8ae4ed44e`: the three programs whose
+  guard contradicts a literal bound are accepted, and
+  `contradictory_relational_branch_exit` is rejected with one unproved
+  subtraction. With the prover's guard refutation
+  ([lowered discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md),
+  "Two orders between values") it is accepted, all 8 obligations judged by
+  the mathematical core. That needed no kernel rule. The other rows were
+  not rerun.
 - **Current-checker errors.** These follow `#2317`'s reading of
   `machines.md`: a nested declaration has its own contract and cannot use
   another invocation's live facts. For example, `machine divided(left, right)
@@ -439,7 +448,7 @@ without the kernel.
   program that lowers only at `#2317` was not found here; `#2317`'s own probe
   covers part of that.
 - **Native execution.** The harness runs no native code.
-- **`Build::depend` fixtures, `facts/`, `pending/` and `fail/`** were left out
+- **`Build::dependency` fixtures, `facts/`, `pending/` and `fail/`** were left out
   of the unscreened sweep.
 - **Coverage at the current head.** The coverage build is from the `#2305`
   measurement head. Psi 05, validation and Psi 06 differ from `main`
@@ -464,7 +473,7 @@ workspace dev profile on `omega-linux`, so times differ from those.
 - **`main`:** `82d2ea5d5`.
 
 **Unscreened sweep.** Every `tests/omega/{run,pass}/**/main.omg` outside
-`facts/` whose `build.omg` does not call `Build::depend`: 3,486 fixtures,
+`facts/` whose `build.omg` does not call `Build::dependency`: 3,486 fixtures,
 155 `run/` and 3,331 `pass/`. One process per fixture, `timeout 300 nice -n 19`,
 three at a time:
 

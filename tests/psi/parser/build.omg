@@ -11,10 +11,12 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, parser_entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, parser_entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, parser_entry_start);
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../source/library/std"
-    });
-    Build::depend_as(builder, "psi", Source::Path {
+    }));
+    let mut psi_dependency: DependencyDescription = dependency::from_source(Source::Path {
         location: "../../../source/psi"
     });
+    dependency::with_alias(&mut psi_dependency, "psi");
+    let psi_registration: DependencyRegistration = Build::dependency(builder, psi_dependency);
 }

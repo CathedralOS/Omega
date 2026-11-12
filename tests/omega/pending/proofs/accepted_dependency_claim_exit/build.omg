@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "accepted_claim_run");
-    Build::depend(builder, Source::Path { location: "claims" });
+    let claims_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "claims" }));
     Build::accept_boundary<establish>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

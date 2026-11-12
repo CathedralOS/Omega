@@ -27,10 +27,22 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
+## Bootstrap mandate
+
+For bootstrap construction work, [bootstrap/MINIMIZATION.md](bootstrap/MINIMIZATION.md)
+is the owner's governing mandate. It authorizes competing peer variants, changes
+to topology and intermediate languages, compiled/interpreted/native experiments,
+and explicit accelerators. Its architecture authority supersedes the fixed-design
+and no-experiment instructions below for this scope. Formal bootstrap correctness
+certificates do not gate construction; ordinary Omega safety and proof semantics
+remain required. Use bootstrap compiler and Omega compiler as public names.
+Record unresolved changes outside the mandate in
+[OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md), not the product queue.
+
 ## Spec first, land first
 
-These rules override any longer validation advice elsewhere in this file or in
-the skills.
+Subject to the Bootstrap mandate above, these rules override longer validation
+advice elsewhere in this file or in the skills.
 
 - **Read the spec, then implement it once.** Before editing, read the governing
   page in `wiki/spec/` and implement what it says. No exploratory trial patches,
@@ -38,8 +50,8 @@ the skills.
   the question, record it in `OWNER_QUESTIONS.md` and move to other work.
 - **Validate only what you touched.** One focused `mbx xtask corpus --filter`
   over the rows and samples the change targets, plus the crate's unit tests and
-  Clippy. No broad family sweeps, no before/after comparisons against main, no
-  re-recording rows you did not change.
+  Clippy. No broad family sweeps, no before/after comparisons against main, and
+  no ledger edits: pull requests do not touch `corpus_outcomes.txt`.
 - **Land, then verify.** Squash-merge the PR yourself as soon as the focused
   run passes (never a merge commit). Main is verified after merge; repair what
   that finds afterwards.
@@ -103,8 +115,8 @@ A PR in a compiler lane (`psi`, `omega`, `backend`, `compiler`, `build`,
 and its net change in red corpus rows:
 `Gate: <release-gate> | red rows: <change>`, where the name comes from the release
 matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-A negative number means rows turned green. `check-rules` compares the number
-with the ledger diff, so a row counts only once it is recorded. Work that turns
+A negative number means rows turned green; it is your statement of what the
+change does, checked on main after merge. Work that turns
 no row green is allowed but must say what it unlocks:
 `Gate: <release-gate> | red rows: 0 | unlocks: <rows or capability>`.
 
@@ -152,15 +164,12 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 4. **Full pipeline carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Carry every
    semantic repair through Checked Psi (`05`), Lowered/Terminal Psi (`06–08`),
    and native execution (`omega run --both`, exit 0).
-5. **Board closure & clean golden records:** Delete completed bullets
+5. **Board closure, and leave the ledger alone:** Delete completed bullets
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
-   passes"` history prose). Commit all code and fixture files before running
-   `cargo xtask corpus --record --filter <fixtures>` so `corpus_outcomes.txt`
-   never records a dirty `@<sha>+wt` stamp, a `pass/`/`run/` row as `rejected`,
-   or a `fail/` row as `unexpected`. A regression that already exists on
-   `main` is bad news the ledger must hold: record it from a PR that changes
-   only corpus ledgers and Markdown
-   ([who may record a regression](tools/testing.md#who-may-record-a-regression)).
+   passes"` history prose). Do not run `corpus --record` and do not edit
+   `tests/omega/corpus_outcomes.txt` in a pull request: the post-merge check
+   measures main and writes the ledger. Change code, fixtures and
+   `expected.txt` only.
 6. **Stop rule: decline the patch that would add another carrier.** If your fix
    would add another carrier, case or per-place branch for a mechanism that
    already has one, stop. Write a cluster report in the claim note and your
@@ -254,9 +263,8 @@ background processes never hang on open stdin:
 # Build warm optimized development compiler in worktree target/:
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
 
-# Run focused corpus verification & record (only on a clean committed worktree):
+# Run focused corpus verification (do not record; the ledger is written on main):
 mbx xtask corpus --filter <fixtures> < /dev/null
-mbx xtask corpus --record --filter <fixtures> < /dev/null
 
 # Run focused sample native + Psi gate:
 mbx xtask sample-gate --filter <sample_path> < /dev/null

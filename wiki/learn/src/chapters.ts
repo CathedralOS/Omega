@@ -418,9 +418,9 @@ machine uptime() -> u64 reaches Clock {
           kind: "code",
           code: `machine build(builder: &mut Build) {
     Build::application(builder, "learn_omega");
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../Omega/source/library/std"
-    });
+    }));
     Build::bind(
         builder,
         windows_x86_64::ProgramEntry,
@@ -451,7 +451,7 @@ machine start() reaches Console + ProcessExit {
         notes: [
           { for: 1, text: "`build.omg` defines `machine build(builder: &mut Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
           { for: 2, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
-          { for: 3, text: "`Build::depend` pulls in the standard library from a source path or Git revision so `main.omg` can `use omega_language_std::console`." },
+          { for: 3, text: "`Build::dependency` registers the standard library from a source path or Git revision so `main.omg` can `use omega_language_std::console`." },
           { for: 6, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
           { for: 8, text: "Because `ProgramEntry`'s schema comes from a dependency (`std`), the package manager requires an accepted `omega packages update` review recorded in `omega.lock`." },
           { for: 11, text: "Each hosted target (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) binds its own `ProgramEntry` to the same portable `start` machine." },

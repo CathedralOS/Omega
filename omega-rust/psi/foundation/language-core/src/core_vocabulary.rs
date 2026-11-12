@@ -38,6 +38,100 @@ pub enum CoreVocabulary {
     InterruptAcknowledgementCompletionComplete,
     /// Core `static_interrupt.omg`'s `StaticInterruptCompletionPermit` token.
     StaticInterruptCompletionPermit,
+    /// A reflection operation or result type in core `reflect.omg`.
+    Reflection(ReflectionDeclaration),
+    /// Core `extent.omg`'s linear `Extent` storage data.
+    Extent,
+    /// One of `Extent`'s declared domains in `extent.omg`.
+    ExtentDomain(ExtentDomain),
+    /// The `ProgramStorageEntry` arrival trait in `extent.omg`.
+    ProgramStorageEntry,
+    /// Core `fixed_vec.omg`'s `FixedVec<T, N>` data.
+    FixedVec,
+    /// A primitive instruction-effect proposition in core `assembly_model.omg`.
+    AssemblyEffect(AssemblyEffect),
+    /// A native-binding vocabulary type in core `external_binding.omg`.
+    ExternalBinding(ExternalBindingVocabulary),
+}
+
+/// The primitive propositions `assembly_model.omg` declares for instruction effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AssemblyEffect {
+    PortWritten,
+    ModelSpecificWritten,
+    AtomicReleaseWritten,
+}
+
+/// The native-binding vocabulary types in `external_binding.omg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExternalBindingVocabulary {
+    ForeignBinding,
+    DllImport,
+}
+
+/// The domains `extent.omg` declares over `Extent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtentDomain {
+    Vacant,
+    Resident,
+    Granted,
+}
+
+impl ExtentDomain {
+    /// The domain's declared member name, as checking spells it.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Vacant => "Vacant",
+            Self::Resident => "Resident",
+            Self::Granted => "Granted",
+        }
+    }
+}
+
+/// The `reflect.omg` declarations reflection elaboration is written against.
+/// They live in module `core::reflect`, so their package paths carry that prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ReflectionDeclaration {
+    /// `schema<T>()`.
+    Schema,
+    /// `TypeSchema`, the result of `schema`.
+    TypeSchema,
+    /// `CaseInfo`, active-case metadata.
+    CaseInfo,
+    /// `FieldInfo`, field metadata.
+    FieldInfo,
+    VisitRuntimeFields,
+    VisitRuntimeFieldsMut,
+    InspectRecordFields,
+    VisitActiveFields,
+    VisitActiveFieldsMut,
+}
+
+impl ReflectionDeclaration {
+    /// Whether this is one of the field-visiting operations.
+    pub const fn is_field_visitor(self) -> bool {
+        matches!(
+            self,
+            Self::VisitRuntimeFields
+                | Self::VisitRuntimeFieldsMut
+                | Self::InspectRecordFields
+                | Self::VisitActiveFields
+                | Self::VisitActiveFieldsMut
+        )
+    }
+}
+
+impl CoreVocabulary {
+    /// Whether this is the `extent.omg` domain declared with member `name`.
+    /// Names `extent.omg` does not declare never match.
+    pub fn is_extent_domain_named(self, name: &str) -> bool {
+        matches!(self, Self::ExtentDomain(domain) if domain.name() == name)
+    }
+
+    /// Whether this is one of `reflect.omg`'s field-visiting operations.
+    pub const fn is_reflection_field_visitor(self) -> bool {
+        matches!(self, Self::Reflection(declaration) if declaration.is_field_visitor())
+    }
 }
 
 /// The selector primitives of the two segment files.
@@ -83,6 +177,11 @@ const DATA_SEGMENT: &[u8] = core_source!("data_segment.omg");
 const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
+const REFLECT: &[u8] = core_source!("reflect.omg");
+const EXTENT: &[u8] = core_source!("extent.omg");
+const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
+const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
+const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 
 const fn row(
     file: &'static str,
@@ -215,7 +314,199 @@ const ROWS: &[CoreVocabularyRow] = &[
         STATIC_INTERRUPT,
         CoreVocabulary::StaticInterruptCompletionPermit,
     ),
+    row(
+        "reflect.omg",
+        "core::reflect::schema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Schema),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::TypeSchema",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::CaseInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::CaseInfo),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::FieldInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::FieldInfo),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_runtime_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_runtime_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::inspect_record_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_active_fields",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFields),
+    ),
+    row(
+        "reflect.omg",
+        "core::reflect::visit_active_fields_mut",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
+    ),
+    row("extent.omg", "Extent", EXTENT, CoreVocabulary::Extent),
+    row(
+        "extent.omg",
+        "Extent::Vacant",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Vacant),
+    ),
+    // The generic domain `Extent::Resident<P, T>` is declared under its own
+    // namespace, so its symbol's path is the bare member name.
+    row(
+        "extent.omg",
+        "Resident",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Resident),
+    ),
+    row(
+        "extent.omg",
+        "Extent::Granted",
+        EXTENT,
+        CoreVocabulary::ExtentDomain(ExtentDomain::Granted),
+    ),
+    row(
+        "extent.omg",
+        "ProgramStorageEntry",
+        EXTENT,
+        CoreVocabulary::ProgramStorageEntry,
+    ),
+    row(
+        "fixed_vec.omg",
+        "FixedVec",
+        FIXED_VEC,
+        CoreVocabulary::FixedVec,
+    ),
+    row(
+        "assembly_model.omg",
+        "port_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::PortWritten),
+    ),
+    row(
+        "assembly_model.omg",
+        "model_specific_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::ModelSpecificWritten),
+    ),
+    row(
+        "assembly_model.omg",
+        "atomic_release_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::AtomicReleaseWritten),
+    ),
+    row(
+        "external_binding.omg",
+        "ForeignBinding",
+        EXTERNAL_BINDING,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::ForeignBinding),
+    ),
+    row(
+        "external_binding.omg",
+        "DllImport",
+        EXTERNAL_BINDING,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::DllImport),
+    ),
 ];
+
+/*
+    Bundled core files whose declarations checking recognizes by their own
+    hermetic identity rather than by a per-declaration row: the consumer still
+    compares the exact identity, and the catalog supplies only that the symbol
+    was declared in this exact bundled file. Like every row, a source matches
+    only with its exact bytes behind the toolchain-origin gate.
+*/
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CoreSource {
+    Activation,
+    Atomic,
+    Relation,
+    FloatOperations,
+    FloatFormat,
+    FloatMeaning,
+    Layout,
+    Run,
+    CodeLayout,
+}
+
+const CORE_SOURCES: &[(CoreSource, &str, &[u8])] = &[
+    (
+        CoreSource::Activation,
+        "activation.omg",
+        core_source!("activation.omg"),
+    ),
+    (CoreSource::Atomic, "atomic.omg", core_source!("atomic.omg")),
+    (
+        CoreSource::Relation,
+        "relation.omg",
+        core_source!("relation.omg"),
+    ),
+    (
+        CoreSource::FloatOperations,
+        "float_operations.omg",
+        core_source!("float_operations.omg"),
+    ),
+    (
+        CoreSource::FloatFormat,
+        "float_format.omg",
+        core_source!("float_format.omg"),
+    ),
+    (
+        CoreSource::FloatMeaning,
+        "float_meaning.omg",
+        core_source!("float_meaning.omg"),
+    ),
+    (CoreSource::Layout, "layout.omg", core_source!("layout.omg")),
+    (CoreSource::Run, "run.omg", core_source!("run.omg")),
+    (
+        CoreSource::CodeLayout,
+        "code_layout.omg",
+        core_source!("code_layout.omg"),
+    ),
+];
+
+impl CoreSource {
+    /// The bundled file's path relative to the core package root.
+    pub fn file(self) -> &'static str {
+        CORE_SOURCES
+            .iter()
+            .find(|(source, _, _)| *source == self)
+            .map(|(_, file, _)| *file)
+            .expect("every core source has a row")
+    }
+
+    /// The core source bundled at `file`, if any.
+    pub fn from_file(file: &str) -> Option<Self> {
+        CORE_SOURCES
+            .iter()
+            .find(|(_, candidate, _)| *candidate == file)
+            .map(|(source, _, _)| *source)
+    }
+}
 
 pub struct CoreVocabularyCatalog;
 
@@ -230,6 +521,14 @@ impl CoreVocabularyCatalog {
                     && row.source == site.source
             })
             .map(|row| row.vocabulary)
+    }
+
+    /// The core source the site's file is, matching path and exact bytes.
+    pub fn source(file: &Path, source: &[u8]) -> Option<CoreSource> {
+        CORE_SOURCES
+            .iter()
+            .find(|(_, candidate, bytes)| file == Path::new(candidate) && *bytes == source)
+            .map(|(core, _, _)| *core)
     }
 }
 
@@ -276,6 +575,38 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site("assembly.omg", "MachineControl", b"edited")),
+            None
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::source(Path::new("atomic.omg"), core_source!("atomic.omg")),
+            Some(CoreSource::Atomic)
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::source(Path::new("atomic.omg"), b"edited"),
+            None
+        );
+        assert_eq!(
+            CoreSource::from_file(CoreSource::Layout.file()),
+            Some(CoreSource::Layout)
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("extent.omg", "Resident", EXTENT)),
+            Some(CoreVocabulary::ExtentDomain(ExtentDomain::Resident))
+        );
+        // `reflect.omg` declares `module core::reflect`: rows use the full
+        // package path, and the bare name matches nothing.
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site(
+                "reflect.omg",
+                "core::reflect::inspect_record_fields",
+                REFLECT
+            )),
+            Some(CoreVocabulary::Reflection(
+                ReflectionDeclaration::InspectRecordFields
+            ))
+        );
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("reflect.omg", "inspect_record_fields", REFLECT)),
             None
         );
     }

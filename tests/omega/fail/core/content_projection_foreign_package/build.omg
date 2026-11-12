@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "content_projection_foreign_package");
-    Build::depend_as(builder, "owner", Source::Path { location: "owner" });
+    let mut owner_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "owner" });
+    dependency::with_alias(&mut owner_dependency, "owner");
+    let owner_registration: DependencyRegistration = Build::dependency(builder, owner_dependency);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

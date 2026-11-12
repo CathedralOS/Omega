@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "uefi_context_cleanup_service_excluded");
-    Build::depend_as(builder, "entry_support", Source::Path { location: "../../../packages/uefi-storage-entry" });
+    let mut entry_support_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../packages/uefi-storage-entry" });
+    dependency::with_alias(&mut entry_support_dependency, "entry_support");
+    let entry_support_registration: DependencyRegistration = Build::dependency(builder, entry_support_dependency);
     Build::accept_boundary<ExtentRootProvider>(builder);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, linux_arm64);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, linux_x86_64);

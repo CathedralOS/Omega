@@ -19,7 +19,7 @@ use crate::build_declaration::{
     APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, BUILD_TYPE_NAME,
     BUILDER_PARAMETER_NAME, MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
 };
-use crate::dependencies::is_dependency_call_name;
+use crate::dependencies::is_dependency_call;
 use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use crate::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
@@ -366,7 +366,9 @@ fn reject_authored_toolchain_vocabulary(
             continue;
         }
         let leaf = machine_leaf_name(machine.name.as_str(syntax_trees));
-        if DeclarationOperation::classify(leaf).is_some() || is_dependency_call_name(leaf) {
+        if DeclarationOperation::classify(leaf).is_some()
+            || is_dependency_call(Some(BUILD_TYPE_NAME), leaf)
+        {
             return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
                 name: machine.name.as_str(syntax_trees).to_owned(),
             });

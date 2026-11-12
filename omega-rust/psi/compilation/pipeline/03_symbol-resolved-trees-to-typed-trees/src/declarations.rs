@@ -121,11 +121,15 @@ pub(crate) mod conformance {
             }
                 })
                 .collect(),
+            value_identity: Default::default(),
         };
         conformance.type_parameters = lowerer
             .with_type_reference_exposure(conformance_exposure, |lowerer| {
                 lower_type_parameters(lowerer, source_type_parameters)
             })?;
+        conformance.value_identity = lowerer
+            .typed_trees
+            .implementation_value_identity(&conformance);
         lowerer.typed_trees.push_conformance(conformance);
         Ok(())
     }
@@ -946,8 +950,9 @@ pub(crate) mod machine {
         }
 
         for contract in lowerer.source_trees.machine_contracts(machine) {
-            let contract =
-                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+            let contract = lowerer.admitting_contract_policy_operators(|lowerer| {
+                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)
+            })?;
             lowerer
                 .typed_trees
                 .push_machine_contract(&mut typed_machine, contract);
@@ -1661,8 +1666,9 @@ pub(crate) mod state {
         )?;
 
         for contract in lowerer.source_trees.signature_contracts(state.contracts) {
-            let contract =
-                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+            let contract = lowerer.admitting_contract_policy_operators(|lowerer| {
+                crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)
+            })?;
             lowerer
                 .typed_trees
                 .push_state_contract(&mut typed_state, contract);

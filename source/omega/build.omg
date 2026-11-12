@@ -17,10 +17,12 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, alpha_bootstrap::ProgramEntry, entry_start);
-    Build::depend_as(builder, "psi", Source::Path {
+    let mut psi_dependency: DependencyDescription = dependency::from_source(Source::Path {
         location: "../psi"
     });
-    Build::depend(builder, Source::Path {
+    dependency::with_alias(&mut psi_dependency, "psi");
+    let psi_registration: DependencyRegistration = Build::dependency(builder, psi_dependency);
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../library/std"
-    });
+    }));
 }

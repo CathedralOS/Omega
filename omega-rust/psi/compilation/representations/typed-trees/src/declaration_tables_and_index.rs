@@ -4268,6 +4268,214 @@ pub(crate) mod trait_and_machine_tables {
                 .find(|conformance| conformance.symbol == symbol)
         }
 
+        /*
+            The value identity of an implementation about to join the table.
+            Only selection rows leave the constructor's binders out of the
+            fields, so only then can a binder be unused or two names construct
+            one value; every form this walk does not read counts as a use.
+        */
+        pub fn implementation_value_identity(
+            &self,
+            conformance: &trait_definition::Conformance,
+        ) -> trait_definition::ImplementationValueIdentity {
+            use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+            if conformance
+                .rows
+                .iter()
+                .any(|row| row.source != trait_definition::ConformanceRowSource::Reference)
+            {
+                return Default::default();
+            }
+            /*
+                One entry per node of the schema arguments in written order, so
+                two argument lists are the same application exactly when their
+                shapes are equal. A primitive has no declaration and is told
+                apart by its name.
+            */
+            #[derive(PartialEq, Eq)]
+            enum Shape {
+                Declared(symbols::SymbolHandle),
+                Primitive(String),
+                Slice,
+                Unit,
+            }
+            struct Uses<'program> {
+                program: &'program TypedTrees,
+                shape: Vec<Shape>,
+                lifetimes: Vec<String>,
+                closed: bool,
+            }
+            impl Uses<'_> {
+                fn read(&mut self, reference: TypeReferenceHandle) {
+                    match self.program.type_reference_table.type_reference(reference) {
+                        TypeReferenceNode::Named { symbol, name } => {
+                            self.shape.push(if symbol.is_valid() {
+                                Shape::Declared(*symbol)
+                            } else {
+                                Shape::Primitive(name.as_str().to_owned())
+                            })
+                        }
+                        TypeReferenceNode::Slice { element_type } => {
+                            self.shape.push(Shape::Slice);
+                            self.read(*element_type);
+                        }
+                        TypeReferenceNode::Reference {
+                            referee, lifetime, ..
+                        } => {
+                            self.lifetimes
+                                .extend(lifetime.iter().map(|name| name.as_str().to_owned()));
+                            self.closed &= lifetime.is_some();
+                            self.read(*referee);
+                        }
+                        TypeReferenceNode::Generic {
+                            base_symbol,
+                            lifetime_arguments,
+                            arguments,
+                            ..
+                        } => {
+                            self.shape.push(Shape::Declared(*base_symbol));
+                            self.lifetimes.extend(
+                                lifetime_arguments
+                                    .iter()
+                                    .map(|name| name.as_str().to_owned()),
+                            );
+                            for argument in self.program.type_reference_handles(*arguments) {
+                                self.read(*argument);
+                            }
+                        }
+                        TypeReferenceNode::Unit => self.shape.push(Shape::Unit),
+                        TypeReferenceNode::Constrained { .. }
+                        | TypeReferenceNode::FixedArray { .. }
+                        | TypeReferenceNode::ConstExpression(_)
+                        | TypeReferenceNode::DynamicTrait { .. } => self.closed = false,
+                    }
+                }
+            }
+            let uses = |conformance: &trait_definition::Conformance| {
+                let mut uses = Uses {
+                    program: self,
+                    shape: Vec::new(),
+                    lifetimes: Vec::new(),
+                    closed: true,
+                };
+                for argument in self.type_reference_handles(conformance.arguments) {
+                    uses.read(*argument);
+                }
+                uses
+            };
+            let own = uses(conformance);
+            if !own.closed {
+                return Default::default();
+            }
+            let unused_lifetimes = conformance
+                .lifetime_parameters
+                .iter()
+                .enumerate()
+                .map(|(ordinal, lifetime)| {
+                    !conformance
+                        .trait_lifetime_arguments
+                        .iter()
+                        .any(|argument| *argument as usize == ordinal)
+                        && !own.lifetimes.iter().any(|name| name == lifetime.as_str())
+                })
+                .collect::<Vec<_>>();
+            let unused_parameters = self
+                .data_type_parameters
+                .span_or_empty(conformance.type_parameters)
+                .iter()
+                .map(|parameter| !own.shape.contains(&Shape::Declared(parameter.symbol)))
+                .collect::<Vec<_>>();
+            let all_unused = |identity: &trait_definition::ImplementationValueIdentity| {
+                identity
+                    .unused_lifetimes
+                    .iter()
+                    .chain(&identity.unused_parameters)
+                    .all(|unused| *unused)
+            };
+            let mut identity = trait_definition::ImplementationValueIdentity {
+                representative: symbols::SymbolHandle::invalid(),
+                unused_lifetimes,
+                unused_parameters,
+            };
+            if all_unused(&identity) && own.lifetimes.is_empty() {
+                identity.representative =
+                    self.conformances()
+                        .iter()
+                        .find(|earlier| {
+                            let known = &earlier.value_identity;
+                            !known.representative.is_valid()
+                                && known.unused_parameters.len()
+                                    == self.conformance_type_parameters(earlier).len()
+                                && known.unused_lifetimes.len() == earlier.lifetime_parameters.len()
+                                && all_unused(known)
+                                && earlier.trait_symbol == conformance.trait_symbol
+                                && earlier.rows.len() == conformance.rows.len()
+                                && earlier.rows.iter().zip(&conformance.rows).all(
+                                    |(left, right)| {
+                                        left.source
+                                            == trait_definition::ConformanceRowSource::Reference
+                                            && left.declaring_trait == right.declaring_trait
+                                            && left.requirement == right.requirement
+                                            && left.realization_machine == right.realization_machine
+                                            && left.realization_state == right.realization_state
+                                    },
+                                )
+                                && {
+                                    let earlier = uses(earlier);
+                                    earlier.closed
+                                        && earlier.lifetimes.is_empty()
+                                        && earlier.shape == own.shape
+                                }
+                        })
+                        .map_or_else(symbols::SymbolHandle::invalid, |earlier| earlier.symbol);
+            }
+            identity
+        }
+
+        /* The declaration whose name stands for the value `symbol` constructs. */
+        pub fn implementation_value_head(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> symbols::SymbolHandle {
+            self.implementation_value_identity_of(symbol)
+                .map(|identity| identity.representative)
+                .filter(|representative| representative.is_valid())
+                .unwrap_or(symbol)
+        }
+
+        /* Whether the argument at a binder position is part of the constructed value. */
+        pub fn application_lifetime_is_relevant(
+            &self,
+            symbol: symbols::SymbolHandle,
+            ordinal: usize,
+        ) -> bool {
+            !self
+                .implementation_value_identity_of(symbol)
+                .and_then(|identity| identity.unused_lifetimes.get(ordinal))
+                .is_some_and(|unused| *unused)
+        }
+
+        pub fn application_argument_is_relevant(
+            &self,
+            symbol: symbols::SymbolHandle,
+            ordinal: usize,
+        ) -> bool {
+            !self
+                .implementation_value_identity_of(symbol)
+                .and_then(|identity| identity.unused_parameters.get(ordinal))
+                .is_some_and(|unused| *unused)
+        }
+
+        fn implementation_value_identity_of(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<&trait_definition::ImplementationValueIdentity> {
+            (symbol.is_valid() && self.symbols.get(symbol).kind == symbols::SymbolKind::Conformance)
+                .then(|| self.conformance_by_symbol(symbol))
+                .flatten()
+                .map(|conformance| &conformance.value_identity)
+        }
+
         crate::declaration_columns! {
             conformance_type_parameters(conformance: trait_definition::Conformance)
                 -> &[data::TypeParameter] = data_type_parameters.type_parameters;
