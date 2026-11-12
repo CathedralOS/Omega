@@ -30,4 +30,5 @@ representation-selections = { path = "representation-planning/selections" }
 source = { path = "../../foundation/source" }
 structure-elaboration = { path = "../pipeline/structure-elaboration" }
 symbols = { path = "../../foundation/symbols" }
+terminal-check-tables = { path = "../representations/terminal-psi/check-tables" }
 typed-trees = { path = "../representations/typed-trees" }

@@ -2063,11 +2063,15 @@ pub mod machine_parameters {
                     {
                         continue;
                     }
+                    let detail = implication
+                        .as_ref()
+                        .and_then(|judgment| judgment.refusal_detail())
+                        .map_or(String::new(), |detail| format!(": {detail}"));
                     diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: its {} facts are not a conservative refinement",
-                requirement_identity,
-                contract_kind_name(&kind)
-            )));
+                        "{label} does not refine `{}`: its {} facts are not a conservative refinement{detail}",
+                        requirement_identity,
+                        contract_kind_name(&kind)
+                    )));
                 }
             }
             validate_crash_contract_refinement(

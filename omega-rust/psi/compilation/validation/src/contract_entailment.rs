@@ -15334,7 +15334,7 @@ pub(crate) mod contract_refinement {
 
     pub(crate) enum CallableContractRefinement {
         Lowered {
-            accepts: bool,
+            verdict: terminal_check_tables::Checked<()>,
         },
         Source {
             required: ContractFacts,
@@ -15348,16 +15348,16 @@ pub(crate) mod contract_refinement {
             required: &'a StateSignature,
             actual: structure_elaboration::CallableDeclaration<'a>,
         ) -> Option<Self> {
-            use lowered_discharge::RouteVerdict;
-            let verdict = lowered_discharge::judge(
-                structure_elaboration::elaborate_callable_witness(program, required, actual),
-            );
-            match verdict {
-                Ok(RouteVerdict::Accepted(_)) => Some(Self::Lowered { accepts: true }),
-                Ok(RouteVerdict::Rejected { .. }) | Err(_) => {
-                    Some(Self::Lowered { accepts: false })
+            use terminal_check_tables::RefusalReason;
+            let verdict = lowered_discharge::prove_callable_refinement(program, required, actual);
+            match &verdict {
+                Err(refused)
+                    if refused.reason == RefusalReason::Unsupported
+                        || matches!(refused.reason, RefusalReason::Unproved(cause) if cause.is_incomplete()) =>
+                {
+                    None
                 }
-                Ok(RouteVerdict::FallBack(_) | RouteVerdict::Incomplete(_)) => None,
+                _ => Some(Self::Lowered { verdict }),
             }
         }
 
@@ -15424,14 +15424,23 @@ pub(crate) mod contract_refinement {
             })
         }
 
+        pub(crate) fn refusal_detail(&self) -> Option<&str> {
+            match self {
+                Self::Lowered {
+                    verdict: Err(refused),
+                } => Some(&refused.detail),
+                _ => None,
+            }
+        }
+
         pub(crate) fn proves(
             &self,
             program: &dyn crate::CheckingInput,
             kind: &SignatureContractKind,
         ) -> bool {
             let (required, actual) = match self {
-                Self::Lowered { accepts } => {
-                    return *accepts
+                Self::Lowered { verdict } => {
+                    return verdict.is_ok()
                         && matches!(
                             kind,
                             SignatureContractKind::Requires | SignatureContractKind::Ensures
