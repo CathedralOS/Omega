@@ -885,31 +885,17 @@ mod case_access {
                     variant: row.variant,
                 });
                 /*
-                    A sum that owns nothing has no claim and no cleanup for a
-                    custody walk to find under its cases, in any element. Its
-                    exclusions are named once for the whole range: only the
-                    questions asked of an enclosing or contained path read
-                    them, and those accept a range where an index would stand.
-                    A sum with owned contents keeps one exclusion per element,
-                    because cleanup geometry is published per element.
+                    One exclusion names the case for the whole range. Every
+                    reader of these paths accepts a range where one element's
+                    index would stand, so no element needs its own copy.
                 */
-                if validation::has_no_owned_cleanup_obligations(self.program, reference) {
-                    subject.segments[index_position] = PlaceSegment::FixedRange {
-                        start: row.first,
-                        end: row.end,
-                    };
-                    for variant in &excluded {
-                        subject.segments[case_position] = PlaceSegment::Case { variant: *variant };
-                        visit(&subject);
-                    }
-                    continue;
-                }
-                for index in row.first..row.end {
-                    subject.segments[index_position] = PlaceSegment::FixedIndex { index };
-                    for variant in &excluded {
-                        subject.segments[case_position] = PlaceSegment::Case { variant: *variant };
-                        visit(&subject);
-                    }
+                subject.segments[index_position] = PlaceSegment::FixedRange {
+                    start: row.first,
+                    end: row.end,
+                };
+                for variant in &excluded {
+                    subject.segments[case_position] = PlaceSegment::Case { variant: *variant };
+                    visit(&subject);
                 }
             }
         }
@@ -1336,6 +1322,45 @@ mod case_access {
                     })
                 })
         }
+    }
+
+    /*
+        An inactive case of a zero-formed array is observed once for a range of
+        elements: its path spells that range where one element's path spells its
+        index. Such a path stands for the same case in every element of the range,
+        so it is a prefix of an element's path when the index lies inside it.
+        Every reader of inactive-case paths compares through these two.
+    */
+    fn observed_segment_admits(observed: PlaceSegment, queried: PlaceSegment) -> bool {
+        observed == queried
+            || matches!(
+                (observed, queried),
+                (
+                    PlaceSegment::FixedRange { start, end },
+                    PlaceSegment::FixedIndex { index },
+                ) if start <= index && index < end
+            )
+    }
+
+    /* The observed case path, or a path below it. */
+    pub(crate) fn lies_under_observed_case(
+        observed: &[PlaceSegment],
+        path: &[PlaceSegment],
+    ) -> bool {
+        observed.len() <= path.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
+    }
+
+    /* A path that contains the observed case path. */
+    pub(crate) fn contains_observed_case(path: &[PlaceSegment], observed: &[PlaceSegment]) -> bool {
+        path.len() <= observed.len()
+            && observed
+                .iter()
+                .zip(path)
+                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
     }
 
     /*
@@ -2190,9 +2215,10 @@ pub(crate) use canonicalization::{
     source_independent_place,
 };
 pub(crate) use case_access::{
-    CaseEvidence, ZeroCaseBelow, place_case_has_value, place_case_path_is_inactive,
-    place_cases_are_selected, place_cases_are_selected_after,
-    stable_subject as stable_case_subject, zero_case_at, zero_case_below,
+    CaseEvidence, ZeroCaseBelow, contains_observed_case, lies_under_observed_case,
+    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    place_cases_are_selected_after, stable_subject as stable_case_subject, zero_case_at,
+    zero_case_below,
 };
 pub(crate) use literal_projection::{
     LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,

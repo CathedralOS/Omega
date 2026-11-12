@@ -11189,7 +11189,7 @@ mod cleanup_case_evidence {
         fn excludes(&self, path: &[PlaceSegment]) -> bool {
             self.inactive
                 .iter()
-                .any(|inactive| path.starts_with(inactive))
+                .any(|inactive| crate::flow::lies_under_observed_case(inactive, path))
         }
 
         fn proves_case(
@@ -11530,7 +11530,7 @@ mod cleanup_effect_dependencies {
             &|path| {
                 inactive_cases
                     .iter()
-                    .any(|inactive| path.starts_with(inactive))
+                    .any(|inactive| crate::flow::lies_under_observed_case(inactive, path))
             },
         )
         .is_some();
@@ -12631,12 +12631,13 @@ pub(crate) use place::{
     ZeroCaseBelow, canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
-    compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
-    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, narrow_pinned_index_segments_with_values, place_case_has_value,
-    place_case_path_is_inactive, place_cases_are_selected, place_cases_are_selected_after,
-    place_segment_has_static_identity, place_segment_has_unresolved_identity, projected_leaf_place,
-    reference_source_place, segments_cover_subject, source_independent_place, stable_case_subject,
+    compose_captured_view_segments, contains_observed_case, fixed_selection_segment,
+    lies_under_observed_case, literal_argument_access_places, literal_expression_projections,
+    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
+    narrow_pinned_index_segments_with_values, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_cases_are_selected_after, place_segment_has_static_identity,
+    place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
+    segments_cover_subject, source_independent_place, stable_case_subject,
     static_place_segment_pair_equal, zero_case_at, zero_case_below,
 };
 pub(crate) use reach::attach_reach_summaries;

@@ -38,51 +38,12 @@ mod case_exclusions {
         element_ranges: usize,
     }
 
-    /*
-        An inactive case of a zero-formed array is observed once for a range of
-        elements: its path spells that range where one element's path spells its
-        index. Such a path stands for the same case in every element of the range,
-        so it is a prefix of an element's path when the index lies inside it.
-    */
-    fn observed_segment_admits(observed: PlaceSegment, queried: PlaceSegment) -> bool {
-        observed == queried
-            || matches!(
-                (observed, queried),
-                (
-                    PlaceSegment::FixedRange { start, end },
-                    PlaceSegment::FixedIndex { index },
-                ) if start <= index && index < end
-            )
-    }
-
     fn names_element_range(path: &[PlaceSegment]) -> bool {
         path.iter()
             .any(|segment| matches!(segment, PlaceSegment::FixedRange { .. }))
     }
 
-    /* The observed case path, or a path below it. */
-    pub(in crate::checks::multiplicity) fn lies_under_observed_case(
-        observed: &[PlaceSegment],
-        path: &[PlaceSegment],
-    ) -> bool {
-        observed.len() <= path.len()
-            && observed
-                .iter()
-                .zip(path)
-                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
-    }
-
-    /* A path that contains the observed case path. */
-    pub(in crate::checks::multiplicity) fn contains_observed_case(
-        path: &[PlaceSegment],
-        observed: &[PlaceSegment],
-    ) -> bool {
-        path.len() <= observed.len()
-            && observed
-                .iter()
-                .zip(path)
-                .all(|(observed, queried)| observed_segment_admits(*observed, *queried))
-    }
+    use crate::flow::lies_under_observed_case;
 
     #[derive(Clone, Default)]
     pub(super) struct CaseExclusions {
@@ -267,15 +228,15 @@ mod case_exclusions {
                 PlaceRoot::Symbol(SymbolHandle::from_parts(7, 1)),
                 &through(3)
             ));
-            assert!(super::lies_under_observed_case(
+            assert!(crate::flow::lies_under_observed_case(
                 &observed.segments,
                 &through(4)
             ));
-            assert!(super::contains_observed_case(
+            assert!(crate::flow::contains_observed_case(
                 &through(4)[..2],
                 &observed.segments
             ));
-            assert!(!super::contains_observed_case(
+            assert!(!crate::flow::contains_observed_case(
                 &through(7)[..2],
                 &observed.segments
             ));
@@ -582,10 +543,8 @@ use super::linear_obligations::LinearPlace;
 use super::selected_evaluation::ExpressionRoutes;
 use super::selected_evaluation::SelectedEvaluation;
 use crate::flow::canonical_place_segments_may_overlap;
+use crate::flow::{contains_observed_case, lies_under_observed_case};
 use case_exclusions::CaseExclusions;
-pub(in crate::checks::multiplicity) use case_exclusions::{
-    contains_observed_case, lies_under_observed_case,
-};
 
 use checked_trees::{
     ContextualCleanupDisposition, ContextualCleanupExcludedRegion as ExcludedRegion,
