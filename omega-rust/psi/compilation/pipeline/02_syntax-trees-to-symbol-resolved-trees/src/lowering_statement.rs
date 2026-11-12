@@ -1217,6 +1217,7 @@ mod statement_nodes {
                             | BuildOperation::ServiceExclusion
                             | BuildOperation::ServiceAudit
                             | BuildOperation::TestGroupRegistration
+                            | BuildOperation::TestGroupService
                             | BuildOperation::BoundaryAcceptance
                             | BuildOperation::WireCompatibilityRequest
                             | BuildOperation::RepresentationSelection
@@ -1489,7 +1490,7 @@ mod statement_nodes {
         // member projection an ordinary `owner.tests` value has instead of the
         // static path a statement call's receiver otherwise becomes.
         let facet = (BuildOperation::from_call_target(call.target.as_str())
-            == Some(BuildOperation::TestGroupRegistration)
+            .is_some_and(BuildOperation::uses_tests_facet)
             && receiver_members.len() >= 2
             && receiver_members
                 .last()

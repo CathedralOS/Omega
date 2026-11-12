@@ -921,6 +921,7 @@ mod product {
                         | super::BuildOperation::AssumedBindingContract
                         | super::BuildOperation::WireCompatibilityRequest
                         | super::BuildOperation::TestGroupRegistration
+                        | super::BuildOperation::TestGroupService
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -1058,7 +1059,10 @@ mod product {
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
                     Some(Role::Requirement)
                 }
-                (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
+                (Self::TestGroupRegistration | Self::TestGroupService, 0) => {
+                    Some(Role::TestRequirement)
+                }
+                (Self::TestGroupService, 1) => Some(Role::BoundarySubject),
                 (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                     Some(Role::Data)
                 }
@@ -1073,7 +1077,8 @@ mod product {
                 Self::NativeBinding => count == 1,
                 Self::ProviderSelection
                 | Self::RepresentationSelection
-                | Self::AssumedBindingContract => count == 2,
+                | Self::AssumedBindingContract
+                | Self::TestGroupService => count == 2,
                 Self::ServiceExclusion
                 | Self::ServiceAudit
                 | Self::BoundaryAcceptance
@@ -1897,6 +1902,9 @@ pub enum BuildOperation {
     // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
     // exact trait machine requirement registered as a test group.
     TestGroupRegistration,
+    // `builder.tests.service<Group, Slot>()` (wiki/spec/build/testing.md): a
+    // registered group's runner-supplied backing for one exact service slot.
+    TestGroupService,
 }
 pub fn is_unresolved_provider_selection_call(
     target: &str,
@@ -1907,6 +1915,12 @@ pub fn is_unresolved_provider_selection_call(
 }
 
 impl BuildOperation {
+    /// The operations authored on the Build's `tests` facet
+    /// (`builder.tests.group<…>()`, `builder.tests.service<…>()`), which that
+    /// facet, not the Build value, authorizes.
+    pub const fn uses_tests_facet(self) -> bool {
+        matches!(self, Self::TestGroupRegistration | Self::TestGroupService)
+    }
     pub const fn has_designated_operands(self) -> bool {
         self.selects_product_declarations() || matches!(self, Self::ProviderReadiness)
     }
@@ -1922,10 +1936,11 @@ impl BuildOperation {
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract
                 | Self::TestGroupRegistration
+                | Self::TestGroupService
         )
     }
 
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
@@ -1940,6 +1955,7 @@ impl BuildOperation {
         Self::LogWriteLine,
         Self::NativeBinding,
         Self::TestGroupRegistration,
+        Self::TestGroupService,
     ];
 
     pub const fn authored_spelling(self) -> &'static str {
@@ -1958,6 +1974,7 @@ impl BuildOperation {
             Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
             Self::TestGroupRegistration => "group",
+            Self::TestGroupService => "service",
         }
     }
 
@@ -2003,6 +2020,7 @@ impl BuildOperation {
             Self::TestGroupRegistration => {
                 AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration
             }
+            Self::TestGroupService => AuthoredDeclarationSelectionIntrinsic::BuildTestGroupService,
         }
     }
 }
@@ -2028,6 +2046,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildServiceExclusion,
     BuildServiceAudit,
     BuildTestGroupRegistration,
+    BuildTestGroupService,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,

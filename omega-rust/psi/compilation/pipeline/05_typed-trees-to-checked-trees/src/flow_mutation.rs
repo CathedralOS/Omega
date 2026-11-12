@@ -4075,8 +4075,9 @@ pub(in crate::flow) fn call_mutation_writes(
     Only exclusive writes belong here. Shared atomic operations keep their
     ordinary call-access checks and remain writes in `call_mutated_places`,
     but do not freeze other shared loans as an ordinary store would.
-    A captured loan limits a local jump to the states that still carry it;
-    ordinary calls retain it through their complete run. The caller must first
+    A captured loan limits a terminal transfer (a local jump or a terminal
+    machine call) to the states that still carry it; other calls retain it
+    through their complete run. The caller must first
     authenticate the source binding's closure; this spatial query grants no
     lifetime authority. Without a loan, callers
     inspect the complete write set (for example, restored-use certificates).

@@ -40,6 +40,9 @@ pub(super) struct FilesystemContext {
     rooted: bool,
     windows: Rc<RefCell<windows::Handles>>,
     linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
+    /// The runner's private namespace; when present it answers every Linux
+    /// kernel filesystem call instead of `linux`.
+    private: Option<Rc<RefCell<native_provider_runtime::PrivateLinuxFilesystem>>>,
     descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
 }
 
@@ -177,8 +180,14 @@ impl FilesystemContext {
         // A root that cannot be opened supplies no namespace at all, so every
         // filesystem call refuses rather than falling back to the process
         // directory.
+        let private = matches!(delegation, TerminalFilesystemDelegation::Private).then(|| {
+            Rc::new(RefCell::new(
+                native_provider_runtime::PrivateLinuxFilesystem::new(),
+            ))
+        });
         let (supplied, rooted, linux) = match delegation {
             TerminalFilesystemDelegation::Unprovided => (false, false, Default::default()),
+            TerminalFilesystemDelegation::Private => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
                 match native_provider_runtime::LinuxFilesystem::rooted(&root) {
@@ -193,7 +202,15 @@ impl FilesystemContext {
             windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
             linux: Rc::new(RefCell::new(linux)),
+            private,
         }
+    }
+
+    /// The private namespace, when this execution's runner supplies one.
+    pub(super) fn private(
+        &self,
+    ) -> Option<&Rc<RefCell<native_provider_runtime::PrivateLinuxFilesystem>>> {
+        self.private.as_ref()
     }
 
     /// The namespace the native sponsor's libc and Windows supplies use.
@@ -212,6 +229,11 @@ impl FilesystemContext {
         binding: &NormalizedForeignCallBinding,
         layouts: &[NativeBorrowedStorageLayout],
     ) -> Result<Option<FilesystemCall>, TerminalRuntimeError> {
+        // A private namespace answers only kernel calls; no libc or Windows
+        // filesystem import may reach the host in its place.
+        if self.private.is_some() {
+            return Ok(None);
+        }
         if let Some(call) = windows::admit(self, program, declaration, binding, layouts)? {
             return Ok(Some(FilesystemCall::Windows(call)));
         }

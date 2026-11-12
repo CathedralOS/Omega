@@ -1678,6 +1678,8 @@ fail/borrows/owned_mutable_float_live_shared_loan rejected 4019ms expected @ccdb
 fail/borrows/parent_use_before_disjoint_sibling_ends rejected 2031ms expected @ccdb99ca2214
 	state `observe` receives `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 3 reads `values` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+fail/borrows/pending_registration_write_before_completion rejected 7324ms expected @7d712fe6b9d2
+	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
 fail/borrows/placed_helper_exclusive_alias_rejected rejected 2457ms expected @b43a5fa574e6
 	argument `view` for state `entry` is declared `&mut` (`&mut Access<RegPlacement,Registers>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/placed_shared_write_rejected rejected 1380ms expected @ccdb99ca2214
@@ -20212,6 +20214,7 @@ pass/borrows/owned_exclusive_call_writeback_exit checked 3211ms check-target:mac
 pass/borrows/owned_nested_record_copy_exit checked 16227ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/owned_reference_arrival_projection_exit checked 3618ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 19191ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/pending_registration_write_after_completion checked 8392ms check-target:macos_arm64 @7d712fe6b9d2
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 3638ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/predicate_reference_field_retarget_exit checked 1284ms check-target:macos_arm64 @4ef0dddd5128
 pass/borrows/private_arrival_default_domain_bound checked 9823ms check-target:macos_arm64 @911f6617ba9e
@@ -27914,8 +27917,7 @@ pass/recast/returned_qualification_preserves_representation_exit checked 5770ms 
 pass/recast/returned_qualified_reference_exit checked 5778ms check-target:macos_arm64 @a9583c79243f
 pass/recast/returned_same_type_view_capture_exit checked 4483ms check-target:macos_arm64 @3e93aa449723
 pass/recast/returned_view_state_and_record_composition_exit checked 3840ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 23386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @3bbe5c131a15
-	statement 6 mutates `main.source` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 6)
+pass/recast/runtime_aggregate_slice_representation_recast_exit checked 23682ms check-target:macos_arm64 @7d712fe6b9d2
 pass/recast/runtime_authored_toolchain_type_shadow_exit checked 3041ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_bool_representation_recast_exit checked 87338ms check-target:macos_arm64 @898dd1bf8987
 pass/recast/runtime_boolean_view_decision_exit checked 11185ms check-target:macos_arm64 @911f6617ba9e

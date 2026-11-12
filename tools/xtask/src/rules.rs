@@ -4,11 +4,11 @@
 //!   `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape and size caps
-//! - Golden (`tests/omega/corpus_outcomes.txt`) freshness and row quality
+//! - Historical corpus rows and runnable fixture reclassification
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
-//! - Compiler-lane PR `Gate:` line, checked against the corpus ledger diff
+//! - Compiler-lane PR release gate and intended red-row change
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -1527,12 +1527,63 @@ fn source_oracle_input(path: &str) -> bool {
         && !(path.contains("/validation/") && (path.ends_with(".rs") || path.ends_with(".py")))
 }
 
+// A former rejection stays covered when this diff introduces its runnable pass
+// counterpart at the same group/name. An existing positive cannot justify
+// deleting a negative. Prepare this correspondence once for both admission rules.
+fn runnable_fail_to_pass_reclassifications(
+    root: &Path,
+    changes: &[(char, String)],
+) -> Result<BTreeSet<String>, String> {
+    let added: BTreeSet<&str> = changes
+        .iter()
+        .filter_map(|(status, path)| (*status == 'A').then_some(path.as_str()))
+        .collect();
+    let mut reclassified = BTreeSet::new();
+    for (status, path) in changes {
+        if *status != 'D' || root.join(path).exists() {
+            continue;
+        }
+        let Some(identity) = path
+            .strip_prefix("tests/omega/fail/")
+            .and_then(|path| path.strip_suffix("/main.omg"))
+        else {
+            continue;
+        };
+        let positive = format!("tests/omega/pass/{identity}/main.omg");
+        if added.contains(positive.as_str())
+            && root.join(&positive).is_file()
+            && has_valid_runtime_exit_oracles(&root.join(positive))?
+        {
+            reclassified.insert(format!("fail/{identity}"));
+        }
+    }
+    Ok(reclassified)
+}
+
+// Check authored outcomes with the execution owner's parser. Focused
+// qualification establishes the actual native and Psi observations separately.
+fn has_valid_runtime_exit_oracles(main: &Path) -> Result<bool, String> {
+    let mut complete = false;
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ] {
+        let native = crate::runtime_oracles::exit_oracle(main, Some(target), false, None)?;
+        let interpreted = crate::runtime_oracles::exit_oracle(main, Some(target), true, None)?;
+        complete |= native.is_some() && interpreted.is_some();
+    }
+    Ok(complete)
+}
+
 fn golden_violations(
     changes: &[(char, String)],
     base_rows: &BTreeSet<String>,
     head_rows: &BTreeSet<String>,
     rewritten: &BTreeSet<String>,
     fixture_dirs: &BTreeSet<String>,
+    reclassified: &BTreeSet<String>,
 ) -> Vec<String> {
     let all_rows: BTreeSet<String> = base_rows.union(head_rows).cloned().collect();
     let mut touched = BTreeSet::new();
@@ -1550,7 +1601,9 @@ fn golden_violations(
         .collect();
     let orphaned: Vec<String> = touched
         .iter()
-        .filter(|f| !fixture_dirs.contains(*f) && head_rows.contains(*f))
+        .filter(|f| {
+            !fixture_dirs.contains(*f) && head_rows.contains(*f) && !reclassified.contains(*f)
+        })
         .cloned()
         .collect();
     let mut violations = Vec::new();
@@ -1559,7 +1612,7 @@ fn golden_violations(
     let _ = stale;
     if !orphaned.is_empty() {
         violations.push(format!(
-            "{} deleted fixture(s) keep a row in {GOLDEN}: {}",
+            "{} deleted fixture(s) keep a row in {GOLDEN} without a new runnable pass counterpart at the same group/name: {}",
             orphaned.len(),
             orphaned.join(", ")
         ));
@@ -1619,10 +1672,23 @@ fn pending_promotion_path(path: &str) -> Option<String> {
     Some(format!("tests/omega/fail/{rest}"))
 }
 
-fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String)]) -> Vec<String> {
+fn expected_pin_violations(
+    root: &Path,
+    base_rev: &str,
+    changes: &[(char, String)],
+    reclassified: &BTreeSet<String>,
+) -> Vec<String> {
     let mut violations = Vec::new();
     for (status, path) in changes {
         if *status == 'A' || !path.starts_with("tests/omega/") || !path.ends_with("/expected.txt") {
+            continue;
+        }
+        if *status == 'D'
+            && path
+                .strip_prefix("tests/omega/")
+                .and_then(|path| path.strip_suffix("/expected.txt"))
+                .is_some_and(|fixture| reclassified.contains(fixture))
+        {
             continue;
         }
         let old: BTreeSet<String> = show_git_file(root, base_rev, path)
@@ -1676,7 +1742,7 @@ fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String
             parts.join("; ")
         };
         violations.push(format!(
-            "{path}: broke existing-diagnostic-pin: {detail}. Keep a nonempty expected.txt; replace obsolete fragments rather than only dropping them. A pending-to-fail move must preserve the same pins at the same place. Check the intended rejection before merge; corpus recording belongs afterward."
+            "{path}: broke existing-diagnostic-pin: {detail}. Keep a nonempty expected.txt; replace obsolete fragments rather than only dropping them. A pending-to-fail move must preserve the same pins at the same place. A fail-to-pass move must introduce a runnable counterpart at the same group/name with valid native and Psi exit oracles. Check the intended outcome before merge; corpus recording belongs afterward."
         ));
     }
     violations
@@ -1999,19 +2065,32 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             .filter(|(status, path)| !equivalent_work_pin(&root, &base_rev, *status, path))
             .cloned()
             .collect();
+        let reclassified = match runnable_fail_to_pass_reclassifications(&root, &changes) {
+            Ok(reclassified) => reclassified,
+            Err(error) => {
+                violations.push(format!("cannot admit fixture reclassification: {error}"));
+                BTreeSet::new()
+            }
+        };
         violations.extend(golden_violations(
             &freshness_changes,
             &golden_rows(&base_golden),
             &golden_rows(&head_golden),
             &rewritten,
             &fixture_directories(&root),
+            &reclassified,
         ));
         violations.extend(golden_row_quality_violations(
             &golden_diff,
             records_observations_only(&changes),
         ));
         violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(expected_pin_violations(&root, &base_rev, &changes));
+        violations.extend(expected_pin_violations(
+            &root,
+            &base_rev,
+            &changes,
+            &reclassified,
+        ));
         for (status, path) in &changes {
             if *status == 'A' && path.starts_with(MEASUREMENTS_ROOT) {
                 if !path.ends_with(".md") {
@@ -2175,7 +2254,15 @@ struct Ledger;
             show_git_file(&repo.root, &base, GOLDEN),
             show_git_file(&repo.root, "HEAD", GOLDEN)
         );
-        assert!(expected_pin_violations(&repo.root, &base, &[('M', path.to_owned())]).is_empty());
+        assert!(
+            expected_pin_violations(
+                &repo.root,
+                &base,
+                &[('M', path.to_owned())],
+                &BTreeSet::new(),
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2185,8 +2272,12 @@ struct Ledger;
         let base = repo.commit(&[(path, Some("missing output\nIdentity\n"))]);
         for (contents, status) in [(Some("Identity\n"), 'M'), (Some("  \n"), 'M'), (None, 'D')] {
             repo.commit(&[(path, contents)]);
-            let violations =
-                expected_pin_violations(&repo.root, &base, &[(status, path.to_owned())]);
+            let violations = expected_pin_violations(
+                &repo.root,
+                &base,
+                &[(status, path.to_owned())],
+                &BTreeSet::new(),
+            );
             assert_eq!(violations.len(), 1, "{contents:?}");
             assert!(violations[0].contains("existing-diagnostic-pin"));
         }
@@ -2202,18 +2293,18 @@ struct Ledger;
         let base = repo.commit(&[(pending, Some(pins))]);
         repo.commit(&[(pending, None), (fail, Some(pins))]);
         let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
-        assert!(expected_pin_violations(&repo.root, &base, &changes).is_empty());
+        assert!(expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).is_empty());
 
         repo.commit(&[(fail, Some("Identity\n"))]);
         assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes).len(),
+            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
             1
         );
 
         repo.commit(&[(fail, None), (wrong_place, Some(pins))]);
         let changes = [('D', pending.to_owned()), ('A', wrong_place.to_owned())];
         assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes).len(),
+            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
             1
         );
     }
@@ -2227,7 +2318,194 @@ struct Ledger;
         repo.commit(&[(pending, None), (fail, Some("\n"))]);
         let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
         assert_eq!(
-            expected_pin_violations(&repo.root, &base, &changes).len(),
+            expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn runnable_reclassification_preserves_the_case_without_editing_its_ledger() {
+        let repo = DiagnosticPinRepository::new();
+        let old_main = "tests/omega/fail/calls/example/main.omg";
+        let old_pin = "tests/omega/fail/calls/example/expected.txt";
+        let new_main = "tests/omega/pass/calls/example/main.omg";
+        let base = repo.commit(&[
+            (old_main, Some("machine main() {}\n")),
+            (old_pin, Some("obsolete acknowledgement refusal\n")),
+            (
+                GOLDEN,
+                Some("fail/calls/example rejected 1ms expected @aaaaaaaaaaaa\n\tobsolete acknowledgement refusal\n"),
+            ),
+        ]);
+        repo.commit(&[
+            (old_main, None),
+            (old_pin, None),
+            (new_main, Some("machine main() {}\n")),
+            (
+                "tests/omega/pass/calls/example/expected_native_exit.txt",
+                Some("0\n"),
+            ),
+            (
+                "tests/omega/pass/calls/example/expected_interpreter_exit.txt",
+                Some("0\n"),
+            ),
+        ]);
+        let changes = [
+            ('D', old_main.to_owned()),
+            ('D', old_pin.to_owned()),
+            ('A', new_main.to_owned()),
+        ];
+        let reclassified = runnable_fail_to_pass_reclassifications(&repo.root, &changes).unwrap();
+        assert_eq!(
+            reclassified,
+            BTreeSet::from(["fail/calls/example".to_owned()])
+        );
+        let rows = BTreeSet::from(["fail/calls/example".to_owned()]);
+        assert!(
+            golden_violations(
+                &changes,
+                &rows,
+                &rows,
+                &BTreeSet::new(),
+                &fixture_directories(&repo.root),
+                &reclassified,
+            )
+            .is_empty()
+        );
+        assert!(expected_pin_violations(&repo.root, &base, &changes, &reclassified).is_empty());
+        assert_eq!(
+            show_git_file(&repo.root, &base, GOLDEN),
+            show_git_file(&repo.root, "HEAD", GOLDEN)
+        );
+    }
+
+    #[test]
+    fn runnable_reclassification_requires_valid_outcomes_for_both_engines() {
+        for (native, interpreted, invalid) in [
+            (None, None, false),
+            (None, Some("0\n"), false),
+            (Some("invalid\n"), Some("0\n"), true),
+            (Some("0\n"), Some("invalid\n"), true),
+        ] {
+            let repo = DiagnosticPinRepository::new();
+            let old_main = "tests/omega/fail/calls/example/main.omg";
+            let old_pin = "tests/omega/fail/calls/example/expected.txt";
+            let new_main = "tests/omega/pass/calls/example/main.omg";
+            let base = repo.commit(&[
+                (old_main, Some("machine main() {}\n")),
+                (old_pin, Some("required rejection\n")),
+            ]);
+            let mut files = vec![
+                (old_main, None),
+                (old_pin, None),
+                (new_main, Some("machine main() {}\n")),
+            ];
+            if let Some(native) = native {
+                files.push((
+                    "tests/omega/pass/calls/example/expected_native_exit.txt",
+                    Some(native),
+                ));
+            }
+            if let Some(interpreted) = interpreted {
+                files.push((
+                    "tests/omega/pass/calls/example/expected_interpreter_exit.txt",
+                    Some(interpreted),
+                ));
+            }
+            repo.commit(&files);
+            let changes = [
+                ('D', old_main.to_owned()),
+                ('D', old_pin.to_owned()),
+                ('A', new_main.to_owned()),
+            ];
+            let result = runnable_fail_to_pass_reclassifications(&repo.root, &changes);
+            if invalid {
+                assert!(result.unwrap_err().contains("invalid exit oracle"));
+            } else {
+                let reclassified = result.unwrap();
+                assert!(reclassified.is_empty());
+                assert_eq!(
+                    expected_pin_violations(&repo.root, &base, &changes, &reclassified).len(),
+                    1
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn runnable_reclassification_rejects_an_invalid_target_override() {
+        let repo = DiagnosticPinRepository::new();
+        repo.commit(&[
+            (
+                "tests/omega/pass/calls/example/main.omg",
+                Some("// Expected exit: 0\nmachine main() {}\n"),
+            ),
+            (
+                "tests/omega/pass/calls/example/expected_native_exit.windows_x86_64.txt",
+                Some("invalid\n"),
+            ),
+        ]);
+        let changes = [
+            ('D', "tests/omega/fail/calls/example/main.omg".to_owned()),
+            ('A', "tests/omega/pass/calls/example/main.omg".to_owned()),
+        ];
+        assert!(
+            runnable_fail_to_pass_reclassifications(&repo.root, &changes)
+                .unwrap_err()
+                .contains("invalid exit oracle")
+        );
+    }
+
+    #[test]
+    fn runnable_reclassification_preserves_exact_group_and_name() {
+        for destination in ["other/example", "calls/other"] {
+            let repo = DiagnosticPinRepository::new();
+            let new_main = format!("tests/omega/pass/{destination}/main.omg");
+            repo.commit(&[(&new_main, Some("// Expected exit: 0\nmachine main() {}\n"))]);
+            let changes = [
+                ('D', "tests/omega/fail/calls/example/main.omg".to_owned()),
+                ('A', new_main),
+            ];
+            assert!(
+                runnable_fail_to_pass_reclassifications(&repo.root, &changes)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn an_existing_positive_does_not_justify_deleting_a_negative() {
+        let repo = DiagnosticPinRepository::new();
+        let old_main = "tests/omega/fail/calls/example/main.omg";
+        let old_pin = "tests/omega/fail/calls/example/expected.txt";
+        let base = repo.commit(&[
+            (old_main, Some("machine main() {}\n")),
+            (old_pin, Some("required rejection\n")),
+            (
+                "tests/omega/pass/calls/example/main.omg",
+                Some("// Expected exit: 0\nmachine main() {}\n"),
+            ),
+        ]);
+        repo.commit(&[(old_main, None), (old_pin, None)]);
+        let changes = [('D', old_main.to_owned()), ('D', old_pin.to_owned())];
+        let reclassified = runnable_fail_to_pass_reclassifications(&repo.root, &changes).unwrap();
+        assert!(reclassified.is_empty());
+        assert_eq!(
+            expected_pin_violations(&repo.root, &base, &changes, &reclassified).len(),
+            1
+        );
+        let rows = BTreeSet::from(["fail/calls/example".to_owned()]);
+        assert_eq!(
+            golden_violations(
+                &changes,
+                &rows,
+                &rows,
+                &BTreeSet::new(),
+                &fixture_directories(&repo.root),
+                &reclassified
+            )
+            .len(),
             1
         );
     }

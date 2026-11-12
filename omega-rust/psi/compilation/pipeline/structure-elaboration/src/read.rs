@@ -74,6 +74,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// The types a finite family's alternative fixes the entry's type
+    /// parameters to, in declaration order, when this program is that
+    /// alternative's check (`Reading::Alternative`).
+    pub alternative: Option<Vec<ValueType>>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
@@ -148,6 +152,7 @@ impl<'t> Program<'t> {
             scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
+            alternative: None,
             static_truths: Vec::new(),
             value_parameters: IdTable::default(),
             value_arguments: IdTable::default(),

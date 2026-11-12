@@ -64,55 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - What source form binds a boundary requirement to a field of a foreign function table?
-
-Decision name: `native-table-field-binding`.
-
-**Customer.** UEFI firmware hands a loader tables of function pointers, and
-`source/library/std/targets/uefi_x86_64/handoff.omg` calls four Boot Services
-entries (`allocate_pages`, `free_pages`, `get_memory_map`,
-`exit_boot_services`) through them. Each is a bodyless leaf written
-`satisfies UefiBootServices::allocate_pages via ForeignBinding::TableFunction(allocate_pages);`.
-33 corpus fixtures and probes use the same `TableFunction` / `VtableField`
-spelling, for example `samples/uefi/uefi_hello/main.omg` and
-`samples/cli/probes/native_table_call/main.omg`. The compiler already realizes
-these: it validates an `addr` field of the exact table record and a readable
-borrow of that record, then computes the target offset
-([measurement](wiki/drafts/measurements/source_free_table_fields_2026_11_02/README.md)).
-
-**What the specification says.** The ratified `build-owned-native-bindings`
-decision retires `via` and binds DllImport and syscall leaves with
-`Build::bind<Requirement>(builder, target, locator)`. For tables it says only
-what the replacement is not:
-
-- [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values):
-  *"`VtableField` is deliberately not a case of it ... it remains on its
-  explicit legacy carrier until NativeFieldIdentity has an ordinary typed
-  source form; it must not be smuggled into this sum"*.
-- The same section: *"Retiring `via` does not add table or instruction
-  variants to `ForeignBinding`: validated typed table/field mechanisms ...
-  must migrate without a compatibility parser"*, and *"A table call names a
-  validated field, not an authored numeric slot ordinal."*
-
-So `via` cannot be deleted while these leaves exist, and the specification
-names no form to move them to.
-
-**Question.** How does source bind a boundary requirement to a function-pointer
-field of a foreign table?
-
-- **(a)** A Build row with a second operand naming the field, such as
-  `Build::bind<UefiBootServices::allocate_pages, EfiBootServicesTable::allocate_pages>(builder, uefi_x86_64)`,
-  with the dispatch borrow taken from the requirement's first parameter.
-- **(b)** A field-typed declaration form in source next to the table record,
-  with no Build row.
-- **(c)** Something else. Separately: do vtable fields, which pass the table
-  itself as the first argument, and table functions, which do not, need two
-  forms?
-
-Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
-cannot delete its parser.
-
-### Q2 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q1 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -164,7 +116,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q3 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q2 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -209,7 +161,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q5 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q3 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -266,7 +218,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q10 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q4 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -321,111 +273,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q20 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
-
-Decision name: `nested-evidence-output-establishment`.
-
-**Customer.** Three run fixtures,
-`tests/omega/run/calls/outcome_specific_selected_guarantee_{result,input,inputs}_exit`.
-The first:
-
-```omega
-machine pick(threshold: u32) -> Outcome
-ensures Outcome::Success -> { selected: succeeded(result); }
-{
-    transition threshold > 3 {
-        true -> succeed()
-        false -> fail()
-    }
-    machine succeed() -> Outcome {
-        selected = Fresh;
-        Outcome::Success
-    }
-    machine fail() -> Outcome { Outcome::Failure }
-}
-```
-
-`pick` promises the evidence output `selected` on its `Success` outcome, and
-its nested machine `succeed` assigns `selected`. The ledger records the rows
-`rejected`: "machine `succeed` state `entry` uses `selected`, which is not a
-declared local, parameter, field, or type in this state". The green siblings
-`outcome_specific_selected_guarantee_{exit,nested_exit,variants_exit}` and
-`pass/calls/outcome_specific_root_exit` assign the output in the declaring
-machine's own body. The same rejection reproduces with an unconditional
-`ensures selected: above(5)` assigned from a nested machine, so it is not
-specific to outcome-specific guarantees.
-
-The rewrite that gives `succeed` its own guarantee
-(`machine succeed() -> Outcome ensures Outcome::Success -> { selected: succeeded(result); }`)
-is also refused today: "cannot classify the ordinary result case on exit
-through pick::entry". The exit check accepts only a literal constructor as the
-result case, not the result of a terminal call.
-
-**Gap.** These contracts were checked:
-
-- [Bindings and arrivals](wiki/spec/language/state_contracts.md#bindings-and-arrivals):
-  *"Nesting does not assume the parent's entry requirements again, import its
-  return guarantees, or supply facts invalidated by mutation."* Read alone, a
-  nested machine does not see its parent's guarantee, so it cannot name the
-  parent's output.
-- [Returns and proof use](wiki/spec/language/state_contracts.md#returns-and-proof-use):
-  *"A terminal call owes both the callee's result and the caller's completion
-  contract; lexical ancestry adds no further return targets."* and
-  *"Outcome-specific guarantees follow the matching nominal result case"*.
-  Read together, `pick`'s `Success` guarantee is owed at the terminal call
-  `succeed()`, and could be discharged from `succeed`'s own guarantee on the
-  matching case.
-- No ratified page gives the source rule for writing an evidence output name:
-  which bodies may assign it, and whether the name is in scope in nested
-  machines.
-
-**Question.**
-
-- **(a)** Is a named evidence output assignable only in the machine that
-  declares it? Then the three programs are invalid as written and are migrated
-  so `succeed` declares the guarantee, and the exit check learns to discharge
-  the caller's guarantee from a terminal callee's guarantee and result case.
-- **(b)** Or may a nested machine reached by a terminal call assign its
-  parent's output, as these fixtures do? Then output names enter nested scope,
-  and the spec needs the rule for which nested machines qualify.
-
-Until answered the three rows are left as recorded and the checker is unchanged.
-
-### Q23 - May the Psi interpreter carry a host address that a native import returned?
-
-Decision name: `interpreter-host-address-carriage`.
-
-**Customer.** `tests/omega/pass/providers/foreign_address_result_release_exit`
-calls glibc `malloc`, receives an `addr`, and passes it unchanged to `free`. Its
-native leg exits 70 as authored. Under `omega run --both` the interpreter
-declines with `native-provider-adapter: native scalar differs from its admitted
-logical/storage codec`. It is the one `providers/foreign_*` fixture of the
-NORMALIZED-ABI-LOWERING acceptance that does not pass on both engines, and every
-program that keeps a native allocation handle meets the same refusal.
-
-**Gap.** [Host result validation](wiki/spec/terminal-psi/boundary_calls.md#host-result-validation)
-lets an embedding handler return an "exactly typed scalar", and `addr` is a
-scalar. But it also says: "The host must supply a legitimate owned value. An
-opaque identity number does not establish global allocation freshness against
-interpreter-created values or suspended callers." The interpreter has no runtime
-value for an address: its host-import scalar codec, borrowed-storage and
-scalar-record codecs and terminal installation all refuse `addr` scalars. The
-specification does not say whether a host-returned address may be admitted, and
-if so with what provenance, or what interpreter code may do with it.
-
-**Question.**
-
-- **(a)** May the interpreter admit a host-returned `addr` as an opaque
-  host-provenance value? Such a value could be stored, compared and passed back
-  to native imports, but never dereferenced, offset into or mixed with
-  interpreter-created addresses.
-- **(b)** Or must a program that holds a native address handle be refused by the
-  interpreter, so that `--both` cannot qualify it and the fixture is native-only?
-
-Until answered, the interpreter declines this fixture and the native leg alone
-runs it.
-
-### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q5 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 

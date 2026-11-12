@@ -12781,9 +12781,11 @@ mod terminal_invocation {
     /*
         The invocation that completes one authored transition arm.
 
-        This identifies argument transport, not caller-scope retirement. Entering
-        another machine still keeps caller storage and loans alive until ordinary
-        completion; only `local_jump` can establish an internal block boundary.
+        This identifies argument transport, not caller-scope retirement: only
+        `local_jump` establishes an internal block boundary, and entering another
+        machine keeps caller storage alive until ordinary completion. A loan the
+        caller carries into it still closes at its last derived use, inside the
+        target's terminal chain too (`state_contracts.md`, terminal calls).
     */
     pub(crate) struct TerminalInvocation<'program> {
         pub(crate) target: &'program typed_trees::state::State,

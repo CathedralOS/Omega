@@ -1,9 +1,11 @@
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+
 // glibc ldiv returns a 16-byte pair in SysV integer result registers.
 
 public data DivisionResult { quotient: i64; remainder: i64; }
 public boundary trait AllocationProbe {
     machine statistics(numerator: i64, denominator: i64) -> DivisionResult reaches;
-    machine exit_with(code: i32) reaches;
 }
 
 machine relay(result: DivisionResult) -> DivisionResult { result }
@@ -13,7 +15,7 @@ machine collect(numerator: i64, denominator: i64) -> DivisionResult {
 }
 machine observe(result: &DivisionResult) -> i64 { result.quotient }
 data Main {}
-machine Main::main(main: &mut Main) {
+machine Main::main(main: &mut Main) reaches ProcessExit {
     let first: DivisionResult = collect(73, 10);
     let second: DivisionResult = collect(95, 7);
     let observed: i64 = observe(&first);
@@ -22,12 +24,12 @@ machine Main::main(main: &mut Main) {
         true -> passed(main)
         _ -> failed(main)
     }
-    machine passed(main: &mut Main) { AllocationProbe::exit_with(70); }
-    machine failed(main: &mut Main) { AllocationProbe::exit_with(71); }
+    machine passed(main: &mut Main) reaches ProcessExit { ProcessExit::exit_process(70); }
+    machine failed(main: &mut Main) reaches ProcessExit { ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
+machine entry_start() reaches ProcessExit {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);
 }

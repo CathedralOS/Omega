@@ -1,0 +1,13 @@
+// Expected exit: 0
+machine scan(remaining: i32 in Wrapping) -> bool {
+    transition remaining > 0 { true -> block scan(remaining - 1) _ -> true }
+}
+machine main() -> bool { scan(3) }
+
+// Convert the existing Boolean result into the process exit oracle.
+machine entry_start() crashes Trap {
+    let observed: bool = main();
+    transition observed { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

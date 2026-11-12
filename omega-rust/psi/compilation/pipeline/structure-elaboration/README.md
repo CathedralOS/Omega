@@ -210,9 +210,23 @@ branch of another type: it is left unread, because it is typed under an
 equation that is false here. An arm decided as true is taken
 unconditionally, and the arms after it are left unread. A lone Boolean
 literal decides nothing this way: only a type equation makes a condition
-static. An equation with a type parameter, a data type or an application on
-either side is not decided, so the generic form of such a machine is still
-refused (`expression type expression`).
+static. An equation with a rigid type parameter, a data type or an
+application on either side is not decided, so the opaque generic form of
+such a machine is refused (`expression type expression`).
+
+**The family itself** is read once per alternative it lists, by
+`elaborate_alternatives`: `family_alternatives` finds the one `requires`
+clause that is a disjunction of `T == X` with `X` a builtin scalar type,
+and each check reads the declaration as its entry with `T` fixed to one `X`
+(`Reading::Alternative`). A type equation naming `T` is then decided as if
+stage 04 had substituted it. Inside a machine contract clause a type
+equation guards what follows it (generics.md: "Conjuncts are read left to
+right; a disjunct whose type equation is false for the instantiation holds
+vacuously"): a conjunct decided true is dropped, and a disjunct a type
+equation decides false (`guarded_false`) contributes nothing and is not
+read, so a conjunct typed only under another alternative is never typed.
+What remains must be a clause the reader serves; a clause decided false
+outright is refused.
 
 `elaborate_witness` builds the statement that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a

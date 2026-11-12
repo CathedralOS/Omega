@@ -32,6 +32,13 @@ pub(crate) fn check_product_source(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
+    // The file that declares the selected Build machine is the Build program,
+    // which the current checker judges (`lowered_route`).
+    let build_program = computed_build_config
+        .selected_build_machine_symbol
+        .and_then(|symbol| typed.symbols.symbol_source_span(symbol))
+        .and_then(|span| symbol_sources.as_deref()?.file_at(span))
+        .map(|file| file.source_id);
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
     // Validation subjects: the root package is checked in full; a dependency
@@ -198,11 +205,35 @@ pub(crate) fn check_product_source(
             // A product check judges the consumer's own package.
             checked_slices: None,
         }
-        .check_keeping_typed_frontier(frontier.is_some().then_some(&mut judged));
+        // The trees are kept for every Product check: when Psi 05 rejects,
+        // the checker on the lowered form may govern the verdict
+        // (`lowered_route`), and they are gone once Psi 05 has them.
+        .check_keeping_typed_frontier(Some(&mut judged));
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
             artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
         }
         result
+    });
+    let subject = package_inputs.map(PackageCompilationInputs::root);
+    let outcome = outcome.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        let governed = judged.as_ref().and_then(|typed| {
+            super::lowered_route::governed_rejection(
+                &super::lowered_route::RejectedCompilation {
+                    typed,
+                    sources: symbol_sources.as_deref(),
+                    entries: &external_roots,
+                    subject,
+                    selected: &selected,
+                    build_program,
+                    entry_contracts: &entry_contracts,
+                },
+                &diagnostics,
+            )
+        });
+        governed.unwrap_or(diagnostics)
     });
     // The entries are this request's, so they are paired with the trees here,
     // before a rejection below returns and drops the Build configuration.
@@ -210,16 +241,11 @@ pub(crate) fn check_product_source(
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed,
             entries: external_roots.clone(),
-            subject: package_inputs.map(PackageCompilationInputs::root),
+            subject,
             selected,
         });
     }
-    let outcome = outcome.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-        }
-        diagnostics
-    })?;
+    let outcome = outcome?;
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,

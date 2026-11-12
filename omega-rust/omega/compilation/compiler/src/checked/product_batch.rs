@@ -145,7 +145,7 @@ impl CompilationSession {
             let prepared = capture_beside_publication(&source, target, &inputs);
             let mut outcome = crate::execution_settlement::select_product_target(&source, prepared);
             if outcome.result.is_ok() {
-                match super::test_roots::select_test_roots(&source, target) {
+                match super::test_roots::select_test_roots(&source, target, &inputs) {
                     Ok(selection) => {
                         outcome.test_notes = selection.notes;
                         for root in selection.roots {

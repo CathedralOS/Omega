@@ -4646,6 +4646,10 @@ impl<'program> CurrentScalarValues<'program> {
         self.state
     }
 
+    pub(crate) fn statement_index(&self) -> usize {
+        self.statement_index
+    }
+
     pub(crate) fn program(&self) -> &'program dyn ::validation::CheckingInput {
         self.program
     }

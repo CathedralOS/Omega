@@ -1,0 +1,4541 @@
+{
+  "commit": "0835b3aaf803ed97f905be42d94727ff58459263",
+  "depths": {
+    "file_count": 50111,
+    "all": {
+      "max": {
+        "paren": 1100,
+        "angle": 381,
+        "binary_chain": 8,
+        "prefix_chain": 1
+      },
+      "file": {
+        "paren": "tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg",
+        "angle": "tests/omega/pass/terminal_psi/integer_control_contract/main.omg",
+        "binary_chain": "tests/omega/pass/modules/match_constant_indices/main.omg",
+        "prefix_chain": "tests/omega/fail/resources/owned_extent_erased_label_rejected/main.omg"
+      }
+    },
+    "excluding_depth_fixtures": {
+      "max": {
+        "paren": 9,
+        "angle": 381,
+        "binary_chain": 8,
+        "prefix_chain": 1
+      },
+      "file": {
+        "paren": "tests/omega/pass/terminal_psi/integer_control_contract/main.omg",
+        "angle": "tests/omega/pass/terminal_psi/integer_control_contract/main.omg",
+        "binary_chain": "tests/omega/pass/modules/match_constant_indices/main.omg",
+        "prefix_chain": "tests/omega/fail/resources/owned_extent_erased_label_rejected/main.omg"
+      }
+    },
+    "fixture_paths": [
+      "fail/parser/nesting_exceeds_max_depth",
+      "pass/parser/deep_nesting_within_limit",
+      "pass/expressions/deep_paren_nesting"
+    ],
+    "parser_test_pins": {
+      "unary_tilde_repeat": 4096,
+      "binary_seven_op_groups": 1024,
+      "note": "Rust integration tests in stage-01 crate, not .omg corpus"
+    },
+    "parser": {
+      "engine": "tokens-to-syntax-trees (Psi 01)",
+      "parsed_files": 49755,
+      "parse_failures": 356,
+      "deep_paren_nesting_comment": "Deep parenthesis nesting within the compile path's recursion budget.",
+      "fixture_paths": [
+        "fail/parser/nesting_exceeds_max_depth",
+        "pass/parser/deep_nesting_within_limit",
+        "pass/expressions/deep_paren_nesting"
+      ],
+      "all": {
+        "expression_tree_depth": {
+          "depth": 135,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1
+        },
+        "type_reference_nesting": {
+          "depth": 6,
+          "file": "tests/omega/fail/facts/open_index_distributivity_commutative_semiring_rejected/main.omg",
+          "line": 1
+        },
+        "binary_operator_chain": {
+          "depth": 132,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1585
+        }
+      },
+      "excluding_depth_fixtures": {
+        "expression_tree_depth": {
+          "depth": 135,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1
+        },
+        "type_reference_nesting": {
+          "depth": 6,
+          "file": "tests/omega/fail/facts/open_index_distributivity_commutative_semiring_rejected/main.omg",
+          "line": 1
+        },
+        "binary_operator_chain": {
+          "depth": 132,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1585
+        }
+      }
+    },
+    "parser_note": "Psi-01 syntax parse via wiki/drafts/audits/measure_depths (run with `ulimit -s unlimited` on default Linux stack)."
+  },
+  "call_graph": {
+    "01": {
+      "function_count": 393,
+      "recursive_scc_candidates": 11,
+      "candidates": [
+        {
+          "representative": "expression_handle_identifier_depth",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/bodies_and_transitions.rs",
+          "line": 1301,
+          "members": [
+            "expression_handle_identifier_depth"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "copy_expression_to_statement_identifier_path",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/bodies_and_transitions.rs",
+          "line": 1383,
+          "members": [
+            "copy_expression_to_statement_identifier_path"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "parse_satisfies_type_argument",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts_and_parameters.rs",
+          "line": 191,
+          "members": [
+            "apply_in_domain_suffix",
+            "parse_borrow_type_reference",
+            "parse_conformance_trait_application",
+            "parse_domain_argument_handles",
+            "parse_named_type_reference",
+            "parse_satisfies_type_argument",
+            "parse_static_argument_reference",
+            "parse_type_reference_handle",
+            "parse_type_reference_handle_inner",
+            "parse_type_reference_handle_with_trailing_domain"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "parse_capability_definition",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs",
+          "line": 20,
+          "members": [
+            "parse",
+            "parse_body",
+            "parse_boundary_data_definition",
+            "parse_boundary_item",
+            "parse_capability_contract",
+            "parse_capability_definition",
+            "parse_capability_state",
+            "parse_conformance",
+            "parse_conformance_members",
+            "parse_data_definition",
+            "parse_declared_item",
+            "parse_domain_definition",
+            "parse_domain_requires",
+            "parse_fact_list",
+            "parse_item",
+            "parse_logical_proof_fact_expression_handle",
+            "parse_machine",
+            "parse_machine_clauses",
+            "parse_machine_parameter_contracts",
+            "parse_operator_contract",
+            "parse_operator_definition",
+            "parse_operator_fact_contract",
+            "parse_outcome_specific_ensures_group",
+            "parse_proof_fact_expression_handle",
+            "parse_proof_facts_until",
+            "parse_proof_facts_until_with_machine_semicolon",
+            "parse_refinement_clause",
+            "parse_required_logical_proof_facts_until",
+            "parse_required_proof_facts_until",
+            "parse_signature_clauses",
+            "parse_trait_definition",
+            "parse_trait_machine_signature",
+            "starts_following_item"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_reference_target_label",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs",
+          "line": 1210,
+          "members": [
+            "type_reference_target_label"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "parse_mathematical_type",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs",
+          "line": 1489,
+          "members": [
+            "parse_arrow_domain",
+            "parse_mathematical_type",
+            "parse_mathematical_type_inner"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "try_parse_static_argument",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/expressions.rs",
+          "line": 1648,
+          "members": [
+            "parse_static_symbol_application",
+            "try_parse_static_argument",
+            "try_parse_static_symbol_application"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "is_place",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/statements_and_assembly.rs",
+          "line": 334,
+          "members": [
+            "is_place"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "copy_compound_assignment_target",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/statements_and_assembly.rs",
+          "line": 538,
+          "members": [
+            "copied_name_or_member",
+            "copy_compound_assignment_target",
+            "copy_stable_compound_assignment_index"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "copy_expression_as_place",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/statements_and_assembly.rs",
+          "line": 2415,
+          "members": [
+            "copy_expression_as_place"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "rewrite_expression",
+          "file": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs",
+          "line": 48,
+          "members": [
+            "rewrite_expression",
+            "rewrite_expression_span",
+            "rewrite_optional_expression"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    },
+    "02": {
+      "function_count": 1227,
+      "recursive_scc_candidates": 71,
+      "candidates": [
+        {
+          "representative": "retain_value_carrier",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs",
+          "line": 93,
+          "members": [
+            "retain_value_carrier"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "has_nominal_carrier",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs",
+          "line": 182,
+          "members": [
+            "has_nominal_carrier"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "same_resolved_carrier",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs",
+          "line": 204,
+          "members": [
+            "same_resolved_carrier"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "validate_literal_initializer",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs",
+          "line": 726,
+          "members": [
+            "validate_literal_initializer"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_type_parameters",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs",
+          "line": 290,
+          "members": [
+            "lower_state_signature_parts",
+            "lower_type_parameters"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_mathematical_type",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs",
+          "line": 2310,
+          "members": [
+            "lower_mathematical_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "extend_name_positions",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs",
+          "line": 642,
+          "members": [
+            "extend_name_positions"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_type_operand",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs",
+          "line": 1189,
+          "members": [
+            "lower_type_operand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "render_ranked_subject",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs",
+          "line": 1882,
+          "members": [
+            "render_ranked_subject"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "hoist_into_temp",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_statement.rs",
+          "line": 154,
+          "members": [
+            "capture_formation",
+            "capture_operands",
+            "capture_reference_initializer_selectors",
+            "capture_selector",
+            "hoist_into_temp",
+            "hoist_operand_into_temp",
+            "mint_hoist_temp"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "rewrite_children",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_statement.rs",
+          "line": 316,
+          "members": [
+            "hoist_child",
+            "rewrite_children"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "subject_contains_hoistable",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_statement.rs",
+          "line": 764,
+          "members": [
+            "subject_contains_hoistable"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_contains",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_statement.rs",
+          "line": 1887,
+          "members": [
+            "expression_contains"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "constructor_prefix_is_value",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 1267,
+          "members": [
+            "constructor_prefix_is_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "scalar_literal_tree",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 2099,
+          "members": [
+            "scalar_literal_tree"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_requirement_instances",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 2806,
+          "members": [
+            "collect_requirement_instances"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "substitute_statement_static_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 3217,
+          "members": [
+            "substitute_statement_static_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "substitute_expression_static_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 3355,
+          "members": [
+            "substitute_expression_static_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "rewritten_static_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 3478,
+          "members": [
+            "rewritten_static_argument",
+            "rewritten_static_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "static_argument_for_actual",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs",
+          "line": 3552,
+          "members": [
+            "static_argument_for_actual"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "into_integer",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs",
+          "line": 1659,
+          "members": [
+            "into_integer"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "const_type_requires_declaration_proof",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs",
+          "line": 3421,
+          "members": [
+            "const_type_requires_declaration_proof"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "named_data",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs",
+          "line": 3432,
+          "members": [
+            "named_data"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_type_expression_handles",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs",
+          "line": 3953,
+          "members": [
+            "collect_type_expression_handles"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "normalize_template_type_reference",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs",
+          "line": 4120,
+          "members": [
+            "normalize_template_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "canonicalize_lifetime_bearing_type_argument",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 165,
+          "members": [
+            "canonicalize_lifetime_bearing_type_argument"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "normalize_domain_head_node",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 917,
+          "members": [
+            "normalize_domain_head_node"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "reaches",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 1471,
+          "members": [
+            "reaches"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_reference_handle_is_substitutable",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 1601,
+          "members": [
+            "type_reference_handle_is_substitutable"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_mentions_in",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2157,
+          "members": [
+            "expression_mentions_in"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "decide_instance_type_equalities",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2184,
+          "members": [
+            "decide_instance_type_equalities"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "fold_impossible_case_memberships",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2276,
+          "members": [
+            "fold_impossible_case_memberships"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "variant_fact_verdict",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2399,
+          "members": [
+            "variant_fact_verdict"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "substitute_type_reference",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2516,
+          "members": [
+            "substitute_constrained_type_reference",
+            "substitute_domain_index_argument",
+            "substitute_type_reference",
+            "substitute_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_reference_mentions_parameter",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2849,
+          "members": [
+            "type_reference_mentions_parameter"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "substitute_cleanup_selection",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs",
+          "line": 2915,
+          "members": [
+            "substitute_cleanup_selection"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "select",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs",
+          "line": 20,
+          "members": [
+            "anonymous_numeric_expression",
+            "application",
+            "application",
+            "application_argument_reference",
+            "application_arguments",
+            "application_boolean",
+            "application_constant",
+            "application_integer",
+            "application_shape",
+            "apply",
+            "argument_name",
+            "argument_reference",
+            "assign_fixed_array_length_symbol",
+            "assign_machine_declaration_identity_argument_symbols",
+            "assign_trait_bound_slot_argument_symbols",
+            "assign_type_arguments_with_definitions",
+            "assign_type_reference_argument_symbols_with_constraints",
+            "assign_type_reference_handle_symbol_with_context",
+            "assign_type_reference_symbol_with_context",
+            "assign_type_reference_with_definitions",
+            "authored_operator_can_bind",
+            "authored_spelling_parameters",
+            "bind_const_expression",
+            "bind_integer",
+            "bind_type_occurrences",
+            "binder_mentions",
+            "binding",
+            "boolean_constructor_parameter",
+            "build_machine_catalog",
+            "build_trait_catalog",
+            "call",
+            "call_constraints",
+            "call_custody_source",
+            "call_dependency",
+            "canonical_const_result",
+            "canonical_const_result_in_application",
+            "canonicalize_const_definition",
+            "canonicalize_const_expression",
+            "canonicalize_const_expression_with_admission",
+            "canonicalize_data_const_expression_with_admission",
+            "canonicalize_named_fields_with_admission",
+            "canonicalize_scoped_index_expression",
+            "canonicalize_selected_const_definition",
+            "canonicalize_selected_const_definition_in_application",
+            "canonicalize_selected_data_const_expression_with_admission",
+            "canonicalize_selected_declaration_value",
+            "canonicalize_selected_declaration_value_with_admission",
+            "canonicalize_selected_declared_const_definition",
+            "canonicalize_selected_index_expression",
+            "child_symbol_by_kinds",
+            "child_symbol_by_kinds_matching",
+            "classify_side",
+            "classify_type_equations",
+            "closed_application_argument_labels",
+            "closed_argument_identities",
+            "closed_argument_identity",
+            "closed_array_length",
+            "closed_fixed_array_length",
+            "closed_leaf_carrier",
+            "closed_name_identity",
+            "closed_parameter_argument_identity",
+            "collect",
+            "collect",
+            "collect",
+            "collect",
+            "collect_application",
+            "collect_binder_mentions",
+            "collect_declared_result_dispatch",
+            "collect_expression_binder_mentions",
+            "collect_expression_handles",
+            "collect_literal_fields",
+            "collect_requirement_closure",
+            "collect_result_dispatch",
+            "collect_statement_expression_handles",
+            "collect_static_argument_binder_mentions",
+            "collect_trait_requirements",
+            "collect_type_positions",
+            "complete_arguments",
+            "complete_equation_arguments",
+            "complete_equation_arguments_with_types",
+            "concrete_machine_declarations",
+            "conformance_declaration",
+            "conformance_routing_plans",
+            "const_field_projection",
+            "const_integer_type",
+            "const_parameter_carriers",
+            "constant",
+            "constraint_slug",
+            "constraints",
+            "construct_application",
+            "construct_type_structure",
+            "constructor",
+            "constructor_type",
+            "contains",
+            "contains",
+            "contested_domain",
+            "contract_static_operands",
+            "data",
+            "data_among",
+            "data_declaration",
+            "data_declaration_among",
+            "data_lookup_path_for_declaration",
+            "declaration_constant",
+            "declaration_lookup_path",
+            "defined_through_cycle",
+            "definition_reference_spans",
+            "direct_selector_literal",
+            "domain",
+            "domain_application_head",
+            "domain_constraint_application",
+            "domain_family",
+            "domain_head",
+            "domain_index_parameters",
+            "domain_index_telescope",
+            "domain_symbol_is_reachable",
+            "effective_member_type",
+            "equation_shape",
+            "evaluate_anonymous_integer_argument",
+            "evaluate_anonymous_numeric_expression",
+            "evaluate_const_argument_expression",
+            "evaluate_const_domain_constraint",
+            "evaluate_const_domain_expression",
+            "evaluate_const_fact_expression_at",
+            "evaluate_domain_index_argument",
+            "evaluate_indexed_const_domain",
+            "evaluate_named_const_domain",
+            "evaluate_selected_const_fact",
+            "evaluate_selected_domain_facts",
+            "evidence_requirement",
+            "expression",
+            "expression_child_handles",
+            "expression_dependencies",
+            "expression_static_operands",
+            "expression_types",
+            "expressions",
+            "generic_application_label",
+            "generic_parameter_roles",
+            "has_builtin_const_operator",
+            "has_const_expression_argument",
+            "has_deferred_const_argument",
+            "has_no_authored_spelling",
+            "identity",
+            "implementation_item",
+            "indexed_domain_identity",
+            "inferred_const_argument",
+            "integer_constructor_parameter",
+            "is_core_layout_storage",
+            "is_core_layout_storage_source",
+            "item",
+            "lexical_integer_const_values",
+            "lookup_path_for_selected",
+            "lower_alias_application",
+            "lower_applied_requirement_qualifier",
+            "lower_binary_expression_into_table",
+            "lower_child_type_references",
+            "lower_destructure_pattern",
+            "lower_expression_into_table",
+            "lower_expression_node_into_table",
+            "lower_fixed_array_length",
+            "lower_generic_application_origin",
+            "lower_indexed_application_arguments",
+            "lower_match",
+            "lower_names",
+            "lower_nonbinary_expression_node_into_table",
+            "lower_saved_subject",
+            "lower_static_machine_argument",
+            "lower_type_constraint_handle",
+            "lower_type_constraint_handles",
+            "lower_type_reference_child",
+            "lower_type_reference_contents",
+            "lower_type_reference_handle",
+            "lower_type_reference_node",
+            "machine",
+            "machine",
+            "machine_entry_symbol",
+            "machine_parameter_names",
+            "mark",
+            "match_application",
+            "match_application_boolean",
+            "match_application_constant",
+            "match_name",
+            "match_structure",
+            "match_type_structure",
+            "matches",
+            "materialize_completed_type",
+            "member_types",
+            "mentions_parameter",
+            "name_selects_const",
+            "named_binding",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "normalization_requires_expression",
+            "normalize_one",
+            "of",
+            "own_binders",
+            "parameters",
+            "parse",
+            "pooled_domains",
+            "predicate_binding_identity",
+            "predicate_type_operand",
+            "predicate_value",
+            "prepare_namespace",
+            "prepared_conformance",
+            "proof_bindings",
+            "prove_const_data_predicates",
+            "prove_const_domain_constraint",
+            "prove_const_leaf_domain_constraints",
+            "qualified_payload_free_case",
+            "qualified_payload_free_case_type",
+            "qualify_application_label",
+            "realized_call_dependency",
+            "record_logical_call",
+            "recover_binder",
+            "reference",
+            "reference_temp",
+            "representation_semantic_type",
+            "require_closed_data",
+            "require_closed_data_leaf",
+            "require_closed_pattern",
+            "require_constructor_const_binder_carriers",
+            "require_equal_application_structure",
+            "require_equal_type_structure",
+            "require_lifetime_free_argument",
+            "requires_const_initializer_evaluation",
+            "requires_const_operator_selection",
+            "resolve_free_machine_entry_state_symbol",
+            "resolve_realizations",
+            "resolved_generic_argument",
+            "result_dispatch_shape",
+            "retain",
+            "retain_const_argument_slots",
+            "retained_const_name",
+            "retained_domain_identity",
+            "same_carrier",
+            "same_carrier_in_application",
+            "same_constructor_application",
+            "scalar",
+            "scalar",
+            "scalar_const_argument",
+            "select",
+            "select",
+            "selected_constructor",
+            "selected_constructor",
+            "selected_constructor_constant",
+            "selected_data",
+            "selected_data_item",
+            "selected_domain_family",
+            "selected_expression_constant",
+            "selected_implementation_label",
+            "selected_machine_state_handles",
+            "selected_type_label",
+            "signature",
+            "solve",
+            "source_declaration_item",
+            "source_declaration_item_among",
+            "statement_static_operands",
+            "statement_type_inputs",
+            "statements",
+            "static_arguments",
+            "static_arguments",
+            "static_expression_inputs",
+            "structured_leaf",
+            "substituted_generic_arguments",
+            "substituted_type_label",
+            "supplied_const_argument_reference",
+            "supplied_expressions",
+            "syntax_type_identity",
+            "synthesized_instance",
+            "template_type_equation_offsets",
+            "type_arguments",
+            "type_child",
+            "type_declaration",
+            "type_declaration_in_scope",
+            "type_mentions_parameters",
+            "type_operand_kind_error",
+            "type_operand_reference",
+            "type_reference",
+            "type_reference_name",
+            "type_reference_parameter_mentions",
+            "type_reference_slug",
+            "validate_anonymous_remainder",
+            "validate_application_integer",
+            "validate_closed_name_type",
+            "validate_direct_const_arguments",
+            "validate_materialized_type_equations",
+            "validate_names",
+            "validate_normalized_const_argument",
+            "validate_normalized_expression",
+            "validate_selected_const_index_type",
+            "validate_selected_const_type",
+            "visit_expression_type_inputs",
+            "visit_type_positions",
+            "with_retained_base"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "call_context_parameter_types_agree",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs",
+          "line": 474,
+          "members": [
+            "call_context_parameter_types_agree",
+            "call_context_types_agree"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "relabel_data_literal_for_expected_type",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs",
+          "line": 725,
+          "members": [
+            "relabel_data_literal_for_expected_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "visit_static_argument_type_inputs",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs",
+          "line": 1051,
+          "members": [
+            "visit_static_argument_type_inputs"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "subject_annotation",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_uses.rs",
+          "line": 1670,
+          "members": [
+            "subject_annotation"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "reject_machine_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_machine_equations.rs",
+          "line": 1331,
+          "members": [
+            "reject_machine_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classify_selected_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_machine_equations.rs",
+          "line": 1440,
+          "members": [
+            "classify_selected_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classify_type_reference",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_machine_equations.rs",
+          "line": 1471,
+          "members": [
+            "classify_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "defines_structure",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_type_equations.rs",
+          "line": 1761,
+          "members": [
+            "defines_structure"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "reject_unclosed_names",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_type_equations.rs",
+          "line": 1846,
+          "members": [
+            "reject_unclosed_names"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "retarget_statement_span",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 174,
+          "members": [
+            "retarget_statement_span"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "retarget_expression",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 325,
+          "members": [
+            "retarget_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_type_reference_domain_symbols",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 2112,
+          "members": [
+            "collect_member_domain_symbols",
+            "collect_type_reference_domain_symbols"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "mutable_reference_parameter",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 2383,
+          "members": [
+            "mutable_reference_parameter"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expand",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 2403,
+          "members": [
+            "expand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_type_domain_homes",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 2830,
+          "members": [
+            "collect_type_domain_homes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_references_match",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs",
+          "line": 2955,
+          "members": [
+            "type_references_match"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_authored_statement_call_candidates",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs",
+          "line": 358,
+          "members": [
+            "collect_authored_statement_call_candidates"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_statement_static_sites",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs",
+          "line": 991,
+          "members": [
+            "collect_statement_static_sites"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_statement_static_argument_candidates",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs",
+          "line": 1026,
+          "members": [
+            "collect_statement_static_argument_candidates"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_expression_subtree",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs",
+          "line": 1086,
+          "members": [
+            "collect_expression_subtree"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_static_argument_candidates",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs",
+          "line": 1427,
+          "members": [
+            "collect_static_argument_candidates"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "assign_contract_call_symbols",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 336,
+          "members": [
+            "assign_contract_call_symbols"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_case_selections",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 674,
+          "members": [
+            "collect_case_selections"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "same_case_subject",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 735,
+          "members": [
+            "same_case_subject"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "zero_fold",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 1062,
+          "members": [
+            "zero_fold"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_requirements",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 3291,
+          "members": [
+            "collect_requirements"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "has_type_role",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 5068,
+          "members": [
+            "has_type_role"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "materialize_type_operand",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 5091,
+          "members": [
+            "materialize_type_operand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_operand_nodes",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs",
+          "line": 5151,
+          "members": [
+            "type_operand_nodes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "resolve_expression_table_call_target_symbol",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expression_paths.rs",
+          "line": 27,
+          "members": [
+            "array_length",
+            "assign",
+            "assign",
+            "assign_body_symbols",
+            "assign_call_symbol",
+            "assign_callable_value_symbols",
+            "assign_constant_expression_symbols",
+            "assign_contract_reference_symbols",
+            "assign_declaration_type_value_expression_symbols",
+            "assign_declarations",
+            "assign_domain_fact_symbols",
+            "assign_expression_span_symbols",
+            "assign_expression_span_symbols",
+            "assign_expression_symbols",
+            "assign_expression_symbols_in_role",
+            "assign_expression_table_symbols",
+            "assign_expression_with_declaration_references",
+            "assign_local_type_symbols",
+            "assign_machine_references",
+            "assign_machine_signature_reference_symbols",
+            "assign_machine_symbols",
+            "assign_mathematical_expression_symbols",
+            "assign_measure_expression_symbols",
+            "assign_pattern_head",
+            "assign_program_symbols",
+            "assign_proof_expression_symbols",
+            "assign_proposition_expression_symbols",
+            "assign_statement_expression_symbols",
+            "assign_statement_reference_symbols",
+            "assign_statement_slice_symbols",
+            "assign_statement_symbols",
+            "assign_static_argument_type_symbols",
+            "assign_static_arguments_type_symbols",
+            "assign_struct_literal_symbols",
+            "assign_symbols",
+            "assign_symbols_against_resolved_base",
+            "assign_top_level_symbols",
+            "assign_transition_target_symbols",
+            "assign_type_argument_value_expression_symbols",
+            "assign_type_value_expression_symbols",
+            "assign_type_value_expressions_with_declarations",
+            "begin_complete",
+            "call_target",
+            "complete_initializer_receipt_dependencies",
+            "complete_machine_body",
+            "declaration_integer",
+            "drive",
+            "drive_recorded",
+            "fields",
+            "finalize",
+            "finalize",
+            "finish_resolution",
+            "label",
+            "lower",
+            "lower_closed_machine_row",
+            "lower_item",
+            "lower_item_with_exposure",
+            "lower_items",
+            "lower_lexical_machine_into",
+            "lower_lexical_machine_parts",
+            "lower_machine_into",
+            "lower_machine_states",
+            "lower_state_body",
+            "lower_state_node",
+            "lower_state_parts",
+            "lower_state_statements",
+            "lower_statement_handle",
+            "lower_statement_into_pending",
+            "lower_statement_node",
+            "nominal",
+            "normalize_machine_parameter_rows",
+            "normalize_service_reaches",
+            "normalize_service_reaches_with_retained_tables",
+            "reassign_type_reference",
+            "reassign_type_reference_symbols_and_values",
+            "resolve",
+            "resolve_expression_table_call_target_symbol",
+            "retain_build_declaration_call_expression",
+            "settle_resolution",
+            "unconstrained",
+            "value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "receiver_path_symbols",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expression_paths.rs",
+          "line": 485,
+          "members": [
+            "receiver_path_symbols"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "stamp_receiver_path_symbols_in_table",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expression_paths.rs",
+          "line": 587,
+          "members": [
+            "stamp_receiver_path_symbols_in_table"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "spelled_receiver_chain",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expressions.rs",
+          "line": 109,
+          "members": [
+            "spelled_receiver_chain"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "insert_generic_parameter_children",
+          "file": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_symbol_table.rs",
+          "line": 538,
+          "members": [
+            "insert_generic_parameter_children",
+            "insert_machine_parameter_signature_children"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    },
+    "03": {
+      "function_count": 437,
+      "recursive_scc_candidates": 39,
+      "candidates": [
+        {
+          "representative": "type_name",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs",
+          "line": 560,
+          "members": [
+            "application",
+            "application_scanned",
+            "arguments",
+            "capture_subject",
+            "child",
+            "constraint",
+            "constraint",
+            "expression",
+            "expression_span",
+            "lower_dynamic_trait_type_reference",
+            "lower_fixed_array_type",
+            "lower_named_type_reference",
+            "lower_type_constraint_node_span_with_context",
+            "lower_type_constraint_node_with_context",
+            "lower_type_reference_handle_with_context",
+            "lower_type_reference_into_trees_with_exposure",
+            "operand",
+            "pattern",
+            "reference",
+            "region_application",
+            "retain_type_reference_recipe_selection",
+            "retain_type_reference_selection",
+            "ty",
+            "ty_handle",
+            "type_name",
+            "types",
+            "validate_origin"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "land_one",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs",
+          "line": 1464,
+          "members": [
+            "land_one"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "flatten",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs",
+          "line": 2504,
+          "members": [
+            "flatten"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_mathematical_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations.rs",
+          "line": 1277,
+          "members": [
+            "lower_mathematical_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "proof_output_receiver_parts",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations.rs",
+          "line": 1887,
+          "members": [
+            "proof_output_receiver_parts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "scan_statement",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 85,
+          "members": [
+            "scan_statement"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "scan_expression",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 168,
+          "members": [
+            "scan_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "data_definition_by_symbol",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 366,
+          "members": [
+            "data_definition_by_symbol"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "validate_equatable_data",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 617,
+          "members": [
+            "validate_equatable_data"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "value_type_base_name",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 703,
+          "members": [
+            "value_type_base_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "table_type_base_name",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 723,
+          "members": [
+            "table_type_base_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "flatten_binary",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 1707,
+          "members": [
+            "flatten_binary"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expressions_structurally_equal",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 1725,
+          "members": [
+            "expressions_structurally_equal"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "subject_declared_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 1836,
+          "members": [
+            "name_declared_type",
+            "subject_declared_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "data_index_for_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 1947,
+          "members": [
+            "data_index_for_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_arguments_equal",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs",
+          "line": 1987,
+          "members": [
+            "type_arguments_equal",
+            "type_references_equal"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_domain_membership_expression",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 201,
+          "members": [
+            "lower_atomic_domain_membership_expression",
+            "lower_domain_membership_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "new",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 870,
+          "members": [
+            "new"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "layout_query_operand_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 2038,
+          "members": [
+            "layout_query_operand_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "resolved_data_definition_for_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 2333,
+          "members": [
+            "resolved_data_definition_for_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "declared_receiver_field",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 2446,
+          "members": [
+            "declared_receiver_field",
+            "declared_type",
+            "inferred_capture_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classifier_reference_operand",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3216,
+          "members": [
+            "classifier_reference_operand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classifier_reference_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3234,
+          "members": [
+            "classifier_reference_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "operand_data_type_name",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3269,
+          "members": [
+            "operand_data_type_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_transition_pattern",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3856,
+          "members": [
+            "lower_transition_pattern"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_expression_handle_from_table_with_symbol_substitution",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3920,
+          "members": [
+            "lower_expression_handle_from_table_with_symbol_substitution"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_expression_handle_from_table_in_fact_position",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3939,
+          "members": [
+            "lower_expression_handle_from_table_in_fact_position"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_static_machine_argument",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs",
+          "line": 3949,
+          "members": [
+            "lower_static_machine_argument"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "subject_path",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs",
+          "line": 347,
+          "members": [
+            "subject_path"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "compatible_contracts",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs",
+          "line": 1211,
+          "members": [
+            "compatible",
+            "compatible_contracts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "infer_declared_type_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs",
+          "line": 616,
+          "members": [
+            "infer_declared_type_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "substitute_call_type_arguments",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs",
+          "line": 709,
+          "members": [
+            "substitute_call_type_arguments"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collection_type_reference",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs",
+          "line": 752,
+          "members": [
+            "collection_type_reference",
+            "member_chain_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "named_data_of",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs",
+          "line": 809,
+          "members": [
+            "named_data_of"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expand",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs",
+          "line": 23,
+          "members": [
+            "expand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "normalize_domain_constraints_for_type",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs",
+          "line": 122,
+          "members": [
+            "normalize_domain_constraints_for_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "with_domain_candidate_index",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs",
+          "line": 346,
+          "members": [
+            "with_domain_candidate_index"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_type_constraint_node_span_from_table",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs",
+          "line": 1261,
+          "members": [
+            "lower_type_argument_handles",
+            "lower_type_constraint_node_span_from_table",
+            "lower_type_reference_handle_from_table_with_context"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "with_generic_origin_index",
+          "file": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs",
+          "line": 1888,
+          "members": [
+            "with_generic_origin_index"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    },
+    "04": {
+      "function_count": 477,
+      "recursive_scc_candidates": 22,
+      "candidates": [
+        {
+          "representative": "name",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/assembly_and_operators.rs",
+          "line": 164,
+          "members": [
+            "application",
+            "argument",
+            "authored_machine_application",
+            "candidates",
+            "closed_structural_argument",
+            "collect",
+            "collect",
+            "complete_arguments",
+            "constraint",
+            "declared_value_carriers",
+            "derive",
+            "destination",
+            "environment_argument",
+            "expression",
+            "expression",
+            "expression_arguments",
+            "expression_optional",
+            "finalize_referenced_domain_instance_identities",
+            "finalize_type_domain_instance_identities",
+            "identifiers",
+            "invocation_bindings",
+            "lifetime_identifiers",
+            "name",
+            "name",
+            "names_type_binder",
+            "new",
+            "new",
+            "normalize_const_arguments",
+            "normalize_const_arguments_for",
+            "operand",
+            "operands",
+            "pattern",
+            "public_bindings",
+            "publish_expression_call_views",
+            "retain_type_input",
+            "root",
+            "runtime_argument",
+            "source_subject",
+            "statement",
+            "symbol",
+            "symbol_named",
+            "ty",
+            "ty_optional",
+            "type_arguments",
+            "visit"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "target_reads",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/assembly_and_operators.rs",
+          "line": 250,
+          "members": [
+            "target_reads"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "copy_type_contexts",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 42,
+          "members": [
+            "copy_type_contexts",
+            "copy_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "copy_static_argument_type_payloads",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 1980,
+          "members": [
+            "copy_static_argument_type_payloads"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "realized_receiver_type",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 2241,
+          "members": [
+            "realized_receiver_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "closed_bool",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 4029,
+          "members": [
+            "closed_bool"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_evidence_requirement_closure",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 4245,
+          "members": [
+            "collect_evidence_requirement_closure"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_static_argument_type_roots",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/body_cloning_and_rewriting.rs",
+          "line": 4901,
+          "members": [
+            "collect_static_argument_type_roots"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "visit_lifetime_bindings_in_scope",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/conformance.rs",
+          "line": 822,
+          "members": [
+            "visit_lifetime_bindings_in_scope"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_conformance_lifetime_bindings",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/conformance.rs",
+          "line": 968,
+          "members": [
+            "collect_conformance_lifetime_bindings"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "retain_access_result_type",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/constructed_results.rs",
+          "line": 190,
+          "members": [
+            "retain_access_result_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "close",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/contextual_and_requirement_calls.rs",
+          "line": 1833,
+          "members": [
+            "close"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "elaborate_value_fields",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/data_and_product_operands.rs",
+          "line": 194,
+          "members": [
+            "elaborate_application",
+            "elaborate_value_fields"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "instantiate_type",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/data_and_product_operands.rs",
+          "line": 595,
+          "members": [
+            "instantiate_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "visit_post_order",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/lib.rs",
+          "line": 226,
+          "members": [
+            "visit_post_order"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "contains_reachable_construction",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs",
+          "line": 553,
+          "members": [
+            "contains_reachable_construction"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "fill",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs",
+          "line": 880,
+          "members": [
+            "fill"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "instantiate_requirement_applications",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs",
+          "line": 2151,
+          "members": [
+            "instantiate_requirement_applications"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_machine_proposals_for_callee",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs",
+          "line": 34,
+          "members": [
+            "bind",
+            "collect_machine_proposals_for_callee",
+            "retain"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "state_by_symbol",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs",
+          "line": 343,
+          "members": [
+            "state_by_symbol"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "infer_static_bindings",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs",
+          "line": 1094,
+          "members": [
+            "infer_domain_argument_bindings",
+            "infer_static_bindings"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "completed_subject_type",
+          "file": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs",
+          "line": 3357,
+          "members": [
+            "completed_subject_type"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    },
+    "05": {
+      "function_count": 13398,
+      "recursive_scc_candidates": 150,
+      "candidates": [
+        {
+          "representative": "reads_extracted_copy",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 196,
+          "members": [
+            "reads_extracted_copy"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_place_evaluation_reads",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 648,
+          "members": [
+            "collect_formal_argument_accesses",
+            "collect_formal_argument_evaluation",
+            "collect_place_evaluation_reads",
+            "collect_read_accesses",
+            "collect_single_expression_argument_access",
+            "collect_target_argument_accesses"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "append_read_access",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 757,
+          "members": [
+            "append_read_access"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_argument_accesses",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 1290,
+          "members": [
+            "collect_argument_accesses"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_expression_borrow_calls",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 1345,
+          "members": [
+            "collect_expression_borrow_calls"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "reference_local_borrow_loans",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 5779,
+          "members": [
+            "reference_local_borrow_loans"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "binding_borrow_loans",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow.rs",
+          "line": 7766,
+          "members": [
+            "binding_borrow_loans"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "actual_erased_identity_at",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 3537,
+          "members": [
+            "actual_erased_identity_at"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "check_received_value",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 3958,
+          "members": [
+            "check_received_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_clean_conjuncts",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 9185,
+          "members": [
+            "collect_clean_conjuncts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "establishes",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 9607,
+          "members": [
+            "establishes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_structural_guard_consequences",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 11131,
+          "members": [
+            "collect_structural_guard_consequences"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_integer_order_relations",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 11217,
+          "members": [
+            "collect_integer_order_relations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_is_integer_typed",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks.rs",
+          "line": 11563,
+          "members": [
+            "expression_is_integer_typed"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "is_state_independent_borrow_source",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs",
+          "line": 1656,
+          "members": [
+            "is_state_independent_borrow_source",
+            "state_returns_only_static_borrows"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "captured_storage_index",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows_overlap.rs",
+          "line": 2874,
+          "members": [
+            "captured_storage_index"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "append_sources",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_content.rs",
+          "line": 5903,
+          "members": [
+            "append_sources"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_size",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_content.rs",
+          "line": 6097,
+          "members": [
+            "type_size"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "append_type_domains",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_content.rs",
+          "line": 6614,
+          "members": [
+            "append_type_domains"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "recipe_requirements",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs",
+          "line": 108,
+          "members": [
+            "recipe_requirements"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "proves_with",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs",
+          "line": 2402,
+          "members": [
+            "proves_with"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "proves_scoped",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs",
+          "line": 2538,
+          "members": [
+            "proves_scoped"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "conjunct",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 1652,
+          "members": [
+            "conjunct"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "equivalent",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 1696,
+          "members": [
+            "equivalent"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "assignment_target_mentions_name",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 1962,
+          "members": [
+            "assignment_target_mentions_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_expression_self_fields",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 2278,
+          "members": [
+            "collect_expression_self_fields"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "assignment_target_mentions_field",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 2357,
+          "members": [
+            "assignment_target_mentions_field"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "render_projected_requirement",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 2817,
+          "members": [
+            "render_projected_requirement"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "guard_conjunct_matches",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 2909,
+          "members": [
+            "guard_conjunct_matches"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "negated_guard_conjunct_matches",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 2947,
+          "members": [
+            "negated_guard_conjunct_matches"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "premise_conjuncts",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_calls.rs",
+          "line": 3085,
+          "members": [
+            "premise_conjuncts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "current_bindings",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_exits.rs",
+          "line": 3262,
+          "members": [
+            "current_bindings"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "domain_predicate_meaning",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_exits.rs",
+          "line": 4671,
+          "members": [
+            "domain_predicate_meaning"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "semantic_context_proves_instantiated_boolean_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts_prover.rs",
+          "line": 834,
+          "members": [
+            "semantic_context_proves_instantiated_boolean_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "seed_zero_values",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity.rs",
+          "line": 1724,
+          "members": [
+            "seed_zero_values"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "terminal_arm_route",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity.rs",
+          "line": 4384,
+          "members": [
+            "terminal_arm_route"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_establishes_obligation",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity.rs",
+          "line": 10882,
+          "members": [
+            "expression_establishes_obligation"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_frames",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_borrowed_windows.rs",
+          "line": 708,
+          "members": [
+            "collect_frames"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "state_frontiers",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_claim_outcomes.rs",
+          "line": 903,
+          "members": [
+            "state_frontiers"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "claim_outcomes_for_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_multiplicity_claim_outcomes.rs",
+          "line": 4157,
+          "members": [
+            "claim_outcomes_for_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "positive_expression_proves",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_operators.rs",
+          "line": 497,
+          "members": [
+            "positive_expression_proves"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "contexts_prove_boolean_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_operators.rs",
+          "line": 2223,
+          "members": [
+            "contexts_prove_boolean_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "closed_clause_value",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_operators.rs",
+          "line": 2488,
+          "members": [
+            "closed_clause_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "closed_scalar_value",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_operators.rs",
+          "line": 2548,
+          "members": [
+            "closed_scalar_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_tail_eligible",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 1303,
+          "members": [
+            "expression_tail_eligible"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "guard_bounds",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 1556,
+          "members": [
+            "guard_bounds"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "parse_counter_relational_upper",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 2042,
+          "members": [
+            "parse_counter_relational_upper"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_authored_upper_relations",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 2217,
+          "members": [
+            "collect_authored_upper_relations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "parse_counter_upper_bound",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 2717,
+          "members": [
+            "parse_counter_upper_bound"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "seed_index_proofs_from_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs",
+          "line": 3425,
+          "members": [
+            "seed_index_proofs_from_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "positive_guard",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_termination.rs",
+          "line": 4225,
+          "members": [
+            "positive_guard"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_source_operation_spans",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution.rs",
+          "line": 1295,
+          "members": [
+            "collect_source_operation_spans"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_dependency_paths_from_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs",
+          "line": 6657,
+          "members": [
+            "collect_dependency_paths_from_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "mathematical_captures_are_inline",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs",
+          "line": 6872,
+          "members": [
+            "mathematical_captures_are_inline"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_nominal_symbols",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs",
+          "line": 10538,
+          "members": [
+            "collect_nominal_symbols"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "indexed_statements",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_context.rs",
+          "line": 1171,
+          "members": [
+            "indexed_statements"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classify_operator_result_ownership",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_ownership.rs",
+          "line": 1654,
+          "members": [
+            "classify_operator_result_ownership"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "profile_sources",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_retained_borrows.rs",
+          "line": 564,
+          "members": [
+            "profile_sources"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "bound_point_rank",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_state_values.rs",
+          "line": 1572,
+          "members": [
+            "bound_point_rank"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "value_proves_predicate",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_transfers.rs",
+          "line": 113,
+          "members": [
+            "value_proves_predicate"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "convert_through",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_transfers.rs",
+          "line": 3081,
+          "members": [
+            "convert",
+            "convert_through"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "typed_operator_authored_selection_candidates",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs",
+          "line": 52,
+          "members": [
+            "typed_operator_authored_selection_candidates"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "derive_checked_nominal_call_target",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs",
+          "line": 127,
+          "members": [
+            "derive_checked_nominal_call_target"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "infer_checked_recursive_machine_terminations",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs",
+          "line": 202,
+          "members": [
+            "infer_checked_recursive_machine_terminations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "append_trait_contract_facts_for_machine",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 1390,
+          "members": [
+            "append_trait_contract_facts_for_machine"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "bind_semantic_applications_in_expression",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 4036,
+          "members": [
+            "bind_semantic_applications_in_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "append_evidence_interface_reference_regions",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 4721,
+          "members": [
+            "append_evidence_interface_reference_regions"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "contract_expression_place",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 7474,
+          "members": [
+            "contract_expression_place"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_zero_initialized_field_domains",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 9145,
+          "members": [
+            "collect_zero_initialized_field_domains"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "carry_constraint_permissions",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 9519,
+          "members": [
+            "carry_constraint_permissions"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "instantiate_contract_expression_place",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs",
+          "line": 10073,
+          "members": [
+            "instantiate_contract_expression_place"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_receiver_head",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts.rs",
+          "line": 461,
+          "members": [
+            "expression_receiver_head"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_path_head",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts.rs",
+          "line": 475,
+          "members": [
+            "expression_path_head"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "assignment_target_is_field",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts.rs",
+          "line": 539,
+          "members": [
+            "assignment_target_is_field"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "known",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts_boolean_predicates.rs",
+          "line": 2505,
+          "members": [
+            "known"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "boolean_view_observation",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts_crash_calls.rs",
+          "line": 2020,
+          "members": [
+            "boolean_view_observation",
+            "observation_carried_by_call"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "member_symbol_from_type_reference",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared.rs",
+          "line": 1792,
+          "members": [
+            "member_symbol_from_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "operand_carrier",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared.rs",
+          "line": 2516,
+          "members": [
+            "operand_carrier"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "logical_match_operand",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values_scalar.rs",
+          "line": 2964,
+          "members": [
+            "comparison_operand",
+            "logical_match_operand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "resolved_subject",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values_scalar.rs",
+          "line": 3770,
+          "members": [
+            "resolved_subject"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "shared_reference_chain",
+          "file": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values_scalar.rs",
+          "line": 10948,
+          "members": [
+            "shared_reference_chain"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "contribute",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 203,
+          "members": [
+            "contribute"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "project_possible",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 1881,
+          "members": [
+            "project_possible"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "bitwise_known_unsigned",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 8378,
+          "members": [
+            "bitwise_known_unsigned"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "condition_belongs_to_state",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 13570,
+          "members": [
+            "condition_belongs_to_state"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "match_subtract_floor",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 20431,
+          "members": [
+            "match_subtract_floor",
+            "subtract_floor_limited"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "domain_place_type",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 24987,
+          "members": [
+            "domain_place_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "direct_operand",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 25165,
+          "members": [
+            "direct_operand"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "narrow_abstract_specification_environment",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 25269,
+          "members": [
+            "narrow_abstract_specification_environment"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "validate_state_signature",
+          "file": "omega-rust/psi/compilation/validation/src/arithmetic_domains.rs",
+          "line": 25720,
+          "members": [
+            "validate_state_signature"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "applied_region",
+          "file": "omega-rust/psi/compilation/validation/src/borrow_and_reflection.rs",
+          "line": 1009,
+          "members": [
+            "applied_region"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "input_write_only_access",
+          "file": "omega-rust/psi/compilation/validation/src/borrow_and_reflection.rs",
+          "line": 3499,
+          "members": [
+            "input_write_only_access"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_nominal_expectations",
+          "file": "omega-rust/psi/compilation/validation/src/borrow_and_reflection.rs",
+          "line": 3731,
+          "members": [
+            "collect_nominal_expectations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "composes",
+          "file": "omega-rust/psi/compilation/validation/src/calls.rs",
+          "line": 1766,
+          "members": [
+            "composes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "first_nested_call",
+          "file": "omega-rust/psi/compilation/validation/src/calls.rs",
+          "line": 1802,
+          "members": [
+            "first_nested_call"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "signature_result_candidate_origins",
+          "file": "omega-rust/psi/compilation/validation/src/calls.rs",
+          "line": 8741,
+          "members": [
+            "signature_result_candidate_origins"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "graph",
+          "file": "omega-rust/psi/compilation/validation/src/calls.rs",
+          "line": 12922,
+          "members": [
+            "graph"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "operand_profiles",
+          "file": "omega-rust/psi/compilation/validation/src/completed_storage_and_conservation.rs",
+          "line": 1364,
+          "members": [
+            "operand_profiles",
+            "profile_at_path"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "judge_mathematical_term",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 4616,
+          "members": [
+            "judge_mathematical_term"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "runtime_predicate_fact",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 8988,
+          "members": [
+            "runtime_predicate_fact"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "runtime_fact_for_parameters",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 9049,
+          "members": [
+            "runtime_fact_for_parameters"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "split_conjuncts",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 15865,
+          "members": [
+            "split_conjuncts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "pair_conjuncts",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 17089,
+          "members": [
+            "pair_conjuncts"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "refine",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 35938,
+          "members": [
+            "refine"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "value_index_names",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 40386,
+          "members": [
+            "value_index_names"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "prepare_expression",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 47974,
+          "members": [
+            "prepare_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "detach_returned_nominal_value",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 63027,
+          "members": [
+            "detach_returned_nominal_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "same_current",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 66953,
+          "members": [
+            "same_current"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_carries_predicate_context",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 87429,
+          "members": [
+            "type_carries_predicate_context"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "has_produced_subject",
+          "file": "omega-rust/psi/compilation/validation/src/contract_entailment.rs",
+          "line": 89840,
+          "members": [
+            "has_produced_subject"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "callable_receiver_type_name",
+          "file": "omega-rust/psi/compilation/validation/src/declarations_core.rs",
+          "line": 2591,
+          "members": [
+            "callable_receiver_type_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_call_summaries",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 8332,
+          "members": [
+            "collect_call_summaries"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "scan_expression_reads",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 8686,
+          "members": [
+            "scan_expression_reads",
+            "scan_expression_use"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "composed_value_established",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 9270,
+          "members": [
+            "composed_carrier_established",
+            "composed_value_established"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "write_place_spelling",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 10080,
+          "members": [
+            "write_place_spelling"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "literal_value",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 11515,
+          "members": [
+            "literal_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_symbolic_value",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 11940,
+          "members": [
+            "expression_symbolic_value"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "visit_calls",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 13361,
+          "members": [
+            "visit_calls"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "restore_parameter_write",
+          "file": "omega-rust/psi/compilation/validation/src/domains_and_predicates.rs",
+          "line": 13378,
+          "members": [
+            "restore_parameter_write",
+            "walk_state"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "origin_for_expression",
+          "file": "omega-rust/psi/compilation/validation/src/effect_inference.rs",
+          "line": 895,
+          "members": [
+            "origin_for_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "self_field_path",
+          "file": "omega-rust/psi/compilation/validation/src/expression_types_and_fields.rs",
+          "line": 7868,
+          "members": [
+            "self_field_path"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "type_reference_data_name",
+          "file": "omega-rust/psi/compilation/validation/src/expression_types_and_fields.rs",
+          "line": 8447,
+          "members": [
+            "type_reference_data_name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "source_operations_have_same_meaning",
+          "file": "omega-rust/psi/compilation/validation/src/float_and_mathematical_contracts.rs",
+          "line": 3730,
+          "members": [
+            "source_operations_have_same_meaning"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "inner",
+          "file": "omega-rust/psi/compilation/validation/src/frozen_program_and_queries.rs",
+          "line": 2838,
+          "members": [
+            "inner"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "has_active_recast_formation",
+          "file": "omega-rust/psi/compilation/validation/src/frozen_program_and_queries.rs",
+          "line": 3385,
+          "members": [
+            "has_active_recast_formation"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "typed_program",
+          "file": "omega-rust/psi/compilation/validation/src/frozen_program_and_queries.rs",
+          "line": 3419,
+          "members": [
+            "typed_program"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_interval",
+          "file": "omega-rust/psi/compilation/validation/src/frozen_program_and_queries.rs",
+          "line": 3449,
+          "members": [
+            "expression_interval"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "land_float_value_for_type",
+          "file": "omega-rust/psi/compilation/validation/src/literals_and_struct_literals.rs",
+          "line": 631,
+          "members": [
+            "land_float_value_for_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "land_float_tree",
+          "file": "omega-rust/psi/compilation/validation/src/literals_and_struct_literals.rs",
+          "line": 729,
+          "members": [
+            "land_float_tree",
+            "stamp_float_tree"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_static_selections",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 325,
+          "members": [
+            "collect_static_selections"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "boundary_requirement_symbol",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 7131,
+          "members": [
+            "boundary_requirement_symbol"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "machine_specialization_matches_template_identity",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 7245,
+          "members": [
+            "machine_specialization_matches_template_identity"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "record_expression_owner",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 7486,
+          "members": [
+            "record_expression_owner"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "push_expected_call",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 8624,
+          "members": [
+            "push_expected_call"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "array_element_type",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 8692,
+          "members": [
+            "array_element_type"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_expression_bindings",
+          "file": "omega-rust/psi/compilation/validation/src/machine_calls_core.rs",
+          "line": 8839,
+          "members": [
+            "collect_expression_bindings"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "canonical_closed_operator_realization_bytes",
+          "file": "omega-rust/psi/compilation/validation/src/operators.rs",
+          "line": 29,
+          "members": [
+            "canonical_closed_operator_realization_bytes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_expression_operator_use",
+          "file": "omega-rust/psi/compilation/validation/src/operators.rs",
+          "line": 2001,
+          "members": [
+            "collect_expression_operator_use"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "is_mutable_place_handle",
+          "file": "omega-rust/psi/compilation/validation/src/places.rs",
+          "line": 1184,
+          "members": [
+            "is_mutable_place_handle"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_root_name_handle",
+          "file": "omega-rust/psi/compilation/validation/src/places.rs",
+          "line": 1196,
+          "members": [
+            "expression_root_name_handle"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "unwrapped_type_reference",
+          "file": "omega-rust/psi/compilation/validation/src/places.rs",
+          "line": 4762,
+          "members": [
+            "unwrapped_type_reference"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "value_argument_phrase",
+          "file": "omega-rust/psi/compilation/validation/src/program_validation.rs",
+          "line": 3120,
+          "members": [
+            "value_argument_phrase"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "contract_argument_root",
+          "file": "omega-rust/psi/compilation/validation/src/proof_contracts_core.rs",
+          "line": 6,
+          "members": [
+            "contract_argument_root"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "is_boolean_asm_fact_expression",
+          "file": "omega-rust/psi/compilation/validation/src/proof_contracts_core.rs",
+          "line": 7539,
+          "members": [
+            "is_boolean_asm_fact_expression"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "descend",
+          "file": "omega-rust/psi/compilation/validation/src/structural_call_custody.rs",
+          "line": 511,
+          "members": [
+            "definition_storage",
+            "descend"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_call_demands_in",
+          "file": "omega-rust/psi/compilation/validation/src/traits.rs",
+          "line": 5771,
+          "members": [
+            "collect_call_demands_in"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "collect_dynamic_expression_call_updates",
+          "file": "omega-rust/psi/compilation/validation/src/traits.rs",
+          "line": 6073,
+          "members": [
+            "collect_dynamic_expression_call_updates"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "normalize_open_index_expression_operations",
+          "file": "omega-rust/psi/compilation/validation/src/type_references_and_wire.rs",
+          "line": 3447,
+          "members": [
+            "normalize_open_index_expression_operations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "validate_boundary_completion_declarations",
+          "file": "omega-rust/psi/compilation/validation/src/value_custody_core.rs",
+          "line": 5370,
+          "members": [
+            "validate_boundary_completion_declarations"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "expression_origin",
+          "file": "omega-rust/psi/compilation/validation/src/value_custody_core.rs",
+          "line": 7277,
+          "members": [
+            "expression_origin"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    },
+    "06": {
+      "function_count": 2035,
+      "recursive_scc_candidates": 12,
+      "candidates": [
+        {
+          "representative": "collect_value_roots",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs",
+          "line": 2929,
+          "members": [
+            "collect_value_roots"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "establishes_element_view",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs",
+          "line": 3065,
+          "members": [
+            "establishes_element_view"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "returning_exits",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs",
+          "line": 16745,
+          "members": [
+            "returning_exits"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "byte_record_observation",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs",
+          "line": 4974,
+          "members": [
+            "byte_record_observation"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "name",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections.rs",
+          "line": 894,
+          "members": [
+            "name"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "lower_content_projection_scalar",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs",
+          "line": 110,
+          "members": [
+            "lower_content_projection_scalar"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "retain_services",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention.rs",
+          "line": 1702,
+          "members": [
+            "retain_services"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "backing_type",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs",
+          "line": 21,
+          "members": [
+            "activation_claim_source",
+            "activation_outcome_cases",
+            "activation_storage",
+            "admit_fresh_operand",
+            "after_result",
+            "allocate",
+            "allocate_structural_result",
+            "and_mask",
+            "append",
+            "append",
+            "append",
+            "append_completions",
+            "append_elements",
+            "append_fields",
+            "append_fields",
+            "append_unnamed_result",
+            "argument",
+            "argument",
+            "argument",
+            "argument",
+            "argument_at",
+            "argument_places",
+            "argument_type",
+            "argument_with_normal_result",
+            "arguments",
+            "arguments_slice",
+            "arm",
+            "arm_call_result",
+            "arrival",
+            "arrivals",
+            "assemble_halves",
+            "assignment_capture_source",
+            "assignment_source",
+            "atomic_access",
+            "atomic_fence",
+            "atomic_observation",
+            "atomic_source_range_decided",
+            "authenticate_home_dispositions",
+            "authored_result_paths",
+            "authored_result_qualification_domains",
+            "authored_result_whole_domains",
+            "authored_structural_parameters",
+            "backing_type",
+            "before_completion",
+            "binary",
+            "bind",
+            "bind",
+            "bind",
+            "bind_boolean_decision",
+            "bind_completed_value_alias",
+            "bind_completion_claims",
+            "bind_continuation_names",
+            "bind_range_decision",
+            "bind_scalar_result",
+            "bind_structural_local",
+            "bind_structural_parameters",
+            "bind_structural_value",
+            "binding",
+            "binding_at",
+            "block",
+            "block_dominators",
+            "block_id",
+            "block_invariant",
+            "body_parameter_at_completion",
+            "boolean",
+            "boolean",
+            "boolean",
+            "boolean",
+            "boolean",
+            "boolean",
+            "boolean_case_split",
+            "boolean_guard_decision_block_count",
+            "boolean_input_budget",
+            "boolean_observation",
+            "boolean_value_split",
+            "borrowed_arguments_from_roots",
+            "borrowed_structural_argument",
+            "bound_position",
+            "boundary_body_custody",
+            "boundary_call",
+            "boundary_domain_id",
+            "boundary_operands",
+            "boundary_scalar_call",
+            "boundary_scalar_formals",
+            "boundary_signature_types",
+            "boundary_structural_call",
+            "bounded_coordinate",
+            "branch",
+            "branch_boolean_decision",
+            "branch_guard",
+            "build",
+            "build_operations",
+            "byte_capacity",
+            "byte_descriptor_operand",
+            "byte_element_target",
+            "byte_literal_comparison",
+            "byte_overlay_read",
+            "byte_predicate",
+            "byte_region",
+            "byte_sequence_observation",
+            "byte_sequence_observation",
+            "byte_sequence_operand",
+            "byte_sequence_store",
+            "byte_view_element_identity",
+            "call",
+            "call_arguments",
+            "call_index_selectors",
+            "call_selector",
+            "call_source",
+            "callee_scalar_formals",
+            "canonical_connectives",
+            "canonical_field_read",
+            "canonical_propositions",
+            "capture",
+            "capture",
+            "capture",
+            "capture_argument",
+            "capture_arguments",
+            "capture_assignment_destination",
+            "capture_descriptor",
+            "capture_dispatch_copies",
+            "capture_formal_observations",
+            "capture_identity",
+            "capture_into",
+            "capture_operand",
+            "capture_operand_claims",
+            "capture_selection_sources",
+            "capture_structural_arguments",
+            "capture_subject",
+            "capture_transfer_cases",
+            "captured_assignment_place",
+            "captured_coordinate",
+            "captured_crash_argument",
+            "captured_field_observation",
+            "captured_formal_home",
+            "captured_indexed_destination",
+            "captured_observation",
+            "captured_place_subject",
+            "captured_root_identity",
+            "captured_storage_home",
+            "captured_store_path",
+            "captured_store_place",
+            "captured_window_storage",
+            "carrier_multiplicity",
+            "carries_scalar_qualifications",
+            "case_dispatch_split",
+            "case_membership",
+            "case_membership",
+            "case_membership",
+            "case_reads",
+            "checked_boolean_atom_polarity",
+            "checked_boolean_connective_polarity",
+            "checked_boolean_proposition",
+            "checked_boolean_proposition_with_budget",
+            "checked_boolean_scalar_term",
+            "checked_boolean_scalar_term_from_lowered",
+            "checked_evidence_requirement_identity",
+            "checked_exit_decision",
+            "checked_member_path",
+            "checked_membership_domain",
+            "checked_membership_domains",
+            "checked_proof_term",
+            "checked_scalar_term",
+            "checked_scalar_term_with_views",
+            "checked_unit_boundary_identity",
+            "child_constructor_operand",
+            "claim",
+            "claim_continuation",
+            "clauses",
+            "cleanup",
+            "cleanup",
+            "cleanup_jump",
+            "cleanup_rosters_mut",
+            "cleanup_source_is_retired",
+            "cleanup_target",
+            "cleanup_value_storage",
+            "close",
+            "coerce_integer_carrier",
+            "collect",
+            "collect",
+            "collect_direct_case_reads",
+            "collect_path",
+            "collect_path_case_reads",
+            "collect_reachable_nodes",
+            "collect_source_case_reads",
+            "collection_path",
+            "comparison_binding",
+            "complement",
+            "complete",
+            "complete",
+            "complete",
+            "complete",
+            "complete_construction",
+            "complete_emitted_argument_path",
+            "complete_expansion",
+            "complete_lent_path",
+            "complete_loan",
+            "complete_observation_receiver",
+            "complete_operand",
+            "complete_operands",
+            "complete_path",
+            "complete_projection",
+            "complete_projection_source",
+            "complete_read_observation_path",
+            "complete_reference_endpoint",
+            "complete_snapshot",
+            "complete_straight_line",
+            "complete_value",
+            "complete_value_cleanup",
+            "complete_value_components",
+            "completed",
+            "completed_bindings",
+            "completed_call_result",
+            "completed_carrier_inventory",
+            "completed_member_value",
+            "completed_memberships",
+            "completed_namespace",
+            "completed_observation",
+            "completed_result",
+            "completed_scalar",
+            "completed_source_binding",
+            "completed_storage_observation",
+            "completed_value_binding",
+            "completed_value_paths",
+            "completion",
+            "completion_expression",
+            "completion_node",
+            "completion_roster",
+            "completion_scalar",
+            "computation_value_type",
+            "concatenate",
+            "condition_order",
+            "conditional_return_arm",
+            "connective",
+            "construction",
+            "constructor_operand",
+            "consume_pure_call_argument",
+            "consume_pure_call_arguments",
+            "contains",
+            "contains",
+            "content_ancestry",
+            "content_projection",
+            "content_term",
+            "contextual_bindings",
+            "continuation_cleanup",
+            "continuation_storage",
+            "continue_actions",
+            "continue_cleanup_regions",
+            "continue_values",
+            "continuing",
+            "contribute",
+            "coordinate",
+            "coordinate",
+            "coordinate_literal",
+            "copied_leaf_place",
+            "copied_observation",
+            "copied_parameter",
+            "copied_place_path",
+            "copied_sum_value",
+            "copyable_descriptor_type_ids",
+            "crash_completion",
+            "crash_routes",
+            "crash_site_guards",
+            "current_parameters",
+            "decision_edge",
+            "decision_reads_case",
+            "declaration",
+            "declaration_represents",
+            "declarations",
+            "declare",
+            "declare_establishment",
+            "declare_views",
+            "declared_atoms",
+            "declared_predicate_path",
+            "declared_source_claims",
+            "declared_structural_types",
+            "declaring_order",
+            "definitions",
+            "dense_assignment_namespace",
+            "descriptor_bindings",
+            "descriptor_home",
+            "descriptor_observation",
+            "descriptor_retirement",
+            "descriptor_table",
+            "descriptor_value_declaration",
+            "descriptor_value_type",
+            "destination",
+            "destination",
+            "destination",
+            "destinations",
+            "direct_borrow",
+            "direct_element_view",
+            "direct_establishment_claims",
+            "direct_identity_projection",
+            "direct_value",
+            "direct_value",
+            "discard_root",
+            "dispatch",
+            "dispatch",
+            "dispatch_arguments",
+            "dispatch_route",
+            "dispatch_successor_edge",
+            "dispatch_value",
+            "dispute",
+            "domain_predicate",
+            "dynamic_call",
+            "earlier",
+            "edge",
+            "edge",
+            "edge_bindings",
+            "effective_crash_routes",
+            "element_case_observation",
+            "element_path_runtime_selector",
+            "element_selection",
+            "element_type",
+            "element_views",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit",
+            "emit_adaptation",
+            "emit_argument_path",
+            "emit_assignment",
+            "emit_boolean_expression",
+            "emit_boundary_call_binding",
+            "emit_byte_length",
+            "emit_call",
+            "emit_call",
+            "emit_call_literal",
+            "emit_call_operations",
+            "emit_captured_argument_path",
+            "emit_carrier",
+            "emit_cleanup_regions",
+            "emit_completed",
+            "emit_completed_assignment",
+            "emit_completed_dynamic_call",
+            "emit_concatenation",
+            "emit_content_store",
+            "emit_descriptor_store",
+            "emit_direct_call",
+            "emit_direct_call_operation",
+            "emit_direct_expression",
+            "emit_dynamic_call_binding",
+            "emit_dynamic_call_leaf",
+            "emit_dynamic_family_dispatch",
+            "emit_element_length",
+            "emit_establishment_claims",
+            "emit_index_coordinate",
+            "emit_inlined_boolean_guard_blocks",
+            "emit_literal",
+            "emit_literal_view",
+            "emit_move",
+            "emit_operand",
+            "emit_operand_call",
+            "emit_owned_literal",
+            "emit_owned_value",
+            "emit_path_from_capture",
+            "emit_prepared_cleanup_regions",
+            "emit_prepared_path",
+            "emit_read_source",
+            "emit_reserved_boolean_guard_decision_blocks",
+            "emit_reserved_boolean_tuple_stage_blocks",
+            "emit_return_binding",
+            "emit_scalar_binding",
+            "emit_scalar_call_binding",
+            "emit_scalar_leaf",
+            "emit_short_circuit_decision",
+            "emit_source",
+            "emit_state",
+            "emit_state",
+            "emit_store",
+            "emit_structural",
+            "emit_structural_call_result",
+            "emit_tuple_test",
+            "emit_u64_coordinate",
+            "emit_view",
+            "emit_window_move",
+            "emit_window_store",
+            "emitted_carrier",
+            "emitted_carriers",
+            "emitted_claim_transfers",
+            "emitted_control_service",
+            "emitted_observation",
+            "empty",
+            "encode",
+            "endpoint_use",
+            "enter_proof_scope",
+            "entry",
+            "entry_claims",
+            "entry_state",
+            "equality_from_polarities",
+            "erased_actual_term",
+            "erased_parameters",
+            "erased_proof_formal_declarations",
+            "erased_proof_parameters",
+            "establish",
+            "establish",
+            "establish",
+            "establish_at",
+            "establish_byte_sequence",
+            "establish_case_payloads",
+            "establish_element_view",
+            "establish_local",
+            "establish_owned_byte_sequence",
+            "establish_parameter_storage",
+            "establish_primitive_local",
+            "establish_reference",
+            "establish_scalar_array",
+            "establish_scalar_local",
+            "establish_structural_binding",
+            "establish_structural_local",
+            "establish_structural_result",
+            "establish_structural_value",
+            "establish_view_subslice",
+            "establish_zeroed",
+            "established_case_literal",
+            "established_on_true",
+            "establishment_route",
+            "evaluate",
+            "evaluate",
+            "evaluate_selectors",
+            "evaluate_structural_value",
+            "evaluated_place",
+            "exact_cast",
+            "exact_structural_shift_maximum_count",
+            "exact_trait_requirement",
+            "exact_u64_index",
+            "exclusive_end",
+            "existing_descriptor_value_type",
+            "existing_literal_view_type",
+            "expansion",
+            "explicit_path",
+            "expression",
+            "expression_at",
+            "expression_cleanup_regions",
+            "expression_in",
+            "family_roster",
+            "field",
+            "field_assignment_value",
+            "field_binding",
+            "field_source",
+            "find",
+            "finish",
+            "finish",
+            "finish",
+            "finish",
+            "finish_at",
+            "finish_jump",
+            "finish_state",
+            "finish_value_arrival",
+            "finish_value_completion",
+            "finish_with_alias",
+            "first",
+            "fixed_array",
+            "flatten_checked_boolean_connective",
+            "follow_reference_endpoint",
+            "for_block",
+            "for_computation_operands",
+            "for_each_target",
+            "for_exit_regions",
+            "for_exit_regions",
+            "for_machine",
+            "for_planned_actions",
+            "formal_bindings",
+            "formation_obligation",
+            "forward",
+            "forward_from",
+            "forward_private_state_borrows",
+            "forwarded",
+            "fresh_field_snapshot",
+            "fresh_value_declarations",
+            "from",
+            "from_rows",
+            "from_static",
+            "geometry",
+            "global_descriptor_table",
+            "guard_value",
+            "guard_value",
+            "has_scalar_boolean_denotation",
+            "hex_text",
+            "id",
+            "identity",
+            "identity",
+            "ieee_float_proposition",
+            "immutable_primitive_home",
+            "indexed_element_scalar_type",
+            "indexed_write",
+            "ingress",
+            "initialize_invocation_rank",
+            "initialize_owned_local",
+            "inline_local_backing",
+            "insert",
+            "insert",
+            "insert",
+            "insert",
+            "inspect",
+            "install",
+            "instantiate",
+            "integer_bit_image",
+            "integer_coordinate_binary",
+            "integer_landing_scalar_type",
+            "integer_math_term",
+            "integer_scalar_type",
+            "integer_value",
+            "intern",
+            "into_operation",
+            "into_operation_kind",
+            "invalidate_field_lengths_under",
+            "invocation_local",
+            "is_empty",
+            "join",
+            "join_memberships",
+            "joined_element_view",
+            "jump",
+            "jump_with_cleanup",
+            "jumping",
+            "leaf",
+            "leaf",
+            "left",
+            "lend",
+            "length",
+            "literal",
+            "literal",
+            "literal_argument_places",
+            "literal_view_type",
+            "live_inputs",
+            "loan_capture",
+            "loan_completion",
+            "loan_source",
+            "loan_sources",
+            "loan_subject",
+            "loan_subject",
+            "loaned_primitive_store",
+            "loaned_store",
+            "local_binding",
+            "local_home",
+            "local_loan_backing",
+            "local_source",
+            "local_store_place",
+            "local_store_root",
+            "locate",
+            "locate",
+            "lower",
+            "lower",
+            "lower",
+            "lower",
+            "lower_application",
+            "lower_atom_polarity",
+            "lower_boolean",
+            "lower_boolean_control_decision",
+            "lower_boolean_value_decision",
+            "lower_byte_predicate_term",
+            "lower_byte_sequence_field",
+            "lower_checked_cleanup_regions",
+            "lower_checked_crash_exit",
+            "lower_checked_crash_route_buckets",
+            "lower_checked_read_projections",
+            "lower_checked_scalar_expression",
+            "lower_cleanup_conditions",
+            "lower_content_conservation_plan",
+            "lower_content_identity_reshuffles",
+            "lower_content_place",
+            "lower_content_term",
+            "lower_crash_route_buckets",
+            "lower_destination_path",
+            "lower_field_type",
+            "lower_ieee_float_field",
+            "lower_mixed_cases",
+            "lower_mixed_fields",
+            "lower_nominal_cleanup_action",
+            "lower_observation_term",
+            "lower_owned_operand_claims",
+            "lower_owned_transfer_claims",
+            "lower_path",
+            "lower_polarity",
+            "lower_projected_qualifications",
+            "lower_proposition",
+            "lower_qualification_rows",
+            "lower_reference_completion_regions",
+            "lower_reference_origin_path",
+            "lower_reference_result_sources",
+            "lower_reference_source",
+            "lower_regions",
+            "lower_result_identity",
+            "lower_return_claims",
+            "lower_runtime_structural_arguments",
+            "lower_scalar",
+            "lower_scalar_call",
+            "lower_scalar_term",
+            "lower_sequence_extent_projection_term",
+            "lower_sequence_extent_term",
+            "lower_static_argument_path",
+            "lower_structural_arguments",
+            "lower_structural_case_membership",
+            "lower_structural_crash_predicates",
+            "lower_structural_crash_route_buckets",
+            "lower_structural_field_path",
+            "lower_structural_field_place",
+            "lower_structural_field_place_steps",
+            "lower_structural_field_steps",
+            "lower_structural_identity",
+            "lower_structural_indexed_place",
+            "lower_structural_indexed_term",
+            "lower_structural_member_path",
+            "lower_structural_member_term",
+            "lower_structural_path",
+            "lower_structural_place_path",
+            "lower_structural_result_indexed_term",
+            "lower_structural_result_member_term",
+            "lower_structural_scalar_store_local",
+            "lower_structural_scalar_store_place",
+            "lower_sum_path",
+            "lower_term",
+            "lower_typed_argument_path",
+            "lower_value",
+            "lower_window_path",
+            "lowered_direct_scalar_term",
+            "lowered_erased_scalar_term",
+            "lowered_erased_scalar_terms",
+            "lowered_proof_term",
+            "lowered_proof_terms",
+            "map_targets",
+            "mapped",
+            "mask_value",
+            "materialize",
+            "materialize_completed_operand",
+            "materialize_nominal_cleanup_action",
+            "materialize_place",
+            "materialize_prepared_cleanup_regions",
+            "meet",
+            "member",
+            "membership_path_matches",
+            "membership_source_path",
+            "merge_home_actions",
+            "mint",
+            "mint_runtime_index_selectors",
+            "missing_value_storage_local",
+            "move_completed_operand",
+            "move_structural_field",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new",
+            "new_instance",
+            "nominal",
+            "nominal",
+            "normal_discard_regions",
+            "normal_result_cleanup",
+            "normal_result_scope",
+            "normal_return",
+            "normalized_home_actions",
+            "obligation",
+            "observation_coordinate",
+            "observation_home",
+            "observation_path",
+            "observation_source",
+            "observations",
+            "observe",
+            "observe",
+            "observe_case",
+            "observe_element_extent",
+            "observe_local_inputs",
+            "observe_store_element_extent",
+            "observed_reference_retirements",
+            "occurrence",
+            "occurrence_memberships",
+            "operand_scope",
+            "operation",
+            "operation",
+            "operation_definition",
+            "operation_kind",
+            "operation_kind",
+            "outstanding_actions",
+            "owned",
+            "owned_argument",
+            "owned_argument_home",
+            "owned_structural_value",
+            "parameter_declaration",
+            "parameter_destination",
+            "parameter_roster",
+            "parameter_source",
+            "parameter_types",
+            "parameter_value_type",
+            "parameters",
+            "parent_carrier",
+            "path",
+            "path",
+            "path_with_current_bounds",
+            "paths_overlap",
+            "place",
+            "place",
+            "place",
+            "place_declaration",
+            "place_segments",
+            "place_type",
+            "plan",
+            "plan",
+            "plan_case_payload_leaf",
+            "plan_decision",
+            "plan_residence",
+            "plan_short_circuit_guard",
+            "planned_place_loans",
+            "portable_projections",
+            "prepare",
+            "prepare",
+            "prepare",
+            "prepare",
+            "prepare",
+            "prepare",
+            "prepare",
+            "prepare_argument_path",
+            "prepare_argument_projection",
+            "prepare_borrowed_argument",
+            "prepare_byte_destination",
+            "prepare_call_argument_path",
+            "prepare_case_path",
+            "prepare_checked_claim_transfers",
+            "prepare_checked_cleanup_regions",
+            "prepare_claim_transfers",
+            "prepare_cleanup_partition_node",
+            "prepare_cleanup_partitions",
+            "prepare_computed_module_call",
+            "prepare_crash_continuations",
+            "prepare_descriptor_store",
+            "prepare_element_view_path",
+            "prepare_establishment_claims",
+            "prepare_immutable_local_borrow",
+            "prepare_loaned_byte_store",
+            "prepare_module_call",
+            "prepare_observation_path",
+            "prepare_owners",
+            "prepare_path",
+            "prepare_place_observations",
+            "prepare_projection_path",
+            "prepare_requirement_obligations",
+            "prepare_root_projection",
+            "prepare_sequence_observation",
+            "prepare_storage_before",
+            "prepare_structural_argument",
+            "prepare_structural_argument_path",
+            "prepare_structural_argument_projection",
+            "prepare_structural_call_result",
+            "prepare_types",
+            "prepare_value_observation",
+            "prepared_borrowed_argument",
+            "prepared_primitive_borrow",
+            "preserve_parent_home",
+            "primitive_borrow",
+            "primitive_parameter_source",
+            "primitive_reference_storage",
+            "primitive_scalar_identity",
+            "primitive_storage_read",
+            "primitive_storage_source",
+            "primitive_store",
+            "produce_value",
+            "produced_value_root",
+            "project",
+            "project",
+            "project_external_provider_declarations",
+            "project_index",
+            "projected_alias",
+            "projected_local",
+            "projection",
+            "projection_source",
+            "projections",
+            "promote_retirement",
+            "proof_arguments",
+            "proof_formal_forwarding",
+            "proof_term",
+            "proposition",
+            "proposition",
+            "proposition",
+            "proposition_with_polarity",
+            "publish",
+            "publish_call_ensures_guarantees",
+            "publish_completed_result",
+            "publish_loan_completions",
+            "publish_operations",
+            "publish_result",
+            "publish_storage",
+            "publish_value_binding",
+            "published_borrowed_home",
+            "published_structural_type",
+            "published_structural_types",
+            "push",
+            "push",
+            "push",
+            "push_arm_target",
+            "push_established_local",
+            "push_initialized_scalar_field",
+            "push_leaf",
+            "push_projected_alias",
+            "push_read_obligation",
+            "push_unit",
+            "qualification_edge",
+            "qualification_set",
+            "qualification_storage_path",
+            "qualify",
+            "quotient_call",
+            "raw_value",
+            "reachable_nodes",
+            "readable_carrier",
+            "readable_place_argument",
+            "rebind_structural_binding",
+            "receive_completed",
+            "receive_completed_value_claim",
+            "receiver_request",
+            "receiving_claim_places",
+            "receiving_range_decided",
+            "receiving_value",
+            "recipe_in",
+            "record",
+            "record",
+            "record",
+            "record_call_memberships",
+            "record_owned_home",
+            "record_prepared_introductions",
+            "record_root_continuation",
+            "record_source_call",
+            "record_source_call",
+            "record_source_call_site",
+            "reestablish",
+            "reference_value",
+            "refine_scalar_local_value",
+            "refresh_memberships",
+            "register_access",
+            "register_mut_formal_storage_homes",
+            "register_scalar_parameter_home",
+            "register_structural_materialization",
+            "register_structural_result",
+            "release_reference",
+            "remap",
+            "remap_cleanup_actions",
+            "remember",
+            "remove_from",
+            "remove_retirement",
+            "render",
+            "replace",
+            "replay",
+            "representation_view_store",
+            "require_available",
+            "require_closed",
+            "require_closed",
+            "require_value_refinements",
+            "reserve",
+            "reserve",
+            "reserve_case_entry",
+            "reserve_checked_binding",
+            "reserved_guard_block",
+            "residence_frontiers",
+            "residences",
+            "resolve",
+            "resolve",
+            "resolve",
+            "resolve_at",
+            "resolve_borrowed_argument",
+            "resolve_case_payload",
+            "resolve_case_primitive",
+            "resolve_emitted_path",
+            "resolve_indexed_element",
+            "resolve_observation_at",
+            "resolve_path",
+            "resolve_runtime_element",
+            "resolve_storage_address",
+            "resolve_typed",
+            "resolve_window_place",
+            "resolved_observation_path",
+            "restore_fallback",
+            "restore_structural_sources",
+            "result",
+            "result_projected_qualifications",
+            "result_storage",
+            "result_targets",
+            "retain",
+            "retain",
+            "retain",
+            "retain",
+            "retain",
+            "retain_checked_memberships",
+            "retain_cleanup_descendants",
+            "retain_completed_structural_homes",
+            "retain_domain",
+            "retain_entry",
+            "retain_fields",
+            "retain_literal_declarations",
+            "retain_observed_type",
+            "retain_place_loan_presentation",
+            "retain_scope_prefix",
+            "retain_selection_sources",
+            "retain_selector_evaluations",
+            "retain_structural_establishment",
+            "retained",
+            "retained_case",
+            "retained_domain_predicate",
+            "retained_observation",
+            "retained_pure_value",
+            "retained_reference_parents",
+            "retained_root",
+            "retained_root_argument",
+            "retained_scalar_restriction",
+            "retained_value",
+            "retire_completed_operands",
+            "retire_consumed_structural_arguments",
+            "retire_observed_references",
+            "retire_selection_complements",
+            "retire_structural_home",
+            "retire_structural_operation_operands",
+            "retire_structural_sources",
+            "return_binding",
+            "return_completion",
+            "root",
+            "root_value_continuation",
+            "runtime_index_field",
+            "runtime_index_local",
+            "runtime_index_parameter",
+            "runtime_index_storage",
+            "runtime_index_value",
+            "safe_exact_structural_divisor",
+            "safe_exact_structural_shift",
+            "safe_policy_structural_divisor",
+            "same_contents",
+            "same_storage",
+            "saved_value_binding",
+            "scalar",
+            "scalar",
+            "scalar",
+            "scalar",
+            "scalar",
+            "scalar",
+            "scalar_call",
+            "scalar_carriers",
+            "scalar_case_dispatch",
+            "scalar_case_dispatch_terminator",
+            "scalar_computation_expansion",
+            "scalar_control_result",
+            "scalar_domain_establishment_routes",
+            "scalar_field_store",
+            "scalar_field_value",
+            "scalar_ieee_float_comparison_proposition",
+            "scalar_leaf",
+            "scalar_parameter_borrow",
+            "scalar_parameter_home",
+            "scalar_parameter_home_row",
+            "scalar_path",
+            "scalar_positions",
+            "scalar_returns",
+            "scalar_returns",
+            "scalar_source_types",
+            "scalar_state_emission_order",
+            "scalar_state_types",
+            "scalar_store_value",
+            "scalar_term",
+            "scalar_value_type",
+            "scalar_value_type",
+            "scheduled_flow",
+            "seal_continuation_names",
+            "seal_receiving_claims",
+            "seal_state",
+            "select_cleanup_partition_sequence",
+            "selected_case",
+            "selected_copies",
+            "selected_input_qualifications",
+            "selected_meaning",
+            "selected_memberships",
+            "selected_memberships",
+            "selection",
+            "selection",
+            "selector_identity",
+            "selector_scalar_type",
+            "semantic_identity",
+            "sequence",
+            "sequence_arriving",
+            "sequence_length",
+            "sequence_observation",
+            "service_declaration_identity",
+            "shared_structural_argument",
+            "shared_whole_length",
+            "shift_left",
+            "shift_right",
+            "signature_value_type",
+            "signed_carrier",
+            "signed_carrier_above",
+            "signed_source_unsigned_target",
+            "single_completed_expansion",
+            "solve_live_inputs",
+            "source_call",
+            "source_call_record",
+            "source_contract_memberships",
+            "source_decisions",
+            "source_memberships",
+            "source_memberships_in",
+            "source_path",
+            "source_range_decided",
+            "source_type",
+            "source_value",
+            "source_value",
+            "spell_place",
+            "stage_guarded_chain",
+            "stage_range",
+            "stage_source",
+            "state",
+            "static_observation_path",
+            "static_segments",
+            "storage",
+            "storage_fields",
+            "storage_home",
+            "storage_home",
+            "storage_observation",
+            "storage_observation",
+            "storage_observation_home",
+            "storage_root_identity",
+            "store",
+            "store_parameter",
+            "store_selectors",
+            "store_structural_field",
+            "structural_argument_type",
+            "structural_bindings",
+            "structural_carrier_type",
+            "structural_case",
+            "structural_crash_route_prefix_from_type",
+            "structural_declaration_by_identity",
+            "structural_declarations",
+            "structural_dependencies",
+            "structural_dispatch",
+            "structural_field",
+            "structural_field_root",
+            "structural_identity",
+            "structural_identity",
+            "structural_identity",
+            "structural_identity",
+            "structural_local_by_root",
+            "structural_materialization_statement",
+            "structural_member_term",
+            "structural_observation_path",
+            "structural_observation_path",
+            "structural_parameter_declaration",
+            "structural_parameters",
+            "structural_parameters",
+            "structural_place_type",
+            "structural_positions",
+            "structural_result_contract",
+            "structural_result_declaration",
+            "structural_result_source",
+            "structural_type_declaration",
+            "subject",
+            "subject_boolean",
+            "subslice",
+            "subslice_value",
+            "substitute_boolean",
+            "substitute_byte_sequence_operand",
+            "substitute_decision",
+            "substitute_direct",
+            "substitute_path",
+            "successor",
+            "successor_edge",
+            "sum_cases",
+            "sum_field_store",
+            "suspension_source_frontier",
+            "take_invocation_completion",
+            "target",
+            "target_signature",
+            "terminal_scalar_type",
+            "terminal_structural_field_type",
+            "terminator",
+            "transferred_loan_backing",
+            "transform_content",
+            "transported_parameter",
+            "type_atoms",
+            "type_identity",
+            "unchanged",
+            "unconditional",
+            "union",
+            "unique_declaration",
+            "unique_terminal_selection",
+            "unique_unit_boundary",
+            "unit_call",
+            "unit_scalar_result_type",
+            "unqualified_local_store_root",
+            "unsigned_carrier",
+            "unsigned_narrowing",
+            "unsigned_residue",
+            "uses",
+            "uses_structural_storage",
+            "validate",
+            "validate",
+            "validate",
+            "validate_identity_input_symbol",
+            "validate_root_access",
+            "validated_values",
+            "value",
+            "value",
+            "value",
+            "value",
+            "value_binding_parameter",
+            "value_storage",
+            "value_storage",
+            "value_successor",
+            "value_type",
+            "value_type",
+            "value_type",
+            "values",
+            "view_element_target",
+            "view_element_write_region",
+            "walk_carrier_prefix",
+            "walk_path",
+            "whole_home_actions",
+            "whole_home_disposition",
+            "widen",
+            "window_destination",
+            "with_completed",
+            "with_completed_place_declarations",
+            "with_completed_storage_observation",
+            "with_computation_operands",
+            "with_dispatch_subject",
+            "with_edge_aliases",
+            "with_physical_root_types",
+            "with_structural_observations",
+            "zeroed_scalar_field"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "prepare_operation",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs",
+          "line": 43,
+          "members": [
+            "prepare_operation"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "classes",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs",
+          "line": 356,
+          "members": [
+            "classes"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "custody",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs",
+          "line": 1469,
+          "members": [
+            "custody"
+          ],
+          "classifier": "keep:review"
+        },
+        {
+          "representative": "successors",
+          "file": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_composed_control.rs",
+          "line": 12943,
+          "members": [
+            "successors"
+          ],
+          "classifier": "keep:review"
+        }
+      ]
+    }
+  }
+}

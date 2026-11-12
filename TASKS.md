@@ -55,8 +55,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; retire core's now selection-free `build.omg` activation (`State::Defaults`, `CompletedProviderDefaults::from_captured_toolchain`) while keeping differential-evidence identities; profile remaining `select_provider` cost inside this item.
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
-- **BUILD-OWNED-NATIVE-BINDINGS.** Implement `Build::bind<Requirement>(builder, target, locator)` ([foreign_bindings.md](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)) and retire `via`.
-  - First **SEALED-INTRINSIC-CATALOG**: supply task/interrupt-mask providers per decision `sealed-runtime-providers`, then migrate table/vtable, user-intrinsic, generic-trait, Windows `ProcessExit` `via` sites; delete `via` parsing.
+- **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
+  - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Repair UEFI release custody and positional dispatch per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
@@ -72,7 +72,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 ## Pipeline route
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (the bound on expression-tree depth they stand in for waits on [`expression-tree-depth-provision`](OWNER_QUESTIONS.md)).
+  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
@@ -200,8 +200,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Requirement-based tests
 
-- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-filesystem-state` says where that provider keeps its per-test state.
-  Acceptance: a virtual-filesystem test group executes on both engines with fresh per-test state, and a child cannot widen it to the real filesystem.
+- **TEST-GROUP-FILESYSTEM-TARGETS.** Supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
+  Acceptance: `run/testing/private_filesystem_group_runs_on_both_engines` binds all four targets and passes on both engines on every host, including a test that calls `canonicalize`.
 
 ## Checked boundary topology
 

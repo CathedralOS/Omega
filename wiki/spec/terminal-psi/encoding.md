@@ -16,7 +16,9 @@ stable nonzero identities, full-width integer payloads, and explicit closed-sum
 tags. Unordered sets are strictly sorted by stable identity or canonical bytes
 and reject duplicates; symmetric terms use the same ordering. Parameters,
 operations, jump arguments, and other execution-significant sequences retain
-their declared order. Recursive terms have a fixed supported depth bound.
+their declared order. Recursive terms are encoded as flat tables whose entries
+refer only to earlier entries, so nesting depth is unbounded: only the encoded
+size and count limits stated for each section bound a term.
 
 Decode rejects stale markers, unknown tags, invalid identities/values,
 noncanonical order/forms, structurally invalid modules, truncation, and trailing
@@ -97,7 +99,7 @@ polynomial representation or executable wire operation.
 Mathematical proof-term tags 5 and 6, indexed theorem roots, carrier keys and
 the `PSICORE` framing remain supported canonical encodings. Their presence grants
 no truth, producer trust, execution permission or provider authority. Decoding
-checks their representation under shared count, depth, byte and work limits;
+checks their representation under shared count, byte and work limits;
 it does not re-decide the encoded judgment. The
 [inspection/preparation split](../build/embedding.md#loading-and-preparation)
 preserves canonical and structural validation while assigning execution-only
@@ -243,7 +245,7 @@ provider candidates; and operational call summaries. Each summary retains calls,
 recursive static argument bindings, and cleanup dependencies. Every repeated
 collection is counted; spans encode their contents, never arena generations.
 Machine summaries may be absent, which differs from a present empty summary.
-Static binding nesting has the ordinary 256-level encoding bound.
+Static binding nesting has no depth bound.
 
 Each emitted callable association contains a proof-declaration coordinate and
 the ordinary tagged machine/boundary callable coordinate. Both directions are
@@ -527,8 +529,8 @@ fixed-array leaf cannot supply a live descriptor extent.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
-Selector terms participate in ordinary depth limits, value substitution and
-structural-root substitution. A term supplies no bounds, access or truth evidence.
+Selector terms participate in value substitution and structural-root
+substitution. A term supplies no bounds, access or truth evidence.
 
 ## Integer math terms
 
@@ -549,7 +551,7 @@ The proof-only unbounded integer syntax.
 A proof term is a `u8` form tag followed by its fields. Proof terms are
 proof-only erased actuals — they carry semantic identities for the erased
 proof-formal lane, not runtime values. They appear only inside a proof term
-list in the semantic module, and their nesting shares the scalar-term depth
+list in the semantic module, and like scalar terms their nesting has no depth
 bound. A Scalar leaf embeds a scalar term; it records one scalar field of a
 record/enum carrier construction and never stands in for a runtime operand.
 
@@ -1499,7 +1501,7 @@ BlockParameter places are machine-local and reject at content positions:
 | Tag | Content term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
-| 2 | Separate | counted content terms; nesting deeper than 256 rejects |
+| 2 | Separate | counted content terms |
 
 A closed reach application is a `bool` presence flag; when present it carries
 the template identity index, the 32-byte template commitment, the 32-byte
@@ -2424,8 +2426,8 @@ postorder DAG whose nodes are keyed by their own wire bytes, so two encoders
 of the same judgment emit the same table and producer-local aliases collapse
 onto one entry. Signature statements and bodies enter the table first, in
 signature order, then the context, then the judgment roots. A `Dummy` term
-reachable from any root rejects the certificate. Decoding bounds term nesting
-and level nesting at 256 each, requires every child index to precede its
+reachable from any root rejects the certificate. Decoding places no bound on term
+or level nesting, requires every child index to precede its
 parent, rejects trailing bytes, and requires the decoded certificate to
 re-encode byte-for-byte — unreachable nodes and alternate tables cannot alias
 one certificate.
