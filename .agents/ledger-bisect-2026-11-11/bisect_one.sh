@@ -21,24 +21,51 @@ run_test_at() {
   local rev="$1"
   git -c submodule.recurse=false checkout -f --detach "$rev" >/dev/null 2>&1 || return 125
   export BISECT_TOOLS_ROOT="/tmp/ledger_bisect_tools"
-  nice -n 19 "$SCRIPT"
-  return $?
+  unset BISECT_SKIP_LEDGER_ONLY
+  local rc=0
+  nice -n 19 "$SCRIPT" || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    nice -n 19 "$SCRIPT" || rc=$?
+  fi
+  return "$rc"
 }
 
-echo "find_good from $PIN" >&2
+echo "find_good from $PIN (binary search on first-parent)" >&2
+mapfile -t REVS < <(git rev-list --first-parent "${PIN}^1")
 GOOD=""
-cur="$(git rev-parse "${PIN}^1")"
 set +e
-while [[ -n "$cur" ]]; do
-  run_test_at "$cur"
-  rc=$?
-  echo "  $cur -> $rc" >&2
-  if [[ "$rc" -eq 0 ]]; then
-    GOOD="$cur"
-    break
+if ((${#REVS[@]} > 0)); then
+  max_good_idx=-1
+  probe=0
+  step=1
+  while ((probe < ${#REVS[@]})); do
+    run_test_at "${REVS[probe]}"
+    rc=$?
+    echo "  probe[$probe] ${REVS[probe]:0:12} -> $rc" >&2
+    if [[ "$rc" -eq 0 ]]; then
+      max_good_idx=$probe
+      break
+    fi
+    ((step *= 2))
+    probe=$((probe + step))
+  done
+  if ((max_good_idx >= 0)); then
+    lo=0
+    hi=$max_good_idx
+    while ((lo <= hi)); do
+      mid=$(((lo + hi) / 2))
+      run_test_at "${REVS[mid]}"
+      rc=$?
+      echo "  narrow[$mid] ${REVS[mid]:0:12} -> $rc" >&2
+      if [[ "$rc" -eq 0 ]]; then
+        GOOD="${REVS[mid]}"
+        hi=$((mid - 1))
+      else
+        lo=$((mid + 1))
+      fi
+    done
   fi
-  cur="$(git rev-parse "${cur}^1" 2>/dev/null)" || break
-done
+fi
 set -e
 git checkout --detach "$START_SHA" >/dev/null 2>&1
 [[ -n "$GOOD" ]] || {
@@ -72,9 +99,11 @@ git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
 
 git bisect reset 2>/dev/null || true
 git bisect start --first-parent "$PIN" "$GOOD"
+export BISECT_SKIP_LEDGER_ONLY=1
 set +e
 nice -n 19 git bisect run "$SCRIPT" >"$OUT_DIR/${SAFE}.log" 2>&1
 RC=$?
+unset BISECT_SKIP_LEDGER_ONLY
 set -e
 BREAK=$(git rev-parse HEAD 2>/dev/null || true)
 git bisect reset 2>/dev/null || true
@@ -84,9 +113,10 @@ PR=""
 MECH=""
 STATUS=propagated
 if [[ "$RC" -le 1 && -n "$BREAK" && "$BREAK" != "$PIN" && "$BREAK" != "$GOOD" ]]; then
-  STATUS=bisected
-  PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
-  MECH=$(python3 - "$BREAK" <<'PY'
+  if git diff --name-only "${BREAK}^1" "$BREAK" | rg -qv '^(tests/omega/corpus_outcomes\.txt|.*\.md)$'; then
+    STATUS=bisected
+    PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
+    MECH=$(python3 - "$BREAK" <<'PY'
 import subprocess, sys
 brk = sys.argv[1]
 stat = subprocess.run(["git", "show", "--stat", "--format=", brk], capture_output=True, text=True).stdout
@@ -95,6 +125,9 @@ subj = subprocess.run(["git", "log", "-1", "--format=%s", brk], capture_output=T
 print(subj + (f" — {'; '.join(lines)}" if lines else ""))
 PY
 )
+  else
+    MECH="git bisect landed on ledger/markdown-only commit ${BREAK:0:12}"
+  fi
 fi
 [[ "$STABLE" -eq 0 ]] && MECH="${MECH}; endpoint stability: flaky across replays"
 

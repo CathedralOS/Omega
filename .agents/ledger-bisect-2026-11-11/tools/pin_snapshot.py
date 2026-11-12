@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,10 +37,12 @@ def expected_status(line: str | None, tier: str) -> str | None:
 def main() -> int:
     witnesses = sys.argv[1:]
     measured = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("/tmp/slice_2_pin_measure.txt")
-    ledger_src = REPO / "tests/omega/corpus_outcomes.txt"
     ledger_dst = Path("/tmp/bisect_pin_corpus_outcomes.txt")
-    shutil.copy2(ledger_src, ledger_dst)
-    ledger_text = ledger_dst.read_text()
+    ledger_text = subprocess.check_output(
+        ["git", "-C", str(REPO), "show", f"{PIN}:tests/omega/corpus_outcomes.txt"],
+        text=True,
+    )
+    ledger_dst.write_text(ledger_text)
     obs = parse_records(measured.read_text()) if measured.exists() else {}
     meta_dir = Path("/tmp/bisect_pin_meta")
     meta_dir.mkdir(exist_ok=True)
