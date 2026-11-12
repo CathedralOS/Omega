@@ -32,6 +32,32 @@ The compile gate does not establish runtime correctness or check independent
 workspaces. Authors still run focused validation appropriate to their changes.
 Full suites, all-host validation and customer boots are not admission gates.
 
+## Main keeper
+
+Pull requests merge on the admission check alone, which builds no compiler.
+`.github/workflows/main-keeper.yml` runs on every push to main, one run at a
+time, and judges the batch of commits main gained since the last run that
+reached a verdict. A push that arrives while a run is in progress waits, and a
+newer push replaces it, so a burst of merges is judged once.
+
+- `plan` finds the batch and chooses the corpus rows its changed paths reach
+  (`cargo xtask corpus-gate plan`, the selection the corpus gate used).
+- `build` compiles `omega` and the corpus runner once
+  (`cargo xtask corpus-gate build --out <dir>`) and uploads them with the
+  producer's receipt. When the batch changed Rust it also runs
+  `check-boundary`, `clippy --workspace --all-targets` and the workspace's
+  unit tests from the same objects.
+- Up to four `shard` jobs at a time download the runner and check their rows
+  against the ledger (`corpus-gate check --runner <dir>`). A shard refuses a
+  runner whose receipt names another commit or tree, or whose bytes differ,
+  and never compiles one itself.
+- `main-keeper` writes the verdict to the run summary: each failed check, the
+  rows that moved, and the batch's commits. A batch of several commits is
+  named as a whole; the run does not bisect it.
+
+The keeper only reports. It commits no ledger rows and opens no revert; those
+are later steps of `wiki/drafts/designs/ci_rebuild_plan.md`.
+
 ## Post-merge and nightly regression
 
 `.github/workflows/compiler-regression.yml` runs on main pushes, nightly at

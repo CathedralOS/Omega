@@ -1,0 +1,365 @@
+name: Main keeper
+
+# Pull requests merge after the one-minute admission check, which builds no
+# compiler, so nothing checks that main still builds, lints, passes its tests
+# or keeps its corpus rows. This workflow does that after the merge, for the
+# batch of commits main gained since the last batch it judged, and says in its
+# run summary which rows moved and which pull requests the batch holds.
+#
+# It only reports. It commits no ledger rows and reverts nothing; a red run is
+# the report. wiki/drafts/designs/ci_rebuild_plan.md has the later steps.
+#
+# The compiler's corpus runner is compiled once, in `build`, and every shard
+# downloads it. A shard that cannot get it, or gets one built from another
+# commit, fails; it never compiles one or checks no rows.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The plan job reads this workflow's earlier runs to find where the last
+  # judged batch ended.
+  actions: read
+
+# One run at a time. GitHub keeps only the newest waiting push, so a burst of
+# merges is judged as one batch instead of one run per merge.
+concurrency:
+  group: main-keeper
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
+      shards: ${{ steps.plan.outputs.shards }}
+      needs_base: ${{ steps.plan.outputs.needs_base }}
+      base: ${{ steps.batch.outputs.base }}
+      rust: ${{ steps.batch.outputs.rust }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # Deep enough to hold a batch; the base is fetched by name below
+          # when it is older than this.
+          fetch-depth: 100
+      - name: Find the batch this run judges
+        id: batch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # The batch starts where the last run that reached a verdict ended.
+          # A run GitHub replaced while it waited judged nothing, so its commit
+          # belongs to this batch.
+          base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow main-keeper.yml --branch main \
+            --status completed --limit 20 --json headSha,conclusion,databaseId \
+            --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID) | select(.conclusion == \"success\" or .conclusion == \"failure\")][0].headSha // empty" || true)
+          case "$BEFORE" in ''|0000000000000000000000000000000000000000) BEFORE= ;; esac
+          base=${base:-${BEFORE:-HEAD^1}}
+          git cat-file -e "$base^{commit}" 2>/dev/null || git fetch -q --depth 100 origin "$base" || true
+          if ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+            echo "The last judged commit ($base) is not an ancestor of this one; judging the last commit alone."
+            base=HEAD^1
+          fi
+          base=$(git rev-parse "$base")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          if git diff --name-only "$base" HEAD | grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rust-toolchain'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "## Batch"
+            echo
+            echo "Commits main gained since the last judged commit \`${base:0:10}\`. A row or a check this run reports as broken was broken by one of them."
+            echo
+            git log --reverse --format='- `%h` %s' "$base..HEAD"
+          } | tee "$RUNNER_TEMP/batch.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Choose the rows this batch can affect
+        id: plan
+        env:
+          BASE: ${{ steps.batch.outputs.base }}
+        run: |
+          mkdir -p build/corpus-gate
+          mbx xtask corpus-gate plan --base "$BASE" --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
+          cp "$RUNNER_TEMP/batch.md" build/corpus-gate/batch.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: main-keeper-plan
+          path: |
+            build/corpus-gate/plan.json
+            build/corpus-gate/batch.md
+          retention-days: 7
+
+  # Compile once for the whole run, then lint and test from the same objects.
+  build:
+    needs: plan
+    if: needs.plan.outputs.skip == 'false' || needs.plan.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    outputs:
+      # 'true' once the runner the shards need is uploaded.
+      runner: ${{ steps.runner-ready.outputs.built }}
+      # 'true' once the base commit's runner is uploaded as well.
+      base: ${{ steps.base-ready.outputs.built }}
+      clippy: ${{ steps.clippy.outcome }}
+      tests: ${{ steps.tests.outcome }}
+      boundary: ${{ steps.boundary.outcome }}
+    # The container, user and path of a cloud session and of the warm-build
+    # job, so main's published build is reused and the runner built here runs
+    # in the shards (tools/warm_build.sh).
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the commit at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - name: Build the compiler and the corpus runner
+        if: needs.plan.outputs.skip == 'false'
+        run: |
+          cd /home/user/Omega
+          # A session is not a CI job: Cargo and mbx change their defaults when
+          # CI is set, and the warm build was made without it.
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx build --locked -p omega < /dev/null
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --out build/corpus-gate/runner < /dev/null
+          cp target/debug/omega build/corpus-gate/runner/omega
+          # An artifact upload drops file modes; the archive keeps the
+          # binaries executable.
+          tar -C build/corpus-gate -cf build/corpus-gate/runner.tar runner
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: runner-upload
+        if: needs.plan.outputs.skip == 'false'
+        with:
+          name: main-keeper-runner
+          path: /home/user/Omega/build/corpus-gate/runner.tar
+          if-no-files-found: error
+          retention-days: 2
+      - name: Tell the shards the runner is available
+        id: runner-ready
+        if: steps.runner-upload.outcome == 'success'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+      # The base commit's runner tells a row main had already lost before this
+      # batch from one the batch broke. If these steps fail, a shard that
+      # needs the base builds it itself.
+      - name: Build the base commit's corpus runner
+        id: base
+        if: needs.plan.outputs.skip == 'false' && needs.plan.outputs.needs_base == 'true'
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate build --at "${{ needs.plan.outputs.base }}" \
+            --out build/corpus-gate/runner-base < /dev/null
+          tar -C build/corpus-gate -cf build/corpus-gate/runner-base.tar runner-base
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: base-upload
+        if: steps.base.outcome == 'success'
+        continue-on-error: true
+        with:
+          name: main-keeper-runner-base
+          path: /home/user/Omega/build/corpus-gate/runner-base.tar
+          if-no-files-found: error
+          retention-days: 2
+      - name: Tell the shards the base runner is available
+        id: base-ready
+        if: steps.base-upload.outcome == 'success'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+      # The three checks below report and do not stop the run: the shards
+      # still judge the batch's rows, and the last job turns the run red.
+      - name: Check production dependency boundaries
+        id: boundary
+        if: ${{ !cancelled() && needs.plan.outputs.rust == 'true' }}
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS mbx xtask check-boundary < /dev/null
+      - name: Lint the workspace
+        id: clippy
+        if: ${{ !cancelled() && needs.plan.outputs.rust == 'true' }}
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx clippy --locked --keep-going --workspace --all-targets -- -D warnings < /dev/null
+      - name: Run the unit tests
+        id: tests
+        if: ${{ !cancelled() && needs.plan.outputs.rust == 'true' }}
+        continue-on-error: true
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx test --locked --workspace --lib --no-fail-fast < /dev/null
+
+  shard:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
+    name: shard ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    # Long enough to run a worse row twice and then at the base commit.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+      OMEGA_CORPUS_JOBS: '4'
+      # Hosted runners are slower than the hosts the ledger was timed on.
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the commit at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: main-keeper-plan
+          path: /home/user/Omega/build/corpus-gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: main-keeper-runner
+          path: /home/user/Omega/build/corpus-gate
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build.outputs.base == 'true'
+        with:
+          name: main-keeper-runner-base
+          path: /home/user/Omega/build/corpus-gate
+      - name: Unpack the prebuilt runners
+        run: |
+          cd /home/user/Omega/build/corpus-gate
+          tar -xf runner.tar
+          if [ "${{ needs.build.outputs.base }}" = true ]; then
+            tar -xf runner-base.tar
+            echo "BASE_RUNNER=--base-runner build/corpus-gate/runner-base" >> "$GITHUB_ENV"
+          fi
+      - name: Check this shard's rows against the ledger
+        run: |
+          cd /home/user/Omega
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
+            --out build/corpus-gate/runs \
+            --runner build/corpus-gate/runner ${BASE_RUNNER:-} < /dev/null
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: main-keeper-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            /home/user/Omega/build/corpus-gate/runs/
+          if-no-files-found: warn
+          retention-days: 7
+
+  main-keeper:
+    needs: [plan, build, shard]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: main-keeper-plan
+          path: artifacts/main-keeper-plan
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: main-keeper-shard-*
+          path: artifacts
+      - name: Report what this batch did to main
+        env:
+          PLAN: ${{ needs.plan.result }}
+          SKIP: ${{ needs.plan.outputs.skip }}
+          RUST: ${{ needs.plan.outputs.rust }}
+          BUILD: ${{ needs.build.result }}
+          RUNNER: ${{ needs.build.outputs.runner }}
+          CLIPPY: ${{ needs.build.outputs.clippy }}
+          TESTS: ${{ needs.build.outputs.tests }}
+          BOUNDARY: ${{ needs.build.outputs.boundary }}
+          SHARDS: ${{ needs.shard.result }}
+        run: |
+          red=0
+          say() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+          bad() { say "- **Broken:** $1"; red=1; }
+          ok() { say "- $1"; }
+          say "## Main keeper verdict for \`${GITHUB_SHA:0:10}\`"
+          say ""
+          if [ "$PLAN" != success ]; then
+            bad "the plan job did not succeed ($PLAN); nothing was judged."
+          else
+            if [ "$RUST" = true ] || [ "$SKIP" = false ]; then
+              [ "$BUILD" = success ] || bad "the build job failed or did not finish ($BUILD)."
+            fi
+            if [ "$RUST" = true ] && [ "$BUILD" = success ]; then
+              for check in "dependency boundaries:$BOUNDARY" "workspace lint:$CLIPPY" "unit tests:$TESTS"; do
+                name=${check%%:*}; outcome=${check##*:}
+                if [ "$outcome" = success ]; then ok "$name pass."; else bad "$name ($outcome); the build job's log has the output."; fi
+              done
+            elif [ "$RUST" != true ]; then
+              ok "No Rust changed; lint and tests not run."
+            fi
+            if [ "$SKIP" = true ]; then
+              ok "Nothing the corpus reads changed; no rows to check."
+            elif [ "$RUNNER" != true ]; then
+              bad "the corpus runner was not built; no row was checked."
+            elif [ "$SHARDS" = success ]; then
+              ok "Every selected corpus row is at least as good as the ledger."
+            else
+              bad "a corpus shard failed or did not finish ($SHARDS). Rows that moved:"
+              say ""
+              found=0
+              for summary in artifacts/main-keeper-shard-*/summary.md artifacts/main-keeper-shard-*/*/summary.md; do
+                [ -f "$summary" ] || continue
+                found=1
+                cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+                echo >> "$GITHUB_STEP_SUMMARY"
+              done
+              [ "$found" = 1 ] || say "No shard wrote a summary; a shard that stopped early judged no rows."
+            fi
+          fi
+          say ""
+          batch=$(ls artifacts/main-keeper-plan/batch.md artifacts/main-keeper-plan/*/batch.md 2>/dev/null | head -1)
+          if [ "$red" = 1 ]; then
+            say "### Blamed"
+            say ""
+            say "One of the batch's pull requests broke what is listed above. This run names the batch and does not narrow it further."
+            say ""
+            if [ -n "$batch" ]; then sed '1,/^$/d' "$batch" | sed '1,/^$/d' >> "$GITHUB_STEP_SUMMARY"; fi
+            exit 1
+          fi
