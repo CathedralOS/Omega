@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "uefi_selected_context_entry");
-    Build::depend_as(builder, "entry_support", Source::Path { location: "../../../packages/uefi-storage-entry" });
+    let mut entry_support_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../packages/uefi-storage-entry" });
+    dependency::with_alias(&mut entry_support_dependency, "entry_support");
+    let entry_support_registration: DependencyRegistration = Build::dependency(builder, entry_support_dependency);
     Build::accept_boundary<ExtentRootProvider>(builder);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, linux_arm64);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, linux_x86_64);
@@ -11,15 +13,7 @@ machine build(builder: &mut Build) {
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, cross_platform_cli);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, local_unchecked);
     Build::select_provider<ExtentRootProvider, TestRoots>(builder, alpha_bootstrap);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, linux_arm64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, linux_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, macos_arm64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, macos_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, windows_x86_64);
     Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, uefi_x86_64);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, cross_platform_cli);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, local_unchecked);
-    Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder, alpha_bootstrap);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_arm64);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, linux_x86_64);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder, macos_arm64);

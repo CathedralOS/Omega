@@ -15,27 +15,17 @@ or CI rule gate while breaking compiler soundness or golden-file integrity.
 Never trust a worker's summary text (`"re-recorded 18 rows"`, `"all tests pass"`)
 without reading the actual `git diff`.
 
-## 1. The Draft-Only Worker Boundary
+## 1. Who Lands
 
-In any coordinated wave where a central session manages subagents, threads, or
-cloud sessions:
-
-1. **Workers own end-to-end implementation, 9-place execution validation, golden
-   recording, and draft PR publication (`gh pr create --draft`), then stop and
-   message the coordinator (`candidate_ready`).**
-2. **Workers controlled by a coordinator never mark a PR ready (`gh pr ready`),
-   never arm auto-merge (`gh pr merge --auto`), and never run
-   `cargo xtask land` themselves.**
-3. **Only the coordinator marks a PR ready and lands it** (`cargo xtask land <pr> --expected-head <sha>`) **after** completing the
-   5-point diff audit below.
-4. **Reactive wakeup only:** Neither the coordinator nor any worker schedules
-   timers (`schedule`, cron, `send_later`, or polling loops). The worker's
-   completion message wakes the coordinator directly to perform the review.
+Workers are trusted with their task end to end. A worker runs this checklist
+on its own diff, opens the PR ready, and squash-merges it when `admission`
+passes. A coordinator may run the same checklist on any diff it has a concern
+about; workers do not wait for it. Neither side polls or schedules timers;
+completion messages wake the session.
 
 ## 2. The 5-Point Coordinator Review Checklist
 
-Before running `gh pr ready` or `cargo xtask land` on any worker branch or
-PR, inspect the actual diff:
+Before merging, inspect the actual diff:
 
 ```bash
 gh pr diff <pr> --exclude 'tests/omega/corpus_*.txt'
@@ -153,17 +143,11 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 
 ## 3. Review Verdict Actions
 
-- **If the candidate passes all 5 points:**
-  1. The coordinator marks the PR ready and queues it for merge:
-     `cargo xtask land <pr> --expected-head <sha>`
-  2. The coordinator dispatches the next requirement of the parent capability
-     to the worker on its warm worktree.
-- **If the candidate fails any point:**
-  1. Do **not** mark the PR ready or merge it (if auto-merge was armed, disable
-     it immediately or convert back to draft).
-  2. Send a concise message to the worker (`send_message` / `followup_task`)
-     naming the exact file, line, and failed review point, and instruct the
-     worker to fix it on the same branch and report back for re-review.
+- **If the diff passes all 5 points:** squash-merge it, then take the next
+  requirement of the same capability on the warm worktree.
+- **If it fails a point:** fix it on the same branch and review again. A
+  coordinator who finds the failure tells the worker the exact file, line and
+  point.
 
 ## 4. Workflow & Framing Evolution (Closing Recurring Failure Loops)
 

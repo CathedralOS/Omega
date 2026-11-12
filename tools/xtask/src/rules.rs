@@ -1200,11 +1200,9 @@ pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> V
         violations.push(format!("`Gate:` line is not of the form {FORM}"));
         return violations;
     };
-    if claimed != ledger_delta {
-        violations.push(format!(
-            "`Gate:` claims {claimed} red rows but the corpus ledger diff shows {ledger_delta}; record the outcomes or correct the line"
-        ));
-    }
+    // Pull requests no longer record the ledger; the post-merge check measures
+    // main and writes it. The claim is the author's statement of intent.
+    let _ = ledger_delta;
     let unlocks = fields
         .get(2)
         .and_then(|field| field.strip_prefix("unlocks:"))
@@ -1399,7 +1397,9 @@ pub fn golden_row_quality_violations(diff: &str, observations_only: bool) -> Vec
                         "{GOLDEN}: {name} lost its recorded success but carries no `regressed-from:` token; write the row with cargo xtask corpus --record instead of editing it"
                     ));
                 }
-            } else if outcome == "rejected" || marked {
+            // A refusal the fixture authors and the runner matched is the row's
+            // success, exactly as `ledger_row_is_red` counts it.
+            } else if (outcome == "rejected" && ledger_row_is_red(body) != Some(false)) || marked {
                 violations.push(format!(
                     "{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; fix the fixture or compiler before recording; {REGRESSION_RECORDING}"
                 ));
@@ -1554,13 +1554,9 @@ fn golden_violations(
         .cloned()
         .collect();
     let mut violations = Vec::new();
-    if !stale.is_empty() {
-        violations.push(format!(
-            "{} fixture(s) changed without re-recording their row in {GOLDEN}, so the row describes source that no longer exists. Run:\n  cargo xtask corpus --record --filter {}",
-            stale.len(),
-            stale.join(",")
-        ));
-    }
+    // A changed fixture's row is re-measured on main after merge, not by the
+    // pull request, so a stale row here is expected.
+    let _ = stale;
     if !orphaned.is_empty() {
         violations.push(format!(
             "{} deleted fixture(s) keep a row in {GOLDEN}: {}",
@@ -1606,70 +1602,25 @@ fn equivalent_work_pin(root: &Path, base_rev: &str, status: char, path: &str) ->
         == canonical_work_pins(&fragments(show_git_file(root, "HEAD", path)))
 }
 
-fn pin_records_by_fixture(
-    text: &str,
-) -> Option<BTreeMap<String, Vec<crate::corpus::CorpusRecord>>> {
-    let mut fixtures = BTreeMap::<String, Vec<crate::corpus::CorpusRecord>>::new();
-    for record in crate::corpus::parse_records(text).ok()? {
-        fixtures
-            .entry(record.fixture.clone())
-            .or_default()
-            .push(record);
-    }
-    Some(fixtures)
-}
-
 // A compiler repair can change the first reported error or its spelling.
-// Every replacement fragment must occur in a newly recorded intended rejection.
-// Review still checks that the diagnostic names the fixture's broken obligation.
-fn recorded_pin_migration(
-    pins: &BTreeSet<String>,
-    records: &[crate::corpus::CorpusRecord],
-    previous: &[crate::corpus::CorpusRecord],
-) -> bool {
-    let [record] = records else { return false };
-    let Some(stamp) = record.recorded_at.as_deref() else {
-        return false;
-    };
-    !pins.is_empty()
-        && record.fixture.starts_with("fail/")
-        && record.tier == "fail"
-        && record.status == "rejected"
-        && record.expected_satisfied == Some(true)
-        && record.regressed_from.is_none()
-        && (12..=40).contains(&stamp.len())
-        && stamp.bytes().all(|byte| byte.is_ascii_hexdigit())
-        && previous
-            .iter()
-            .all(|old| old.recorded_at.as_deref() != Some(stamp))
-        && pins.iter().all(|pin| {
-            record
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.contains(pin))
-        })
+// Authors check replacement fragments against the intended rejection; corpus
+// recording belongs after merge. Admission rejects an empty or drop-only change
+// without requiring a prohibited pull-request ledger edit.
+fn substantive_pin_migration(old: &BTreeSet<String>, new: &BTreeSet<String>) -> bool {
+    !new.is_empty() && new.difference(old).next().is_some()
 }
 
 // `tests/omega/pending/` holds a witness the checker accepts wrongly until a
 // fix lands; the fix then moves it to the same place under `fail/`. The pin is
-// kept, not removed, when that move carries identical fragments and the moved
-// fixture has a freshly recorded intended rejection containing every one.
+// kept, not removed, when that move carries the same nonempty fragments.
+// Authors check the intended rejection before merge; recording belongs afterward.
 fn pending_promotion_path(path: &str) -> Option<String> {
     let rest = path.strip_prefix("tests/omega/pending/")?;
     Some(format!("tests/omega/fail/{rest}"))
 }
 
-fn expected_pin_violations(
-    root: &Path,
-    base_rev: &str,
-    changes: &[(char, String)],
-    rewritten: &BTreeSet<String>,
-    base_golden: &str,
-    head_golden: &str,
-) -> Vec<String> {
+fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
-    let base_records = pin_records_by_fixture(base_golden);
-    let head_records = pin_records_by_fixture(head_golden);
     for (status, path) in changes {
         if *status == 'A' || !path.starts_with("tests/omega/") || !path.ends_with("/expected.txt") {
             continue;
@@ -1690,30 +1641,15 @@ fn expected_pin_violations(
                 .map(str::to_owned)
                 .collect()
         };
-        if canonical_work_pins(&old) == canonical_work_pins(&new) {
+        if *status != 'D' && canonical_work_pins(&old) == canonical_work_pins(&new) {
             continue;
         }
-        if *status == 'M'
-            && let Some(fixture) = path
-                .strip_prefix("tests/omega/")
-                .and_then(|path| path.strip_suffix("/expected.txt"))
-            && rewritten.contains(fixture)
-            && let (Some(base), Some(head)) = (&base_records, &head_records)
-            && recorded_pin_migration(
-                &new,
-                head.get(fixture).map(Vec::as_slice).unwrap_or_default(),
-                base.get(fixture).map(Vec::as_slice).unwrap_or_default(),
-            )
-        {
+        if *status == 'M' && substantive_pin_migration(&old, &new) {
             continue;
         }
         if *status == 'D'
             && let Some(promoted) = pending_promotion_path(path)
             && changes.contains(&('A', promoted.clone()))
-            && let Some(fixture) = promoted
-                .strip_prefix("tests/omega/")
-                .and_then(|path| path.strip_suffix("/expected.txt"))
-            && let (Some(base), Some(head)) = (&base_records, &head_records)
         {
             let promoted_pins: BTreeSet<String> = show_git_file(root, "HEAD", &promoted)
                 .lines()
@@ -1721,13 +1657,7 @@ fn expected_pin_violations(
                 .filter(|l| !l.is_empty())
                 .map(str::to_owned)
                 .collect();
-            if canonical_work_pins(&old) == canonical_work_pins(&promoted_pins)
-                && recorded_pin_migration(
-                    &promoted_pins,
-                    head.get(fixture).map(Vec::as_slice).unwrap_or_default(),
-                    base.get(fixture).map(Vec::as_slice).unwrap_or_default(),
-                )
-            {
+            if !old.is_empty() && canonical_work_pins(&old) == canonical_work_pins(&promoted_pins) {
                 continue;
             }
         }
@@ -1746,7 +1676,7 @@ fn expected_pin_violations(
             parts.join("; ")
         };
         violations.push(format!(
-            "{path}: broke existing-diagnostic-pin: {detail}. Keep expected.txt; a changed pin requires a unique refreshed rejected/expected row with a new clean revision and every new fragment in its recorded diagnostics."
+            "{path}: broke existing-diagnostic-pin: {detail}. Keep a nonempty expected.txt; replace obsolete fragments rather than only dropping them. A pending-to-fail move must preserve the same pins at the same place. Check the intended rejection before merge; corpus recording belongs afterward."
         ));
     }
     violations
@@ -2081,14 +2011,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             records_observations_only(&changes),
         ));
         violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(expected_pin_violations(
-            &root,
-            &base_rev,
-            &changes,
-            &rewritten,
-            &base_golden,
-            &head_golden,
-        ));
+        violations.extend(expected_pin_violations(&root, &base_rev, &changes));
         for (status, path) in &changes {
             if *status == 'A' && path.starts_with(MEASUREMENTS_ROOT) {
                 if !path.ends_with(".md") {
@@ -2184,67 +2107,133 @@ struct Ledger;
         );
     }
 
-    #[test]
-    fn pin_migration_requires_a_fresh_intended_rejection() {
-        let pins = ["missing output".to_owned(), "Identity".to_owned()]
-            .into_iter()
-            .collect();
-        let previous = crate::corpus::parse_records(
-            "fail/contracts/example rejected 1ms expected @aaaaaaaaaaaa\n\told wording\n",
-        )
-        .unwrap();
-        let current = crate::corpus::parse_records(
-            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb\n\tmissing output Identity\n",
-        ).unwrap();
-        assert!(recorded_pin_migration(&pins, &current, &previous));
-        assert!(!recorded_pin_migration(&pins, &current, &current));
-        assert!(!recorded_pin_migration(
-            &BTreeSet::new(),
-            &current,
-            &previous
-        ));
-        assert!(!recorded_pin_migration(&pins, &[], &previous));
-        let mut duplicates = current.clone();
-        duplicates.extend(current.clone());
-        assert!(!recorded_pin_migration(&pins, &duplicates, &previous));
+    struct DiagnosticPinRepository {
+        root: PathBuf,
+    }
 
-        for text in [
-            "fail/contracts/example checked 2ms expected @bbbbbbbbbbbb\n\tmissing output Identity\n",
-            "fail/contracts/example rejected 2ms unexpected @bbbbbbbbbbbb\n\tmissing output Identity\n",
-            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb+wt\n\tmissing output Identity\n",
-            "fail/contracts/example rejected 2ms expected\n\tmissing output Identity\n",
-            "fail/contracts/example rejected 2ms expected @bbbbbbbbbbbb\n\tunrelated rejection\n",
-        ] {
-            let records = crate::corpus::parse_records(text).unwrap();
-            assert!(
-                !recorded_pin_migration(&pins, &records, &previous),
-                "{text}"
-            );
+    impl DiagnosticPinRepository {
+        fn new() -> Self {
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "omega-diagnostic-pins-{}-{nonce}",
+                std::process::id()
+            ));
+            fs::create_dir(&root).unwrap();
+            git(&root, &["init", "--quiet"]).unwrap();
+            for (key, value) in [
+                ("user.name", "Diagnostic pin test"),
+                ("user.email", "diagnostic-pin@example.invalid"),
+                ("commit.gpgSign", "false"),
+                ("core.hooksPath", ".git/empty-hooks"),
+            ] {
+                git(&root, &["config", key, value]).unwrap();
+            }
+            Self { root }
+        }
+
+        fn commit(&self, files: &[(&str, Option<&str>)]) -> String {
+            for (path, contents) in files {
+                let path = self.root.join(path);
+                if let Some(contents) = contents {
+                    fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    fs::write(path, contents).unwrap();
+                } else {
+                    fs::remove_file(path).unwrap();
+                }
+            }
+            git(&self.root, &["add", "--all"]).unwrap();
+            git(&self.root, &["commit", "--quiet", "-m", "fixture"]).unwrap();
+            git(&self.root, &["rev-parse", "HEAD"])
+                .unwrap()
+                .trim()
+                .to_owned()
+        }
+    }
+
+    impl Drop for DiagnosticPinRepository {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
         }
     }
 
     #[test]
-    fn pending_pin_promotes_only_to_the_same_fail_place() {
+    fn diagnostic_pin_migration_does_not_require_a_ledger_edit() {
+        let repo = DiagnosticPinRepository::new();
+        let path = "tests/omega/fail/layouts/example/expected.txt";
+        let base = repo.commit(&[
+            (path, Some("schema instance has no runtime layout\n")),
+            (
+                GOLDEN,
+                Some("fail/layouts/example rejected 1ms expected @aaaaaaaaaaaa\n\tschema instance has no runtime layout\n"),
+            ),
+        ]);
+        repo.commit(&[(path, Some("alignment 0 is not a positive power of two\n"))]);
         assert_eq!(
-            pending_promotion_path("tests/omega/pending/dependent/example/expected.txt").as_deref(),
-            Some("tests/omega/fail/dependent/example/expected.txt")
+            show_git_file(&repo.root, &base, GOLDEN),
+            show_git_file(&repo.root, "HEAD", GOLDEN)
         );
+        assert!(expected_pin_violations(&repo.root, &base, &[('M', path.to_owned())]).is_empty());
+    }
+
+    #[test]
+    fn diagnostic_pin_migration_rejects_empty_drop_only_and_deleted_pins() {
+        let repo = DiagnosticPinRepository::new();
+        let path = "tests/omega/fail/contracts/example/expected.txt";
+        let base = repo.commit(&[(path, Some("missing output\nIdentity\n"))]);
+        for (contents, status) in [(Some("Identity\n"), 'M'), (Some("  \n"), 'M'), (None, 'D')] {
+            repo.commit(&[(path, contents)]);
+            let violations =
+                expected_pin_violations(&repo.root, &base, &[(status, path.to_owned())]);
+            assert_eq!(violations.len(), 1, "{contents:?}");
+            assert!(violations[0].contains("existing-diagnostic-pin"));
+        }
+    }
+
+    #[test]
+    fn diagnostic_pin_promotion_preserves_the_same_place_and_fragments_without_a_ledger() {
+        let repo = DiagnosticPinRepository::new();
+        let pending = "tests/omega/pending/contracts/example/expected.txt";
+        let fail = "tests/omega/fail/contracts/example/expected.txt";
+        let wrong_place = "tests/omega/fail/contracts/other/expected.txt";
+        let pins = "missing output\nIdentity\n";
+        let base = repo.commit(&[(pending, Some(pins))]);
+        repo.commit(&[(pending, None), (fail, Some(pins))]);
+        let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
+        assert!(expected_pin_violations(&repo.root, &base, &changes).is_empty());
+
+        repo.commit(&[(fail, Some("Identity\n"))]);
         assert_eq!(
-            pending_promotion_path("tests/omega/fail/dependent/example/expected.txt"),
-            None
+            expected_pin_violations(&repo.root, &base, &changes).len(),
+            1
+        );
+
+        repo.commit(&[(fail, None), (wrong_place, Some(pins))]);
+        let changes = [('D', pending.to_owned()), ('A', wrong_place.to_owned())];
+        assert_eq!(
+            expected_pin_violations(&repo.root, &base, &changes).len(),
+            1
         );
     }
 
     #[test]
-    fn pin_record_index_retains_duplicate_rows_and_refuses_malformed_input() {
-        let text = "fail/contracts/example rejected 1ms expected @bbbbbbbbbbbb\n";
-        let index = pin_records_by_fixture(&text.repeat(2)).unwrap();
-        assert_eq!(index["fail/contracts/example"].len(), 2);
-        assert!(pin_records_by_fixture("not a corpus record").is_none());
+    fn diagnostic_pin_promotion_rejects_an_empty_pin() {
+        let repo = DiagnosticPinRepository::new();
+        let pending = "tests/omega/pending/contracts/example/expected.txt";
+        let fail = "tests/omega/fail/contracts/example/expected.txt";
+        let base = repo.commit(&[(pending, Some("\n"))]);
+        repo.commit(&[(pending, None), (fail, Some("\n"))]);
+        let changes = [('D', pending.to_owned()), ('A', fail.to_owned())];
+        assert_eq!(
+            expected_pin_violations(&repo.root, &base, &changes).len(),
+            1
+        );
     }
 
     #[test]
-    fn work_pin_migration_preserves_the_complete_requirement() {
+    fn diagnostic_pin_work_migration_preserves_the_complete_requirement() {
         for (old, new) in [
             (
                 "evaluation Fuel allowance exhausted",
@@ -2343,6 +2332,16 @@ struct Ledger;
         // An unmarked pass row is refused too: dropping the token is not a way round.
         let unmarked = "+++ b/l\n-pass/a/x checked 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n";
         assert_eq!(golden_row_quality_violations(unmarked, false).len(), 1);
+        // A matched authored refusal is green; an unmatched one is not.
+        let matched = "+++ b/l
+-pass/a/x rejected 1ms regressed-from:rejected+expected+native-rejection:match
++pass/a/x rejected 2ms expected native-rejection:match @bbbbbbbbbbbb
+";
+        assert!(golden_row_quality_violations(matched, false).is_empty());
+        let unmatched = "+++ b/l
++pass/a/x rejected 2ms unexpected native-rejection:mismatch @bbbbbbbbbbbb
+";
+        assert_eq!(golden_row_quality_violations(unmatched, false).len(), 1);
     }
 
     #[test]
@@ -2386,14 +2385,15 @@ struct Ledger;
     }
 
     #[test]
-    fn gate_line_must_match_the_ledger_diff() {
+    fn gate_line_must_name_a_gate_and_a_row_change() {
         // One fixture turns green, a second stays red under a new stamp, and a
         // diagnostic line under a row is ignored.
         let diff = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x checked 1ms\n-pass/a/y rejected 1ms\n+pass/a/y rejected 2ms\n-\tcannot prove\n";
         assert_eq!(ledger_red_row_delta(diff), -1);
         let check = |body, delta| gate_movement_violations("psi: fix", body, delta);
         assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -1\n", -1).is_empty());
-        assert!(!check("Gate: RC-SOURCE-SEMANTICS | red rows: -5\n", -1).is_empty());
+        // The claim is no longer compared with the ledger diff.
+        assert!(check("Gate: RC-SOURCE-SEMANTICS | red rows: -5\n", -1).is_empty());
         assert!(!check("Gate: RC-MADE-UP | red rows: -1\n", -1).is_empty());
         assert!(!check("Gate: RC-NATIVE-MATRIX | red rows: 0\n", 0).is_empty());
         assert!(

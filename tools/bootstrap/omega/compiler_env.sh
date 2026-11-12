@@ -27,8 +27,7 @@ OMEGA_COMPILER_PACKED_SHA256=99535101fac4473527467d354a4f93db50f1fb8802fd69c1886
 # the customer bytes are compiler plus entry — so the entries bind here the
 # same way the staged-compiler development driver binds on the Delta edge:
 # separate inputs from the canonical closure, never part of the manifested
-# members. The identical pins in each gate's README and gate.py, and the
-# packed customer identities recorded in each gate's README, are records
+# members. The identical pins in each gate's README and gate.py are records
 # of these same subjects, not independent identities. A digest here is an
 # identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update

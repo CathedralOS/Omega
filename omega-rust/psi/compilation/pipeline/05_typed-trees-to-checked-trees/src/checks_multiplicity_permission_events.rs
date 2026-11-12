@@ -1128,6 +1128,8 @@ fn walk_state<'program>(
                                 facts.flow.ownership,
                                 &evaluated.transfers,
                                 &evaluated.observations,
+                                &routes,
+                                &calls,
                                 &permission_events[event_start..],
                                 &occurrences,
                             )

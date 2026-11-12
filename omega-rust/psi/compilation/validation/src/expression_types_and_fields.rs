@@ -3033,7 +3033,9 @@ pub mod expression_types {
                     Some(Carrier::Parameter(symbol))
                 }
                 symbols::SymbolKind::Data => Some(Carrier::Data(symbol)),
-                symbols::SymbolKind::Conformance => Some(Carrier::Implementation(symbol)),
+                symbols::SymbolKind::Conformance => Some(Carrier::Implementation(
+                    program.implementation_value_head(symbol),
+                )),
                 _ => None,
             }
         }
@@ -3197,9 +3199,13 @@ pub mod expression_types {
             let required_arguments = program
                 .type_reference_table
                 .type_reference_handles(*required_arguments);
+            let constructor = program
+                .type_reference_table
+                .type_head_symbol(actual)
+                .unwrap_or_default();
             let implementation_parameters = match actual_carrier {
-                Carrier::Implementation(symbol) => program
-                    .conformance_by_symbol(symbol)
+                Carrier::Implementation(_) => program
+                    .conformance_by_symbol(constructor)
                     .map(|declaration| program.conformance_type_parameters(declaration)),
                 _ => None,
             };
@@ -3208,6 +3214,9 @@ pub mod expression_types {
                     .iter()
                     .zip(required_arguments.iter())
                     .enumerate()
+                    .filter(|(ordinal, _)| {
+                        program.application_argument_is_relevant(constructor, *ordinal)
+                    })
                     .any(|(ordinal, (actual, required))| {
                         if let Some(parameter) = implementation_parameters
                             .and_then(|parameters| parameters.get(ordinal))

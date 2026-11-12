@@ -92,9 +92,17 @@ own release validation checks each bundled library as a subject.
 
 ## What this rule does not do
 
-No result is reused: a consumer checks every dependency declaration it needs
-afresh, and the full-package gate is a claim about the library, not evidence a
-consumer consumes in place of checking. `--verify` withholds trust acceptance
+A consumer checks every dependency declaration it needs, and the full-package
+gate is a claim about the library, not evidence a consumer consumes in place of
+checking. One reuse is allowed: the checked result of a dependency slice may be
+kept on local disk and loaded by a later compile when its key matches exactly.
+The key covers the content of exactly the dependency sources and declarations
+the slice contains and depends on, the identity of the compiler that produced
+the result, and the target. A different key, or an entry that cannot be read
+or does not validate, means a fresh check; nothing is reused on a partial
+match. The consumer's own package is never reused. Changing one dependency
+file invalidates only the slices that include it, and any rebuilt compiler
+invalidates every entry. `--verify` withholds trust acceptance
 and re-verifies under retained source pins; it does not widen the subject set.
 Optimization settings change how a valid program is realized, never which
 declarations a check claims. There is no setting that narrows a subject below

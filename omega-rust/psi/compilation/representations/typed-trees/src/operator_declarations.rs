@@ -1478,14 +1478,8 @@ pub mod operator {
                 .is_ok_and(|identity| {
                     identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
                 })
-                && typed
-                    .symbol_toolchain_relative_path(operator.symbol)
-                    .is_some_and(|relative| {
-                        relative
-                            == std::path::Path::new(
-                                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
-                            )
-                    })
+                && typed.symbols.core_source(operator.symbol)
+                    == Some(language_core::core_vocabulary::CoreSource::FloatOperations)
         }
 
         pub(crate) fn is_default_primitive_operator(

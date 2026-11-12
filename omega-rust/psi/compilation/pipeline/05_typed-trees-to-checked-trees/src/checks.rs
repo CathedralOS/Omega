@@ -2838,18 +2838,23 @@ mod runtime_indices {
                     },
                 ) if left_base == right_base => {
                     if left_lifetimes.len() != right_lifetimes.len()
-                        || !(0..left_lifetimes.len()).all(|ordinal| {
-                            match (
-                                self.region_operand(actual, actual_reference, ordinal, 0),
-                                self.region_operand(required, required_reference, ordinal, 0),
-                            ) {
-                                (Some(Region::Known(left)), Some(Region::Known(right))) => {
-                                    left == right
+                        || !(0..left_lifetimes.len())
+                            .filter(|ordinal| {
+                                self.program
+                                    .application_lifetime_is_relevant(*left_base, *ordinal)
+                            })
+                            .all(|ordinal| {
+                                match (
+                                    self.region_operand(actual, actual_reference, ordinal, 0),
+                                    self.region_operand(required, required_reference, ordinal, 0),
+                                ) {
+                                    (Some(Region::Known(left)), Some(Region::Known(right))) => {
+                                        left == right
+                                    }
+                                    (Some(_), Some(_)) => true,
+                                    _ => false,
                                 }
-                                (Some(_), Some(_)) => true,
-                                _ => false,
-                            }
-                        })
+                            })
                     {
                         return false;
                     }
@@ -2862,7 +2867,12 @@ mod runtime_indices {
                     parameters
                         .iter()
                         .zip(left.iter().zip(right))
-                        .all(|(parameter, (left, right))| {
+                        .enumerate()
+                        .filter(|(ordinal, _)| {
+                            self.program
+                                .application_argument_is_relevant(*left_base, *ordinal)
+                        })
+                        .all(|(_, (parameter, (left, right)))| {
                             if matches!(
                                 parameter.kind,
                                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }

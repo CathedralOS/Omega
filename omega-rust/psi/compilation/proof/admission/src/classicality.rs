@@ -43,6 +43,8 @@ impl AcceptedProofRule {
             | Self::IntegerAddOrder
             | Self::IntegerSubtractAntitone
             | Self::IntegerAffineBound
+            | Self::IntegerRemainderWithinDividend
+            | Self::IntegerQuotientAtMostDividend
             | Self::IntegerExactAddDefinitionBound
             | Self::IntegerExactSubtractDefinitionBound
             | Self::IntegerCastBound
@@ -50,11 +52,27 @@ impl AcceptedProofRule {
         }
     }
 
+    /// Whether the kernel trusts this rule's arithmetic statement without
+    /// the mathematical core deriving it (`wiki/spec/proofs/foundation.md`,
+    /// "Admitting an arithmetic rule"). A provisional row was tested against
+    /// computed arithmetic and is to be replaced by a checked proof; none may
+    /// remain when the kernel is claimed verified. Only rows admitted under
+    /// that decision are marked: `false` on an older row does not say the
+    /// core derives it.
+    pub const fn is_provisional(self) -> bool {
+        matches!(
+            self,
+            Self::IntegerRemainderWithinDividend | Self::IntegerQuotientAtMostDividend
+        )
+    }
+
     pub const fn cites_semantic_axioms(self) -> bool {
         matches!(
             self,
             Self::SemanticAxiom
                 | Self::IntegerAffineBound
+                | Self::IntegerRemainderWithinDividend
+                | Self::IntegerQuotientAtMostDividend
                 | Self::IntegerExactAddDefinitionBound
                 | Self::IntegerExactSubtractDefinitionBound
                 | Self::IntegerCastBound
@@ -67,7 +85,7 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 28] = [
+    const ALL: [AcceptedProofRule; 30] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -92,6 +110,8 @@ mod tests {
         AcceptedProofRule::IntegerStrictOrderTransitivity,
         AcceptedProofRule::IntegerOrderSubstitution,
         AcceptedProofRule::IntegerAffineBound,
+        AcceptedProofRule::IntegerRemainderWithinDividend,
+        AcceptedProofRule::IntegerQuotientAtMostDividend,
         AcceptedProofRule::IntegerExactAddDefinitionBound,
         AcceptedProofRule::IntegerExactSubtractDefinitionBound,
         AcceptedProofRule::IntegerCastBound,
@@ -129,12 +149,29 @@ mod tests {
                     rule,
                     AcceptedProofRule::SemanticAxiom
                         | AcceptedProofRule::IntegerAffineBound
+                        | AcceptedProofRule::IntegerRemainderWithinDividend
+                        | AcceptedProofRule::IntegerQuotientAtMostDividend
                         | AcceptedProofRule::IntegerExactAddDefinitionBound
                         | AcceptedProofRule::IntegerExactSubtractDefinitionBound
                         | AcceptedProofRule::IntegerCastBound
                         | AcceptedProofRule::IntegerCorrelatedForbiddenRoots
                 ),
                 "{rule:?} axiom-citation record changed"
+            );
+        }
+    }
+
+    #[test]
+    fn only_rules_admitted_as_provisional_are_marked_so() {
+        for rule in ALL {
+            assert_eq!(
+                rule.is_provisional(),
+                matches!(
+                    rule,
+                    AcceptedProofRule::IntegerRemainderWithinDividend
+                        | AcceptedProofRule::IntegerQuotientAtMostDividend
+                ),
+                "{rule:?} provisional marking changed"
             );
         }
     }

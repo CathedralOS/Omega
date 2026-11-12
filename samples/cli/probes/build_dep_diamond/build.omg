@@ -2,6 +2,10 @@
 // edge onto dep_c, and both see the same `shared` machine through it.
 machine build(builder: &mut Build) {
     Build::application(builder, "build_dep_diamond");
-    Build::depend_as(builder, "kit_a", Source::Path { location: "dep_a" });
-    Build::depend_as(builder, "kit_b", Source::Path { location: "dep_b" });
+    let mut kit_a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_a" });
+    dependency::with_alias(&mut kit_a_dependency, "kit_a");
+    let kit_a_registration: DependencyRegistration = Build::dependency(builder, kit_a_dependency);
+    let mut kit_b_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_b" });
+    dependency::with_alias(&mut kit_b_dependency, "kit_b");
+    let kit_b_registration: DependencyRegistration = Build::dependency(builder, kit_b_dependency);
 }

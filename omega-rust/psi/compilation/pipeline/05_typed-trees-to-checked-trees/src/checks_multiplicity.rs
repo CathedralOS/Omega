@@ -6929,6 +6929,8 @@ mod selected_cleanup {
             ownership: &FlowOwnershipFacts,
             transfers: &[TransferCustody],
             observations: &[super::linear_validation::ObservedCustody],
+            routes: &super::selected_evaluation::ExpressionRoutes,
+            calls: &[checked_trees::FlowCallFact],
             events: &[FlowPermissionEventFact],
             occurrences: &[StatementOccurrence],
         ) -> Result<(), diagnostics::Diagnostic> {
@@ -6966,6 +6968,15 @@ mod selected_cleanup {
                     .iter()
                     .map(|transfer| ownership.segments.span_or_empty(transfer.path).to_vec())
                     .collect::<Vec<_>>();
+                let retained = Self::retained_on_some_route(
+                    root,
+                    &selected_transfers,
+                    &paths,
+                    routes,
+                    calls,
+                    events,
+                    ownership,
+                )?;
                 for transfer in &selected_transfers {
                     let source_place =
                         place_or_root_in(&ownership.segments, transfer.root, transfer.path);
@@ -7059,8 +7070,108 @@ mod selected_cleanup {
                         source_bindings: vec![source_binding],
                     });
                 }
+                /*
+                    The receipt's candidates retain what their own route left
+                    behind. A region every route moved is behind on none of
+                    them, so no candidate may keep a cleanup for it.
+                */
+                for owner in self
+                    .owners
+                    .iter_mut()
+                    .filter(|owner| owner.selection == selection && owner.root == root)
+                {
+                    for (path, _) in paths.iter().zip(&retained).filter(|(_, kept)| !**kept) {
+                        owner.remaining.transfer_storage(root, path);
+                        for place in owner
+                            .places
+                            .iter_mut()
+                            .filter(|place| place.root == root && place.path.starts_with(path))
+                        {
+                            place.live = false;
+                        }
+                    }
+                }
             }
             Ok(())
+        }
+
+        /*
+            Whether each transferred path may still hold its value when the
+            selection completes, asked of the receipt's own transfers.
+        */
+        fn retained_on_some_route(
+            root: PlaceRoot,
+            transfers: &[&checked_trees::FlowOwnedSelectionTransfer],
+            paths: &[Vec<PlaceSegment>],
+            routes: &super::selected_evaluation::ExpressionRoutes,
+            calls: &[checked_trees::FlowCallFact],
+            events: &[FlowPermissionEventFact],
+            ownership: &FlowOwnershipFacts,
+        ) -> Result<Vec<bool>, diagnostics::Diagnostic> {
+            Self::present_on_some_route(paths.len(), routes, calls, events, |event, present| {
+                if event.root != root {
+                    return;
+                }
+                let moved = ownership.segments.span_or_empty(event.segments);
+                match event.kind {
+                    PermissionEventKind::Transfer | PermissionEventKind::Consume => {
+                        if transfers
+                            .iter()
+                            .any(|transfer| transfer.expression == event.expression)
+                        {
+                            for (path, present) in paths.iter().zip(present) {
+                                if path.starts_with(moved) {
+                                    *present = false;
+                                }
+                            }
+                        }
+                    }
+                    PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                        for (path, present) in paths.iter().zip(present) {
+                            if path.starts_with(moved) || moved.starts_with(path) {
+                                *present = true;
+                            }
+                        }
+                    }
+                    PermissionEventKind::AffineDrop => {}
+                }
+            })
+        }
+
+        /*
+            May-presence of `count` regions over the routes of one evaluation.
+            Every region starts present, `observe` applies one owned event on
+            its route, and a region ends absent only when no route kept it.
+        */
+        fn present_on_some_route(
+            count: usize,
+            routes: &super::selected_evaluation::ExpressionRoutes,
+            calls: &[checked_trees::FlowCallFact],
+            events: &[FlowPermissionEventFact],
+            mut observe: impl FnMut(&FlowPermissionEventFact, &mut [bool]),
+        ) -> Result<Vec<bool>, diagnostics::Diagnostic> {
+            let mut present = vec![true; count];
+            let mut selection = super::selected_evaluation::SelectedEvaluation::new();
+            let join = |_branch, current: &mut Vec<bool>, sibling: &Vec<bool>| {
+                for (current, sibling) in current.iter_mut().zip(sibling) {
+                    *current |= *sibling;
+                }
+                Ok(())
+            };
+            for event in events
+                .iter()
+                .filter(|event| event.access == PermissionAccess::Owned)
+            {
+                selection.enter(
+                    routes.event(event, calls),
+                    &mut present,
+                    |_, _| Ok(()),
+                    join,
+                )?;
+                observe(event, &mut present);
+            }
+            selection.enter(&[], &mut present, |_, _| Ok(()), join)?;
+            Ok(present)
         }
 
         pub(super) fn observe(
@@ -7367,41 +7478,30 @@ mod selected_cleanup {
             if self.owners.is_empty() {
                 return Ok(());
             }
-            let mut present = vec![true; self.owners.len()];
-            let mut selection = super::selected_evaluation::SelectedEvaluation::new();
-            let join = |_branch, current: &mut Vec<bool>, sibling: &Vec<bool>| {
-                for (current, sibling) in current.iter_mut().zip(sibling) {
-                    *current |= *sibling;
-                }
-                Ok(())
-            };
-            for event in events
-                .iter()
-                .filter(|event| event.access == PermissionAccess::Owned)
-            {
-                selection.enter(
-                    routes.event(event, calls),
-                    &mut present,
-                    |_, _| Ok(()),
-                    join,
-                )?;
-                let path = ownership.segments.span_or_empty(event.segments);
-                for (owner, present) in self.owners.iter().zip(&mut present) {
-                    if !owner.selection.is_valid()
-                        && owner.root == event.root
-                        && owner.path.starts_with(path)
-                    {
-                        match event.kind {
-                            PermissionEventKind::Transfer => *present = false,
-                            PermissionEventKind::Establish | PermissionEventKind::Restore => {
-                                *present = true;
+            let owners = &self.owners;
+            let present = Self::present_on_some_route(
+                owners.len(),
+                routes,
+                calls,
+                events,
+                |event, present| {
+                    let path = ownership.segments.span_or_empty(event.segments);
+                    for (owner, present) in owners.iter().zip(present) {
+                        if !owner.selection.is_valid()
+                            && owner.root == event.root
+                            && owner.path.starts_with(path)
+                        {
+                            match event.kind {
+                                PermissionEventKind::Transfer => *present = false,
+                                PermissionEventKind::Establish | PermissionEventKind::Restore => {
+                                    *present = true;
+                                }
+                                PermissionEventKind::Consume | PermissionEventKind::AffineDrop => {}
                             }
-                            PermissionEventKind::Consume | PermissionEventKind::AffineDrop => {}
                         }
                     }
-                }
-            }
-            selection.enter(&[], &mut present, |_, _| Ok(()), join)?;
+                },
+            )?;
             let mut presence = present.into_iter();
             self.owners.retain(|_| presence.next().unwrap_or(true));
             Ok(())

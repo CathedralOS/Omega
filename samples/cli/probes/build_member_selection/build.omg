@@ -4,7 +4,11 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "build_member_selection");
-    Build::depend_as(builder, "one", Source::Path { location: "dep_one" });
-    Build::depend_as(builder, "two", Source::Path { location: "dep_two" });
+    let mut one_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_one" });
+    dependency::with_alias(&mut one_dependency, "one");
+    let one_registration: DependencyRegistration = Build::dependency(builder, one_dependency);
+    let mut two_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep_two" });
+    dependency::with_alias(&mut two_dependency, "two");
+    let two_registration: DependencyRegistration = Build::dependency(builder, two_dependency);
     builder.freestanding = true;
 }

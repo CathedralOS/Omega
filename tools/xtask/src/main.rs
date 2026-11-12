@@ -3,9 +3,10 @@
 //! Subcommands:
 //! - `cargo xtask fmt [--check] [--verbose] [--repository <dir>] [-- <rustfmt-args>...]`
 //! - `cargo xtask check-boundary`
+//! - `cargo xtask rust-producer-omission --manifest <path> [--steps <path>] [--root <dir>]`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask corpus [--filter <fragments>] [--record] [--native] [--list-pinned-regressions]`
-//! - `cargo xtask corpus-gate <plan|check|sweep-shard|sweep-report> [options]`
+//! - `cargo xtask corpus-gate <plan|build|check|sweep-shard|sweep-report> [options]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
 //! - `cargo xtask stage-coverage [--list <file>] [--json <path>] <program>... [-- <omega-args>...]`
 //! - `cargo xtask doctor [--json <path>]`
@@ -32,6 +33,7 @@ mod qualification;
 mod rules;
 #[path = "../../../omega-rust/omega/compilation/compiler/tests/support/runtime_oracles.rs"]
 mod runtime_oracles;
+mod rust_producer_omission;
 mod samples;
 mod stage_coverage;
 mod worktree;
@@ -55,6 +57,7 @@ commands:
   fmt              Format all workspace targets in bounded rustfmt chunks
   check-boundary   Verify native/runtime production dependency and Psi/Omega boundaries
   check-rules      Verify commit lane, PR provenance, ratchets, and corpus/board hygiene
+  rust-producer-omission  Audit declared bootstrap dependencies (developer-only)
   corpus           Run focused corpus verification, recording, or regression listing
   corpus-gate      Plan and check a pull request's corpus rows, or run the nightly ledger sweep
   sample-gate      Run differential native + Terminal Psi sample verification
@@ -80,6 +83,7 @@ fn main() -> ExitCode {
         "fmt" => fmt::run(&args),
         "check-boundary" => boundary::run(&args),
         "check-rules" => rules::run(&args),
+        "rust-producer-omission" => rust_producer_omission::run(&args),
         "corpus" => corpus::run(&args),
         "corpus-gate" => corpus_gate::run(&args),
         "sample-gate" => samples::run(&args),

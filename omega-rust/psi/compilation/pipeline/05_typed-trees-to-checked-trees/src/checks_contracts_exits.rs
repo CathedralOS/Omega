@@ -8563,7 +8563,10 @@ mod scalars {
                             *primitive_type,
                         ),
                         Scalar::StructuralParameterField {
-                            parameter_position,
+                            root:
+                                checked_trees::CheckedStorageRoot::Parameter {
+                                    index: parameter_position,
+                                },
                             path,
                             primitive_type,
                             ..

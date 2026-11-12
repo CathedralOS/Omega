@@ -1,0 +1,23 @@
+// The negative twin of `pass/text/bounded_ascii_write`: the first arrival
+// stores an ASCII byte, but the state's transfer to itself delivers 200.
+// `value` is therefore not below 128 on every arrival, the store cannot keep
+// `Ascii`, and assuming the state's own return summary must not hide that.
+domain [u8; 2]::Ascii requires ascii_only(self);
+machine replace(at: u64, bytes: &mut [u8; 2] in Ascii) -> bool {
+    transition at < bytes.len {
+        true -> write(at, bytes, 65, true)
+        _ -> false
+    }
+    machine write(at: u64, bytes: &mut [u8; 2] in Ascii, value: u8, repeat: bool) -> bool {
+        bytes[at] = value;
+        transition repeat {
+            true -> write(at, bytes, 200, false)
+            _ -> true
+        }
+    }
+}
+data Main {}
+machine Main::main(main: &mut Main) {
+    let mut bytes: [u8; 2] in Ascii = "ab";
+    let first: bool = replace(0, &mut bytes);
+}

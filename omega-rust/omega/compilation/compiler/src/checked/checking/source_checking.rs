@@ -71,10 +71,9 @@ pub(crate) fn check_product_source(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
-    // An opaque representation is chosen by naming its conformance, and the
-    // check re-forms that choice from the authored request. The conformance
-    // must survive projection with the opaque type: a dependency's
-    // representation is otherwise reached by nothing in the consumer's program.
+    // Psi 05 re-forms each representation choice from its named conformance,
+    // which may live in a dependency the program never names, so the
+    // conformance is a subject alongside the opaque type it represents.
     selected.extend(
         build
             .opaque_representation_selections

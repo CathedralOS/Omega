@@ -1,6 +1,6 @@
 # build_depend_unaliased
 
-`Build::depend` + `Build::build_depend` select `dependency/` with no alias.
+`Build::dependency` + `Build::build_dependency` select `dependency/` with no alias.
 The dep declares `Build::package(builder, "custody_kernel")`.
 
 Both scopes try the dep's declared name: `use custody_kernel::main` in
