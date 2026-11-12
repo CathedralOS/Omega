@@ -23,8 +23,8 @@ TSV = OUT_DIR / f"shard-{SHARD}.tsv"
 PROGRESS = OUT_DIR / f"shard-{SHARD}.progress"
 OMEGA = REPO / "target/debug/omega"
 ROUTE = REPO / "target/debug/examples/route_one_comparison"
-CHECK_TIMEOUT = 120
-WORKERS = 2
+CHECK_TIMEOUT = 90
+WORKERS = 4
 
 
 @dataclass
@@ -216,14 +216,16 @@ class Progress:
         return key in self.done
 
     def mark(self, key: str) -> None:
-        if key in self.done:
-            return
-        self.done.add(key)
-        with PROGRESS.open("a") as f:
-            f.write(key + "\n")
+        with _IO_LOCK:
+            if key in self.done:
+                return
+            self.done.add(key)
+            with PROGRESS.open("a") as f:
+                f.write(key + "\n")
 
 
 _PROGRESS: Progress | None = None
+_IO_LOCK = __import__("threading").Lock()
 
 
 def progress() -> Progress:
@@ -242,8 +244,9 @@ def ensure_tsv_header() -> None:
 
 
 def log_tsv(row: list[str]) -> None:
-    with TSV.open("a") as f:
-        f.write("\t".join(row) + "\n")
+    with _IO_LOCK:
+        with TSV.open("a") as f:
+            f.write("\t".join(row) + "\n")
 
 
 # Spec quotes for confirmed-invalid by mutation kind (filled during reconcile review pass)
@@ -299,7 +302,7 @@ def process_fixture(fixture: Path) -> int:
         return 0
     kept = 0
     text = fixture.read_text()
-    for kind in MUTATION_KINDS:
+    for kind in applicable_kinds(text):
         mk = f"{key}:{kind}"
         if prog.seen(mk):
             continue
@@ -310,7 +313,23 @@ def process_fixture(fixture: Path) -> int:
         dst = mutant_dir(fixture, kind)
         copy_fixture(fixture, dst)
         (dst / "main.omg").write_text(mutated)
-        mv = check_pair(dst / "main.omg")
+        c_code, c_out = run_checker(
+            ["timeout", str(CHECK_TIMEOUT), str(OMEGA), "--check", str(dst / "main.omg")]
+        )
+        cur_v = parse_current(c_out, c_code)
+        if cur_v == "rejected":
+            prog.mark(mk)
+            continue
+        t0 = time.monotonic()
+        if cur_v == "accepted":
+            r_code, r_out = run_checker(
+                ["timeout", str(CHECK_TIMEOUT), str(ROUTE), str(dst / "main.omg")]
+            )
+            route_v = parse_route(r_out, r_code)
+        else:
+            route_v = "timeout" if cur_v == "timeout" else "error"
+            r_code = -1 if cur_v == "timeout" else 1
+        mv = Verdicts(cur_v, route_v, time.monotonic() - t0)
         hand, sfile, squote = hand_check(kind, mutated, mv.current, mv.route)
         interesting = (
             disagrees(mv.current, mv.route)
@@ -338,6 +357,14 @@ def process_fixture(fixture: Path) -> int:
     return kept
 
 
+def applicable_kinds(text: str) -> list[str]:
+    kinds: list[str] = []
+    for kind in MUTATION_KINDS:
+        if apply_mutation(text, kind) is not None:
+            kinds.append(kind)
+    return kinds
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     MUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -348,11 +375,24 @@ def main() -> int:
         fixtures = fixtures[:limit]
     print(f"Shard {SHARD}: {len(fixtures)} fixtures", flush=True)
     total_kept = 0
-  # sequential fixtures, limited inner parallelism not used for simplicity / build_slot
-    for i, fx in enumerate(fixtures):
-        if i % 25 == 0:
-            print(f"progress {i}/{len(fixtures)} kept={total_kept}", flush=True)
-        total_kept += process_fixture(fx)
+    done_count = 0
+
+    def run_one(i: int, fx: Path) -> int:
+        nonlocal done_count
+        k = process_fixture(fx)
+        with _IO_LOCK:
+            done_count += 1
+            if done_count % 50 == 0:
+                print(f"progress {done_count}/{len(fixtures)} kept={total_kept}", flush=True)
+        return k
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futs = [pool.submit(run_one, i, fx) for i, fx in enumerate(fixtures)]
+        for fut in as_completed(futs):
+            try:
+                total_kept += fut.result()
+            except Exception as exc:
+                print(f"fixture error: {exc}", flush=True)
     print(f"Done. candidates_logged={total_kept}", flush=True)
     return 0
 
