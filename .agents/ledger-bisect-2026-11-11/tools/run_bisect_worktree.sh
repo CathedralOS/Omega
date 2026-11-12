@@ -18,11 +18,12 @@ git checkout -q work/ledger-bisect-part-5
 git bisect reset "$BAD" 2>/dev/null || true
 set +e
 git bisect start --first-parent "$BAD" "$GOOD"
-git bisect run "$STEP" 2>&1 | tee "${OUT%.json}.log"
+BLOG="${BISECT_LOG:-${OUT%.json}.log}"
+git bisect run "$STEP" 2>&1 | tee "$BLOG"
 BS=$?
 set -e
 FIRST=$(git rev-parse HEAD)
-fb=$(grep -E 'first bad commit|is the first bad commit' "${OUT%.json}.log" 2>/dev/null | tail -1 || true)
+fb=$(grep -E 'first bad commit|is the first bad commit' "$BLOG" 2>/dev/null | tail -1 || true)
 if [[ -n "$fb" ]]; then
   sha=$(sed -n 's/.*\[\([0-9a-f]\{7,\}\).*/\1/p' <<<"$fb" | head -1)
   [[ -n "$sha" ]] && FIRST=$(git rev-parse "$sha")
