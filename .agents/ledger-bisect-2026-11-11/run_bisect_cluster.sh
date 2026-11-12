@@ -32,23 +32,53 @@ fi
 
 FINDLOG="/tmp/find-good-${CLUSTER_ID}.log"
 : >"$FINDLOG"
+INTRO=$(python3 - "$WITNESS" <<'PY'
+import subprocess, sys
+witness = sys.argv[1]
+rel = f"tests/omega/{witness}/build.omg"
+intro = subprocess.check_output(
+    ["git", "log", "--reverse", "--format=%H", "--", rel], text=True
+).splitlines()
+print(intro[0] if intro else "")
+PY
+)
+mapfile -t CHAIN < <(python3 - "$INTRO" "$PIN" <<'PY'
+import subprocess, sys
+intro, pin = sys.argv[1], sys.argv[2]
+if not intro:
+    raise SystemExit
+revs = []
+cur = pin
+while True:
+    revs.append(cur)
+    if cur == intro:
+        break
+    cur = subprocess.check_output(["git", "rev-parse", f"{cur}^1"], text=True).strip()
+revs.reverse()
+print("\n".join(revs))
+PY
+)
 GOOD=""
-rev="$PIN"
-for _ in $(seq 1 500); do
-  parent=$(git rev-parse -q "${rev}^1" 2>/dev/null) || break
-  rev="$parent"
+lo=0
+hi=$((${#CHAIN[@]} - 1))
+while [[ "$lo" -le "$hi" ]]; do
+  mid=$(( (lo + hi) / 2 ))
+  rev="${CHAIN[$mid]}"
   git checkout -f -q "$rev"
   set +e
   nice -n 19 "$SCRIPT"
   ec=$?
   set -e
-  echo "walk $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
+  echo "probe $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
   if [[ "$ec" -eq 0 ]]; then
     GOOD="$rev"
-    break
+    lo=$((mid + 1))
+  else
+    hi=$((mid - 1))
   fi
 done
 git checkout -f -q "$PIN"
+cp "$FINDLOG" "$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log" 2>/dev/null || true
 if [[ -z "$GOOD" ]]; then
   echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=no_good_on_first_parent"
   exit 0
