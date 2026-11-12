@@ -91,7 +91,7 @@ PR updates cancel superseded PR jobs; queue jobs do not cancel one another.
 Before this gate no CI job ran the corpus, so a compiler change could break
 ledger rows and land green; #2370 broke more than 100 and nobody saw it until a
 sweep. `.github/workflows/corpus-gate.yml` runs, for every pull request that is
-not a draft and for every merge-queue entry, the corpus rows the change can
+not a draft, the corpus rows the change can
 affect, and fails when one of them gets worse than
 `tests/omega/corpus_outcomes.txt` records:
 
@@ -137,9 +137,17 @@ and uploads its evidence as `corpus-gate-shard-N-attempt`.
 container and path the warm-build job builds main in, and restore that build
 with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
 
+**Merge queue.** A merge-queue entry runs only the last job, which reports
+success without planning or checking rows, because the pull request's own run
+judged the same diff. Running a plan and eight shards for each of the eight
+groups the queue builds at once left the required checks waiting about an hour
+for a runner on 2026-11-12. A row that breaks only in combination with what
+main gained after the pull request's run is therefore not caught in the queue;
+post-merge smoke and the nightly sweep see it.
+
 **Required status.** The last job, `corpus-gate`, is the one to require: it is
 green when the plan skips or every shard passes, and red when the plan or any
-shard fails or does not finish. Requiring it is an owner change to the main
+shard fails or does not finish. In the merge queue it is always green. Requiring it is an owner change to the main
 ruleset (`main-ruleset.json`), not something this workflow does.
 
 Run a shard locally with the same code:

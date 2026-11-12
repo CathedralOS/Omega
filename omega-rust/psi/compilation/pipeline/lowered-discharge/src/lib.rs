@@ -822,9 +822,17 @@ pub(crate) fn prepare(
         storage.owed_are_minted(tables)?;
         fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
     }
+    // A value of a type parameter has no type the kernel could hold it at,
+    // so the context does not list it (`concrete`).
     let context = PropositionContext::from_value_types(
         types
             .iter()
+            .filter(|(value, _)| {
+                tables
+                    .values
+                    .get(*value)
+                    .is_none_or(|row| row.rigid.is_none())
+            })
             .map(|(value, scalar_type)| (value, *scalar_type)),
     )
     .map_err(|_| {
@@ -1230,6 +1238,55 @@ fn goal(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Proposition> {
+    let goal = stated_goal(
+        machines, lowered, storage, id, obligation, kind, tables, types,
+    )?;
+    concrete(tables, id, Construct::Obligation(obligation), &goal)?;
+    Ok(goal)
+}
+
+/// Refuses a proposition that names a value of a type parameter.
+///
+/// A generic check form declares such a value with a stand-in type
+/// (`RigidType::DECLARED_AS`), because the lowered form has no other way to
+/// declare one. Nothing may be proved about it from that declaration, and no
+/// proof rule is yet marked as holding at every type, so a goal or a
+/// hypothesis over such a value is refused as outside the route: every goal
+/// passes here from `goal`, and every hypothesis from `hypotheses`.
+fn concrete(
+    tables: &MachineTables,
+    id: MachineId,
+    concerns: Construct,
+    proposition: &Proposition,
+) -> Checked<()> {
+    let rigid = proposition.any_value_id(|value| {
+        tables
+            .values
+            .get(value)
+            .is_some_and(|row| row.rigid.is_some())
+    });
+    if rigid {
+        return Err(refusal(
+            RefusalReason::Unsupported,
+            id,
+            concerns,
+            "a proposition names a value of a type parameter",
+        ));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn stated_goal(
+    machines: &[TerminalMachine],
+    lowered: &TerminalMachine,
+    storage: &places::Storage<'_>,
+    id: MachineId,
+    obligation: ObligationId,
+    kind: &ObligationKind,
+    tables: &MachineTables,
+    types: &IdTable<ValueId, ScalarType>,
+) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
         ObligationKind::OperationSafety { operation } => {
@@ -1444,6 +1501,7 @@ pub(crate) fn hypotheses(
                 "knowledge row has no proposition",
             )
         })?;
+        concrete(tables, id, Construct::Obligation(obligation), proposition)?;
         match knowledge_row.justification {
             Justification::OperationSemantics(_) => {
                 axiom_rows.push(row);
