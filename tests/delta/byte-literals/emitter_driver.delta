@@ -6,11 +6,11 @@
       (epsilon_emit_compiled_function view
         (EpsilonUnqualifiedName 0 (bytes_length source)
           (EpsilonNameSpan 0 (bytes_length source)))
-        (EpsilonPlainMachineInputs 0 0
+        (epsilon_emit_inputs view (EpsilonPlainMachineInputs 0 0
           (MoreEpsilonParameters
             (EpsilonParameterSyntax 0 0 (EpsilonNameSpan 0 (bytes_length source))
               (EpsilonI32Type 0 0))
-            NoEpsilonParameters))
+            NoEpsilonParameters)))
         (epsilon_emit_integer 42))
       (bytes_concat "; signed decimal edge: "
         (epsilon_emit_decimal -9223372036854775808)))))

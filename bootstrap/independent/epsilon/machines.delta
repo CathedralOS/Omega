@@ -1,33 +1,52 @@
-; Parameter types establish the direct scalar ABI even when never read.
-(def epsilon_delta_parameters ((parameters EpsilonParameterList)) EpsilonDeltaCompilation
+; Checked nominal parameter types lower to the same named target enum type in
+; machine and lifted-state signatures. Unused parameters still need that ABI.
+(def epsilon_delta_parameters ((context EpsilonDeltaContext)
+  (parameters EpsilonParameterList)) EpsilonDeltaCompilation
   (match parameters
     (NoEpsilonParameters (EpsilonDeltaCompiled ""))
     ((MoreEpsilonParameters parameter rest)
       (match parameter
         ((EpsilonParameterSyntax start end name typeValue)
-          (match (epsilon_delta_scalar_type typeValue)
+          (match (epsilon_delta_parameter_type context typeValue)
             ((EpsilonDeltaCompiled typeText)
-              (epsilon_delta_parameters rest))
+              (match (epsilon_delta_parameters context rest)
+                ((EpsilonDeltaCompiled tail)
+                  (EpsilonDeltaCompiled (epsilon_emit_spaced
+                    (epsilon_emit_call (epsilon_compiled_parameter_name (epsilon_delta_context_source context) name) typeText) tail)))
+                ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
             ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
             ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
             ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
 
-(def epsilon_delta_capture_signature ((parameters EpsilonParameterList)) Bytes
-  (epsilon_emit_parameters parameters))
+; The current result ABI is scalar/resultless/trap/internal. A nominal result
+; needs its own implemented transport; parameter support cannot imply it.
+(def epsilon_delta_return_type ((returnType EpsilonOptionalType)) EpsilonDeltaCompilation
+  (match returnType
+    (NoEpsilonType (EpsilonDeltaCompiled ""))
+    ((SomeEpsilonType start end typeValue)
+      (match typeValue
+        ((EpsilonI32Type typeStart typeEnd) (EpsilonDeltaCompiled ""))
+        ((EpsilonU8Type typeStart typeEnd) (EpsilonDeltaCompiled ""))
+        ((EpsilonNeverType typeStart typeEnd) (EpsilonDeltaCompiled ""))
+        ((EpsilonNamedType typeStart typeEnd name) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonArrayType typeStart typeEnd element length) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonViewType typeStart typeEnd element) (EpsilonDeltaUnsupported typeStart))))))
 
 (def epsilon_delta_state ((context EpsilonDeltaContext) (captures Bytes)
   (state EpsilonState)) EpsilonDeltaCompilation
   (match state
     ((EpsilonStateSyntax start end name parameters body)
-      (match (epsilon_delta_parameters parameters)
-        ((EpsilonDeltaCompiled unused)
+      (match (epsilon_delta_parameters context parameters)
+        ((EpsilonDeltaCompiled parameterText)
           (match body
             ((EpsilonStateBodySyntax bodyStart bodyEnd statements terminal)
               (match (epsilon_delta_block context statements terminal)
                 ((EpsilonDeltaCompiled text)
-                  (let signature Bytes (bytes_concat captures (epsilon_emit_parameters parameters))
+                  (let signature Bytes (bytes_concat captures parameterText)
                     (EpsilonDeltaCompiled (bytes_concat "(def "
-                      (bytes_concat (epsilon_delta_state_name state)
+                      (bytes_concat (epsilon_delta_state_name (epsilon_delta_context_source context) state)
                         (bytes_concat " (" (bytes_concat signature
                           (bytes_concat ") EpsilonCompiledOutcome\n" (bytes_concat text ")\n")))))))))
                 ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
@@ -51,19 +70,19 @@
         ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
 
 (def epsilon_delta_plain_machine ((context EpsilonDeltaContext)
-  (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
-  (parameters EpsilonParameterList) (body EpsilonMachineBody)) EpsilonDeltaCompilation
-  (match (epsilon_delta_parameters parameters)
-    ((EpsilonDeltaCompiled unused)
+  (name EpsilonQualifiedName) (parameters EpsilonParameterList)
+  (body EpsilonMachineBody)) EpsilonDeltaCompilation
+  (match (epsilon_delta_parameters context parameters)
+    ((EpsilonDeltaCompiled signature)
       (match body
         ((EpsilonMachineBodySyntax start end statements terminal states)
           (match (epsilon_delta_block context statements terminal)
             ((EpsilonDeltaCompiled text)
               (match context
-                ((EpsilonDeltaContextAt source locals fields callables control declaration)
+                ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
                   (epsilon_delta_append
-                    (EpsilonDeltaCompiled (epsilon_emit_compiled_function source name inputs text))
-                    (epsilon_delta_states context (epsilon_delta_capture_signature parameters) states)))))
+                    (EpsilonDeltaCompiled (epsilon_emit_compiled_function source name signature text))
+                    (epsilon_delta_states context signature states)))))
             ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
             ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
             ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
@@ -73,11 +92,10 @@
 
 (def epsilon_delta_machine ((context EpsilonDeltaContext)
   (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
-  (body EpsilonMachineBody)) EpsilonDeltaCompilation
-  (match inputs
-    ((NoEpsilonMachineInputs start end)
-      (epsilon_delta_plain_machine context name inputs NoEpsilonParameters body))
-    ((EpsilonPlainMachineInputs start end parameters)
-      (epsilon_delta_plain_machine context name inputs parameters body))
-    ((EpsilonReceiverMachineInputs start end receiver parameters)
-      (epsilon_delta_plain_machine context name inputs parameters body))))
+  (returnType EpsilonOptionalType) (body EpsilonMachineBody)) EpsilonDeltaCompilation
+  (match (epsilon_delta_return_type returnType)
+    ((EpsilonDeltaCompiled unused)
+      (epsilon_delta_plain_machine context name (epsilon_machine_input_parameters inputs) body))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))

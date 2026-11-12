@@ -18,26 +18,31 @@
 (def epsilon_delta_compile ((source Bytes)) EpsilonDeltaCompilation
   (let view EpsilonSourceView (epsilon_source_whole source)
     (match (epsilon_check_through_body_view view)
-      ((EpsilonLocalResolutionRejected reason offset)
-        (EpsilonDeltaRejected reason offset))
+      ((EpsilonLocalResolutionRejected reason offset) (EpsilonDeltaRejected reason offset))
       ((EpsilonLocalResolutionInternal offset) (EpsilonDeltaInternal offset))
-      ((EpsilonLocalResolutionAccepted resolved)
-        (match resolved
-          ((EpsilonLocallyResolvedProgramSyntax cataloged locals fields callables
-            control types candidate)
-            (match cataloged
-              ((EpsilonCatalogedProgramSyntax formed catalogState)
-                (match formed
-                  ((EpsilonFormedProgramSyntax collected shapes edges)
-                    (match collected
-                      ((EpsilonCollectedProgramSyntax program owners machines)
-                        (match program
-                          ((EpsilonSyntaxProgram start end declarations)
-                            (epsilon_delta_declarations view declarations locals
-                              fields callables control)))))))))))))))
+      ((EpsilonLocalResolutionAccepted resolved) (epsilon_delta_resolved view resolved)))))
+
+(def epsilon_delta_resolved ((source EpsilonSourceView)
+  (resolved EpsilonLocallyResolvedProgram)) EpsilonDeltaCompilation
+  (match resolved
+    ((EpsilonLocallyResolvedProgramSyntax cataloged locals fields callables control types candidate)
+      (match cataloged
+        ((EpsilonCatalogedProgramSyntax formed catalogState)
+          (match catalogState
+            ((EpsilonCatalogStateSyntax catalog finalCandidate)
+              (match formed
+                ((EpsilonFormedProgramSyntax collected shapes edges)
+                  (match collected
+                    ((EpsilonCollectedProgramSyntax program owners machines)
+                      (match program
+                        ((EpsilonSyntaxProgram start end declarations)
+                          (epsilon_delta_append (epsilon_delta_type_declarations source declarations)
+                            (epsilon_delta_declarations source catalog declarations locals fields
+                              callables control)))))))))))))))
 
 (def epsilon_delta_declarations
-  ((source EpsilonSourceView) (declarations EpsilonDeclarationList)
+  ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog)
+   (declarations EpsilonDeclarationList)
    (locals EpsilonResolvedLocalReferenceList)
    (fields EpsilonResolvedFieldReferenceList)
    (callables EpsilonResolvedCallableReferenceList)
@@ -46,11 +51,11 @@
     (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
     ((MoreEpsilonDeclarations declaration rest)
       (match (epsilon_delta_declaration
-        (EpsilonDeltaContextAt source locals fields callables control declaration)
+        (EpsilonDeltaContextAt source catalog locals fields callables control declaration)
         declaration)
         ((EpsilonDeltaCompiled text)
           (epsilon_delta_append (EpsilonDeltaCompiled text)
-            (epsilon_delta_declarations source rest locals fields callables control)))
+            (epsilon_delta_declarations source catalog rest locals fields callables control)))
         ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
         ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
         ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
@@ -64,4 +69,8 @@
     ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaCompiled ""))
     ((EpsilonDataDeclaration start end name members) (EpsilonDeltaCompiled ""))
     ((EpsilonMachineDeclaration start end name inputs returnType body)
-      (epsilon_delta_machine context name inputs body))))
+      (epsilon_delta_machine context name inputs returnType body))))
+
+(def epsilon_delta_context_source ((context EpsilonDeltaContext)) EpsilonSourceView
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration) source)))
