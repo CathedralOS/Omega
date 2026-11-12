@@ -41,6 +41,8 @@ pub(crate) fn check_product_source(
         .map(|file| file.source_id);
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
+    let bindings =
+        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // Validation subjects: the root package is checked in full; a dependency
     // only where the root package or one of the Build's selections reaches it
     // (`PackageCompilationInputs::is_validation_subject`).
@@ -208,6 +210,7 @@ pub(crate) fn check_product_source(
         entries: &external_roots,
         subject,
         selected: &selected,
+        bindings: &bindings,
     };
     let mut judged = None;
     let mut route = None;
@@ -260,6 +263,7 @@ pub(crate) fn check_product_source(
             entries: external_roots.clone(),
             subject,
             selected,
+            bindings,
         });
     }
     let outcome = outcome?;

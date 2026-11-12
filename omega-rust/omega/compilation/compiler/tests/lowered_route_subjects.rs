@@ -289,6 +289,7 @@ fn route_verdict(
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     );
     let machines = elaborated
@@ -491,6 +492,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             entries: &frontier.entries,
             subject: Some(another),
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     ));
     let Ok(RouteVerdict::Accepted(accepted)) = as_dependency else {
@@ -520,6 +522,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 entries: &frontier.entries,
                 subject: Some(another),
                 selected: &[selected],
+                bindings: &frontier.bindings,
             },
         ))
     };
@@ -733,6 +736,7 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
                 entries: &frontier.entries,
                 subject: frontier.subject,
                 selected: &frontier.selected,
+                bindings: &frontier.bindings,
             },
         )
         .into_iter()

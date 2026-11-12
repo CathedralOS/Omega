@@ -146,6 +146,9 @@ pub struct Compilation<'a> {
     /// whichever package declares them. The check claims each with its
     /// closure: "the obligations of the Build's selections".
     pub selected: &'a [SymbolHandle],
+    /// One visible-continuation shape obligation per executed Build binding.
+    /// Deduplicating machine roots must not discard distinct slot contracts.
+    pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
 }
 
 /// The result of elaborating everything one compilation is responsible for:

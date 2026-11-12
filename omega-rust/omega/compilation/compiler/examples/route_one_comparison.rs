@@ -249,6 +249,43 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
         ));
     }
     let head = format!("current={current}\tcurrent_us={current_us}");
+    let formation_started = Instant::now();
+    match lowered_discharge::check_bound_callable_shapes(typed, &frontier.bindings) {
+        Ok(failures) if !failures.is_empty() => {
+            for failure in &failures {
+                let site = failure
+                    .source_span
+                    .map(structure_elaboration::SourceOrigin::Authored);
+                lines.push(format!(
+                    "formation\t{}\t{}\t{}\tsite={}",
+                    main.display(),
+                    one_line(&failure.detail),
+                    sites.describe_route(site),
+                    sites.class(site).name()
+                ));
+            }
+            if current == "rejected" {
+                let messages: Vec<_> = failures
+                    .iter()
+                    .map(|failure| failure.detail.clone())
+                    .collect();
+                let (fragment, expected) = pinned_fragments(main, &messages);
+                lines.push(format!("quality\t{}\troot=compilation\tfragment={fragment}\tsite=formation\texpected={}", main.display(), one_line(expected)));
+            }
+            return vec![format!(
+                "{head}\troot=compilation\troute=rejected\troute_us={}\tformations={}",
+                formation_started.elapsed().as_micros(),
+                failures.len()
+            )];
+        }
+        Err(defect) => {
+            return vec![format!(
+                "{head}\troot=compilation\troute=defect\t{}",
+                one_line(defect.detail)
+            )];
+        }
+        Ok(_) => {}
+    }
     let judged = |label: &str,
                   lines: &mut Vec<String>,
                   elaborate: &dyn Fn() -> terminal_check_tables::Checked<
@@ -266,6 +303,7 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         };
         let line = judged("compilation", lines, &|| {
             structure_elaboration::elaborate(typed, compilation)
@@ -562,10 +600,15 @@ fn judge_elaboration(
     let route = match judge(Ok(for_verdict)) {
         Ok(RouteVerdict::Accepted(_)) => "accepted",
         Ok(RouteVerdict::Rejected {
+            formations,
             unproved,
             unestablished,
             conflicts,
         }) => {
+            debug_assert!(
+                formations.is_empty(),
+                "body-only judgment has no binding formation pass"
+            );
             let mut best = report(main, &unproved, "reject", sites, lines);
             for entry in &conflicts {
                 let class = sites.class(Some(entry.site));

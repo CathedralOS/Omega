@@ -1,4 +1,4 @@
-// Canonical fresh Build output digest (`omega-native-product-build-outputs-v8\0`)
+// Canonical fresh Build output digest (`omega-native-product-build-outputs-v9\0`)
 // used to qualify a retained native component cache entry. The enclosing cache
 // key binds compiler/library, package sources, dependency contexts, snapshot,
 // and generated bundles; `BuildOutputIdentity` binds what the current Build
@@ -25,7 +25,7 @@ impl PreparedPackageBuild {
     pub fn native_product_input_identity(&self) -> Result<[u8; 32], String> {
         let mut identity = BuildOutputIdentity {
             program: self.prepared.built.source.typed(),
-            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v8\0"),
+            digest: DomainDigestEncoder::new(b"omega-native-product-build-outputs-v9\0"),
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
@@ -392,10 +392,12 @@ impl BuildOutputIdentity<'_> {
                 slot,
                 implementation,
                 implementation_symbol,
+                source_span,
             } = binding;
             self.digest.string(slot);
             self.digest.string(implementation);
             self.symbol(*implementation_symbol)?;
+            self.optional_occurrence(*source_span)?;
         }
         self.digest.len(behavior_exclusions.len());
         for exclusion in behavior_exclusions {

@@ -56,6 +56,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     ))
     .expect("the route reaches a verdict");

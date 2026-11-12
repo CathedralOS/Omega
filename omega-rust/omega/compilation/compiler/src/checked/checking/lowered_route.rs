@@ -42,7 +42,6 @@ use lowered_discharge::RouteVerdict;
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceId, SourceMap};
 use symbols::SymbolHandle;
-use terminal_check_tables::Checked;
 
 /// What the route judges: the declarations the request claims, which are
 /// the same `structure_elaboration::elaborate` roots.
@@ -50,6 +49,7 @@ pub(super) struct RouteScope<'a> {
     pub(super) entries: &'a [SymbolHandle],
     pub(super) subject: Option<PackageKeyIdentity>,
     pub(super) selected: &'a [SymbolHandle],
+    pub(super) bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
 }
 
 impl RouteScope<'_> {
@@ -70,6 +70,7 @@ impl RouteScope<'_> {
                     entries: self.entries,
                     subject: self.subject,
                     selected: self.selected,
+                    bindings: self.bindings,
                 },
             )
             .into_iter()
@@ -125,7 +126,7 @@ impl RouteJudgment {
         rejected.map_or(Self::Accepted, Self::Rejected)
     }
 
-    pub(super) fn of(verdict: Checked<RouteVerdict>) -> Self {
+    pub(super) fn of<E>(verdict: Result<RouteVerdict, E>) -> Self {
         let Ok(verdict) = verdict else {
             return Self::Undecided;
         };
@@ -133,11 +134,13 @@ impl RouteJudgment {
             RouteVerdict::Accepted(_) => Self::Accepted,
             RouteVerdict::FallBack(_) | RouteVerdict::Incomplete(_) => Self::Undecided,
             RouteVerdict::Rejected {
+                formations,
                 unproved,
                 unestablished,
                 conflicts,
             } => {
                 let mut reported = Vec::new();
+                reported.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
                 // A rejection may list goals of a form the prover has no
                 // rule for beside the ones it failed; those are no claim
                 // about the program and are left out.

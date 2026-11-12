@@ -77,8 +77,11 @@ pub enum RouteVerdict {
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
     /// nothing established in it; `conflicts` one per loan that may not be
-    /// formed. At least one of the three is not empty.
+    /// formed; `formations` one per invalid bound calling shape. At least one
+    /// list is not empty.
     Rejected {
+        /// Calling-shape failures known before any body is elaborated.
+        formations: Vec<crate::CallableFormationFailure>,
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
@@ -581,6 +584,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     }
     if !unestablished.is_empty() || !conflicts.is_empty() {
         return Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
@@ -596,6 +600,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 RouteVerdict::Incomplete(unproved)
             } else {
                 RouteVerdict::Rejected {
+                    formations: Vec::new(),
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
@@ -614,6 +619,14 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     })))
 }
 
+/// A compilation refused before a verdict. Binding failures carry their own
+/// source identity because no Terminal machine exists at that point.
+#[derive(Debug)]
+pub enum CompilationRefusal {
+    Elaboration(Refusal),
+    Binding(crate::CallableFormationDefect),
+}
+
 /// The route's verdicts on everything `compilation` claims: the closure of
 /// its roots first, then the check form of each generic machine its subject
 /// declares, in declaration order, one per alternative for a finite family.
@@ -626,7 +639,19 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
 pub fn judge_compilation(
     typed: &typed_trees::TypedTrees,
     compilation: structure_elaboration::Compilation<'_>,
-) -> Vec<Checked<RouteVerdict>> {
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    match crate::check_bound_callable_shapes(typed, compilation.bindings) {
+        Ok(formations) if !formations.is_empty() => {
+            return vec![Ok(RouteVerdict::Rejected {
+                formations,
+                unproved: Vec::new(),
+                unestablished: Vec::new(),
+                conflicts: Vec::new(),
+            })];
+        }
+        Ok(_) => {}
+        Err(defect) => return vec![Err(CompilationRefusal::Binding(defect))],
+    }
     let elaborated = structure_elaboration::elaborate(typed, compilation);
     let (closure, templates) = match elaborated {
         Ok(mut elaboration) => {
@@ -635,11 +660,17 @@ pub fn judge_compilation(
         }
         Err(refused) => (Err(refused), Vec::new()),
     };
-    let mut verdicts = vec![judge(closure)];
+    let mut verdicts = vec![judge(closure).map_err(CompilationRefusal::Elaboration)];
     if !templates.is_empty() {
         match structure_elaboration::elaborate_generic_forms(typed, &templates) {
-            Ok(forms) => verdicts.extend(forms.into_iter().map(|form| judge(Ok(form)))),
-            Err(refused) => verdicts.push(judge(Err(refused))),
+            Ok(forms) => verdicts.extend(
+                forms
+                    .into_iter()
+                    .map(|form| judge(Ok(form)).map_err(CompilationRefusal::Elaboration)),
+            ),
+            Err(refused) => {
+                verdicts.push(judge(Err(refused)).map_err(CompilationRefusal::Elaboration))
+            }
         }
     }
     verdicts
@@ -679,6 +710,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         // storage is used unestablished: a rejection of the program, with no
         // source correspondence to look its construct up in.
         RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
             unproved: Vec::new(),
             unestablished: vec![UnestablishedUse {
                 machine: refused.machine,
