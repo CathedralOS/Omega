@@ -4,12 +4,16 @@ WITNESS="${1:?}"
 CLUSTER_ID="${2:?}"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+TOOLHOME=/tmp/ledger-bisect-part-21-tools
+mkdir -p "$TOOLHOME"
+rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/" "$TOOLHOME/tools/"
+rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/prepare_witness.sh" "$ROOT/.agents/ledger-bisect-2026-11-11/part21_observed.txt" "$TOOLHOME/"
 cd "$ROOT"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+SCRIPT="$TOOLHOME/tools/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
 chmod -R u+w "$ROOT/target" 2>/dev/null || true
 
-SPEC=$(.agents/ledger-bisect-2026-11-11/prepare_witness.sh "$WITNESS")
+SPEC=$(bash "$TOOLHOME/prepare_witness.sh" "$WITNESS")
 export BISECT_SPEC="$SPEC"
 export BISECT_LEDGER=/tmp/ledger-bisect-pin-corpus_outcomes.txt
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4

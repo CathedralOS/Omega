@@ -5,7 +5,10 @@ ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$ROOT"
 git show "$PIN:tests/omega/corpus_outcomes.txt" >/tmp/ledger-bisect-pin-corpus_outcomes.txt
-OBS="$ROOT/.agents/ledger-bisect-2026-11-11/part21_observed.txt"
+OBS="${BISECT_OBSERVED:-$ROOT/.agents/ledger-bisect-2026-11-11/part21_observed.txt}"
+if [[ ! -f "$OBS" && -f /tmp/ledger-bisect-part-21-tools/part21_observed.txt ]]; then
+  OBS=/tmp/ledger-bisect-part-21-tools/part21_observed.txt
+fi
 python3 - "$WITNESS" "$OBS" <<'PY'
 import json, sys
 witness, obs_path = sys.argv[1], sys.argv[2]
