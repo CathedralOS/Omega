@@ -5037,6 +5037,22 @@ pub(crate) mod build_machines {
                         target.name,
                     )
                 });
+                // An artifact that publishes target layout applications runs
+                // only with its target's layouts admitted beside that
+                // selection, whether or not it retains a scalar condition.
+                // A target without layout facts admits none, and such an
+                // artifact then refuses to start.
+                let layouts = match (&selected, target.and_then(|target| target.layout_target)) {
+                    (Some(selected), Some(facts)) => Some(
+                        terminal_installation::admit_target_layouts(
+                            artifact.view(),
+                            selected,
+                            facts,
+                        )
+                        .map_err(|error| format!("invocation Terminal target layouts: {error}"))?,
+                    ),
+                    _ => None,
+                };
                 let installation = selected
                     .as_ref()
                     .map(|selected| {
@@ -5049,7 +5065,7 @@ pub(crate) mod build_machines {
                                 host_imports: &[],
                                 entry: None,
                                 target_machines: Some(selected),
-                                target_layouts: None,
+                                target_layouts: layouts.as_ref(),
                             },
                         )
                     })
