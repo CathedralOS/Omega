@@ -47,9 +47,9 @@ library explicitly; the corpus does not automatically run `fixture/prepare.py`:
 fixture=tests/omega/pass/layouts/private_callback_inherited_policy_exit
 provider_output="$PWD/build/descriptor-callback-provider"
 omega_cli="$PWD/target/debug/omega"
-RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- python3 "$fixture/fixture/prepare.py" --output "$provider_output"
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- python3 "$fixture/fixture/prepare.py" --output "$provider_output" < /dev/null
 export DYLD_LIBRARY_PATH="$provider_output${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --target macos_arm64
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --target macos_arm64 < /dev/null
 ```
 
 If update requests review, inspect
@@ -58,13 +58,13 @@ fixture's reviewed declarations and foreign registration binding. Resume the
 ordinary package workflow after saving those decisions:
 
 ```sh
-RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --resume
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" update --project "$fixture" --resume < /dev/null
 ```
 
 Once update succeeds, execute the native oracle:
 
 ```sh
-RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" run "$fixture/main.omg"
+RAYON_NUM_THREADS=10 nice -n 19 mbx reserve --cpus 10 -- "$omega_cli" run "$fixture/main.omg" < /dev/null
 ```
 
 Keep the compiler identity, preparation receipt and actual native output with
