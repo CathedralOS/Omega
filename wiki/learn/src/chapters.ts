@@ -1,7 +1,8 @@
 // Chapter content for Learn Omega. Every code block is real Omega, checked
 // against the compiler built from current main (`omega --check` on each
-// fixture under scratch/verify/; see tools/verify.ts). No `self` anywhere: Omega has no implicit receiver;
-// context and data are passed as explicit parameters.
+// fixture under scratch/verify/; see tools/verify.ts). Omega has no implicit
+// receiver: context and data are passed as explicit parameters. `self` appears
+// only as the subject of a data or domain predicate (`requires self.value <= 255`).
 
 export interface Note {
   for?: number;        // 1-based code line the marginalia key ties to
@@ -93,7 +94,7 @@ machine main() -> u64 { choose(true) }`,
           { for: 2, text: "`transition` evaluates its subject once and runs only the first arm that matches. The chosen arm is the last thing the machine does, so its result becomes the machine's result." },
           { for: 4, text: "`_` covers every remaining value. Transition arms must cover every possible value, so every path has a destination." },
           { for: 7, text: "`yes` is a machine nested inside `choose`. Nesting only limits where the name is visible; `yes` has its own signature and contract and is not a closure over `choose`'s parameters. The old `state` declaration is retired: there is one kind of machine." },
-          { for: 11, text: "A machine that holds no persistent state needs no `data` declaration. Its inputs and return type are its entire interface." },
+          { for: 11, text: "A machine that holds no persistent state needs no `data` declaration. Its inputs and return type are its entire interface. `main` is an ordinary name here: nothing runs it unless the build binds it as the program's entry (Chapter VII)." },
         ],
       },
       {
@@ -121,7 +122,7 @@ machine main() -> u64 { countdown(5u64) }`,
         },
         notes: [
           { for: 8, text: "A nested machine is checked against its own contract, not against whatever was true where it was called. `tick` writes `requires n > 0u64` itself; the guard on line 2 is what lets the call on line 3 establish it." },
-          { for: 10, text: "Unsigned `n - 1` is legal because `tick`'s own `requires` says `n > 0`. Remove the `requires` and exact-arithmetic checking rejects the subtraction." },
+          { for: 10, text: "Unsigned `n - 1` is legal because `tick`'s `requires` says `n > 0`. A nested machine may also leave `requires` out: the compiler then infers `n > 0` from the subtraction and checks it at every call. Once you write a `requires`, it must cover everything the body needs (spec: private entry inference)." },
           { for: 11, text: "`tick` tests `next > 0` explicitly: the call `tick(next)` on the next line must establish `tick`'s `requires` for its new argument." },
           { for: 12, text: "`tick(next)` calls `tick` again with a smaller argument, as the last thing the arm does, so it compiles to a jump and the stack does not grow. Self-calls in last position replace `while` and `for` loops." },
           { text: "When reviewing a loop, check two things: the contract that proves the step cannot underflow, and the value that strictly decreases on every back-edge. A machine that promises to finish also writes `terminates by n -> Nat::Descending` (see the termination spec)." },
@@ -169,7 +170,7 @@ machine main() {
             Room { label: "room" },
             Room { label: "hall" }
         ],
-        ticks: 0,
+        ticks: 0 as +Wrapping,
     };
     rename(&mut level);
 }`,
@@ -178,7 +179,7 @@ machine main() {
         notes: [
           { for: 2, text: "`[u8; 4]` is a fixed-length array of four bytes stored inline. Capacity is part of the type, not a runtime allocation." },
           { for: 6, text: "`[Room; 2]` nests two `Room` records inline inside `Level`. The element count is part of the type, so `Level` has a fixed size." },
-          { for: 7, text: "`i32 in Wrapping` qualifies the field with modular two's-complement arithmetic, allowing `level.ticks + 1` without an upper-bound proof." },
+          { for: 7, text: "`i32 in Wrapping` qualifies the field with modular two's-complement arithmetic, allowing `level.ticks + 1` without an upper-bound proof. A plain literal never picks up a domain by itself, so the initial value is written `0 as +Wrapping` (line 21)." },
           { for: 10, text: "`&mut Level` lends mutable access to `level` for the duration of the call. There is no implicit `self` parameter, and the data is always an ordinary parameter." },
           { for: 11, text: "Constant indices `1` and `0` are statically in bounds against `[Room; 2]` and `[u8; 4]`, so the checker discharges both array bounds automatically." },
           { for: 16, text: "Record construction names every field. `let mut` is required here: writing a local's fields or lending it with `&mut` or `&write` both need a `mut` binding, and without it the call on line 23 is rejected (spec: owned local mutability)." },
@@ -226,13 +227,13 @@ machine advance(light: Light) -> Light {
 machine main() {
     let light: Light = Light {
         phase: Phase::Red,
-        advances: 0,
+        advances: 0 as +Wrapping,
     };
     let once: Light = advance(light);
     let twice: Light = advance(once);
     let again: Light = advance(light);
 }`,
-          highlight: [1, 12],
+          highlight: [1, 13],
         },
         notes: [
           { for: 1, text: "Owned data is affine by default (move at most once). Marking a pure value type `[copy]` makes it unrestricted so passing it does not consume the binding." },
@@ -316,7 +317,7 @@ ensures  result <= input
           { for: 2, text: "`requires` states a precondition the caller must establish before invoking `bounded`; the body may rely on it. It is a proof obligation at each call, not a runtime check." },
           { for: 3, text: "`ensures` states the postcondition guaranteed on normal return, using the reserved name `result` for the returned value." },
           { for: 5, text: "`finish(input)` is the last thing `bounded` does, so `finish`'s result becomes `bounded`'s result." },
-          { for: 7, text: "How the checker proves `result <= input`: (1) `finish` is in the same file, so the checker reads its body, which returns `saved` unchanged; (2) the call passes `input` as `saved`, so the result equals `input`; (3) `input <= input`, which is what `bounded` promised. Nothing needed an `ensures` on `finish` here. Code in another package sees only a machine's written contract, so a machine meant for outside callers writes the guarantees they need. This matters because a promise is only as good as the proof behind it." },
+          { for: 7, text: "How the checker proves `result <= input`: (1) `finish` is in the same file, so the checker reads its body, which returns `saved` unchanged; (2) the call passes `input` as `saved`, so the result equals `input`; (3) `input <= input`, which is what `bounded` promised. Nothing needed an `ensures` on `finish` here. Code outside this verification unit, such as another package, sees only a machine's written contract, so a machine meant for outside callers writes the guarantees they need. This matters because a promise is only as good as the proof behind it." },
           { text: "When the prover refuses an expression, do not fight the syntax. Tighten a precondition, hoist an intermediate value into a guarded transition, or declare an explicit overflow policy." },
         ],
       },
@@ -337,7 +338,7 @@ ensures
         notes: [
           { for: 3, text: "Multiple `requires` rows combine as premises that hold on entry." },
           { for: 8, text: "A machine with an empty body is a pure compile-time lemma: the checker must derive `a < c` directly from `a < b` and `b < c`." },
-          { text: "`samples/cli/proofs/math_proofs` builds an entire chain of arithmetic lemmas this way, without emitting a single runtime instruction." },
+          { text: "`samples/cli/proofs/math_proofs` builds a whole chain of arithmetic lemmas this way. It is a compile-checked sample: the lemmas are the point, not a program to run." },
         ],
       },
       {
@@ -569,15 +570,15 @@ use omega_language_std::console;
 
 // Expected exit: 70.
 machine start() reaches Console + ProcessExit {
-    let sorted: u64 in Wrapping = 64 + 6;
+    let sorted: u64 in Wrapping = (64u64 + 6u64) as +Wrapping;
     Console::write_line("ten shelves, sorted");
-    ProcessExit::exit_process(sorted as i32);
+    ProcessExit::exit_process(sorted as -Wrapping as i32);
 }`,
           highlight: [5],
         },
         notes: [
           { for: 5, text: "Executable samples declare an `// Expected exit: N` oracle comment at the top of `main.omg`, and the test harness verifies the exact status code." },
-          { for: 7, text: "`u64 in Wrapping` opts into modular addition, and `as i32` converts the computed value to the `i32` status `exit_process` takes." },
+          { for: 7, text: "`u64 in Wrapping` opts into modular arithmetic. A domain is gained or dropped only by a cast that names it: `as +Wrapping` adds it here. On line 9, `as -Wrapping` drops it first and `as i32` then converts to the `i32` status `exit_process` takes." },
           { for: 9, text: "Real samples encode their computed result in the exit status (`bubble_sort` exits with `10`, `collatz_sequence` with `111`, and `generic_counters` with `16`)." },
           { text: "When an agent writes a sample that always exits `0` without checking its computed result against the oracle, send it back." },
         ],
@@ -608,7 +609,7 @@ machine start() reaches Console + ProcessExit {
           head: ["Surface", "Question to ask"],
           rows: [
             ["`reaches` ceiling", "Does each machine declare only the external services it genuinely needs?"],
-            ["`data` layout", "Are all persistent values stored in fixed-size records with explicit `where` or domain bounds?"],
+            ["`data` layout", "Are all persistent values stored in fixed-size records with explicit `requires` or domain bounds?"],
             ["Borrowing (`&` / `&mut`)", "Are parameters borrowed `&mut` only when the machine actually mutates them?"],
             ["Machine graph", "Do machine names reflect domain steps, and does every loop edge shrink a clear measure?"],
             ["Transition coverage", "Are case dispatches exhaustive without silent catch-all arms hiding unhandled variants?"],
@@ -638,7 +639,7 @@ use omega_language_std::console;
 
 // Expected exit: 4.
 machine start() reaches Console + ProcessExit {
-    transition { _ -> count(2026u64, 0u8) }
+    transition { _ -> count(2026u64, 0u8 as +Wrapping) }
 
     machine count(n: u64, digits: u8 in Wrapping) {
         transition n >= 10u64 {
@@ -649,15 +650,15 @@ machine start() reaches Console + ProcessExit {
 
     machine report(digits: u8 in Wrapping) {
         Console::write_line("counted the digits");
-        ProcessExit::exit_process(digits as i32);
+        ProcessExit::exit_process(digits as -Wrapping as i32);
     }
 }`,
           highlight: [9, 11],
         },
         notes: [
           { for: 6, text: "Read the capability ceiling first: `start` may write to `Console` and terminate via `ProcessExit`, and nothing else." },
-          { for: 7, text: "Setup finishes with an unconditional `transition` into `count(2026u64, 0u8)`, seeding the loop's initial arguments." },
-          { for: 9, text: "`digits: u8 in Wrapping` qualifies the accumulator with wrapping arithmetic, and `digits as i32` is an explicit conversion: Omega has no implicit widening, and every `u8` value fits an `i32`." },
+          { for: 7, text: "Setup finishes with an unconditional `transition` into `count(2026u64, 0u8)`, seeding the loop's initial arguments. The literal `0u8` gains the `Wrapping` domain only through the cast `as +Wrapping`; passing it to a `Wrapping` parameter does not add it." },
+          { for: 9, text: "`digits: u8 in Wrapping` qualifies the accumulator with wrapping arithmetic, and `digits as -Wrapping as i32` (line 17) first drops the domain, then converts explicitly: Omega has no implicit widening, and every `u8` value fits an `i32`." },
           { for: 10, text: "`n >= 10u64` partitions the loop: values with at least two digits left continue; single-digit remainders finish in `report`." },
           { for: 11, text: "The back-edge `count(n / 10u64, digits + 1u8)` divides `n` by `10u64` (a nonzero constant divisor), strictly shrinking `n` on every iteration." },
           { for: 18, text: "Exits with `4` — the four digits of `2026` — matching the `// Expected exit: 4` oracle at the top of the file." },
@@ -668,7 +669,7 @@ machine start() reaches Console + ProcessExit {
         title: "What the check did not tell you",
         figure: {
           kind: "prose",
-          text: "`omega --check` proved that `10u64` is a nonzero divisor, `digits + 1u8` has a defined overflow policy, `digits as i32` is in range, every transition arm lands in a valid state, and only `Console` and `ProcessExit` are reached. It did not prove that `2026` has 4 digits rather than 5 — running the binary and checking exit code `4` against the oracle closes that loop.",
+          text: "`omega --check` proved that `10u64` is a nonzero divisor, `digits + 1u8` has a defined overflow policy, `digits as -Wrapping as i32` is in range, every transition arm lands in a valid state, and only `Console` and `ProcessExit` are reached. It did not prove that `2026` has 4 digits rather than 5 — running the binary and checking exit code `4` against the oracle closes that loop.",
         },
         notes: [
           { text: "Static proof guarantees the machine's invariants and safety boundaries; execution against an oracle verifies its domain answer." },
