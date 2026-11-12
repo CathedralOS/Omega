@@ -48,8 +48,14 @@ verify() {
     case $r in 0) ok=$((ok + 1));; 1) bad=$((bad + 1));; *) skip=$((skip + 1));; esac
   done
   echo "VERIFY $label $(git log -1 --oneline "$c") expect=$expect ok=$ok bad=$bad skip=$skip"
-  if [[ "$expect" -eq 0 ]]; then [[ "$ok" -eq 2 && "$skip" -eq 0 ]] || return 2; fi
-  if [[ "$expect" -eq 1 ]]; then [[ "$bad" -eq 2 && "$skip" -eq 0 ]] || return 2; fi
+  if [[ "$expect" -eq 0 ]]; then
+    [[ "$ok" -eq 2 && "$skip" -eq 0 ]] || return 2
+    return 0
+  fi
+  if [[ "$expect" -eq 1 ]]; then
+    [[ "$bad" -eq 2 && "$skip" -eq 0 ]] || return 2
+    return 0
+  fi
   return 2
 }
 
