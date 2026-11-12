@@ -982,6 +982,7 @@ pub(crate) mod parse_postfix {
         arguments: HandleSpan<ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
     ) -> Result<ExpressionHandle, ParseError> {
+        let callee = expression;
         let expression = exprs_of(syntax_trees).expression(expression);
         let call = match expression {
             ExpressionNode::Name(path) => {
@@ -989,6 +990,7 @@ pub(crate) mod parse_postfix {
                 let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
                 let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
                 Ok(TableCallExpression {
+                    callee,
                     target_is_static: true,
                     receiver,
                     target,
@@ -1006,6 +1008,7 @@ pub(crate) mod parse_postfix {
                     arguments,
                 )?;
                 Ok(TableCallExpression {
+                    callee,
                     target_is_static: false,
                     receiver: member.receiver,
                     target: member.member.clone(),
@@ -1015,9 +1018,16 @@ pub(crate) mod parse_postfix {
                     operational_acknowledgement: Default::default(),
                 })
             }
-            _ => Err(ParseError::new(
-                "call target must be a path or member access",
-            )),
+            _ => Ok(TableCallExpression {
+                callee,
+                receiver: ExpressionHandle::invalid(),
+                target: Identifier::new("$callable", exprs_of(syntax_trees).source_span(callee)),
+                target_is_static: false,
+                machine_arguments,
+                arguments,
+                evidence_arguments,
+                operational_acknowledgement: Default::default(),
+            }),
         }?;
         let call = spell_test_group_facet(syntax_trees, call);
         let source = call.target.source_span();

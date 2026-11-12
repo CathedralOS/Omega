@@ -780,7 +780,7 @@ mod assignment {
         );
     }
 
-    pub(super) fn assign_type_reference_with_definitions(
+    pub(in crate::symbols) fn assign_type_reference_with_definitions(
         symbols: &SymbolTable,
         child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
@@ -932,7 +932,9 @@ mod assignment {
                     &references,
                 );
             }
-            TypeReference::Unit => {}
+            // The callable declaration resolves its formals once in its own
+            // scope. A holder does not lend its local namespace to that type.
+            TypeReference::Callable { .. } | TypeReference::Unit => {}
         }
     }
 
@@ -1146,7 +1148,9 @@ mod queries {
                 child_type_references.get(slice.element_type),
             ),
             TypeReference::Generic(generic) => generic.base_symbol,
-            TypeReference::ConstExpression(_) => SymbolHandle::invalid(),
+            TypeReference::ConstExpression(_) | TypeReference::Callable { .. } => {
+                SymbolHandle::invalid()
+            }
             TypeReference::DynamicTrait { symbol, .. } => *symbol,
             TypeReference::Named { symbol, .. } => *symbol,
             TypeReference::Unit => SymbolHandle::invalid(),
@@ -1686,6 +1690,7 @@ mod value_expressions {
                 );
             }
             TypeReference::Named { .. }
+            | TypeReference::Callable { .. }
             | TypeReference::DynamicTrait { .. }
             | TypeReference::Unit => {}
         }
@@ -2073,6 +2078,7 @@ pub(super) use assignment::{
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals,
     assign_type_reference_symbol_with_locals_and_constraints, assign_type_reference_symbols,
+    assign_type_reference_with_definitions,
 };
 pub(super) use queries::call_target_for_type_reference;
 

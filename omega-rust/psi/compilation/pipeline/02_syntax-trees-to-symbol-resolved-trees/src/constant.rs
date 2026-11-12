@@ -949,6 +949,15 @@ pub(crate) mod initializer_dependencies {
                         self.queue_type(expansion);
                         self.queue_type(application);
                     }
+                    TypeReference::Callable { contract, .. } => {
+                        let row = self
+                            .program
+                            .tables
+                            .declarations
+                            .runtime_callable_contracts
+                            .get(*contract);
+                        self.signature(&row.signature)?;
+                    }
                     TypeReference::Reference(reference) => self.type_child(reference.referee)?,
                     TypeReference::Slice(reference) => self.type_child(reference.element_type)?,
                     TypeReference::FixedArray(array) => {
@@ -1156,12 +1165,7 @@ pub(crate) mod initializer_dependencies {
                         TypeParameterKind::Machine {
                             contract: MachineParameterContract::Structural(signature),
                         } => {
-                            self.contracts(signature.contracts)?;
-                            self.type_parameters(signature.type_parameters)?;
-                            self.state_parameters(signature.parameters)?;
-                            if let Some(reference) = &signature.return_type {
-                                self.queue_type(reference);
-                            }
+                            self.signature(signature)?;
                         }
                         TypeParameterKind::Proposition { contract } => {
                             self.state_parameters(contract.parameters)?;
@@ -1172,6 +1176,28 @@ pub(crate) mod initializer_dependencies {
                     }
                 }
                 Ok(())
+            }
+
+            fn signature(
+                &mut self,
+                signature: &'program symbol_resolved_trees::signature::StateSignature,
+            ) -> Result<(), String> {
+                let previous = self.lexical_owner;
+                self.lexical_owner = signature.symbol;
+                let result = (|| {
+                    self.contracts(signature.contracts)?;
+                    self.type_parameters(signature.type_parameters)?;
+                    self.state_parameters(signature.parameters)?;
+                    if let Some(reference) = &signature.return_type {
+                        self.queue_type(reference);
+                    }
+                    for bound in &signature.conformance_bounds {
+                        self.type_arguments(bound.arguments)?;
+                    }
+                    Ok(())
+                })();
+                self.lexical_owner = previous;
+                result
             }
 
             pub(super) fn state_parameters(

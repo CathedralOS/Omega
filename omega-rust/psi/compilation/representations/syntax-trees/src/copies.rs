@@ -294,6 +294,7 @@ pub(crate) mod body_copies {
                     })
                 }
                 StatementNode::Call(call) => StatementNode::Call(TableCall {
+                    callee: self.copy_expression_handle(other, call.callee),
                     target_is_static: call.target_is_static,
                     receiver: self.copy_statement_identifier_span(other, call.receiver),
                     target: call.target.clone(),
@@ -503,6 +504,13 @@ pub(crate) mod body_copies {
                     let selection = self.copy_static_machine_argument(other, selection);
                     self.type_references
                         .insert(TypeReferenceNode::StaticSelection(selection))
+                }
+                TypeReferenceNode::Callable { signature } => {
+                    let signature =
+                        self.copy_state_signature(other, other.items.state_signature(*signature));
+                    let signature = self.items.insert_state_signature(&signature);
+                    self.type_references
+                        .insert(TypeReferenceNode::Callable { signature })
                 }
                 TypeReferenceNode::ConstExpression(expression) => {
                     let expression = self.copy_expression_handle(other, *expression);
@@ -813,6 +821,7 @@ pub(crate) mod body_copies {
                     form: cast.form,
                 }),
                 ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
+                    callee: self.copy_expression_handle(other, call.callee),
                     target_is_static: call.target_is_static,
                     receiver: self.copy_expression_handle(other, call.receiver),
                     target: call.target.clone(),

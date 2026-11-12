@@ -3783,33 +3783,20 @@ mod templates {
         }
         for state in states {
             let state = syntax.items.state(*state);
-            let mut signature = HashSet::new();
-            let mut signature_types = HashSet::new();
-            collect_type_expression_handles(
-                syntax,
-                state.return_type,
-                &mut signature,
-                &mut signature_types,
-            );
+            let mut signature = TypeExpressionInputs::default();
+            collect_type_expression_handles(syntax, state.return_type, &mut signature);
             for parameter in syntax.items.state_parameters(state.parameters) {
                 collect_type_expression_handles(
                     syntax,
                     syntax.items.state_parameter(*parameter).type_reference,
                     &mut signature,
-                    &mut signature_types,
                 );
             }
-            collect_contract_expression_handles(
-                syntax,
-                state.contracts,
-                &mut signature,
-                &mut signature_types,
-            );
+            collect_contract_expression_handles(syntax, state.contracts, &mut signature);
             let statements = syntax.items.statements(state.statements);
             update_captured_names(
                 syntax,
                 &mut signature,
-                &mut signature_types,
                 &ConstructorFrontier {
                     parameters: state.parameters,
                     prior_statements: &[],
@@ -3817,29 +3804,18 @@ mod templates {
                 &mut captured,
             );
             for (ordinal, statement) in statements.iter().enumerate() {
-                let mut expressions = HashSet::new();
-                let mut type_references = HashSet::new();
-                collect_statement_expression_handles(syntax, *statement, &mut expressions);
+                let mut inputs = TypeExpressionInputs::default();
+                collect_statement_expression_handles(syntax, *statement, &mut inputs.expressions);
                 match syntax.statements.statement(*statement) {
                     StatementNode::LocalData(local) => {
-                        collect_type_expression_handles(
-                            syntax,
-                            local.type_reference,
-                            &mut expressions,
-                            &mut type_references,
-                        );
+                        collect_type_expression_handles(syntax, local.type_reference, &mut inputs);
                     }
                     StatementNode::Call(call) => {
                         visit_static_argument_type_inputs(
                             syntax,
                             &call.machine_arguments,
                             &mut |reference| {
-                                collect_type_expression_handles(
-                                    syntax,
-                                    reference,
-                                    &mut expressions,
-                                    &mut type_references,
-                                );
+                                collect_type_expression_handles(syntax, reference, &mut inputs);
                             },
                         );
                     }
@@ -3847,8 +3823,7 @@ mod templates {
                 }
                 update_captured_names(
                     syntax,
-                    &mut expressions,
-                    &mut type_references,
+                    &mut inputs,
                     &ConstructorFrontier {
                         parameters: state.parameters,
                         prior_statements: &statements[..ordinal],
@@ -3876,14 +3851,14 @@ mod templates {
 
     fn update_captured_names(
         syntax: &SyntaxTrees,
-        expressions: &mut HashSet<ExpressionHandle>,
-        type_references: &mut HashSet<TypeReferenceHandle>,
+        inputs: &mut TypeExpressionInputs,
         frontier: &ConstructorFrontier<'_>,
         captured: &mut RuntimeTemplateCaptures,
     ) {
         let mut visited = HashSet::new();
         loop {
-            let pending = expressions
+            let pending = inputs
+                .expressions
                 .difference(&visited)
                 .copied()
                 .collect::<Vec<_>>();
@@ -3893,27 +3868,22 @@ mod templates {
             for handle in pending {
                 visited.insert(handle);
                 visit_expression_type_inputs(syntax, handle, &mut |reference| {
-                    collect_type_expression_handles(
-                        syntax,
-                        reference,
-                        expressions,
-                        type_references,
-                    );
+                    collect_type_expression_handles(syntax, reference, inputs);
                 });
             }
         }
-        for handle in expressions.iter() {
+        for handle in &inputs.expressions {
             if let ExpressionNode::Name(path) = syntax.expressions.expression(*handle) {
-                if frontier.captures(syntax, *path) {
+                if inputs.bound_expressions.contains(handle) || frontier.captures(syntax, *path) {
                     captured.expressions.insert(*handle);
                 } else {
                     captured.expressions.remove(handle);
                 }
             }
         }
-        for reference in type_references.iter() {
+        for reference in &inputs.types {
             if let Some(name) = syntax.type_references.type_reference(*reference).as_named() {
-                if frontier.captures_name(syntax, name) {
+                if inputs.bound_types.contains(reference) || frontier.captures_name(syntax, name) {
                     captured.type_references.insert(*reference);
                 } else {
                     captured.type_references.remove(reference);
@@ -3922,122 +3892,195 @@ mod templates {
         }
     }
 
-    fn collect_contract_expression_handles(
-        syntax: &SyntaxTrees,
-        contracts: HandleSpan<CapabilityContract>,
-        expressions: &mut HashSet<ExpressionHandle>,
-        type_references: &mut HashSet<TypeReferenceHandle>,
-    ) {
-        for contract in syntax.items.capability_contracts(contracts) {
-            for fact in syntax.items.proof_facts(contract.facts) {
-                match fact {
-                    ProofFact::Expression(expression) => {
-                        collect_expression_handles(syntax, *expression, expressions)
-                    }
-                    ProofFact::Membership(membership) => {
-                        collect_expression_handles(syntax, membership.value, expressions);
-                        for argument in syntax_type_references(syntax)
-                            .type_reference_handles(membership.domain_arguments)
-                        {
-                            collect_type_expression_handles(
-                                syntax,
-                                *argument,
-                                expressions,
-                                type_references,
-                            );
+    #[derive(Default)]
+    struct TypeExpressionInputs {
+        expressions: HashSet<ExpressionHandle>,
+        types: HashSet<TypeReferenceHandle>,
+        bound_expressions: HashSet<ExpressionHandle>,
+        bound_types: HashSet<TypeReferenceHandle>,
+    }
+
+    impl TypeExpressionInputs {
+        fn extend(&mut self, other: Self) {
+            self.expressions.extend(other.expressions);
+            self.types.extend(other.types);
+            self.bound_expressions.extend(other.bound_expressions);
+            self.bound_types.extend(other.bound_types);
+        }
+    }
+
+    struct TypeInputWalk<'syntax> {
+        syntax: &'syntax SyntaxTrees,
+        entered: HashSet<TypeReferenceHandle>,
+    }
+
+    impl<'syntax> TypeInputWalk<'syntax> {
+        fn new(syntax: &'syntax SyntaxTrees) -> Self {
+            Self {
+                syntax,
+                entered: HashSet::new(),
+            }
+        }
+
+        fn expression(&mut self, expression: ExpressionHandle, inputs: &mut TypeExpressionInputs) {
+            let syntax = self.syntax;
+            let mut expressions = HashSet::new();
+            collect_expression_handles(syntax, expression, &mut expressions);
+            for &expression in &expressions {
+                visit_expression_type_inputs(syntax, expression, &mut |reference| {
+                    self.reference(reference, inputs);
+                });
+            }
+            inputs.expressions.extend(expressions);
+        }
+
+        fn contracts(
+            &mut self,
+            contracts: HandleSpan<CapabilityContract>,
+            inputs: &mut TypeExpressionInputs,
+        ) {
+            let syntax = self.syntax;
+            for contract in syntax.items.capability_contracts(contracts) {
+                for fact in syntax.items.proof_facts(contract.facts) {
+                    match fact {
+                        ProofFact::Expression(expression) => self.expression(*expression, inputs),
+                        ProofFact::Membership(membership) => {
+                            self.expression(membership.value, inputs);
+                            for &argument in syntax
+                                .type_references
+                                .type_reference_handles(membership.domain_arguments)
+                            {
+                                self.reference(argument, inputs);
+                            }
                         }
                     }
                 }
             }
         }
+
+        fn protect_signature_scope(
+            &self,
+            signature: &crate::preparation::callable_signatures::SignatureInputs,
+            scope: usize,
+            inputs: &mut TypeExpressionInputs,
+        ) {
+            for &expression in &inputs.expressions {
+                if let ExpressionNode::Name(path) = self.syntax.expressions.expression(expression)
+                    && let Some(name) = self
+                        .syntax
+                        .expressions
+                        .identifier_path_members(*path)
+                        .first()
+                    && signature.hides_value(scope, name.as_str(self.syntax))
+                {
+                    inputs.bound_expressions.insert(expression);
+                }
+            }
+            for &reference in &inputs.types {
+                if let Some(name) = self
+                    .syntax
+                    .type_references
+                    .type_reference(reference)
+                    .as_named()
+                    && signature.hides_type(scope, name.as_str(self.syntax))
+                {
+                    inputs.bound_types.insert(reference);
+                }
+            }
+        }
+
+        fn reference(&mut self, reference: TypeReferenceHandle, inputs: &mut TypeExpressionInputs) {
+            if !reference.is_valid() || !self.entered.insert(reference) {
+                return;
+            }
+            inputs.types.insert(reference);
+            let syntax = self.syntax;
+            match syntax.type_references.type_reference(reference) {
+                TypeReferenceNode::ConstExpression(expression) => {
+                    self.expression(*expression, inputs)
+                }
+                TypeReferenceNode::Reference { referee, .. } => self.reference(*referee, inputs),
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => {
+                    self.reference(*element_type, inputs);
+                    if let syntax_trees::types::FixedArrayLength::Expression(value) = length {
+                        self.reference(*value, inputs);
+                    }
+                }
+                TypeReferenceNode::Slice { element_type } => self.reference(*element_type, inputs),
+                TypeReferenceNode::Generic { arguments, .. }
+                | TypeReferenceNode::DynamicTrait {
+                    trait_arguments: arguments,
+                    ..
+                } => {
+                    for &argument in syntax.type_references.type_reference_handles(*arguments) {
+                        self.reference(argument, inputs);
+                    }
+                }
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    self.reference(*base_type, inputs);
+                    for constraint in syntax.type_references.constraints(*constraints) {
+                        if let TypeConstraintNode::Domain(domain) = constraint {
+                            for &argument in syntax
+                                .type_references
+                                .type_reference_handles(domain.arguments)
+                            {
+                                self.reference(argument, inputs);
+                            }
+                        }
+                    }
+                }
+                TypeReferenceNode::Callable { signature } => {
+                    let signature = crate::preparation::callable_signatures::SignatureInputs::of(
+                        syntax,
+                        syntax.items.state_signature(*signature),
+                    );
+                    for &(scope, reference) in &signature.types {
+                        let mut nested = TypeExpressionInputs::default();
+                        self.reference(reference, &mut nested);
+                        self.protect_signature_scope(&signature, scope, &mut nested);
+                        inputs.extend(nested);
+                    }
+                    for &(scope, expression) in &signature.expressions {
+                        let mut nested = TypeExpressionInputs::default();
+                        self.expression(expression, &mut nested);
+                        self.protect_signature_scope(&signature, scope, &mut nested);
+                        inputs.extend(nested);
+                    }
+                }
+                TypeReferenceNode::StaticSelection(selection) => {
+                    visit_static_argument_type_inputs(
+                        syntax,
+                        std::slice::from_ref(selection),
+                        &mut |reference| {
+                            self.reference(reference, inputs);
+                        },
+                    );
+                }
+                TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
+            }
+        }
+    }
+
+    fn collect_contract_expression_handles(
+        syntax: &SyntaxTrees,
+        contracts: HandleSpan<CapabilityContract>,
+        inputs: &mut TypeExpressionInputs,
+    ) {
+        TypeInputWalk::new(syntax).contracts(contracts, inputs);
     }
 
     fn collect_type_expression_handles(
         syntax: &SyntaxTrees,
         reference: TypeReferenceHandle,
-        expressions: &mut HashSet<ExpressionHandle>,
-        type_references: &mut HashSet<TypeReferenceHandle>,
+        inputs: &mut TypeExpressionInputs,
     ) {
-        if !reference.is_valid() || !type_references.insert(reference) {
-            return;
-        }
-        match syntax.type_references.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(expression) => {
-                collect_expression_handles(syntax, *expression, expressions)
-            }
-            TypeReferenceNode::Reference { referee, .. } => {
-                collect_type_expression_handles(syntax, *referee, expressions, type_references)
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                collect_type_expression_handles(
-                    syntax,
-                    *element_type,
-                    expressions,
-                    type_references,
-                );
-                if let syntax_trees::types::FixedArrayLength::Expression(value) = length {
-                    collect_type_expression_handles(syntax, *value, expressions, type_references);
-                }
-            }
-            TypeReferenceNode::Slice { element_type } => {
-                collect_type_expression_handles(syntax, *element_type, expressions, type_references)
-            }
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait {
-                trait_arguments: arguments,
-                ..
-            } => {
-                for argument in syntax.type_references.type_reference_handles(*arguments) {
-                    collect_type_expression_handles(
-                        syntax,
-                        *argument,
-                        expressions,
-                        type_references,
-                    );
-                }
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                collect_type_expression_handles(syntax, *base_type, expressions, type_references);
-                for constraint in syntax.type_references.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            for argument in syntax_type_references(syntax)
-                                .type_reference_handles(domain.arguments)
-                            {
-                                collect_type_expression_handles(
-                                    syntax,
-                                    *argument,
-                                    expressions,
-                                    type_references,
-                                );
-                            }
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
-            }
-            TypeReferenceNode::StaticSelection(selection) => {
-                visit_static_argument_type_inputs(
-                    syntax,
-                    std::slice::from_ref(selection),
-                    &mut |reference| {
-                        collect_type_expression_handles(
-                            syntax,
-                            reference,
-                            expressions,
-                            type_references,
-                        )
-                    },
-                );
-            }
-            TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
-        }
+        TypeInputWalk::new(syntax).reference(reference, inputs);
     }
 
     fn replace_uncaptured_const_names(
@@ -4144,6 +4187,57 @@ mod templates {
             .type_reference(type_reference)
             .clone();
         match node {
+            TypeReferenceNode::Callable { signature } => {
+                let inputs = crate::preparation::callable_signatures::SignatureInputs::of(
+                    syntax,
+                    syntax.items.state_signature(signature),
+                );
+                let scopes = (0..inputs.scope_count())
+                    .map(|scope| {
+                        let constants = const_values
+                            .iter()
+                            .filter(|(name, _)| !inputs.hides_value(scope, name))
+                            .map(|(name, value)| (name.clone(), *value))
+                            .collect::<HashMap<_, _>>();
+                        let mut symbolic = symbolic_parameters
+                            .iter()
+                            .filter(|name| !inputs.hides_value(scope, name))
+                            .cloned()
+                            .collect::<HashSet<_>>();
+                        symbolic.extend(inputs.bound_values(scope));
+                        (constants, symbolic)
+                    })
+                    .collect::<Vec<_>>();
+                for &(scope, reference) in &inputs.types {
+                    normalize_template_type_reference(
+                        syntax,
+                        reference,
+                        &scopes[scope].0,
+                        &scopes[scope].1,
+                        warnings,
+                    )?;
+                }
+                for &(scope, expression) in &inputs.expressions {
+                    let mut expressions = HashSet::new();
+                    collect_expression_handles(syntax, expression, &mut expressions);
+                    let mut types = Vec::new();
+                    for expression in expressions {
+                        visit_expression_type_inputs(syntax, expression, &mut |reference| {
+                            types.push(reference)
+                        });
+                    }
+                    for reference in types {
+                        normalize_template_type_reference(
+                            syntax,
+                            reference,
+                            &scopes[scope].0,
+                            &scopes[scope].1,
+                            warnings,
+                        )?;
+                    }
+                }
+                Ok(())
+            }
             TypeReferenceNode::Reference { referee, .. } => normalize_template_type_reference(
                 syntax,
                 referee,
@@ -4329,6 +4423,27 @@ mod templates {
             };
         }
         match syntax.tables.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Callable { signature } => {
+                if traversal == TypePositionTraversal::Storage {
+                    return;
+                }
+                let inputs = crate::preparation::callable_signatures::SignatureInputs::of(
+                    syntax,
+                    syntax.items.state_signature(*signature),
+                );
+                for &(_, reference) in &inputs.types {
+                    visit_child!(reference);
+                }
+                for &(_, expression) in &inputs.expressions {
+                    let mut expressions = HashSet::new();
+                    collect_expression_handles(syntax, expression, &mut expressions);
+                    for expression in expressions {
+                        visit_expression_type_inputs(syntax, expression, &mut |reference| {
+                            visit_child!(reference)
+                        });
+                    }
+                }
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 if traversal == TypePositionTraversal::Identity {
                     visit_child!(*referee);
@@ -5803,6 +5918,7 @@ mod values {
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Callable { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::StaticSelection(_)

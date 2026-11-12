@@ -62,6 +62,7 @@ macro_rules! deref_to_storage {
     };
 }
 
+pub mod callable_values;
 mod control_flow_and_calls;
 pub use control_flow_and_calls::{calls, control_flow, evidence};
 mod declarations_and_machines;
@@ -99,7 +100,15 @@ pub struct SymbolResolvedTrees {
     pub semantic_domains: language_semantics::SemanticDomainTable,
     pub external_bindings: language_semantics::ExternalBindingTable,
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
+    pub pending_token_shape_comparisons: Vec<PendingTokenShapeComparison>,
     pub resolution_indexes: lookup_indexes::ResolvedIndexes,
+}
+
+/// Dependent operand shapes must be compared after their types are lowered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct PendingTokenShapeComparison {
+    pub earlier: SymbolHandle,
+    pub later: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,6 +200,7 @@ pub struct SymbolResolvedTableStorage {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolResolvedDeclarationStorage {
+    pub runtime_callable_contracts: Arena<crate::callable_values::RuntimeCallableContract>,
     pub data_members: Arena<data::DataMember>,
     pub data_payload_fields: Arena<data::DataField>,
     pub data_type_parameters: Arena<data::TypeParameter>,
@@ -511,6 +521,7 @@ impl SymbolResolvedTrees {
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),
+            pending_token_shape_comparisons: Vec::new(),
             resolution_indexes: lookup_indexes::ResolvedIndexes::default(),
         }
     }

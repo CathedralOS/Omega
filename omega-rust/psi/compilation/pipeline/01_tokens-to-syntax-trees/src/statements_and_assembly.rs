@@ -1614,6 +1614,7 @@ pub(crate) mod statements {
             arguments: HandleSpan<ExpressionHandle>,
         ) -> StatementHandle {
             stmts(syntax_trees).insert(StatementNode::Call(TableCall {
+                callee: ExpressionHandle::invalid(),
                 target_is_static: false,
                 receiver: HandleSpan::empty(),
                 target: Identifier::new(intrinsic_name, mnemonic.source_span()),
@@ -1636,6 +1637,7 @@ pub(crate) mod statements {
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Call(TableCallExpression {
+                        callee: ExpressionHandle::invalid(),
                         target_is_static: false,
                         receiver: ExpressionHandle::invalid(),
                         target: Identifier::new(intrinsic_name, mnemonic.source_span()),
@@ -2548,6 +2550,7 @@ pub(crate) mod statements {
 
             let (receiver, target) = split_expression_call_handle(syntax_trees, &call)?;
             Some(TableCall {
+                callee: call.callee,
                 target_is_static: call.target_is_static,
                 receiver,
                 target,

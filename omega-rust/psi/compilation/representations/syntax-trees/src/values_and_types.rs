@@ -793,6 +793,9 @@ pub mod type_system {
             // The existing selection carrier preserves which path component
             // owns an application, before namespace resolution assigns its kind.
             StaticSelection(crate::expression::StaticMachineArgument),
+            Callable {
+                signature: crate::item::StateSignatureHandle,
+            },
             ConstExpression(ExpressionHandle),
             DynamicTrait {
                 trait_name: Identifier,
@@ -1869,6 +1872,7 @@ pub mod values {
 
         #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
         pub struct TableCallExpression {
+            pub callee: ExpressionHandle,
             pub receiver: ExpressionHandle,
             pub target: Identifier,
             pub target_is_static: bool,

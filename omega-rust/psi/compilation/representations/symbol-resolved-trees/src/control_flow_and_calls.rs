@@ -548,6 +548,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
+    pub callee: crate::expression::ExpressionHandle,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
@@ -929,6 +930,13 @@ pub mod control_flow {
                                 .span_or_empty(call.receiver),
                         );
                         self.insert(StatementNode::Call(TableCall {
+                            callee: if call.callee.is_valid() {
+                                transplant
+                                    .source_expressions
+                                    .copy_into(expressions, call.callee)
+                            } else {
+                                crate::expression::ExpressionHandle::invalid()
+                            },
                             receiver_root_symbol: call.receiver_root_symbol,
                             receiver_symbol: call.receiver_symbol,
                             target_symbol: call.target_symbol,
@@ -1208,6 +1216,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
         pub struct TableCall {
+    pub callee: crate::expression::ExpressionHandle,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,

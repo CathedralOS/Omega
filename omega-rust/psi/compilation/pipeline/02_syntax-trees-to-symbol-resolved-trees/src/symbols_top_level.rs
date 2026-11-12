@@ -27,7 +27,7 @@
     Shared by the child modules and the conformance step rather than steps of
     their own: `next_child_of_kind` takes
     the next child and returns the invalid handle when its kind is not the
-    expected one; `assign_machine_parameter_signature_symbols` and
+    expected one; `assign_callable_signature_symbols` and
     `assign_proposition_parameter_signature_symbols` assign the parameter
     symbols and type references of machine-parameter and proposition-parameter
     signatures.
@@ -958,7 +958,7 @@ mod traits {
 
     use crate::symbols::lookup::top_level_symbol_for_source;
     use crate::symbols::top_level::{
-        SignatureSymbolTables, assign_machine_parameter_signature_symbols, next_child_of_kind,
+        SignatureSymbolTables, assign_callable_signature_symbols, next_child_of_kind,
         trait_parameter_tables,
     };
     use crate::symbols::type_references::{
@@ -1093,7 +1093,7 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             .chain(trait_definition.refinement_clauses.iter_mut().map(|clause| &mut clause.signature)) {
             machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);
             let machine_symbol = machine.symbol;
-            assign_machine_parameter_signature_symbols(
+            assign_callable_signature_symbols(
                 &mut SignatureSymbolTables {
                     symbols,
                     data_type_parameters,
@@ -1387,7 +1387,7 @@ impl SignatureSymbolTables<'_> {
         inherited_type_parameters: &[TypeParameter],
     ) {
         if let Some(signature) = contract.structural_mut() {
-            assign_machine_parameter_signature_symbols(
+            assign_callable_signature_symbols(
                 self,
                 signature,
                 owner_symbol,
@@ -1490,7 +1490,7 @@ pub(super) enum MachineParameterArm {
     ResolveWithAuthoredTraitArguments,
 }
 
-pub(super) fn assign_machine_parameter_signature_symbols(
+pub(super) fn assign_callable_signature_symbols(
     tables: &mut SignatureSymbolTables<'_>,
     contract: &mut StateSignature,
     owner_symbol: SymbolHandle,

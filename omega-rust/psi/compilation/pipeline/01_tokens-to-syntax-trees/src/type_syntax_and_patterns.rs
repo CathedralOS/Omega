@@ -185,6 +185,13 @@ pub(crate) mod patterns {
                     ),
                 }),
                 ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
+                    callee: rewrite_optional_expression(
+                        syntax_trees,
+                        call.callee,
+                        subject,
+                        fields,
+                        captures,
+                    ),
                     target_is_static: call.target_is_static,
                     receiver: if call.target_is_static {
                         call.receiver
@@ -599,6 +606,22 @@ pub(crate) mod type_syntax {
                 } else {
                     Ok((type_reference, input))
                 };
+            }
+
+            if input.at_keyword(tokens::KeywordKind::Machine) {
+                let source_span = input.current_source_span();
+                let input = input.take_keyword(tokens::KeywordKind::Machine, "machine")?;
+                let (signature, input) =
+                    crate::grammar::parameters::contracts::parse_runtime_machine_contract(
+                        syntax_trees,
+                        Identifier::new("$callable", source_span),
+                        input,
+                    )?;
+                let signature = syntax_trees.items.insert_state_signature(&signature);
+                return Ok((
+                    type_refs(syntax_trees).insert(TypeReferenceNode::Callable { signature }),
+                    input,
+                ));
             }
 
             if input.at_contextual("dyn") {

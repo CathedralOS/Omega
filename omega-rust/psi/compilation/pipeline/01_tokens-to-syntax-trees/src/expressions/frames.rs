@@ -595,12 +595,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         mut input: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
         loop {
-            let can_call = matches!(
-                exprs_of(syntax_trees).expression(expression),
-                ExpressionNode::Name(_) | ExpressionNode::Member(_)
-            );
-            if can_call
-                && input.at_punctuation(PunctuationKind::Less)
+            if input.at_punctuation(PunctuationKind::Less)
                 && let Some((machine_arguments, rest)) =
                     try_parse_static_machine_arguments(syntax_trees, input)?
             {
@@ -617,7 +612,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 );
             }
 
-            if can_call && input.at_punctuation(PunctuationKind::LeftParen) {
+            if input.at_punctuation(PunctuationKind::LeftParen) {
                 let after_open = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 return self.begin_arguments(
                     syntax_trees,
@@ -795,6 +790,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             } => {
                 let source = target.source_span();
                 let call = exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
+                    callee: ExpressionHandle::invalid(),
                     receiver,
                     target,
                     target_is_static: true,

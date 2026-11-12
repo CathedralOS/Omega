@@ -50,6 +50,7 @@
 
 /* The entrance and the route it drives. */
 mod resolution;
+mod runtime_callable_scopes;
 
 /* The phases, in the order `drive` calls them. */
 mod lowering;

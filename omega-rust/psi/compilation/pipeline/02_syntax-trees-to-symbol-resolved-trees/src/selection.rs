@@ -2204,6 +2204,7 @@ pub(crate) mod domain_establishment {
             }
             TypeReference::Slice(_)
             | TypeReference::ConstExpression(_)
+            | TypeReference::Callable { .. }
             | TypeReference::DynamicTrait { .. }
             | TypeReference::Unit => return Ok(()),
         };
@@ -4735,6 +4736,7 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Slice(_)
             | symbol_resolved_trees::types::TypeReference::Generic(_)
             | symbol_resolved_trees::types::TypeReference::ConstExpression(_)
+            | symbol_resolved_trees::types::TypeReference::Callable { .. }
             | symbol_resolved_trees::types::TypeReference::DynamicTrait { .. }
             | symbol_resolved_trees::types::TypeReference::Named { .. }
             | symbol_resolved_trees::types::TypeReference::Unit

@@ -1181,6 +1181,39 @@ mod type_structure {
                     syntax, selection, parameters, mentions,
                 );
             }
+            TypeReferenceNode::Callable { signature } => {
+                // A callable can mention an enclosing constructor in both its
+                // types and its contract, but its own binders shadow that input.
+                // Filter the original positions so hiding one name never
+                // renumbers another constructor argument.
+                let inputs = crate::preparation::callable_signatures::SignatureInputs::of(
+                    syntax,
+                    syntax.items.state_signature(*signature),
+                );
+                for (scope, reference) in &inputs.types {
+                    let mut nested = Vec::new();
+                    collect_binder_mentions(syntax, *reference, parameters, &mut nested);
+                    mentions.extend(
+                        nested
+                            .into_iter()
+                            .filter(|index| !inputs.hides_type(*scope, &parameters[*index])),
+                    );
+                }
+                for (scope, expression) in &inputs.expressions {
+                    let mut nested = Vec::new();
+                    collect_expression_binder_mentions(
+                        syntax,
+                        *expression,
+                        parameters,
+                        &mut nested,
+                    );
+                    mentions.extend(
+                        nested
+                            .into_iter()
+                            .filter(|index| !inputs.hides_value(*scope, &parameters[*index])),
+                    );
+                }
+            }
             TypeReferenceNode::Unit => {}
         }
     }
@@ -2404,6 +2437,7 @@ fn collect_expression_binder_mentions(
             collect_expression_binder_mentions(syntax, member.receiver, parameters, mentions);
         }
         ExpressionNode::Call(call) => {
+            collect_expression_binder_mentions(syntax, call.callee, parameters, mentions);
             collect_expression_binder_mentions(syntax, call.receiver, parameters, mentions);
             if let Some(index) = parameters
                 .iter()

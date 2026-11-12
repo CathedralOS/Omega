@@ -76,6 +76,9 @@ pub mod snapshot {
             StaticSelection {
                 selection: Box<StaticArgumentSnapshot>,
             },
+            Callable {
+                signature: Box<super::state_and_statement_snapshots::StateSignatureSnapshot>,
+            },
             ConstExpression {
                 expression: ExpressionSnapshot,
             },
@@ -199,6 +202,7 @@ pub mod snapshot {
                 semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
             },
             Call {
+                callee: Option<Box<ExpressionSnapshot>>,
                 receiver: Option<Box<ExpressionSnapshot>>,
                 target: IdentifierSnapshot,
                 machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -333,6 +337,14 @@ pub mod snapshot {
                         selection: Box::new(snapshot_static_argument(syntax_trees, selection)),
                     }
                 }
+                TypeReferenceNode::Callable { signature } => TypeReferenceSnapshot::Callable {
+                    signature: Box::new(
+                        super::state_and_statement_snapshots::snapshot_state_signature(
+                            syntax_trees,
+                            syntax_trees.items.state_signature(*signature),
+                        ),
+                    ),
+                },
                 TypeReferenceNode::ConstExpression(expression) => {
                     TypeReferenceSnapshot::ConstExpression {
                         expression: snapshot_expression_handle(syntax_trees, *expression),
@@ -597,6 +609,10 @@ pub mod snapshot {
             call: &TableCallExpression,
         ) -> ExpressionSnapshot {
             ExpressionSnapshot::Call {
+                callee: call
+                    .callee
+                    .is_valid()
+                    .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.callee))),
                 receiver: call
                     .receiver
                     .is_valid()
@@ -2054,6 +2070,7 @@ pub mod snapshot {
                 value: ExpressionSnapshot,
             },
             Call {
+                callee: Option<Box<ExpressionSnapshot>>,
                 receiver: Vec<IdentifierSnapshot>,
                 target: IdentifierSnapshot,
                 machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -2357,6 +2374,10 @@ pub mod snapshot {
                     value: snapshot_expression_handle(syntax_trees, assignment.value),
                 },
                 StatementNode::Call(call) => StatementSnapshot::Call {
+                    callee: call
+                        .callee
+                        .is_valid()
+                        .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.callee))),
                     receiver: snapshot_identifier_slice(
                         syntax_trees,
                         syntax_trees

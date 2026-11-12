@@ -1278,6 +1278,7 @@ pub(crate) mod lowerer {
         InitializerSelection,
     }
     pub(crate) struct Lowerer {
+        pub(crate) runtime_callable_scopes: crate::runtime_callable_scopes::RuntimeCallableScopes,
         pub(crate) defer_machine_bodies: bool,
         pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
         pub(crate) pending_callable_types:
@@ -1479,6 +1480,7 @@ pub(crate) mod lowerer {
             source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
         ) -> Self {
             Self {
+                runtime_callable_scopes: Default::default(),
                 defer_machine_bodies: false,
                 pending_machine_bodies: Vec::new(),
                 pending_callable_types: Vec::new(),
@@ -1717,6 +1719,7 @@ pub(crate) mod lowerer {
                 semantic_domains,
                 external_bindings,
                 evidence_forwardings,
+                pending_token_shape_comparisons,
                 resolution_indexes: _,
             } = self.symbol_resolved_trees;
             let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
@@ -1726,6 +1729,7 @@ pub(crate) mod lowerer {
             trees.semantic_domains = semantic_domains;
             trees.external_bindings = external_bindings;
             trees.evidence_forwardings = evidence_forwardings;
+            trees.pending_token_shape_comparisons = pending_token_shape_comparisons;
             trees
         }
 
@@ -1772,6 +1776,13 @@ pub(crate) mod lowerer {
                         };
                         contract.structural().ok_or_else(|| vec![Diagnostic::error("pending service reach lost its structural machine-parameter signature")])?.symbol
                     }
+                    PendingSignatureLocation::RuntimeCallable(handle) => {
+                        resolved_declarations(&self.symbol_resolved_trees)
+                            .runtime_callable_contracts
+                            .get(handle)
+                            .signature
+                            .symbol
+                    }
                 };
                 Ok(crate::selection::service_reaches::PendingSignatureServiceReach {
                     symbol,
@@ -1801,6 +1812,7 @@ pub(crate) mod lowerer {
     pub(crate) enum PendingSignatureLocation {
         Trait(arena::Handle<symbol_resolved_trees::signature::StateSignature>),
         MachineParameter(arena::Handle<symbol_resolved_trees::data::TypeParameter>),
+        RuntimeCallable(symbol_resolved_trees::callable_values::RuntimeCallableContractHandle),
     }
 
     #[derive(Debug, Clone)]
@@ -2705,7 +2717,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
 
     constant::finalize_operator_obligations(lowerer)?;
     selection::finalize(lowerer)?;
-    reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
+    reject_duplicate_direct_token_bindings(&mut lowerer.symbol_resolved_trees)?;
     Ok(())
 }
 
@@ -3062,7 +3074,7 @@ mod primitive_family_binding_tests {
                 .count(),
             1
         );
-        super::reject_duplicate_direct_token_bindings(&program).unwrap();
+        super::reject_duplicate_direct_token_bindings(&mut program).unwrap();
 
         // A newly selected binding still has to name its semantic home. The
         // retained inactive copy must neither reject the valid twin nor supply

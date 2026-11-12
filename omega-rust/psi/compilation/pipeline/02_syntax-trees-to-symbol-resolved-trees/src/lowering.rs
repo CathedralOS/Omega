@@ -370,6 +370,7 @@ declares_no_crash_route: contract.declares_no_crash_route,
                             Some((
                                 lowered_contract.service_reach_keyword_source_spans,
                                 lowered_contract.service_reaches,
+                                lowered_contract.callable_scope,
                             )),
                         )
                     }
@@ -452,11 +453,17 @@ declares_no_crash_route: contract.declares_no_crash_route,
         }
         if !span.is_empty() {
             for (index, authored) in pending_service_reaches.into_iter().enumerate() {
-                let Some((keyword_source_spans, authored)) = authored else {
+                let Some((keyword_source_spans, authored, callable_scope)) = authored else {
                     continue;
                 };
                 let handle =
                     span.handle_at(u32::try_from(index).expect("type-parameter span fits u32"));
+                lowerer.runtime_callable_scopes.bind(
+                    callable_scope,
+                    crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                        PendingSignatureLocation::MachineParameter(handle),
+                    ),
+                );
                 let owner = lowerer
                     .symbol_resolved_trees
                     .tables
@@ -1387,6 +1394,12 @@ pub(crate) mod expression {
                 )
             }
             syntax::expression::ExpressionNode::Call(call) => {
+                let callee = call
+                    .callee
+                    .is_valid()
+                    .then(|| lower_expression_into_table(lowerer, syntax_trees, call.callee))
+                    .transpose()?
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 let (receiver, requirement_application) = match call
                     .receiver
                     .is_valid()
@@ -1427,6 +1440,7 @@ pub(crate) mod expression {
                     .into_boxed_slice();
                 Ok(
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                        callee,
                         authored_call_binding: None,
                         receiver,
                         target_symbol: SymbolHandle::invalid(),
@@ -1804,8 +1818,39 @@ pub(crate) mod item {
         let conformance_ordinal = lowerer.symbol_resolved_trees.conformances.len();
         let trait_ordinal = lowerer.symbol_resolved_trees.traits.len();
         let data_ordinal = lowerer.symbol_resolved_trees.data_definitions.len();
-        lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
-            lower_item_with_exposure(lowerer, syntax_trees, item)
+        use crate::runtime_callable_scopes::CallableScopeOwner;
+        let owner = match item {
+            Item::Data(_) => CallableScopeOwner::Data(data_ordinal),
+            Item::TypeAlias(_) => {
+                CallableScopeOwner::Alias(lowerer.symbol_resolved_trees.type_aliases.len())
+            }
+            Item::Domain(_) => {
+                CallableScopeOwner::Domain(lowerer.symbol_resolved_trees.domain_definitions.len())
+            }
+            Item::Trait(_) => CallableScopeOwner::Trait(trait_ordinal),
+            Item::Conformance(_) => CallableScopeOwner::Conformance(conformance_ordinal),
+            Item::Operator(_) => {
+                CallableScopeOwner::Operator(lowerer.symbol_resolved_trees.operators.len())
+            }
+            Item::Machine(machine)
+                if machine.target.is_none()
+                    && !machine.target_family_interface
+                    && crate::lowering::operator::is_bare_bodyless_signature(machine) =>
+            {
+                CallableScopeOwner::Operator(lowerer.symbol_resolved_trees.operators.len())
+            }
+            Item::Proposition(_) => {
+                CallableScopeOwner::Proposition(lowerer.symbol_resolved_trees.propositions.len())
+            }
+            Item::Measure(_) => {
+                CallableScopeOwner::Measure(lowerer.symbol_resolved_trees.measures.len())
+            }
+            _ => CallableScopeOwner::Root,
+        };
+        lowerer.with_runtime_callable_scope(owner, |lowerer| {
+            lowerer.with_authored_expression_exposure(item_expression_exposure(item), |lowerer| {
+                lower_item_with_exposure(lowerer, syntax_trees, item)
+            })
         })?;
         let input = match item {
             Item::Conformance(_) => Some(
@@ -2263,12 +2308,18 @@ pub(crate) mod mathematical {
     ) -> Result<(), Vec<Diagnostic>> {
         for handle in syntax.root_mathematical_definition_handles() {
             let inputs = crate::resolution::type_inputs::TypeInputScope::new(lowerer);
-            let definition = lower_mathematical_definition(
-                lowerer,
-                syntax,
-                syntax.root_mathematical_definition(*handle),
-            )
-            .map_err(|diagnostic| vec![diagnostic])?;
+            let owner = crate::runtime_callable_scopes::CallableScopeOwner::Mathematical(
+                lowerer.symbol_resolved_trees.mathematical_definitions.len(),
+            );
+            let definition = lowerer
+                .with_runtime_callable_scope(owner, |lowerer| {
+                    lower_mathematical_definition(
+                        lowerer,
+                        syntax,
+                        syntax.root_mathematical_definition(*handle),
+                    )
+                })
+                .map_err(|diagnostic| vec![diagnostic])?;
             lowerer
                 .symbol_resolved_trees
                 .roots
@@ -3404,6 +3455,18 @@ pub(crate) mod state {
         syntax_trees: &SyntaxTrees,
         inputs: StateSignatureParts<'_>,
     ) -> Result<LoweredStateSignature, Diagnostic> {
+        let scope = lowerer.runtime_callable_scopes.begin(None);
+        let result = lower_state_signature_contents(lowerer, syntax_trees, inputs, scope);
+        lowerer.runtime_callable_scopes.end(scope);
+        result
+    }
+
+    fn lower_state_signature_contents(
+        lowerer: &mut Lowerer,
+        syntax_trees: &SyntaxTrees,
+        inputs: StateSignatureParts<'_>,
+        callable_scope: crate::runtime_callable_scopes::CallableScopeHandle,
+    ) -> Result<LoweredStateSignature, Diagnostic> {
         let StateSignatureParts {
             name,
             spelling,
@@ -3443,6 +3506,7 @@ pub(crate) mod state {
         let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
         Ok(LoweredStateSignature {
+            callable_scope,
             signature: StateSignature {
                 symbol: SymbolHandle::invalid(),
                 name: crate::lowering::name::lower_name(syntax_trees, name),
@@ -3483,6 +3547,7 @@ pub(crate) mod state {
     }
 
     pub(crate) struct LoweredStateSignature {
+        pub(crate) callable_scope: crate::runtime_callable_scopes::CallableScopeHandle,
         pub(crate) signature: StateSignature,
         pub(crate) service_reach_keyword_source_spans: Vec<source::SourceSpan>,
         pub(crate) service_reaches: Vec<DiagnosticName>,
@@ -4110,6 +4175,12 @@ pub(crate) mod trait_definition {
                 .declarations
                 .trait_machine_signatures
                 .append_to_span(&mut span, lowered.signature);
+            lowerer.runtime_callable_scopes.bind(
+                lowered.callable_scope,
+                crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                    crate::resolution::lowerer::PendingSignatureLocation::Trait(handle),
+                ),
+            );
             lowerer.pending_signature_service_reaches.push(
                 crate::resolution::lowerer::PendingSignatureServiceReach {
                     location: crate::resolution::lowerer::PendingSignatureLocation::Trait(handle),
@@ -4211,6 +4282,18 @@ pub(crate) mod type_reference {
             lowerer.current_authored_expression_exposure = exposure;
         }
         let mut lowered = result?;
+        if let TypeReference::Callable { contract, .. } = &lowered {
+            let definition_references = &mut lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .get_mut(*contract)
+                .definition_references;
+            for alias in &aliases {
+                definition_references.extend_from_slice(&alias.definition_references);
+            }
+        }
         for alias in aliases {
             let application = lower_alias_application(lowerer, syntax_trees, alias.application)?;
             let expanded_owner = lowered.supplied_operand_owner();
@@ -4547,6 +4630,53 @@ pub(crate) mod type_reference {
                 Ok(TypeReference::ConstExpression(
                     symbol_resolved_trees::types::ConstExpressionTypeReference::new(expression),
                 ))
+            }
+            TypeReferenceNode::Callable { signature } => {
+                let contract = lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .append(Default::default());
+                lowerer.runtime_callable_scopes.retain(contract);
+                let lowered = crate::lowering::state::lower_state_signature_node(
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.items.state_signature(*signature),
+                )?;
+                lowerer.runtime_callable_scopes.bind(
+                    lowered.callable_scope,
+                    crate::runtime_callable_scopes::CallableScopeOwner::Signature(
+                        crate::resolution::lowerer::PendingSignatureLocation::RuntimeCallable(
+                            contract,
+                        ),
+                    ),
+                );
+                let owner = lowered.signature.name.clone();
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .get_mut(contract)
+                    .signature = lowered.signature;
+                lowerer
+                    .pending_signature_service_reaches
+                    .push(crate::resolution::lowerer::PendingSignatureServiceReach {
+                    location: crate::resolution::lowerer::PendingSignatureLocation::RuntimeCallable(
+                        contract,
+                    ),
+                    owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
+                    reaches:
+                        crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
+                            keyword_source_spans: lowered.service_reach_keyword_source_spans,
+                            authored: lowered.service_reaches,
+                        },
+                });
+                Ok(TypeReference::Callable {
+                    contract,
+                    supplied_operand_owner: Default::default(),
+                })
             }
             TypeReferenceNode::DynamicTrait {
                 trait_name,

@@ -372,6 +372,14 @@ mod argument_types {
                             .map(|handle| trees.child_type_reference(handle)),
                     );
                 }
+                TypeReference::Callable { contract, .. } => {
+                    let binders = super::BinderClosures::build(trees);
+                    if super::classify_callable_contract(&binders, trees, *contract, &[], 0)
+                        != super::ArgumentClosure::Closed
+                    {
+                        return false;
+                    }
+                }
                 TypeReference::ConstExpression(_) => return false,
                 TypeReference::Unit => {}
             }
@@ -1475,29 +1483,104 @@ fn classify_type_reference(
     reference: &symbol_resolved_trees::types::TypeReference,
     depth: usize,
 ) -> ArgumentClosure {
+    classify_scoped_type_reference(binders, trees, reference, &[], false, depth)
+}
+
+fn classify_callable_contract(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    contract: symbol_resolved_trees::callable_values::RuntimeCallableContractHandle,
+    bound: &[symbols::SymbolHandle],
+    depth: usize,
+) -> ArgumentClosure {
+    let declaration = trees
+        .tables
+        .declarations
+        .runtime_callable_contracts
+        .get(contract);
+    let inputs = symbol_resolved_trees::callable_values::ResolvedSignatureInputs::of(
+        trees,
+        &declaration.signature,
+    );
+    classify_signature_inputs(binders, trees, &inputs, bound, depth)
+}
+
+fn classify_signature_inputs(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    inputs: &symbol_resolved_trees::callable_values::ResolvedSignatureInputs<'_>,
+    inherited: &[symbols::SymbolHandle],
+    depth: usize,
+) -> ArgumentClosure {
+    if inputs.has_unresolved_inputs() || depth >= 128 {
+        return ArgumentClosure::ConstBinder;
+    }
+    let mut closure = ArgumentClosure::Closed;
+    for (scope, reference) in &inputs.types {
+        let mut bound = inherited.to_vec();
+        bound.extend(inputs.bound_symbols(*scope));
+        closure = closure.join(classify_scoped_type_reference(
+            binders,
+            trees,
+            reference,
+            &bound,
+            true,
+            depth + 1,
+        ));
+    }
+    for (scope, symbol) in &inputs.symbols {
+        if !inputs.is_bound(*scope, *symbol) && !inherited.contains(symbol) {
+            closure = closure.join(binder_closure(binders, trees, *symbol));
+        }
+    }
+    closure
+}
+
+fn classify_scoped_type_reference(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    reference: &symbol_resolved_trees::types::TypeReference,
+    bound: &[symbols::SymbolHandle],
+    in_signature: bool,
+    depth: usize,
+) -> ArgumentClosure {
     use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
     if depth >= 128 {
         return ArgumentClosure::ConstBinder;
     }
+    let classify_symbol = |symbol| {
+        if bound.contains(&symbol) {
+            ArgumentClosure::Closed
+        } else if in_signature && !symbol.is_valid() {
+            ArgumentClosure::ConstBinder
+        } else {
+            binder_closure(binders, trees, symbol)
+        }
+    };
+    let classify_child = |reference: &TypeReference| {
+        classify_scoped_type_reference(binders, trees, reference, bound, in_signature, depth + 1)
+    };
     match reference {
-        TypeReference::AliasUse { expansion, .. } => {
-            classify_type_reference(binders, trees, expansion, depth + 1)
+        TypeReference::AliasUse { expansion, .. } => classify_child(expansion),
+        TypeReference::Named { symbol, .. } => classify_symbol(*symbol),
+        TypeReference::DynamicTrait {
+            symbol, arguments, ..
+        } => {
+            let mut closure = classify_symbol(*symbol);
+            for argument in trees.child_type_references(*arguments) {
+                closure = closure.join(classify_child(argument));
+            }
+            closure
         }
-        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-            binder_closure(binders, trees, *symbol)
+        TypeReference::Callable { contract, .. } => {
+            classify_callable_contract(binders, trees, *contract, bound, depth + 1)
         }
-        TypeReference::Reference(reference) => classify_type_reference(
-            binders,
-            trees,
-            trees.child_type_reference(reference.referee),
-            depth + 1,
-        ),
-        TypeReference::Slice(slice) => classify_type_reference(
-            binders,
-            trees,
-            trees.child_type_reference(slice.element_type),
-            depth + 1,
-        ),
+        TypeReference::Reference(reference) => {
+            classify_child(trees.child_type_reference(reference.referee))
+        }
+        TypeReference::Slice(slice) => {
+            classify_child(trees.child_type_reference(slice.element_type))
+        }
         TypeReference::FixedArray(array) => {
             let extent = match &array.length {
                 FixedArrayLength::Literal(_) => ArgumentClosure::Closed,
@@ -1507,6 +1590,9 @@ fn classify_type_reference(
                 {
                     ArgumentClosure::Closed
                 }
+                FixedArrayLength::ConstParameter { symbol, .. } if in_signature => {
+                    classify_symbol(*symbol)
+                }
                 FixedArrayLength::ConstParameter { symbol, .. } => {
                     let extent = binder_closure(binders, trees, *symbol);
                     if extent == ArgumentClosure::Closed {
@@ -1515,24 +1601,22 @@ fn classify_type_reference(
                         extent
                     }
                 }
+                FixedArrayLength::Expression(reference) if in_signature => {
+                    classify_child(trees.child_type_reference(*reference))
+                }
+                FixedArrayLength::ConstCall { machine, .. } if in_signature => {
+                    classify_symbol(*machine)
+                }
                 FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
                     ArgumentClosure::ConstBinder
                 }
             };
-            extent.join(classify_type_reference(
-                binders,
-                trees,
+            extent.join(classify_child(
                 trees.child_type_reference(array.element_type),
-                depth + 1,
             ))
         }
         TypeReference::Constrained(constrained) => {
-            let mut closure = classify_type_reference(
-                binders,
-                trees,
-                trees.child_type_reference(constrained.base_type),
-                depth + 1,
-            );
+            let mut closure = classify_child(trees.child_type_reference(constrained.base_type));
             for constraint in trees
                 .tables
                 .types
@@ -1540,29 +1624,27 @@ fn classify_type_reference(
                 .span_or_empty(constrained.constraints)
             {
                 if let TypeConstraint::Domain(domain) = constraint {
-                    for handle in domain.arguments.handles() {
-                        closure = closure.join(classify_type_reference(
-                            binders,
-                            trees,
-                            trees.child_type_reference(handle),
-                            depth + 1,
-                        ));
+                    for reference in trees.child_type_references(domain.arguments) {
+                        closure = closure.join(classify_child(reference));
                     }
                 }
             }
             closure
         }
         TypeReference::Generic(generic) => {
-            let mut closure = binder_closure(binders, trees, generic.base_symbol);
-            for handle in generic.arguments.handles() {
-                closure = closure.join(classify_type_reference(
-                    binders,
-                    trees,
-                    trees.child_type_reference(handle),
-                    depth + 1,
-                ));
+            let mut closure = classify_symbol(generic.base_symbol);
+            for reference in trees.child_type_references(generic.arguments) {
+                closure = closure.join(classify_child(reference));
             }
             closure
+        }
+        TypeReference::ConstExpression(expression) if in_signature => {
+            let inputs =
+                symbol_resolved_trees::callable_values::ResolvedSignatureInputs::of_expression(
+                    trees,
+                    expression.expression,
+                );
+            classify_signature_inputs(binders, trees, &inputs, bound, depth + 1)
         }
         TypeReference::ConstExpression(_) => ArgumentClosure::ConstBinder,
         TypeReference::Unit => ArgumentClosure::Closed,

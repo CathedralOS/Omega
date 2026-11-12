@@ -13,6 +13,9 @@
     substitutions, and evaluation scratch are not program representations.
 */
 
+#[path = "preparation_callable_signatures.rs"]
+pub(in crate::preparation) mod callable_signatures;
+
 pub(crate) mod declaration_selection {
     /*
         Shared declaration selection before complete symbol assignment.
@@ -3138,6 +3141,20 @@ pub(crate) mod trait_defaults {
                         })
                 }
             }
+            TypeReferenceNode::Callable { signature } => {
+                let original = syntax.items.state_signature(signature).clone();
+                let copied = instantiate_default_signature(
+                    syntax,
+                    &original,
+                    substitution,
+                    ItemHandle::invalid(),
+                    &[],
+                );
+                let signature = syntax.items.insert_state_signature(&copied);
+                syntax
+                    .type_references
+                    .insert(TypeReferenceNode::Callable { signature })
+            }
             TypeReferenceNode::StaticSelection(selection) => {
                 let mut changed = false;
                 let selected =
@@ -3183,9 +3200,14 @@ pub(crate) mod trait_defaults {
         let snapshot = syntax.clone();
         let type_watermark = syntax.type_references.node_count();
         let copied = syntax.copy_state_signature_in_lifetime_scope(&snapshot, signature, lifetimes);
+        let bound_occurrences =
+            crate::preparation::callable_signatures::bound_type_occurrences(syntax, &copied);
         for (handle, name) in
             syntax_type_references(syntax).named_nodes_from(type_watermark, syntax)
         {
+            if bound_occurrences.contains(&handle) {
+                continue;
+            }
             let Some(argument) = substitution.get(&name) else {
                 continue;
             };
@@ -3196,7 +3218,8 @@ pub(crate) mod trait_defaults {
                 .map(|alias| alias.application)
                 .collect::<Vec<_>>();
             for application in applications {
-                if matches!(syntax.type_references.supplied_operand_owner(application), Ok(owner) if !owner.is_valid())
+                if supplying_declaration.is_valid()
+                    && matches!(syntax.type_references.supplied_operand_owner(application), Ok(owner) if !owner.is_valid())
                 {
                     syntax
                         .type_references
@@ -3214,10 +3237,12 @@ pub(crate) mod trait_defaults {
             for alias in authored_aliases {
                 syntax.type_references.retain_type_alias_application(alias);
             }
-            if matches!(
-                syntax.type_references.supplied_operand_owner(supplied),
-                Ok(owner) if !owner.is_valid()
-            ) {
+            if supplying_declaration.is_valid()
+                && matches!(
+                    syntax.type_references.supplied_operand_owner(supplied),
+                    Ok(owner) if !owner.is_valid()
+                )
+            {
                 syntax
                     .tables
                     .type_references

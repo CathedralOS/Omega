@@ -397,6 +397,7 @@ pub mod control_flow {
             Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
         )]
         pub struct TableCall {
+            pub callee: ExpressionHandle,
             pub receiver: HandleSpan<Identifier>,
             pub target: Identifier,
             pub target_is_static: bool,

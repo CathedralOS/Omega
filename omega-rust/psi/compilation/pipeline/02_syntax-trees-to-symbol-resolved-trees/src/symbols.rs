@@ -14,6 +14,8 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
 
+#[path = "symbols_runtime_callable_types.rs"]
+mod runtime_callable_types;
 #[path = "symbols_symbol_table.rs"]
 mod symbol_table;
 
@@ -62,6 +64,21 @@ mod contracts {
         symbols: &SymbolTable,
     ) -> Result<(), Vec<Diagnostic>> {
         let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
+        let runtime_scopes = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, declaration)| {
+                super::runtime_callable_types::lexical_parameters(
+                    program,
+                    &conformance_scopes,
+                    declaration.lexical_owner,
+                )
+                .map(|parameters| (handle, parameters))
+                .map_err(|error| vec![error])
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let attached_machines = super::scope::attached_machines(program);
         let trait_scopes = super::scope::TraitLexicalScopes::of(program);
         let SymbolResolvedTrees { roots, tables, .. } = program;
@@ -253,6 +270,31 @@ mod contracts {
                 symbols,
                 &scope,
                 &owner_parameters,
+                state_parameters.span_or_empty(signature.parameters),
+                signature.return_type.as_ref(),
+                signature.symbol,
+                signature.contracts,
+                signature_contracts,
+                proof_facts,
+                expression_table,
+                child_type_references,
+            );
+        }
+        for (handle, parameters) in &runtime_scopes {
+            let declaration = tables.declarations.runtime_callable_contracts.get(*handle);
+            let signature = &declaration.signature;
+            let scope = scope_context.scope(
+                signature.symbol,
+                super::scope::LexicalRequirements::none(),
+                parameters,
+                SymbolHandle::invalid(),
+                None,
+                &[],
+            );
+            assign_callable_value_symbols(
+                symbols,
+                &scope,
+                data_type_parameters.span_or_empty(signature.type_parameters),
                 state_parameters.span_or_empty(signature.parameters),
                 signature.return_type.as_ref(),
                 signature.symbol,
@@ -5410,8 +5452,20 @@ fn assign_program_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     generic_origin_frontier: usize,
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
+    runtime_callable_contracts: &[symbol_resolved_trees::callable_values::RuntimeCallableContractHandle],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = assign_top_level_symbols(program, symbols);
+    if let Err(error) = runtime_callable_scopes.bind_program(program) {
+        diagnostics.push(error);
+        return diagnostics;
+    }
+    if let Err(errors) =
+        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts)
+    {
+        diagnostics.extend(errors);
+        return diagnostics;
+    }
     assign_generic_application_origin_symbols(program, symbols, generic_origin_frontier);
     assign_type_reference_symbols(program, symbols);
     type_references::assign_declaration_type_value_expression_symbols(program, symbols);
@@ -5439,6 +5493,7 @@ pub(crate) fn assign_symbols(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -5452,9 +5507,16 @@ pub(crate) fn assign_symbols(
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = assign_program_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+        runtime_callable_scopes,
+        &runtime_callable_contracts,
+    );
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -5475,6 +5537,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
+    runtime_callable_scopes: &mut crate::runtime_callable_scopes::RuntimeCallableScopes,
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -5490,9 +5553,16 @@ pub(crate) fn assign_symbols_against_resolved_base(
     let mut symbols = program.symbols.clone();
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    let runtime_callable_contracts = symbol_table::append_runtime_callable_symbols(program);
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = assign_program_symbols(
+        program,
+        &symbols,
+        generic_origin_frontier,
+        runtime_callable_scopes,
+        &runtime_callable_contracts,
+    );
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -5595,6 +5665,7 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
             &operand_bindings,
+            &mut lowerer.runtime_callable_scopes,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -5611,6 +5682,7 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
                 &operand_bindings,
+                &mut lowerer.runtime_callable_scopes,
             )?;
         }
     }
@@ -5643,7 +5715,18 @@ pub(crate) fn assign_body_symbols(
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
+    let runtime_callable_contracts =
+        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
+    lowerer
+        .runtime_callable_scopes
+        .bind_program(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    runtime_callable_types::assign_signatures(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+    )?;
     assign_generic_application_origin_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
@@ -5694,7 +5777,18 @@ pub(crate) fn assign_lexical_inputs(
             &mut input.locals,
         );
     }
+    let runtime_callable_contracts =
+        symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
+    lowerer
+        .runtime_callable_scopes
+        .bind_program(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    runtime_callable_types::assign_signatures(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+    )?;
     statements::assign_lexical_input_reference_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,

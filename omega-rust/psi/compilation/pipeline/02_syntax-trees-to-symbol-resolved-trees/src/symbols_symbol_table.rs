@@ -18,7 +18,7 @@ mod children {
         The child modules hold the insertion for builtin types, data, machines,
         mathematical definitions, domains and operators (both in `operators`),
         propositions and traits. This file holds the two small cases, measures and
-        named conformances, and `insert_machine_parameter_signature_children`,
+        named conformances, and `insert_callable_signature_children`,
         which the conformance, data, machine and trait insertions use for
         machine-parameter signatures.
 
@@ -437,7 +437,7 @@ mod children {
                             .map(|clause| &clause.signature),
                     ),
             ) {
-                super::insert_machine_parameter_signature_children(
+                super::insert_callable_signature_children(
                     builder,
                     program,
                     machine_symbol,
@@ -450,7 +450,7 @@ mod children {
     mod type_aliases {
         /* Alias parameters belong to the source declaration, without runtime children. */
 
-        use super::insert_machine_parameter_signature_children;
+        use super::insert_callable_signature_children;
         use crate::symbols::symbol_table::names::{parameter_seeds, type_parameter_seeds};
         use symbol_resolved_trees::SymbolResolvedTrees;
         use symbol_resolved_trees::data::TypeParameterKind;
@@ -476,7 +476,7 @@ mod children {
                 match &parameter.kind {
                     TypeParameterKind::Machine { contract } => {
                         if let Some(contract) = contract.structural() {
-                            insert_machine_parameter_signature_children(
+                            insert_callable_signature_children(
                                 builder,
                                 program,
                                 symbol,
@@ -550,7 +550,7 @@ mod children {
             match &parameter.kind {
                 TypeParameterKind::Machine { contract } => {
                     if let Some(contract) = contract.structural() {
-                        insert_machine_parameter_signature_children(
+                        insert_callable_signature_children(
                             builder,
                             program,
                             parameter_symbol,
@@ -585,7 +585,7 @@ mod children {
         }
     }
 
-    fn insert_machine_parameter_signature_children(
+    pub(super) fn insert_callable_signature_children(
         builder: &mut impl SymbolTableAppender,
         program: &SymbolResolvedTrees,
         owner_symbol: SymbolHandle,
@@ -640,7 +640,7 @@ mod children {
             match &parameter.kind {
                 TypeParameterKind::Machine { contract } => {
                     if let Some(contract) = contract.structural() {
-                        insert_machine_parameter_signature_children(
+                        insert_callable_signature_children(
                             builder,
                             program,
                             parameter_symbol,
@@ -1184,6 +1184,56 @@ pub(super) fn insert_selected_machine_children(
         );
     }
     extension.finish()
+}
+
+pub(super) fn append_runtime_callable_symbols(
+    program: &mut SymbolResolvedTrees,
+) -> Vec<symbol_resolved_trees::callable_values::RuntimeCallableContractHandle> {
+    let pending = program
+        .tables
+        .declarations
+        .runtime_callable_contracts
+        .iter()
+        .filter(|(_, contract)| !contract.signature.symbol.is_valid())
+        .map(|(handle, contract)| (handle, contract.signature.clone()))
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return Vec::new();
+    }
+    let root = program.symbols.root();
+    let sources = program.symbols.source_map();
+    let has_sources = sources.is_some();
+    let mut extension = std::mem::take(&mut program.symbols).begin_extension(sources, Vec::new());
+    let mut appended = Vec::with_capacity(pending.len());
+    for (handle, signature) in pending {
+        let symbol = extension
+            .append_children(
+                root,
+                [symbol_seed(
+                    SymbolKind::CallableContract,
+                    &signature.name,
+                    has_sources,
+                )],
+            )
+            .start();
+        children::insert_callable_signature_children(
+            &mut extension,
+            program,
+            symbol,
+            &signature,
+            has_sources,
+        );
+        program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .get_mut(handle)
+            .signature
+            .symbol = symbol;
+        appended.push(handle);
+    }
+    program.symbols = extension.finish();
+    appended
 }
 
 /*

@@ -1051,7 +1051,7 @@ mod expressions {
         }
     }
 
-    pub(in crate::preparation::generic_data) fn visit_static_argument_type_inputs(
+    pub(in crate::preparation) fn visit_static_argument_type_inputs(
         syntax: &SyntaxTrees,
         arguments: &[syntax_trees::expression::StaticMachineArgument],
         visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
@@ -1229,6 +1229,7 @@ mod expressions {
                 collect_expression_handles(syntax, assignment.value, handles);
             }
             StatementNode::Call(call) => {
+                collect_expression_handles(syntax, call.callee, handles);
                 for argument in syntax.tables.statements.expression_handles(call.arguments) {
                     collect_expression_handles(syntax, *argument, handles);
                 }
@@ -1311,6 +1312,7 @@ mod expressions {
             }
             ExpressionNode::Cast(cast) => collect_expression_handles(syntax, cast.value, handles),
             ExpressionNode::Call(call) => {
+                collect_expression_handles(syntax, call.callee, handles);
                 collect_expression_handles(syntax, call.receiver, handles);
                 for argument in syntax.expressions.expression_handles(call.arguments) {
                     collect_expression_handles(syntax, *argument, handles);
@@ -1789,7 +1791,7 @@ mod patterns {
 }
 
 pub(in crate::preparation) use expressions::visit_expression_type_inputs;
-pub(super) use expressions::visit_static_argument_type_inputs;
+pub(in crate::preparation) use expressions::visit_static_argument_type_inputs;
 pub(crate) use expressions::{statement_call_inputs, statement_type_inputs};
 
 pub(super) use assignments::{

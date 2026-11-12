@@ -40,6 +40,7 @@ pub mod type_system {
                             format!("{}<{arguments}>", generic.base_name)
                         }
                         TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
+                        TypeReference::Callable { .. } => "machine(<contract>)".to_owned(),
                         TypeReference::DynamicTrait {
                             name, arguments, ..
                         } => match arguments.count() {
@@ -170,6 +171,10 @@ pub mod type_system {
             Slice(SliceTypeReference),
             Generic(GenericTypeReference),
             ConstExpression(ConstExpressionTypeReference),
+            Callable {
+                contract: crate::callable_values::RuntimeCallableContractHandle,
+                supplied_operand_owner: OperandLifetimeOwnerHandle,
+            },
             DynamicTrait {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -651,6 +656,11 @@ pub mod type_system {
                             arguments,
                         })
                     }
+                    TypeReference::Callable { contract, .. } => {
+                        self.insert(TypeReferenceNode::Callable {
+                            contract: *contract,
+                        })
+                    }
                     TypeReference::Named { symbol, name, .. } => {
                         self.insert(TypeReferenceNode::Named {
                             symbol: *symbol,
@@ -716,6 +726,10 @@ pub mod type_system {
                         supplied_operand_owner,
                         ..
                     }
+                    | Self::Callable {
+                        supplied_operand_owner,
+                        ..
+                    }
                     | Self::AliasUse {
                         supplied_operand_owner,
                         ..
@@ -745,6 +759,10 @@ pub mod type_system {
                         ..
                     }
                     | Self::DynamicTrait {
+                        supplied_operand_owner,
+                        ..
+                    }
+                    | Self::Callable {
                         supplied_operand_owner,
                         ..
                     }
@@ -789,6 +807,9 @@ pub mod type_system {
                 arguments: HandleSpan<TypeReferenceHandle>,
             },
             ConstExpression(crate::expression::ExpressionHandle),
+            Callable {
+                contract: crate::callable_values::RuntimeCallableContractHandle,
+            },
             DynamicTrait {
                 symbol: SymbolHandle,
                 name: DiagnosticName,
@@ -902,6 +923,7 @@ pub mod type_system {
                     | TypeReference::Slice(_)
                     | TypeReference::Generic(_)
                     | TypeReference::ConstExpression(_)
+                    | TypeReference::Callable { .. }
                     | TypeReference::DynamicTrait { .. }
                     | TypeReference::Unit => None,
                 }

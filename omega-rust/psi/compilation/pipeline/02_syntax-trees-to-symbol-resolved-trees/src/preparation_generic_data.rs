@@ -1230,29 +1230,39 @@ pub(crate) mod domain_heads {
             let mut types = Vec::new();
             for member in syntax.items.data_members(definition.members) {
                 match member {
-                    DataMember::Field(field) => types.push(field.type_reference),
+                    DataMember::Field(field) => {
+                        types.push((field.type_reference, Vec::<String>::new()))
+                    }
                     DataMember::Variant(variant) => types.extend(
                         syntax_items(syntax)
                             .data_payload_fields(variant.payload)
                             .iter()
-                            .map(|field| field.type_reference),
+                            .map(|field| (field.type_reference, Vec::<String>::new())),
                     ),
                     DataMember::Retired(_) => {}
                 }
             }
-            while let Some(site) = types.pop() {
+            while let Some((site, hidden)) = types.pop() {
                 match syntax.type_references.type_reference(site) {
-                    TypeReferenceNode::Reference { referee, .. } => types.push(*referee),
-                    TypeReferenceNode::FixedArray { element_type, .. }
-                    | TypeReferenceNode::Slice { element_type } => types.push(*element_type),
-                    TypeReferenceNode::Generic { arguments, .. } => {
-                        types.extend(syntax.type_references.type_reference_handles(*arguments))
+                    TypeReferenceNode::Reference { referee, .. } => {
+                        types.push((*referee, hidden.clone()))
                     }
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => {
+                        types.push((*element_type, hidden.clone()))
+                    }
+                    TypeReferenceNode::Generic { arguments, .. } => types.extend(
+                        syntax
+                            .type_references
+                            .type_reference_handles(*arguments)
+                            .iter()
+                            .map(|reference| (*reference, hidden.clone())),
+                    ),
                     TypeReferenceNode::Constrained {
                         base_type,
                         constraints,
                     } => {
-                        types.push(*base_type);
+                        types.push((*base_type, hidden.clone()));
                         for (ordinal, constraint) in syntax_type_references(syntax)
                             .constraints(*constraints)
                             .iter()
@@ -1263,17 +1273,19 @@ pub(crate) mod domain_heads {
                             };
                             types.extend(
                                 syntax_type_references(syntax)
-                                    .type_reference_handles(domain.arguments),
+                                    .type_reference_handles(domain.arguments)
+                                    .iter()
+                                    .map(|reference| (*reference, hidden.clone())),
                             );
                             let Some((carrier, leaf)) =
                                 domain.name.as_str(syntax).rsplit_once("::")
                             else {
                                 continue;
                             };
-                            let Some(parameter) = parameters
-                                .iter()
-                                .find(|parameter| parameter.name.as_str(syntax) == carrier)
-                            else {
+                            let Some(parameter) = parameters.iter().find(|parameter| {
+                                parameter.name.as_str(syntax) == carrier
+                                    && !hidden.iter().any(|name| name == carrier)
+                            }) else {
                                 continue;
                             };
                             if !matches!(parameter.kind, TypeParameterKind::Type)
@@ -1296,8 +1308,38 @@ pub(crate) mod domain_heads {
                         super::uses::visit_static_argument_type_inputs(
                             syntax,
                             std::slice::from_ref(selection),
-                            &mut |reference| types.push(reference),
+                            &mut |reference| types.push((reference, hidden.clone())),
                         );
+                    }
+                    TypeReferenceNode::Callable { signature } => {
+                        let inputs = crate::preparation::callable_signatures::SignatureInputs::of(
+                            syntax,
+                            syntax.items.state_signature(*signature),
+                        );
+                        for (scope, reference) in &inputs.types {
+                            let mut hidden = hidden.clone();
+                            hidden.extend(inputs.bound_types(*scope));
+                            types.push((*reference, hidden));
+                        }
+                        for (scope, expression) in &inputs.expressions {
+                            let mut hidden = hidden.clone();
+                            hidden.extend(inputs.bound_types(*scope));
+                            let mut expressions = std::collections::HashSet::new();
+                            crate::preparation::generic_data::collect_expression_handles(
+                                syntax,
+                                *expression,
+                                &mut expressions,
+                            );
+                            for expression in expressions {
+                                crate::preparation::generic_data::visit_expression_type_inputs(
+                                    syntax,
+                                    expression,
+                                    &mut |reference| {
+                                        types.push((reference, hidden.clone()));
+                                    },
+                                );
+                            }
+                        }
                     }
                     TypeReferenceNode::Named(_)
                     | TypeReferenceNode::DynamicTrait { .. }
@@ -1554,6 +1596,7 @@ mod eligibility {
                 }
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
+                | TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => {}
@@ -3959,6 +4002,7 @@ mod work_domain {
 
 pub(super) use uses::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
+    visit_static_argument_type_inputs,
 };
 pub(crate) use uses::{statement_call_inputs, statement_type_inputs};
 

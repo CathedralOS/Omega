@@ -50,6 +50,8 @@ pub(crate) mod kind {
             signature contract.
         */
         MachineParameter,
+        /* A structural runtime callable contract with its own formal namespace. */
+        CallableContract,
         /*
             A generic proof-formula family. It is applicable only in proof-fact
             position and owns the value-parameter symbols of its authored

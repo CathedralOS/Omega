@@ -268,6 +268,9 @@ mod routing {
                 assign_expr!(assignment.value);
             }
             symbol_resolved_trees::statement::Statement::Call(call) => {
+                if call.callee.is_valid() {
+                    assign_expr!(call.callee);
+                }
                 assign_expression_span_symbols(
                     symbols,
                     machine,

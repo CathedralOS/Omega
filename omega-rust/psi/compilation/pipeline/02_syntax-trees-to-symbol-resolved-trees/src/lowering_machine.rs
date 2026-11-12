@@ -112,7 +112,7 @@ mod token_bindings {
         or domain.
     */
     pub(crate) fn reject_duplicate_direct_token_bindings(
-        program: &SymbolResolvedTrees,
+        program: &mut SymbolResolvedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
         // A retained forest also contains declarations excluded from this
         // activation. Only the selected frontier supplies token bindings; an
@@ -156,6 +156,7 @@ mod token_bindings {
         }
         let mut bindings: Vec<TokenBinding<'_>> = Vec::new();
         let mut diagnostics = Vec::new();
+        let mut pending = Vec::new();
         for binding in machine_bindings {
             if let Some(diagnostic) = binding.missing_semantic_home(program) {
                 diagnostics.push(diagnostic);
@@ -169,6 +170,17 @@ mod token_bindings {
                 diagnostics.push(diagnostic);
                 continue;
             }
+            pending.extend(
+                bindings
+                    .iter()
+                    .filter(|earlier| earlier.needs_typed_comparison(program, &binding))
+                    .map(
+                        |earlier| symbol_resolved_trees::PendingTokenShapeComparison {
+                            earlier: earlier.symbol,
+                            later: binding.symbol,
+                        },
+                    ),
+            );
             if let Some(earlier) = bindings
                 .iter()
                 .find(|earlier| earlier.repeats(program, &binding))
@@ -183,6 +195,17 @@ mod token_bindings {
                 diagnostics.push(diagnostic);
                 continue;
             }
+            pending.extend(
+                bindings
+                    .iter()
+                    .filter(|earlier| earlier.needs_typed_comparison(program, binding))
+                    .map(
+                        |earlier| symbol_resolved_trees::PendingTokenShapeComparison {
+                            earlier: earlier.symbol,
+                            later: binding.symbol,
+                        },
+                    ),
+            );
             if let Some(earlier) = bindings
                 .iter()
                 .find(|earlier| earlier.repeats(program, binding))
@@ -191,6 +214,7 @@ mod token_bindings {
             }
         }
         if diagnostics.is_empty() {
+            program.pending_token_shape_comparisons.extend(pending);
             Ok(())
         } else {
             Err(diagnostics)
@@ -218,7 +242,7 @@ mod token_bindings {
             operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
                 .operand_shape(entry_parameters(program, machine)),
             operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
-                .operand_shape(entry_parameters(program, machine)),
+                .operand_display(entry_parameters(program, machine)),
         }
     }
 
@@ -267,7 +291,7 @@ mod token_bindings {
             Duplicate-detection key: resolved symbol identities and binder
             positions, never shown to the author.
         */
-        operand_shape: String,
+        operand_shape: Option<String>,
         /* The same operand shape in authored spellings, for diagnostics. */
         operand_display: String,
     }
@@ -276,7 +300,14 @@ mod token_bindings {
         fn repeats(&self, program: &SymbolResolvedTrees, other: &Self) -> bool {
             self.spelling == other.spelling
                 && self.same_owner(program, other)
+                && self.operand_shape.is_some()
                 && self.operand_shape == other.operand_shape
+        }
+
+        fn needs_typed_comparison(&self, program: &SymbolResolvedTrees, other: &Self) -> bool {
+            self.spelling == other.spelling
+                && self.same_owner(program, other)
+                && (self.operand_shape.is_none() || other.operand_shape.is_none())
         }
 
         fn same_owner(&self, program: &SymbolResolvedTrees, other: &Self) -> bool {
@@ -369,7 +400,7 @@ mod token_bindings {
                         self.name,
                         self.spelling.symbol(),
                         self.owner_spelling,
-                        self.operand_shape
+                        self.operand_display
                     )
                 }
                 BindingOwner::Domain { domain, carrier } => {
@@ -386,7 +417,7 @@ mod token_bindings {
                         self.name,
                         self.spelling.symbol(),
                         self.owner_spelling,
-                        self.operand_shape
+                        self.operand_display
                     )
                 }
                 BindingOwner::Module(_) => return None,
@@ -548,7 +579,7 @@ mod token_bindings {
             operand_shape: ShapeNormalizer::new(program, operator.type_parameters)
                 .operand_shape(program.state_parameters(operator.parameters)),
             operand_display: ShapeNormalizer::for_display(program, operator.type_parameters)
-                .operand_shape(program.state_parameters(operator.parameters)),
+                .operand_display(program.state_parameters(operator.parameters)),
         }
     }
 
@@ -679,6 +710,25 @@ mod token_bindings {
                 if scope == ReadingScope::EveryArgument {
                     for argument in program.child_type_references(*arguments) {
                         extend_name_positions(program, argument, scope, positions);
+                    }
+                }
+            }
+            TypeReference::Callable { contract, .. } => {
+                if matches!(
+                    scope,
+                    ReadingScope::EveryArgument | ReadingScope::GenericArguments
+                ) {
+                    let signature = &program
+                        .tables
+                        .declarations
+                        .runtime_callable_contracts
+                        .get(*contract)
+                        .signature;
+                    for parameter in program.state_parameters(signature.parameters) {
+                        extend_name_positions(program, &parameter.type_reference, scope, positions);
+                    }
+                    if let Some(result) = &signature.return_type {
+                        extend_name_positions(program, result, scope, positions);
                     }
                 }
             }
@@ -1008,6 +1058,8 @@ mod token_bindings {
             `Wrapped`, not the arena slot that tells two same-spelled types apart.
         */
         display: bool,
+        callable_depth: usize,
+        has_dependent_callable_operand: bool,
     }
 
     impl<'program> ShapeNormalizer<'program> {
@@ -1020,6 +1072,8 @@ mod token_bindings {
                 own_binders: own_binders(program, type_parameters),
                 ordinals: HashMap::new(),
                 display: false,
+                callable_depth: 0,
+                has_dependent_callable_operand: false,
             }
         }
 
@@ -1033,7 +1087,12 @@ mod token_bindings {
             }
         }
 
-        fn operand_shape(&mut self, parameters: &[StateParameter]) -> String {
+        fn operand_shape(&mut self, parameters: &[StateParameter]) -> Option<String> {
+            let shape = self.operand_display(parameters);
+            (!self.has_dependent_callable_operand).then_some(shape)
+        }
+
+        fn operand_display(&mut self, parameters: &[StateParameter]) -> String {
             parameters
                 .iter()
                 .map(|parameter| self.parameter_shape(parameter))
@@ -1069,9 +1128,103 @@ mod token_bindings {
             symbol_or_spelling(symbol, spelling)
         }
 
+        fn callable_shape(
+            &mut self,
+            signature: &symbol_resolved_trees::signature::StateSignature,
+        ) -> String {
+            // This key distinguishes operand shapes, so the nested callable's
+            // parameters and result participate. Predicates and effects remain
+            // in its contract; they cannot distinguish enclosing token overloads.
+            let outer_binders = self.own_binders.clone();
+            let outer_ordinals = self.ordinals.clone();
+            self.own_binders
+                .extend(own_binders(self.program, signature.type_parameters));
+            self.callable_depth += 1;
+            let parameters = self
+                .program
+                .data_type_parameters(signature.type_parameters)
+                .to_vec();
+            let binders = parameters
+                .iter()
+                .map(|parameter| {
+                    use symbol_resolved_trees::data::{
+                        MachineParameterContract, TypeParameterKind,
+                    };
+                    let binder = self.binder_or_symbol(parameter.symbol, parameter.name.as_str());
+                    let kind = match &parameter.kind {
+                        TypeParameterKind::Type => "type".to_owned(),
+                        TypeParameterKind::Implementation => "implementation".to_owned(),
+                        TypeParameterKind::Const { type_reference } => {
+                            format!("const {}", self.type_shape(type_reference))
+                        }
+                        TypeParameterKind::Value { type_reference } => {
+                            format!("value {}", self.type_shape(type_reference))
+                        }
+                        TypeParameterKind::Machine {
+                            contract: MachineParameterContract::Structural(signature),
+                        } => self.callable_shape(signature),
+                        TypeParameterKind::Machine {
+                            contract:
+                                MachineParameterContract::Nominal {
+                                    requirement,
+                                    trait_arguments,
+                                    ..
+                                },
+                        } => {
+                            let arguments = self
+                                .program
+                                .child_type_references(*trait_arguments)
+                                .to_vec();
+                            format!(
+                                "nominal#{}<{}>",
+                                requirement.arena_index(),
+                                arguments
+                                    .iter()
+                                    .map(|argument| self.type_shape(argument))
+                                    .collect::<Vec<_>>()
+                                    .join(",")
+                            )
+                        }
+                        TypeParameterKind::Machine { .. } => {
+                            self.has_dependent_callable_operand = true;
+                            "pending machine".to_owned()
+                        }
+                        TypeParameterKind::Proposition { contract } => {
+                            let parameters =
+                                self.program.state_parameters(contract.parameters).to_vec();
+                            format!("proposition({})", self.operand_display(&parameters))
+                        }
+                    };
+                    format!("{binder}:{kind}")
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            let parameters = self.program.state_parameters(signature.parameters).to_vec();
+            let operands = self.operand_display(&parameters);
+            let result = signature
+                .return_type
+                .as_ref()
+                .map_or_else(|| "()".to_owned(), |result| self.type_shape(result));
+            self.callable_depth -= 1;
+            self.own_binders = outer_binders;
+            self.ordinals = outer_ordinals;
+            format!("machine<{binders}>({operands})->{result}")
+        }
+
         fn type_shape(&mut self, type_reference: &TypeReference) -> String {
             match type_reference {
                 TypeReference::AliasUse { expansion, .. } => self.type_shape(expansion),
+                TypeReference::Callable { contract, .. } => {
+                    let signature = self
+                        .program
+                        .tables
+                        .declarations
+                        .runtime_callable_contracts
+                        .get(*contract)
+                        .signature
+                        .clone();
+                    self.callable_shape(&signature)
+                }
                 TypeReference::Reference(reference) => {
                     let access = match reference.access {
                         ReferenceAccess::Shared => "&",
@@ -1109,11 +1262,23 @@ mod token_bindings {
                 }
                 TypeReference::FixedArray(fixed_array) => {
                     let element_type = self.program.child_type_reference(fixed_array.element_type);
-                    format!(
-                        "[{}; {}]",
-                        self.type_shape(element_type),
-                        fixed_array.length
-                    )
+                    let length = match &fixed_array.length {
+                        symbol_resolved_trees::types::FixedArrayLength::Literal(value) => {
+                            value.to_string()
+                        }
+                        symbol_resolved_trees::types::FixedArrayLength::ConstParameter {
+                            symbol,
+                            name,
+                        } => self.binder_or_symbol(*symbol, name.as_str()),
+                        symbol_resolved_trees::types::FixedArrayLength::ConstCall {
+                            machine,
+                            name,
+                        } => self.binder_or_symbol(*machine, name.as_str()),
+                        symbol_resolved_trees::types::FixedArrayLength::Expression(reference) => {
+                            self.type_shape(self.program.child_type_reference(*reference))
+                        }
+                    };
+                    format!("[{}; {length}]", self.type_shape(element_type))
                 }
                 TypeReference::Slice(slice) => {
                     let element_type = self.program.child_type_reference(slice.element_type);
@@ -1132,10 +1297,17 @@ mod token_bindings {
                         self.binder_or_symbol(generic.base_symbol, generic.base_name.as_str())
                     )
                 }
-                TypeReference::ConstExpression(expression) => format!(
-                    "const({})",
-                    body_expressions(self.program).display_name(expression.expression)
-                ),
+                TypeReference::ConstExpression(expression) => {
+                    if self.callable_depth != 0 && !self.display {
+                        // No source rendering or placeholder is a dependent type
+                        // identity. The stored pair must be checked after lowering.
+                        self.has_dependent_callable_operand = true;
+                    }
+                    format!(
+                        "const({})",
+                        body_expressions(self.program).display_name(expression.expression)
+                    )
+                }
                 TypeReference::DynamicTrait {
                     symbol,
                     name,
@@ -1400,8 +1572,13 @@ fn lower_lexical_machine_into(
     machine: &syntax::item::Machine,
     lexical_parent: Handle<Machine>,
 ) -> Result<(), Diagnostic> {
-    lowerer.with_authored_expression_exposure(machine_interface_exposure(machine), |lowerer| {
-        lower_lexical_machine_parts(lowerer, syntax_trees, machine, lexical_parent)
+    let owner = crate::runtime_callable_scopes::CallableScopeOwner::Machine(
+        lowerer.symbol_resolved_trees.machines.len(),
+    );
+    lowerer.with_runtime_callable_scope(owner, |lowerer| {
+        lowerer.with_authored_expression_exposure(machine_interface_exposure(machine), |lowerer| {
+            lower_lexical_machine_parts(lowerer, syntax_trees, machine, lexical_parent)
+        })
     })
 }
 
@@ -1776,9 +1953,14 @@ fn with_pending_machine_scope<T>(
         .map(|binding| binding.as_str(syntax).to_owned())
         .collect();
     let previous_evidence = replace(&mut lowerer.current_evidence_term_names, evidence_names);
-    let result = lowerer.with_authored_expression_exposure(
-        AuthoredDeclarationSelectionExposure::PrivateImplementation,
-        operation,
+    let result = lowerer.with_runtime_callable_scope(
+        crate::runtime_callable_scopes::CallableScopeOwner::Machine(pending.machine_ordinal),
+        |lowerer| {
+            lowerer.with_authored_expression_exposure(
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                operation,
+            )
+        },
     );
     lowerer.defer_machine_bodies = previous_defer;
     lowerer.current_compiler_selection_partition = previous_partition;

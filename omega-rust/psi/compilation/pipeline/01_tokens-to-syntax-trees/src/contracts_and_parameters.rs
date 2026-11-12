@@ -546,6 +546,7 @@ pub(crate) mod contracts {
                         let (predicate, rest) = input.take_identifier()?;
                         input = rest;
                         exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
+                            callee: ExpressionHandle::invalid(),
                             target_is_static: false,
                             receiver: value,
                             target: predicate,
@@ -1939,10 +1940,47 @@ pub(crate) mod parameters {
             name: syntax_trees::identifier::Identifier,
             input: Input<'tokens, 'source>,
         ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
-            // A contract may contain comparisons and comma-separated facts.
-            // Try complete contracts at the enclosing generic delimiters, keeping
-            // their punctuation out of the ordinary signature parser. Failed
-            // attempts publish no syntax, just like static argument parsing.
+            parse_callable_contract(
+                syntax_trees,
+                name,
+                input,
+                &[
+                    PunctuationKind::Greater,
+                    PunctuationKind::GreaterGreater,
+                    PunctuationKind::Comma,
+                ],
+            )
+        }
+
+        pub(crate) fn parse_runtime_machine_contract<'tokens, 'source>(
+            syntax_trees: &mut SyntaxTrees,
+            name: syntax_trees::identifier::Identifier,
+            input: Input<'tokens, 'source>,
+        ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
+            parse_callable_contract(
+                syntax_trees,
+                name,
+                input,
+                &[
+                    PunctuationKind::Equal,
+                    PunctuationKind::Comma,
+                    PunctuationKind::RightParen,
+                    PunctuationKind::RightBracket,
+                    PunctuationKind::Greater,
+                    PunctuationKind::GreaterGreater,
+                ],
+            )
+        }
+
+        fn parse_callable_contract<'tokens, 'source>(
+            syntax_trees: &mut SyntaxTrees,
+            name: syntax_trees::identifier::Identifier,
+            input: Input<'tokens, 'source>,
+            delimiters: &[PunctuationKind],
+        ) -> ParseResult<'tokens, 'source, syntax_trees::item::StateSignature> {
+            // Callable contracts use the ordinary machine grammar. Their facts
+            // may contain comparisons and commas, so admit a boundary only after
+            // the complete signature parses. Failed probes publish no syntax.
             let mut bounded = input;
             for delimiter in [PunctuationKind::LeftBrace, PunctuationKind::Semicolon] {
                 if let Ok((prefix, _)) =
@@ -1951,15 +1989,11 @@ pub(crate) mod parameters {
                     bounded = prefix;
                 }
             }
-            let mut boundaries = Vec::new();
-            for delimiter in [
-                PunctuationKind::Greater,
-                PunctuationKind::GreaterGreater,
-                PunctuationKind::Comma,
-            ] {
+            let mut boundaries = vec![(bounded.tokens.len(), false)];
+            for &delimiter in delimiters {
                 let mut remaining = bounded;
                 while let Ok((_, rest)) =
-                    remaining.split_at_top_level_punctuation(delimiter, "generic delimiter")
+                    remaining.split_at_top_level_punctuation(delimiter, "callable type delimiter")
                 {
                     let index = input.tokens.len()
                         - rest.tokens.len()
@@ -1988,7 +2022,8 @@ pub(crate) mod parameters {
                 }
                 syntax_trees.rewind_appended(attempt);
             }
-            Err(input.error_here("expected a complete callable contract followed by `,` or `>`"))
+            Err(input
+                .error_here("expected a complete callable contract before its enclosing delimiter"))
         }
 
         pub(crate) fn validate_machine_parameter_contracts(
