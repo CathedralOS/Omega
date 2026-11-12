@@ -52,6 +52,8 @@ class MutantRecord:
     spec_heading: str = ""
     obligation_line: str = ""
     route_reason: str = ""
+    accepted_by: str = ""
+    validity_note: str = ""
     seconds: float = 0.0
 
 
@@ -307,8 +309,8 @@ def save_progress(done: set[str], counts: dict[str, int]) -> None:
 
 TSV_HEADER = (
     "original_fixture\tmutation_kind\tmutant_path\tcurrent_verdict\t"
-    "route_verdict\thand_check\tdisposition\tspec_heading\tspec_path\t"
-    "obligation_line\troute_reason\tseconds\n"
+    "route_verdict\thand_check\tdisposition\taccepted_by\tspec_heading\tspec_path\t"
+    "obligation_line\troute_reason\tvalidity_note\tseconds\n"
 )
 
 
@@ -320,8 +322,9 @@ def append_tsv(rows: list[MutantRecord]) -> None:
             handle.write(
                 f"{row.original_fixture}\t{row.mutation_kind}\t{row.mutant_path}\t"
                 f"{row.current_verdict}\t{row.route_verdict}\t{row.hand_check}\t"
-                f"{row.disposition}\t{row.spec_heading}\t{row.spec_path}\t"
-                f"{row.obligation_line}\t{row.route_reason}\t{row.seconds:.3f}\n"
+                f"{row.disposition}\t{row.accepted_by}\t{row.spec_heading}\t{row.spec_path}\t"
+                f"{row.obligation_line}\t{row.route_reason}\t{row.validity_note}\t"
+                f"{row.seconds:.3f}\n"
             )
 
 
@@ -340,6 +343,24 @@ def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:
 def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
     if len(cols) < 7:
         return None
+    if len(cols) >= 13:
+        return MutantRecord(
+            original_fixture=cols[0],
+            mutation_kind=cols[1],
+            mutant_path=cols[2],
+            current_verdict=cols[3],
+            route_verdict=cols[4],
+            hand_check=cols[5],
+            disposition=cols[6],
+            accepted_by=cols[7],
+            spec_heading=cols[8],
+            spec_path=cols[9],
+            obligation_line=cols[10],
+            route_reason=cols[11],
+            validity_note=cols[12] if len(cols) > 12 else "",
+            seconds=float(cols[13]) if len(cols) > 13 and cols[13] else 0.0,
+            spec_quote=spec_quote_for_kind(cols[1]),
+        )
     if len(cols) >= 12:
         return MutantRecord(
             original_fixture=cols[0],
@@ -355,20 +376,6 @@ def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
             route_reason=cols[10],
             seconds=float(cols[11]) if cols[11] else 0.0,
             spec_quote=spec_quote_for_kind(cols[1]),
-        )
-    if len(cols) >= 11:
-        return MutantRecord(
-            original_fixture=cols[0],
-            mutation_kind=cols[1],
-            mutant_path=cols[2],
-            current_verdict=cols[3],
-            route_verdict=cols[4],
-            hand_check=cols[5],
-            disposition=cols[6],
-            spec_heading=cols[7],
-            spec_path=cols[8],
-            obligation_line=cols[9],
-            seconds=float(cols[10]) if cols[10] else 0.0,
         )
     return MutantRecord(
         original_fixture=cols[0],
@@ -431,6 +438,8 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
                 spec_heading=spec_heading,
                 obligation_line=result.obligation_line,
                 route_reason=result.route_reason or route_reason,
+                accepted_by=result.accepted_by,
+                validity_note=result.validity_note,
                 seconds=old.seconds,
             )
         )
@@ -467,10 +476,13 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
     buckets = bucket_counts_from_rows(rows)
     mutants_run = len(rows)
     bucket_sum = sum(buckets.get(b, 0) for b in BUCKETS)
-    confirmed = [row for row in rows if row.disposition == "confirmed-invalid"]
+    confirmed = [row for row in rows if row.disposition == "confirmed-hole"]
     by_kind: dict[str, int] = {}
+    by_accepted: dict[str, int] = {}
     for row in confirmed:
         by_kind[row.mutation_kind] = by_kind.get(row.mutation_kind, 0) + 1
+        if row.accepted_by:
+            by_accepted[row.accepted_by] = by_accepted.get(row.accepted_by, 0) + 1
 
     lines = [
         f"# Soundness mutations shard {SHARD}",
@@ -505,13 +517,19 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                 "without deleting prior mutants.",
             ),
             "",
-            "### Confirmed-invalid by mutation kind",
+            "### Confirmed-hole by mutation kind",
             "",
         ]
     )
     if by_kind:
         for kind, count in sorted(by_kind.items(), key=lambda item: (-item[1], item[0])):
             lines.append(f"- `{kind}`: {count}")
+    else:
+        lines.append("_None._")
+    lines.extend(["", "### Confirmed-hole by accepted_by", ""])
+    if by_accepted:
+        for who, count in sorted(by_accepted.items()):
+            lines.append(f"- `{who}`: {count}")
     else:
         lines.append("_None._")
     lines.extend(
@@ -546,7 +564,9 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                     f"### {title} {index}: `{row.original_fixture}` / `{row.mutation_kind}`",
                     "",
                     f"- Obligation / note: `{row.obligation_line}`",
-                    f"- Route reason: `{row.route_reason}`",
+                    f"- Route reason (hint only): `{row.route_reason}`",
+                    f"- Validity note: `{row.validity_note}`",
+                    f"- Accepted by: `{row.accepted_by}`",
                     f"- Disposition: `{row.disposition}` ({row.hand_check})",
                     f"- Current verdict: **{row.current_verdict}** (exit {exit_code})",
                     f"- Route verdict: **{row.route_verdict}**",
@@ -571,7 +591,10 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                 ]
             )
 
-    hand_block("## Hand verification (5 confirmed-invalid)", confirmed[:5])
+    hand_block("## Hand verification (5 confirmed-hole)", confirmed[:5])
+    disagreement = [row for row in rows if row.disposition == "disagreement-valid"][:3]
+    if disagreement:
+        hand_block("## Hand verification (disagreement-valid sample)", disagreement)
     drop_discarded = [
         row
         for row in rows
@@ -582,7 +605,7 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
     hand_block("## Hand verification (5 discarded drop_requires)", drop_discarded)
     q7 = [row for row in rows if row.disposition == "known-gap-q7-mut"]
     hand_block("## Hand verification (5 known-gap-q7-mut)", q7[:5])
-    lines.extend(["## Confirmed-invalid entries", ""])
+    lines.extend(["## Confirmed-hole entries", ""])
     if not confirmed:
         lines.append("_None._")
     else:
@@ -594,7 +617,9 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
                     f"- Mutant: `{row.mutant_path}`",
                     f"- Current: **{row.current_verdict}** | Route: **{row.route_verdict}**",
                     f"- Obligation: `{row.obligation_line}`",
-                    f"- Route reason: `{row.route_reason}`",
+                    f"- Accepted by: **{row.accepted_by}**",
+                    f"- Validity note: `{row.validity_note}`",
+                    f"- Route reason (hint): `{row.route_reason}`",
                     "",
                     f"**{row.spec_path}** — *{row.spec_heading}*:",
                     "",
@@ -666,6 +691,8 @@ def process_fixture_mutations(
                 spec_heading=spec_heading,
                 obligation_line=result.obligation_line,
                 route_reason=result.route_reason or route_reason,
+                accepted_by=result.accepted_by,
+                validity_note=result.validity_note,
                 seconds=rsec,
             )
         )

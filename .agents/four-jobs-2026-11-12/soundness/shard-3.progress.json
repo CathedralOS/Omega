@@ -471,16 +471,26 @@
     "tests/omega/pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_field_exit/main.omg",
     "tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_const_name_exit/main.omg",
     "tests/omega/pass/facts/fixed_array_value_through_call_result_exit/main.omg",
-    "tests/omega/pass/facts/fixed_array_value_through_target_body_exit/main.omg"
+    "tests/omega/pass/facts/fixed_array_value_through_target_body_exit/main.omg",
+    "tests/omega/pass/facts/fixed_layout_bit_observation_through_parameter_exit/main.omg",
+    "tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit/main.omg",
+    "tests/omega/pass/facts/fixed_layout_reference_readback_through_match_join_exit/main.omg",
+    "tests/omega/pass/facts/fixed_layout_storage_through_const_name_exit/main.omg",
+    "tests/omega/pass/facts/fixed_region_byte_roundtrip_through_call_result_exit/main.omg",
+    "tests/omega/pass/facts/fixed_region_byte_roundtrip_through_target_body_exit/main.omg",
+    "tests/omega/pass/facts/float_comparison_route_through_parameter_exit/main.omg",
+    "tests/omega/pass/facts/float_meaning_result_through_other_state_exit/main.omg",
+    "tests/omega/pass/facts/float_range_delivery_through_other_machine_exit/main.omg",
+    "tests/omega/pass/facts/float_result_equality_through_match_join_exit/main.omg",
+    "tests/omega/pass/facts/foreign_byte_array_element_backing_through_local_exit/main.omg",
+    "tests/omega/pass/facts/foreign_indirect_float_record_result_through_field_exit/main.omg",
+    "tests/omega/pass/facts/foreign_nested_record_backing_const_name/main.omg",
+    "tests/omega/pass/facts/foreign_nested_record_backing_target_body/main.omg",
+    "tests/omega/pass/facts/foreign_package_service_reach_through_parameter_exit/main.omg"
   ],
   "counts": {
     "fixtures": 1130,
-    "fixtures_processed": 470,
-    "mutants_generated": 840,
-    "mutants_run": 840,
-    "kept": 433,
-    "discarded_valid": 0,
-    "discarded_no_rule": 0,
-    "discarded_both_reject": 407
+    "fixtures_processed": 485,
+    "mutants_generated": 911
   }
 }
