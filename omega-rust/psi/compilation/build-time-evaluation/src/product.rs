@@ -116,16 +116,6 @@ pub mod native_bindings {
                 errors.swap_remove(0)
             }
         })?;
-        let (_, signature) = typed
-            .trait_machine_signature(prepared.requirement)
-            .ok_or_else(|| refuse("applied native binding requirement lost its signature"))?;
-        if !typed.state_signature_type_parameters(signature).is_empty()
-            || !signature.lifetime_parameters.is_empty()
-        {
-            return Err(refuse(
-                "Build::bind cannot yet bind a requirement member that has static parameters of its own",
-            ));
-        }
         let scope = prepared.trait_scope.ok_or_else(|| {
             refuse(
                 "an applied native binding requirement must apply its owning boundary, as in `Owner<Arguments>::member`",
@@ -553,26 +543,6 @@ pub mod native_bindings {
                 "native binding requires a closed static boundary application: `{}` has static parameters, so name the application it is bound at, as in `{}<Arguments>::member`",
                 owner.name, owner.name,
             ));
-        }
-        // A generic boundary's `Calling<Policy>` is evaluated once per named
-        // implementation of it. A native row has no implementation, so its
-        // application would get no evaluated plan and fall back to the
-        // target's default calling application, silently dropping the policy
-        // the boundary declares. Refuse until a native application is itself
-        // a calling-policy instance.
-        if generic {
-            let vocabularies =
-                typed_trees::calling_vocabulary::standard_calling_vocabularies(typed);
-            if typed.trait_requirements(owner).iter().any(|requirement| {
-                vocabularies
-                    .iter()
-                    .any(|(calling, _)| requirement.symbol == calling.symbol)
-            }) {
-                return Err(format!(
-                    "Build::bind cannot yet bind an application of generic boundary `{}`, because it declares a Calling policy that would not be evaluated for a native binding",
-                    owner.name,
-                ));
-            }
         }
         Ok(ResolvedRequirement {
             subject: owner.symbol,
