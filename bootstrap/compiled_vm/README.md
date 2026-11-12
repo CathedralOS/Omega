@@ -390,7 +390,10 @@ transport, field writes, scoped shared/mutable reference parameters, independent
 Unit completion and a bounded default-domain solver. Its detailed supported
 semantics and refusals remain in [the compiler contract](../5_omega/README.md).
 This closes one actual successor helper; indexed SourceUnit append/read and the
-complete Omega compiler remain unfinished.
+complete Omega compiler remain unfinished. The integrated compiler source grows
+from 645,486 to 706,044 bytes (60,558 bytes, about 9.4%), including the shared
+parser extensions. This is the audit cost of generic record/place support, not
+a claim that the complete construction is now smaller or optimal.
 
 The first successful source-owned clear observation took 234.069 seconds. It
 used compiler 699,956 bytes,
@@ -440,5 +443,35 @@ All nine development-produced tapes executed with the expected exits
 42, 43, 44, 45, 46, 0, 2, 48 and 59. Sixteen refusals include a later overlapping
 read, nested invariant violation, carrier-invalid requirement bound, unsupported
 array equivalence and compiler reset. This is development evidence only;
-source-owned execution of this final expanded fixture and parser customer
-remains pending the shared-memory lane.
+source-owned execution of this final expanded storage fixture is recorded separately.
+
+
+The final 59-invocation parser customer passed through the same source-built
+Epsilon executable in 2,396.104 seconds on Linux x86-64. The exact 744,089-byte
+source had SHA-256
+`b5c761c1711dbf9c210d5aab44fc4255c8e8bff85b787f79377ce4c1872df40c`,
+joining compiler `9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`
+with the 38,045-byte entry
+`50ec5053fd956e9291355246b64d741da8914130767538877e25599b33112385`.
+Native status was zero, stderr empty and the exact observation was
+`000000000041` (Epsilon Exit(0), then `A`). The retained checks include actual
+SourceUnit rows, borrow-before-cast ownership, nested and returned records,
+field calls preserving outer arguments, bounded-context refusal and reset.
+All compiler and fixture bytes were checked against Git
+`d1ebbb8e459e879f296a0abbb95ed963934aee77`; captured transport/runtime identities
+were unchanged after execution. No interrupted run or timeout supplied this result.
+
+Final source-owned storage acceptance also passed on that frozen compiler and
+Git revision: 1,750.770 seconds for the Epsilon invocation, native status zero,
+empty stderr, and the exact 5,162-byte observation shown above. Every retained
+refusal asserted an empty, unfinalized tape; all nine published artifacts then
+executed with their expected exits and empty output. The actual SourceUnit
+customer remained the same 780 bytes throughout. These wall times describe
+individual runs on a shared host, not a controlled performance comparison.
+
+The separately repaired Rust development comparator
+`37b4f2188d46c0e12096a3dcfc6af629d124706d6c6050dacfb9a99bc6e61518`
+subsequently accepted that unchanged SourceUnit source through checked lowering
+and CanonicalTerminalArtifact in 320.101 seconds. This supplies independent
+admission/lowering correspondence, not native/Psi runtime evidence or a semantic
+stage in the bootstrap chain.
