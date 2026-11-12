@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DIR = Path(__file__).resolve().parents[1]
-TOOL = DIR / "tools" / "verify_at_commit.sh"
+TOOL = Path("/tmp/ledger-bisect-tools/verify_at_commit.sh")
 MEASURE = DIR / "work/pin_measure.txt"
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 
@@ -37,7 +37,7 @@ def rc(witness: str, sha: str) -> int:
     if ledger_only(sha):
         return -2
     subprocess.run(
-        [str(DIR / "tools/pin_bisect_context.py"), witness, str(MEASURE)],
+        ["python3", "/tmp/ledger-bisect-tools/pin_bisect_context.py", witness, str(MEASURE)],
         cwd=ROOT,
         check=True,
         stdout=subprocess.DEVNULL,

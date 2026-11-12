@@ -1,0 +1,22 @@
+{
+  "edge_good": "6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5",
+  "edge_bad": "225426a7aeeabfa4c945df67d3113dd27f46fb38",
+  "edge_parent": "ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5",
+  "good_anchor": "d785033a078018ce4ff17cd590f61dba897907b0",
+  "between_shas": [
+    "ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5",
+    "e580a2ef1990569f94b655938f495dfcd57454f7"
+  ],
+  "skipped_between": [
+  ],
+  "skip_reasons_from_bisect_log": {
+    "0ee11cf0b75b2c267d136bdec02cc593d321738d": "docs: spell task calls (#2199)",
+    "06af8fee3fe1183a2d61f3b3488b359e6e6fcdb7": "samples: record Linux coverage (#2179)",
+    "43ba5756faf0c4baf8b004a55ad358044cadeae3": "tests: re-record eight guard rows (#2165)",
+    "e580a2ef1990569f94b655938f495dfcd57454f7": "docs: say where representation hiding lives (#2167)",
+    "ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5": "docs: hosts bound bulk data (#2168)"
+  },
+  "isolated": false,
+  "verdict": "first-bad within range, not isolated",
+  "note": "git bisect left docs/tests-only parents between 6326c6ae and 225426a7; candidate bad from skip tail matches #2045, not an isolated first-parent edge"
+}

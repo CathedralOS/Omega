@@ -1,0 +1,18 @@
+{
+  "edge_bad": "d31209ea0d20231819cedbc47442baa3335792a5",
+  "edge_parent": "49ceaa29fd03ae651879205bce89b078d1c1ce8a",
+  "good_anchor": "ffc4d649fa8c2244d87091f8b8a694db7a181036",
+  "isolated": false,
+  "verdict": "first-bad within range, not isolated",
+  "skipped_from_bisect_log": [
+    {"sha": "80fe7fad35e57cdbeaac248aba35dbaa768b3a87", "reason": "packages (#1829) ledger-only"},
+    {"sha": "b750758f9e4f2981abf643595b2f099752172e56", "reason": "repo: coordinator-review (#1830) ledger-only"},
+    {"sha": "5ab36c44602763dc6721fd4e0fd91d5951887b73", "reason": "compiler (#1816) skip"},
+    {"sha": "0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea", "reason": "tests (#1817) skip"},
+    {"sha": "77271bfb91344cd3d3788e1d8563796983dfbf13", "reason": "psi (#1794) skip"},
+    {"sha": "d6c44b1e94333ea400bf973412a0db159e96d847", "reason": "psi (#1815) skip"},
+    {"sha": "a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f", "reason": "psi (#1562) skip"},
+    {"sha": "49ceaa29fd03ae651879205bce89b078d1c1ce8a", "reason": "tests (#1814) skip; immediate parent of candidate bad"}
+  ],
+  "note": "57 first-parent commits between good_anchor and d31209ea; bisect exited with only skip commits left"
+}

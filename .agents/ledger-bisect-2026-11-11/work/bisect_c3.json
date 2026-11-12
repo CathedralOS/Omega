@@ -3,10 +3,10 @@
   "good": "ffc4d649fa8c2244d87091f8b8a694db7a181036",
   "bad": "51e8c45c793007f211d0d9baee7de16767172444",
   "anchor": "741270df60f7",
-  "breaking_commit": "",
-  "pr": null,
-  "mechanism": "",
-  "status": "propagated",
+  "breaking_commit": "d31209ea0d20231819cedbc47442baa3335792a5",
+  "pr": "1820",
+  "mechanism": "compiler: lower borrows of same-carrier casts (#1820) — skip-heavy bisect; see bisect_c3.json.log",
+  "status": "bracketed_skip_tail",
   "bisect_exit": 2,
   "endpoints": {
     "good": {

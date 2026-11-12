@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DIR = Path(__file__).resolve().parents[1]
-TOOL = DIR / "tools" / "verify_at_commit.sh"
+TOOLCACHE = Path("/tmp/ledger-bisect-tools")
+shutil.copytree(DIR / "tools", TOOLCACHE, dirs_exist_ok=True)
+TOOL = TOOLCACHE / "verify_at_commit.sh"
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 MEASURE = DIR / "work" / "pin_measure.txt"
 
@@ -20,17 +23,20 @@ def sh(*args: str) -> str:
 
 def verify(commit: str, witness: str, trials: int = 1) -> dict:
     subprocess.run(
-        ["python3", str(DIR / "tools/pin_bisect_context.py"), witness, str(MEASURE)],
+        ["python3", str(TOOLCACHE / "pin_bisect_context.py"), witness, str(MEASURE)],
         cwd=ROOT,
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    out = subprocess.check_output(
+    proc = subprocess.run(
         [str(TOOL), commit, witness, str(trials)],
         text=True,
         cwd=ROOT,
+        capture_output=True,
     )
-    return json.loads(out)
+    if not proc.stdout.strip():
+        raise RuntimeError(proc.stderr or f"verify rc={proc.returncode}")
+    return json.loads(proc.stdout)
 
 
 def hunk_quote(commit: str, cluster: int) -> str:
@@ -79,6 +85,11 @@ def main() -> int:
                 "bad": verify(bad, m, 1),
             }
         )
+    bracket_name = witness.split("/")[-1]
+    bracket_path = DIR / f"work/bracket_{bracket_name}.json"
+    bracket = {}
+    if bracket_path.is_file():
+        bracket = json.loads(bracket_path.read_text())
     out = {
         "cluster": cluster,
         "witness": witness,
@@ -91,6 +102,7 @@ def main() -> int:
         "bad_trials": bad_trials,
         "members": member_rows,
         "mechanism_hunk_excerpt": hunk_quote(bad, cluster),
+        "bracket": bracket or None,
     }
     path = DIR / f"work/verify_c{cluster}.json"
     path.write_text(json.dumps(out, indent=2) + "\n")
