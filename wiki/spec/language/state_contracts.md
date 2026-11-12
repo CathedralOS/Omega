@@ -107,10 +107,12 @@ declaration order and flattening. Both ordinary and terminal calls invoke the
 selected machine with ordinary explicit parameters. Context records and their
 borrows are supplied like other arguments; no receiver or enclosing activation
 is retained or rebound implicitly.
-A local name is declared at most once in a machine body: a second `let` of the
-same name in the same body is rejected, whether or not the first is still in
-use. Parameters and locals share that namespace. Refusal compares declared
-binder identities, not spellings rendered as text.
+A name is declared at most once among one machine's parameters and the locals
+of its own body, excluding the bodies of machines nested in it: a second `let`
+of the same name is rejected, whether or not the first is still in use. The
+check compares resolved identifiers, not rendered text. Pattern bindings in
+different arms of one match may reuse a name; within one arm they follow the
+same rule.
 An ordinary terminal value, explicit return, or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
@@ -291,7 +293,8 @@ A terminal call does not extend a loan. A caller-local loan carried into a
 terminal machine call closes at the last use of that loan and of every loan
 derived from it, even when that use is inside the callee's terminal chain, as
 [borrows and aliases](ownership.md#borrows-and-aliases) states for every loan.
-Reads and writes of the lent storage after that point are judged alike.
+After that point the lent storage is outside that loan; a later read and
+a later write of it are each checked only against the loans still live there.
 
 Nested machine calls have no marker exemption. Their checked call envelope
 determines the required `suspend` and `block` acknowledgements, including in
@@ -335,8 +338,9 @@ Named decision: `restored-scalar-value-facts`, ratified 2026-11-02.
 Saving an integer from a valid ordinary storage place captures its current value.
 A later overwrite invalidates facts about that storage, not facts about the saved
 copy. Writing the saved value back establishes a new equality between the current
-contents of that exact destination and the saved value. A subsequent guard on the
-copy may therefore justify a requirement on the restored contents. This is new
+contents of that exact destination and the saved value. A subsequent guard on
+any integer copy of that saved version may therefore justify a requirement on
+the restored contents. This is new
 evidence from the restoring write, not resurrection of invalidated storage facts.
 
 Checking must establish the captured place, index identity, saved value and

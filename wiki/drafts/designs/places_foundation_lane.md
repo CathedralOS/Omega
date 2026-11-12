@@ -4,7 +4,7 @@ Staging plan, 2026-11-10, for the first lane after route one of
 [check on the lowered form](check_on_lowered_form.md). When this was written
 nothing here was built, and the lane was to start once route one passed its
 gate. It started before that:
-[what landed](check_on_lowered_form.md#started-before-the-gate-and-paused)
+[what landed](check_on_lowered_form.md#started-before-the-gate-paused-and-resumed)
 is recorded there, with the gate that now holds further lanes.
 
 The new checker can only check programs whose values are plain integers and
@@ -557,7 +557,8 @@ established field by field
 Sixteen of the 619 fixtures now reach a verdict, where five did, and twelve
 are accepted by both checkers, where four were. The four the route rejects
 and the current checker accepts are all a result bound of a division or a
-shift, which waits for the kernel rules of owner question Q3; none is a
+shift, which waits for the kernel rules admitted under the decision
+[`kernel-rule-admission`](../../spec/proofs/foundation.md#admitting-an-arithmetic-rule); none is a
 program the route accepts wrongly.
 
 The run: the same 619 fixtures as [the first run](#gate-run-2026-11-11),
