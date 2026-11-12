@@ -64,54 +64,6 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - What source form binds a boundary requirement to a field of a foreign function table?
-
-Decision name: `native-table-field-binding`.
-
-**Customer.** UEFI firmware hands a loader tables of function pointers, and
-`source/library/std/targets/uefi_x86_64/handoff.omg` calls four Boot Services
-entries (`allocate_pages`, `free_pages`, `get_memory_map`,
-`exit_boot_services`) through them. Each is a bodyless leaf written
-`satisfies UefiBootServices::allocate_pages via ForeignBinding::TableFunction(allocate_pages);`.
-33 corpus fixtures and probes use the same `TableFunction` / `VtableField`
-spelling, for example `samples/uefi/uefi_hello/main.omg` and
-`samples/cli/probes/native_table_call/main.omg`. The compiler already realizes
-these: it validates an `addr` field of the exact table record and a readable
-borrow of that record, then computes the target offset
-([measurement](wiki/drafts/measurements/source_free_table_fields_2026_11_02/README.md)).
-
-**What the specification says.** The ratified `build-owned-native-bindings`
-decision retires `via` and binds DllImport and syscall leaves with
-`Build::bind<Requirement>(builder, target, locator)`. For tables it says only
-what the replacement is not:
-
-- [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values):
-  *"`VtableField` is deliberately not a case of it ... it remains on its
-  explicit legacy carrier until NativeFieldIdentity has an ordinary typed
-  source form; it must not be smuggled into this sum"*.
-- The same section: *"Retiring `via` does not add table or instruction
-  variants to `ForeignBinding`: validated typed table/field mechanisms ...
-  must migrate without a compatibility parser"*, and *"A table call names a
-  validated field, not an authored numeric slot ordinal."*
-
-So `via` cannot be deleted while these leaves exist, and the specification
-names no form to move them to.
-
-**Question.** How does source bind a boundary requirement to a function-pointer
-field of a foreign table?
-
-- **(a)** A Build row with a second operand naming the field, such as
-  `Build::bind<UefiBootServices::allocate_pages, EfiBootServicesTable::allocate_pages>(builder, uefi_x86_64)`,
-  with the dispatch borrow taken from the requirement's first parameter.
-- **(b)** A field-typed declaration form in source next to the table record,
-  with no Build row.
-- **(c)** Something else. Separately: do vtable fields, which pass the table
-  itself as the first argument, and table functions, which do not, need two
-  forms?
-
-Until answered these leaves keep `via`, and `BUILD-OWNED-NATIVE-BINDINGS`
-cannot delete its parser.
-
 ### Q2 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.

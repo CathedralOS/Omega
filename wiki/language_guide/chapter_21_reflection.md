@@ -49,6 +49,13 @@ These describe declarations. To read a player's health you still write
 `player.health`, and to find its byte offset you ask its
 [layout](chapter_20_memory_layout_abi.md).
 
+`reflect::parameter(Requirement::formal)` describes one declared formal of a
+boundary requirement. For example, a Build-owned function-table binding uses
+this descriptor to identify which argument supplies its table. It does not
+read that argument at compile time. Parameter, field and callable descriptions
+have distinct types; none grants authority. See
+[formal-parameter selectors](../spec/language/reflection.md#formal-parameter-selectors).
+
 ## Serializers
 
 A serializer combines the field visit with an encoder chosen per field:

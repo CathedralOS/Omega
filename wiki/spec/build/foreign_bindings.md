@@ -82,11 +82,9 @@ lengths still reject.
 | `DllImport` | One `DllImport<ObjectLength, SymbolLength, VersionLength>` locator. |
 | `Syscall` | `number: u64`, validated against the selected target's syscall mechanism. |
 
-Those two are the whole sum. `VtableField` is deliberately *not* a case of
-it: the declaration's own comment says it "remains on its explicit legacy
-carrier until NativeFieldIdentity has an ordinary typed source form; it must
-not be smuggled into this sum". Provider evaluation enforces that, admitting
-only "the exact Binding::DllImport or Binding::Syscall payload".
+Those two are the whole sum. Function-table bindings use the separate typed
+`FunctionFieldBinding` operand described below, not a `VtableField` case, a
+numeric slot, or an encoded field name inside this locator sum.
 
 | DllImport case | Coordinates |
 | --- | --- |
@@ -115,6 +113,102 @@ Foreign constants and offsets belong to checked target
 code and [layout plans](../layouts/plans.md). A table call names a validated
 field, not an authored numeric slot ordinal. Privileged instructions use parsed,
 contract-emitting `asm`, not a second binding instruction language.
+
+## Function-table bindings
+
+Named decision: `native-table-field-binding`, settled 2026-11-11.
+
+A foreign API may supply its functions through a record of addresses rather
+than exported symbols. The package's Build binds an exact boundary requirement
+to one field of the table supplied at each call. The binding identifies where
+to read the function address; the requirement's calling plan independently
+describes which arguments the foreign function receives.
+
+`Build::bind<Requirement>(builder, target, binding)` accepts an ordinary
+`FunctionFieldBinding` description with two operands:
+
+| Operand | Meaning |
+| --- | --- |
+| `table: ParameterInfo` | An exact formal of the bound requirement, selected with `reflect::parameter(Requirement::formal)`. |
+| `field: FieldInfo` | An exact field of the borrowed table application, selected with `reflect::field(Table::field)`. |
+
+These are [typed declaration selectors](../language/reflection.md#typed-declaration-selectors),
+not strings, ordinals, runtime values, or executable machine selections. In a
+Build binding they use the existing designated product-reference mechanism:
+resolution retains exact declaration, application and signature/schema identity
+without importing or executing product code in the Build activation. The formal
+must belong to the bound requirement application. It may occur anywhere in the
+signature; its position is never inferred from its type or from a first-parameter
+convention. The field must be a live, non-atomic `addr` field of the exact table
+application borrowed by that formal. Layout validation derives its offset.
+Wrong owners, applications, revisions, field kinds and inaccessible selectors
+reject, including in declared bindings that are not reached by an entry.
+
+The selected formal must permit reading the dispatch field. Its calling-plan
+role is explicit: either dispatch-only, with no native argument position, or
+passed normally as well as used for dispatch. Every other parameter retains
+its ordinary mapping, including declared private callback destinations. All
+semantic parameters are accounted for and all native arguments placed exactly
+once. The Build row must fit the requirement's commitment; it cannot override
+the calling policy or silently remove an argument. See
+[table dispatch argument accounting](calling_plans.md#table-dispatch-argument-accounting).
+
+For a Boot Services-style operation, the table is used only to locate the
+function; the native callee receives the remaining arguments. A receiver-style
+operation may also pass that table, or pass a separate explicitly supplied
+receiver. These are argument mappings of one binding mechanism, not separate
+foreign binding kinds. No implicit `self` or receiver adjustment follows.
+
+At runtime, evaluate the arguments under ordinary evaluation rules, read the
+selected field from the supplied table, and invoke the resulting address under
+the validated calling plan. Build does not read firmware memory or freeze a
+function address. Different table instances may supply different addresses under
+the same admitted contract. Dispatch is an actual read: its access, lifetime and
+memory-observation obligations survive even when the formal is dispatch-only;
+it cannot be discarded as an unused argument.
+
+Reading an `addr` proves neither a callable signature nor permission to invoke
+it. The existing admitted boundary and entry/handoff contracts must justify the
+table's provenance, field-to-signature correspondence, foreign behavior and
+applicable authority/protocol lifetime. Constructing a matching record or a
+binding description supplies none of those facts. Firmware-entry adapters may
+establish the declared entry environment; table dispatch does not recognize
+UEFI type names or give operation names special lifecycle effects.
+
+Resolve the formal and field once and retain their exact identities and the
+normalized argument correspondence before ABI placement. Provider planning,
+native realization, package/artifact validation and supported interpreter routes
+consume that same correspondence, never a rediscovered dispatch prefix. Retain
+enough declaration/signature/layout evidence to validate it without source;
+offsets and argument counts alone are insufficient. An unsupported interpreter
+binding is refused explicitly, with no fallback to native execution.
+
+This mechanism selects one field on one explicitly supplied table borrow.
+Checked code obtains a nested table view before the call. Arbitrary pointer
+chasing, argument permutations/conversions, C++ object-model adaptation and
+turning a raw address into an ordinary Omega callable are not added here.
+Genuine adaptation belongs in checked adapters. `VtableField` and `TableFunction`
+migrate to this one mechanism; their legacy parser forms and positional
+handling are retired together.
+
+### Migration acceptance
+
+`BUILD-OWNED-NATIVE-BINDINGS` carries this decision through the existing table
+fixtures and library callers without weaker contracts. Native acceptance covers
+a non-first table parameter, dispatch-only and also-passed tables, a separate
+receiver, and a non-UEFI table with a different layout on supported hosts. Reject
+wrong formal/field owners or applications, unreadable tables, non-address fields,
+incompatible argument mappings and tampered retained correspondence. Consume an
+artifact without source to establish that the retained identities and mapping
+suffice; a fresh source compilation alone does not exercise that contract.
+
+Supported interpreter routes must agree under `omega run --both`. Unsupported
+bindings must refuse explicitly without native fallback; implementing a new
+interpreter foreign-call route is not a prerequisite for retiring the legacy
+surface. The migration removes both legacy table forms and their positional
+handling from downstream consumers, not just their parser spelling.
+
+## Sealed compiler intrinsics
 
 Compiler intrinsics use the exact realization declaration, signature, selected
 target, and sealed catalog entry with accepted package/toolchain custody.
