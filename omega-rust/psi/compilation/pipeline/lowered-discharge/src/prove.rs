@@ -1171,16 +1171,20 @@ impl<'a> Prover<'a> {
                     .then(|| self.remainder_below_divisor(axiom, subject, expression))
                     .flatten()
                     .and_then(|(divisor, relation)| self.through(relation, &divisor, direction));
-                match (defined, below) {
-                    (Some(defined), Some(below)) => Some(
-                        if integer.compare(below.literal, defined.literal) == Some(Ordering::Less) {
-                            below
-                        } else {
-                            defined
-                        },
-                    ),
-                    (defined, below) => defined.or(below),
-                }
+                // A remainder by a divisor no literal fixes lies between
+                // zero and its dividend.
+                let within = self.remainder_within_dividend(axiom, subject, expression, direction);
+                [defined, below, within]
+                    .into_iter()
+                    .flatten()
+                    .reduce(|best, next| {
+                        let better = matches!(
+                            (integer.compare(next.literal, best.literal), direction),
+                            (Some(Ordering::Less), Direction::Upper)
+                                | (Some(Ordering::Greater), Direction::Lower)
+                        );
+                        if better { next } else { best }
+                    })
             }
             _ => None,
         }
