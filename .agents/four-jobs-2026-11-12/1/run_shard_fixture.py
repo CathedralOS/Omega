@@ -14,6 +14,11 @@ from pathlib import Path
 HARNESS = Path(__file__).resolve().parents[3] / "target/debug/examples/route_one_comparison"
 TIMEOUT_SEC = 300
 
+MACHINE_IN_DIAG = re.compile(
+    r"(?:machine|in machine)\s+`([^`]+)`", re.IGNORECASE
+)
+MACHINE_ROOT = re.compile(r"^machine:(.+)$")
+
 
 def tier(fixture: str) -> str:
     if "/pass/" in fixture:
@@ -42,7 +47,6 @@ def field_value(fields: list[str], prefix: str) -> str:
 
 
 def refusal_construct(route: str, detail: str, fields: list[str]) -> str:
-    """Map a route refusal to the construct or meta-bucket for ranking."""
     if route == "no-entry":
         return "meta:no-program-entry"
     if route == "unreached":
@@ -51,10 +55,8 @@ def refusal_construct(route: str, detail: str, fields: list[str]) -> str:
         reason = field_value(fields, "reason=")
         return reason if reason else "refused-module"
     if route == "fallback":
-        # fallback lines use field 4 for Concerns debug; detail in field 5
         return detail if detail else "fallback"
     if detail:
-        # e.g. "Unsupported: machine generic parameters"
         if ": " in detail:
             _kind, spec = detail.split(": ", 1)
             return spec.strip() or detail.strip()
@@ -84,10 +86,12 @@ def classify_route(route: str) -> str:
     return "outside"
 
 
-def parse_program_lines(text: str, fixture: str) -> tuple[list[ProgramRoot], list[tuple[str, str, str]]]:
-    """Return program roots in harness order and fallback rows (root, construct, detail)."""
+def parse_program_lines(
+    text: str, fixture: str
+) -> tuple[list[ProgramRoot], list[tuple[str, str, str]], list[str]]:
     programs: list[ProgramRoot] = []
     fallbacks: list[tuple[str, str, str]] = []
+    current_diags: list[str] = []
     for line in text.splitlines():
         if not line.strip():
             continue
@@ -119,10 +123,48 @@ def parse_program_lines(text: str, fixture: str) -> tuple[list[ProgramRoot], lis
             construct = fields[4].strip() if len(fields) > 4 else ""
             detail = fields[5].strip() if len(fields) > 5 else ""
             fallbacks.append((root, construct, detail))
-    return programs, fallbacks
+        elif kind == "current-diagnostic" and len(fields) > 1 and fields[1] == fixture:
+            msg = fields[-1] if len(fields) > 3 else ""
+            current_diags.append(msg)
+    return programs, fallbacks, current_diags
 
 
-def aggregate_route(programs: list[ProgramRoot]) -> str:
+def diagnostic_class(message: str) -> str:
+    m = message.lower()
+    if "borrow" in m or "loan" in m or "mutates" in m and "while" in m:
+        return "borrow/lifetime"
+    if "shift count" in m or "shift" in m and "out of range" in m:
+        return "shift/bounds"
+    if "overflow" in m or "exact arithmetic" in m or "out of range" in m:
+        return "arithmetic/bounds"
+    if "ensures" in m or "requires" in m or "cannot prove" in m and "contract" in m:
+        return "contract/proof"
+    if "division" in m or "index" in m or "bounds" in m:
+        return "operation-safety"
+    if "build" in m or "programentry" in m or "entry" in m and "bind" in m:
+        return "build/entry"
+    if "statement" in m and ("crash" in m or "discard" in m):
+        return "effects/discipline"
+    if not message.strip() or message == "no-span":
+        return "unpositioned/other"
+    return "other"
+
+
+def first_diagnostic_class(current_diags: list[str]) -> str:
+    if not current_diags:
+        return "no-diagnostic"
+    return diagnostic_class(current_diags[0])
+
+
+def machines_named_in_diagnostics(current_diags: list[str]) -> set[str]:
+    found: set[str] = set()
+    for msg in current_diags:
+        for match in MACHINE_IN_DIAG.finditer(msg):
+            found.add(match.group(1))
+    return found
+
+
+def tally_aggregate(programs: list[ProgramRoot]) -> str:
     routes = [p.route for p in programs if p.route]
     if not routes:
         return "error"
@@ -138,6 +180,52 @@ def aggregate_route(programs: list[ProgramRoot]) -> str:
     if has_accepted:
         return "accepted"
     return "outside"
+
+
+def fail_skipped_rejection_root(
+    programs: list[ProgramRoot], current_diags: list[str]
+) -> bool:
+    """True when current rejects but at least one relevant root was not fully judged."""
+    compilation_no_entry = any(
+        p.root == "compilation" and p.route == "no-entry" for p in programs
+    )
+    machine_roots = [p for p in programs if p.root.startswith("machine:")]
+    has_outside = any(classify_route(p.route) == "outside" for p in programs)
+    if compilation_no_entry and machine_roots:
+        return True
+    if has_outside:
+        return True
+    judged = {p.root for p in machine_roots}
+    judged_names = set()
+    for p in machine_roots:
+        m = MACHINE_ROOT.match(p.root)
+        if m:
+            judged_names.add(m.group(1))
+    for name in machines_named_in_diagnostics(current_diags):
+        if f"machine:{name}" not in judged and name not in judged_names:
+            return True
+    # Current diagnostic names a machine whose closure is outside/unreached only
+    for p in machine_roots:
+        if classify_route(p.route) == "outside":
+            return True
+    if not machine_roots and compilation_no_entry:
+        return True
+    return False
+
+
+def program_route_verdict(
+    programs: list[ProgramRoot], fallbacks: list[tuple[str, str, str]], fixture: str, current_diags: list[str]
+) -> str:
+    current = programs[0].current or "unknown"
+    tally = tally_aggregate(programs)
+
+    if tier(fixture) != "fail":
+        return tally
+
+    if current == "rejected" and tally == "accepted":
+        if fail_skipped_rejection_root(programs, current_diags):
+            return "partial"
+    return tally
 
 
 def first_refusal(
@@ -166,36 +254,39 @@ def first_refusal(
             return "incomplete-proof-rule"
         if base in ("defect", "panicked"):
             return base
-    # Fallback lines without a matching program route=fallback in program lines
     for _root, construct, detail in fallbacks:
         return refusal_construct("fallback", f"{construct}: {detail}".strip(": "), [])
     return ""
 
 
-def parse_output(text: str, fixture: str) -> tuple[str, str, str, str]:
-    programs, fallbacks = parse_program_lines(text, fixture)
-    if not programs:
-        return "error", "unknown", "n-a", "no-program-line"
-
-    current_verdict = programs[0].current or "unknown"
-    route_verdict = aggregate_route(programs)
-    refusal = first_refusal(programs, fallbacks, fixture)
-
-    agreement = "n-a"
+def agreement(route_verdict: str, current_verdict: str) -> str:
+    if route_verdict == "partial":
+        return "n-a"
+    if route_verdict == "outside":
+        return "n-a"
     if route_verdict == "accepted" and current_verdict == "accepted":
-        agreement = "agree"
-    elif route_verdict == "rejected" and current_verdict in ("rejected", "stopped"):
-        agreement = "agree"
-    elif route_verdict in ("accepted", "rejected") and current_verdict in (
+        return "agree"
+    if route_verdict == "rejected" and current_verdict in ("rejected", "stopped"):
+        return "agree"
+    if route_verdict in ("accepted", "rejected") and current_verdict in (
         "accepted",
         "rejected",
         "stopped",
     ):
-        agreement = "disagree"
-    elif route_verdict == "outside":
-        agreement = "n-a"
+        return "disagree"
+    return "n-a"
 
-    return route_verdict, current_verdict, agreement, refusal
+
+def parse_output(text: str, fixture: str) -> tuple[str, str, str, str]:
+    programs, fallbacks, current_diags = parse_program_lines(text, fixture)
+    if not programs:
+        return "error", "unknown", "n-a", "no-program-line"
+
+    current_verdict = programs[0].current or "unknown"
+    route_verdict = program_route_verdict(programs, fallbacks, fixture, current_diags)
+    refusal = first_refusal(programs, fallbacks, fixture)
+    agree = agreement(route_verdict, current_verdict)
+    return route_verdict, current_verdict, agree, refusal
 
 
 def main() -> None:
@@ -221,38 +312,13 @@ def main() -> None:
         if proc.returncode != 0 and not text.strip():
             text = proc.stderr + proc.stdout
         if "panicked" in text and "program\t" not in text:
-            row = (
-                fixture,
-                tier(fixture),
-                "error",
-                "unknown",
-                "n-a",
-                "panicked",
-                f"{elapsed:.3f}",
-            )
-            print("\t".join(row))
+            print("\t".join((fixture, tier(fixture), "error", "unknown", "n-a", "panicked", f"{elapsed:.3f}")))
             return
         route_v, cur_v, agree, refusal = parse_output(text, fixture)
-        if route_v == "error":
-            row = (fixture, tier(fixture), "error", cur_v, agree, refusal, f"{elapsed:.3f}")
-        else:
-            row = (fixture, tier(fixture), route_v, cur_v, agree, refusal, f"{elapsed:.3f}")
-        print("\t".join(row))
+        print("\t".join((fixture, tier(fixture), route_v, cur_v, agree, refusal, f"{elapsed:.3f}")))
     except subprocess.TimeoutExpired:
         elapsed = time.perf_counter() - t0
-        print(
-            "\t".join(
-                (
-                    fixture,
-                    tier(fixture),
-                    "timeout",
-                    "unknown",
-                    "n-a",
-                    "",
-                    f"{elapsed:.3f}",
-                )
-            )
-        )
+        print("\t".join((fixture, tier(fixture), "timeout", "unknown", "n-a", "", f"{elapsed:.3f}")))
 
 
 if __name__ == "__main__":

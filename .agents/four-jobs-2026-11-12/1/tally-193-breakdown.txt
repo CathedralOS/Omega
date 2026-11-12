@@ -1,0 +1,10 @@
+fixtures 193 tiers {'fail': 193}
+diagnostic class (first current-diagnostic):
+  86	contract/proof
+  62	other
+  21	borrow/lifetime
+  11	operation-safety
+  8	arithmetic/bounds
+  3	effects/discipline
+  1	shift/bounds
+  1	build/entry

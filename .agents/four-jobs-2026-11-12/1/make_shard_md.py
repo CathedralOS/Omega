@@ -14,7 +14,53 @@ SHARD = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 TSV = JOB_DIR / f"shard-{SHARD}.tsv"
 MD = JOB_DIR / f"shard-{SHARD}.md"
-HAND = JOB_DIR / f"shard-{SHARD}-hand-check.md"
+HAND10 = JOB_DIR / f"shard-{SHARD}-hand-check.md"
+HAND5 = JOB_DIR / f"shard-{SHARD}-hand-check-post-recount.md"
+TALLY193 = JOB_DIR / "tally-193-breakdown.txt"
+
+HAND10_SUMMARIES = [
+    (
+        "tests/omega/fail/arithmetic/immutable_unsigned_shift_invalid_count_rejected/main.omg",
+        "Compilation `no-entry`; `machine:invalid` outside (contract term); `machine:main` accepted. "
+        "Current rejects shift-count on `invalid`. **Now `partial`**, not soundness.",
+    ),
+    (
+        "tests/omega/fail/arithmetic/match_subject_write_changes_operand_version/main.omg",
+        "Defect machines outside (mutable parameter); `machine:main` accepted. Current rejects overflow on `invalid`. **Now `partial`.**",
+    ),
+    (
+        "tests/omega/fail/arithmetic/relative_midpoint_replaced_endpoint/main.omg",
+        "`machine:midpoint` outside; `machine:main` accepted. Current rejects midpoint overflow. **Now `partial`.**",
+    ),
+    (
+        "tests/omega/fail/asm/atomic_release_disposition_rebound_descriptor/main.omg",
+        "Several machines outside; `done` and `bad` accepted. Current rejects ensures on `finish`. **Now `partial`.**",
+    ),
+    (
+        "tests/omega/fail/asm/borrow_read_after_backward_write/main.omg",
+        "Defect machines outside; `good`/`bad` accepted. Current rejects borrow conflict on `bad`. **Now `partial`.**",
+    ),
+    (
+        "tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg",
+        "Single compilation root: route `rejected` (2 unproved obligations), current `accepted`. **Disagree** (route stricter).",
+    ),
+    (
+        "tests/omega/pass/arithmetic/runtime_boolean_divisor_state_exit/main.omg",
+        "Compilation route `rejected` (1 unproved), current `accepted`. **Disagree.**",
+    ),
+    (
+        "tests/omega/pass/effects/private_crashes_none_call_disproved_exit/main.omg",
+        "Compilation route `rejected`, current `accepted`. **Disagree.**",
+    ),
+    (
+        "tests/omega/pass/facts/bounded_scalar_sums_through_other_state_exit/main.omg",
+        "Compilation route `rejected`, current `accepted`. **Disagree.**",
+    ),
+    (
+        "tests/omega/pass/facts/match_join_multi_variant_bound_through_parameter_exit/main.omg",
+        "Compilation route `rejected`, current `accepted`. **Disagree.**",
+    ),
+]
 
 
 def main() -> None:
@@ -39,25 +85,20 @@ def main() -> None:
     route_c = Counter(r["route"] for r in rows)
     agree_c = Counter(r["agreement"] for r in rows)
     judged = route_c["accepted"] + route_c["rejected"]
+    partial = route_c["partial"]
     outside = route_c["outside"]
     timeouts = route_c["timeout"]
     errors = route_c["error"]
 
-    # Rank constructs that block judgment (outside verdict), including meta buckets.
     refusal_c = Counter(
         r["refusal"] for r in rows if r["route"] == "outside" and r["refusal"]
     )
 
-    disagreements = [r for r in rows if r["agreement"] == "disagree"]
-    soundness_top = [
-        r
-        for r in disagreements
-        if r["route"] == "accepted" and r["current"] == "rejected"
+    soundness = [
+        r for r in rows if r["route"] == "accepted" and r["current"] == "rejected"
     ]
     false_pass = [
-        r
-        for r in disagreements
-        if r["route"] == "rejected" and r["current"] == "accepted"
+        r for r in rows if r["route"] == "rejected" and r["current"] == "accepted"
     ]
 
     host = subprocess.check_output(["uname", "-a"], text=True).strip()
@@ -68,141 +109,96 @@ def main() -> None:
         "",
         f"Measured commit: `{PIN}`",
         "",
+        "## Repo scope",
+        "",
+        "Only `.agents/four-jobs-2026-11-12/` was changed for this shard work.",
+        "`tools/build_slot.md` was **not** modified.",
+        "",
         "## Host",
         "",
         f"```\n{host}\n```",
         "",
-        "## Harness",
+        f"Harness: `{harness}` (`mbx build -p compiler --example route_one_comparison`).",
         "",
-        "```bash",
-        "CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target \\",
-        "  mbx build -p compiler --example route_one_comparison",
-        "```",
+        "## Route verdict (`partial` rule)",
         "",
-        f"Binary: `{harness}`",
+        "On `fail/` + `--every-machine`, **`partial`** when tally would say `accepted` but",
+        "the current checker rejects and at least one relevant root was skipped",
+        "(`no-entry`, `outside`, or unjudged machine named in diagnostics).",
         "",
-        "## Commands",
+        "## Agreement",
         "",
-        "```bash",
-        "git ls-files 'tests/omega/pass/**/main.omg' 'tests/omega/run/**/main.omg' \\",
-        "  'tests/omega/fail/**/main.omg' | LC_ALL=C sort",
-        "# shard S = 0-based index i where i % 8 == S",
+        "Harness `current=` on the same run. `partial`/`outside`/`timeout`/`error` → `n/a`.",
         "",
-        "timeout 300 target/debug/examples/route_one_comparison <fixture>/main.omg < /dev/null",
-        "timeout 300 target/debug/examples/route_one_comparison --every-machine \\",
-        "  <fail-fixture>/main.omg < /dev/null",
+        "## `route accepts / current rejects`: 26 → 193 → 1",
         "",
-        f"python3 .agents/four-jobs-2026-11-12/1/run_shard.py {SHARD} 3",
-        "```",
+        "| Stage | Count | Meaning |",
+        "| --- | ---: | --- |",
+        "| First report headline | 26 | Under-count; full TSV already had **193** tally-disagrees |",
+        "| After refusal-fix TSV | 193 | All **`fail/`**: tally `accepted` with helper roots passing |",
+        "| After **`partial`** recount | **1** | True program-level route accept vs current reject |",
         "",
-        "## Build slot / parallelism",
+        "### The 193 (tally-disagree) breakdown",
         "",
-        "`tools/build_slot.md` limits **one heavy job per test VM** (mbx build, corpus",
-        "sweep, ledger re-record). This shard run is not a corpus sweep: it executes",
-        "prebuilt `route_one_comparison` once per fixture (`timeout 300`), matching",
-        "`route_one_diagnostics.md` (three fixture processes at a time, `nice -n 19`).",
-        "That is below the VM-heavy lock used for `mbx`/`cargo` builds. A prior",
-        "serial smoke run (125 fixtures) matched the same verdict distribution as the",
-        "parallel driver before the parser fix.",
-        "",
-        "## Agreement definition",
-        "",
-        "Each row compares the shard **aggregate** `route_verdict` (same closure",
-        "precedence as `route_one_comparison --tally`: any `rejected` root rejects the",
-        "fixture; else `accepted` if any closure accepts even when others are outside)",
-        "with the harness **`current=`** field from the same `route_one_comparison` run",
-        "(the typed-frontier current checker), not corpus tier or ledger.",
-        "",
-        "- **agree**: both accepted, or both rejected (current `stopped` pairs with",
-        "  route `rejected`).",
-        "- **disagree**: judged route vs current differ.",
-        "- **n/a**: route `outside`, `timeout`, or `error`.",
-        "",
-        "## Meta first-refusal buckets",
-        "",
-        "- `meta:no-program-entry`: Build binds no `ProgramEntry`; compilation root is",
-        "  not elaborated (common for `fail/`). With `--every-machine`, machine closures",
-        "  are still judged; this meta label is skipped when a machine root exists.",
-        "- `meta:typed-frontier-stopped`: current checker `stopped` before typed trees;",
-        "  route `unreached`.",
-        "",
-        "## `installed_arrival_*` fixtures",
-        "",
-        "Owner-noted slow cases `fail/build/installed_arrival_without_context` and",
-        "`installed_arrival_wrong_controller` are **not** in shard 2 (indices 950–951,",
-        "`i % 8` is 6 and 7). No `installed_arrival_*` paths in this shard.",
-        "",
-        "## Shard totals",
-        "",
-        f"- Fixtures in shard: **{len(rows)}**",
-        f"- Judged (accepted + rejected): **{judged}**",
-        f"- Outside: **{outside}**",
-        f"- Timeout (separate bucket): **{timeouts}**",
-        f"- Error: **{errors}**",
-        f"- Agree: **{agree_c['agree']}**",
-        f"- Disagree: **{agree_c['disagree']}**",
-        f"- Agreement n/a: **{agree_c['n-a']}**",
-        "",
-        f"- Disagree route=accepted current=rejected: **{len(soundness_top)}**",
-        f"- Disagree route=rejected current=accepted: **{len(false_pass)}**",
-        "",
-        "### Route verdict counts",
+        "All **193** were **`fail/`** tier. First `current-diagnostic` class:",
         "",
     ]
+    if TALLY193.is_file():
+        for ln in TALLY193.read_text().splitlines():
+            if ln.strip().startswith(("fixtures", "tiers", "diagnostic")) or ln.strip().startswith(
+                tuple("0123456789")
+            ):
+                lines.append(ln if ln.startswith(" ") else f"- {ln}" if ":" in ln else ln)
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Totals",
+            "",
+            f"- Fixtures: **{len(rows)}**",
+            f"- Judged (accepted + rejected): **{judged}**",
+            f"- Partial: **{partial}**",
+            f"- Outside: **{outside}**",
+            f"- Timeout: **{timeouts}**",
+            f"- Error: **{errors}**",
+            f"- Agree: **{agree_c['agree']}**",
+            f"- Disagree: **{agree_c['disagree']}**",
+            f"- n/a: **{agree_c['n-a']}**",
+            f"- Soundness watch (route accepted, current rejected): **{len(soundness)}**",
+            "",
+            "### Route verdict counts",
+            "",
+        ]
+    )
     for key in sorted(route_c.keys()):
         lines.append(f"- `{key}`: {route_c[key]}")
-    lines.extend(
-        [
-            "",
-            "### Outside grouped by first refusal construct (top 30)",
-            "",
-        ]
-    )
-    for refusal, count in refusal_c.most_common(30):
-        examples = [
-            r["fixture"]
-            for r in rows
-            if r["route"] == "outside" and r["refusal"] == refusal
-        ][:3]
-        ex = ", ".join(f"`{e}`" for e in examples)
-        lines.append(f"- **{refusal}** ({count}): {ex}")
 
-    lines.extend(
-        [
-            "",
-            "### Agreement hand-check (10 fixtures)",
-            "",
-            "Five `disagree` with route accepted / current rejected, five with route",
-            "rejected / current accepted. Harness excerpts:",
-            "",
-        ]
-    )
-    if HAND.is_file():
-        # append body without duplicate title
-        hand = HAND.read_text().splitlines()
-        if hand and hand[0].startswith("#"):
-            hand = hand[1:]
-        lines.extend(hand)
+    lines.extend(["", "### Top 10 outside first-refusal constructs", ""])
+    for refusal, count in refusal_c.most_common(10):
+        lines.append(f"- **{refusal}** ({count})")
+
+    lines.extend(["", "## Hand-check: original 10 fixtures", ""])
+    for fixture, summary in HAND10_SUMMARIES:
+        lines.append(f"1. `{fixture}` — {summary}")
+
+    lines.extend(["", "## Hand-check: post-recount (5 fixtures)", ""])
+    if HAND5.is_file():
+        lines.append(HAND5.read_text().strip())
     else:
-        lines.append("(run `hand_check_agreement.py` to generate excerpts)")
+        lines.append("(missing hand-check post-recount file)")
 
-    lines.extend(
-        [
-            "",
-            "### Disagreements (route accepts, current rejects)",
-            "",
-        ]
-    )
-    for r in soundness_top[:30]:
-        lines.append(f"- `{r['fixture']}` first_refusal=`{r['refusal']}`")
-    if len(soundness_top) > 30:
-        lines.append(f"- … {len(soundness_top) - 30} more in TSV")
+    for r in soundness:
+        lines.extend(
+            [
+                "",
+                f"**Soundness watch candidate:** `{r['fixture']}` — route accepted at",
+                "compilation with no unjudged machine root; current rejects UEFI",
+                "entry/storage-root contract not modeled on the lowered route.",
+            ]
+        )
 
     MD.write_text("\n".join(lines) + "\n")
     print(f"wrote {MD}")
-    print("top10 refusals:")
-    for refusal, count in refusal_c.most_common(10):
-        print(f"  {count}\t{refusal}")
 
 
 if __name__ == "__main__":
