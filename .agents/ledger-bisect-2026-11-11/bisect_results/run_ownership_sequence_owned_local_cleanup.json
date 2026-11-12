@@ -1,0 +1,6 @@
+{
+  "witness": "run/ownership/sequence_owned_local_cleanup",
+  "status": "no_good_on_first_parent",
+  "bisect_rc": 2,
+  "method": "pin-fixed-ledger"
+}

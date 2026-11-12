@@ -1,29 +1,43 @@
-# Ledger bisect part 2 (PIN 51e8c45c7930)
+# Ledger bisect part 2
 
-Slice: report cluster indices % 40 == 2 (6 prior tables, 50 fixtures re-measured).
+PIN `51e8c45c793007f211d0d9baee7de16767172444`. PIN-fixed ledger + observation; ledger-only commits skipped in `git bisect run`.
 
-**PIN counts:** fixed on main 43; still broken 7.
+**Re-measure:** 50 fixtures; **fixed on main** 43; **still broken** 7; **clusters** 5.
 
-## Clusters at PIN (largest first)
+## Cluster 0 (2 rows)
 
-| rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
-| ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run regression | cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches | `pass/traits/inline_member_seals_target_family_provider` | `` |  |  | pending |
-- `pass/traits/inline_member_seals_target_family_provider`
-- `run/ownership/sequence_owned_local_cleanup`
+- **Diagnostic:** cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation withou
+- **Witness:** `run/ownership/sequence_owned_local_cleanup`
+- **Status:** no_good_on_first_parent
+- **Members:** `pass/traits/inline_member_seals_target_family_provider`, `run/ownership/sequence_owned_local_cleanup`
 
-| 2 | pass/run regression | data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the  | `pass/domains/private_case_payload_construction` | `` |  |  | pending |
-- `pass/domains/private_case_payload_construction`
-- `pass/facts/static_callback_reach_through_field`
+## Cluster 1 (2 rows)
 
-| 1 | pass/run regression | cannot establish assignment invariants: partial write enclosure has no exact active-case frontier | `pass/borrows/returned_record_case_field_store_exit` | `` |  |  | pending |
-- `pass/borrows/returned_record_case_field_store_exit`
+- **Diagnostic:** data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at t
+- **Witness:** `pass/facts/static_callback_reach_through_field`
+- **Status:** pending
+- **Members:** `pass/domains/private_case_payload_construction`, `pass/facts/static_callback_reach_through_field`
 
-| 1 | pass/run regression | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | pending |
-- `pass/borrows/runtime_reassigned_view_capture_exit`
+## Cluster 2 (1 rows)
 
-| 1 | pass/run regression | selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, ` | `pass/optimizer/pre_allocation_joint_frontier_exit` | `f3612364ffbb` | 2228 | tests: record four case-payload rows that already check (#2228) | bisected |
-- `pass/optimizer/pre_allocation_joint_frontier_exit`
+- **Diagnostic:** cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+- **Witness:** `pass/borrows/returned_record_case_field_store_exit`
+- **Status:** pending
+- **Members:** `pass/borrows/returned_record_case_field_store_exit`
+
+## Cluster 3 (1 rows)
+
+- **Diagnostic:** cannot establish assignment invariants: source parent type is unavailable
+- **Witness:** `pass/borrows/runtime_reassigned_view_capture_exit`
+- **Status:** pending
+- **Members:** `pass/borrows/runtime_reassigned_view_capture_exit`
+
+## Cluster 4 (1 rows)
+
+- **Diagnostic:** selected optimizations `SelectedSameBlockCopyI64RemovalV1`, `SelectedRedundantExtensionRemovalV1`, `SelectedAddressOffse
+- **Witness:** `pass/optimizer/pre_allocation_joint_frontier_exit`
+- **Status:** pending
+- **Members:** `pass/optimizer/pre_allocation_joint_frontier_exit`
 
 ## Fixed on main
 
@@ -70,10 +84,3 @@ Slice: report cluster indices % 40 == 2 (6 prior tables, 50 fixtures re-measured
 - `pass/facts/target_family_callback_guarantee/const_name`
 - `pass/slices/let_matched_mutable_window`
 - `pass/termination/progress_selector_owned_arrival_replacement_helper_exit`
-
-## Commands
-
-- Member recovery: `python3 .agents/ledger-bisect-2026-11-11/recover_slice_members.py 2 40`
-- Re-measure: direct `corpus_runner` with `OMEGA_CORPUS_FIXTURE_FILTER` (50 fixtures, jobs=1)
-- Bisect: `.agents/ledger-bisect-2026-11-11/bisect_one.sh <witness>` (good=759c80404428, bad=PIN, `--first-parent`)
-- Host: linux x86_64; OMEGA_CORPUS_JOBS=1
