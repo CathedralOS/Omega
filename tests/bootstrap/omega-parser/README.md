@@ -62,7 +62,7 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across fifty-nine invocations. Direct
+The current customer reuses one parser across seventy-seven invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
@@ -94,6 +94,17 @@ expression machinery. Explicit empty literals, malformed nesting, the bounded
 128-level context limit and successful reuse after failures check ownership and
 reset behavior. These remain parser checks; emitted record copies and returned
 records are exercised by the executable compiler customer.
+
+Postfix indices share the same bounded expression suspension. The explicit
+mutable/shared domain-removal views used by SourceUnit append/read keep their
+Borrow and Cast nodes below Indexed, while selectors can contain ordinary
+calls, groups, casts and nested indices. Assignment retains the completed
+target once before its value; checking still owns writability, type, bounds and
+loan obligations. Controls check authored target spans after an earlier call,
+collection/selector call identities, outer argument and record-field custody,
+existing range forms, malformed brackets and ranges, lexical failures, the
+128-frame bound and reset. Model results alone do not establish execution of
+these source programs.
 
 Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and
