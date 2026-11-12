@@ -1065,6 +1065,15 @@ pub(crate) mod compiler_evaluation {
         authority: &dyn DeclarationSelectionAuthority,
     ) -> Result<(), String> {
         match (requester, owner) {
+            // Exact checked selections bind the contract closure before lowering.
+            // Its retained role never grants a package caller a default std edge.
+            (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
+            | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
+                Err("build-time invocation crosses closed-contract/package custody".into())
+            }
+            (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract) => {
+                Ok(())
+            }
             (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
             (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
                 if authority.allows_declaration_selection(requester, owner) =>
@@ -1082,6 +1091,43 @@ pub(crate) mod compiler_evaluation {
                 "build-time invocation has user source without reconciled package custody".into(),
             ),
             _ => Err("build-time invocation lacks compiler-owned source/package provenance".into()),
+        }
+    }
+
+    #[test]
+    fn closed_contract_custody_never_substitutes_for_a_package_edge() {
+        struct AllowPackages;
+        impl DeclarationSelectionAuthority for AllowPackages {
+            fn allows_declaration_selection(
+                &self,
+                _: semantic_vocabulary::PackageKeyIdentity,
+                _: semantic_vocabulary::PackageKeyIdentity,
+            ) -> bool {
+                true
+            }
+            fn package_label(&self, _: semantic_vocabulary::PackageKeyIdentity) -> String {
+                "package".into()
+            }
+        }
+        let package = DeclarationCustody::Package(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+        );
+        let contract = DeclarationCustody::ToolchainContract;
+        let core = DeclarationCustody::Toolchain;
+        for (requester, owner) in [
+            (package, contract),
+            (contract, package),
+            (DeclarationCustody::Missing, contract),
+        ] {
+            assert!(require_selection(requester, owner, &AllowPackages).is_err());
+        }
+        for (requester, owner) in [
+            (contract, contract),
+            (contract, core),
+            (core, contract),
+            (package, package),
+        ] {
+            assert!(require_selection(requester, owner, &AllowPackages).is_ok());
         }
     }
 

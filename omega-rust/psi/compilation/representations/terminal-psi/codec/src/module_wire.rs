@@ -3179,6 +3179,9 @@ pub(crate) mod proof_scope_wire {
                         semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
                             writer.u8(4)
                         }
+                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract => {
+                            writer.u8(5)
+                        }
                     }
                     writer.len("compiler-evaluation services", facts.effects.services.len())?;
                     for service in &facts.effects.services {
@@ -3410,6 +3413,7 @@ pub(crate) mod proof_scope_wire {
                     2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
                     3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
                     4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                    5 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract,
                     tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
                 };
                 Ok(

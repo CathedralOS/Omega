@@ -4247,6 +4247,22 @@ pub(crate) mod access_views {
         declaration: source::SourceSpan,
         context: &str,
     ) -> Result<(), String> {
+        // A missing package-edge table does not merge separately issued contracts.
+        if let Some(sources) = sources
+            && let (Some(requester_file), Some(declaration_file)) =
+                (sources.file_at(requester), sources.file_at(declaration))
+            && (requester_file.origin == source::SourceOrigin::ToolchainContract
+                || declaration_file.origin == source::SourceOrigin::ToolchainContract)
+        {
+            return if sources.same_checked_instance(requester, declaration)
+                || requester_file.origin == source::SourceOrigin::Toolchain
+                || declaration_file.origin == source::SourceOrigin::Toolchain
+            {
+                Ok(())
+            } else {
+                Err(format!("{context} crosses closed-contract owner custody"))
+            };
+        }
         let Some(authority) = authority else {
             return Ok(());
         };

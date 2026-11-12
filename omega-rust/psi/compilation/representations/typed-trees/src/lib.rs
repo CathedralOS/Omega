@@ -1572,7 +1572,7 @@ impl TypedTrees {
                     .symbols
                     .source_file(selection.source_span())
                     .is_none_or(|file| {
-                        file.origin == source::SourceOrigin::Toolchain
+                        file.origin.is_toolchain()
                             || file.dependency_scope == source::DependencyScope::Build
                     }))
     }

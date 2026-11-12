@@ -2409,7 +2409,7 @@ mod closed_contract_scope {
             resolve(&symbols, 1, "Console", SymbolKind::Data),
             Some(declarations[2])
         );
-        for id in [0, 3] {
+        for id in [0, 3, 4] {
             assert_eq!(resolve(&symbols, id, "Console", SymbolKind::Data), None);
             assert!(!symbols.source_domain_is_exposed(occurrence(id), declarations[5]));
             assert_eq!(

@@ -6926,7 +6926,7 @@ pub mod content_projections {
             .map_or(declaration, |specialization| specialization.template);
         match program.symbols.symbol_source_origin(authored) {
             Some(source::SourceOrigin::Toolchain) => true,
-            Some(source::SourceOrigin::User) => false,
+            Some(source::SourceOrigin::User | source::SourceOrigin::ToolchainContract) => false,
             None => !program.symbols.has_source_metadata(),
         }
     }

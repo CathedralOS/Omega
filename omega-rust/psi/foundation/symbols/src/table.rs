@@ -1112,7 +1112,7 @@ mod modules {
 
         pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
             self.source_file(reference).is_some_and(|file| {
-                file.origin == source::SourceOrigin::ToolchainContract
+                file.origin.is_toolchain()
                     || (file.origin == source::SourceOrigin::User
                         && file.resolution_stratum
                             != source::SourceResolutionStratum::CurrentActivationExtension)

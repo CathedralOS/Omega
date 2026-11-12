@@ -293,6 +293,7 @@ pub mod compiler_evaluation {
         }
         match program.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => DeclarationCustody::Toolchain,
+            Some(source::SourceOrigin::ToolchainContract) => DeclarationCustody::ToolchainContract,
             Some(source::SourceOrigin::User) => DeclarationCustody::UnownedUser,
             None => DeclarationCustody::Missing,
         }
