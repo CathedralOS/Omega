@@ -936,6 +936,7 @@ fn run_check(args: &[String]) -> Result<(), u8> {
         .observe("head", names, runner.as_deref())
         .map_err(infra)?;
     let mut verdicts: Vec<Verdict> = Vec::new();
+    let mut measured = observed.clone();
     let mut suspects: Vec<String> = observed
         .values()
         .filter(|row| worse(ledger.get(&row.fixture), row).is_some())
@@ -964,10 +965,19 @@ fn run_check(args: &[String]) -> Result<(), u8> {
                 .is_none_or(|row| worse(ledger.get(fixture), row).is_some());
             if !confirmed {
                 verdicts.push(verdict(&observed[fixture], "flaky"));
+                // The second run is the row's measurement; the first was noise.
+                if let Some(row) = again.get(fixture) {
+                    measured.insert(fixture.clone(), row.clone());
+                }
             }
             confirmed
         });
     }
+    // What this shard measured at the head, in the ledger's own format, so a
+    // post-merge run can splice it into the ledger (`sweep-report --records`).
+    let rows: Vec<CorpusRecord> = measured.into_values().collect();
+    fs::write(out.join("records.txt"), corpus::splice_records("", &rows))
+        .map_err(|e| infra(e.to_string()))?;
     // Excused when main already shows the same loss and the row is the base's.
     let mut remaining = Vec::new();
     for fixture in suspects {

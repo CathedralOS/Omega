@@ -12,7 +12,9 @@ name: Post-merge check
 # fails; it never compiles one or checks no rows. `report` writes the verdict
 # and the batch's pull requests to the run summary.
 #
-# The run only reports: it commits no ledger rows and reverts nothing.
+# Pull requests do not edit tests/omega/corpus_outcomes.txt. `ledger` writes
+# the rows the shards measured to it and pushes that one commit to main. The
+# run reverts nothing.
 on:
   push:
     branches: [main]
@@ -287,8 +289,87 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  # Pull requests do not edit the ledger; this job writes what the shards
+  # measured. It records every row whose outcome differs from the ledger,
+  # better or worse, stamped with the commit it was measured at.
+  ledger:
+    needs: [plan, build, shard]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      recorded: ${{ steps.record.outputs.changed }}
+      pushed: ${{ steps.push.outputs.pushed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The push below uses this checkout's token.
+          persist-credentials: true
+          fetch-depth: 2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: post-merge-shard-*
+          path: ${{ runner.temp }}/shards
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Splice the measured rows into the ledger
+        id: record
+        run: |
+          # One file per shard, in the flat directory the report reads. A
+          # shard that stopped before it measured anything left no file, and
+          # its rows keep their ledger lines.
+          mkdir -p "$RUNNER_TEMP/records"
+          n=0
+          for file in "$RUNNER_TEMP"/shards/*/records.txt "$RUNNER_TEMP"/shards/*/*/records.txt; do
+            [ -f "$file" ] || continue
+            n=$((n + 1))
+            cp "$file" "$RUNNER_TEMP/records/shard-$n.txt"
+          done
+          echo "Shards with measurements: $n"
+          if [ "$n" = 0 ]; then
+            echo "changed=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mbx xtask corpus-gate sweep-report --records "$RUNNER_TEMP/records" \
+            --body "$RUNNER_TEMP/ledger-body.md" --observed "$RUNNER_TEMP/observed.txt" < /dev/null
+      - name: Commit the ledger to main
+        id: push
+        if: steps.record.outputs.changed != '' && steps.record.outputs.changed != '0'
+        env:
+          CHANGED: ${{ steps.record.outputs.changed }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/omega/corpus_outcomes.txt
+          git commit -q -m "tests: record $CHANGED corpus rows the post-merge check measured" \
+            -m "The post-merge check ran the corpus rows that the batch ending at ${GITHUB_SHA:0:12} can reach and found $CHANGED whose outcome differs from the ledger. This commit records them as measured, better or worse; each row carries that commit as its stamp. Run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID names the rows and the batch's pull requests."
+          # Main may have moved while the shards ran. Pull requests do not
+          # edit the ledger, so the commit replays cleanly; if it does not,
+          # nothing is pushed and the rows stay unrecorded.
+          commit=$(git rev-parse HEAD)
+          for attempt in 1 2 3; do
+            git fetch -q origin main
+            git checkout -q --detach FETCH_HEAD
+            if ! git cherry-pick "$commit" > /dev/null; then
+              git cherry-pick --abort || true
+              echo "The ledger commit does not replay onto main; not pushed." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            if git push -q origin HEAD:main; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              echo "Recorded $CHANGED ledger rows on main as $(git rev-parse --short HEAD)." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "Main refused the ledger commit (a ruleset that blocks direct pushes, or three lost races). $CHANGED rows are measured but not recorded." | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 1
+
   report:
-    needs: [post-merge-check, plan, build, shard]
+    needs: [post-merge-check, plan, build, shard, ledger]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -311,6 +392,8 @@ jobs:
           BUILD: ${{ needs.build.result }}
           RUNNER: ${{ needs.build.outputs.runner }}
           SHARDS: ${{ needs.shard.result }}
+          LEDGER: ${{ needs.ledger.result }}
+          RECORDED: ${{ needs.ledger.outputs.recorded }}
         run: |
           red=0
           say() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
@@ -343,6 +426,11 @@ jobs:
             done
             [ "$found" = 1 ] || say "No shard wrote a summary; a shard that stopped early judged no rows."
           fi
+          case "$LEDGER" in
+            success) if [ -n "$RECORDED" ] && [ "$RECORDED" != 0 ]; then ok "Recorded $RECORDED measured rows in the ledger on main."; else ok "No ledger row differs from what was measured."; fi ;;
+            skipped) ;;
+            *) bad "the ledger job failed or did not finish ($LEDGER); measured rows were not recorded." ;;
+          esac
           say ""
           batch=$(ls artifacts/post-merge-plan/batch.md artifacts/post-merge-plan/*/batch.md 2>/dev/null | head -1)
           if [ "$red" = 1 ]; then
