@@ -106,7 +106,13 @@ def main() -> int:
     if head != PIN:
         print(f"expected PIN {PIN[:12]}, got {head[:12]}", file=sys.stderr)
 
-    LEDGER_PIN.write_text(LEDGER_SRC.read_text())
+    frozen = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{PIN}:tests/omega/corpus_outcomes.txt"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    LEDGER_PIN.write_text(frozen)
     ledger_text = LEDGER_PIN.read_text()
     line = ledger_line(witness, ledger_text)
     expected = expected_good_from_ledger_line(line) if line else None

@@ -9,7 +9,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 ANCHOR = "741270df60f7"
-TOOLS = Path(__file__).resolve().parent
+TOOLS = Path("/tmp/ledger_bisect_tools_2026_11_11")
+if not TOOLS.is_dir():
+    TOOLS = Path(__file__).resolve().parent
 
 
 def run_test(witness: str) -> int:

@@ -6,14 +6,21 @@ CLUSTER_ID="${2:?cluster_id}"
 OUT_DIR="${3:-/agent/repos/omega/.agents/ledger-bisect-2026-11-11}"
 PIN="51e8c45c793007f211d0d9baee7de16767172444"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-TOOLS="$(dirname "$0")"
+SRC_TOOLS="$(dirname "$0")"
+TOOLS=/tmp/ledger_bisect_tools_2026_11_11
+BRANCH_TIP="$(git -C "$ROOT" rev-parse work/ledger-bisect-part-10)"
+
+rm -rf "$TOOLS"
+cp -a "$SRC_TOOLS" "$TOOLS"
+chmod +x "$TOOLS"/*.sh "$TOOLS"/*.py
+
 cd "$ROOT"
 git checkout -f work/ledger-bisect-part-10
-git reset --hard "$PIN"
 
 export BISECT_WITNESS="$WITNESS"
 export BISECT_PIN="$PIN"
 
+cp "$ROOT/tests/omega/corpus_outcomes.txt" /tmp/pin_corpus_outcomes.txt 2>/dev/null || true
 python3 "$TOOLS/pin_snapshot.py" "$WITNESS" /tmp/part10_pin_measure.txt >/tmp/pin_snap_${CLUSTER_ID}.json
 
 echo "Finding good commit for $WITNESS ..." >&2
@@ -34,7 +41,7 @@ fi
 git bisect log > "$OUT_DIR/bisect_${CLUSTER_ID}_log.txt" 2>/dev/null || true
 git bisect reset
 git checkout -f work/ledger-bisect-part-10
-git reset --hard "$PIN"
+git reset --hard "$BRANCH_TIP"
 
 PR=""
 MECH=""
@@ -44,8 +51,8 @@ if [[ -n "$FIRST_BAD" ]]; then
   MECH="$SUBJ"
 fi
 
-python3 - "$OUT_DIR/results/${CLUSTER_ID}.json" <<PY
-import json, sys, os
+python3 <<PY
+import json
 out = {
   "cluster_id": "$CLUSTER_ID",
   "witness": "$WITNESS",
@@ -54,7 +61,7 @@ out = {
   "pr": "$PR" or None,
   "mechanism": """$MECH"""[:300],
   "status": "bisected" if "$FIRST_BAD" and "$FIRST_BAD" != "$PIN" else "propagated",
-  "bisect_exit": $RC,
+  "bisect_exit": int("$RC"),
 }
 open("$OUT_DIR/results/${CLUSTER_ID}.json", "w").write(json.dumps(out, indent=2)+"\n")
 print(json.dumps(out))
