@@ -4272,8 +4272,6 @@ pub mod destructure {
     use diagnostics::Diagnostic;
     use typed_trees::data::DataMember;
 
-    const ARM_MARKER_PREFIX: &str = "__arm_destructure#V=";
-
     pub(crate) fn validate_destructure_exhaustiveness(
         program: &dyn crate::CheckingInput,
         diagnostics: &mut Vec<Diagnostic>,
@@ -4284,17 +4282,6 @@ pub mod destructure {
                     let Some(local) = statement.as_local_data() else {
                         continue;
                     };
-                    if let Some(encoded) = local.name.as_str().strip_prefix(ARM_MARKER_PREFIX) {
-                        validate_arm_pattern_marker(
-                            program,
-                            machine,
-                            state,
-                            local,
-                            encoded,
-                            diagnostics,
-                        );
-                        continue;
-                    }
                     if local.role != language_core::LocalBindingRole::RecordPattern {
                         continue;
                     }
@@ -4443,127 +4430,6 @@ pub mod destructure {
             return Err(RecordPatternRefusal::Sum(data));
         }
         Ok(data)
-    }
-
-    fn validate_arm_pattern_marker(
-        program: &dyn crate::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        local: &typed_trees::statement::TableLocalData,
-        encoded: &str,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let mut parts = encoded.split('#');
-        let variant = parts.next().unwrap_or("");
-        let mut spelled: Vec<&str> = parts.collect();
-        let has_rest = spelled.last() == Some(&"~rest");
-        if has_rest {
-            spelled.pop();
-        }
-        if spelled
-            .last()
-            .is_some_and(|part| part.starts_with("~subject="))
-        {
-            spelled.pop();
-        }
-
-        let declared = crate::value_custody::places::declared_place_type_raw(
-            program,
-            machine,
-            Some(state),
-            local.initial_value,
-        )
-        .or_else(|| {
-            local
-                .type_reference
-                .is_valid()
-                .then_some(local.type_reference)
-        });
-        let Some(declared) = declared else {
-            return;
-        };
-        let Some(data) = crate::value_custody::places::data_definition_for_type(program, declared)
-        else {
-            return;
-        };
-
-        let declared_fields: Vec<&str> = if variant.is_empty() {
-            let mut fields = Vec::new();
-            for member in program.data_members(data) {
-                match member {
-                    DataMember::Field(field) => {
-                        fields.push(field.name.as_str());
-                    }
-                    DataMember::Variant(_) => {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "record pattern arm in machine `{}` state `{}` destructures sum type `{}` without naming a case -- spell the variant (`{}::Case {{ .. }}`)",
-                        machine.name, state.name, data.name, data.name,
-                    )));
-                        return;
-                    }
-                }
-            }
-            fields
-        } else {
-            let qualified_pattern = format!("{}::{variant}", data.name);
-            if program.domain_definitions().iter().any(|domain| {
-                domain.name.as_str() == qualified_pattern
-                    && crate::value_custody::type_references::type_references_match(
-                        program,
-                        declared,
-                        domain.target_type,
-                    )
-            }) {
-                diagnostics.push(Diagnostic::error(format!(
-                "domain pattern `{qualified_pattern}` cannot bind payload fields; payload destructuring is only valid for a data case"
-            )));
-                return;
-            }
-            let Some(case) = program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(case) if case.name.as_str() == variant => Some(case),
-                    _ => None,
-                })
-            else {
-                return;
-            };
-            program
-                .data_members(data)
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some(field),
-                    DataMember::Variant(_) => None,
-                })
-                .chain(program.data_payload_fields(case))
-                .map(|field| field.name.as_str())
-                .collect()
-        };
-
-        let subject_name = if variant.is_empty() {
-            data.name.to_string()
-        } else {
-            format!("{}::{}", data.name, variant)
-        };
-        if !has_rest {
-            for field in &declared_fields {
-                if !spelled.contains(field) {
-                    diagnostics.push(Diagnostic::error(format!(
-                    "destructure arm in machine `{}` state `{}` does not mention field `{}` of `{}` -- record patterns are exhaustive by law: bind it, rename it with `as`, waive it with `as _`, or opt out with `..`",
-                    machine.name, state.name, field, subject_name,
-                )));
-                }
-            }
-        }
-        for field in &spelled {
-            if !declared_fields.contains(field) {
-                diagnostics.push(Diagnostic::error(format!(
-                "destructure arm in machine `{}` state `{}` names `{}`, which is not a field of `{}`",
-                machine.name, state.name, field, subject_name,
-            )));
-            }
-        }
     }
 
     #[cfg(test)]

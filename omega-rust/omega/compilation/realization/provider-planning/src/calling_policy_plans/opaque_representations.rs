@@ -13,9 +13,11 @@ pub struct BoundaryOpaqueRepresentationUse {
     pub application_report_fingerprint: u64,
     pub conformance_application_commitment: [u8; 32],
     pub representation_schema_version: u16,
-    pub origin: representation_selections::OpaqueRepresentationApplicationOrigin,
-    pub lifecycle: representation_selections::OpaqueRepresentationLifecycleDisposition,
-    pub copy_disposition: representation_selections::OpaqueRepresentationCopyDisposition,
+    pub origin: language_semantics::opaque_representations::OpaqueRepresentationApplicationOrigin,
+    pub lifecycle:
+        language_semantics::opaque_representations::OpaqueRepresentationLifecycleDisposition,
+    pub copy_disposition:
+        language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition,
     pub selected_application_commitment: [u8; 32],
 }
 
@@ -48,19 +50,21 @@ impl BoundaryOpaqueRepresentationUse {
         self.representation_schema_version
     }
 
-    pub const fn origin(&self) -> representation_selections::OpaqueRepresentationApplicationOrigin {
+    pub const fn origin(
+        &self,
+    ) -> language_semantics::opaque_representations::OpaqueRepresentationApplicationOrigin {
         self.origin
     }
 
     pub const fn lifecycle(
         &self,
-    ) -> representation_selections::OpaqueRepresentationLifecycleDisposition {
+    ) -> language_semantics::opaque_representations::OpaqueRepresentationLifecycleDisposition {
         self.lifecycle
     }
 
     pub const fn copy_disposition(
         &self,
-    ) -> representation_selections::OpaqueRepresentationCopyDisposition {
+    ) -> language_semantics::opaque_representations::OpaqueRepresentationCopyDisposition {
         self.copy_disposition
     }
 
@@ -69,7 +73,7 @@ impl BoundaryOpaqueRepresentationUse {
     }
 
     pub fn rederived_selected_application_commitment(&self) -> [u8; 32] {
-        representation_selections::selected_application_commitment(
+        language_semantics::opaque_representations::selected_application_commitment(
             self.conformance_application_commitment,
             self.lifecycle,
             self.copy_disposition,
@@ -81,7 +85,7 @@ impl BoundaryOpaqueRepresentationUse {
 #[cfg(test)]
 mod tests {
     use super::BoundaryOpaqueRepresentationUse;
-    use representation_selections::{
+    use language_semantics::opaque_representations::{
         OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
         OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
         selected_application_commitment,

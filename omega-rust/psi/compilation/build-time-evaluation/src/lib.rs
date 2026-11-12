@@ -851,8 +851,8 @@ pub(crate) mod reflection {
 mod scalar_applications;
 pub mod terminal_values;
 pub use scalar_applications::{
-    ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
-    evaluate_scalar_applications_with_address_model,
+    InvocationTarget, ScalarScopeEvaluation, complete_scalar_applications,
+    evaluate_scalar_applications, evaluate_scalar_applications_with_address_model,
 };
 mod syntax_probes;
 /* Build-time evaluation collects landing diagnostics beside its value.
