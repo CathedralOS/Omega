@@ -40,6 +40,7 @@ pub struct CompilationSession {
     preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
+    provider_defaults: super::checking::source_build::RetainedProviderDefaults,
     checks: RetainedCompilationChecks,
     component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
     pub(crate) selections: psi_compiler::ProductSelections,
@@ -96,7 +97,7 @@ impl CompilationSession {
                 optimization_rollback: request.optimization_rollback,
                 settled_check_reuse: self.reuse(),
             };
-            prepare_source_compilation(&request.root_path, source, child, &self.pure_builds)
+            prepare_source_compilation(&request.root_path, source, child, &self.pure_builds, &self.provider_defaults)
         })
     }
 
@@ -194,7 +195,7 @@ impl CompilationSession {
         request: CheckedCompileRequest,
     ) -> Result<super::checking::PreparedPackageInvocation, CompileFailure> {
         let source = self.prepare_source(&request)?;
-        begin_package_build_worker(request, source, self.reuse(), &self.pure_builds)
+        begin_package_build_worker(request, source, self.reuse(), &self.pure_builds, &self.provider_defaults)
     }
 
     pub(super) fn complete_build(
@@ -301,7 +302,7 @@ impl CompilationSession {
         )?;
         let mut execution = target.checked_execution(&shared.build_directory);
         execution.settled_check_reuse = self.reuse();
-        prepare_source_compilation(&shared.root_path, parsed, execution, &self.pure_builds)
+        prepare_source_compilation(&shared.root_path, parsed, execution, &self.pure_builds, &self.provider_defaults)
     }
 
     pub(crate) fn check_completed_source(

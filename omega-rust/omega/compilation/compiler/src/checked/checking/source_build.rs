@@ -3,6 +3,14 @@
 // bundled `core` companion completes its default provider inventory first in an
 // isolated `SourcePreparation` before `advance` prepares the root application
 // or package Build invocation with those `CompletedProviderDefaults`.
+//
+// Every package Build in one compilation needs the same core defaults, so the
+// session keeps each completed inventory (`RetainedProviderDefaults`) and a
+// later request with the identical core capture and Build execution profile
+// starts at `State::Root`. That pair is the core Build's whole input: it runs
+// with no package inputs, grants, staging directory, snapshot or sponsor, so
+// it has no other observation or effect that a fresh run could differ in
+// (wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
 
 use super::{
     ProductQueries, build_continuation, prepare_build_source_invocation, prepare_checked_source,
@@ -11,6 +19,66 @@ use compilation_products::{CheckedExecutionRequest, CompileFailure, PreparedChec
 use diagnostics::Diagnostic;
 use package_compilation::{CompletedProviderDefaults, PackageCompilationInputs};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+/*
+    Completed core provider-default inventories for one compilation session,
+    each with the exact core capture and Build execution profile that produced
+    it. Matching compares both in full; nothing else enters the core Build.
+*/
+#[derive(Clone, Default)]
+pub(crate) struct RetainedProviderDefaults {
+    completed: Arc<Mutex<Vec<RetainedCoreDefaults>>>,
+}
+
+struct RetainedCoreDefaults {
+    capture: package_compilation::CapturedLocalSource,
+    profile: Option<target::TargetProfile>,
+    defaults: CompletedProviderDefaults,
+}
+
+impl RetainedProviderDefaults {
+    fn matching(
+        &self,
+        capture: &package_compilation::CapturedLocalSource,
+        profile: Option<target::TargetProfile>,
+    ) -> Result<Option<CompletedProviderDefaults>, CompileFailure> {
+        let completed = self.lock()?;
+        Ok(completed
+            .iter()
+            .find(|retained| retained.profile == profile && retained.capture == *capture)
+            .map(|retained| retained.defaults.clone()))
+    }
+
+    fn retain(
+        &self,
+        capture: package_compilation::CapturedLocalSource,
+        profile: Option<target::TargetProfile>,
+        defaults: &CompletedProviderDefaults,
+    ) -> Result<(), CompileFailure> {
+        let mut completed = self.lock()?;
+        if !completed
+            .iter()
+            .any(|retained| retained.profile == profile && retained.capture == capture)
+        {
+            completed.push(RetainedCoreDefaults {
+                capture,
+                profile,
+                defaults: defaults.clone(),
+            });
+        }
+        Ok(())
+    }
+
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Vec<RetainedCoreDefaults>>, CompileFailure> {
+        self.completed.lock().map_err(|_| {
+            vec![Diagnostic::error(
+                "completed core provider defaults are unavailable",
+            )]
+            .into()
+        })
+    }
+}
 
 pub enum BuildAdvance {
     Continue,
@@ -24,6 +92,7 @@ pub(super) enum BuildSourcePurpose<'request> {
 
 pub(super) struct SourceBuild {
     state: State,
+    retained_defaults: RetainedProviderDefaults,
 }
 
 struct PendingRoot {
@@ -37,10 +106,44 @@ struct PendingRoot {
     compilation: build_settings::PureBuildCompilation,
 }
 
+impl PendingRoot {
+    fn prepare(self, defaults: CompletedProviderDefaults) -> Result<State, CompileFailure> {
+        let PendingRoot {
+            root,
+            source,
+            target,
+            inputs,
+            build,
+            rollback,
+            reuse,
+            compilation,
+        } = self;
+        let source = source.with_toolchain_defaults(&defaults)?;
+        let invocation = prepare_build_source_invocation(
+            &root,
+            source,
+            CheckedExecutionRequest {
+                selected_target_profile: target,
+                package_inputs: inputs.as_ref(),
+                build,
+                optimization_rollback: rollback,
+                settled_check_reuse: reuse,
+            },
+            Some(&compilation),
+            BuildSourcePurpose::Source(&defaults),
+        )?;
+        Ok(State::Root {
+            invocation: Box::new(invocation),
+            defaults,
+        })
+    }
+}
+
 enum State {
     Defaults {
         invocation: Box<build_continuation::BuildSourceInvocation>,
         capture: package_compilation::CapturedLocalSource,
+        profile: Option<target::TargetProfile>,
         root: Box<PendingRoot>,
     },
     Root {
@@ -56,10 +159,28 @@ impl SourceBuild {
         source: PreparedCheckedSource,
         child: CheckedExecutionRequest<'_>,
         compilation: &build_settings::PureBuildCompilation,
+        retained_defaults: &RetainedProviderDefaults,
     ) -> Result<Self, CompileFailure> {
         child.admit_package_inputs()?;
         let core_root = package_compilation::source_imports::bundled_core_root()?;
         let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
+        let profile = child.build.profile;
+        let root = PendingRoot {
+            root: root.to_path_buf(),
+            source,
+            target: child.selected_target_profile,
+            inputs: child.package_inputs.cloned(),
+            build: child.build,
+            rollback: child.optimization_rollback,
+            reuse: child.settled_check_reuse,
+            compilation: compilation.clone(),
+        };
+        if let Some(defaults) = retained_defaults.matching(&capture, profile)? {
+            return Ok(Self {
+                state: root.prepare(defaults)?,
+                retained_defaults: retained_defaults.clone(),
+            });
+        }
         let core_source = prepare_checked_source(
             &core_root,
             None,
@@ -71,7 +192,7 @@ impl SourceBuild {
             selected_target_profile: None,
             package_inputs: None,
             build: package_compilation::build_execution::BuildExecutionInputs {
-                profile: child.build.profile,
+                profile,
                 ..Default::default()
             },
             optimization_rollback: Default::default(),
@@ -88,17 +209,10 @@ impl SourceBuild {
             state: State::Defaults {
                 invocation: Box::new(invocation),
                 capture,
-                root: Box::new(PendingRoot {
-                    root: root.to_path_buf(),
-                    source,
-                    target: child.selected_target_profile,
-                    inputs: child.package_inputs.cloned(),
-                    build: child.build,
-                    rollback: child.optimization_rollback,
-                    reuse: child.settled_check_reuse,
-                    compilation: compilation.clone(),
-                }),
+                profile,
+                root: Box::new(root),
             },
+            retained_defaults: retained_defaults.clone(),
         })
     }
 
@@ -130,6 +244,7 @@ impl SourceBuild {
         let State::Defaults {
             invocation,
             capture,
+            profile,
             root,
         } = std::mem::replace(&mut self.state, State::Refused)
         else {
@@ -156,41 +271,15 @@ impl SourceBuild {
             )]
         })?;
         let defaults = CompletedProviderDefaults::from_captured_toolchain(
-            capture,
+            capture.clone(),
             &original_sources,
             product_sources,
             completed.built.source.typed(),
             &configuration.config.provider_selections,
             observation,
         )?;
-        let PendingRoot {
-            root,
-            source,
-            target,
-            inputs,
-            build,
-            rollback,
-            reuse,
-            compilation,
-        } = *root;
-        let source = source.with_toolchain_defaults(&defaults)?;
-        let invocation = prepare_build_source_invocation(
-            &root,
-            source,
-            CheckedExecutionRequest {
-                selected_target_profile: target,
-                package_inputs: inputs.as_ref(),
-                build,
-                optimization_rollback: rollback,
-                settled_check_reuse: reuse,
-            },
-            Some(&compilation),
-            BuildSourcePurpose::Source(&defaults),
-        )?;
-        self.state = State::Root {
-            invocation: Box::new(invocation),
-            defaults,
-        };
+        self.retained_defaults.retain(capture, profile, &defaults)?;
+        self.state = root.prepare(defaults)?;
         Ok(BuildAdvance::Continue)
     }
 
