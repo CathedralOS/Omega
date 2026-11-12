@@ -37,6 +37,9 @@ python3 bootstrap/compiled_vm/test.py --epsilon
 
 # Also feed the complete bootstrap compiler its existing Omega fixture.
 python3 bootstrap/compiled_vm/test.py --omega --omega-timeout 1800
+
+# Exercise the existing changed-source, rejection, and reset customer too.
+python3 bootstrap/compiled_vm/test.py --omega-controls --omega-timeout 1800
 ```
 
 Generated sources, tapes, executables, and requests go to ignored
@@ -137,6 +140,17 @@ bytes; executing that tape exited 42 with empty stdout and stderr. The first
 60-second observation allowance was insufficient; a 300-second run completed in
 95.329 seconds. This demonstrates an accelerated construction through a real
 Omega executable. No Omega compiler self-rebuild has been demonstrated here.
+
+The existing `tests/bootstrap/omega-executable/controls_b.epsilon` customer also
+passed through compiled Epsilon with the complete bootstrap compiler (575,227
+source bytes). It checks six changed modulo, shift, and bitwise programs,
+rejects the out-of-range literal 256 while asserting an unfinalized empty tape,
+then successfully recompiles 42 on the same compiler instance. The published
+observation matched the existing expected `C` plus 22-byte Alpha tape exactly;
+that tape also executed with exit 42 and no output. This eight-invocation run
+completed in 159.692 seconds under a 300-second allowance. It checks source
+generality, failure publication, and compiler reset. The default Omega watchdog
+is now 1,800 seconds; `--omega-timeout` retains an explicit experimental override.
 
 The next source-owned construction is a Gamma-written Gamma-to-Alpha compiler,
 first run through the existing Beta-written Gamma evaluator, then compiled by

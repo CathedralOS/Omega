@@ -219,27 +219,34 @@ def epsilon_request(closure, source, stdin):
             + hashlib.sha256(closure).digest() + source + stdin)
 
 
-def omega_customer(work, timeout):
+def omega_customer(work, timeout, controls=False):
     closure = pack("bootstrap/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
     gate = ROOT / "tests/bootstrap/omega-executable"
-    source = closure + (gate / "main_ocreq.epsilon").read_bytes()
+    source = closure + (gate / ("controls_b.epsilon" if controls else "main_ocreq.epsilon")).read_bytes()
     # Reuse the existing byte-only request framer; it does not evaluate source.
     spec = importlib.util.spec_from_file_location("omega_fixture", gate / "gate.py")
     fixture = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fixture)
-    stdin = fixture.ocreq_request((gate / "program.omg").read_bytes(), b"program.omg")
+    stdin = b"" if controls else fixture.ocreq_request((gate / "program.omg").read_bytes(), b"program.omg")
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, stdin)
-    (work / "omega-request.bin").write_bytes(request)
-    print(f"Omega customer: {len(source)} Epsilon source bytes; execution allowance {timeout}s", flush=True)
+    label = "omega-controls" if controls else "omega"
+    (work / (label + "-request.bin")).write_bytes(request)
+    print(f"{label} customer: {len(source)} Epsilon source bytes; execution allowance {timeout}s", flush=True)
     started = time.monotonic()
     status, observation = execute(work / "epsilon", request, timeout)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
-    (work / "omega-observation.bin").write_bytes(observation)
-    (work / "program.tape").write_bytes(observation[5:])
-    stamp(work / "program.tape", work / "program")
+    (work / (label + "-observation.bin")).write_bytes(observation)
+    if controls:
+        expected_tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
+        assert observation == bytes(5) + b"C" + expected_tape
+        tape = observation[6:]
+    else:
+        tape = observation[5:]
+    (work / (label + ".tape")).write_bytes(tape)
+    stamp(work / (label + ".tape"), work / (label + "-program"))
     expected = int((gate / "expected.txt").read_text())
-    assert execute(work / "program") == (expected, b"")
-    print(f"Omega customer: ordinary fixture -> {len(observation)-5} Alpha bytes -> exit {expected}; elapsed {time.monotonic()-started:.3f}s", flush=True)
+    assert execute(work / (label + "-program")) == (expected, b"")
+    print(f"{label} customer: {len(tape)} Alpha bytes -> exit {expected}; elapsed {time.monotonic()-started:.3f}s", flush=True)
 
 
 def main():
@@ -248,7 +255,8 @@ def main():
     parser.add_argument("--controls-only", action="store_true")
     parser.add_argument("--epsilon", action="store_true", help="construct and execute the complete Epsilon evaluator")
     parser.add_argument("--omega", action="store_true", help="also run the complete bootstrap compiler's existing executable fixture")
-    parser.add_argument("--omega-timeout", type=int, default=60)
+    parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
+    parser.add_argument("--omega-timeout", type=int, default=1800)
     args = parser.parse_args()
     work = ROOT / "build/compiled-vm"
     work.mkdir(parents=True, exist_ok=True)
@@ -260,10 +268,12 @@ def main():
         controls(work, evaluator)
     if not args.controls_only:
         customer(work, evaluator)
-        if args.epsilon or args.omega:
+        if args.epsilon or args.omega or args.omega_controls:
             epsilon_customer(work)
         if args.omega:
             omega_customer(work, args.omega_timeout)
+        if args.omega_controls:
+            omega_customer(work, args.omega_timeout, controls=True)
 
 
 if __name__ == "__main__":
