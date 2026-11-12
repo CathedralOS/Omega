@@ -15796,6 +15796,10 @@ fail/generics/type_index_distinct_binders rejected 1882ms expected @ccdb99ca2214
 fail/generics/type_index_wrong_telescope rejected 1700ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:exit-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/type_parameter_contract_exceeds_callee rejected 3905ms expected @0cc65fd658a6
+	cannot prove ensures contract for exit from relay at statement 0: result <= 10
+	cannot prove ensures contract for exit from relay$specialized$51e43d8bd904d6df$0$4632 at statement 0: result <= 10
+	cannot prove ensures contract for exit from relay$specialized$3a7d8b8e5142880c$1$4636 at statement 0: result <= 10
 fail/generics/typed_const_probe_false_extent_requires rejected 1878ms expected @4a802009dabd
 	cannot prove requires contract for specification call `extent` in closed const argument: the instantiated fact is structurally false
 fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @c5cc3d874922+wt
@@ -28976,6 +28980,7 @@ run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms che
 run/float/folded_anonymous_operator_custody_exit checked 80180ms check-target:macos_arm64 @c3cb68d51f3f
 run/generics/implementation_parameter_contract checked 6970ms check-target:macos_arm64 @a0eb7649491b
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
+run/generics/type_parameter_contract checked 5755ms check-target:macos_arm64 @0cc65fd658a6
 run/layouts/placed_ram_capture_forwarding checked 46995ms check-target:macos_arm64 @5aa4c148db93
 run/layouts/placed_ram_capture_helper checked 44408ms check-target:macos_arm64 @5aa4c148db93
 run/layouts/placed_ram_capture_retirement checked 44099ms check-target:macos_arm64 @5aa4c148db93

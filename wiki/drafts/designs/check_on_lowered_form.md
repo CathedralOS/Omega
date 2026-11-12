@@ -411,8 +411,8 @@ that cannot fail cannot hold work back, and work went ahead
    Linux x86_64, `omega` built at `b741666a1`). Its fail twin,
    `fail/generics/type_parameter_contract_exceeds_callee`, differs only in
    the bound `relay` promises and is refused once, as a generic body. The
-   current checker reports that twin once per generated machine and never
-   for `relay` as declared, which is the gap a generic check closes. The
+   current checker reports it three times, for `relay` and for each of the
+   two generated machines. The
    design's own witness, `pass/facts/generic_comparison_body_through_match_join_exit`,
    lowers and corresponds, and proves nothing: its two generic machines own
    no contract clause, its `main` uses a scalar `match` the route does not
