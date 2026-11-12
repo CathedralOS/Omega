@@ -55,18 +55,25 @@ pub(crate) fn unproved(
                     SourceOrigin::Authored(span) => names.and_then(|names| names.arguments(span)),
                     SourceOrigin::Unpositioned(_) => None,
                 };
-                Some(clause.render(&|position| {
+                let over_actuals = clause.render(&|position| {
                     arguments
                         .and_then(|arguments| arguments.get(position))
                         .or_else(|| callee_names.formals.get(position))
                         .cloned()
                         .unwrap_or_else(|| String::from("?"))
-                }))
+                });
+                Some((over_actuals, callee_names.authored(clause)))
             });
             match (names, callee_names, text) {
-                (Some(names), Some(callee_names), Some(text)) => format!(
-                    "cannot prove requires contract for call {} from {}: {text}",
-                    callee_names.machine, names.machine
+                // The current checker follows the clause over the call's
+                // actuals with what the callee asked for in its own words,
+                // and names the caller's state (Psi 05,
+                // `explain_missing_boolean_fact`).
+                (Some(names), Some(callee_names), Some((text, fact))) => format!(
+                    "cannot prove requires contract for call {} from {}: {text} (needs fact \
+                     `{fact}` here; establish it before the call via a prior contract \
+                     guarantee, domain membership, or guard) in state `{}`",
+                    callee_names.machine, names.machine, names.state
                 ),
                 _ => format!(
                     "cannot prove requires clause {} of the called machine",

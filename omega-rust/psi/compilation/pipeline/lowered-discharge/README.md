@@ -801,8 +801,11 @@ route's decision from. It discharges an elaborated closure and returns:
   The statement ([describe.rs](src/describe.rs)) says what was not proved in
   the current checker's words for the same obligation, from the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
-  contract for call bounded from probe: xored >= 1 && xored <= 2` (the
-  callee's clause over the caller's actuals), `cannot prove ensures contract
+  contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
+  `value >= 1 && value <= 2` here; establish it before the call via a prior
+  contract guarantee, domain membership, or guard) in state `entry`` (the
+  callee's clause over the caller's actuals, then the same clause as the
+  callee wrote it, and the caller's state), `cannot prove ensures contract
   for exit from shifted at statement 0: result <= value` (the exit's
   statement position, counted as the current checker counts it), `exact
   arithmetic in machine `tally` state `entry` return value may overflow
