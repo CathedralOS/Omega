@@ -55,13 +55,13 @@ newer push replaces it, so a burst of merges is judged once.
   that moved, and the batch's commits. A batch of several commits is named as
   a whole; the run does not bisect it.
 
-- `ledger` splices every measured row whose outcome differs from
-  `tests/omega/corpus_outcomes.txt`, better or worse, into that file
-  (`corpus-gate sweep-report --records <dir>`) and pushes the one commit to
-  main as `github-actions[bot]`. Pull requests do not edit the ledger. If main
-  refuses the push, the job fails and the rows stay unrecorded; it does not
-  open a pull request, because the admission check requires an `Agent:` line
-  a workflow cannot truthfully write.
+- `ledger` starts from the last published ledger, splices in every measured
+  row whose outcome differs, better or worse
+  (`corpus-gate sweep-report --records <dir>`), and publishes the result as the
+  asset `corpus_outcomes.txt` of the release `corpus-ledger`, replaced on each
+  run, with notes naming the measured commit. Pull requests do not edit the
+  ledger and main accepts no direct push, so the file in the repository is
+  left as it is.
 
 The run reverts nothing; that is a later step of
 `wiki/drafts/designs/ci_rebuild_plan.md`.

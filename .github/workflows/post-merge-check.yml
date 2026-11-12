@@ -12,9 +12,9 @@ name: Post-merge check
 # fails; it never compiles one or checks no rows. `report` writes the verdict
 # and the batch's pull requests to the run summary.
 #
-# Pull requests do not edit tests/omega/corpus_outcomes.txt. `ledger` writes
-# the rows the shards measured to it and pushes that one commit to main. The
-# run reverts nothing.
+# Pull requests do not edit tests/omega/corpus_outcomes.txt, and main accepts
+# no direct push. `ledger` publishes the measured ledger as the asset
+# corpus_outcomes.txt of the release `corpus-ledger`. The run reverts nothing.
 on:
   push:
     branches: [main]
@@ -289,25 +289,29 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # Pull requests do not edit the ledger; this job writes what the shards
-  # measured. It records every row whose outcome differs from the ledger,
-  # better or worse, stamped with the commit it was measured at.
+  # Pull requests do not edit the ledger, and main accepts no direct push, so
+  # this job publishes what the shards measured as a release asset: the last
+  # published ledger with every measured row whose outcome differs spliced in,
+  # better or worse, stamped with the commit it was measured at. The file in
+  # the repository is left alone.
   ledger:
     needs: [plan, build, shard]
     if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
+      # Releases are written with the contents permission.
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: corpus-ledger
+      LEDGER: tests/omega/corpus_outcomes.txt
     outputs:
       recorded: ${{ steps.record.outputs.changed }}
-      pushed: ${{ steps.push.outputs.pushed }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # The push below uses this checkout's token.
-          persist-credentials: true
-          fetch-depth: 2
+          persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: post-merge-shard-*
@@ -315,6 +319,16 @@ jobs:
       - name: Install verified mbx
         shell: bash
         run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Start from the last published ledger
+        run: |
+          # Each run measures only the rows its batch reaches, so it builds on
+          # what earlier runs published. Before the first publication the
+          # repository's file is the starting point.
+          if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern corpus_outcomes.txt --dir "$RUNNER_TEMP/published"; then
+            cp "$RUNNER_TEMP/published/corpus_outcomes.txt" "$LEDGER"
+          else
+            echo "No published ledger yet; starting from the repository's file."
+          fi
       - name: Splice the measured rows into the ledger
         id: record
         run: |
@@ -335,38 +349,20 @@ jobs:
           fi
           mbx xtask corpus-gate sweep-report --records "$RUNNER_TEMP/records" \
             --body "$RUNNER_TEMP/ledger-body.md" --observed "$RUNNER_TEMP/observed.txt" < /dev/null
-      - name: Commit the ledger to main
-        id: push
-        if: steps.record.outputs.changed != '' && steps.record.outputs.changed != '0'
+      - name: Publish the ledger
         env:
           CHANGED: ${{ steps.record.outputs.changed }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/omega/corpus_outcomes.txt
-          git commit -q -m "tests: record $CHANGED corpus rows the post-merge check measured" \
-            -m "The post-merge check ran the corpus rows that the batch ending at ${GITHUB_SHA:0:12} can reach and found $CHANGED whose outcome differs from the ledger. This commit records them as measured, better or worse; each row carries that commit as its stamp. Run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID names the rows and the batch's pull requests."
-          # Main may have moved while the shards ran. Pull requests do not
-          # edit the ledger, so the commit replays cleanly; if it does not,
-          # nothing is pushed and the rows stay unrecorded.
-          commit=$(git rev-parse HEAD)
-          for attempt in 1 2 3; do
-            git fetch -q origin main
-            git checkout -q --detach FETCH_HEAD
-            if ! git cherry-pick "$commit" > /dev/null; then
-              git cherry-pick --abort || true
-              echo "The ledger commit does not replay onto main; not pushed." | tee -a "$GITHUB_STEP_SUMMARY"
-              exit 1
-            fi
-            if git push -q origin HEAD:main; then
-              echo "pushed=true" >> "$GITHUB_OUTPUT"
-              echo "Recorded $CHANGED ledger rows on main as $(git rev-parse --short HEAD)." | tee -a "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          echo "Main refused the ledger commit (a ruleset that blocks direct pushes, or three lost races). $CHANGED rows are measured but not recorded." | tee -a "$GITHUB_STEP_SUMMARY"
-          exit 1
+          notes="Corpus ledger as the post-merge check last measured it: the rows the batch ending at $GITHUB_SHA reaches, spliced into the previously published ledger (${CHANGED:-0} rows differed). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Corpus ledger" --notes "$notes" --latest=false
+          fi
+          gh release upload "$TAG" "$LEDGER" --clobber --repo "$GITHUB_REPOSITORY"
+          # The notes change after the asset, so they never name a commit
+          # whose ledger is not there yet.
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$notes"
+          echo "Published the ledger to release \`$TAG\` (${CHANGED:-0} rows differed)." >> "$GITHUB_STEP_SUMMARY"
 
   report:
     needs: [post-merge-check, plan, build, shard, ledger]
@@ -427,9 +423,9 @@ jobs:
             [ "$found" = 1 ] || say "No shard wrote a summary; a shard that stopped early judged no rows."
           fi
           case "$LEDGER" in
-            success) if [ -n "$RECORDED" ] && [ "$RECORDED" != 0 ]; then ok "Recorded $RECORDED measured rows in the ledger on main."; else ok "No ledger row differs from what was measured."; fi ;;
+            success) ok "Published the measured ledger to release \`corpus-ledger\` (${RECORDED:-0} rows differed)." ;;
             skipped) ;;
-            *) bad "the ledger job failed or did not finish ($LEDGER); measured rows were not recorded." ;;
+            *) bad "the ledger job failed or did not finish ($LEDGER); the measured rows were not published." ;;
           esac
           say ""
           batch=$(ls artifacts/post-merge-plan/batch.md artifacts/post-merge-plan/*/batch.md 2>/dev/null | head -1)
