@@ -99,7 +99,9 @@ machine Main::main(&mut self) {
         // noncopy
         self.refusal("data Mode {case First;} machine main()->u8{42}",2,128);
         // payload
-        self.refusal("data Mode [copy]{case First{value:u8;}} machine main()->u8{42}",2,129);
+        self.refusal("data Mode [copy]{case First(value:u8);} machine main()->u8{42}",2,129);
+        assert self.compiler.parser.data_cases[0].payload_field_count == 1;
+        assert self.compiler.outcome_coordinate == 0;
         // Rebuild the first-case default after failed partial case censuses.
         self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
     }
