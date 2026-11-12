@@ -130,6 +130,8 @@ pub fn bound_program_entry_shapes(
                 },
                 source_span: binding.source_span,
                 implementation,
+                semantic_schema_symbol: requirement_owner.symbol,
+                requirement_symbol: requirement.symbol,
                 semantic_schema: symbols::RetainedDeclaration::capture(
                     &typed.symbols,
                     requirement_owner.symbol,

@@ -50,6 +50,16 @@ pub(crate) fn check_product_source(
         root_package: package_inputs.map(PackageCompilationInputs::root),
     };
     let mut demanded = external_roots.clone();
+    // Binding signatures are source dependencies even when the visible
+    // projection has no arguments. Retain their metadata without turning the
+    // semantic schema into another executable root or importing its effects.
+    demanded.extend(bindings.iter().flat_map(|binding| {
+        [
+            binding.semantic_schema_symbol,
+            binding.requirement_symbol,
+            binding.implementation,
+        ]
+    }));
     // The target realization table supplies canonical float operations, so,
     // as for the Build activation, the sealed catalog map and its public
     // requirements stay whether or not the program names them.

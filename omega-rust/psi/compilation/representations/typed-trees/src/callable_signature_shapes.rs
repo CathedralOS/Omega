@@ -19,6 +19,10 @@ pub struct BoundCallableShape {
     pub arrival_description: &'static str,
     pub source_span: Option<source::SourceSpan>,
     pub implementation: SymbolHandle,
+    /// Coordinates in the producing typed context, used to retain the source
+    /// closure before projection. The receipts below authenticate rejoining.
+    pub semantic_schema_symbol: SymbolHandle,
+    pub requirement_symbol: SymbolHandle,
     pub semantic_schema: RetainedDeclaration,
     pub requirement: RetainedDeclaration,
     pub visible_parameters: Vec<ParameterOccurrence>,
