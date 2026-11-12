@@ -310,7 +310,7 @@ def summarize(tsv_path: Path, md_path: Path, pin: str, bin_path: Path) -> None:
                 f"| `{r['fixture']}` | {r['tier']} | {r['current_verdict']} | {r['route_verdict']} | `{r['first_refusal']}` |"
             )
 
-  md_path.write_text("\n".join(lines) + "\n")
+    md_path.write_text("\n".join(lines) + "\n")
 
 
 def main() -> None:
