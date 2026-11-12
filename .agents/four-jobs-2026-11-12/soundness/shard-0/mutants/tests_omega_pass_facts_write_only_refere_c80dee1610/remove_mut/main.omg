@@ -1,0 +1,33 @@
+// Fact: a `&write` store into a record's reference leaf installs the incoming
+// descriptor — the stored target reads the new referent's 85 while the
+// displaced referent's 11 and the sibling stamp's 17 stay untouched.
+// Place: match join. Both arms return the same destination; only the helper
+// arm writes an independent marker, so selecting the wrong arm is observable.
+// Expected exit: 0
+data Cell { value: i64; }
+data Held { target: &Cell; stamp: i64; }
+
+machine lend<'slot>(slot: &'slot write Held, marker: &write i64) -> &'slot write Held {
+    marker = 1;
+    &write slot
+}
+machine exercise(choice: bool, expected_marker: i64) -> bool {
+    let left: Cell = Cell { value: 11 };
+    let right: Cell = Cell { value: 85 };
+    let held: Held = Held { target: &left, stamp: 17 };
+    let mut marker: i64 = 0;
+    let slot: &write Held = match choice {
+        true -> lend(&write held, &write marker),
+        false -> &write held
+    };
+    slot.target = &right;
+    held.target.value == 85 && held.stamp == 17 && left.value == 11 && marker == expected_marker
+}
+machine main() crashes Trap {
+    transition exercise(true, 1) && exercise(false, 0) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

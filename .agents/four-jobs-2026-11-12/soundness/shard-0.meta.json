@@ -1,0 +1,7 @@
+{
+  "baseline_mutants": 845,
+  "pin": "0835b3aaf803ed97f905be42d94727ff58459263",
+  "downgraded_from_confirmed": 0,
+  "old_confirmed_total": 80,
+  "revalidated_mutants": 859
+}

@@ -15,54 +15,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from soundness_validate import classify  # noqa: E402
+
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 REPO = Path(__file__).resolve().parents[3]
-OMEGA = REPO / "target" / "debug" / "omega"
 ROUTE = REPO / "target" / "debug" / "examples" / "route_one_comparison"
-
-SPEC_QUOTES: dict[str, tuple[str, str]] = {
-    "drop_requires": (
-        "wiki/spec/language/state_contracts.md",
-        "Machine `requires` applies at every invocation, including terminal and recursive "
-        "calls. Every arrival establishes the target's requirements and declared domains "
-        "under actual argument substitution.",
-    ),
-    "widen_requires": (
-        "wiki/spec/language/state_contracts.md",
-        "Machine `requires` applies at every invocation, including terminal and recursive "
-        "calls. Every arrival establishes the target's requirements and declared domains "
-        "under actual argument substitution.",
-    ),
-    "drop_divisor_guard": (
-        "wiki/spec/language/expressions.md",
-        "proof error, not a runtime panic. Thus `..=len-1` needs nonzero length, and an",
-    ),
-    "drop_index_guard": (
-        "wiki/spec/language/expressions.md",
-        "machine [] read<Element [copy]>(items: &[Element], index: u64) -> Element\n"
-        "requires index < items.len;",
-    ),
-    "remove_mut": (
-        "wiki/spec/language/ownership.md",
-        "modifying an established ordinary local's owned storage requires a `mut` binding. "
-        "This covers direct assignment, writes to owned fields or array elements, and "
-        "formation of `&mut` or `&write` loans to those places.",
-    ),
-    "flip_borrow_mutability": (
-        "wiki/spec/language/ownership.md",
-        "| `&mut T` | Exclusive observation and mutation. |",
-    ),
-    "write_through_shared_borrow": (
-        "wiki/spec/language/ownership.md",
-        "Reader and writer lists restrict observation and mutation of the exact "
-        "qualified subject, including a qualified field reached through an owned parent.",
-    ),
-    "break_ensures": (
-        "wiki/spec/language/state_contracts.md",
-        "A written `ensures` is a minimum guarantee, not an instruction to forget stronger "
-        "local facts.",
-    ),
-}
 
 
 @dataclass
@@ -208,9 +166,31 @@ def run_both_checkers(main_omg: Path, timeout_s: int) -> tuple[str, str]:
                 route = m_route.group(1)
             if m_cur or m_route:
                 break
+    route_reasons: list[str] = []
+    for line in p.stdout.splitlines():
+        if line.startswith(
+            ("diagnostic\t", "fallback\t", "use\t", "current-diagnostic\t", "obligation\t")
+        ):
+            route_reasons.append(line.replace("\t", " ")[:400])
+    route_reason = "; ".join(route_reasons[:3])
+    if not route_reason:
+        route_reason = f"route_verdict={route}"
     if "panicked" in p.stdout:
-        return current, "defect"
-    return current, route
+        return current, "defect", route_reason
+    return current, route, route_reason
+
+
+def fixtures_in_tsv(tsv: Path) -> set[str]:
+    if not tsv.exists():
+        return set()
+    out: set[str] = set()
+    for line in tsv.read_text().splitlines()[1:]:
+        parts = line.split("\t")
+        if parts and not parts[1].startswith("_"):
+            out.add(parts[0])
+        elif parts and parts[1].startswith("_"):
+            out.add(parts[0])
+    return out
 
 
 def shard_fixtures(shard: int, mod_n: int = 8) -> list[Path]:
@@ -280,14 +260,41 @@ def _md_lines(
         f"- Originals skipped (not accepted): {totals['originals_skipped']}",
         f"- Mutants generated (this run): {counters.mutants_generated}",
         f"- Mutants run (cumulative): {totals['mutants_run']}",
-        f"- Kept holes (confirmed-invalid): {totals['kept_holes']}",
-        f"- Disagreements among kept: {totals['kept_disagree']}",
-        f"- Discarded valid: {totals['discarded_valid']}",
-        f"- Discarded no rule quote: {totals['discarded_no_rule']}",
+        "## Mutant bucket table (sums to mutant total)",
         "",
-        "## Confirmed holes and disagreements",
+        f"| Bucket | Count |",
+        f"| --- | ---: |",
+        f"| confirmed-invalid | {totals['confirmed_invalid']} |",
+        f"| known-gap-q7-mut | {totals['known_gap_q7']} |",
+        f"| discarded-valid | {totals['discarded_valid']} |",
+        f"| discarded-no-rule | {totals['discarded_no_rule']} |",
+        f"| mutant-run-failed | {totals['mutant_run_failed']} |",
+        f"| mutant-generate-failed | {totals['mutant_generate_failed']} |",
+        f"| **mutant total** | **{totals['mutants_run']}** |",
+        "",
+        f"Baseline mutant total before this resume pass: {totals.get('baseline_mutants', 'see meta')}. "
+        f"Delta explained in shard-{shard}.meta.json.",
+        "",
+        *_downgraded_line(shard, totals),
+        "",
+        f"- Confirmed-invalid by mutation kind: {totals.get('confirmed_by_kind', {})}",
+        "",
+        "## Confirmed-invalid and known-gap rows",
         "",
         *holes_md,
+    ]
+
+
+def _downgraded_line(shard: int, totals: dict) -> list[str]:
+    import json
+
+    meta = REPO / f".agents/four-jobs-2026-11-12/soundness/shard-{shard}.meta.json"
+    down = totals.get("downgraded", 0)
+    if meta.exists():
+        down = json.loads(meta.read_text()).get("downgraded_from_confirmed", down)
+    return [
+        f"Downgraded from pre-review `confirmed-invalid`: {down} "
+        f"(reclassified into the buckets above, chiefly `discarded-valid`).",
     ]
 
 
@@ -304,6 +311,11 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="process at most N new fixtures (0=all)")
+    ap.add_argument(
+        "--fresh",
+        action="store_true",
+        help="truncate shard tsv (default: refuse if tsv exists without --fresh)",
+    )
     args = ap.parse_args()
 
     out_dir = REPO / ".agents/four-jobs-2026-11-12/soundness"
@@ -314,17 +326,29 @@ def main() -> int:
     mut_root = out_dir / f"shard-{args.shard}" / "mutants"
     mut_root.mkdir(parents=True, exist_ok=True)
 
-    if not args.resume or not tsv.exists():
-        tsv.write_text(
-            "fixture\tmutation_kind\tmutant_path\tcurrent_verdict\troute_verdict\t"
-            "hand_verdict\tspec_path\tspec_quote\n",
-            encoding="utf-8",
-        )
+    header = (
+        "fixture\tmutation_kind\tmutant_path\tcurrent_verdict\troute_verdict\t"
+        "hand_verdict\tspec_path\tspec_quote\tobligation_line\troute_reason\treview_reason\n"
+    )
+    meta = out_dir / f"shard-{args.shard}.meta.json"
+    if tsv.exists() and not args.resume and not args.fresh:
+        print("refusing to truncate existing tsv; use --resume or --fresh", file=sys.stderr)
+        return 2
+    if not tsv.exists() or args.fresh:
+        tsv.write_text(header, encoding="utf-8")
 
-    done_fixtures = load_progress(progress) if args.resume else set()
+    done_fixtures = set()
+    if args.resume:
+        done_fixtures |= load_progress(progress)
+        done_fixtures |= fixtures_in_tsv(tsv)
+    import json
+
+    baseline = _totals_from_tsv(tsv)["mutants_run"] if tsv.exists() else 0
+    meta.write_text(
+        json.dumps({"baseline_mutants": baseline, "pin": PIN}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     counters = Counters()
-    holes_md: list[str] = []
-
     fixtures = shard_fixtures(args.shard)
     processed_new = 0
     for main in fixtures:
@@ -335,7 +359,7 @@ def main() -> int:
             continue
         counters.fixtures += 1
         processed_new += 1
-        cur0, _ = run_both_checkers(main, args.timeout)
+        cur0, _, _ = run_both_checkers(main, args.timeout)
         if cur0 != "accepted":
             counters.originals_skipped += 1
             append_tsv(
@@ -347,6 +371,9 @@ def main() -> int:
                     cur0,
                     "",
                     "discarded-valid",
+                    "",
+                    "",
+                    "",
                     "",
                     "",
                 ],
@@ -361,43 +388,68 @@ def main() -> int:
         for mut in mutations:
             counters.mutants_run += 1
             mdir = mut_root / slug(rel) / mut.kind
-            stage_mutant(main, mdir, mut.content)
+            try:
+                stage_mutant(main, mdir, mut.content)
+            except OSError as exc:
+                append_tsv(
+                    tsv,
+                    [
+                        rel,
+                        "_mutant_generate_failed",
+                        mut.kind,
+                        "",
+                        "",
+                        "mutant-generate-failed",
+                        "",
+                        "",
+                        "",
+                        "",
+                        str(exc)[:200],
+                    ],
+                )
+                fixture_had_row = True
+                continue
             mrel = str((mdir / "main.omg").relative_to(REPO))
 
-            current, route = run_both_checkers(mdir / "main.omg", args.timeout)
+            try:
+                current, route, route_reason = run_both_checkers(mdir / "main.omg", args.timeout)
+            except Exception as exc:  # noqa: BLE001
+                append_tsv(
+                    tsv,
+                    [
+                        rel,
+                        mut.kind,
+                        mrel,
+                        "error",
+                        "error",
+                        "mutant-run-failed",
+                        "",
+                        "",
+                        "",
+                        str(exc)[:200],
+                        "",
+                    ],
+                )
+                counters.mutants_run += 0
+                fixture_had_row = True
+                shutil.rmtree(mdir, ignore_errors=True)
+                continue
 
-            compile_fail = {"stopped", "unreached", "defect", "error", "timeout"}
-            accept_hole = current == "accepted" or route == "accepted"
-            disagree = current != route and not (
-                current in compile_fail and route in compile_fail
+            hand, spec_path, spec_quote, obligation, review_reason = classify(
+                mut.kind, source, mut.content, current, route, route_reason
             )
-            keep = accept_hole or disagree
-
-            hand = "discarded-valid"
-            spec_path = ""
-            spec_quote = ""
-            if keep:
-                if mut.kind not in SPEC_QUOTES:
-                    hand = "discarded-no-rule"
-                    counters.discarded_no_rule += 1
-                    shutil.rmtree(mdir, ignore_errors=True)
-                else:
-                    spec_path, spec_quote = SPEC_QUOTES[mut.kind]
-                    hand = "confirmed-invalid"
-                    counters.kept_holes += 1
-                    if disagree:
-                        counters.kept_disagree += 1
-                    holes_md.append(
-                        f"### {rel} — {mut.kind}\n\n"
-                        f"- Original: `{rel}`\n"
-                        f"- Mutant: `{mrel}`\n"
-                        f"- Current checker: `{current}`; route: `{route}`\n"
-                        f"- Hand check: **{hand}**\n"
-                        f"- Spec ({spec_path}):\n\n"
-                        f"> {spec_quote}\n"
-                    )
+            if hand == "confirmed-invalid":
+                counters.kept_holes += 1
+                if current != route:
+                    counters.kept_disagree += 1
+            elif hand == "known-gap-q7-mut":
+                counters.kept_holes += 0  # tracked in totals only
+            elif hand == "discarded-no-rule":
+                counters.discarded_no_rule += 1
             else:
                 counters.discarded_valid += 1
+
+            if hand not in {"confirmed-invalid", "known-gap-q7-mut"}:
                 shutil.rmtree(mdir, ignore_errors=True)
 
             append_tsv(
@@ -411,12 +463,18 @@ def main() -> int:
                     hand,
                     spec_path,
                     spec_quote.replace("\t", " ").replace("\n", " "),
+                    obligation.replace("\t", " "),
+                    route_reason.replace("\t", " ")[:500],
+                    review_reason.replace("\t", " ")[:500],
                 ],
             )
             fixture_had_row = True
 
         if not fixture_had_row:
-            append_tsv(tsv, [rel, "_no_mutations", "", "", "", "discarded-valid", "", ""])
+            append_tsv(
+                tsv,
+                [rel, "_no_mutations", "", "", "", "discarded-valid", "", "", "", "", ""],
+            )
 
         with progress.open("a", encoding="utf-8") as pf:
             pf.write(rel + "\n")
@@ -444,17 +502,26 @@ def main() -> int:
     return 0
 
 
-def _totals_from_tsv(tsv: Path) -> dict[str, int]:
+def _totals_from_tsv(tsv: Path) -> dict:
     counts = {
         "mutants_run": 0,
-        "kept_holes": 0,
+        "confirmed_invalid": 0,
+        "known_gap_q7": 0,
         "kept_disagree": 0,
         "discarded_valid": 0,
         "discarded_no_rule": 0,
+        "mutant_run_failed": 0,
+        "mutant_generate_failed": 0,
         "originals_skipped": 0,
+        "confirmed_by_kind": {},
+        "downgraded": 0,
+        "baseline_mutants": 0,
     }
     if not tsv.exists():
         return counts
+    from collections import Counter
+
+    by_kind: Counter[str] = Counter()
     for line in tsv.read_text().splitlines()[1:]:
         parts = line.split("\t")
         if len(parts) < 6:
@@ -463,17 +530,32 @@ def _totals_from_tsv(tsv: Path) -> dict[str, int]:
         if kind == "_original_not_accepted":
             counts["originals_skipped"] += 1
             continue
+        if kind == "_mutant_generate_failed":
+            counts["mutant_generate_failed"] += 1
+            counts["mutants_run"] += 1
+            continue
         if kind.startswith("_"):
+            continue
+        if hand == "mutant-run-failed":
+            counts["mutant_run_failed"] += 1
+            counts["mutants_run"] += 1
             continue
         counts["mutants_run"] += 1
         if hand == "confirmed-invalid":
-            counts["kept_holes"] += 1
+            counts["confirmed_invalid"] += 1
+            by_kind[kind] += 1
             if current != route:
                 counts["kept_disagree"] += 1
+        elif hand == "known-gap-q7-mut":
+            counts["known_gap_q7"] += 1
+            by_kind[f"{kind} (q7)"] += 1
         elif hand == "discarded-no-rule":
             counts["discarded_no_rule"] += 1
         elif hand == "discarded-valid":
             counts["discarded_valid"] += 1
+        else:
+            counts["discarded_valid"] += 1
+    counts["confirmed_by_kind"] = dict(by_kind)
     return counts
 
 
@@ -483,15 +565,17 @@ def _holes_from_tsv(tsv: Path) -> list[str]:
         return rows
     for line in tsv.read_text().splitlines()[1:]:
         parts = line.split("\t")
-        if len(parts) < 8 or parts[5] != "confirmed-invalid":
+        if len(parts) < 8 or parts[5] not in {"confirmed-invalid", "known-gap-q7-mut"}:
             continue
-        rel, kind, mrel, current, route, _, spec_path, spec_quote = parts[:8]
+        rel, kind, mrel, current, route, hand, spec_path, spec_quote = parts[:8]
+        obligation = parts[8] if len(parts) > 8 else ""
         rows.append(
             f"### {rel} — {kind}\n\n"
             f"- Original: `{rel}`\n"
             f"- Mutant: `{mrel}`\n"
             f"- Current checker: `{current}`; route: `{route}`\n"
-            f"- Hand check: **confirmed-invalid**\n"
+            f"- Hand check: **{hand}**\n"
+            f"- Broken obligation: `{obligation}`\n"
             f"- Spec ({spec_path}):\n\n"
             f"> {spec_quote}\n"
         )
