@@ -1,0 +1,447 @@
+pass/borrows/copied_intermediate_descriptor_snapshot_exit incomplete 2669ms check-target:macos_arm64
+	`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`
+pass/borrows/returned_slice_record_reference_custody_exit rejected 2086ms check-target:macos_arm64
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 115, generation: 47 } in main::entry statement 14: no exact invocation access supplies this descriptor; carrier Some("ref-mut(slice(named(name(nominal\\\\(package-owner\\\\(32:4c8e1c3e8c9c876b42fe70e705388e317e8d794d28b60c79bc1d15cba602ed38\\\\)\\\\,path\\\\(Pair\\\\)\\\\)))))"), expected None, path [] (0 segments); source Handle { arena_index: 116, generation: 47 } in main::entry statement 14: saved descriptor capture is unresolved; carrier Some("ref-mut(slice(named(name(nominal\\\\(package-owner\\\\(32:4c8e1c3e8c9c876b42fe70e705388e317e8d794d28b60c79bc1d15cba602ed38\\\\)\\\\,path\\\\(Pair\\\\)\\\\)))))"), expected None, path [] (0 segments)
+pass/borrows/runtime_dropped_reference_qualification_exit rejected 2089ms check-target:macos_arm64
+	cannot prove ensures contract for exit from refresh at statement 0: ticket in Ticket::Issued
+pass/borrows/runtime_projected_fixed_byte_array_local_exit rejected 2117ms check-target:macos_arm64
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/borrows/runtime_selected_reference_record_helper_exit rejected 10191ms check-target:macos_arm64
+	statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)
+	statement 7 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 8)
+	statement 16 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 8; its last use is at statement 20)
+	statement 17 mutates `third.value` while local borrow `third_input` is still active (borrowed at statement 10; its last use is at statement 20)
+	statement 19 mutates `second.value` while local borrow `second_input` is still active (borrowed at statement 9; its last use is at statement 20)
+	statement 13 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 7; its last use is at statement 15)
+pass/borrows/runtime_shared_view_record_presentation_exit rejected 3318ms check-target:macos_arm64
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(92), reason: "descriptor result origin could not be substituted at the call" }))
+pass/calls/runtime_borrowed_parameter_ensures_issuer_exit rejected 2455ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "owned membership transport cannot establish routed authority", gap: None })
+pass/calls/runtime_composed_index_case_pool_transition_exit timeout 120000ms
+pass/calls/runtime_linear_terminal_owner_disposition_exit checked 10334ms check-target:macos_arm64
+pass/capabilities/selected_applied_synchronous_chain_exit rejected 5471ms check-target:macos_arm64 terminal-inspections:failed
+	machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+	inspection Main::main admission: [Diagnostic { severity: Error, message: "machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/comptime/selected_float_array_length_layout_query_exit rejected 9238ms check-target:macos_arm64
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(8)]
+pass/concurrency/runtime_returned_carrier_suspension_exit rejected 2537ms check-target:macos_arm64
+	call to `read` may suspend while `projected` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the incoming loan has no exact invocation-entry permission
+pass/constants/direct_named_implementation_initializer_exit checked 3673ms check-target:macos_arm64
+pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 7888ms check-target:macos_arm64
+	state `right` receives `main` while local borrow `__transition_subject#15` is still active (borrowed at statement 4; its last use is at statement 10 and it is released at state exit)
+pass/dependent/runtime_symbolic_slice_predicate_store_exit checked 3639ms check-target:macos_arm64
+pass/dependent/state_arrival_byte_predicate_guarded_compile rejected 1294ms
+	state `checked` receives `main` as both mutable and read-only
+	state `checked` receives `main` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 4)
+	cannot prove requires contract for call checked from Main::main: valid_utf8(main.buffer[0..1]) (needs fact `valid_utf8(view)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`; authored requirement `valid_utf8(view)`
+pass/domains/routed_record_capture_before_sibling_mutation rejected 1236ms
+	cannot prove default-domain field requirement for call clear from capture::entry: parameter number requires Ticket::Issued
+pass/facts/as_slice_views_generic_through_call_result_exit rejected 2496ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_const_name_exit rejected 2703ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_match_join_exit rejected 2403ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_other_state_exit rejected 2463ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/as_slice_views_generic_through_target_body_exit rejected 2668ms check-target:macos_arm64
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
+pass/facts/assumed_binding_result_bound_through_local_exit rejected 9885ms check-target:macos_arm64 terminal-inspections:failed
+	assumed compiler-evaluation control reached another refusal: machine `main` is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route can occur before execution
+pass/facts/case_dependent_default_domain_through_field_exit incomplete 3444ms check-target:macos_arm64
+	`pick_named$specialized$4497254f4b4724b8$1$4757` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `pick_named$specialized$4497254f4b4724b8$1$4757::entry`
+pass/facts/case_dependent_default_domain_through_local_exit incomplete 3560ms check-target:macos_arm64
+	`pick_named$specialized$4497254f4b4724b8$1$4755` has no executable body: this compiler does not lower a state of it yet (normal result selection omits a completed source arm); in state `pick_named$specialized$4497254f4b4724b8$1$4755::entry`
+pass/facts/case_match_payload_loan_through_other_state_exit rejected 2214ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/case_match_payload_loan_through_parameter_exit rejected 2193ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/case_match_payload_loan_through_target_body_exit rejected 2236ms check-target:macos_arm64
+	state `store` receives `<saved subject #4:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #5:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #6:1>::Active.message.body` while local borrow `entry` is still active
+	state `store` receives `<saved subject #7:1>::Active.message.body` while local borrow `entry` is still active
+	statement 0 mutates `<saved subject #4:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #5:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #6:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+	statement 0 mutates `<saved subject #7:1>::Active.message.body.value` while local borrow `entry` is still active (borrowed at statement 0)
+pass/facts/component_scalar_lending_through_call_result_exit rejected 4768ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_const_name_exit rejected 4778ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_match_join_exit rejected 4756ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_other_state_exit rejected 4709ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_parameter_exit rejected 5081ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/component_scalar_lending_through_target_body_exit rejected 5281ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(22) has no admitted mechanism
+pass/facts/computed_record_window_through_other_machine_exit incomplete 2942ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 0
+pass/facts/computed_record_window_through_other_state_exit incomplete 3122ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 1
+pass/facts/computed_record_window_through_target_body_exit checked 3612ms check-target:macos_arm64
+pass/facts/core_float_representation_through_const_name_exit rejected 1156ms check-target:macos_arm64
+	constant initializer normalization: materialized value is not canonical: materialized initializer exceeds canonical declaration encoding limits
+pass/facts/core_float_representation_through_match_join_exit checked 3705ms check-target:macos_arm64
+pass/facts/core_float_representation_through_parameter_exit checked 3524ms check-target:macos_arm64
+pass/facts/data_where_standing_borrowed_field_array_field rejected 2498ms check-target:macos_arm64
+	state `read` receives `envelope.holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence
+pass/facts/exclusive_match_arm_through_other_machine_exit rejected 2441ms check-target:macos_arm64
+	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/foreign_nested_record_backing_repeated_child_type checked 3756ms check-target:macos_arm64
+pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2966ms check-target:macos_arm64
+	machine `swap_pending` stores a borrowed value without a complete normal-exit backing relation
+	statement 12 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 15)
+	statement 12 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 15)
+pass/facts/foreign_retained_shared_borrow_persistent_restore rejected 2894ms check-target:macos_arm64
+	machine `store_pending` stores a borrowed value without a complete normal-exit backing relation
+	cannot prove default-domain field requirement for return from store_pending at statement 7: main.stored requires Pending::Retained
+pass/facts/generic_calling_policy/ordinary_parent_fused_exit rejected 8575ms check-target:macos_arm64
+	selected provider requirement `named-callable(path(nominal\\(package-owner\\(32:1f0393f3a76baf55483264a3285fc5575f3576a942e8ac71a6991876e99f94dc\\)\\,path\\(ParentEntry::value\\)\\)),parameters(),result-dispatch())` has no emitted exact declaration candidate
+pass/facts/match_computed_root_through_other_machine_exit rejected 2370ms check-target:macos_arm64
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_join_place_read_through_other_machine_exit rejected 2347ms check-target:macos_arm64
+	cannot prove requires contract for call read_field from apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+pass/facts/match_join_place_read_through_other_state_exit rejected 2442ms check-target:macos_arm64
+	cannot prove requires contract for call read_field from pick: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined.kept == 17`
+pass/facts/match_join_place_read_through_target_body_exit rejected 2650ms check-target:macos_arm64
+	cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
+	cannot prove requires contract for call read_field from ArmApply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`
+pass/facts/match_loan_last_use_through_other_machine_exit rejected 2430ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/facts/match_reference_referent_through_parameter_exit rejected 2357ms check-target:macos_arm64
+	cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
+pass/facts/matched_field_windows_through_other_state_exit incomplete 2679ms check-target:macos_arm64
+	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0
+pass/facts/may_write_computed_receiver_through_field_exit checked 6575ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_local_exit checked 6456ms check-target:macos_arm64
+pass/facts/non_owning_reference_erasure_through_field_exit rejected 2334ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/non_owning_reference_erasure_through_local_exit rejected 2371ms check-target:macos_arm64
+	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
+	cannot prove default-domain field requirement for call write from main::entry: parameter storage requires Storage::Issued
+pass/facts/open_const_implementation_through_const_name_exit checked 4012ms check-target:macos_arm64
+pass/facts/open_const_implementation_through_match_join_exit checked 3391ms check-target:macos_arm64
+pass/facts/open_const_implementation_through_parameter_exit checked 3565ms check-target:macos_arm64
+pass/facts/recast_parent_restoration_through_const_name_exit rejected 3138ms check-target:macos_arm64
+	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
+pass/facts/recast_parent_restoration_through_match_join_exit rejected 3183ms check-target:macos_arm64
+	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
+pass/facts/recast_parent_restoration_through_parameter_exit rejected 3291ms check-target:macos_arm64
+	native artifact target lowering failed: UnknownStructuralType(StructuralTypeId(73))
+pass/facts/recoverable_replacement_window_through_field_exit incomplete 3303ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_local_exit incomplete 3128ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/representation_agreement_through_call_result_exit checked 10965ms check-target:macos_arm64
+pass/facts/representation_agreement_through_const_name_exit checked 10039ms check-target:macos_arm64
+pass/facts/representation_agreement_through_match_join_exit checked 10278ms check-target:macos_arm64
+pass/facts/representation_agreement_through_other_state_exit checked 10304ms check-target:macos_arm64
+pass/facts/representation_agreement_through_parameter_exit checked 10693ms check-target:macos_arm64
+pass/facts/representation_agreement_through_target_body_exit checked 10472ms check-target:macos_arm64
+pass/facts/selected_native_code_layout_through_field_exit rejected 1651ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/selected_native_code_layout_through_local_exit rejected 1598ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_recursive_index_positive rejected 2395ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_type_parameter_through_field_exit rejected 2098ms check-target:macos_arm64
+	source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })
+pass/facts/source_indexed_type_parameter_through_local_exit rejected 2116ms check-target:macos_arm64
+	source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity: 0 })
+pass/facts/source_indexed_type_parameter_u64_payload_exit rejected 2120ms check-target:macos_arm64
+	source induction case arithmetic is unsupported: Kernel(UnboundLevelParameter { index: 0, arity: 0 })
+pass/facts/target_family_callback_guarantee/other_machine checked 3222ms check-target:macos_arm64
+pass/facts/view_extent_after_write_through_match_join_exit rejected 1916ms check-target:macos_arm64
+	selected descriptor has no evaluated carrier custody
+pass/facts/write_only_indexed_reborrow_through_field_exit checked 3011ms check-target:macos_arm64
+pass/facts/write_only_indexed_reborrow_through_local_exit checked 3062ms check-target:macos_arm64
+pass/float/closed_integer_conversion_predicate_proof_exit checked 3188ms check-target:macos_arm64
+pass/float/nested_caller_snapshot_before_sibling_write_exit rejected 2433ms check-target:macos_arm64
+	cannot prove requires contract for call demand from forward: value == value (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/float/primitive_storage_predicate_keeps_ieee_meaning rejected 2318ms check-target:macos_arm64
+	cannot prove requires contract for call nonnegative64 from main: wide >= 0.0 (needs fact `value >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call nonnegative32 from main: narrow >= 0.0 (needs fact `value >= 0.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/float/public_integer_input_contract_guarded_import_exit rejected 2190ms check-target:macos_arm64
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+pass/float/public_integer_input_contract_state_import_exit rejected 2228ms check-target:macos_arm64
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+	specification call `F32::classify` has no observation-free, reach-free, crash-free value denotation
+pass/float/saturating_named_operations_retain_ordered_inputs checked 3122ms check-target:macos_arm64
+pass/float/symbolic_integer_conversion_finite_requires_exit rejected 1544ms check-target:macos_arm64
+	normal call `from_u8` (Handle { arena_index: 13439, generation: 1 }) in machine `converted_wrapping` state `entry` statement 0: completed call result has no checked value type
+pass/generics/inferred_record_equation_repeated_equal_exit rejected 1029ms check-target:macos_arm64
+	generated generic application does not match its exact retained instance origin
+pass/generics/open_const_selected_private_alias_sourcepoint checked 4372ms check-target:macos_arm64
+pass/generics/open_const_selected_private_nested_dependency checked 4392ms check-target:macos_arm64
+pass/generics/runtime_const_data_symbolic_expression_exit rejected 6193ms check-target:macos_arm64
+	const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection
+pass/generics/runtime_dependent_window_parameter_index_exit rejected 2545ms check-target:macos_arm64
+	cannot prove requires contract for call receive_inferred from main: Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #5:1>.Count == 7`
+pass/generics/runtime_generic_carrier_binder_equation_exit rejected 2473ms check-target:macos_arm64
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.carrier.value requires Tagged (declared field domain not proved)
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.box.value requires Tagged (declared field domain not proved)
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.reversed.value requires Tagged (declared field domain not proved)
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.repeated.value requires Tagged (declared field domain not proved)
+pass/generics/runtime_generic_carrier_equation_context_exit rejected 2435ms check-target:macos_arm64
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.box.value requires Tagged (declared field domain not proved)
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.reversed.value requires Tagged (declared field domain not proved)
+	cannot prove default-domain field requirement for call main from entry_start::entry: parameter main.repeated.value requires Tagged (declared field domain not proved)
+pass/generics/runtime_inherited_composite_requirement_exit rejected 1880ms check-target:macos_arm64
+	normal call `forward` (Handle { arena_index: 13439, generation: 1 }) in machine `observe` state `entry` statement 2: completed result reference permissions are unavailable
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 8035ms check-target:macos_arm64
+	IntegerAt store in machine `guarded_write` state `entry` assignment requires a value proven to fit 8-bit signed storage
+pass/layouts/runtime_recast_reference_captures_index_exit checked 4178ms check-target:macos_arm64
+pass/locals/runtime_local_qualified_view_member_read_exit incomplete 8020ms check-target:macos_arm64
+	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: missing exact flow occurrence); in state `Main::main::main`, statement 3
+pass/modules/selected_constant_array_alias_named_extent_exit rejected 7121ms check-target:macos_arm64
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `Main::main` requires contract: independent collection bounds are not established by preceding formed facts
+pass/ownership/runtime_borrowed_match_repeated_repair_exit incomplete 2834ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/ownership/runtime_carried_loan_field_replacement_exit rejected 7012ms check-target:macos_arm64
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
+pass/ownership/runtime_declared_linear_local_assignment_exit rejected 8380ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "completed linear arrival lost its exact claim frontier", gap: None })
+pass/ownership/runtime_local_subslice_element_window_exit rejected 2260ms check-target:macos_arm64
+	cannot establish assignment invariants: source parent type is unavailable
+	cannot establish assignment invariants: source parent type is unavailable
+pass/ownership/runtime_match_nested_observation_cleanup_exit rejected 2842ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13435, generation: 1 }), established: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, established_type: StructuralTypeId(22), requested: StructuralArgument { place: PlaceId(111), path: [], access: Owned }, requested_type: StructuralTypeId(22), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_structural_values.rs", producer_line: 4167 })
+pass/ownership/runtime_match_projected_subject_cleanup_exit rejected 2761ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "binding_subject", reason: "selection survivor requires an exact emitted operation-result frontier", gap: None })
+pass/packages/runtime_attached_owner_crash_guard_scope_exit rejected 1425ms check-target:macos_arm64
+	machine `Owner::inspect` static type argument uses undeclared lifetime argument `'storage' in `Owner`; declare it in the owner's generic parameter list
+pass/proofs/runtime_ranked_forwarding_state_recursion_exit rejected 7685ms check-target:macos_arm64
+	cannot prove ensures contract for exit from descend at statement 1: result <= previous
+pass/proofs/runtime_sequential_relational_accumulator_exit rejected 8065ms check-target:macos_arm64
+	cannot prove ensures contract for exit from descend at statement 1: result <= previous
+	cannot prove ensures contract for exit from descend at statement 2: result <= previous
+	terminating machine descend reaches recursive component `loop`, which has no `terminates by` ranking -- spell one on that component
+pass/proofs/runtime_static_result_projection_citation_exit checked 8987ms check-target:macos_arm64
+pass/proofs/structural_application_decreasing_actuals_exit checked 2981ms check-target:macos_arm64
+pass/providers/checked_boundary_operator_physical_custody rejected 15978ms check-target:macos_arm64 terminal-inspections:failed
+	boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([221, 176, 202, 140, 109, 101, 50, 98, 25, 133, 168, 7, 145, 95, 131, 34, 206, 131, 253, 64, 209, 157, 251, 206, 1, 122, 233, 32, 233, 191, 101, 166])) resolves to 0 selected ProviderPlans; expected exactly one
+	inspection entry_start admission: [Diagnostic { severity: Error, message: "boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([221, 176, 202, 140, 109, 101, 50, 98, 25, 133, 168, 7, 145, 95, 131, 34, 206, 131, 253, 64, 209, 157, 251, 206, 1, 122, 233, 32, 233, 191, 101, 166])) resolves to 0 selected ProviderPlans; expected exactly one", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/providers/lifetime_boundary_requirement_dispatch_exit rejected 10043ms check-target:macos_arm64
+	no provider is selected for boundary requirement `CellSource::read`, which the program entry reaches on target `macos_arm64`
+pass/providers/runtime_provider_reference_allocation_exit rejected 2416ms check-target:linux_x86_64
+	machine `initialize_frame` state `entry` statement 3: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
+pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 7530ms check-target:macos_arm64
+	state `write_pairs` receives `main` as mutable more than once
+	state `write_pairs` receives `main` while local borrow `pairs` is still active (borrowed at statement 0; its last use is at statement 2)
+pass/recast/runtime_mutable_equivalent_record_recast_exit rejected 7439ms check-target:macos_arm64
+	machine `Main::main` state `main` statement 10: reading `context` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
+	machine `Main::main` state `main` statement 10: the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `SignedRecord`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 11 in machine `Main::main` state `main`: this write left the `requires` facts of `context.source` (data `SignedRecord`) unproved; restore them first
+pass/slices/runtime_indexed_descriptor_replacement_call_exit rejected 2191ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/slices/runtime_indexed_store_operand_effect_order_exit rejected 2290ms check-target:macos_arm64
+	cannot prove requires contract for call middle from Main::main: 1 <= 3 && 3 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 2460ms check-target:macos_arm64
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 22, generation: 46 } in main::entry statement 4: no exact invocation access supplies this descriptor; carrier Some("ref-mut(array(named(name(i32)),literal(3)))"), expected None, path [] (0 segments)
+pass/slices/runtime_returned_nested_array_window_home_exit incomplete 2625ms check-target:macos_arm64
+	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0
+pass/slices/runtime_stored_view_direct_window_argument_exit rejected 2296ms check-target:macos_arm64
+	returned view has no complete formation frontier
+pass/termination/runtime_call_result_short_circuit_rank_exit incomplete 7983ms check-target:macos_arm64
+	`entry_start` calls `Main::main`, which calls `sort`; `sort` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
+pass/termination/runtime_named_state_remainder_endpoint_exit rejected 7562ms check-target:macos_arm64
+	terminating machine walk reaches recursive component `iterate`, which has no `terminates by` ranking -- spell one on that component
+pass/termination/runtime_nested_borrowed_rank_carrier_exit incomplete 2569ms check-target:macos_arm64
+	`walk::step` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `walk::step::entry`, statement 1
+pass/traits/applied_conformance_captured_fresh_regions_exit rejected 2229ms check-target:macos_arm64
+	machine `Reader::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity [input-inference parameter 1; actual reference Handle { arena_index: 1232, generation: 1 }; required reference Handle { arena_index: 3597, generation: 1 }; last rejected comparison Some(RejectedRegionComparison { reference: Handle { arena_index: 1232, generation: 1 }, actual_declaration: Handle { arena_index: 1248, generation: 1 }, required_declaration: Handle { arena_index: 2110, generation: 1 }, actual: Some(Fresh(0)), required: Some(Fresh(0)) }); required: owner read Handle { arena_index: 2110, generation: 1 }, supplier Reader Handle { arena_index: 1234, generation: 1 }, fresh 1, names [("scope", Captured(Handle { arena_index: 2110, generation: 1 }, 0)), ("scope", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 2110, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [[]], substitutions [(Handle { arena_index: 2109, generation: 1 }, Handle { arena_index: 4130, generation: 1 })], scope starts [0]; actual: owner Reader::read Handle { arena_index: 1248, generation: 1 }, supplier Reader::read Handle { arena_index: 1248, generation: 1 }, fresh 1, names [("scope", Captured(Handle { arena_index: 1234, generation: 1 }, 0)), ("scope", Captured(Handle { arena_index: 1248, generation: 1 }, 0)), ("scope", Fresh(0))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 1248, generation: 1 }, ordinal: 0 }, Fresh(0))], bindings [], applications [], substitutions [], scope starts []]
+pass/traits/runtime_qualified_owned_requirement_calls_exit incomplete 2533ms check-target:macos_arm64
+	`CellReading::Reading::observed` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `CellReading::Reading::observed::observed`
+fail/borrows/copied_active_case_snapshot_retains_backing rejected 1542ms unexpected
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/borrows/dynamic_store_then_fixed_retains_replacement rejected 1251ms expected
+	statement 6 mutates `replacement.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
+fail/borrows/reassigned_view_conflicts_with_captured_child rejected 1192ms unexpected
+	cannot establish assignment invariants: source parent type is unavailable
+fail/borrows/reference_record_field_predicate_invalid_store rejected 1210ms unexpected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `cell` (data `Cell`) unproved; restore them first
+fail/borrows/reference_record_index_predicate_invalid_store rejected 1213ms unexpected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `selection` (data `Selection`) unproved; restore them first
+fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 1191ms unexpected
+	cannot use `held`: this selected region was transferred or has not been established in machine `main` state `entry`
+fail/build/product_entry_query_foreign_helper_private_entry rejected 4ms unexpected
+	failed to resolve tests/omega/fail/build/product_entry_query_foreign_helper_private_entry/support/configure.omg: captured entry is absent: support
+fail/build/retained_domain_and_service_rows_invalid_index rejected 904ms unexpected
+	domain constraint `Below` for the const leaf value is false; failed domain `Below`
+fail/calls/foreign_callback_requires_selected_entry_plan rejected 3051ms unexpected
+	no provider is selected for boundary requirement `Registrar::install`, which the program entry reaches on target `linux_x86_64`
+fail/capabilities/callback_synchronous_registration_cycle rejected 11079ms unexpected
+	no provider is selected for boundary requirement `Registration::register`, which the program entry reaches on target `macos_arm64`
+fail/comptime/array_expression_unused_invalid_call_operand rejected 1270ms unexpected
+	cannot form specification operator `+` in data `Bad` field `bytes`: no exact selected meaning for operand types [u64, bool]
+fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 12570ms unexpected
+	constant checking: scalar predicate is false: requires contract for call take_bounded from main state entry statement 0
+fail/contracts/executable_float_box_equality_not_identity rejected 1312ms unexpected
+	cannot prove requires contract for call demand_identity from guarded: FloatingEquality.equals(left, right) (needs fact `FloatingEquality.equals(&left, &right)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `FloatingEquality.equals(shared left, shared right)`
+fail/control_flow/state_result_differs_from_machine_result rejected 1265ms unexpected
+	machine `Main::main` state `main` terminal call to `checked` completes with its `i32` result, but the state returns `Unit`; a terminal machine call's normal result is its caller's result, so the two must match
+	machine `Main::main` state `main` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 6871ms unexpected
+	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+	uncovered Trap crash in machine `accumulate` state `entry` return value: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
+fail/core/scoped_integer_call_guarantees_cannot_form_cycle checked 1380ms
+fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 1234ms unexpected
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
+	machine `tail` state `entry` statement 4: reading `pump` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Pump`
+	machine `tail` state `entry` statement 4: the next whole-value read of `pump` occurs inside an OPEN invariant window: a prior write left data `Pump`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `tail` state `entry`: this write left the `requires` facts of `pump` (data `Pump`) unproved; restore them first
+fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 1229ms unexpected
+	machine `Main::main` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/dependent/stored_predicate_same_spelled_missing_field rejected 1213ms unexpected
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `record` (data `Pair`) unproved; restore them first
+fail/domains/qualified_explicit_buffer_write_only_invariant rejected 1188ms unexpected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
+fail/domains/returned_record_scalar_predicate_invalidation rejected 1212ms unexpected
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `buffer` (data `Buffer`) unproved; restore them first
+fail/facts/borrowed_store_call_through_call_result_rejected rejected 1689ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_const_name_rejected rejected 989ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_match_join_rejected rejected 1791ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_other_state_rejected rejected 1858ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_parameter_rejected rejected 1809ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/borrowed_store_call_through_target_body_rejected rejected 1833ms unexpected
+	machine `update` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+fail/facts/foreign_reference_result_through_field_rejected rejected 1664ms unexpected
+	normal call `fill` (Handle { arena_index: 13526, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_local_rejected rejected 1683ms unexpected
+	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_retained_mutable_borrow_other_machine rejected 2977ms expected
+	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/foreign_retained_shared_borrow_retained_escape rejected 2957ms expected
+	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/indexed_crash_guard_through_other_state_rejected rejected 2291ms unexpected
+	call from `read_seven` to `consume` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `read_seven` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/facts/match_loan_last_use_through_call_result_rejected rejected 1271ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_const_name_rejected rejected 1231ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_match_join_rejected rejected 1234ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_other_state_rejected rejected 1224ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_parameter_rejected rejected 1233ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/match_loan_last_use_through_target_body_rejected rejected 2204ms unexpected
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+fail/facts/open_const_implementation_return_write_output rejected 980ms expected
+	cannot prove ensures contract for exit from selected at statement 2: destination >= Minimum
+	cannot prove ensures contract for exit from construct at statement 2: result >= Base + 4
+fail/facts/open_const_implementation_through_field_rejected rejected 1430ms expected
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_const_implementation_through_local_rejected rejected 1435ms expected
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/predicate_type_formation_through_field_rejected rejected 1242ms unexpected
+	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/predicate_type_formation_through_local_rejected rejected 1244ms unexpected
+	data `Value<bool>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Value<bool>` case `Integer` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/facts/representation_agreement_through_field_rejected rejected 8164ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_local_rejected rejected 8100ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/float/authored_heterogeneous_float_operator_requires rejected 1169ms unexpected
+	implicit domain weakening in argument `right` for state `Float::subtract` drops `Measured`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/float/primitive_comparison_no_named_helper_exposure rejected 1218ms unexpected
+	named operator `F64::is_finite` is not available in this source's import scope
+fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 1197ms expected
+	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_named_conversion_requires_site_coverage rejected 1216ms expected
+	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
+fail/float/trapping_nonentry_site_requires_matching_path rejected 1220ms unexpected
+	call from `scale` to `risky` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `scale` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/generics/cross_module_const_alias_shadowed_evidence rejected 1768ms expected
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/generics/grouped_decimal_const_zero_division_rejected rejected 783ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/generics/static_requirement_record_wrong_conformance rejected 1104ms expected
+	generic machine `wrap` cannot bind `Operations` to conformance `Integer`: expected a complete `Arithmetic` implementation with the instantiated trait arguments
+fail/inline_asm/asm_system_register_destination_predicate rejected 2016ms unexpected
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+fail/layouts/resident_field_write_preserves_qualification rejected 3704ms unexpected
+	accessor write application for `Accessor<Access<WordPlacement,Word>,value>` with value `u64`: value type does not match the accessor's exact value type
+fail/layouts/unselected_target_callback_layout_underflow checked 4100ms
+fail/ownership/selected_source_forwarded_live_call_carrier rejected 2256ms unexpected
+	statement 7 moves `left` while local borrow `forwarded` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 7 moves `left` while local borrow `holder` is still active (borrowed at statement 6; its last use is at statement 8)
+	statement 7 moves `left` while local borrow `forwarded` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 7 moves `left` while local borrow `holder` is still active (borrowed at statement 6; its last use is at statement 8)
+fail/proofs/selected_specification_requires_missing_premise rejected 1223ms expected
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/selected_specification_requires_wrong_machine rejected 1184ms expected
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/selected_specification_requires_wrong_subject rejected 1161ms expected
+	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/structural_application_premise_false_rejected rejected 2307ms unexpected
+	cannot prove requires contract for call bounded from main: selected(3) < 1 && 3 < 9 (needs fact `selected(value) < 1 && value < 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/providers/checked_boundary_extent_index_out_of_bounds rejected 12013ms unexpected
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [BoundaryMachineId(28)], external imports unavailable to constant execution: []
+fail/providers/qualified_foreign_result_forwarding_instance rejected 1286ms unexpected
+	cannot prove requires contract for call read from wrong: value in package:3d92efe67504bb70c00725c22099bb710e146ef0bf5a2ec878e4a2b19b4a4ab7:product::Coordinate<expression:u64:index-expression(integer(7))> in state `entry`
+	cannot prove ensures contract for exit from wrong at statement 0: result.code == 0
+fail/recast/pending_layout_view_call_requires_establishment rejected 2333ms expected
+	argument `value` for state `consume`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
+fail/slices/stored_view_backing_mutated_while_returned_live rejected 1291ms unexpected
+	returned view has no complete formation frontier
+fail/slices/stored_view_container_read_while_returned_live rejected 1229ms unexpected
+	returned view has no complete formation frontier
+fail/termination/joint_rankless_finish_reenters_component rejected 1283ms unexpected
+	machine call cycle: `left`, `finish`, `right` -- a private member has no compatible natural rank input; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/lexicographic_component_zero_step_rejected rejected 1314ms unexpected
+	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/rank_arrival_public_result_wrong_subject rejected 1378ms unexpected
+	terminating machine iterate: cannot prove rank range `0..=5` for the rank produced by the selected view
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/traits/applied_requirement_lexical_isolation_missing rejected 2667ms unexpected
+	machine call cycle: `Caller::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+fail/traits/explicit_implementation_binder_trait_arguments rejected 1108ms unexpected
+	`<structural type>` is bound as `Ranked<T>`, not the `Ranked<Card>` this call of `Ranked::compare` names; expected [named(name(nominal\\(package-owner\\(32:2ace87147eb30f7f25a300ba368346d942fa71ebf67ac5d890f90bc8bf3c73ad\\)\\,path\\(rank::T\\)\\)))], supplied [named(name(nominal\\(package-owner\\(32:2ace87147eb30f7f25a300ba368346d942fa71ebf67ac5d890f90bc8bf3c73ad\\)\\,path\\(Card\\)\\)))]
+fail/traits/explicit_implementation_wrong_trait_arguments rejected 1037ms unexpected
+	`<structural type>` implements `Ranked<Card>`, not the `Ranked<Gem>` this call of `Ranked::compare` names; expected [named(name(nominal\\(package-owner\\(32:7c42f35d3ed87df158670acf5d63d02218cc26b879d44ed46bbcbffe376ac0de\\)\\,path\\(Card\\)\\)))], supplied [named(name(nominal\\(package-owner\\(32:7c42f35d3ed87df158670acf5d63d02218cc26b879d44ed46bbcbffe376ac0de\\)\\,path\\(Gem\\)\\)))]
+run/calls/outcome_specific_selected_guarantee_inputs_exit rejected 6864ms check-target:macos_arm64
+	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
+run/calls/outcome_specific_selected_guarantee_result_exit rejected 6945ms check-target:macos_arm64
+	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)

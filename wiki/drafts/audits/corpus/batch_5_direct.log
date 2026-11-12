@@ -1,0 +1,8 @@
+corpus_runner: fixture-root-v1 2f6167656e742f7265706f732f6f6d656761
+warning: unreachable branch: the `true` arm of a transition in machine `run_main` state `entry` can never run; its guard contradicts the facts in force here: value >= 99
+warning: unreachable branch: the `true` arm of a transition in machine `run_main` state `entry` can never run; its guard contradicts the facts in force here: value >= 99
+warning: unreachable branch: the `true` arm of a transition in machine `main` state `entry` can never run; its guard contradicts the facts in force here: written <= 0
+corpus_runner: 200/200 done, 0 compile(s) in flight
+corpus_runner: 6 fixture(s) timed out, 0 compile(s) still in flight at exit
+corpus_runner: library slices: 190 distinct, 716 computed
+436 /agent/repos/omega/wiki/drafts/audits/corpus/batch_5.txt
