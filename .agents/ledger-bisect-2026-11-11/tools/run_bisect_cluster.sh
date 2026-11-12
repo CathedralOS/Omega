@@ -95,29 +95,41 @@ for _ in 1 2 3; do
 done
 git checkout -q "$PIN"
 
-git bisect reset >/dev/null 2>&1 || true
-git bisect start --first-parent "$PIN" "$good"
 export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS"
-: >/tmp/bisect_run.log
-set +e
-git bisect run "$TOOL/bisect_witness.sh" 2>&1 | tee /tmp/bisect_run.log
-bisect_rc=$?
-set -e
-first_bad=$(grep -oE '^[0-9a-f]{7,40} is the first bad commit' /tmp/bisect_run.log 2>/dev/null | head -1 | awk '{print $1}')
-[[ -z "$first_bad" ]] && first_bad=$(git bisect log 2>/dev/null | sed -n 's/^first bad commit: \[\([0-9a-f]*\)\].*/\1/p' | head -1)
-if [[ -n "$first_bad" ]] && is_ledger_only_commit "$first_bad"; then
-  walk="$first_bad"
-  for _ in $(seq 1 80); do
-    walk=$(git rev-parse --verify "${walk}^@" 2>/dev/null) || break
-    if ! is_ledger_only_commit "$walk"; then
-      git checkout -q "$walk"
-      rc=$(witness_rc)
-      git checkout -q "$PIN"
-      [[ "$rc" -eq 1 ]] && first_bad="$walk" && break
+mapfile -t commits < <(
+  while read -r sha; do
+    is_ledger_only_commit "$sha" && continue
+    echo "$sha"
+  done < <(git rev-list --first-parent --reverse "$good".."$PIN")
+)
+first_bad=""
+bisect_rc=1
+if ((${#commits[@]} == 0)); then
+  :
+elif ((${#commits[@]} == 1)); then
+  first_bad="${commits[0]}"
+  bisect_rc=0
+else
+  lo=0
+  hi=$((${#commits[@]} - 1))
+  : >/tmp/bisect_run.log
+  while ((hi - lo > 1)); do
+    mid=$(((lo + hi) / 2))
+    git checkout -q "${commits[mid]}"
+    rc=$(witness_rc)
+    echo "probe ${commits[mid]} rc=$rc" >>/tmp/bisect_run.log
+    if [[ "$rc" -eq 0 ]]; then
+      lo=$mid
+    elif [[ "$rc" -eq 1 ]]; then
+      hi=$mid
+    else
+      hi=$mid
     fi
   done
+  first_bad="${commits[hi]}"
+  bisect_rc=0
 fi
-git bisect reset "$PIN" >/dev/null
+git checkout -q "$PIN"
 
 if [[ -z "$first_bad" ]]; then
   printf '{"witness":"%s","good":"%s","error":"bisect produced no first_bad","flaky_good":%s,"flaky_bad":%s,"bisect_rc":%s}\n' \
