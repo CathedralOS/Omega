@@ -18,4 +18,3 @@ ensures core::Identity<FloatMeaning>(result,
 {
     FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend)
 }
-

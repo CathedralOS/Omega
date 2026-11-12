@@ -1049,6 +1049,14 @@ pub mod operator {
             static_receiver_segments: Option<&[&str]>,
             target_name: &str,
         ) -> bool {
+            // Static module normalization removes the receiver and retains the
+            // complete selected path. Overloads still await operand types, so
+            // match their declaration paths before the caller applies arity and
+            // visibility checks. A leaf comparison would discard the family;
+            // authored operator names alone also omit a real module's owner.
+            if static_receiver_segments.is_none() && target_name.contains("::") {
+                return program.symbols.display_path(operator.symbol, "::") == target_name;
+            }
             let path = program.operator_path_members(operator.name);
             let Some((last, prefix)) = path.split_last() else {
                 return false;
