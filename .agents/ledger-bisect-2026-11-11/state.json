@@ -157,7 +157,8 @@
         "pass/borrows/runtime_shared_reference_array_cohort_restoration_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "propagated",
+        "reason": "no good first-parent ancestor"
       }
     }
   ]
