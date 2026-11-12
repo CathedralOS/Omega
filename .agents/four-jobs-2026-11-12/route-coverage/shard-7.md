@@ -15,7 +15,7 @@ python3 .agents/four-jobs-2026-11-12/route-coverage/run_shard7.py
 
 **Verdict rules.** `accepted` only if every root is `route=accepted`. `rejected` if any root is `route=rejected`. `partial` if some roots accepted and some unjudged (`outside`, `no-entry`, `unreached`, etc.). `current_verdict` is harness `current=` from the typed-frontier package check (`accepted` / `rejected` / `stopped`); `stopped` is not treated as checker reject for agreement.
 
-Fixtures in shard: 2174 (bucket sum 2174)
+Fixtures in shard: 2173 (bucket sum 2173)
 
 ## Totals (this shard)
 
@@ -24,10 +24,10 @@ Fixtures in shard: 2174 (bucket sum 2174)
 | accepted | 36 |
 | rejected | 74 |
 | partial | 196 |
-| outside | 1868 |
+| outside | 1867 |
 | error | 0 |
 | timeout | 0 |
-| **sum** | **2174** |
+| **sum** | **2173** |
 | agree | 90 |
 | disagree | 20 |
 | agree+disagree (= accepted+rejected rows) | 110 (= 110) |
@@ -45,7 +45,7 @@ Fixtures in shard: 2174 (bucket sum 2174)
 
 | first refusal | blocks | examples |
 | --- | ---: | --- |
-| machine service reach | 344 | `tests/omega/fail/borrows/byte_array_state_loan_wrong_extent/main.omg`, `tests/omega/fail/borrows/reference_array_result_duplicate_mutable/main.omg`, `tests/omega/fail/borrows/stored_reference_leaf_child_live_source_write/main.omg` |
+| machine service reach | 343 | `tests/omega/fail/borrows/byte_array_state_loan_wrong_extent/main.omg`, `tests/omega/fail/borrows/reference_array_result_duplicate_mutable/main.omg`, `tests/omega/fail/borrows/stored_reference_leaf_child_live_source_write/main.omg` |
 | parameter mutable parameter | 259 | `tests/omega/fail/arithmetic/collection_result_endpoint_effect/main.omg`, `tests/omega/fail/arithmetic/unit_terminal_unguarded_cast/main.omg`, `tests/omega/fail/borrow/relational_handback_false_return_guarantee/main.omg` |
 | machine generic parameters | 182 | `tests/omega/fail/borrow/bounded_reference_store_preserves_range/main.omg`, `tests/omega/fail/borrow/nested_borrow_carrying_local_escape/main.omg`, `tests/omega/fail/borrows/consumed_nominal_carrier_retains_backing/main.omg` |
 | type reference | 147 | `tests/omega/fail/arithmetic/bounded_store_consumed_before_repair/main.omg`, `tests/omega/fail/atomics/stored_reference_non_atomic_shared_store/main.omg`, `tests/omega/fail/borrows/float_selection_store_through_shared_receiver/main.omg` |

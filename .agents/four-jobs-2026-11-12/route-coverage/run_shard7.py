@@ -57,14 +57,7 @@ def shard_fixtures() -> list[str]:
     ]
     raw = subprocess.check_output(cmd, text=True)
     paths = sorted(raw.splitlines(), key=lambda line: line)
-    shard = [p for i, p in enumerate(paths) if i % 8 == SHARD]
-    # When |corpus| % 8 == 7, NR=|corpus| has NR%8==7 but (NR-1)%8==6; shard 7
-    # still owns that trailing fixture so the shard has 2174 rows like siblings.
-    if SHARD == 7 and len(paths) % 8 == 7:
-        last = paths[-1]
-        if last not in shard:
-            shard.append(last)
-    return shard
+    return [p for i, p in enumerate(paths) if i % 8 == SHARD]
 
 
 def tier(fixture: str) -> str:

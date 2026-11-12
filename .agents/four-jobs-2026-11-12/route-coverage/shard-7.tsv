@@ -2172,4 +2172,3 @@ tests/omega/run/ranges/borrowed_case_payload_alias/main.omg	run	outside	rejected
 tests/omega/run/slices/disjoint_local_state_windows/main.omg	run	outside	accepted	n-a	machine service reach	14.60			compilation:outside	
 tests/omega/run/state_owned_nested_borrow/main.omg	run	outside	accepted	n-a	machine generic parameters	3.38			compilation:outside	
 tests/omega/run/traits/implementation_value_same_selections/main.omg	run	outside	accepted	n-a	type reference	3.55			compilation:outside	
-tests/omega/run/variant_record_normalization_repeats/main.omg	run	outside	accepted	n-a	machine service reach	15.59			compilation:outside	
