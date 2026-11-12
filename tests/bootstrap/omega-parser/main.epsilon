@@ -195,6 +195,55 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine outer() { machine helper() {} }");
     self.check_empty_unit_entry();
 
+    // Nested literals publish only their own contiguous fields. A child may
+    // finish first without becoming a field of its parent's row interval.
+    self.parser.parse_view("machine p() { let packet: Packet = Packet { left: Leaf {word:1 as +Trapping}, right: Leaf {word:9 as +Trapping} }; }");
+    self.check_nested_record_literals();
+
+    self.parser.parse_view("machine make(x:u32 in Trapping)->Leaf { Leaf {word:x} }");
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.struct_literal_field_count == 1;
+    assert self.parser.machine_states[0].statement_count == 1;
+    self.check_record_expression(self.parser.statements[0].item_index, 0);
+
+    self.parser.parse_view("machine p() { consume(7, Packet {left:make(1), right:make(9)}, 11); }");
+    self.check_record_field_calls();
+
+    self.parser.parse_view("machine p() { target = Pair { left: Empty {}, right: Empty {} }; }");
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.struct_literal_count == 3;
+    assert self.parser.struct_literal_field_count == 2;
+    assert self.parser.struct_literals[0].field_count == 0;
+    assert self.parser.struct_literals[1].field_count == 0;
+    assert self.parser.struct_literals[2].first_field == 0;
+    assert self.parser.struct_literals[2].field_count == 2;
+    self.check_record_expression(self.parser.assignment_statements[0].value, 2);
+    self.check_record_expression(self.parser.struct_literal_fields[0].value, 0);
+    self.check_record_expression(self.parser.struct_literal_fields[1].value, 1);
+
+    self.parser.parse_view("machine p() { take(&mut Packet {left:(7 + read()), right:!false}); }");
+    self.check_record_field_frames();
+
+    self.parser.parse_view("machine p() { take(Packet {left: Leaf {word:}, right: Leaf {word:9}}); }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { take(Packet {left: Leaf {word:1}");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { let x: R = R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: R { a: 0 } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }; }");
+    self.check_literal_depth_refused();
+
+    // A failed nested parse must not leak lists, call headers, or saved stacks.
+    self.parser.parse_view("machine make()->Empty { Empty {} }");
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.struct_literal_field_count == 0;
+    assert self.parser.pending_struct_field_count == 0;
+    self.check_record_expression(self.parser.statements[0].item_index, 0);
+
     self.console.write_byte(65);
 }
 
@@ -480,6 +529,7 @@ machine Main::check_header_rows(&mut self, termination: i32, reached: i32, termi
 }
 
 machine Main::check_call_stacks_empty(&mut self) {
+    assert self.parser.struct_literal_frame_count == 0;
     assert self.parser.call_parse_frame_count == 0;
     assert self.parser.suspended_expression_frame_count == 0;
     assert self.parser.suspended_expression_slot_count == 0;
@@ -557,10 +607,10 @@ machine Main::check_subject_call_rows(&mut self) {
 
 machine Main::check_borrow_node(&mut self, expression: i32, access: i32) {
     transition self.parser.expressions[expression].kind {
-        OmegaExpressionKind::Borrow -> row(expression, access)
+        OmegaExpressionKind::Borrow -> row()
         _ -> self.console.exit_process(1)
     }
-    state row(expression: i32, access: i32) {
+    state row() {
         assert self.parser.expressions[expression].payload0 < expression;
         assert self.parser.expressions[expression].payload1 == access;
         assert self.parser.expressions[expression].payload3 > self.parser.expressions[expression].payload2;
@@ -675,6 +725,96 @@ machine Main::check_empty_unit_entry(&mut self) {
     state helper() {
         transition self.parser.machine_states[1].name_kind {
             OmegaMachineStateNameKind::Authored -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_record_expression(&mut self, expression: i32, row: i32) {
+    assert self.parser.expressions[expression].payload0 == row;
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::StructLiteral -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_nested_record_literals(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.struct_literal_count == 3;
+    assert self.parser.struct_literal_field_count == 4;
+    assert self.parser.pending_struct_field_count == 4;
+    assert self.parser.struct_literals[0].first_field == 0;
+    assert self.parser.struct_literals[0].field_count == 1;
+    assert self.parser.struct_literals[1].first_field == 1;
+    assert self.parser.struct_literals[1].field_count == 1;
+    assert self.parser.struct_literals[2].first_field == 2;
+    assert self.parser.struct_literals[2].field_count == 2;
+    assert self.parser.struct_literal_fields[2].start < self.parser.struct_literal_fields[0].start;
+    assert self.parser.struct_literal_fields[2].end < self.parser.struct_literal_fields[3].start;
+    assert self.parser.struct_literal_fields[3].start < self.parser.struct_literal_fields[1].start;
+    self.check_record_expression(self.parser.struct_literal_fields[2].value, 0);
+    self.check_record_expression(self.parser.struct_literal_fields[3].value, 1);
+    self.check_record_expression(self.parser.local_data_statements[0].initial_value, 2);
+    assert self.parser.cast_expression_count == 2;
+    self.check_cast_kind(0, 1);
+    self.check_cast_kind(1, 1);
+}
+machine Main::check_record_field_calls(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.call_expression_count == 2;
+    assert self.parser.call_expressions[0].argument_count == 1;
+    assert self.parser.call_expressions[1].argument_count == 1;
+    assert self.parser.call_statements[0].argument_count == 3;
+    assert self.parser.call_statements[0].first_argument == 2;
+    assert self.parser.call_argument_count == 5;
+    self.check_record_expression(self.parser.call_arguments[3], 0);
+    assert self.parser.struct_literals[0].field_count == 2;
+    self.check_field_call(0, 0);
+    self.check_field_call(1, 1);
+}
+machine Main::check_field_call(&mut self, field: i32, row: i32) {
+    let expression: i32 = self.parser.struct_literal_fields[field].value;
+    assert self.parser.expressions[expression].payload0 == row;
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::Call -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_record_field_frames(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.call_expression_count == 1;
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.unary_expression_count == 1;
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.struct_literal_field_count == 2;
+    let argument: i32 = self.parser.call_arguments[self.parser.call_statements[0].first_argument];
+    self.check_borrow_node(argument, 1);
+    self.check_record_expression(self.parser.expressions[argument].payload0, 0);
+    transition self.parser.expressions[self.parser.struct_literal_fields[0].value].kind {
+        OmegaExpressionKind::Binary -> right()
+        _ -> self.console.exit_process(1)
+    }
+    state right() {
+        transition self.parser.expressions[self.parser.struct_literal_fields[1].value].kind {
+            OmegaExpressionKind::Unary -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+machine Main::check_literal_depth_refused(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::ResourceFailure -> bound()
+        _ -> self.console.exit_process(1)
+    }
+    state bound() {
+        assert self.parser.resource_limit == 128;
+        assert self.parser.resource_requested == 129;
+        transition self.parser.resource {
+            OmegaParserResource::ExpressionDepth -> return
             _ -> self.console.exit_process(1)
         }
     }

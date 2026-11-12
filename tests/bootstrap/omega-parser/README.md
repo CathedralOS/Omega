@@ -62,7 +62,7 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across fifty invocations. Direct
+The current customer reuses one parser across fifty-nine invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
@@ -85,6 +85,15 @@ and independent Unit completion. Their source bytes come from
 own entry before nested declarations. These are syntax/custody checks; the
 compiler's actual SourceUnit customer owns checking and native execution.
 
+
+Nested record controls preserve the authored Packet/Leaf literals and a literal
+terminal record result. Child rows publish before their parent while each
+literal's own fields remain contiguous and ordered. Calls inside fields preserve
+the surrounding call's arguments; grouped operators and prefixes use the same
+expression machinery. Explicit empty literals, malformed nesting, the bounded
+128-level context limit and successful reuse after failures check ownership and
+reset behavior. These remain parser checks; emitted record copies and returned
+records are exercised by the executable compiler customer.
 
 Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and

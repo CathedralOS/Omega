@@ -878,7 +878,25 @@ data OmegaCallParseFrame {
     pending_tail: i32;
 }
 
-// A call suspends the surrounding expression while its arguments reuse the
+// Literal fields are provisional until their owner completes: nested literals
+// may publish first, while every retained owner's fields stay contiguous and
+// in authored evaluation order. Both arenas are bounded across the parse.
+data OmegaPendingStructLiteralField {
+    field: OmegaStructLiteralFieldSyntax;
+    next: i32;
+}
+data OmegaStructLiteralParseFrame {
+    consumer: OmegaExpressionConsumer;
+    first_type_member: i32;
+    type_member_count: i32;
+    start: i32;
+    pending_head: i32;
+    pending_tail: i32;
+    field_name_start: i32;
+    field_name_end: i32;
+}
+
+// A call or literal suspends the surrounding expression while children reuse the
 // active stacks. Slots are shared across suspended frames, bounded in total;
 // each category reads only the prefix owned by its saved count.
 data OmegaSuspendedExpressionFrame {
@@ -939,6 +957,13 @@ data OmegaParser {
     call_arguments: [i32; 16384];
     struct_literals: [OmegaStructLiteralSyntax; 16384];
     struct_literal_fields: [OmegaStructLiteralFieldSyntax; 16384];
+    pending_struct_fields: [OmegaPendingStructLiteralField; 16384];
+    pending_struct_field_count: i32;
+    struct_literal_frames: [OmegaStructLiteralParseFrame; 128];
+    struct_literal_frame_count: i32;
+    struct_literal_pending_head: i32;
+    struct_literal_pending_tail: i32;
+    suspended_continuation: i32;
     data_members: [OmegaDataMemberSyntax; 16384];
     data_fields: [OmegaDataFieldSyntax; 16384];
     // Every payload field owns at least one type-reference row. The shared
