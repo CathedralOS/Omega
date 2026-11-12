@@ -64,7 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q2 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
+### Q1 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
 
 Decision name: `applied-provider-cycle-selection`.
 
@@ -116,7 +116,7 @@ implementation could satisfy, or only the applications Build admits for it.
 
 Until answered the row is left red and the call graph is unchanged.
 
-### Q3 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
+### Q2 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
 
 Decision name: `validation-subjects` (`Build::validate` naming).
 
@@ -161,7 +161,7 @@ Until answered `Build::validate` is not implemented and the release gate has
 no full-package check of `core` and `std`. Ordinary checks already treat only
 the root package as a subject.
 
-### Q5 - May a denotational call observe a record with shared reference fields through a shared reference?
+### Q3 - May a denotational call observe a record with shared reference fields through a shared reference?
 
 Decision name: `shared-observation-denotational-content`.
 
@@ -218,7 +218,7 @@ fields are themselves shared references gives an argument that is
 
 Until answered the row stays as recorded and the checker is unchanged.
 
-### Q10 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q4 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -273,7 +273,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q20 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
+### Q5 - May a nested machine establish its parent's named evidence output, and how does a terminal call discharge an outcome-specific guarantee?
 
 Decision name: `nested-evidence-output-establishment`.
 
@@ -343,7 +343,7 @@ result case, not the result of a terminal call.
 
 Until answered the three rows are left as recorded and the checker is unchanged.
 
-### Q23 - May the Psi interpreter carry a host address that a native import returned?
+### Q6 - May the Psi interpreter carry a host address that a native import returned?
 
 Decision name: `interpreter-host-address-carriage`.
 
@@ -377,7 +377,7 @@ if so with what provenance, or what interpreter code may do with it.
 Until answered, the interpreter declines this fixture and the native leg alone
 runs it.
 
-### Q25 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q7 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 
