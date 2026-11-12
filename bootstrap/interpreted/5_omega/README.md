@@ -692,8 +692,10 @@ entry observations cover source-order changes, duplicate package display names,
 private and competing imports, non-transitive file imports, namespace qualification
 and Unit call statements. The complete parser customer, including the distinction
 between `ns::call()` and `value.call()`, passes in the model. The storage customer
-also passes all 13 executables and 36 refusals using the actual ordinary-byte
-`SourceUnit`/`ModulePath` representation; its canary and boundary checks are unchanged.
+also passes all 13 executables and 36 refusals with both the current qualified-byte
+`SourceUnit`/`ModulePath` and its ordinary-byte counterpart. Every tape and the complete
+observation are byte-identical. The ordinary-buffer fixture migration belongs with
+that source change; its canary and boundary checks are unchanged.
 
 The actual Omega compiler closure was also supplied to the production Epsilon
 construction entry: 265 units / 3,698,937 source bytes, request
