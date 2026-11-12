@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
+"""Classify one witness run vs frozen PIN reference (not checkout ledger)."""
+from __future__ import annotations
+
+import json
+import os
+import re
 import sys
 from pathlib import Path
 
-import os
+REF_ROOT = Path(os.environ["BISECT_PIN_REF"])
 
-REPO = Path(os.environ["OMEGA_REPO_ROOT"])
+
+def norm_diag(d: str) -> str:
+    d = d.strip()
+    d = re.sub(r"`[^`]*`", "`_`", d)
+    d = re.sub(r"\b\d+\b", "N", d)
+    return d[:160]
 
 
 def parse_header(line: str) -> tuple[str, str] | None:
@@ -14,31 +25,45 @@ def parse_header(line: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
-def ledger_status(fixture: str) -> str | None:
-    for line in (REPO / "tests/omega/corpus_outcomes.txt").read_text().splitlines():
+def first_diagnostic(text: str, fixture: str) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         if line.startswith(fixture + " "):
-            return line.split()[1]
-    return None
+            for follow in lines[i + 1 :]:
+                if follow.startswith("\t"):
+                    return follow[1:].strip()
+                if follow.strip() and not follow.startswith("#"):
+                    break
+            return ""
+    return ""
 
 
 def main() -> int:
     witness, rec_path = sys.argv[1], Path(sys.argv[2])
-    text = rec_path.read_text() if rec_path.exists() else ""
+    safe = witness.replace("/", "__")
+    ref = json.loads((REF_ROOT / f"{safe}.json").read_text(encoding="utf-8"))
+    text = rec_path.read_text(encoding="utf-8") if rec_path.exists() else ""
     line = next((l for l in text.splitlines() if l.startswith(witness + " ")), None)
     if not line:
         return 125
     fixture, status = parse_header(line)
-    tier = fixture.split("/")[0]
-    prior = ledger_status(fixture)
-    if prior is None:
+    if fixture != witness:
         return 125
-    is_fail = tier == "fail"
-    if is_fail:
-        bad = prior in ("rejected", "incomplete") and status not in ("rejected", "incomplete")
-    else:
-        rank = {"built": 2, "checked": 1}
-        bad = rank.get(status, 0) < rank.get(prior, 0)
-    return 1 if bad else 0
+    diag = first_diagnostic(text, witness)
+    diag_norm = norm_diag(diag) if diag else ref["pin_diag_norm"]
+
+    expected = ref["expected_status"]
+    pin_status = ref["pin_broken_status"]
+    pin_norm = ref["pin_diag_norm"]
+
+    if status == expected:
+        return 0
+
+    same_class = diag_norm == pin_norm or (pin_norm[:48] == diag_norm[:48])
+    if status == pin_status and same_class:
+        return 1
+
+    return 125
 
 
 if __name__ == "__main__":
