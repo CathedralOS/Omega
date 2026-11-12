@@ -79,6 +79,11 @@ jobs:
     env:
       HOME: /root
       OMEGA_CORPUS_JOBS: '4'
+      # A hosted runner is slower than the hosts the ledger was timed on: the
+      # default 120 seconds per fixture timed out pass/filesystem rows and
+      # dropped unrelated changes from the merge queue. The post-merge
+      # regression job already allows 300.
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
     steps:
       - name: Install build tools
         run: |
