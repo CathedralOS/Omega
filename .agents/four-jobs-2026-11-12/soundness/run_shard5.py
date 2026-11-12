@@ -78,8 +78,9 @@ def tier_of(path: str) -> str:
 
 
 def slug(s: str) -> str:
-    h = hashlib.sha256(s.encode()).hexdigest()[:10]
-    safe = re.sub(r"[^a-zA-Z0-9_]+", "_", s)[-80:]
+    h = hashlib.sha256(s.encode()).hexdigest()[:12]
+    leaf = s.rsplit("/", 2)[-2] if s.count("/") >= 2 else Path(s).stem
+    safe = re.sub(r"[^a-zA-Z0-9_]+", "_", leaf)[:48]
     return f"{safe}_{h}"
 
 
@@ -124,9 +125,14 @@ def mutators(source: str, fixture_rel: str) -> list[tuple[str, str]]:
         add("amp_to_ampmut", source[: m.start()] + "&mut" + source[m.end() :])
 
     # let mut -> let (remove mut once)
-    m = re.search(r"\blet\s+mut\s+", source)
+    m = re.search(r"\blet mut (\w+)", source)
     if m:
-        add("remove_mut", source[: m.start()] + "let " + source[m.end() :])
+        name = m.group(1)
+        if re.search(
+            rf"(?:&mut\s+{re.escape(name)}\b|&write\s+{re.escape(name)}\b|{re.escape(name)}\s*=(?!=)|{re.escape(name)}\[[^\]]+\]\s*=)",
+            source,
+        ):
+            add("remove_mut", source[: m.start()] + "let " + source[m.end() :])
 
     # Drop first ensures
     m = re.search(r"^\s*ensures\b[^\n]*\n", source, re.MULTILINE)
