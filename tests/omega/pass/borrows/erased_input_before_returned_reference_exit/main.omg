@@ -24,13 +24,13 @@ machine exercise(proof [erased]: &u64, one: &mut u64, two: &mut u64, other: &mut
     let first: &mut u64 = direct(proof, one);
     other = 1;
     first = 10;
-    let second: Holder = wrapped(proof, 4, two);
+    let mut second: Holder = wrapped(proof, 4, two);
     other = 2;
     second.target = 20;
     let third: &mut u64 = forwarded(proof, 4, one);
     other = 3;
     third = 30;
-    let fourth: Pair = crossed(one, proof, two);
+    let mut fourth: Pair = crossed(one, proof, two);
     other = 4;
     fourth.first = 40;
     let fifth: &mut u64 = second_of_two(proof, other, two);

@@ -27,13 +27,13 @@ machine main() crashes Trap {
         signed32: [-2147483648i32, 2147483647i32],
         trailing: 7u32
     };
-    let decoded: ExtremeValues = ExtremeValues {
+    let mut decoded: ExtremeValues = ExtremeValues {
         minimum: 0i64, maximum: 0i64, signed32: [0i32, 0i32], trailing: 0u32
     };
-    let buffer: [u8; 64];
-    let written: u64 = 0u64;
-    let read: u64 = 0u64;
-    let verdict: ExtremesVerdict = ExtremesVerdict::Invalid;
+    let mut buffer: [u8; 64];
+    let mut written: u64 = 0u64;
+    let mut read: u64 = 0u64;
+    let mut verdict: ExtremesVerdict = ExtremesVerdict::Invalid;
     ExtremesCodec::encode(&value, &mut buffer, &mut written);
     ExtremesCodec::decode(&mut decoded, &buffer, &mut read, &mut verdict);
 

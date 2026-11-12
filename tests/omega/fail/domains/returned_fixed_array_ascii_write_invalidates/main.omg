@@ -3,7 +3,7 @@ domain [u8; 8]::Ascii requires ascii_only(self);
 machine relay(bytes: &mut [u8; 8] in Ascii) -> &mut [u8; 8] in Ascii { bytes }
 machine length(bytes: &[u8; 8] in Ascii) -> u64 { bytes.len }
 machine corrupt() -> u64 {
-    let owner: [u8; 8] in Ascii = "before..";
+    let mut owner: [u8; 8] in Ascii = "before..";
     let selected: &mut [u8; 8] in Ascii = relay(&mut owner);
     selected[0] = 255u8;
     length(&owner)

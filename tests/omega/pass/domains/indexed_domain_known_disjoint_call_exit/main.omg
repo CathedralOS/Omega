@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) {
 // The original alleged unknown index above is exactly identity_index(1).
 // Execute that unchanged path and observe the still-valid disjoint element.
 machine entry_start() crashes Trap {
-    let main: Main = Main {
+    let mut main: Main = Main {
         items: [Item { value: 0, tag: 0 }, Item { value: 0, tag: 0 }]
     };
     Main::main(&mut main);

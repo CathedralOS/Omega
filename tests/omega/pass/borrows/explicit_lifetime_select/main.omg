@@ -20,7 +20,7 @@ machine Main::main<'left, 'right>(
     first: &'left mut i32,
     second: &'right mut i32
 ) {
-    let selected: View<'left> = select(first, second);
+    let mut selected: View<'left> = select(first, second);
     second = 1;
     selected.body = 1;
 }

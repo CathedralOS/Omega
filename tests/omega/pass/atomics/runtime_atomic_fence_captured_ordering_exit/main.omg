@@ -11,7 +11,7 @@ requires ordering in FenceOrdering::Receive {
     Atomic::fence(ordering);
 }
 machine main() crashes Trap {
-    let trace: Trace = Trace { calls: 0 };
+    let mut trace: Trace = Trace { calls: 0 };
     Atomic::fence(choose(&mut trace));
     let ordering: FenceOrdering = FenceOrdering::Receive;
     receive(ordering);

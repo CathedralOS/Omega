@@ -8,7 +8,7 @@ data Main { builder: Builder; destination: Destination; }
 
 machine Builder::make(builder: &mut Builder) -> Leaf {
     builder.generated = builder.generated + 1;
-    let leaf: Leaf;
+    let mut leaf: Leaf;
     leaf.name = "bat";
     leaf.value = builder.generated;
     transition { _ -> leaf }

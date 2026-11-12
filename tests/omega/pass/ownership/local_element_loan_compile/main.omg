@@ -8,7 +8,7 @@ machine Main::bump(cell: &mut u64) {
 }
 
 machine Main::main(main: &mut Main) {
-    let cells: [u64; 3] = [1, 2, 3];
+    let mut cells: [u64; 3] = [1, 2, 3];
     Main::bump(&mut cells[1]);
     transition cells[1] {
         9 -> good(main)

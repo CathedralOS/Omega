@@ -47,7 +47,7 @@ machine Main::main(main: &mut Main) reaches Console {
     BlobCodec::encode(&sample, &mut main.buffer, &mut main.written);
 
     // Start from different content so omitting the descriptor store fails.
-    let decoded: BlobSample = BlobSample { bytes: main.source[2..4] };
+    let mut decoded: BlobSample = BlobSample { bytes: main.source[2..4] };
     BlobCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
     BlobCodec::encode(&decoded, &mut main.buffer2, &mut main.written2);

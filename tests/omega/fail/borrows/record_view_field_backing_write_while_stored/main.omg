@@ -10,7 +10,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) -> bool {
-    let room: Room;
+    let mut room: Room;
     room.label = main.buffer[0..2];
     main.buffer[0] = 65;
     room.label == "AB"
