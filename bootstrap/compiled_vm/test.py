@@ -333,7 +333,9 @@ def omega_storage_customer(work, timeout):
     gate = ROOT / "tests/bootstrap/omega-executable"
     unit = (ROOT / "source/psi/source/source.omg").read_bytes()
     declarations = []
-    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear("):
+    for marker in (b"public data SourceId ", b"public data SourceUnit\n", b"machine source_unit_clear(",
+                   b"machine source_unit_append(", b"machine source_unit_byte_or_nul(",
+                   b"public data ModulePath\n", b"public machine module_path_append("):
         start = unit.index(marker)
         end = unit.index(b"\n}", start) + 2
         declarations.append(unit[start:end])
@@ -349,7 +351,7 @@ def omega_storage_customer(work, timeout):
     (work / "storage-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 59)):
+    for index, expected in enumerate((42, 43, 44, 45, 46, 0, 2, 48, 44, 0, 51, 53, 59)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -363,7 +365,7 @@ def omega_storage_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega storage: ten executables, actual SourceUnit clear with byte canary and 27 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 36 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def main():
@@ -375,7 +377,7 @@ def main():
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
     parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
-    parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit clear and record/reference controls")
+    parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit append/read and checked storage controls")
     parser.add_argument("--omega-timeout", type=int,
                         help="Omega observation seconds (default: 7200 for runtime/storage controls, otherwise 1800)")
     args = parser.parse_args()

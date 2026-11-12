@@ -69,9 +69,8 @@ short-circuit Boolean control preserve those types. All bodies and arms are
 checked before emission; reentrant ordinary-call graphs and unsupported
 facilities refuse without publishing a partial tape. Copy records, zero-established
 affine locals, projected field writes, Unit completion and scoped record-reference
-parameters now support the actual SourceUnit clear helper. Runtime numeric
-arithmetic, indexed access, richer domains and machine clauses remain outside
-this slice. The compiler README specifies the precise storage and loan boundaries.
+parameters now support the actual SourceUnit clear helper. Runtime numeric arithmetic beyond proved unsigned addition, richer domains
+and machine clauses beyond explicit entry requirements remain outside this slice. The compiler README specifies the precise storage and loan boundaries.
 
 The source-built compiled peer also exposes `--omega-control`. It takes exact
 identifier-predicate declarations from the real lexer source and appends
@@ -81,17 +80,18 @@ compiles that input plus generic parallel-transfer, comparison, short-circuit,
 and refusal/reset controls. The harness executes every emitted artifact through
 the Alpha seed. The compiler has no special case for this customer.
 
-The peer's `--omega-storage` customer similarly extracts exact SourceId,
-SourceUnit and `source_unit_clear` declarations from the actual source package,
+The peer's `--omega-storage` customer extracts exact SourceId, SourceUnit,
+ModulePath and clear/append/read declarations from the actual source package,
 then appends [storage_controls.omg](storage_controls.omg).
 [controls_storage.epsilon](controls_storage.epsilon) checks that program plus
-eight generic storage programs, twenty-seven explicit refusals and a reset program;
-the harness executes all ten published artifacts. The actual source clear routine
-preserves a nonzero byte canary, and an indexed-write control captures its selector
-before a disjoint RHS mutation. Shared/mutable authority, bounds, shell-domain
-views and overlapping RHS loans are checked before emission. Local-backed tail
-reference transfer remains an explicit unsupported case. These are internal
-single-source compilation customers; they do not claim full package admission.
+11 generic storage programs, 36 explicit refusals and a reset program; the
+harness executes all 13 published artifacts. The real helpers retain their
+zero/full behavior and byte values while explicitly stating the guarded private
+bounds. Companion programs check captured index evaluation, pure guarded entry
+requirements, incoming-reference forwarding, and disjoint mutation. Negative
+controls include an overlapping mutating call in an earlier argument of the
+same expression, stale entry facts, mutating guards and local-backed tail loans.
+These internal single-source customers do not claim full package admission.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
 binds. Another source can be exercised without changing compiler code:

@@ -34,15 +34,17 @@ machine source_unit_clear(source_unit: &mut SourceUnit, id: SourceId) {
     source_unit.last_retained = true;
 }
 
-machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
+machine source_unit_append(source_unit: &mut SourceUnit, byte: u8) {
     source_unit.last_retained = false;
     transition source_unit.length < 131072 {
         true -> retain(source_unit, byte)
         _ -> full(source_unit)
     }
 
-    machine retain(source_unit: &mut SourceUnit, byte: u8) {
-        source_unit.bytes[source_unit.length] = byte as u8 in Trapping;
+    machine retain(source_unit: &mut SourceUnit, byte: u8)
+    requires source_unit.length < 131072
+    {
+        (&mut source_unit.bytes as -Trapping)[source_unit.length] = byte;
         source_unit.length = source_unit.length + 1;
         source_unit.last_retained = true;
     }
@@ -57,7 +59,7 @@ machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
 // coordinate fail token recognition instead of performing an unchecked read.
 // The forwarded coordinate is proven against the array's own length: the
 // `length` range does not transport through the retained-length comparison.
-machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
+machine source_unit_byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
     transition index < source_unit.length {
         true -> retain(source_unit, index)
         _ -> absent()
@@ -70,10 +72,12 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
         }
     }
 
-    machine read(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
-        // `bytes` is `[u8; 131072] in Trapping`, so the element read carries
-        // the array's policy while this machine results in a plain `u8`.
-        source_unit.bytes[index] as u8
+    machine read(source_unit: &SourceUnit, index: u64 in Trapping) -> u8
+    requires index < 131072
+    {
+        // Remove the array shell's policy through a shared view. The element
+        // remains plain u8; the explicit index projection preserves its value.
+        (&source_unit.bytes as -Trapping)[index as -Trapping]
     }
 
     machine absent() -> u8 {
@@ -98,14 +102,16 @@ public machine ModulePath::clear(module_path: &mut ModulePath) {
 }
 
 // Append one byte; the path's provision is exhausted when it reports false.
-public machine ModulePath::append(module_path: &mut ModulePath, byte: u8) -> bool {
+public machine module_path_append(module_path: &mut ModulePath, byte: u8) -> bool {
     transition module_path.length < 256 {
         true -> retain(module_path, byte)
         _ -> full()
     }
 
-    machine retain(module_path: &mut ModulePath, byte: u8) -> bool {
-        module_path.bytes[module_path.length] = byte as u8 in Trapping;
+    machine retain(module_path: &mut ModulePath, byte: u8) -> bool
+    requires module_path.length < 256
+    {
+        (&mut module_path.bytes as -Trapping)[module_path.length] = byte;
         module_path.length = module_path.length + 1;
         true
     }
@@ -218,7 +224,7 @@ crashes Trap
 
     machine unit_byte(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as u64 in Trapping) + index;
-        let byte: u8 = SourceUnit::byte_or_nul(unit, index);
+        let byte: u8 = source_unit_byte_or_nul(unit, index);
         transition at < 4194304 {
             true -> store_unit_byte(sources, unit, package, path, index, at, byte)
             _ -> invalid()
@@ -416,7 +422,7 @@ crashes Trap
 }
 
 // The byte at `index` of unit `source`, or NUL past the unit's end; as for
-// `SourceUnit::byte_or_nul`, the fallback makes a violated coordinate fail a
+// `source_unit_byte_or_nul`, the fallback makes a violated coordinate fail a
 // comparison rather than read another unit.
 public machine SourceSet::byte_or_nul(sources: &SourceSet, source: SourceId, index: u64 in Trapping) -> u8
 crashes Trap

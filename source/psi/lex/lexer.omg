@@ -33,7 +33,7 @@ public machine Lexer::initialize(lexer: &mut Lexer, source_id: u32 in Trapping) 
 }
 
 public machine Lexer::append_source_byte(lexer: &mut Lexer, byte: u8) {
-    SourceUnit::append(&mut lexer.source, byte);
+    source_unit_append(&mut lexer.source, byte);
 }
 
 public machine Lexer::reject(
@@ -55,7 +55,7 @@ machine Lexer::decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> Dec
     }
 
     machine first(source: &SourceUnit, index: u64 in Trapping) -> DecodedScalar {
-        let source_byte: u8 = SourceUnit::byte_or_nul(source, index);
+        let source_byte: u8 = source_unit_byte_or_nul(source, index);
         let byte0: u32 in Trapping = source_byte as u32 in Trapping;
         transition byte0 < 128 {
             true -> ascii(byte0)
@@ -83,7 +83,7 @@ machine Lexer::decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> Dec
     }
 
     machine two_tail(source: &SourceUnit, index1: u64 in Trapping, byte0: u32 in Trapping) -> DecodedScalar {
-        let source_byte: u8 = SourceUnit::byte_or_nul(source, index1);
+        let source_byte: u8 = source_unit_byte_or_nul(source, index1);
         let byte1: u32 in Trapping = source_byte as u32 in Trapping;
         transition byte1 >= 128 && byte1 <= 191 {
             true -> two_value(byte0, byte1)
@@ -118,8 +118,8 @@ machine Lexer::decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> Dec
         index2: u64 in Trapping,
         byte0: u32 in Trapping
     ) -> DecodedScalar {
-        let first_tail: u8 = SourceUnit::byte_or_nul(source, index1);
-        let second_tail: u8 = SourceUnit::byte_or_nul(source, index2);
+        let first_tail: u8 = source_unit_byte_or_nul(source, index1);
+        let second_tail: u8 = source_unit_byte_or_nul(source, index2);
         let byte1: u32 in Trapping = first_tail as u32 in Trapping;
         let byte2: u32 in Trapping = second_tail as u32 in Trapping;
         transition byte2 >= 128 && byte2 <= 191 {
@@ -194,9 +194,9 @@ machine Lexer::decode_scalar(source: &SourceUnit, index: u64 in Trapping) -> Dec
         index3: u64 in Trapping,
         byte0: u32 in Trapping
     ) -> DecodedScalar {
-        let first_tail: u8 = SourceUnit::byte_or_nul(source, index1);
-        let second_tail: u8 = SourceUnit::byte_or_nul(source, index2);
-        let third_tail: u8 = SourceUnit::byte_or_nul(source, index3);
+        let first_tail: u8 = source_unit_byte_or_nul(source, index1);
+        let second_tail: u8 = source_unit_byte_or_nul(source, index2);
+        let third_tail: u8 = source_unit_byte_or_nul(source, index3);
         let byte1: u32 in Trapping = first_tail as u32 in Trapping;
         let byte2: u32 in Trapping = second_tail as u32 in Trapping;
         let byte3: u32 in Trapping = third_tail as u32 in Trapping;
@@ -410,7 +410,7 @@ machine Lexer::token_equals(lexer: &mut Lexer, candidate: &[u8]) -> bool {
 
     machine compare(lexer: &mut Lexer, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = start + index;
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, at);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, at);
         let candidate_byte: u8 = candidate[index];
         transition source_byte == candidate_byte {
             true -> scan(lexer, start, candidate, index + 1)
@@ -545,7 +545,7 @@ machine Lexer::lex_line_comment(lexer: &mut Lexer) {
     }
 
     machine byte(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         transition source_byte == 10 {
             true -> consume_newline(lexer)
             _ -> advance(lexer)
@@ -585,8 +585,8 @@ machine Lexer::lex_block_comment(lexer: &mut Lexer) {
     }
 
     machine open_check(lexer: &mut Lexer, depth: u64 in Trapping, index1: u64 in Trapping) {
-        let first_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
-        let second_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index1);
+        let first_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
+        let second_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
         transition first_byte == 47 && second_byte == 42 {
             true -> open(lexer, depth)
             _ -> close_check(lexer, depth, first_byte, second_byte)
@@ -654,7 +654,7 @@ machine Lexer::copy_source_to_decoded(lexer: &mut Lexer, start: u64 in Trapping,
         }
     }
     machine copy(lexer: &mut Lexer, at: u64 in Trapping, end: u64 in Trapping) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, at);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, at);
         Lexer::push_decoded(lexer, source_byte);
         let next: u64 in Trapping = at + 1;
         transition lexer.output.accepted { true -> scan(lexer, next, end) _ -> done() }
@@ -715,7 +715,7 @@ machine Lexer::lex_cooked_string(lexer: &mut Lexer) {
     }
 
     machine escape_byte(lexer: &mut Lexer, escape_start: u64 in Trapping) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let escape: u32 in Trapping = source_byte as u32 in Trapping;
         transition escape {
             34 -> escaped_quote(lexer)
@@ -747,7 +747,7 @@ machine Lexer::lex_cooked_string(lexer: &mut Lexer) {
     }
 
     machine hex_first(lexer: &mut Lexer, index1: u64 in Trapping, index2: u64 in Trapping) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index1);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
         let high: u32 in Trapping = Lexer::hex_digit_value(source_byte as u32 in Trapping);
         transition high < 16 {
             true -> hex_second(lexer, index2, high)
@@ -756,7 +756,7 @@ machine Lexer::lex_cooked_string(lexer: &mut Lexer) {
     }
 
     machine hex_second(lexer: &mut Lexer, index2: u64 in Trapping, high: u32 in Trapping) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index2);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index2);
         let low: u32 in Trapping = Lexer::hex_digit_value(source_byte as u32 in Trapping);
         transition low < 16 {
             true -> hex_emit(lexer, high, low)
@@ -832,7 +832,7 @@ machine Lexer::consume_digits(lexer: &mut Lexer, base: NumericBase) -> bool {
         }
     }
     machine byte(lexer: &mut Lexer, base: NumericBase, saw_digit: bool) -> bool {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let current: u32 in Trapping = source_byte as u32 in Trapping;
         transition current == 95 {
             true -> underscore(lexer, base, saw_digit)
@@ -907,7 +907,7 @@ machine Lexer::dot_starts_float(lexer: &mut Lexer) -> bool {
 machine Lexer::lex_number(lexer: &mut Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
-    let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+    let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
     transition source_byte == 46 {
         true -> leading_dot(lexer)
         _ -> integer_begin(lexer)
@@ -920,7 +920,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
     }
 
     machine integer_begin(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let first: u32 in Trapping = source_byte as u32 in Trapping;
         lexer.cursor = lexer.cursor + 1;
         transition first == 48 {
@@ -937,7 +937,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
     }
 
     machine prefix(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let marker: u32 in Trapping = source_byte as u32 in Trapping;
         transition marker == 98 || marker == 66 {
             true -> based_digits(lexer, NumericBase::Binary)
@@ -962,7 +962,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
         }
     }
     machine dot_byte(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         transition source_byte == 46 {
             true -> dot_decision(lexer)
             _ -> exponent_check(lexer, false)
@@ -990,7 +990,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
         }
     }
     machine exponent_byte(lexer: &mut Lexer, is_float: bool) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let marker: u32 in Trapping = source_byte as u32 in Trapping;
         transition marker == 101 || marker == 69 {
             true -> exponent_begin(lexer)
@@ -1008,7 +1008,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
         transition lexer.cursor < lexer.source.length { true -> exponent_sign(lexer) _ -> exponent_digits(lexer) }
     }
     machine exponent_sign(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let sign: u32 in Trapping = source_byte as u32 in Trapping;
         transition sign == 43 || sign == 45 { true -> exponent_sign_consume(lexer) _ -> exponent_digits(lexer) }
     }
@@ -1046,7 +1046,7 @@ machine Lexer::lex_number(lexer: &mut Lexer) {
 machine Lexer::lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
-    let first_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+    let first_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
     let byte0: u32 in Trapping = first_byte as u32 in Trapping;
     let index1: u64 in Trapping = lexer.cursor + 1;
     let index2: u64 in Trapping = lexer.cursor + 2;
@@ -1058,7 +1058,7 @@ machine Lexer::lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping)
         index1: u64 in Trapping,
         index2: u64 in Trapping
     ) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index1);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
         let byte1: u32 in Trapping = source_byte as u32 in Trapping;
         transition index2 < lexer.source.length { true -> third(lexer, scalar_width, byte0, byte1, index2) _ -> classify(lexer, scalar_width, byte0, byte1, 4294967295) }
     }
@@ -1069,7 +1069,7 @@ machine Lexer::lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping)
         byte1: u32 in Trapping,
         index2: u64 in Trapping
     ) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index2);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index2);
         let byte2: u32 in Trapping = source_byte as u32 in Trapping;
         transition { _ -> classify(lexer, scalar_width, byte0, byte1, byte2) }
     }
@@ -1197,7 +1197,7 @@ machine Lexer::reject_raw_string_candidate(lexer: &mut Lexer) {
     }
 
     machine byte(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         transition source_byte == 35 {
             true -> hash(lexer)
             _ -> quote(lexer)
@@ -1210,7 +1210,7 @@ machine Lexer::reject_raw_string_candidate(lexer: &mut Lexer) {
     }
 
     machine quote(lexer: &mut Lexer) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.cursor);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         transition source_byte == 34 {
             true -> reject_quote(lexer)
             _ -> reject_prefix(lexer)
@@ -1243,7 +1243,7 @@ machine Lexer::is_raw_string_candidate(lexer: &mut Lexer) -> bool {
     }
 
     machine byte(lexer: &mut Lexer, at: u64 in Trapping) -> bool {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, at);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, at);
         transition source_byte == 35 {
             true -> hash(lexer, at)
             _ -> quote(source_byte)
@@ -1283,7 +1283,7 @@ machine Lexer::lex_next(lexer: &mut Lexer) {
     machine whitespace(lexer: &mut Lexer) { Lexer::lex_whitespace(lexer); }
     machine line_comment_bound(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 47 && index1 < lexer.source.length { true -> comment_second(lexer, scalar, width, index1) _ -> raw_check(lexer, scalar, width) } }
     machine comment_second(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) {
-        let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index1);
+        let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
         let second: u32 in Trapping = source_byte as u32 in Trapping;
         transition second == 47 { true -> line_comment(lexer) _ -> block_comment_check(lexer, scalar, width, second) }
     }
@@ -1308,7 +1308,7 @@ machine Lexer::lex_next(lexer: &mut Lexer) {
     machine identifier(lexer: &mut Lexer) { Lexer::lex_identifier(lexer); }
     machine number_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> number(lexer) _ -> leading_dot_check(lexer, scalar, width) } }
     machine leading_dot_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { let index1: u64 in Trapping = lexer.cursor + 1; transition scalar == 46 && index1 < lexer.source.length { true -> leading_dot_second(lexer, scalar, width, index1) _ -> string_check(lexer, scalar, width) } }
-    machine leading_dot_second(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, index1); let second: u32 in Trapping = source_byte as u32 in Trapping; transition second >= 48 && second <= 57 { true -> number(lexer) _ -> string_check(lexer, scalar, width) } }
+    machine leading_dot_second(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping, index1: u64 in Trapping) { let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1); let second: u32 in Trapping = source_byte as u32 in Trapping; transition second >= 48 && second <= 57 { true -> number(lexer) _ -> string_check(lexer, scalar, width) } }
     machine number(lexer: &mut Lexer) { Lexer::lex_number(lexer); }
     machine string_check(lexer: &mut Lexer, scalar: u32 in Trapping, width: u64 in Trapping) { transition scalar == 34 { true -> string(lexer) _ -> punctuation(lexer, width) } }
     machine string(lexer: &mut Lexer) { Lexer::lex_cooked_string(lexer); }
