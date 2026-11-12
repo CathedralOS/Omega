@@ -1326,7 +1326,7 @@ pub(crate) mod closed_reach_applications {
                         let (requirement_parameter_kinds, requirement_arguments) =
                             requirement_arguments(identities, checked, specialization, contract)?;
                         let upper_operational = validation::signature_operational(checked, view.signature());
-                        let selected_operational = operational.machine_by_symbol(selected_machine.symbol).ok_or(LoweringError::Unsupported("closed selection lost its published operational contract"))?;
+                        let selected_operational = operational.machine_by_symbol(selected_machine.symbol).ok_or_else(|| LoweringError::InvalidDeclarationIdentity("closed selection lost its published operational contract".to_owned()))?;
                         ClosedReachParameter::Machine(ClosedReachMachineBinding {
                             nominal_requirement,
                             requirement_parameter_kinds,
@@ -4891,7 +4891,7 @@ pub(crate) mod suspension_call_plan {
             })
         {
             if !crossing.condition.parameters.is_empty() {
-                return unsupported(
+                return invalid_suspension(
                     "closed suspension crossing retains an unresolved callback carry condition",
                 );
             }
