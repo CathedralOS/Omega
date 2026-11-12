@@ -94,38 +94,58 @@ fn callback_review_rejoins_candidate_types_reports_and_target_members() {
         indirect.shapes()[usize::from(parameter)].class,
         calling_conventions::BoundaryValueClass::Reference
     );
-    let signature = checked
+    // The fixture supplies 33 paths. Keep its complete roster while testing
+    // the distinct fixed and target-dependent fields that started this control.
+    let registrars = checked
         .providers()
         .boundary_calling_plan_realizations
         .iter()
-        .map(|row| row.materialized_signature())
-        .find(|signature| signature.callback_layout_catalog().len() == 2)
-        .expect("registrar retains both private inline paths");
-    let entries = signature.callback_layout_catalog();
-    let fixed = entries
-        .iter()
-        .find(|entry| {
-            let source = entry.review_source();
-            let data = checked
-                .typed
-                .data_definition_by_symbol(source.root.declaration)
-                .unwrap();
+        .filter(|row| {
             checked
                 .typed
-                .data_field(data, source.fields.last().unwrap().declaration)
-                .unwrap()
-                .name
-                .as_str()
-                == "first"
+                .trait_definition_by_symbol(row.boundary_trait)
+                .is_some_and(|owner| {
+                    owner.name.as_str() == "Registrar"
+                        && checked
+                            .typed
+                            .trait_machine_signature_by_symbol(owner, row.requirement_machine)
+                            .is_some_and(|requirement| requirement.name.as_str() == "register")
+                })
         })
-        .expect("fixed-layout callback path");
-    let variable = entries
-        .iter()
-        .find(|entry| {
-            entry.review_source().fields.last().unwrap().declaration
-                != fixed.review_source().fields.last().unwrap().declaration
-        })
-        .expect("target-member callback path");
+        .map(|row| row.materialized_signature())
+        .collect::<Vec<_>>();
+    assert_eq!(registrars.len(), 1, "one checked Registrar::register ABI");
+    let signature = registrars[0];
+    let entries = signature.callback_layout_catalog();
+    assert_eq!(entries.len(), 33, "all authored inline callback paths");
+    assert_eq!(signature.callback_binders().len(), 33);
+    assert_eq!(signature.callback_demands().len(), 33);
+    let field_entry = |name: &str| {
+        let matching = entries
+            .iter()
+            .filter(|entry| {
+                let source = entry.review_source();
+                let data = checked
+                    .typed
+                    .data_definition_by_symbol(source.root.declaration)
+                    .expect("callback root data");
+                checked
+                    .typed
+                    .data_field(
+                        data,
+                        source.fields.last().expect("inline field").declaration,
+                    )
+                    .expect("checked inline field")
+                    .name
+                    .as_str()
+                    == name
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(matching.len(), 1, "one exact callback field {name}");
+        matching[0]
+    };
+    let fixed = field_entry("first");
+    let variable = field_entry("second");
     let fixed_source = fixed.review_source();
     let variable_source = variable.review_source();
     let fixed_field = fixed_source.fields.last().unwrap();
