@@ -1,0 +1,1 @@
+psi #2276 private-machine requires proving stops carrying computed-root counter facts into other_state compute call

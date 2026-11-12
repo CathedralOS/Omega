@@ -6,6 +6,8 @@ ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$ROOT"
 git checkout -q work/ledger-bisect-part-31
+git add -A .agents/ledger-bisect-2026-11-11/ 2>/dev/null || true
+git diff --cached --quiet || git commit -m "repo: ledger bisect part 31 autosave before bisect" >/dev/null || true
 export BISECT_WITNESS="$WITNESS"
 GOOD_FILE="$ROOT/.agents/ledger-bisect-2026-11-11/cluster${CLUSTER_ID}-good.sha"
 if [[ -f "$GOOD_FILE" ]]; then
