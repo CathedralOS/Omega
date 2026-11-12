@@ -349,6 +349,34 @@ pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<
     elaborate_form(typed, template, true)
 }
 
+/// Elaborates a generic machine over a finite type family once per
+/// alternative it lists, each with its type parameter fixed to that
+/// alternative's type, in the order the family lists them. generics.md,
+/// "Static type equality": "Checking the body once per listed alternative,
+/// each with `T` fixed to that type, satisfies this rule for a finite
+/// family; the list is closed, so those checks cover every admissible use."
+/// Each is an ordinary closed check of the body: a branch on `T == u32` is
+/// decided there and the other arm is never read. A machine stage 04
+/// generated for one alternative is that alternative's body, so its
+/// certificates carry into it (`lowered_discharge::reverify_specialization`).
+/// Refused unless `template` lists a finite family (`family_alternatives`).
+pub fn elaborate_alternatives(
+    typed: &TypedTrees,
+    template: SymbolHandle,
+) -> Checked<Vec<Elaboration>> {
+    let first = MachineId::new(1).expect("1 is nonzero");
+    let alternatives = read::Program::new(typed, false).family_alternatives(first, template)?;
+    alternatives
+        .into_iter()
+        .map(|arguments| {
+            let mut program = read::Program::new(typed, false);
+            program.alternative = Some(arguments);
+            let entry = program.machine(template)?;
+            finish_reading(program, entry, IdTable::default())
+        })
+        .collect()
+}
+
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {

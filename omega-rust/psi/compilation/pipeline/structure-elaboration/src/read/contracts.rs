@@ -92,6 +92,20 @@ impl Program<'_> {
         }
     }
 
+    /// The disjuncts of an `||` chain, left to right.
+    fn disjuncts(&self, expression: ExpressionHandle, out: &mut Vec<ExpressionHandle>) {
+        if expression.is_valid()
+            && let ExpressionNode::Binary(binary) =
+                self.typed.expression_table.expression(expression)
+            && binary.operator == BinaryOperator::Or
+        {
+            self.disjuncts(binary.left, out);
+            self.disjuncts(binary.right, out);
+        } else {
+            out.push(expression);
+        }
+    }
+
     pub(super) fn clause(
         &self,
         id: MachineId,
@@ -107,6 +121,40 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        // A machine clause over a type equation the machine being read
+        // decides: a conjunct decided true states nothing and the rest is
+        // the clause, and a disjunct decided false contributes nothing and
+        // is not read (`guarded_false`). What is left must still be a clause
+        // this reader serves; a clause decided false outright is refused.
+        if scope.subject.is_none() && operator == BinaryOperator::And {
+            if self.guarded_false(expression) {
+                return unserved("conjunction that type equations decide false");
+            }
+            if self.static_truth(binary.left) == Some(true) {
+                return self.clause(id, scope, binary.right);
+            }
+            if self.static_truth(binary.right) == Some(true) {
+                return self.clause(id, scope, binary.left);
+            }
+        }
+        if scope.subject.is_none() && operator == BinaryOperator::Or {
+            let mut disjuncts = Vec::new();
+            self.disjuncts(expression, &mut disjuncts);
+            if disjuncts
+                .iter()
+                .any(|disjunct| self.guarded_false(*disjunct))
+            {
+                let open: Vec<_> = disjuncts
+                    .into_iter()
+                    .filter(|disjunct| !self.guarded_false(*disjunct))
+                    .collect();
+                return match open[..] {
+                    [only] => self.clause(id, scope, only),
+                    [] => unserved("disjunction that type equations decide false"),
+                    _ => unserved("disjunction"),
+                };
+            }
+        }
         // `self in S::C`, in a data clause only. Stage 01 writes a case test
         // as `CaseMembership` or as `Equal` against a case name; in both the
         // right operand names a case, which is what makes it one.
@@ -533,5 +581,106 @@ impl Program<'_> {
             }
         };
         Ok(Some((root, path, value_type)))
+    }
+}
+
+impl Program<'_> {
+    /// The alternatives of a finite type family, each as the type its one
+    /// type parameter is fixed to: the machine `symbol` has exactly one type
+    /// parameter and one `requires` clause that is a disjunction of type
+    /// equations between that parameter and a builtin scalar type, `requires
+    /// T == u32 || T == u64`. generics.md, "Static type equality": "Checking
+    /// the body once per listed alternative, each with `T` fixed to that
+    /// type, satisfies this rule for a finite family; the list is closed".
+    /// Refused for anything else, an open `T` included: that is the opaque
+    /// check form's.
+    pub fn family_alternatives(
+        &self,
+        id: MachineId,
+        symbol: SymbolHandle,
+    ) -> Checked<Vec<Vec<ValueType>>> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let (machine, _) = self.declaration(id, symbol)?;
+        let [parameter] = self.typed.machine_type_parameters(machine) else {
+            return unserved("finite family over other than one type parameter");
+        };
+        if parameter.kind != typed_trees::data::TypeParameterKind::Type
+            || !parameter.symbol.is_valid()
+        {
+            return unserved("finite family over other than a type parameter");
+        }
+        let table = &self.typed.expression_table;
+        let types = &self.typed.type_reference_table;
+        let named =
+            |handle: ExpressionHandle| match handle.is_valid().then(|| table.expression(handle)) {
+                Some(ExpressionNode::TypeExpression(reference)) if reference.is_valid() => {
+                    match types.type_reference(*reference) {
+                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                            if symbol.is_valid() =>
+                        {
+                            Some(*symbol)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+        // One alternative per disjunct `T == X`, either way round, with `X`
+        // a builtin scalar type.
+        let alternative = |disjunct: ExpressionHandle| -> Option<ScalarType> {
+            let ExpressionNode::Binary(binary) = table.expression(disjunct) else {
+                return None;
+            };
+            if binary.operator != BinaryOperator::Equal {
+                return None;
+            }
+            let (left, right) = (named(binary.left)?, named(binary.right)?);
+            let other = match (left == parameter.symbol, right == parameter.symbol) {
+                (true, false) => right,
+                (false, true) => left,
+                _ => return None,
+            };
+            let atom = self.typed.symbols.builtin_type_atom(other)?;
+            super::types::atom_type(atom, id).ok()
+        };
+        let mut found: Option<Vec<Vec<ValueType>>> = None;
+        let contracts = super::span(
+            &self.typed.signature_contracts,
+            machine.contracts,
+            id,
+            "contract span",
+        )?;
+        for contract in contracts {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in super::span(&self.typed.proof_facts, contract.facts, id, "fact span")? {
+                let expression = self.fact(id, fact)?;
+                let mut disjuncts = Vec::new();
+                self.disjuncts(expression, &mut disjuncts);
+                let listed: Option<Vec<ScalarType>> = disjuncts
+                    .iter()
+                    .map(|disjunct| disjunct.is_valid().then(|| alternative(*disjunct))?)
+                    .collect();
+                let Some(listed) = listed else {
+                    continue;
+                };
+                if found.is_some() {
+                    return unserved("finite family listed by two clauses");
+                }
+                let mut alternatives: Vec<Vec<ValueType>> = Vec::new();
+                for scalar_type in listed {
+                    let alternative = vec![ValueType::Scalar(scalar_type)];
+                    if !alternatives.contains(&alternative) {
+                        alternatives.push(alternative);
+                    }
+                }
+                found = Some(alternatives);
+            }
+        }
+        match found {
+            Some(alternatives) => Ok(alternatives),
+            None => unserved("type parameter that is not a finite family"),
+        }
     }
 }

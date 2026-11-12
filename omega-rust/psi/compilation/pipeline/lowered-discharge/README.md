@@ -1271,6 +1271,48 @@ Limits:
   `premise<T>(kept)` is a proposition over a call term, which this subset
   does not read.
 
+### Finite families
+
+A machine whose one type parameter is listed by a `requires` clause, `requires
+T == u8 || T == u16`, is checked once per listed type, with `T` fixed to that
+type. generics.md, "Static type equality": "Checking the body once per listed
+alternative, each with `T` fixed to that type, satisfies this rule for a
+finite family; the list is closed, so those checks cover every admissible
+use." Each check is an ordinary closed check of the body
+(`structure_elaboration::elaborate_alternatives`): the family's `requires` is
+decided true and states nothing, a branch on `T == u8` is decided and its
+other arm is never read, and a contract clause is read left to right with
+each type equation guarding the conjuncts after it, so in the `u16` check
+the disjunct `T == u8 && result == 7u8` contributes nothing and
+`result == 7u8` is never typed. A disjunct whose type equation is false is
+treated as false there; a clause that type equations decide false outright
+is refused.
+
+A machine stage 04 generated for one alternative is that alternative's
+body. Its certificates are carried by `reverify_specialization` from the
+alternative it corresponds to; which one is decided by `Carry::corresponds`
+on the two lowered bodies, never by the type's spelling, and the kernel
+decides each carried certificate against the generated machine's own goals.
+An obligation an alternative's check refuses rejects the body whether or not
+any caller uses that alternative.
+
+The pair is `run/generics/finite_family_contract`, where `pick<T>` promises
+`(T == u8 && result == 7u8) || (T == u16 && result == 9u16)` and both
+alternatives are proved and carried, and
+`fail/generics/finite_family_contract_wrong_alternative`, which differs only
+in what `pick` returns at `u16`: that alternative is refused, and
+`pick<u16>` has nothing to carry. The design's witness,
+`pass/contracts/generic_effective_result_comparison_exit`, lowers per
+alternative and corresponds, and proves nothing: `threshold<T>` owns no
+contract clause beyond its family. Compiler test `lowered_route_generics`
+pins all three.
+
+Limits: one type parameter, listed by one `requires` clause of type
+equations against builtin scalar types; a family that also has an
+implementation or value parameter is not checked this way; a generic
+machine called from inside an alternative's body at that alternative's type
+is not read.
+
 ### What the lowered form does not carry
 
 Read from the types, not built:
@@ -1279,14 +1321,13 @@ Read from the types, not built:
   ([type parameters](#type-parameters)); a place has a declared
   `StructuralTypeId`, and there is no entry for one whose type is a
   parameter, so generic data and a `T` instantiated at a data type are not.
-- **A branch on a type equation.** A body of a finite family is rigid
-  outside its type-equation branches and concrete inside each arm. The
-  lowered form has no terminator that selects an arm by a type, and the
-  arms return values of different types into one result. Whether such a
-  body must be checked in that form at all, or once per listed type as its
-  generated machines now are, is owner question Q18
-  (`finite-family-generic-check`); what a contract clause beside a type
-  equation means is Q17.
+- **A branch on a type equation in one form.** The lowered form has no
+  terminator that selects an arm by a type, and the arms of a finite family
+  return values of different types into one result, so such a body has no
+  single lowered form. It does not need one: the owner ruled that checking
+  the body once per listed type satisfies the rule for a finite family
+  (generics.md, "Static type equality"), and that is how it is checked
+  ([finite families](#finite-families)).
 - **An operation on it.** Terminal operations are selected per type
   (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
   comes from that type's range. One generic body has no single operation.

@@ -22,7 +22,7 @@ fn integer(sign: IntegerSign, bits: u16, machine: MachineId) -> Checked<ScalarTy
 }
 
 /// The scalar type of a builtin atom, by its compiler-installed slot.
-fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
+pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
     match atom {
         BuiltinTypeAtom::Bool => Ok(ScalarType::Boolean),
         BuiltinTypeAtom::I8 => integer(IntegerSign::Signed, 8, machine),
@@ -130,27 +130,77 @@ impl Program<'_> {
 
     /// Whether two closed types are the same type, when both are builtin
     /// scalar types: decided by the compiler-installed atom each symbol
-    /// names, never by a spelling. `None` for any other operand (a type
-    /// parameter, a data type, an application), which is not decided here.
-    /// generics.md, "Static type equality": "`==` between type expressions
-    /// states exact normalized type equality".
+    /// names, never by a spelling. A type parameter the machine being read
+    /// is checked at (`Reading::Alternative`, or a generic machine applied
+    /// at a call's type arguments) is the scalar type the scope fixes it
+    /// to. `None` for any other operand (a rigid type parameter, a data
+    /// type, an application), which is not decided here. generics.md,
+    /// "Static type equality": "`==` between type expressions states exact
+    /// normalized type equality".
     fn closed_type_equation(
         &self,
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
-        let atom = |handle: TypeReferenceHandle| {
+        enum Closed {
+            Atom(BuiltinTypeAtom),
+            Scalar(ScalarType),
+        }
+        let closed = |handle: TypeReferenceHandle| {
             if !handle.is_valid() {
                 return None;
             }
             match self.typed.type_reference_table.type_reference(handle) {
                 TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-                    self.typed.symbols.builtin_type_atom(*symbol)
+                    if let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
+                    {
+                        return match bound {
+                            ValueType::Scalar(scalar_type) => Some(Closed::Scalar(*scalar_type)),
+                            ValueType::Rigid(_) | ValueType::Record(_) => None,
+                        };
+                    }
+                    self.typed
+                        .symbols
+                        .builtin_type_atom(*symbol)
+                        .map(Closed::Atom)
                 }
                 _ => None,
             }
         };
-        Some(atom(left)? == atom(right)?)
+        // The identity only names a refusal, which is discarded here.
+        let scalar = |atom: BuiltinTypeAtom| {
+            MachineId::new(1).and_then(|machine| atom_type(atom, machine).ok())
+        };
+        Some(match (closed(left)?, closed(right)?) {
+            (Closed::Atom(left), Closed::Atom(right)) => left == right,
+            (Closed::Scalar(left), Closed::Scalar(right)) => left == right,
+            (Closed::Scalar(fixed), Closed::Atom(atom))
+            | (Closed::Atom(atom), Closed::Scalar(fixed)) => scalar(atom)? == fixed,
+        })
+    }
+
+    /// Whether closed type equations make `expression` false read left to
+    /// right: it is decided false, or it is a conjunction one of whose
+    /// conjuncts is. generics.md, "Static type equality": "A type equation
+    /// in a contract guards what follows it, as a case test does ...
+    /// Conjuncts are read left to right; a disjunct whose type equation is
+    /// false for the instantiation holds vacuously." So in the machine for
+    /// `u16`, the disjunct `T == u8 && result == 7u8` contributes nothing,
+    /// and `result == 7u8`, which is not well-typed there, is never read.
+    pub(super) fn guarded_false(&self, expression: ExpressionHandle) -> bool {
+        use typed_trees::expression::BinaryOperator;
+        if self.static_truth(expression) == Some(false) {
+            return true;
+        }
+        if !expression.is_valid() {
+            return false;
+        }
+        match self.typed.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+                self.guarded_false(binary.left) || self.guarded_false(binary.right)
+            }
+            _ => false,
+        }
     }
 
     /// The truth of an expression that closed type equations decide: an
