@@ -43,7 +43,8 @@ checked field identities and one shared layout; loads and stores touch the
 exact field width. Copyable aggregate reads take fresh snapshots before later
 argument or constructor effects. Affine storage can be constructed and borrowed;
 arbitrary affine reads, nested references, stored reference fields, arrays of
-references, and aggregate or reference results remain explicit refusals.
+references, computed reference assignment targets without retained descriptor
+places, and aggregate or reference results remain explicit refusals.
 Unused field types do not imply support for their executable layouts.
 
 Calls evaluate arguments in source order and stage completed values before

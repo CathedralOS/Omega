@@ -111,6 +111,18 @@ crashes Trap
         }
     }
     machine assigned(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, statement: Statement) {
+        let target: Expression = syntax_trees_expression(syntax, statement.target);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, statement.target);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        // A named reference writes its referent. A computed reference does
+        // not retain a descriptor destination in this slice; its pointer
+        // must never be stored into the referent's possibly smaller bytes.
+        transition row.kind == TypeKind::Reference && target.kind != ExpressionKind::Name {
+            true -> unsupported(lowerer)
+            _ -> transfer(lowerer, syntax, resolution, typing, item, offset, statement)
+        }
+    }
+    machine transfer(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, offset: u64 in Trapping, statement: Statement) {
         let type_handle: u64 in Trapping = scalar_destination_type(syntax, typing, statement.target);
         let layout: ScalarLayout = scalar_layout_at(&lowerer.output, type_handle);
         let address: u64 in Trapping = scalar_value(lowerer, statement.target);

@@ -1,7 +1,7 @@
 // Admission of the public slot records a trait requirement publishes.
 // An empty roster formed no selector slot. A qualification that shares the
 // compilation with a returned borrow must name one of those origins.
-// `source/omega/slots/review.omg` is the product consumer of this admission.
+// `source/omega/application/ocreq/slots/review.omg` is the product consumer of this admission.
 
 public data SlotReview {}
 

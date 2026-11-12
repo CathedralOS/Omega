@@ -473,6 +473,14 @@ machine write(left:&mut u8,right:&mut u8) {left=1;right=2;}
 machine chosen()->u8 {42}
 machine escaped()->&u8 {let value:u8=42;&value}
 ''', 247)
+    refused('computed-reference-target-needs-descriptor-place', b'''
+machine chosen()->u8 {
+ let mut value:u8=17;
+ let mut other:u8=42;
+ (&mut value)=&mut other;
+ value
+}
+''', 246)
     print(f'Omega-written storage/control: {COUNT} actual source/output cases passed')
 
 
