@@ -13,17 +13,18 @@ bun build.ts && bun serve.ts
 
 ## Structure
 
-- `src/chapters.ts` — all content. Every code block is real `.omg`; the boundary
-  trait is quoted from `source/library/std` in `C:\SoftwareDevelopmentKits\Omega`.
+- `src/chapters.ts` — all content. Every code block is real `.omg`; the
+  console and exit boundaries come from `source/library/std` in this repository.
   All examples are receiver-free — Omega has no `self`; receivers are
   explicit parameters.
 - `tools/verify.ts` (`bun run verify`) — compile-checks every code figure
-  against `omega --check` in persistent fixture dirs under `scratch/verify/`
+  against `omega --check` (default `target/debug/omega` of this checkout; set
+  `OMEGA_EXE` to override, `ONLY=<chapter id>` to filter) in persistent fixture dirs under `scratch/verify/`
   (each figure's `omega.lock` survives, keeping the std snapshot warm),
   completes the `omega packages update` package-review ceremony when the compiler asks
   for entry-binding acceptance, and pins every marginalia key to a real code
   line. The build-machine figure verifies as a real `build.omg` + `main.omg`
-  pair.
+  pair. Fixtures bind `ProgramEntry` for all four hosted targets.
 - `build.ts` — renders a single `index.html` (all 11 chapters on one continuous
   page; rail, TOC, and stone footers are in-page anchors) and stages a clean
   deploy-ready static bundle in `dist/` (~1 MB, 25 files: only `index.html`,
@@ -53,4 +54,4 @@ IV. Choice Is a Value Too (case types + guard-list dispatch) · V. Writing for
 the Prover (incl. a verbatim refusal) · VI. The Boundary Wall · VII. The Build
 Machine (build.omg) · VIII. Text Is a Block · IX. --check Is the Floor (incl.
 the exit-code convention) · X. Working With the Agent
-(brief patterns + review checklist)
+(brief patterns + review checklist) · XI. One Whole Program
