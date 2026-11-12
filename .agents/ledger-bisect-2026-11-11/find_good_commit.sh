@@ -20,6 +20,8 @@ export BISECT_WITNESS="$WITNESS"
 export BISECT_REPO_ROOT="$ROOT"
 
 mapfile -t COMMITS < <(git rev-list --first-parent -n "$DEPTH" "$PIN")
+n=${#COMMITS[@]}
+[[ "$n" -ge 2 ]] || { git checkout -f "$START" >/dev/null 2>&1; exit 1; }
 
 test_commit() {
   local commit="$1"
@@ -29,15 +31,25 @@ test_commit() {
   return "$rc"
 }
 
-for c in "${COMMITS[@]:1}"; do
+# COMMITS[0]=PIN; COMMITS[1] newest parent. Find smallest index i>=1 with exit 0.
+lo=1
+hi=$((n - 1))
+found=""
+while ((lo <= hi)); do
+  mid=$(((lo + hi) / 2))
   rc=0
-  test_commit "$c" || rc=$?
+  test_commit "${COMMITS[$mid]}" || rc=$?
   if [[ "$rc" -eq 0 ]]; then
-    git checkout -f "$START" >/dev/null 2>&1
-    echo "$c"
-    exit 0
+    found="${COMMITS[$mid]}"
+    hi=$((mid - 1))
+  else
+    lo=$((mid + 1))
   fi
 done
 
 git checkout -f "$START" >/dev/null 2>&1
+if [[ -n "$found" ]]; then
+  echo "$found"
+  exit 0
+fi
 exit 1
