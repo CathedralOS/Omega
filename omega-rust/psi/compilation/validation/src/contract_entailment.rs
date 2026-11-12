@@ -91134,14 +91134,39 @@ pub(crate) mod structural_terms {
                     )),
                 }
             }
-            ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
-                program,
-                scope,
-                frame,
-                expression,
-                structural_term(program, scope, frame, indexed.collection, bindings)?,
-                structural_term(program, scope, frame, indexed.index, bindings)?,
-            ),
+            ExpressionNode::Indexed(indexed) => {
+                // Indexing an array literal at a constant index denotes the
+                // selected element itself, as with a constant substituted from
+                // `const SOURCE: [u64; 1] = [3]`. Formation has already proved
+                // the index in range; any other index stays unformed.
+                if let ExpressionNode::ArrayLiteral(elements) =
+                    expression_table(program).expression(indexed.collection)
+                {
+                    let StructuralTerm::Integer(position) =
+                        structural_term(program, scope, frame, indexed.index, bindings)?
+                    else {
+                        return None;
+                    };
+                    let element = position
+                        .to_u64()
+                        .and_then(|position| usize::try_from(position).ok())
+                        .and_then(|position| {
+                            expression_table(program)
+                                .expression_handles(*elements)
+                                .get(position)
+                                .copied()
+                        })?;
+                    return structural_term(program, scope, frame, element, bindings);
+                }
+                indexed_term_in_scope(
+                    program,
+                    scope,
+                    frame,
+                    expression,
+                    structural_term(program, scope, frame, indexed.collection, bindings)?,
+                    structural_term(program, scope, frame, indexed.index, bindings)?,
+                )
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }

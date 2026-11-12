@@ -2612,6 +2612,26 @@ pub(crate) mod authored_selections {
                 }
                 ExpressionNode::Name(path) => declaration_type_reference(program, path.symbol)
                     .or_else(|| operator_contract_value_type(program, expression, path)),
+                // An element of an array literal has the literal's element type,
+                // which every element shares; a contract such as
+                // `requires [3u64][0] <= 7` names no other typed operand.
+                ExpressionNode::Indexed(indexed)
+                    if !matches!(
+                        program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    ) =>
+                {
+                    let ExpressionNode::ArrayLiteral(elements) =
+                        program.expression_table.expression(indexed.collection)
+                    else {
+                        return None;
+                    };
+                    program
+                        .expression_table
+                        .expression_handles(*elements)
+                        .iter()
+                        .find_map(|element| authored_operand_type(program, *element))
+                }
                 _ => None,
             }
         }
