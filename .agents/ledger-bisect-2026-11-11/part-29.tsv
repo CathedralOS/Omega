@@ -7,7 +7,7 @@ fail/calls/static_boundary_statement_unrelated_evidence	fixed_on_main
 fail/traits/explicit_implementation_unrelated_trait	fixed_on_main		
 fail/layouts/placed_stable_array_readonly_write	fixed_on_main		
 fail/traits/prepared_callable_wrong_member_source	fixed_on_main		
-pass/ownership/runtime_match_conditional_observation_cleanup_exit	still_broken	`two_children` has no executable body: this compiler does not lower a statement of it yet	c0
-run/borrows/returned_descriptor_entry_snapshot	still_broken	`main` has no executable body: call operation: structural result loan	c1
-run/slices/returned_record_fixed_array_window	still_broken	`main` has no executable body: reference result has no complete captured origin paths	c2
+pass/ownership/runtime_match_conditional_observation_cleanup_exit	still_broken	`two_children` has no executable body	c0
+run/borrows/returned_descriptor_entry_snapshot	still_broken	`main` has no executable body: structural result loan	c1
+run/slices/returned_record_fixed_array_window	still_broken	`main` has no executable body: captured origin paths	c2
 pass/proofs/reviewed_mathematical_data_contract_exit	still_broken	cannot prove requires contract for call capacity from geometry	c3

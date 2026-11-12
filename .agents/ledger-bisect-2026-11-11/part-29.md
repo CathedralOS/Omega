@@ -4,33 +4,31 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
 ## Summary
 
-- Slice rows (prior report clusters index % 40 == 29): 11
+- Prior-report slice clusters (index % 40 == 29): 5 original clusters, 11 member rows
 - Fixed on PIN: 8
-- Still broken (re-clustered): 4
+- Still broken at PIN (re-clustered by first diagnostic): 4
 
 ## Clusters
 
 | Rows | Kind | Diagnostic | Witness | Break | PR | Mechanism | Status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 1 | pass/run rejected | `two_children` has no executable body: this compiler does no | `pass/ownership/runtime_match_conditional_observation_cleanup_exit` | `22f215eb3e7d` | 2078 | psi: preserve common fields when matching case values (#2078) | commit 22f215eb3e7d9814cb3e29f42856e | bisected |
-| 1 | incomplete | `main` has no executable body: call operation: structural re | `run/borrows/returned_descriptor_entry_snapshot` | `` |  |  | propagated |
-| 1 | incomplete | `main` has no executable body: reference result has no compl | `run/slices/returned_record_fixed_array_window` | `` |  |  | propagated |
-| 1 | pass/run rejected | cannot prove requires contract for call capacity from geomet | `pass/proofs/reviewed_mathematical_data_contract_exit` | `` |  |  | propagated |
+| 1 | pass/run rejected | `two_children` has no executable body | `pass/ownership/runtime_match_conditional_observation_cleanup_exit` | `22f215eb3e7d` | 2078 | case-pattern common-field preservation stopped lowering two_children observation cleanup (#2078) | bisected |
+| 1 | incomplete | `main` has no executable body: structural result loan | `run/borrows/returned_descriptor_entry_snapshot` | `77271bfb9134` | 1794 | incoming backing / stored-call structural result loans stopped lowering returned descriptor entry (#1794) | bisected |
+| 1 | incomplete | `main` has no executable body: captured origin paths | `run/slices/returned_record_fixed_array_window` | `` |  |  | propagated |
+| 1 | pass/run rejected | cannot prove requires contract for call capacity from geom | `pass/proofs/reviewed_mathematical_data_contract_exit` | `` |  |  | propagated |
 
 ## Members
 
 ### c0
-- `pass/ownership/runtime_match_conditional_observation_cleanup_exit` still broken
-- good first-parent: `2476d1be2203`
+- `pass/ownership/runtime_match_conditional_observation_cleanup_exit`
+- good (first-parent search): `2476d1be2203`
 ### c1
-- `run/borrows/returned_descriptor_entry_snapshot` still broken
-- good first-parent: ``
+- `run/borrows/returned_descriptor_entry_snapshot`
+- good (first-parent search): `2476d1be2203`
 ### c2
-- `run/slices/returned_record_fixed_array_window` still broken
-- good first-parent: ``
+- `run/slices/returned_record_fixed_array_window`
 ### c3
-- `pass/proofs/reviewed_mathematical_data_contract_exit` still broken
-- good first-parent: ``
+- `pass/proofs/reviewed_mathematical_data_contract_exit`
 
 ## Fixed on main
 
@@ -46,6 +44,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 ## Commands
 
 - `git fetch --unshallow origin`
-- `python3 .agents/ledger-bisect-tools/pin_bisect_state.py <witnesses...>`
-- `bash .agents/ledger-bisect-tools/bisect_cluster.sh <id> <witness> <out.json>`
+- `python3 .agents/ledger-bisect-tools/pin_bisect_state.py` (4 witnesses)
+- PIN-fixed `/tmp/pin_corpus_outcomes.txt`, `/tmp/bisect_pin_obs.json`
+- `bash /tmp/ledger-bisect-tools/bisect_cluster.sh` per cluster
 - Host: linux x86_64; `OMEGA_CORPUS_JOBS=1`; direct `corpus_runner`
