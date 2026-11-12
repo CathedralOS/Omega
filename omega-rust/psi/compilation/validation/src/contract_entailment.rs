@@ -2387,13 +2387,27 @@ pub(crate) mod arithmetic_judgment {
                 ) {
                     return false;
                 }
+                let dividend = self.substituted(left);
+                let divisor = self.substituted(right);
+                let result = self.substituted(value);
+                let consequence = match operator {
+                    BinaryOperator::Modulo => divisor.sub(&result),
+                    _ => dividend.sub(&result),
+                };
+                // These rules establish a difference of at least zero or one.
+                // Once the stronger bound is present, rechecking its conditions
+                // cannot strengthen it. A zero bound must still be reconsidered.
+                let strongest_minimum = BigInt::from_i64(1);
+                if self.bounds.iter().any(|(existing, minimum)| {
+                    *existing == consequence && minimum >= &strongest_minimum
+                }) {
+                    return false;
+                }
                 let consequence = {
                     // These few queries share unchanged premises. Defer the full
                     // bound index until a simple query cannot resolve, then release
                     // the borrowed view before installing any consequence.
                     let mut queries = super::LowerBoundQueries::direct(self);
-                    let dividend = self.substituted(left);
-                    let divisor = self.substituted(right);
                     match operator {
                         BinaryOperator::Divide
                             if queries
@@ -2409,10 +2423,7 @@ pub(crate) mod arithmetic_judgment {
                                     &divisor,
                                     &BigInt::from_i64(2),
                                 );
-                            Some((
-                                dividend.sub(&self.substituted(value)),
-                                BigInt::from_i64(i64::from(strict)),
-                            ))
+                            Some((consequence, BigInt::from_i64(i64::from(strict))))
                         }
                         BinaryOperator::ShiftRight
                             if queries.prove_with_deferred_preparation(
@@ -2423,7 +2434,7 @@ pub(crate) mod arithmetic_judgment {
                                 &BigInt::from_i64(1),
                             ) =>
                         {
-                            Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         BinaryOperator::Modulo
                             if queries
@@ -2433,7 +2444,7 @@ pub(crate) mod arithmetic_judgment {
                                     &BigInt::from_i64(1),
                                 ) =>
                         {
-                            Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         _ => None,
                     }
@@ -2454,6 +2465,110 @@ pub(crate) mod arithmetic_judgment {
 
             fn constant(value: i64) -> Polynomial {
                 Polynomial::constant(BigInt::from_i64(value))
+            }
+
+            #[test]
+            fn established_operation_bounds_do_not_repeat_their_proof() {
+                use std::sync::atomic::Ordering;
+
+                let program = typed_trees::TypedTrees::default();
+                for operator in [
+                    BinaryOperator::Divide,
+                    BinaryOperator::Modulo,
+                    BinaryOperator::ShiftRight,
+                ] {
+                    let mut engine = Engine::for_explicit_bindings(&program);
+                    let dividend = engine
+                        .conditional_value(vec![
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(4),
+                            },
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(8),
+                            },
+                        ])
+                        .unwrap();
+                    let divisor = constant(2);
+                    let result = Polynomial::atom("result".to_owned());
+                    assert!(
+                        engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        )
+                    );
+                    let bounds = engine.bounds.clone();
+                    let remaining = engine.conditional_work_remaining.load(Ordering::Relaxed);
+                    for _ in 0..4 {
+                        assert!(!engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        ));
+                    }
+                    assert_eq!(engine.bounds, bounds);
+                    assert_eq!(
+                        engine.conditional_work_remaining.load(Ordering::Relaxed),
+                        remaining,
+                        "an established consequence needs no repeated conditional proof",
+                    );
+                    let other_result = Polynomial::atom("other_result".to_owned());
+                    assert!(engine.install_integer_operation_bounds(
+                        operator,
+                        &dividend,
+                        &divisor,
+                        &other_result,
+                    ));
+                }
+
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let dividend = Polynomial::atom("dividend".to_owned());
+                let divisor = Polynomial::atom("divisor".to_owned());
+                let result = Polynomial::atom("result".to_owned());
+                assert!(!engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(0)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(1)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                let difference = dividend.sub(&result);
+                assert!(
+                    engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::zero()))
+                );
+                assert!(
+                    !engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::from_i64(1)))
+                );
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(1)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(2)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.bounds.contains(&(difference, BigInt::from_i64(1))));
             }
 
             #[test]
