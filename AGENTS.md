@@ -27,10 +27,22 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
+## Bootstrap mandate
+
+For bootstrap construction work, [bootstrap/MINIMIZATION.md](bootstrap/MINIMIZATION.md)
+is the owner's governing mandate. It authorizes competing peer variants, changes
+to topology and intermediate languages, compiled/interpreted/native experiments,
+and explicit accelerators. Its architecture authority supersedes the fixed-design
+and no-experiment instructions below for this scope. Formal bootstrap correctness
+certificates do not gate construction; ordinary Omega safety and proof semantics
+remain required. Use bootstrap compiler and Omega compiler as public names.
+Record unresolved changes outside the mandate in
+[OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md), not the product queue.
+
 ## Spec first, land first
 
-These rules override any longer validation advice elsewhere in this file or in
-the skills.
+Subject to the Bootstrap mandate above, these rules override longer validation
+advice elsewhere in this file or in the skills.
 
 - **Read the spec, then implement it once.** Before editing, read the governing
   page in `wiki/spec/` and implement what it says. No exploratory trial patches,
