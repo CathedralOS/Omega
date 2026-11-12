@@ -931,8 +931,8 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
     }
 }
 
-// Reference casts keep the same backing. Trace their authored operand chain
-// once so every loan consumer names the original borrow or reference value,
+// Reference casts keep the same backing. Each loan query traces their authored
+// operand chain to name the original borrow or reference value,
 // including a cast applied to another cast. Syntax children precede parents;
 // an impossible nondecreasing edge fails rather than erasing a loan.
 public machine reference_cast_source(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping

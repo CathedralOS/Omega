@@ -54,7 +54,15 @@ Anonymous domain-only casts without an explicit carrier, named domains and
 simultaneous multi-entry accounting remain explicit coverage refusals; no carrier
 is guessed and no expected destination inserts a domain. Qualified builtin
 indexing likewise requires an explicitly unqualified view until the source
-compiler selects declared indexing operators. Mathematical `Int`/`Nat` and decimal landing remain
+compiler selects declared indexing operators. The frontend's bounded core
+policy path accepts fixed-integer addition, subtraction, multiplication, division,
+remainder and comparisons with a peer of the same carrier carrying the same
+policy or none. Anonymous peers land only at the plain carrier; arithmetic
+retains the policy result and comparison returns `bool`. Different policies,
+different carriers, and other qualified builtin fallbacks are refused. Qualified
+unary, bitwise and shift operators still require declaration support. These
+frontend checks do not broaden the scalar backend's arithmetic support.
+Mathematical `Int`/`Nat` and decimal landing remain
 outside this bounded numeric frontier.
 
 [`source/psi/lowering/scalar.omg`](../../../source/psi/lowering/scalar.omg) is the

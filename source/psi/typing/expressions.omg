@@ -765,14 +765,37 @@ crashes Trap
     machine typed(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let read: u64 in Trapping = typer_read_type(typer, operand);
         transition expression.operator {
-            OperatorKind::Not -> not(typer, index, expression, read)
-            OperatorKind::Negate -> negate(typer, index, expression, read)
-            OperatorKind::BitNot -> complement(typer, index, expression, read)
+            OperatorKind::Not -> scalar_operator(typer, index, expression, read)
+            OperatorKind::Negate -> scalar_operator(typer, index, expression, read)
+            OperatorKind::BitNot -> scalar_operator(typer, index, expression, read)
             OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
             OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
             OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand)
             _ -> acknowledged(typer, syntax, index, expression, operand)
         }
+    }
+
+    // Qualified unary operators need their selected declaration. This
+    // builtin slice cannot infer one from the operand's policy spelling.
+    machine scalar_operator(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        let row: TypeRow = type_table_row(&typer.output.types, operand);
+        transition row.domain == DomainBinding::Unqualified {
+            true -> scalar_builtin(typer, index, expression, operand)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine scalar_builtin(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Not -> not(typer, index, expression, operand)
+            OperatorKind::Negate -> negate(typer, index, expression, operand)
+            OperatorKind::BitNot -> complement(typer, index, expression, operand)
+            _ -> unsupported(typer, expression)
+        }
+    }
+
+    machine unsupported(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
     machine not(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
@@ -1051,7 +1074,9 @@ crashes Trap
 // any carriers; `==` and `!=` also compare Booleans and payload-free sums of
 // one type. Arithmetic and bitwise operators take one fixed-integer type;
 // shifts keep the left operand's. A typed operand lands an anonymous one at
-// its carrier; two anonymous operands fold exactly.
+// its bare carrier; two anonymous operands fold exactly. The bounded core
+// policy path separately matches one fixed carrier with a singleton policy
+// and a same-policy or plain peer; no operand acquires a domain by landing.
 machine type_binary(
     typer: &mut Typer,
     sources: &SourceSet,
@@ -1072,7 +1097,8 @@ crashes Trap
     }
 
     // An arithmetic or order operator with a data operand selects a machine
-    // binding its token (operators.omg); every other operator is builtin.
+    // binding its token (operators.omg). Other qualified operands must
+    // match the supported core policy shapes before builtin fallback.
     machine typed(
         typer: &mut Typer,
         sources: &SourceSet,
@@ -1088,8 +1114,91 @@ crashes Trap
         let right_data: bool = typer_data_type(typer, right);
         transition token != OperatorToken::None && (left_data || right_data) {
             true -> declared(typer, sources, syntax, resolution, index, expression)
-            _ -> builtin(typer, syntax, index, expression, left, right)
+            _ -> qualification(typer, syntax, index, expression, left, right)
         }
+    }
+
+    machine qualification(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_outer: TypeRow = type_table_row(&typer.output.types, left);
+        let right_outer: TypeRow = type_table_row(&typer.output.types, right);
+        let left_row: TypeRow = qualified_row(&typer.output.types, left_outer);
+        let right_row: TypeRow = qualified_row(&typer.output.types, right_outer);
+        transition left_row.domain == DomainBinding::Unqualified && right_row.domain == DomainBinding::Unqualified {
+            true -> builtin(typer, syntax, index, expression, left, right)
+            // Only authorized scalar reads may reach a policy declaration.
+            // A remaining reference (notably &write) is not its referent.
+            _ -> policy_side(typer, syntax, index, expression, left, right, left_outer, right_outer)
+        }
+    }
+
+    // These are the core policy declarations' exact supported operand
+    // shapes (numeric_values.md, Policy domains), not ordinary admission.
+    // A qualified comparison cannot borrow mixed-width builtin order laws.
+    machine policy_side(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_row: TypeRow, right_row: TypeRow) {
+        transition left_row.domain != DomainBinding::Unqualified {
+            true -> policy_shape(typer, syntax, index, expression, left, left_row, expression.right, right, right_row)
+            _ -> policy_shape(typer, syntax, index, expression, right, right_row, expression.left, left, left_row)
+        }
+    }
+
+    machine policy_shape(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, policy: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping, peer_row: TypeRow) {
+        let fixed: bool = row.kind == TypeKind::Builtin && fixed_integer(row.builtin);
+        let supported: bool = row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
+            || row.domain == DomainBinding::Trapping;
+        let same: bool = peer_row.kind == TypeKind::Builtin && peer_row.builtin == row.builtin
+            && (peer_row.domain == DomainBinding::Unqualified || peer_row.domain == row.domain);
+        transition fixed && supported && (same || peer == typer.output.anonymous) {
+            true -> policy_operator(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            _ -> unsupported_policy(typer, expression)
+        }
+    }
+
+    machine policy_operator(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, policy: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        transition expression.operator {
+            OperatorKind::Add -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Subtract -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Multiply -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Divide -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Modulo -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            OperatorKind::Equal -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::NotEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::Less -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::LessEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::Greater -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::GreaterEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            _ -> unsupported_policy(typer, expression)
+        }
+    }
+
+    machine policy_comparison(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        let boolean_type: u64 in Trapping = typer.output.boolean;
+        transition { _ -> policy_selected(typer, syntax, index, expression, boolean_type, row, peer_expression, peer) }
+    }
+
+    machine policy_selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, result: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
+        set_expression_type(&mut typer.output, index, result);
+        let left: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
+        let right: u64 in Trapping = typing_expression_type(&typer.output, expression.right);
+        let left_read: u64 in Trapping = typer_read_type(typer, left);
+        let right_read: u64 in Trapping = typer_read_type(typer, right);
+        record_scalar_read(typer, expression.left, left_read);
+        record_scalar_read(typer, expression.right, right_read);
+        transition peer == typer.output.anonymous {
+            true -> policy_literal(typer, syntax, expression, row, peer_expression)
+            _ -> done()
+        }
+    }
+
+    machine policy_literal(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, peer_expression: u64 in Trapping) {
+        let mut bare: TypeRow = row;
+        bare.domain = DomainBinding::Unqualified;
+        bare.domain_item = 0 as u64 +Trapping;
+        let carrier: u64 in Trapping = typer_intern(typer, bare, expression.source_span);
+        let admitted: bool = typer_admit(typer, syntax, carrier, peer_expression, false);
+    }
+
+    machine unsupported_policy(typer: &mut Typer, expression: Expression) {
+        typing_reject(&mut typer.output, TypeDiagnosticCode::UnsupportedExpression, expression.source_span);
     }
 
     machine declared(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
@@ -1123,8 +1232,8 @@ crashes Trap
         }
     }
 
-    // Byte sequences compare their bytes and lengths independently of
-    // qualification. A fixed array contributes its complete fixed extent.
+    // Plain byte sequences compare their bytes and lengths. A fixed array
+    // contributes its complete fixed extent; qualifications need an operator.
     machine equality(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         let comparable: bool = intrinsic_equality(typer, syntax, left);
         let sequences: bool = byte_sequence(typer, left) && byte_sequence(typer, right);
@@ -1390,21 +1499,23 @@ crashes Trap
 // fixed integers and addresses, and sums whose every case is payload-free
 // (wiki/spec/language/data_and_literals.md: records and payload-bearing sums
 // need a declared equality).
-// Byte-sequence operations accept fixed byte arrays and byte slices, with
-// or without qualification, themselves or through a reference.
+// Builtin byte-sequence equality accepts plain byte arrays and byte slices,
+// themselves or through a reference; element domains cannot be erased.
 public machine byte_sequence(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let referent: u64 in Trapping = typer_referent(typer, handle);
     let row: TypeRow = type_table_row(&typer.output.types, referent);
-    transition row.kind == TypeKind::Slice || row.kind == TypeKind::Array {
+    transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array)
+        && row.domain == DomainBinding::Unqualified {
         true -> elements(typer, row)
         _ -> answer(false)
     }
 
     machine elements(typer: &Typer, row: TypeRow) -> bool {
         let element: TypeRow = type_table_row(&typer.output.types, row.inner);
-        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8;
+        let bytes: bool = element.kind == TypeKind::Builtin && element.builtin == BuiltinType::U8
+            && element.domain == DomainBinding::Unqualified;
         transition { _ -> answer(bytes) }
     }
 

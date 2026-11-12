@@ -66,6 +66,28 @@ def domain_cast_cases():
         refused('policy-declaration-cannot-shadow-' + policy.decode(),
                 b'domain u8::' + policy + b' requires self==0; '
                 b'machine chosen()->u8{(42 as u8 +' + policy + b') as -' + policy + b'}', 248)
+        # These reach checked policy semantics, then the lowerer's deliberate
+        # policy-arithmetic/contract frontier. Literal peers stay plain u8;
+        # arithmetic results retain the selected policy, comparisons are bool.
+        for name, expression in (
+            ('right-literal', b'(41 as u8 +' + policy + b')+1'),
+            ('left-literal', b'1+(41 as u8 +' + policy + b')'),
+            ('right-plain', b'(41 as u8 +' + policy + b')+(1 as u8)'),
+            ('left-plain', b'(1 as u8)+(41 as u8 +' + policy + b')'),
+            ('same-policy', b'(41 as u8 +' + policy + b')+(1 as u8 +' + policy + b')'),
+        ):
+            source = (b'machine chosen()->u8 ensures ((' + expression + b') as -'
+                      + policy + b')==42 {42}')
+            refused('policy-' + policy.decode() + '-' + name, source, 246)
+            refused('policy-' + policy.decode() + '-' + name + '-wrong-value',
+                    source.replace(b'==42 {42}', b'==43 {42}'), 247)
+        comparison = b'(41 as u8 +' + policy + b')<42'
+        refused('policy-comparison-' + policy.decode(),
+                b'machine chosen()->u8 ensures ' + comparison + b' {42}', 246)
+        refused('policy-comparison-false-' + policy.decode(),
+                b'machine chosen()->u8 ensures !(' + comparison + b') {42}', 247)
+        refused('policy-result-still-needs-removal-' + policy.decode(),
+                b'machine chosen()->u8{(41 as u8 +' + policy + b')+1}', 249)
     accepted('policy-change-keeps-value',
              b'machine chosen()->u8 { ((42 as u8 +Trapping) as -Trapping as u8 +Wrapping) as -Wrapping }', 42)
     accepted('cast-does-not-wrap',
@@ -94,6 +116,22 @@ def domain_cast_cases():
         ('qualified-index-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; x[i]=42; 0 }'),
         ('qualified-range-start-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; let view:&[u8]=&x[i..1]; 0 }'),
         ('qualified-range-end-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=1 as u8 +Trapping; let view:&[u8]=&x[0..i]; 0 }'),
+        ('policy-peer-cannot-land-out-of-range', b'machine chosen()->u8{((1 as u8 +Wrapping)+256) as -Wrapping}'),
+        ('policy-peer-keeps-fractional-history', b'machine chosen()->u8{((1 as u8 +Wrapping)+((5/2)*2)) as -Wrapping}'),
+        ('policy-arithmetic-cannot-mix-policies', b'machine chosen()->u8{((1 as u8 +Wrapping)+(1 as u8 +Trapping)) as -Wrapping}'),
+        ('policy-comparison-cannot-mix-policies', b'machine chosen()->u8 ensures (1 as u8 +Wrapping)==(1 as u8 +Trapping){42}'),
+        ('policy-comparison-cannot-mix-carriers', b'machine chosen()->u8 ensures (1 as u8 +Wrapping)==(1 as u16){42}'),
+        ('policy-arithmetic-cannot-mix-carriers', b'machine chosen()->u8{((1 as u8 +Wrapping)+(1 as u16)) as -Wrapping}'),
+        ('declared-domain-does-not-select-builtin-comparison', b'domain u8::Small requires self<100; machine chosen(x:u8 in Small)->bool{x==42}'),
+        ('policy-unary-needs-selected-operator', b'machine chosen()->u8{(~(1 as u8 +Wrapping)) as -Wrapping}'),
+        ('policy-shift-needs-selected-operator', b'machine chosen()->u8{((1 as u8 +Wrapping)<<1) as -Wrapping}'),
+        ('policy-bitwise-needs-selected-operator', b'machine chosen()->u8{((1 as u8 +Wrapping)&1) as -Wrapping}'),
+        ('write-only-policy-reference-cannot-compare', b'machine chosen(view:&write u8 in Wrapping)->bool{view==0}'),
+        ('write-only-policy-reference-cannot-compute', b'machine chosen(view:&write u8 in Wrapping)->u8{(view+1) as -Wrapping}'),
+        ('write-only-policy-peer-cannot-compare', b'machine chosen(view:&write u8 in Wrapping)->bool{(1 as u8 +Wrapping)==view}'),
+        ('nested-write-only-policy-reference-cannot-compare', b'machine chosen(view:& &write u8 in Wrapping)->bool{view==0}'),
+        ('nested-write-only-reference-cannot-read', b'machine chosen(view:& &write u8)->u8{view}'),
+        ('qualified-byte-elements-need-equality-operator', b'machine chosen()->u8{let x:[u8 in Wrapping;1];let same:bool=x==x;42}'),
     ):
         refused(name, source, 249)
     for name, source in (
@@ -103,6 +141,18 @@ def domain_cast_cases():
         ('simultaneous-entries-not-sequential-casts', b'machine chosen()->u8{42 as u8 +Trapping -Trapping}'),
     ):
         refused(name, source, 250)
+    refused('plain-integer-comparison-keeps-mixed-carriers',
+            b'machine chosen()->u8 ensures (-1 as i8)<(10 as u8){42}', 246)
+    refused('shared-policy-reference-keeps-scalar-read',
+            b'machine chosen()->u8{let x:u8 in Wrapping=41 as u8 +Wrapping;((&x)+1) as -Wrapping}', 246)
+    refused('mutable-policy-reference-keeps-scalar-read',
+            b'machine chosen()->u8{let mut x:u8 in Wrapping=41 as u8 +Wrapping;((&mut x)+1) as -Wrapping}', 246)
+    for policy, expected in ((b'Wrapping', b'0'), (b'Saturating', b'255')):
+        source = (b'machine chosen()->u8 ensures (((255 as u8 +' + policy
+                  + b')+1) as -' + policy + b')==' + expected + b'{42}')
+        refused('policy-overflow-value-' + policy.decode(), source, 246)
+        refused('policy-overflow-value-false-' + policy.decode(),
+                source.replace(b'==' + expected + b'{42}', b'==1{42}'), 247)
     # Pack the actual source declarations unchanged. The wrapper supplies a
     # canonical caller; Python implements no part of their behavior. Accepted
     # checking must reach the scalar lowerer's explicit storage refusal, which
