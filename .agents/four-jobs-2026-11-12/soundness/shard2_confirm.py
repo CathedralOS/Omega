@@ -17,7 +17,9 @@ from shard2_review import (
     current_rejects,
     is_known_q7_gap,
     minimal_mutant_diff,
+    probe_drop_requires_subtype,
     read_mutant_validity,
+    removed_requires_clause,
     route_rejects,
     run_checker_outputs,
 )
@@ -90,6 +92,8 @@ def classify_row(row: dict) -> dict:
         "rule_quote": "",
         "rule_heading": "",
         "acceptance_mechanism": "",
+        "hole_subtype": "",
+        "probe_note": "",
         "notes": row.get("route_rejection_detail", ""),
     }
 
@@ -166,6 +170,12 @@ def classify_row(row: dict) -> dict:
             base["review_bucket"] = "discarded_valid"
             base["validity_reason"] += "; fix4: no check-time spec quote"
             return base
+        if kind in ("drop_machine_requires", "widen_requires_lt"):
+            removed = removed_requires_clause(orig, mut) or ""
+            if removed:
+                sub, pnote = probe_drop_requires_subtype(mut_path, orig_path, removed)
+                base["hole_subtype"] = sub
+                base["probe_note"] = pnote
         base["review_bucket"] = "confirmed_hole"
         return base
 
@@ -202,6 +212,8 @@ def write_tsv(rows: list[dict]) -> None:
         "rule_heading",
         "rule_quote",
         "acceptance_mechanism",
+        "hole_subtype",
+        "probe_note",
         "notes",
         "seconds",
     ]
@@ -274,6 +286,7 @@ def confirmed_hole_writeup(confirmed: list[dict]) -> list[str]:
                 "",
                 f"- Obligation line: `{h['obligation_line']}`",
                 f"- Mutant: `{h['mutant_path']}`",
+                f"- hole_subtype: `{h.get('hole_subtype', '')}`; probe: {h.get('probe_note', '')}",
                 "",
             ]
         )

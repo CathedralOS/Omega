@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import importlib.util
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -227,6 +228,17 @@ SPEC_RULES = {
         "Requirement clauses",
         "Machine entry obligations are established at every invocation under exact actual-argument substitution.",
     ),
+    "drop_requires_modular": (
+        "wiki/spec/language/machines.md",
+        "Nested machines and identity",
+        (
+            "A written entry contract remains complete even when all currently visible callers happen "
+            "to establish stronger facts. "
+            "An authored `requires` is complete, including on a private helper; inference cannot "
+            "silently conjoin further entry conditions to make the body check "
+            "(wiki/spec/language/state_contracts.md, Private entry inference)."
+        ),
+    ),
     "ref_to_mut_ref": (
         "wiki/spec/language/ownership.md",
         "Owned local mutability",
@@ -268,6 +280,70 @@ def acceptance_mechanism(mut_path: Path) -> str:
     return "check_time_pass"
 
 
+def machine_after_requires_drop(orig: str, mut: str, removed: str) -> tuple[str, str] | None:
+    """Return (machine_name, params_text) for the machine that lost `removed`."""
+    lines_o = orig.splitlines()
+    for i, line in enumerate(lines_o):
+        if line.strip() == removed and i > 0:
+            hdr = lines_o[i - 1].strip()
+            m = re.match(r"machine\s+(\w+)\s*\(([^)]*)\)", hdr)
+            if m:
+                return m.group(1), m.group(2)
+    return None
+
+
+def violating_argument(requires: str) -> str | None:
+    req = requires.removeprefix("requires").strip()
+    m = re.search(r"(\w+)\s*<\s*(\w+)", req)
+    if m:
+        return m.group(2)
+    m = re.search(r"(\w+)\s*<=\s*(\w+)", req)
+    if m:
+        bound = m.group(2)
+        if bound.isdigit():
+            return str(int(bound) + 1)
+        return bound
+    m = re.search(r"(\w+)\s*>\s*(\w+)", req)
+    if m:
+        return m.group(2)
+    return None
+
+
+def probe_drop_requires_subtype(mut_path: Path, orig_path: Path, removed: str) -> tuple[str, str]:
+    """fix5: inferred-entry vs unchecked via violating-caller probe."""
+    orig = orig_path.read_text()
+    mut = mut_path.read_text()
+    info = machine_after_requires_drop(orig, mut, removed)
+    if not info:
+        return "unchecked", "could not locate machine for probe"
+    name, params = info
+    bad = violating_argument(removed)
+    if not bad:
+        return "unchecked", "could not synthesize violating argument"
+    arity = len([p for p in params.split(",") if p.strip()]) or 1
+    args = [bad] + ["0"] * max(0, arity - 1)
+    call = f"{name}({', '.join(args[:arity])})"
+    probe_body = (
+        f"\n\nmachine __soundness_probe_violation__() -> u64\n{{\n    {call}\n}}\n"
+    )
+    probe_dir = mut_path.parent / "probe_violation"
+    probe_dir.mkdir(exist_ok=True)
+    for item in mut_path.parent.iterdir():
+        if item.suffix == ".omg" and item.name != "main.omg":
+            shutil.copy2(item, probe_dir / item.name)
+    (probe_dir / "main.omg").write_text(mut + probe_body)
+    probe_main = probe_dir / "main.omg"
+    out = run_checker_outputs(probe_main)
+    mut_ok = run_checker_outputs(mut_path)["current_verdict"] == "accepted"
+    probe_ok = out["current_verdict"] == "accepted"
+    note = f"probe call `{call}` omega_exit={out['omega_exit']}"
+    if mut_ok and not probe_ok:
+        return "inferred-entry", note
+    if mut_ok and probe_ok:
+        return "unchecked", note
+    return "unchecked", note + "; mutant not accepted on re-check"
+
+
 def minimal_mutant_diff(orig: str, mut: str, max_lines: int = 25) -> str:
     import difflib
 
@@ -294,14 +370,6 @@ def read_mutant_validity(
         removed = removed_requires_clause(orig, mut)
         if not removed:
             return True, "requires removed but diff not parsed", "", "", ""
-        if requires_repeated_elsewhere(orig, removed):
-            return (
-                False,
-                f"removed `{removed}` is restated elsewhere in the original",
-                "",
-                "",
-                "",
-            )
         fail = drop_requires_failing_line(orig, mut, removed)
         if not fail:
             return (
@@ -311,14 +379,13 @@ def read_mutant_validity(
                 "",
                 "",
             )
-        path, heading, quote = (
-            SPEC_RULES["drop_requires_arith"]
-            if any(c in fail for c in "/%+-*[]")
-            else SPEC_RULES["drop_requires_bound"]
-        )
+        if any(c in fail for c in "/%+-*[]"):
+            path, heading, quote = SPEC_RULES["drop_requires_arith"]
+        else:
+            path, heading, quote = SPEC_RULES["drop_requires_modular"]
         return (
             True,
-            f"body/ensures `{fail}` still uses facts only established by `{removed}`",
+            f"modular entry: body `{fail}` needs `{removed}`; caller re-establishment cannot make this valid",
             fail,
             path,
             quote,
