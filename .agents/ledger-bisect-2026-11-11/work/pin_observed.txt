@@ -1,0 +1,30 @@
+pass/borrows/runtime_returned_nonzero_nested_window_exit incomplete 2790ms check-target:macos_arm64
+	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0
+pass/facts/computed_record_window_through_other_machine_exit incomplete 2556ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 0
+pass/facts/computed_record_window_through_other_state_exit incomplete 2632ms check-target:macos_arm64
+	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 1
+pass/facts/computed_record_window_through_target_body_exit checked 3234ms check-target:macos_arm64
+pass/facts/matched_field_windows_through_other_state_exit incomplete 2455ms check-target:macos_arm64
+	`main` calls `from_state`; `from_state` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `from_state::entry`, statement 0
+pass/facts/may_write_computed_receiver_through_call_result_exit checked 6078ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_const_name_exit checked 6495ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_field_exit checked 6667ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_local_exit checked 6426ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_match_join_exit checked 7150ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_other_machine_exit checked 6457ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_other_state_exit checked 6356ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_parameter_exit checked 6481ms check-target:macos_arm64
+pass/facts/may_write_computed_receiver_through_target_body_exit checked 6536ms check-target:macos_arm64
+pass/ownership/runtime_match_nested_observation_cleanup_exit rejected 2719ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 13435, generation: 1 }), established: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, established_type: StructuralTypeId(22), requested: StructuralArgument { place: PlaceId(111), path: [], access: Owned }, requested_type: StructuralTypeId(22), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_structural_values.rs", producer_line: 4167 })
+pass/slices/runtime_returned_nested_array_window_home_exit incomplete 2430ms check-target:macos_arm64
+	`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `forward::entry`, statement 0
+fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected rejected 1571ms unexpected
+	machine `compute` state `entry`: recast source has no fixed representation inventory
+fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 1538ms unexpected
+	machine `compute` state `entry`: recast source has no fixed representation inventory
+fail/generics/record_const_foreign_nominal_carrier rejected 1230ms unexpected
+	const argument `Setting` has no static value with its exact declared carrier
+fail/ownership/selected_storage_join_unrelated_root rejected 2532ms unexpected
+	callable `rejoin` has an invalid content-conservation contract: content conservation requires the sealed typed core::Identity: expression has no checked mathematical application

@@ -1,0 +1,427 @@
+prepared pass/borrows/runtime_returned_nonzero_nested_window_exit pin_status=incomplete
+GOOD=c15929193d3993f264c54338440f4e1405dff0f6
+Bisecting: 327 revisions left to test after this (roughly 8 steps)
+[68f1e8bf9922549180d32d66c1d153cdd8f43746] psi: consolidate and document terminal-psi representations (#2150)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 163 revisions left to test after this (roughly 7 steps)
+[b41edeff5a19d09a8cb52b82eeed5cabb0b00035] psi: join specialized case literals to the receiving variant (#2003)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 81 revisions left to test after this (roughly 6 steps)
+[16ef5262beb8b500e36d3f79ebc373dfb5acef91] psi: allow returned Linear tokens to update plain counters (#1902)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[2794de5ab4726ce75e86669e5daa9706603f2a93] tests: keep binary replacement checks on valid compiler inputs (#1862)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 20 revisions left to test after this (roughly 4 steps)
+[90ee099406859798b23d8c3e5e701abfbc5f611a] psi: carry computed length rank through a local cursor (#1835)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[360a7d48582f4f07e782b0d3c4635b2441f03486] psi: accept checkers passed with their selected validation rule (#1821)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f] psi: preserve pair values through buffered conversions (#1562)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[5ab36c44602763dc6721fd4e0fd91d5951887b73] compiler: use the helper selected by a trait in its contracts (#1816)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea] tests: record returned-reference validation (#1817)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[d31209ea0d20231819cedbc47442baa3335792a5] compiler: lower borrows of same-carrier casts (#1820)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[d6c44b1e94333ea400bf973412a0db159e96d847] psi: preserve values returned by non-observing atomic attempts (#1815)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[77271bfb91344cd3d3788e1d8563796983dfbf13] psi: preserve saved references when pointer fields change (#1794)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[2476d1be2203009f1b32b8164bb6224c562c3bd5] compiler: preserve updated borrowed fields through selected calls (#1604)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+2476d1be2203009f1b32b8164bb6224c562c3bd5 is the first bad commit
+commit 2476d1be2203009f1b32b8164bb6224c562c3bd5
+Author: asmithbot <asmithbot@proton.me>
+Date:   Wed Nov 4 12:51:47 2026 +0000
+
+    compiler: preserve updated borrowed fields through selected calls (#1604)
+    
+    * samples: select generic crash forwarding through Build rows
+    
+    Replace the selected_crash_formal target prefix with an exact boundary requirement and four ordinary forwarding implementations. The caller still supplies Reader evidence, and the boundary retains the same crash guard; the twin changes only the Reader guard from strict to inclusive.
+    
+    The nine-place row and saved-argument and permitted-outcome controls are selected for focused hosted validation. No compiler behavior or owner question is changed; the broader target migration remains open.
+    
+    * psi: trace the selected crash conditions that reject valid calls
+    
+    All nine crash-condition examples reject before execution on the fixed compiler base. Capture the public condition retained at one failing call beside the applied requirement, so the repair can distinguish a lost generic argument from a failure to read its constant value. This temporary diagnostic is enabled only in the work-branch pilot and will be removed before landing.
+    
+    The touched README now explains the input and crash condition before describing compiler internals.
+    
+    * psi: read checked integer constants in crash comparisons
+    
+    Crash checking treated a named constant as an unknown storage read, even after evaluation had produced its checked value. Read that completed value with its declared type through the existing constant reader, then use the ordinary comparison checks. Pending values and malformed or mismatched constant encodings still supply no value.
+    
+    This checkpoint also makes the temporary trace visible through the corpus gate. The earlier diagnostic run retained the source refusal but buffered the trace; no successful check or execution is claimed.
+    
+    * psi: preserve the crash conditions of each selected call
+    
+    Crash checking discarded the selected generic arguments and read the interface declaration again. Reader<Zero> therefore became Reader<Limit>, leaving a valid call unable to prove that its crash condition was false. Read the complete signature already retained for that source call, and derive its conditions and contract identity together once for both crash-summary consumers.
+    
+    Unused generic parameters no longer suppress checking a concrete signature condition; unsupported values still refuse through the same strict reader. A two-limit program and its invalid twin guard against confusing different applications of one interface. Full focused validation and removal of temporary tracing remain before landing.
+    
+    * psi: index call contracts by complete symbol coordinates
+    
+    Arena handles do not define an ordering. Keep both index and generation for the caller and state when sorting the retained call contracts, so lookup is ordered without merging distinct symbol versions.
+    
+    * psi: preserve public crash checks after choosing an implementation
+    
+    A rewritten call still owes the selected interface contract even when the chosen local body happens to return without crashing. Use the retained public target before considering a private body summary, in both the dependency graph and direct call checks.
+    
+    Requirement calls now require their own retained signature reference and matching source location. Two unit controls reject missing and cross-call records; a private-forwarding example and its invalid twin check that concrete implementation choice cannot erase the public condition. Temporary hosted ownership-test instrumentation remains until the candidate is validated.
+    
+    * psi: retain the link from public calls to their executable targets
+    
+    Calls with only crash conditions were omitted from the retained call records. Keep every selected requirement signature connected to its source call and executable target, including when requires and ensures are empty.
+    
+    A shared checked-data query now joins the public crash-check target with the executable target. Scalar call emission, cleanup checking, and quotient eligibility use that exact correspondence while retaining the callee contract identity checks; none reopens source or substitutes a private body for the public condition.
+    
+    * psi: use the call index and test executable contract binding
+    
+    Resolve the unique retained call through the existing caller index rather than scanning every call during emission. Missing and duplicate records still refuse.
+    
+    Four carrier tests cover a valid public-to-executable link and reject missing or conflicting records, wrong executable targets or entries, another public signature, and a mismatched ordinary commitment or report identity. The temporary pilot runs these and the two source-signature ownership tests in one build-slot hold.
+    
+    * psi: remove diagnostic scaffolding before final validation
+    
+    * psi: make the crash fact match example observe both branches
+    
+    * psi: preserve integer bounds through match results and call captures
+    
+    * psi: name the type of joined value observations
+    
+    * psi: clarify the argument snapshot rejection check
+    
+    * psi: finish argument copies using their receiving types
+    
+    * psi: record selected crash call checks and execution results
+    
+    * tests: record selected crash validation on integrated source
+    
+    * samples: select inline sum implementation through Build
+    
+    * tests: preserve supplier calls in the invalid sum example
+    
+    * tests: record inline sum migration outcomes
+    
+    * docs: name Build-owned selection for const-family examples
+    
+    * samples: select const-family forwarding through Build
+    
+    * tests: record generic forwarding execution results
+    
+    * docs: introduce the borrowed-view target selection example
+    
+    * samples: select borrowed-view helpers through Build
+    
+    * psi: follow stored references through borrowed records
+    
+    A caller can replace a reference inside a borrowed record and return the replacement. Read the inner pointer from completed caller storage so the returned value keeps the right backing. Forwarding a write-only outer pointer still requires no read of its contents.
+    
+    * psi: trace the missing returned-reference relation
+    
+    * test: check target refusals during native publication
+    
+    A program can pass source checking and still have no provider for the selected target. Match its authored publication refusal after normal review and checking, without launching it or counting it as an execution. Use the realized target's oracle, and retain execution expectations on targets with supply.
+    
+    * psi: compose the checked origins of returned references
+    
+    * build: require authored supply for provider selection
+    
+    * docs: record completed returned-reference observations
+    
+    * psi: keep checked reference views through return composition
+    
+    * build: name missing calling policy providers before execution
+    
+    * test: exercise selected returns from a caller-owned view
+    
+    * build: render missing provider identities without a concrete contract
+    
+    * psi: isolate a caller-owned view through selected returns
+    
+    * test: distinguish caller backing in selected view returns
+    
+    * psi: carry caller views through selected reference returns
+    
+    * psi: follow the descriptor captured before later writes
+    
+    * psi: read returned pointees at completed call entry
+    
+    * docs: state measured selected-call results and remaining failures
+    
+    * backend: expose mismatched returned reference metadata for diagnosis
+    
+    * psi: keep fixed input pointers across referent replacement
+    
+    * psi: preserve public return regions through forwarded calls
+    
+    * backend: retain captured entry references across writes
+    
+    * backend: show the exact unresolved return cleanup
+    
+    * build: include the published provider configuration
+    
+    * backend: retain references written into caller storage
+    
+    * psi: identify the missing call completion association
+    
+    * psi: complete temporary values in their owning sequence
+    
+    * psi: report conflicting completion producers
+    
+    * psi: trace return construction after call completion
+    
+    * psi: keep successful value-call traces in their caller
+    
+    * psi: trace captured origins on returned calls
+    
+    * psi: retain region extent when matching returned view origins
+    
+    * docs: explain returned descriptor evidence and remaining checks
+    
+    * docs: record actual integrated descriptor and slice outcomes
+    
+    * tests: record checked descriptor origins and Linux executions
+    
+    * compiler: record returned-reference execution on remaining hosts
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zacharycanann@gmail.com>
+
+ .../src/lowering/control_flow/references.rs        |   2 +-
+ .../scalar_graph_input/reference_custody.rs        | 148 ++++++---
+ .../reference_custody/observations.rs              |  17 +-
+ .../reference_custody/occurrences.rs               |  39 ++-
+ .../target/unit/direct_calls/results.rs            |  11 +
+ .../src/provider_admission/provider_supply.rs      |   3 +-
+ .../semantics/src/current_ownership/references.rs  |  21 +-
+ .../src/target_operations/reference_root.rs        |  14 +-
+ .../execution/terminal_unit/cleanup/anonymous.rs   |  26 +-
+ .../control/statement_sequence/completion.rs       |   6 +
+ .../statement_sequence/result_consumption.rs       |  43 ++-
+ .../terminal_unit/control/structural_operands.rs   |  19 +-
+ .../execution/terminal_unit/state_graph/returns.rs |  54 ++-
+ .../terminal_unit/state_graph/terminator.rs        |  18 +-
+ .../terminal-psi/semantics/src/lib.rs              |   4 +-
+ .../src/references/reference_completion.rs         |  54 ++-
+ .../src/machine_calls/reference_result_custody.rs  |  61 +++-
+ .../reference_result_custody/captured_returns.rs   | 141 ++++++--
+ .../captured_returns/descriptor_sources.rs         |   6 +-
+ .../captured_returns/incoming_origins.rs           |  16 +-
+ .../captured_returns/input_views.rs                | 365 +++++++++++++++++++++
+ .../captured_returns/invocation_returns.rs         | 345 +++++++++++++++----
+ .../completed_storage/reference_captures.rs        | 128 ++++++++
+ .../finite_family_returned_descriptor/README.md    | 203 ++++++++++--
+ .../call_result/invalid/main.omg                   |  16 +-
+ .../call_result/main.omg                           |  16 +-
+ .../caller_view/build.omg                          |   7 +
+ .../caller_view/expected_interpreter_exit.txt      |   1 +
+ .../caller_view/expected_native_exit.txt           |   1 +
+ .../caller_view/invalid/build.omg                  |   7 +
+ .../caller_view/invalid/expected.txt               |   1 +
+ .../caller_view/invalid/main.omg                   |  37 +++
+ .../caller_view/main.omg                           |  37 +++
+ .../const_name/invalid/main.omg                    |  17 +-
+ .../const_name/main.omg                            |  17 +-
+ .../field/invalid/main.omg                         |  32 +-
+ .../field/main.omg                                 |  32 +-
+ .../incoming_join/build.omg                        |   7 +
+ .../incoming_join/expected_interpreter_exit.txt    |   1 +
+ .../incoming_join/expected_native_exit.txt         |   1 +
+ .../incoming_join/invalid/build.omg                |   7 +
+ .../incoming_join/invalid/expected.txt             |   1 +
+ .../incoming_join/invalid/main.omg                 |  52 +++
+ .../incoming_join/main.omg                         |  52 +++
+ .../local/invalid/main.omg                         |  16 +-
+ .../local/main.omg                                 |  16 +-
+ .../match_join/invalid/main.omg                    |  24 +-
+ .../match_join/main.omg                            |  24 +-
+ .../other_machine/invalid/main.omg                 |  15 +-
+ .../other_machine/main.omg                         |  15 +-
+ .../other_state/invalid/main.omg                   |  19 +-
+ .../other_state/main.omg                           |  19 +-
+ .../parameter/invalid/main.omg                     |  15 +-
+ .../parameter/main.omg                             |  15 +-
+ .../saved_source/build.omg                         |   7 +
+ .../saved_source/expected_interpreter_exit.txt     |   1 +
+ .../saved_source/expected_native_exit.txt          |   1 +
+ .../saved_source/invalid/build.omg                 |   7 +
+ .../saved_source/invalid/expected.txt              |   1 +
+ .../saved_source/invalid/main.omg                  |  22 ++
+ .../saved_source/main.omg                          |  21 ++
+ .../target_body/build.omg                          |  25 +-
+ .../target_body/invalid/build.omg                  |  25 +-
+ .../target_body/invalid/main.omg                   |  58 +---
+ .../target_body/main.omg                           |  58 +---
+ .../target_qualification/build.omg                 |   4 +
+ .../target_qualification/invalid/build.omg         |   1 +
+ .../target_qualification/invalid/expected.txt      |   1 -
+ .../invalid/expected_native_exit.linux_arm64.txt   |   1 +
+ .../expected_native_rejection.linux_x86_64.txt     |   1 +
+ .../expected_native_rejection.macos_arm64.txt      |   1 +
+ .../expected_native_rejection.windows_x86_64.txt   |   1 +
+ .../target_qualification/invalid/main.omg          |  12 +-
+ .../target_qualification/invalid/sample.json       |   4 +
+ .../target_qualification/main.omg                  |  15 +-
+ tests/omega/corpus_both_linux_arm64.txt            |  40 +--
+ tests/omega/corpus_both_linux_x86_64.txt           |  19 +-
+ tests/omega/corpus_both_macos_arm64.txt            |  17 +
+ tests/omega/corpus_both_windows_x86_64.txt         |  19 +-
+ tests/omega/corpus_outcomes.txt                    |  68 ++--
+ .../call_result/main.omg                           |  16 +-
+ .../caller_view/build.omg                          |   7 +
+ .../caller_view/expected.txt                       |   1 +
+ .../caller_view/main.omg                           |  37 +++
+ .../const_name/main.omg                            |  17 +-
+ .../field/main.omg                                 |  32 +-
+ .../incoming_join/build.omg                        |   7 +
+ .../incoming_join/expected.txt                     |   1 +
+ .../incoming_join/main.omg                         |  52 +++
+ .../local/main.omg                                 |  16 +-
+ .../match_join/main.omg                            |  24 +-
+ .../other_machine/main.omg                         |  15 +-
+ .../other_state/main.omg                           |  19 +-
+ .../parameter/main.omg                             |  15 +-
+ .../saved_source/build.omg                         |   7 +
+ .../saved_source/expected.txt                      |   1 +
+ .../saved_source/main.omg                          |  22 ++
+ .../target_body/build.omg                          |  25 +-
+ .../target_body/main.omg                           |  58 +---
+ .../target_qualification/build.omg                 |   7 -
+ .../target_qualification/expected.txt              |   1 -
+ .../target_qualification/main.omg                  |  27 --
+ .../call_result/main.omg                           |  16 +-
+ .../caller_view/build.omg                          |   7 +
+ .../caller_view/expected_interpreter_exit.txt      |   1 +
+ .../caller_view/expected_native_exit.txt           |   1 +
+ .../caller_view/main.omg                           |  37 +++
+ .../const_name/main.omg                            |  17 +-
+ .../field/main.omg                                 |  32 +-
+ .../incoming_join/build.omg                        |   7 +
+ .../incoming_join/expected_interpreter_exit.txt    |   1 +
+ .../incoming_join/expected_native_exit.txt         |   1 +
+ .../incoming_join/main.omg                         |  52 +++
+ .../local/main.omg                                 |  16 +-
+ .../match_join/main.omg                            |  24 +-
+ .../other_machine/main.omg                         |  15 +-
+ .../other_state/main.omg                           |  19 +-
+ .../parameter/main.omg                             |  15 +-
+ .../saved_source/build.omg                         |   7 +
+ .../saved_source/expected_interpreter_exit.txt     |   1 +
+ .../saved_source/expected_native_exit.txt          |   1 +
+ .../saved_source/main.omg                          |  21 ++
+ .../target_body/build.omg                          |  25 +-
+ .../target_body/main.omg                           |  58 +---
+ .../target_qualification/build.omg                 |   4 +
+ .../target_qualification/main.omg                  |  15 +-
+ .../target_qualification_missing_supply/build.omg  |   8 +
+ .../expected_native_exit.linux_arm64.txt           |   1 +
+ .../expected_native_rejection.linux_x86_64.txt     |   1 +
+ .../expected_native_rejection.macos_arm64.txt      |   1 +
+ .../expected_native_rejection.windows_x86_64.txt   |   1 +
+ .../target_qualification_missing_supply/main.omg   |  33 ++
+ 132 files changed, 2724 insertions(+), 815 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/validation/src/machine_calls/reference_result_custody/captured_returns/input_views.rs
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/invalid/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/invalid/main.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/caller_view/main.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/invalid/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/invalid/main.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/incoming_join/main.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/invalid/build.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/invalid/main.omg
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/saved_source/main.omg
+ delete mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/expected_native_exit.linux_arm64.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/expected_native_rejection.linux_x86_64.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/expected_native_rejection.macos_arm64.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/expected_native_rejection.windows_x86_64.txt
+ create mode 100644 samples/cli/facts/finite_family_returned_descriptor/target_qualification/invalid/sample.json
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/caller_view/build.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/caller_view/expected.txt
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/caller_view/main.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/incoming_join/build.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/incoming_join/expected.txt
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/incoming_join/main.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/saved_source/build.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/saved_source/expected.txt
+ create mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/saved_source/main.omg
+ delete mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/target_qualification/build.omg
+ delete mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/target_qualification/expected.txt
+ delete mode 100644 tests/omega/fail/facts/finite_family_returned_descriptor/target_qualification/main.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/caller_view/build.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/caller_view/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/caller_view/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/caller_view/main.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/incoming_join/build.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/incoming_join/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/incoming_join/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/incoming_join/main.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/saved_source/build.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/saved_source/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/saved_source/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/saved_source/main.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/build.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/expected_native_exit.linux_arm64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/expected_native_rejection.linux_x86_64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/expected_native_rejection.macos_arm64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/expected_native_rejection.windows_x86_64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply/main.omg
+bisect found first bad commit
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [c15929193d3993f264c54338440f4e1405dff0f6] tests: record runtime index family and repair borrows backing controls (#1813)
+git bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' 'c15929193d3993f264c54338440f4e1405dff0f6'
+# bad: [68f1e8bf9922549180d32d66c1d153cdd8f43746] psi: consolidate and document terminal-psi representations (#2150)
+git bisect bad 68f1e8bf9922549180d32d66c1d153cdd8f43746
+# bad: [b41edeff5a19d09a8cb52b82eeed5cabb0b00035] psi: join specialized case literals to the receiving variant (#2003)
+git bisect bad b41edeff5a19d09a8cb52b82eeed5cabb0b00035
+# bad: [16ef5262beb8b500e36d3f79ebc373dfb5acef91] psi: allow returned Linear tokens to update plain counters (#1902)
+git bisect bad 16ef5262beb8b500e36d3f79ebc373dfb5acef91
+# bad: [2794de5ab4726ce75e86669e5daa9706603f2a93] tests: keep binary replacement checks on valid compiler inputs (#1862)
+git bisect bad 2794de5ab4726ce75e86669e5daa9706603f2a93
+# bad: [90ee099406859798b23d8c3e5e701abfbc5f611a] psi: carry computed length rank through a local cursor (#1835)
+git bisect bad 90ee099406859798b23d8c3e5e701abfbc5f611a
+# bad: [360a7d48582f4f07e782b0d3c4635b2441f03486] psi: accept checkers passed with their selected validation rule (#1821)
+git bisect bad 360a7d48582f4f07e782b0d3c4635b2441f03486
+# skip: [a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f] psi: preserve pair values through buffered conversions (#1562)
+git bisect skip a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f
+# skip: [5ab36c44602763dc6721fd4e0fd91d5951887b73] compiler: use the helper selected by a trait in its contracts (#1816)
+git bisect skip 5ab36c44602763dc6721fd4e0fd91d5951887b73
+# skip: [0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea] tests: record returned-reference validation (#1817)
+git bisect skip 0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea
+# bad: [d31209ea0d20231819cedbc47442baa3335792a5] compiler: lower borrows of same-carrier casts (#1820)
+git bisect bad d31209ea0d20231819cedbc47442baa3335792a5
+# skip: [d6c44b1e94333ea400bf973412a0db159e96d847] psi: preserve values returned by non-observing atomic attempts (#1815)
+git bisect skip d6c44b1e94333ea400bf973412a0db159e96d847
+# skip: [77271bfb91344cd3d3788e1d8563796983dfbf13] psi: preserve saved references when pointer fields change (#1794)
+git bisect skip 77271bfb91344cd3d3788e1d8563796983dfbf13
+# bad: [2476d1be2203009f1b32b8164bb6224c562c3bd5] compiler: preserve updated borrowed fields through selected calls (#1604)
+git bisect bad 2476d1be2203009f1b32b8164bb6224c562c3bd5
+# first bad commit: [2476d1be2203009f1b32b8164bb6224c562c3bd5] compiler: preserve updated borrowed fields through selected calls (#1604)
+Previous HEAD position was 2476d1be220 compiler: preserve updated borrowed fields through selected calls (#1604)
+HEAD is now at 51e8c45c793 psi: check a body over a const value parameter once and carry its proofs (#2505)
+2476d1be2203009f1b32b8164bb6224c562c3bd5 is the first bad commit

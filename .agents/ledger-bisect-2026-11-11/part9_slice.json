@@ -1,0 +1,102 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "slice": [
+    {
+      "report_index": 9,
+      "rows": 16,
+      "kind": "pass/run rejected",
+      "diag_report": "statement 2 creates local borrow `leading` while local borrow `entry` is still active (borrowed",
+      "witness": "pass/facts/computed_record_window_through_target_body_exit",
+      "shown": [
+        "pass/facts/computed_record_window_through_target_body_exit",
+        "pass/facts/may_write_computed_receiver_through_call_result_exit",
+        "pass/facts/may_write_computed_receiver_through_const_name_exit"
+      ],
+      "members": [
+        "pass/facts/computed_record_window_through_other_machine_exit",
+        "pass/facts/computed_record_window_through_other_state_exit",
+        "pass/facts/computed_record_window_through_target_body_exit",
+        "pass/facts/may_write_computed_receiver_through_call_result_exit",
+        "pass/facts/may_write_computed_receiver_through_const_name_exit",
+        "pass/facts/may_write_computed_receiver_through_field_exit",
+        "pass/facts/may_write_computed_receiver_through_local_exit",
+        "pass/facts/may_write_computed_receiver_through_match_join_exit",
+        "pass/facts/may_write_computed_receiver_through_other_machine_exit",
+        "pass/facts/may_write_computed_receiver_through_other_state_exit",
+        "pass/facts/may_write_computed_receiver_through_parameter_exit",
+        "pass/facts/may_write_computed_receiver_through_target_body_exit"
+      ]
+    },
+    {
+      "report_index": 49,
+      "rows": 3,
+      "kind": "incomplete",
+      "diag_report": "`main` calls `forward`; `forward` has no executable body: this compiler does not lower a transit",
+      "witness": "pass/borrows/runtime_returned_nonzero_nested_window_exit",
+      "shown": [
+        "pass/borrows/runtime_returned_nonzero_nested_window_exit",
+        "pass/facts/matched_field_windows_through_other_state_exit",
+        "pass/slices/runtime_returned_nested_array_window_home_exit"
+      ],
+      "members": [
+        "pass/borrows/runtime_returned_nonzero_nested_window_exit",
+        "pass/facts/matched_field_windows_through_other_state_exit",
+        "pass/slices/runtime_returned_nested_array_window_home_exit"
+      ]
+    },
+    {
+      "report_index": 89,
+      "rows": 2,
+      "kind": "fail wrong reason",
+      "diag_report": "machine `compute` state `entry`: recast source has no fixed representation inventory",
+      "witness": "fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected",
+      "shown": [
+        "fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected",
+        "fail/facts/data_where_standing_mutable_recast_stronger_rejected"
+      ],
+      "members": [
+        "fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected",
+        "fail/facts/data_where_standing_mutable_recast_stronger_rejected"
+      ]
+    },
+    {
+      "report_index": 129,
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag_report": "callable `rejoin` has an invalid content-conservation contract: content conservation requires th",
+      "witness": "fail/ownership/selected_storage_join_unrelated_root",
+      "shown": [
+        "fail/ownership/selected_storage_join_unrelated_root"
+      ],
+      "members": [
+        "fail/ownership/selected_storage_join_unrelated_root"
+      ]
+    },
+    {
+      "report_index": 169,
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag_report": "const argument `Setting` has no static value with its exact declared carrier",
+      "witness": "fail/generics/record_const_foreign_nominal_carrier",
+      "shown": [
+        "fail/generics/record_const_foreign_nominal_carrier"
+      ],
+      "members": [
+        "fail/generics/record_const_foreign_nominal_carrier"
+      ]
+    },
+    {
+      "report_index": 209,
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_report": "terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(",
+      "witness": "pass/ownership/runtime_match_nested_observation_cleanup_exit",
+      "shown": [
+        "pass/ownership/runtime_match_nested_observation_cleanup_exit"
+      ],
+      "members": [
+        "pass/ownership/runtime_match_nested_observation_cleanup_exit"
+      ]
+    }
+  ]
+}
