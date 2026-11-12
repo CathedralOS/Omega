@@ -350,12 +350,16 @@ fn used_float_realization_plans(report: &CompileReport) -> std::collections::Has
         .filter(|row| operations.contains(&row.terminal_operation()))
         .map(|row| *row.selected_plan_digest())
         .collect::<std::collections::HashSet<_>>();
-    used.extend(selected.iter().filter_map(|plan| {
-        plan.requirement_identities()
+    used.extend(
+        selected
             .iter()
-            .any(|identity| requirements.contains(identity.as_str()))
-            .then(|| *plan.plan_digest().as_bytes())
-    }));
+            .filter(|plan| {
+                plan.requirement_identities()
+                    .iter()
+                    .any(|identity| requirements.contains(identity.as_str()))
+            })
+            .map(|plan| *plan.plan_digest().as_bytes()),
+    );
     used
 }
 
