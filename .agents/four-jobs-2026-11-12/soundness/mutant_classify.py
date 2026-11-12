@@ -51,7 +51,18 @@ SPEC_RULES: dict[str, SpecRule] = {
         "wiki/spec/language/state_contracts.md",
         "Transition guards establish that only enabled edges may fire.",
     ),
+    "drop_requires_line": SpecRule(
+        "Machine requirements at invocation",
+        "wiki/spec/language/state_contracts.md",
+        "Machine `requires` applies at every invocation, including terminal and recursive "
+        "calls. Every arrival establishes the target's requirements and declared domains "
+        "under actual argument substitution.",
+    ),
 }
+
+ROUTE_NON_REJECT_REASONS = frozenset(
+    {"no-entry", "unreached", "fallback", "incomplete", "defect", "stopped"}
+)
 
 BUCKETS = (
     "confirmed-invalid",
@@ -61,6 +72,8 @@ BUCKETS = (
     "discarded-no-rule",
     "discarded-both-reject",
     "discarded-timeout",
+    "discarded-run-failed",
+    "discarded-generate-skipped",
 )
 
 
@@ -70,6 +83,7 @@ class ClassifyResult:
     hand_check: str
     spec: SpecRule | None
     obligation_line: str
+    route_reason: str = ""
 
 
 def _line_evidence(mutant: str, pattern: str) -> str:
@@ -105,7 +119,8 @@ def remove_mut_obligation(original: str, mutant: str) -> tuple[bool, str]:
             return False, ""
         if re.search(
             rf"\b{re.escape(bind)}\s*=|\b{re.escape(bind)}\[[^\]]*\]\s*=|"
-            rf"\b{re.escape(bind)}\.[A-Za-z_0-9]+\s*=|&mut\s+{re.escape(bind)}\b",
+            rf"\b{re.escape(bind)}\.[A-Za-z_0-9]+\s*=|"
+            rf"&mut\s+{re.escape(bind)}\b|&write\s+{re.escape(bind)}\b",
             line,
         ):
             write_line = line.strip()
@@ -126,18 +141,54 @@ def tighten_requires_obligation(original: str, mutant: str) -> tuple[bool, str]:
     return True, mut_req.group(0).strip()
 
 
+def _param_names_marked_mut(original: str, mutant: str) -> list[str]:
+    changed: list[str] = []
+    for line_o, line_m in zip(original.splitlines(), mutant.splitlines()):
+        if line_o == line_m:
+            continue
+        for match in re.finditer(
+            r"([A-Za-z_][\w]*)\s*:\s*&mut\b", line_o
+        ):
+            name = match.group(1)
+            if re.search(rf"{re.escape(name)}\s*:\s*&\b", line_m):
+                changed.append(name)
+    return changed
+
+
+def _param_names_marked_shared(original: str, mutant: str) -> list[str]:
+    changed: list[str] = []
+    for line_o, line_m in zip(original.splitlines(), mutant.splitlines()):
+        if line_o == line_m:
+            continue
+        for match in re.finditer(r"([A-Za-z_][\w]*)\s*:\s*&\b", line_o):
+            name = match.group(1)
+            if re.search(rf"{re.escape(name)}\s*:\s*&mut\b", line_m):
+                changed.append(name)
+    return changed
+
+
 def ref_demote_obligation(original: str, mutant: str) -> tuple[bool, str]:
-    if "&mut " not in original or "&mut " in mutant:
+    if "&mut " not in original:
         return False, ""
-    write = _line_evidence(mutant, r"\w+\s*\.|\w+\s*\[.*\]\s*=|[^=]=[^=].*;")
-    return (bool(write), write)
+    for name in _param_names_marked_mut(original, mutant):
+        for line in mutant.splitlines():
+            if re.search(
+                rf"\b{name}\s*\.[A-Za-z_0-9]+\s*=|\b{name}\s*\[[^\]]*\]\s*=|\b{name}\s*=",
+                line,
+            ):
+                return True, line.strip()
+    return False, ""
 
 
 def ref_promote_obligation(original: str, mutant: str) -> tuple[bool, str]:
-    if original.count("&mut") >= mutant.count("&mut"):
-        return False, ""
-    line = _line_evidence(mutant, r"&mut\s+\w+")
-    return (bool(line), line)
+    for name in _param_names_marked_shared(original, mutant):
+        for line in mutant.splitlines():
+            if re.search(
+                rf"\b{name}\s*\.[A-Za-z_0-9]+\s*=|\b{name}\s*\[[^\]]*\]\s*=|\b{name}\s*=",
+                line,
+            ):
+                return True, line.strip()
+    return False, ""
 
 
 def corrupt_call_obligation(_original: str, mutant: str) -> tuple[bool, str]:
@@ -145,6 +196,137 @@ def corrupt_call_obligation(_original: str, mutant: str) -> tuple[bool, str]:
     if call:
         return True, call.group(0).strip()
     return False, ""
+
+
+def drop_requires_removed_line(original: str, mutant: str) -> str:
+    for line in original.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("requires"):
+            continue
+        if stripped not in {item.strip() for item in mutant.splitlines()}:
+            return stripped
+    return ""
+
+
+def requires_fact_repeated_elsewhere(removed: str, mutant: str) -> tuple[bool, str]:
+    """True when transition/ensures restates the same fact (with quoted lines)."""
+    tokens = re.findall(r"[A-Za-z_][\w]*|\d+", removed)
+    if not tokens:
+        return False, ""
+    for line in mutant.splitlines():
+        if not (
+            line.strip().startswith("transition")
+            or line.strip().startswith("ensures")
+            or "->" in line
+        ):
+            continue
+        if all(token in line for token in tokens[:4] if token not in {"requires", "true"}):
+            return True, line.strip()
+    return False, ""
+
+
+def drop_requires_body_obligation(removed: str, mutant: str) -> tuple[bool, str]:
+    """Body line that still relies on the removed precondition."""
+    for line in mutant.splitlines():
+        if line.strip().startswith(("requires", "ensures", "//", "machine ", "data ")):
+            continue
+        if any(
+            token in line
+            for token in re.findall(r"[A-Za-z_][\w]*", removed)
+            if token not in {"requires", "requires", "&&", "||"}
+        ):
+            if re.search(r"/|\[|\.|<|>|==|!=", line):
+                return True, line.strip()
+    return False, ""
+
+
+def classify_drop_requires(
+    current: str,
+    route: str,
+    route_reason: str,
+    original: str,
+    mutant: str,
+) -> ClassifyResult:
+    removed = drop_requires_removed_line(original, mutant)
+    if not removed:
+        return ClassifyResult("discarded-valid", "no-requires-removed", None, "", route_reason)
+
+    repeated, repeat_line = requires_fact_repeated_elsewhere(removed, mutant)
+    body_need, body_line = drop_requires_body_obligation(removed, mutant)
+
+    if current != "accepted":
+        if route == "rejected" and route_reason:
+            return ClassifyResult(
+                "discarded-valid",
+                "current-rejects",
+                None,
+                removed,
+                route_reason,
+            )
+        return ClassifyResult("discarded-both-reject", "n/a", None, removed, route_reason)
+
+    if route in ROUTE_NON_REJECT_REASONS:
+        reason = f"route={route}"
+        if route_reason:
+            reason = f"{reason}: {route_reason}"
+        return ClassifyResult(
+            "discarded-valid",
+            "route-non-proof-reject",
+            None,
+            removed,
+            reason,
+        )
+
+    if route == "accepted":
+        if body_need:
+            return ClassifyResult(
+                "confirmed-invalid",
+                "confirmed-invalid",
+                SPEC_RULES["drop_requires_line"],
+                f"removed `{removed}`; body `{body_line}`",
+                route_reason or "route=accepted",
+            )
+        return ClassifyResult(
+            "discarded-valid",
+            "accepted-without-body-obligation",
+            None,
+            removed,
+            route_reason or "route=accepted",
+        )
+
+    if route == "rejected":
+        if repeated and not body_need:
+            note = f"requires duplicated in transition/ensures: removed `{removed}` vs `{repeat_line}`"
+            return ClassifyResult(
+                "discarded-valid",
+                "requires-repeated",
+                None,
+                note,
+                route_reason or "route=rejected",
+            )
+        if body_need:
+            return ClassifyResult(
+                "confirmed-invalid",
+                "confirmed-invalid",
+                SPEC_RULES["drop_requires_line"],
+                f"removed `{removed}`; route rejected ({route_reason}); body `{body_line}`",
+                route_reason,
+            )
+        return ClassifyResult(
+            "discarded-valid",
+            "route-rejects-no-body-obligation",
+            None,
+            removed,
+            route_reason or "route=rejected",
+        )
+
+    return ClassifyResult(
+        "discarded-valid",
+        "unclassified-route",
+        None,
+        removed,
+        route_reason,
+    )
 
 
 def obligation_for(kind: str, original: str, mutant: str) -> tuple[bool, str]:
@@ -171,7 +353,11 @@ def classify_mutant(
     route: str,
     original: str,
     mutant: str,
+    route_reason: str = "",
 ) -> ClassifyResult:
+    if kind == "drop_requires_line":
+        return classify_drop_requires(current, route, route_reason, original, mutant)
+
     timeout = current in ("timeout", "error", "unknown") or route in (
         "timeout",
         "unknown",
@@ -182,6 +368,16 @@ def classify_mutant(
             "discarded-timeout",
             None,
             "",
+            route_reason,
+        )
+
+    if current.startswith("exit_") or current == "error":
+        return ClassifyResult(
+            "discarded-run-failed",
+            "omega-check-failed",
+            None,
+            "",
+            route_reason,
         )
 
     has_obligation, obl_line = obligation_for(kind, original, mutant)
@@ -190,28 +386,37 @@ def classify_mutant(
     route_accepts = route == "accepted"
 
     if current == "rejected" and route == "rejected":
-        return ClassifyResult("discarded-both-reject", "n/a", None, "")
+        return ClassifyResult("discarded-both-reject", "n/a", None, "", route_reason)
 
     if current_accepts:
         if not has_obligation:
-            return ClassifyResult("discarded-valid", "discarded-valid", None, "")
+            return ClassifyResult(
+                "discarded-valid", "discarded-valid", None, "", route_reason
+            )
         if kind == "remove_mut_binding":
             return ClassifyResult(
                 "known-gap-q7-mut",
                 "known-gap-q7-mut",
                 SPEC_RULES["remove_mut_binding"],
                 obl_line,
+                route_reason,
             )
         if not rule:
-            return ClassifyResult("discarded-no-rule", "discarded-no-rule", None, obl_line)
+            return ClassifyResult(
+                "discarded-no-rule",
+                "discarded-no-rule",
+                None,
+                obl_line,
+                route_reason,
+            )
         return ClassifyResult(
             "confirmed-invalid",
             "confirmed-invalid",
             rule,
             obl_line,
+            route_reason,
         )
 
-    # Current rejects: route-only acceptance is not a confirmed current hole.
     if route_accepts:
         if has_obligation:
             return ClassifyResult(
@@ -219,10 +424,17 @@ def classify_mutant(
                 "route-accepted-current-rejected",
                 rule,
                 obl_line,
+                route_reason,
             )
-        return ClassifyResult("discarded-valid", "discarded-valid", None, "")
+        return ClassifyResult(
+            "discarded-valid", "discarded-valid", None, "", route_reason
+        )
 
     if current != route:
-        return ClassifyResult("discarded-valid", "discarded-valid", None, "")
+        return ClassifyResult(
+            "discarded-valid", "discarded-valid", None, "", route_reason
+        )
 
-    return ClassifyResult("discarded-valid", "discarded-valid", None, "")
+    return ClassifyResult(
+        "discarded-valid", "discarded-valid", None, "", route_reason
+    )
