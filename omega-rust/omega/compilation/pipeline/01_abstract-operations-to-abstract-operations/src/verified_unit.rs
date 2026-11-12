@@ -564,6 +564,7 @@ mod evidence_seal_tests {
         signatures.push(Signature {
             parameters: vec![u32_type().into(), u32_type().into()],
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_type().into()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
