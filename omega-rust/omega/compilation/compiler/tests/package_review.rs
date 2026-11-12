@@ -1518,8 +1518,33 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         product,
     )
     .expect("admit the closed native product without weakening its callback contract");
-    let mut output = fixture_package_inputs::produce_fixture(&mut prepared, Some("macos_arm64"))
+    // Stop at the ordinary package producer's pending native result so saved
+    // inputs can be recovered before native completion consumes them.
+    assert_eq!(prepared.plans.len(), 1);
+    let (profile, request) = prepared.plans.pop().unwrap();
+    assert_eq!(profile, target::TargetProfile::MacosArm64);
+    let root_occurrence = request.occurrences.len() - 1;
+    let build = orchestration::prepare_package(
+        prepared.session.compiler(),
+        request.occurrences,
+        &mut prepared.completed,
+    )
+    .expect("prepare the admitted package's exact source closure");
+    let mut outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: request.terminal_permissions,
+            },
+        )])
         .expect("produce the native product and saved inputs");
+    assert_eq!(outcomes.len(), 1);
+    let ((), output) = outcomes.pop().unwrap();
+    let mut output = output.expect("produce the admitted native application");
     let compiler::CompilationOutput::Native(pending) = &output else {
         panic!("expected native application work");
     };
@@ -1592,15 +1617,34 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             "a different real ABI must not reuse the selected binding commitment"
         );
     }
-    drop(prepared);
+    // Native completion now has only recovered semantic inputs, not a source
+    // compiler that could supply a missing declaration or calling decision.
+    drop(std::mem::take(prepared.session.compiler()));
+    drop(std::mem::take(&mut prepared.completed));
     let compiler::CompilationOutput::Native(pending) = &mut output else {
         unreachable!()
     };
     pending.terminal = recovered;
     pending.accepted_package_permissions = recovered_permissions;
-    let report = orchestration::complete_product(output)
-        .and_then(compiler::CompilationOutput::into_report)
+    let completed =
+        orchestration::complete_product(output).map_err(|error| compiler::PackageCompileFailure {
+            occurrence: root_occurrence,
+            failure: error.into_diagnostics().into(),
+        });
+    let mut outcomes = prepared
+        .completion
+        .take()
+        .expect("the original package admission must still close its outcome")
+        .complete(vec![completed], prepared.session.resources());
+    assert_eq!(outcomes.len(), 1);
+    let outcome = outcomes.pop().unwrap();
+    assert_eq!(outcome.target, profile);
+    let report = outcome
+        .result
+        .expect("complete recovered native work through ordinary package reconciliation")
+        .into_report()
         .expect("complete actual native lowering after saved-input recovery");
+    drop(prepared);
     native_entry_controls::inspect(&report, &scratch)
         .expect("preserve the original native entry readback falsifiers");
     let published = compilation_products::publication::publish_compilation(

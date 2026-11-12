@@ -2336,6 +2336,36 @@ pub mod queries {
             let mut declarations = arena::Arena::default();
             declarations.insert_many(completions);
             program.boundary_completion_declarations = declarations;
+            // A temporary checking program can omit a Build and its selected
+            // declaration. Remove the retained selection only when both source
+            // owners and its target were explicitly removed; otherwise it must
+            // still be checked.
+            let products = program
+                .retained_product_application_handles
+                .span_or_empty(program.roots.retained_product_applications)
+                .iter()
+                .copied()
+                .filter(|handle| {
+                    if !program.product_operand_applications.is_valid(*handle) {
+                        return true;
+                    }
+                    let application = program.product_operand_applications.get(*handle);
+                    let source_owner = if application.supplying_application.is_valid() {
+                        expression_table(program)
+                            .static_machine_application(application.supplying_application)
+                            .lexical_owner
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    !(owner_removed(application.owner)
+                        && owner_removed(source_owner)
+                        && owner_removed(symbols.authored_origin(application.declaration)))
+                })
+                .collect::<Vec<_>>();
+            program.roots.retained_product_applications = program
+                .tables
+                .retained_product_application_handles
+                .insert_many(products);
             program.remove_trait_declaration_applications(|declaration| {
                 removed.contains(&declaration)
             });
@@ -2444,6 +2474,95 @@ pub mod queries {
                 );
             }
             selections.occurrences
+        }
+
+        #[cfg(test)]
+        mod product_projection_tests {
+            use super::*;
+            use typed_trees::product_operand::ProductOperandApplication;
+
+            #[test]
+            fn product_projection_keeps_active_targets_and_unknown_ownership() {
+                let mut symbols = symbols::SymbolTableBuilder::default();
+                let author = symbols.insert_root(
+                    symbols::SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("Build"),
+                );
+                let supplier = symbols.insert_root(
+                    symbols::SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("Supplier"),
+                );
+                let target = symbols.insert_root(
+                    symbols::SymbolKind::Trait,
+                    symbols::SymbolNameRef::Static("Registrar"),
+                );
+                let requirement = symbols
+                    .insert_children(
+                        target,
+                        [(
+                            symbols::SymbolKind::Machine,
+                            symbols::SymbolNameRef::Static("register"),
+                        )],
+                    )
+                    .handle_at(0);
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let declaration = program.symbols.insert_generated_root_from(
+                    requirement,
+                    symbols::SymbolKind::Machine,
+                    "register",
+                );
+                let supplying_application = program
+                    .expression_table
+                    .retain_static_machine_application(author, Default::default(), &[]);
+                program
+                    .expression_table
+                    .static_machine_application_mut(supplying_application)
+                    .lexical_owner = supplier;
+                let handle =
+                    program
+                        .product_operand_applications
+                        .insert(ProductOperandApplication {
+                            owner: author,
+                            declaration,
+                            supplying_application,
+                            ..Default::default()
+                        });
+                program.retain_dependency_product_application(handle);
+                for removed in [
+                    vec![author, supplier],
+                    vec![target, supplier],
+                    vec![target, author],
+                ] {
+                    let mut projected = program.clone();
+                    apply_declaration_sidecar_pruning(
+                        &mut projected,
+                        &removed.into_iter().collect(),
+                    );
+                    assert_eq!(projected.live_product_operand_applications(), vec![handle]);
+                }
+                let removed = [author, supplier, target].into_iter().collect();
+                let mut projected = program.clone();
+                apply_declaration_sidecar_pruning(&mut projected, &removed);
+                assert!(projected.live_product_operand_applications().is_empty());
+                assert_eq!(
+                    projected.product_operand_applications.get(handle),
+                    program.product_operand_applications.get(handle),
+                    "projection removes the retained root without renumbering its stored application"
+                );
+                program
+                    .product_operand_applications
+                    .get_mut(handle)
+                    .declaration = SymbolHandle::invalid();
+                apply_declaration_sidecar_pruning(&mut program, &removed);
+                assert_eq!(
+                    program.live_product_operand_applications(),
+                    vec![handle],
+                    "unknown target ownership must remain a checking obligation"
+                );
+            }
         }
 
         #[cfg(test)]
