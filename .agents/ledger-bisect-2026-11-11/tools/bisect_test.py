@@ -1,23 +1,57 @@
 #!/usr/bin/env python3
-"""Bisect test using fixed PIN ledger + PIN witness observation (not checkout ledger)."""
+"""Fixed-PIN bisect oracle.
+
+0  witness meets the PIN ledger expectation
+1  witness reproduces the PIN status and the PIN diagnostic class
+125 any other outcome, missing record, or unreadable input
+
+Diagnostic class is the first diagnostic with quoted spans and numbers
+normalized. A different failure is not exit 1.
+"""
 from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from classify_corpus import norm_diag, parse_records  # noqa: E402
 
 RANK = {"incomplete": 0, "rejected": 0, "checked": 1, "built": 2, "timeout": -1}
 
 
-def parse_header(line: str) -> tuple[str, str] | None:
-    parts = line.split()
-    if len(parts) < 3:
-        return None
-    return parts[0], parts[1]
+def norm_diag(d: str) -> str:
+    d = d.strip()
+    d = re.sub(r"`[^`]*`", "`_`", d)
+    d = re.sub(r"\b\d+\b", "N", d)
+    return d[:160]
+
+
+def parse_records(text: str) -> dict[str, dict]:
+    records: dict[str, dict] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("\t") and current:
+            records[current]["diagnostics"].append(line[1:].strip())
+            continue
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 3 or not parts[2].endswith("ms"):
+            continue
+        fixture, status = parts[0], parts[1]
+        flags = [p for p in parts[3:] if not p.startswith("@") and not p.endswith("ms")]
+        expected = None
+        if "expected" in flags:
+            expected = True
+        elif "unexpected" in flags:
+            expected = False
+        records[fixture] = {
+            "status": status,
+            "expected_satisfied": expected,
+            "diagnostics": [],
+        }
+        current = fixture
+    return records
 
 
 def meets_expected(tier: str, expected: str, status: str, expected_satisfied: bool | None) -> bool:
@@ -30,51 +64,35 @@ def meets_expected(tier: str, expected: str, status: str, expected_satisfied: bo
     return False
 
 
-def matches_pin_broken(meta: dict, status: str, first_diag: str) -> bool:
-    if status != meta["pin_status"]:
-        return False
-    if not first_diag and not meta["pin_first_diagnostic"]:
-        return True
-    if norm_diag(first_diag) == meta["pin_diag_norm"]:
-        return True
-    # Same class: status matches and diagnostic shares normalized prefix
-    a, b = norm_diag(first_diag), meta["pin_diag_norm"]
-    n = min(len(a), len(b), 96)
-    return a[:n] == b[:n] and n >= 48
-
-
 def main() -> int:
-    witness = os.environ.get("BISECT_WITNESS")
-    meta_path = os.environ.get("BISECT_WITNESS_PIN")
+    witness = os.environ.get("BISECT_WITNESS", "")
+    meta_path = os.environ.get("BISECT_WITNESS_PIN", "")
     rec_path = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/bisect_one_record.txt")
-    if not witness or not meta_path:
-        return 125
-    meta = json.loads(Path(meta_path).read_text())
-    text = rec_path.read_text() if rec_path.exists() else ""
-    line = next((l for l in text.splitlines() if l.startswith(witness + " ")), None)
-    if not line:
-        return 125
-    _, status = parse_header(line) or (None, None)
-    if status is None:
-        return 125
-    records = parse_records(text)
-    obs = records.get(witness)
-    if not obs:
-        return 125
-    first_diag = (obs.get("diagnostics") or [""])[0]
-    tier = meta["tier"]
-    if meets_expected(tier, meta["expected_status"], status, obs.get("expected_satisfied")):
-        return 0
-    # Any failure to meet the PIN ledger expectation is bad for bisect; PIN signature match
-    # is the witness confirmation at the ends, not at every intermediate diagnostic.
-    if matches_pin_broken(meta, status, first_diag):
-        return 1
-    if tier == "fail":
-        if status not in ("rejected", "incomplete"):
-            return 1
-    elif RANK.get(status, -1) < RANK.get(meta["expected_status"], -1):
-        return 1
-    return 125
+    sha = os.environ.get("BISECT_SHA", "")
+    log_path = os.environ.get("BISECT_STEP_LOG", "")
+    status, diag, code = "", "", 125
+    if witness and meta_path and rec_path.exists():
+        meta = json.loads(Path(meta_path).read_text())
+        records = parse_records(rec_path.read_text())
+        obs = records.get(witness)
+        if obs:
+            status = obs["status"]
+            diag = (obs.get("diagnostics") or [""])[0]
+            if meets_expected(
+                meta["tier"], meta["expected_status"], status, obs.get("expected_satisfied")
+            ):
+                code = 0
+            elif status == meta["pin_status"] and norm_diag(diag) == meta["pin_diag_norm"]:
+                code = 1
+            else:
+                code = 125
+    payload = {"sha": sha, "code": code, "status": status, "diag": diag}
+    Path("/tmp/bisect-last.json").write_text(json.dumps(payload))
+    if log_path and sha:
+        safe = diag.replace("\t", " ").replace("\n", " ")
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(f"{sha}\t{code}\t{status}\t{safe}\n")
+    return code
 
 
 if __name__ == "__main__":
