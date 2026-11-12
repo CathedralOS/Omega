@@ -66415,14 +66415,27 @@ pub(crate) mod structural_judgment {
                             {
                                 continue;
                             }
+                            // The arm's descriptor is the value this walk binds to the
+                            // parameter, not its spelling: walked from the helper's lexical
+                            // root, `chosen` holds the root's capture of `&chosen`. A
+                            // shadowed or repeated binding selects nothing.
+                            let mut bound = environment
+                                .iter()
+                                .filter(|(binding, _)| binding == parameter.name.as_str());
+                            let entry = match (bound.next(), bound.next()) {
+                                (Some((_, value)), None) => value.clone(),
+                                (None, _) => StructuralTerm::Variable(parameter.name.to_string()),
+                                (Some(_), Some(_)) => continue,
+                            };
                             let expected =
                                 super::super::observed_projections::project_observed_value_in_scope(
                                     program,
                                     self,
                                     parameter.type_reference,
-                                    StructuralTerm::Variable(parameter.name.to_string()),
+                                    entry,
                                     &source.segments,
-                                );
+                                )
+                                .map(StructuralTerm::into_collection_descriptor);
                             if expected.as_ref() != Some(descriptor.as_ref()) {
                                 continue;
                             }
