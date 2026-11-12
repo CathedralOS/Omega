@@ -104,6 +104,8 @@ pub(crate) struct Program<'t> {
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         crate::body::Expression,
     )>,
+    /// The subject's generic machines, set aside by `subject_declarations`.
+    pub generic_templates: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -162,6 +164,7 @@ impl<'t> Program<'t> {
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
+            generic_templates: Vec::new(),
         }
     }
 }
