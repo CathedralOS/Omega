@@ -34,9 +34,9 @@ pub struct CorpusRecord {
 }
 
 /// Where a downloaded copy of the published check ledger is kept, relative to
-/// the repository root. The post-merge check publishes it as the asset
-/// `corpus_outcomes.txt` of the release `corpus-ledger`; fetch it with
-/// `gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber`.
+/// the repository root. The post-merge check publishes it on the project site;
+/// fetch it with
+/// `curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt`.
 pub const PUBLISHED_LEDGER: &str = "build/corpus-ledger/corpus_outcomes.txt";
 
 /// The downloaded published ledger, when one is present and readable as a
