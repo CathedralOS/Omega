@@ -7,13 +7,13 @@ A record-typed expression is storage and goes to `places`.
 use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
-use terminal_check_tables::{Checked, ProgramPoint};
+use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
-use super::places::Bound;
+use super::places::{Bound, Witness};
 use super::{Lowering, Value, declaration};
-use crate::SourceOrigin;
 use crate::body::{Expression, ExpressionKind, Strict, ValueType};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
@@ -58,6 +58,35 @@ impl Lowering<'_> {
             Value::Scalar(value) => Ok(value),
             Value::Record(_) => Err(self.internal("a record is used as a scalar value")),
             Value::Unit => Err(self.internal("a Unit call is used as a value")),
+        }
+    }
+
+    /// The term an erased position names: a literal, a relevant scalar slot's
+    /// current value, or the term another erased slot names. No operation is
+    /// emitted; contracts.md, "Explicit erased bindings": the binding
+    /// "contributes no runtime field, address, read, or cleanup."
+    pub(super) fn witness(&mut self, expression: &Expression) -> Checked<Witness> {
+        match (&expression.kind, expression.result) {
+            (ExpressionKind::Integer(value), Some(ValueType::Scalar(ScalarType::Integer(t)))) => {
+                Ok(Witness::Integer(t, *value))
+            }
+            (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
+            (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type))) => {
+                match *self.slot_mut(*slot)? {
+                    Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
+                    Some(Bound::Erased(witness)) => Ok(witness),
+                    Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
+                        self.id,
+                        self.current.map_or(Construct::Machine, Construct::Block),
+                        Unserved::Expression("erased term that reads storage"),
+                    )),
+                }
+            }
+            _ => Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("erased term other than a literal or a binding"),
+            )),
         }
     }
 
@@ -114,6 +143,11 @@ impl Lowering<'_> {
                         self.read_home(home, scalar_type, source)
                     }
                     Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
+                    // The reader refuses a runtime read of an erased
+                    // binding, so reaching one here is a broken body.
+                    Some(Bound::Erased(_)) => {
+                        Err(self.internal("an erased binding is read as a runtime value"))
+                    }
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }

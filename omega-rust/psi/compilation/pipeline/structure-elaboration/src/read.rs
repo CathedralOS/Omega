@@ -112,6 +112,9 @@ struct Slot {
     /// A scalar local declared without an initializer: it is a storage home
     /// written by a store, not an SSA value rebound by assignment.
     homed: bool,
+    /// An `[erased]` formal or local. A contract clause and an erased
+    /// position may name it; a runtime expression may not.
+    erased: bool,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -454,6 +457,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &[],
+            values: &[],
             bound: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
@@ -646,6 +650,7 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
             homed: false,
+            erased: false,
         }];
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
@@ -674,6 +679,7 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
+            erased: false,
         }];
         assert_eq!(
             program
@@ -737,10 +743,15 @@ mod tests {
         );
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
+        let values = crate::body::formal_values(
+            slots.iter().map(|slot| (slot.value_type, slot.erased)),
+            None,
+        );
         let scope = ClauseScope {
             subject: None,
             formal_fields: false,
             slots: &slots,
+            values: &values,
             bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
@@ -837,6 +848,7 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
+            erased: false,
         }];
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {

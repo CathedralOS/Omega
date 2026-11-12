@@ -136,6 +136,15 @@ being added here.
   `DataDomain` row, followed to its consumption points by
   `lowered-discharge`, and not a conserved row here.
 
+- **What a call supplies for an erased formal.** `Actual` is a value or a
+  place. The argument for an `[erased]` scalar formal is a term that nothing
+  evaluates
+  ([proof contracts](../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+  "Construction supplies the erased term"), so `InvocationRow::actuals`
+  lists the runtime actuals only and the checker reads the erased terms from
+  the call's `erased_arguments`, by position against the callee's
+  `erased_scalar_formals`.
+
 ## Obligation kinds
 
 | Kind | Family | Created by |

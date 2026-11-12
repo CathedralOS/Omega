@@ -66,10 +66,10 @@ use terminal_psi::{
     SuccessorEdge, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use self::places::{Bound, Records};
+use self::places::{Bound, Records, Witness};
 use crate::body::{Body, Signature, ValueType};
 use crate::outcome::Outcome;
-use crate::{MachineSources, SourceOrigin, Unpositioned};
+use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
 
 #[derive(Debug)]
 pub(crate) struct Lowered {
@@ -108,7 +108,11 @@ pub(crate) fn machine(
     };
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let mut formals = Formals::default();
+    let formal_values = signature.formal_values();
     for (position, value_type) in signature.parameters.iter().enumerate() {
+        if signature.is_erased(position) {
+            continue;
+        }
         match *value_type {
             // A formal of a rigid type is a value like a scalar formal: it
             // has an identity, a call passes it, and nothing is known of it.
@@ -124,9 +128,9 @@ pub(crate) fn machine(
                     selects: None,
                     rigid,
                 });
-                // Clause propositions name the `k`-th scalar formal as value
-                // `k + 1` (`Signature::parameters`).
-                if value.get() != formals.scalars.len() as u64 + 1 {
+                // Clause propositions name each value formal by the
+                // identity `body::formal_values` gives it.
+                if formal_values.get(position) != Some(&Some(value)) {
                     return Err(lowering.internal("scalar formals are not the first values"));
                 }
                 formals.scalars.push(declaration(value, scalar_type));
@@ -189,6 +193,31 @@ pub(crate) fn machine(
             })
         }
     };
+    // The erased scalar formals come after the result pseudo-value. Each is
+    // an invocation formal with a value identity and no runtime lane:
+    // Terminal Psi declares it in the contract, not among the parameters
+    // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
+    for position in &signature.erased {
+        let Some(ValueType::Scalar(scalar_type)) = signature.parameters.get(*position).copied()
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Parameter("erased parameter of a data type"),
+            ));
+        };
+        let value = lowering.value(
+            scalar_type,
+            ValueOrigin::MachineParameter {
+                position: lowering.position(*position)?,
+            },
+        );
+        if formal_values.get(*position) != Some(&Some(value)) {
+            return Err(lowering.internal("erased formals do not follow the result"));
+        }
+        formals.erased.push(declaration(value, scalar_type));
+        *lowering.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
+    }
     lowering.enter(entry);
     // One published identity per `ensures` clause, the one `ContractClause`
     // carries; every normal exit's guarantee names it.
@@ -229,6 +258,9 @@ struct Formals {
     scalars: Vec<ValueDeclaration>,
     records: Vec<StructuralParameterDeclaration>,
     order: Vec<BoundaryParameterKind>,
+    /// The `[erased]` scalar formals, in position order: declared in the
+    /// contract, absent from both runtime lanes and from `order`.
+    erased: Vec<ValueDeclaration>,
 }
 
 struct Lowering<'a> {
@@ -457,6 +489,7 @@ impl Lowering<'_> {
                 .clone();
         let contract = MachineContract {
             crash_routes,
+            erased_scalar_formals: formals.erased,
             requires: self.signature.requires.clone(),
             ensures,
             ..MachineContract::empty(

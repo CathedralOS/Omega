@@ -25,6 +25,9 @@ use crate::{ClauseText, Piece, Unserved, refuse};
 #[derive(Clone, Copy)]
 pub(super) struct ClauseScope<'s> {
     pub(super) slots: &'s [Slot],
+    /// Each formal's value identity, by slot (`body::formal_values`);
+    /// `None` for a record formal.
+    pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
     /// (`requirement_signature`). A name that resolves to one is that
@@ -332,15 +335,7 @@ impl Program<'_> {
                 let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
                     return unserved("record formal named whole in a clause");
                 };
-                // The `k`-th scalar formal is value `k + 1`
-                // (`Signature::parameters`).
-                // A formal of a rigid type is a value too, though no
-                // clause can name it.
-                let earlier = scope.slots[..slot]
-                    .iter()
-                    .filter(|formal| formal.value_type.declared().is_some())
-                    .count();
-                let value = ValueId::new(earlier as u64 + 1).ok_or_else(|| {
+                let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,

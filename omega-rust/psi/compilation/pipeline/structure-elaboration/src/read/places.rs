@@ -192,6 +192,7 @@ impl Program<'_> {
         let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
+            values: &[],
             bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in a data clause"),

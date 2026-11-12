@@ -12,7 +12,7 @@ that order; they do not form two separately evaluated lists") and then
 travel in Terminal Psi's two lanes.
 */
 
-use semantic_vocabulary::{InvocationSite, MachineId, ObligationId, PlaceId, ValueId};
+use semantic_vocabulary::{InvocationSite, MachineId, ObligationId, PlaceId, ScalarTerm, ValueId};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalReason};
@@ -32,6 +32,11 @@ struct Arguments {
     scalars: Vec<ValueId>,
     /// The structural lane: each record argument's root, whole and owned.
     records: Vec<PlaceId>,
+    /// The erased lane: the term each `[erased]` formal stands for, in
+    /// position order. Nothing was evaluated for it, and it is not among
+    /// `actuals`: an invocation row's actual is a value or a place, and the
+    /// checker reads these terms from the call itself.
+    erased: Vec<ScalarTerm>,
 }
 
 impl Arguments {
@@ -45,13 +50,24 @@ impl Arguments {
 
 impl Lowering<'_> {
     /// Evaluates a call's arguments left to right.
-    fn arguments(&mut self, arguments: &[Expression]) -> Checked<Arguments> {
+    fn arguments(&mut self, callee: MachineId, arguments: &[Expression]) -> Checked<Arguments> {
+        let signature =
+            terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
             records: Vec::new(),
+            erased: Vec::new(),
         };
-        for argument in arguments {
+        for (position, argument) in arguments.iter().enumerate() {
+            // contracts.md, "Explicit erased bindings": "Construction
+            // supplies the erased term". The argument at an erased position
+            // is that term; it is named, not run.
+            if signature.is_erased(position) {
+                let witness = self.witness(argument)?;
+                evaluated.erased.push(witness.term());
+                continue;
+            }
             match argument.result {
                 Some(ValueType::Record(_)) => {
                     let root = self.record(argument)?;
@@ -114,7 +130,7 @@ impl Lowering<'_> {
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let arguments = self.arguments(arguments)?;
+        let arguments = self.arguments(callee, arguments)?;
         let crash_continuations = canonical::substituted_routes(
             &self.outcome(callee)?.crash_routes,
             &arguments.scalars,
@@ -146,7 +162,7 @@ impl Lowering<'_> {
             callee,
             structural_arguments: arguments.structural(),
             arguments: arguments.scalars,
-            erased_arguments: Vec::new(),
+            erased_arguments: arguments.erased,
             erased_proof_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: requirements,
@@ -216,7 +232,7 @@ impl Lowering<'_> {
                 Unserved::Call("no-normal call inside an expression"),
             ));
         }
-        let arguments = self.arguments(arguments)?;
+        let arguments = self.arguments(callee, arguments)?;
         // A callee that may return and also publishes crash routes makes
         // this operation a crash site: its routes, with each scalar formal
         // replaced by the actual at its position, are the call's crash
@@ -247,6 +263,7 @@ impl Lowering<'_> {
             );
         }
         let structural_arguments = arguments.structural();
+        let erased_arguments = arguments.erased;
         let scalars = arguments.scalars;
         // Terminal Psi has one call operation per result lane, and the
         // scalar-result form with no record argument is the plain `Call`.
@@ -261,7 +278,7 @@ impl Lowering<'_> {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         requirement_obligations: requirements,
                         crash_continuations,
@@ -270,7 +287,7 @@ impl Lowering<'_> {
                     OperationKind::CallStructuralScalar {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         structural_arguments,
                         claim_transfers: Vec::new(),
@@ -286,7 +303,7 @@ impl Lowering<'_> {
                 OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
-                    erased_arguments: Vec::new(),
+                    erased_arguments,
                     erased_proof_arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
@@ -301,7 +318,7 @@ impl Lowering<'_> {
                     OperationKind::CallStructuralWithScalarArguments {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         structural_arguments,
                         claim_transfers: Vec::new(),

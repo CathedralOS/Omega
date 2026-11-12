@@ -756,13 +756,17 @@ fn fill_knowledge(
         let callee = callee(id, invocation, &row.callee)?;
         let actuals = scalar_actuals(&row.actuals);
         let contract = &terminal_machine(machines, callee, id)?.contract;
+        let erased = erased_actuals(lowered, contract, id, invocation, row.site)?;
         for (clause, ensures) in contract.ensures.iter().enumerate() {
             let proposition = substitute(
                 &ensures.proposition,
-                &mut ScalarActuals {
-                    actuals: &actuals,
-                    result: operation_result(lowered, operation),
-                    tables,
+                &mut ErasedTerms {
+                    terms: &erased,
+                    runtime: &mut ScalarActuals {
+                        actuals: &actuals,
+                        result: operation_result(lowered, operation),
+                        tables,
+                    },
                 },
             )
             .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
@@ -1048,6 +1052,105 @@ pub(crate) trait Bindings {
     ) -> Result<bool, Unbound>;
 }
 
+/// A call's erased lane: each `[erased]` scalar formal of the callee with the
+/// term the call supplies for it. `wiki/spec/proofs/contracts.md`, "Explicit
+/// erased bindings": "Construction supplies the erased term". The check
+/// tables hold no row for such an actual, because it is a term and not a
+/// value or a place, so it is read from the call in the lowered form, where
+/// Terminal Psi keeps it (`erased_arguments`). A term names values of the
+/// caller or literals; any other form is refused, as in `substitute`.
+fn erased_actuals(
+    caller: &TerminalMachine,
+    contract: &terminal_psi::MachineContract,
+    id: MachineId,
+    invocation: terminal_check_tables::InvocationId,
+    site: InvocationSite,
+) -> Checked<Vec<(ValueId, ScalarTerm)>> {
+    let refuse = |reason, detail| refusal(reason, id, Construct::Invocation(invocation), detail);
+    if contract.erased_scalar_formals.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !contract.erased_proof_formals.is_empty() {
+        return Err(refuse(
+            RefusalReason::Unsupported,
+            "callee with an erased proof formal",
+        ));
+    }
+    let supplied = caller
+        .module_invocations()
+        .find(|candidate| candidate.site == site)
+        .ok_or_else(|| {
+            refuse(
+                RefusalReason::ForeignIdentity,
+                "invocation is not in this machine",
+            )
+        })?
+        .inputs
+        .erased_arguments;
+    if supplied.len() != contract.erased_scalar_formals.len() {
+        return Err(refuse(
+            RefusalReason::ForeignIdentity,
+            "call supplies another number of erased terms than its callee declares",
+        ));
+    }
+    contract
+        .erased_scalar_formals
+        .iter()
+        .zip(supplied)
+        .map(|(formal, term)| match term {
+            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+                Ok((formal.id, term.clone()))
+            }
+            _ => Err(refuse(
+                RefusalReason::Unsupported,
+                "erased actual outside values and literals",
+            )),
+        })
+        .collect()
+}
+
+/// A call's erased terms standing for the callee's `[erased]` scalar
+/// formals, over the bindings of its runtime formals. An erased formal's
+/// identity follows the callee's result pseudo-value
+/// (`Signature::formal_values`), so it never collides with a runtime formal;
+/// every other name is the runtime bindings' to resolve.
+pub(crate) struct ErasedTerms<'a> {
+    pub(crate) terms: &'a [(ValueId, ScalarTerm)],
+    pub(crate) runtime: &'a mut dyn Bindings,
+}
+
+impl Bindings for ErasedTerms<'_> {
+    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        let Some((_, supplied)) = self.terms.iter().find(|(formal, _)| *formal == id) else {
+            return self.runtime.value(id, scalar_type);
+        };
+        if supplied.scalar_type() != scalar_type {
+            return Err(Unbound::Unsupported(
+                "erased actual type differs from the formal's",
+            ));
+        }
+        Ok(supplied.clone())
+    }
+
+    fn field(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.field(root, path, scalar_type)
+    }
+
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        self.runtime.case(root, path, case)
+    }
+}
+
 /// A call's actuals standing for the callee's formals: the callee's `k`-th
 /// scalar formal (callee value `k + 1`) is the caller's `k`-th scalar
 /// actual. In a guarantee, the callee's result pseudo-value (the value after
@@ -1328,6 +1431,7 @@ fn stated_goal(
                 Construct::Invocation(invocation),
             )?;
             let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
+            let erased = erased_actuals(lowered, &callee.contract, id, invocation, row.site)?;
             let InvocationSite::Operation(site) = row.site else {
                 return Err(refusal(
                     RefusalReason::Unsupported,
@@ -1352,7 +1456,10 @@ fn stated_goal(
             // when the call is made.
             substitute(
                 clause,
-                &mut storage.at_call(tables, &row.actuals, callee, site, concerns)?,
+                &mut ErasedTerms {
+                    terms: &erased,
+                    runtime: &mut storage.at_call(tables, &row.actuals, callee, site, concerns)?,
+                },
             )
             .map_err(|unbound| unbound.refusal(id, concerns))
         }

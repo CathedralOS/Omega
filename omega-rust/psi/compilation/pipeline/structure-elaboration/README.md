@@ -248,6 +248,43 @@ literal or rational expression, which the
 [numeric landing rules](../../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics)
 land) are each refused as `Unsupported`.
 
+### Erased scalar bindings
+
+A scalar formal or local may be `[erased]`
+([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+"The binding remains in checking and semantic identity but contributes no
+runtime field, address, read, or cleanup. It may supply proof computation or
+static authorization; it cannot determine runtime data or control."). This is
+the first slice of the
+[proofs, evidence and quotients lane](../../../../../wiki/drafts/designs/proofs_evidence_lane.md).
+
+- **An erased formal** has a value identity, so `requires` and `ensures`
+  clauses name it like any formal, and no runtime lane: Terminal Psi declares
+  it in `MachineContract::erased_scalar_formals`, not in `parameters` or
+  `parameter_order`
+  ([encoding](../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  formals occupy no tag."). Its identity comes after the result
+  pseudo-value; `Signature::formal_values` is the one numbering the reader
+  and lowering share.
+- **The argument for an erased formal** is a term, not an operand
+  (contracts.md: "Construction supplies the erased term"). It goes into the
+  call's `erased_arguments` as a `ScalarTerm` and no operation computes it.
+- **An erased local**, `let w [erased]: T = term;`, names its term
+  (`Statement::Witness`) and emits nothing.
+
+A term is a literal or a scalar binding, relevant or erased: the forms with
+no formation condition. Anything that computes has one (contracts.md, "Total
+arithmetic": "Exact operations discharge representability before formation"),
+and no operation of the lowered form would own it, so it is refused.
+
+| Construct | Refusal detail |
+| --- | --- |
+| an erased formal or local of a data type (Terminal Psi's proof-term lane, `erased_proof_formals`) | `parameter erased parameter of a data type`, `statement erased local of a data type`, `expression erased term of a data type` |
+| a term that computes, or reads a local declared without an initializer | `expression erased term other than a literal or a binding`, `expression erased term that reads storage` |
+| an erased local with no initializer | `statement erased local without an initializer` |
+| a runtime expression that reads an erased binding | `expression runtime use of an erased binding` (finding 34) |
+| a crash route guard that names an erased formal | `contract route guard names a value that is not a formal` |
+
 ### Records
 
 A formal, a local, a result, a field and an argument may also be a
@@ -395,9 +432,11 @@ that still resolves to a constant is refused as `expression const`.
   value right after the scalar formals, with `ValueOrigin::MachineResult`, so
   the module's `TerminalMachineResult::Scalar`, its `ensures` propositions
   and the value table name one identity.
-- **Formals** travel in Terminal Psi's two lanes. The `k`-th scalar formal is
-  value `k + 1`, skipping record formals, and that is how a clause names it; a
-  record formal is a root place and has no value identity.
+- **Formals** travel in Terminal Psi's two lanes. The `k`-th relevant scalar
+  formal is value `k + 1`, skipping record and erased formals, and that is
+  how a clause names it; a record formal is a root place and has no value
+  identity. An erased scalar formal is a value after the result pseudo-value
+  and travels in neither lane.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
@@ -938,3 +977,14 @@ worked around by adding to `terminal-check-tables`.
     (`visible_to`). Any other call is refused as `call private machine of
     another package`, so the current checker decides the compilation
     (`tests/omega/fail/build/executed_dependency_private_call`).
+34. **A runtime read of an erased binding falls back; it is not yet rejected
+    here.** The current checker rejects `let total: i32 = bound;` for an
+    erased `bound` ("erased parameter `bound` has no runtime value"). That is
+    a verdict about the program, and this route has no refusal reason for it,
+    so the reader refuses the closure as `Unsupported` and the current
+    checker decides. The slice that owns the rejection adds the reason.
+35. **The current pipeline cannot lower an erased local supplied as an erased
+    term.** `let witness [erased]: i32 = limit; keep(n, witness)` passes the
+    current checker and then fails in Psi 06 ("scalar read has no authored
+    binding"). This route lowers it: the local names the term. The witness is
+    `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
