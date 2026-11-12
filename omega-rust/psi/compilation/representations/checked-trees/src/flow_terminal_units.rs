@@ -2404,11 +2404,12 @@ pub(crate) mod unit_effect_plans {
                 _ => return None,
             };
             for call in calls {
-                for operand in call
-                    .operands
-                    .operations
-                    .span_mut_or_empty(call.operands.order)
-                {
+                // A returned operand result keeps that field borrowed; search the
+                // separate invocation outcome without borrowing the whole call again.
+                let CheckedStructuralValueCall {
+                    operands, outcome, ..
+                } = call;
+                for operand in operands.operations.span_mut_or_empty(operands.order) {
                     if let Some(result) = operand
                         .0
                         .as_mut()
@@ -2418,9 +2419,10 @@ pub(crate) mod unit_effect_plans {
                         return Some(result);
                     }
                 }
-                if let Some(result) = call.operation_mut().and_then(|operation| {
-                    operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
-                }) {
+                if let CheckedValueInvocationOutcome::Prepared { operation, .. } = outcome
+                    && let Some(result) =
+                        operation.discardable_structural_result_by_ordinal_mut(binding_ordinal)
+                {
                     return Some(result);
                 }
             }
