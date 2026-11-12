@@ -138,6 +138,19 @@ def first_requires_predicate(source: str) -> str:
     return m.group(2).strip() if m else ""
 
 
+def machine_scope_around_first_requires(source: str) -> str:
+    m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
+    if not m:
+        return ""
+    before = source[: m.start()]
+    starts = [x.start() for x in re.finditer(r"^machine\s+", before, re.MULTILINE)]
+    start = starts[-1] if starts else 0
+    after = source[m.end() :]
+    end_m = re.search(r"^machine\s+", after, re.MULTILINE)
+    end = m.end() + (end_m.start() if end_m else len(after))
+    return source[start:end]
+
+
 def machine_body_after_first_requires(source: str) -> str:
     m = re.search(r"^(\s*)requires\b[^\n]*\n", source, re.MULTILINE)
     if not m:
@@ -147,6 +160,27 @@ def machine_body_after_first_requires(source: str) -> str:
     return chunk[: end.start()] if end else chunk
 
 
+def requires_repeated_inside_machine(source: str) -> tuple[bool, str, str]:
+    """Transition/guard inside the machine restates dropped requires (fix5 + user correction)."""
+    req = first_requires_predicate(source)
+    if not req:
+        return False, "", ""
+    scope = machine_scope_around_first_requires(source)
+    if not scope:
+        return False, "", ""
+    for line in scope.splitlines():
+        s = line.strip()
+        if not (s.startswith("transition ") or s.startswith("if ")):
+            continue
+        guard = s
+        if req == guard or req in guard:
+            return True, req, guard
+        for frag in re.findall(r"[\w().:]+\s*[=<>!]+\s*[\w().:]+", req):
+            if frag.replace(" ", "") in guard.replace(" ", ""):
+                return True, req, guard
+    return False, "", ""
+
+
 def read_mutant_validity(
     kind: str, original: str, mutant: str
 ) -> tuple[bool, str, str, str, str]:
@@ -154,6 +188,15 @@ def read_mutant_validity(
     note = ""
 
     if kind == "drop_requires":
+        dup, rq, gq = requires_repeated_inside_machine(original)
+        if dup:
+            return (
+                False,
+                "",
+                "",
+                "",
+                f"valid: requires `{rq}` restated inside machine at `{gq}`",
+            )
         block = machine_body_after_first_requires(mutant)
         dropped = first_requires_predicate(original)
         for line in block.splitlines():
@@ -244,8 +287,22 @@ def read_mutant_validity(
 
 
 def machine_before_first_requires(source: str) -> str:
-    m = re.search(r"machine\s+(\w+)\s*\([^)]*\)", source)
-    return m.group(1) if m else ""
+    m = re.search(r"^(\s*)requires\b", source, re.MULTILINE)
+    if not m:
+        return ""
+    before = source[: m.start()]
+    hits = list(re.finditer(r"machine\s+(\w+)\s*\(", before))
+    return hits[-1].group(1) if hits else ""
+
+
+PROBE_OVERRIDES = OUT / "probe_overrides.json"
+
+
+def load_probe_override(fixture: str) -> str | None:
+    if not PROBE_OVERRIDES.is_file():
+        return None
+    data = json.loads(PROBE_OVERRIDES.read_text(encoding="utf-8"))
+    return data.get(fixture)
 
 
 def synthesize_violating_call(source: str, machine: str, req: str) -> str | None:
@@ -282,34 +339,50 @@ def synthesize_violating_call(source: str, machine: str, req: str) -> str | None
     return f"{machine}({', '.join(args)})"
 
 
-def probe_drop_requires_subtype(mutant_path: str, original: str) -> tuple[str, str]:
-    """fix5: violating caller probe → inferred-entry vs unchecked."""
-    machine = machine_before_first_requires(original)
-    req = first_requires_predicate(original)
-    if not machine or not req:
-        return "", "no probe: missing machine or requires"
+def synthesize_all_violating_calls(source: str, machine: str, req: str) -> list[str]:
+    calls: list[str] = []
+    seen: set[str] = set()
+
+    def add(c: str | None) -> None:
+        if c and c not in seen:
+            seen.add(c)
+            calls.append(c)
+
+    add(synthesize_violating_call(source, machine, req))
+    sig = re.search(rf"machine\s+{re.escape(machine)}\s*\(([^)]*)\)", source)
+    if sig:
+        n = len([p for p in sig.group(1).split(",") if p.strip()])
+        add(f"{machine}({', '.join(['0'] * n)})")
+        add(f"{machine}({', '.join(['1'] * n)})")
+        if n >= 2:
+            add(f"{machine}(1, 0)")
+            add(f"{machine}(0, 1)")
+    for op in (">", "<"):
+        m = re.search(rf"(\w+)\s*{re.escape(op)}\s*(\w+)", req)
+        if m and sig:
+            params = [p.split(":")[0].strip() for p in sig.group(1).split(",") if p.strip()]
+            try:
+                li, ri = params.index(m.group(1)), params.index(m.group(2))
+                args = ["0"] * len(params)
+                if op == ">":
+                    args[li], args[ri] = "0", "9"
+                else:
+                    args[li], args[ri] = "9", "0"
+                add(f"{machine}({', '.join(args)})")
+            except ValueError:
+                pass
+    return calls
+
+
+def run_probe_check(mutant_path: str, probe_src: str) -> int:
     main_omg = REPO / mutant_path / "main.omg"
-    src = main_omg.read_text(encoding="utf-8")
-    call = synthesize_violating_call(original, machine, req)
-    if not call:
-        return "unchecked", "no violating call synthesized"
-    if not re.search(r"machine\s+main\s*\(", src):
-        return "unchecked", "no main() to host probe call"
-    probe_src = re.sub(
-        r"(machine\s+main\s*\([^)]*\)\s*(?:crashes\s+\w+\s*)?\{)",
-        rf"\1\n    {call};\n",
-        src,
-        count=1,
-    )
-    if probe_src == src:
-        return "unchecked", "could not insert probe call"
     mdir = main_omg.parent
     with tempfile.TemporaryDirectory(dir=str(mdir)) as td:
         probe_main = Path(td) / "main.omg"
         if (mdir / "build.omg").is_file():
             shutil.copy2(mdir / "build.omg", Path(td) / "build.omg")
         probe_main.write_text(probe_src, encoding="utf-8")
-        for extra in main_omg.parent.iterdir():
+        for extra in mdir.iterdir():
             if extra.suffix == ".omg" and extra.name not in ("main.omg", "build.omg"):
                 shutil.copy2(extra, Path(td) / extra.name)
         r = subprocess.run(
@@ -319,9 +392,46 @@ def probe_drop_requires_subtype(mutant_path: str, original: str) -> tuple[str, s
             text=True,
             timeout=120,
         )
-    if r.returncode == 0:
-        return "unchecked", f"violating call `{call}` accepted"
-    return "inferred-entry", f"violating call `{call}` rejected (exit {r.returncode})"
+        return r.returncode
+
+
+def probe_drop_requires_subtype(
+    mutant_path: str, original: str, fixture: str
+) -> tuple[str, str]:
+    machine = machine_before_first_requires(original)
+    req = first_requires_predicate(original)
+    if not machine or not req:
+        return "probe-not-built", "missing machine or requires"
+    main_omg = REPO / mutant_path / "main.omg"
+    src = main_omg.read_text(encoding="utf-8")
+    if not re.search(r"machine\s+main\s*\(", src):
+        return "probe-not-built", "no main() to host probe call"
+
+    calls = synthesize_all_violating_calls(original, machine, req)
+    override = load_probe_override(fixture)
+    if override:
+        calls.insert(0, override)
+
+    if not calls:
+        return "probe-not-built", "no violating call synthesized"
+
+    tried: list[str] = []
+    for call in calls:
+        probe_src = re.sub(
+            r"(machine\s+main\s*\([^)]*\)\s*(?:crashes\s+\w+\s*)?\{)",
+            rf"\1\n    {call};\n",
+            src,
+            count=1,
+        )
+        if probe_src == src:
+            continue
+        tried.append(call)
+        code = run_probe_check(mutant_path, probe_src)
+        if code == 0:
+            return "unchecked", f"violating call `{call}` accepted"
+        if code != 0:
+            return "inferred-entry", f"violating call `{call}` rejected (exit {code})"
+    return "probe-not-built", f"tried {tried}; none ran or all inconclusive"
 
 
 def only_q7_mut_violation(spec_quote: str, kind: str) -> bool:
@@ -397,7 +507,7 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
             out["accepted_by"] = acc
             out["verdict_reason"] = vnote or ob
             if kind == "drop_requires" and mutant_path:
-                sub, pnote = probe_drop_requires_subtype(mutant_path, original)
+                sub, pnote = probe_drop_requires_subtype(mutant_path, original, fixture)
                 out["hole_subtype"] = sub
                 out["probe_note"] = pnote
             return out
@@ -491,8 +601,21 @@ def main() -> None:
 
     for row in rows:
         triaged = triage_row(row, q7)
-        buckets[triaged["hand_verdict"]] += 1
         out_rows.append(triaged)
+
+    for row in out_rows:
+        if (
+            row.get("hand_verdict") == "confirmed-hole"
+            and row.get("mutation_kind") == "drop_requires"
+            and row.get("hole_subtype") in ("", "probe-not-built")
+            and row.get("mutant_path")
+        ):
+            original = (REPO / row["fixture"]).read_text(encoding="utf-8")
+            sub, pnote = probe_drop_requires_subtype(row["mutant_path"], original, row["fixture"])
+            row["hole_subtype"] = sub
+            row["probe_note"] = pnote
+
+    buckets = Counter(r["hand_verdict"] for r in out_rows)
 
     with TSV.open("w", encoding="utf-8") as f:
         f.write("\t".join(hdr) + "\n")
@@ -543,6 +666,10 @@ def main() -> None:
 
     bucket_lines += ["", "### Confirmed-hole by accepted_by", ""]
     for k, v in sorted(Counter(r["accepted_by"] for r in confirmed).items()):
+        bucket_lines.append(f"- `{k}`: {v}")
+
+    bucket_lines += ["", "### Confirmed-hole by subtype (drop_requires)", ""]
+    for k, v in sorted(Counter(r.get("hole_subtype") or "(none)" for r in confirmed).items()):
         bucket_lines.append(f"- `{k}`: {v}")
 
     q7_in = sum(1 for r in q7_mut if r.get("q7_listed") == "yes")
