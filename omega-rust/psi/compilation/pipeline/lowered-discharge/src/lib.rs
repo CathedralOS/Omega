@@ -65,7 +65,7 @@ mod verdict;
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
     AcceptedClosure, ConsumptionSite, PublicationError, RoutePublication, RouteVerdict,
-    UnestablishedUse, UnprovedObligation, judge,
+    UnestablishedUse, UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]

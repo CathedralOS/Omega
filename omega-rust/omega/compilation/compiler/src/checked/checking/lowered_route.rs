@@ -53,16 +53,29 @@ pub(super) struct RouteScope<'a> {
 }
 
 impl RouteScope<'_> {
-    /// The route's judgment of `typed`, the trees Psi 05 judges.
+    /// The route's judgment of `typed`, the trees Psi 05 judges: the closure
+    /// of the compilation's roots, and the check form of each generic
+    /// machine the subject declares. generics.md, "Static type equality":
+    /// "An unspecialized body checks every admitted alternative; one
+    /// consumer cannot authorize an otherwise invalid generic body." So a
+    /// generic body is judged as written whether or not the program applies
+    /// it, and the machines stage 04 generated for the program's own
+    /// applications are judged as closed machines of the closure. The route
+    /// decides only when it decides every one of them.
     pub(super) fn judge(&self, typed: &typed_trees::TypedTrees) -> RouteJudgment {
-        RouteJudgment::of(lowered_discharge::judge(structure_elaboration::elaborate(
-            typed,
-            structure_elaboration::Compilation {
-                entries: self.entries,
-                subject: self.subject,
-                selected: self.selected,
-            },
-        )))
+        RouteJudgment::all(
+            lowered_discharge::judge_compilation(
+                typed,
+                structure_elaboration::Compilation {
+                    entries: self.entries,
+                    subject: self.subject,
+                    selected: self.selected,
+                },
+            )
+            .into_iter()
+            .map(RouteJudgment::of)
+            .collect(),
+        )
     }
 }
 
@@ -93,6 +106,25 @@ pub(super) enum RouteJudgment {
 }
 
 impl RouteJudgment {
+    /// The judgment of a compilation made of several separately judged
+    /// parts: undecided when any part is, rejected with every part's
+    /// diagnostics when any part is rejected, accepted when all are. An
+    /// undecided part leaves the whole to the current checker, as an
+    /// unserved construct inside one closure does.
+    pub(super) fn all(parts: Vec<Self>) -> Self {
+        let mut rejected: Option<Vec<Diagnostic>> = None;
+        for part in parts {
+            match part {
+                Self::Undecided => return Self::Undecided,
+                Self::Rejected(diagnostics) => {
+                    rejected.get_or_insert_with(Vec::new).extend(diagnostics);
+                }
+                Self::Accepted => {}
+            }
+        }
+        rejected.map_or(Self::Accepted, Self::Rejected)
+    }
+
     pub(super) fn of(verdict: Checked<RouteVerdict>) -> Self {
         let Ok(verdict) = verdict else {
             return Self::Undecided;
@@ -209,6 +241,31 @@ mod tests {
             .into_iter()
             .map(|diagnostic| diagnostic.message)
             .collect()
+    }
+
+    /// A compilation judged in parts is undecided when any part is, rejected
+    /// with every rejected part's diagnostics, and accepted otherwise.
+    #[test]
+    fn parts_combine() {
+        assert!(matches!(
+            RouteJudgment::all(vec![RouteJudgment::Accepted, RouteJudgment::Accepted]),
+            RouteJudgment::Accepted
+        ));
+        assert!(matches!(
+            RouteJudgment::all(vec![rejected("a"), RouteJudgment::Undecided]),
+            RouteJudgment::Undecided
+        ));
+        let RouteJudgment::Rejected(both) =
+            RouteJudgment::all(vec![rejected("a"), RouteJudgment::Accepted, rejected("b")])
+        else {
+            panic!("rejected");
+        };
+        assert_eq!(
+            both.iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
     }
 
     /// Both accept: the program builds from the current checker's output.
