@@ -15,9 +15,13 @@ machine select_dependency(builder: &mut Build) {
 }
 
 machine selected_dependency(builder: &mut Build) {
-    Build::depend_as(builder, "selected", Source::Path { location: "../executed_dependency_source_library" });
+    let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../executed_dependency_source_library" });
+    dependency::with_alias(&mut selected_dependency, "selected");
+    let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }
 
 machine unselected_dependency(builder: &mut Build) {
-    Build::depend_as(builder, "absent", Source::Path { location: "../must_not_be_acquired" });
+    let mut absent_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../must_not_be_acquired" });
+    dependency::with_alias(&mut absent_dependency, "absent");
+    let absent_registration: DependencyRegistration = Build::dependency(builder, absent_dependency);
 }

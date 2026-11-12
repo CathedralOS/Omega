@@ -288,21 +288,6 @@ public machine Build::build_dependency(builder: &mut Build, description: Depende
     Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source);
     DependencyRegistration {}
 }
-// Retiring spellings (STAGED-BUILD-CAPABILITIES): they issue the same
-// executed request as a registration, at their old evaluation cost, and remain
-// only until the corpus fixtures that still use them migrate.
-public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, false, "", source);
-}
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, true, alias, source);
-}
-public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, false, "", source);
-}
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, true, alias, source);
-}
 machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
     transition source {
         Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
