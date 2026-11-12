@@ -33,7 +33,8 @@ pub(crate) struct TargetLayoutQueries<'selection> {
 
 pub(crate) struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
-    opaque_representations: &'selection [provider_planning::data_layout_queries::OpaqueCarrierSelection],
+    opaque_representations:
+        &'selection [provider_planning::data_layout_queries::OpaqueCarrierSelection],
     layout_program: Option<TypedTrees>,
 }
 
