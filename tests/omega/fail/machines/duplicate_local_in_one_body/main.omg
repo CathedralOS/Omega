@@ -1,0 +1,6 @@
+// Must reject: the body declares the local `x` twice. Parameters and locals
+// share one namespace, and a body may not bind one name twice.
+machine main() {
+    let x: u32 = 1;
+    let x: u32 = 2;
+}
