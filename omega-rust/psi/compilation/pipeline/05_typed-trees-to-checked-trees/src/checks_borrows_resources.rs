@@ -3427,7 +3427,28 @@ mod permission_sources {
         let mut actual_projection = Vec::new();
         let mut argument_grant = projection.is_empty()
             && has_captured_entry_reference(program, facts, loan_occurrences, state, source);
+        /*
+            A bare range is its own shared formation (`bare-range-reference-access`):
+            `split(items[a..b])` lends exactly what `split(&items[a..b])` lends, so
+            the call's checked argument access supplies the view like an explicit
+            declared borrow whose referee matches its target.
+        */
         if projection.is_empty()
+            && let Some((machine, checked_state)) = validation::machine_state_by_symbols(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+            )
+            && validation::bare_range_view_source(
+                program,
+                machine,
+                Some(checked_state),
+                capture.expression,
+            )
+            .is_some()
+        {
+            argument_grant = true;
+        } else if projection.is_empty()
             && let Some(formation) =
                 validation::reference_formation_source(program, capture.expression)
         {
@@ -3791,6 +3812,46 @@ mod permission_sources {
         ) {
             rule = "the incoming descriptor has no complete invocation access";
             complete
+        } else if projection.is_empty()
+            && validation::machine_state_by_symbols(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+            )
+            .and_then(|(machine, checked_state)| {
+                validation::bare_range_view_source(
+                    program,
+                    machine,
+                    Some(checked_state),
+                    capture.expression,
+                )
+            })
+            .is_some()
+            && matches!(
+                collect_invocation_accesses(
+                    program,
+                    facts,
+                    loan_occurrences,
+                    state,
+                    call,
+                    source,
+                    capture,
+                    output_access,
+                    retained_by_store,
+                    output,
+                    parents,
+                ),
+                InvocationAccessCoverage::Complete
+            )
+        {
+            /*
+                A bare range is its own shared formation (`bare-range-reference-access`).
+                Its checked argument access is the permission an explicit
+                `&items[a..b]` argument supplies; the observed value it also records
+                is a copy of the view, not an earlier formation to follow.
+            */
+            rule = "the bare range's invocation access supplied permission";
+            true
         } else if let Some(complete) = collect_completed_formations(
             program,
             facts,

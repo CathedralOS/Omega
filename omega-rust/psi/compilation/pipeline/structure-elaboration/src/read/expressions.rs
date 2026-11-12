@@ -123,6 +123,11 @@ impl<'t> Program<'t> {
                     }
                 }
             }
+            // A condition closed type equations decide is that Boolean.
+            ExpressionNode::Binary(_) if self.static_truth(handle).is_some() => {
+                let truth = self.static_truth(handle).unwrap_or_default();
+                (ExpressionKind::Boolean(truth), ScalarType::Boolean)
+            }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
                 let (value, integer) = self.anonymous_value(id, handle, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -312,6 +317,9 @@ impl<'t> Program<'t> {
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type)) => scalar_type,
                 Some(ValueType::Record(_)) => return Err(unserved("match with a data result")),
+                Some(ValueType::Rigid(_)) => {
+                    return Err(unserved("match with a result of a rigid type"));
+                }
                 None => return Err(unserved("match with a Unit arm")),
             };
             if result.is_some_and(|result| result != value_type) {

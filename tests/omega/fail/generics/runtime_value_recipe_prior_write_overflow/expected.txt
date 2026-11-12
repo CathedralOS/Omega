@@ -1,2 +1,2 @@
-exact arithmetic in machine
+exact arithmetic in value argument `Limit` of `Index`
 may overflow `u32`

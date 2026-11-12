@@ -18321,6 +18321,20 @@ pub(crate) mod write_frames {
                 .data_application_definition(handle)
                 .or_else(|| program.closed_data_definition(handle))
             {
+                /*
+                    A lifetime-only dependency is a hold on caller storage even when
+                    no field spells a reference: a retained-custody carrier such as
+                    `Pending<'source> { slot: u64 }` keeps its backing loan through
+                    that lifetime alone. Such a value can carry a caller borrow, so
+                    it is not an isolated proof value. The type is asked, not the
+                    definition, because a closed instance drops its lifetime list.
+                */
+                if proof_values
+                    && crate::borrow_contracts::retained_lifetime_owner_paths(program, handle)
+                        .is_some_and(|paths| !paths.is_empty())
+                {
+                    return false;
+                }
                 return definition_isolated!(definition, proof_values);
             }
             match program.type_reference_table.type_reference(handle) {
