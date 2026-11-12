@@ -169,6 +169,7 @@ pub(super) fn prepare_build_invocation(
                     .chain(settled_check_reuse.prior.sibling_build_checks.iter())
                     .collect(),
                 retain_check: settled_check_reuse.retain,
+                checked_slices: crate::checked::checked_slice_store::shared(),
             },
             &mut timings,
         );

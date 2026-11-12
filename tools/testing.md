@@ -452,6 +452,16 @@ because the runner ignores a shard it cannot use and would run every fixture.
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
 
+Every compile, the corpus runner and the sample gate included, keeps the checked
+result of a dependency's Build program on local disk and loads it when a later
+compile checks exactly the same input
+([validation subjects](../wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)).
+The records live in `CathedralOS/Omega/checked-slices/v1` under the per-user
+cache directory, at most 4 GiB, oldest removed first; a rebuilt compiler starts
+them over. A second run of the same fixtures therefore spends less time in Psi 05
+than the first. `OMEGA_CHECKED_SLICE_CACHE=off` checks everything afresh, and an
+absolute path moves the records, which is how to measure a cold run.
+
 ### The corpus in CI
 
 Pull requests run `admission`, which checks rules and formatting. Authors run
