@@ -42,16 +42,13 @@ data ForeignRecord {
     payload: u64;
 }
 
-public data RegistrarPolicy { }
 public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        RegistrarPolicy::plan(signature)
+        make_registrar_plan(signature)
     }
 }
 
-machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
-{
+machine make_registrar_plan(signature: BoundarySignature) -> BoundaryPlanResult {
     transition signature.parameter_count == 1 {
         true -> select_catalog(signature)
         _ -> reject()
