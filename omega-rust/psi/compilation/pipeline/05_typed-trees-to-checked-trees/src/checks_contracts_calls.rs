@@ -405,23 +405,22 @@ mod captured_boolean {
             } else {
                 let result = super::super::prover::call_guarantees::proves(
                     program, facts, guarantees, call, contexts, *required, frames,
-                ) || proves_current_call(
-                    whole_contract_cache,
-                    program,
-                    state,
-                    call,
-                    *required,
-                    frames,
-                    guarantees.completed_calls(),
-                ) || super::super::entailment::structural_call_requirement(
-                    program,
-                    facts,
-                    state,
-                    call,
-                    *required,
-                    Some(contract_handle),
-                    frames,
-                );
+                ) || whole_contract_cache
+                    .current_values(program, state, call, frames, guarantees.completed_calls())
+                    .is_some_and(|values| {
+                        super::super::current_values::proves_prepared_call(
+                            values, state, call, *required,
+                        )
+                    })
+                    || super::super::entailment::structural_call_requirement(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        *required,
+                        Some(contract_handle),
+                        frames,
+                    );
                 whole_contract_cache.answers.push((contract_handle, result));
                 result
             };
@@ -429,6 +428,13 @@ mod captured_boolean {
                 return true;
             }
         }
+        let current_values = whole_contract_cache.current_values(
+            program,
+            state,
+            call,
+            frames,
+            guarantees.completed_calls(),
+        );
         captured_expression_proven(
             program,
             facts,
@@ -441,31 +447,8 @@ mod captured_boolean {
             incoming_guards,
             frames,
             guarantees.completed_calls(),
-            whole_contract_cache,
+            current_values,
         )
-    }
-
-    // A mixed contract can need a different proof owner for each clause. Reuse
-    // the caller's completed values without substituting a recast reference's source.
-    #[allow(clippy::too_many_arguments)]
-    fn proves_current_call<'program>(
-        cache: &super::WholeContractCache<'program>,
-        program: &'program dyn ::validation::CheckingInput,
-        state: &FlowStateFact,
-        call: &FlowCallFact,
-        expression: typed_trees::expression::ExpressionHandle,
-        frames: Option<&validation::CallFrameResolver<'_>>,
-        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
-    ) -> bool {
-        cache
-            .current_values
-            .get_or_init(|| {
-                super::super::current_values::prepare_call(program, state, call, frames, completed)
-            })
-            .as_ref()
-            .is_some_and(|values| {
-                super::super::current_values::proves_prepared_call(values, state, call, expression)
-            })
     }
 
     /*
@@ -473,8 +456,8 @@ mod captured_boolean {
         Children retain the exact same captured context and fallback order.
     */
     #[allow(clippy::too_many_arguments)]
-    fn captured_expression_proven<'program>(
-        program: &'program dyn ::validation::CheckingInput,
+    fn captured_expression_proven(
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         state: &FlowStateFact,
         call: &FlowCallFact,
@@ -485,7 +468,7 @@ mod captured_boolean {
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
-        whole_contract_cache: &mut super::WholeContractCache<'program>,
+        current_values: Option<&crate::checks::current_scalar_values::CurrentScalarValues<'_>>,
     ) -> bool {
         // One clause may need its saved value while another can safely read an
         // unchanged scalar. Check source identity separately for each clause;
@@ -502,7 +485,7 @@ mod captured_boolean {
             incoming_guards,
             frames,
             &mut *completed,
-            whole_contract_cache,
+            current_values,
         ) || (expression_substitution_preserves_captures(
             program,
             facts,
@@ -525,8 +508,8 @@ mod captured_boolean {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn captured_value_expression_proven<'program>(
-        program: &'program dyn ::validation::CheckingInput,
+    fn captured_value_expression_proven(
+        program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
         state: &FlowStateFact,
         call: &FlowCallFact,
@@ -537,7 +520,7 @@ mod captured_boolean {
         incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
         frames: Option<&validation::CallFrameResolver<'_>>,
         completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
-        whole_contract_cache: &mut super::WholeContractCache<'program>,
+        current_values: Option<&crate::checks::current_scalar_values::CurrentScalarValues<'_>>,
     ) -> bool {
         if call_values::proves_captured_arithmetic_requirement(
             program, facts, state, call, expression,
@@ -576,15 +559,11 @@ mod captured_boolean {
         if let Some(binary) = program.expression_table.binary_node(expression) {
             use typed_trees::expression::BinaryOperator;
             let mut child = |expression| {
-                proves_current_call(
-                    whole_contract_cache,
-                    program,
-                    state,
-                    call,
-                    expression,
-                    frames,
-                    &mut *completed,
-                ) || captured_expression_proven(
+                current_values.is_some_and(|values| {
+                    super::super::current_values::proves_prepared_call(
+                        values, state, call, expression,
+                    )
+                }) || captured_expression_proven(
                     program,
                     facts,
                     state,
@@ -596,7 +575,7 @@ mod captured_boolean {
                     incoming_guards,
                     frames,
                     &mut *completed,
-                    whole_contract_cache,
+                    current_values,
                 )
             };
             match binary.operator {
@@ -3224,6 +3203,25 @@ struct WholeContractCache<'program> {
     current_values: std::cell::OnceCell<
         Option<crate::checks::current_scalar_values::CurrentScalarValues<'program>>,
     >,
+}
+
+impl<'program> WholeContractCache<'program> {
+    // A mixed contract can need a different proof owner for each clause. Prepare
+    // the completed caller values here; recursive proof consumers only borrow them.
+    fn current_values(
+        &self,
+        program: &'program dyn ::validation::CheckingInput,
+        state: &FlowStateFact,
+        call: &FlowCallFact,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+    ) -> Option<&crate::checks::current_scalar_values::CurrentScalarValues<'program>> {
+        self.current_values
+            .get_or_init(|| {
+                super::current_values::prepare_call(program, state, call, frames, completed)
+            })
+            .as_ref()
+    }
 }
 
 pub(super) fn check_call_requires(
