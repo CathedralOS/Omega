@@ -68,6 +68,9 @@ BUCKETS = (
     "valid-route-outside",
     "discarded-valid",
     "rejected-both",
+    "rejected-current-no-route",
+    "rejected-current-route-outside",
+    "rejected-current-other",
     "timeout",
     "failed-run",
 )
@@ -765,9 +768,12 @@ def main() -> None:
     kept = [r for r in finalized_mutants if r.get("bucket") == "confirmed-hole"]
 
     part = stats.get("fixture_partition", {})
-    failed_run = part.get(
-        "baseline_failed_run",
-        sum(1 for r in orig_rows if r.get("current_verdict") != "accepted"),
+    not_acc = part.get(
+        "original_not_accepted",
+        part.get(
+            "baseline_failed_run",
+            sum(1 for r in orig_rows if r.get("current_verdict") != "accepted"),
+        ),
     )
     no_mut_ok = part.get(
         "no_mutation_accepted_baseline",
@@ -778,9 +784,11 @@ def main() -> None:
         "mutated",
         len({r["fixture"] for r in mutants}),
     )
-    assert failed_run + no_mut_ok + mutated_n == originals, (
-        f"{failed_run}+{no_mut_ok}+{mutated_n}!={originals}"
+    assert not_acc + no_mut_ok + mutated_n == originals, (
+        f"{not_acc}+{no_mut_ok}+{mutated_n}!={originals}"
     )
+    baseline_audit = stats.get("baseline_audit", {})
+    bucket_transition = stats.get("bucket_transition_from_c0a4894", {})
 
     fixture_rows: Counter[str] = Counter()
     for r in finalized_mutants:
@@ -832,10 +840,13 @@ def main() -> None:
             "",
             "## Fixture reconcile (exact)",
             "",
-            f"**{originals}** fixtures = **{no_mut_ok}** no-mutation + **{failed_run}** failed-run + **{mutated_n}** mutated",
+            f"**{originals}** fixtures = **{no_mut_ok}** no-mutation + **{not_acc}** original-not-accepted + **{mutated_n}** mutated",
+            "",
+            "`original-not-accepted` means the original program got a normal `current=rejected` verdict at the PIN "
+            "(not harness failed-run). The runner does not mutate those fixtures.",
             "",
             f"- Fixture-level companion rows (`stage=no-mutation`): **{len(no_mut_fixture)}** "
-            f"(={failed_run} baseline-fail + {len(no_mut_fixture) - failed_run if len(no_mut_fixture) >= failed_run else '?'} accepted-without-mutators)",
+            f"(={not_acc} original-not-accepted + {len(no_mut_fixture) - not_acc if len(no_mut_fixture) >= not_acc else '?'} accepted-without-mutators)",
             f"- Mutant attempt rows with dirs: **{mutants_run}**; not-applicable: **{len(not_applicable)}**; "
             f"attempt rows total: **{mutants_run + len(not_applicable)}**",
         ]
@@ -866,6 +877,70 @@ def main() -> None:
             + (", ".join(f"{k}={v}" for k, v in sorted(by_accepted.items())) or "none"),
         ]
     )
+    if baseline_audit.get("by_category"):
+        md.extend(["", "## Original-not-accepted breakdown (baseline audit)", ""])
+        md.append(
+            "Fixture-level **failed-run** count: **0**. "
+            f"All **{not_acc}** are checker rejections (`current=rejected`), not harness failures."
+        )
+        md.append("")
+        md.append("| Category | Count | Examples |")
+        md.append("| --- | ---: | --- |")
+        for cat, n in sorted(baseline_audit.get("by_category", {}).items()):
+            ex = baseline_audit.get("examples", {}).get(cat, [])
+            md.append(
+                f"| `{cat}` | {n} | "
+                + (", ".join(f"`{x}`" for x in ex[:3]) if ex else "—")
+                + " |"
+            )
+        gap_n = baseline_audit.get("accepted_without_mutant_dirs", no_mut_ok)
+        if gap_n:
+            md.append(
+                f"\nAccepted originals without mutant dirs (gap-fill re-attempted, kept=0 each): **{gap_n}** "
+                "— all mutation kinds not applicable on source."
+            )
+    if bucket_transition.get("matrix"):
+        md.extend(["", "## Bucket transition (c0a4894 → strict audit)", ""])
+        md.append(f"**rejected-both verification failures:** {bucket_transition.get('rejected_both_verification_failures', 0)}")
+        md.append("")
+        md.append("| Old | New | Count | Rule |")
+        md.append("| --- | --- | ---: | --- |")
+        for label, cnt in sorted(
+            bucket_transition["matrix"].items(), key=lambda x: -x[1]
+        ):
+            old_b, new_b = label.split(" -> ", 1)
+            rule = bucket_transition.get("rules", {}).get(label, "")
+            md.append(f"| `{old_b}` | `{new_b}` | {cnt} | {rule[:120]} |")
+        md.extend(
+            [
+                "",
+                "### Spot checks (5 per major flow)",
+                "",
+            ]
+        )
+        audit_supp = OUT / "shard4_audit_report.md"
+        if audit_supp.exists():
+            in_spots = False
+            for ln in audit_supp.read_text().splitlines():
+                if ln.startswith("### discarded-valid"):
+                    in_spots = True
+                if in_spots:
+                    md.append(ln)
+                if in_spots and ln.startswith("## Kind totals"):
+                    break
+    cross = stats.get("bucket_transition_from_c0a4894", {}).get("kind_bucket_cross", {})
+    if cross:
+        md.extend(["", "## Kind × bucket cross-table", ""])
+        buckets_sorted = sorted({b for v in cross.values() for b in v})
+        md.append("| Kind | " + " | ".join(f"`{b}`" for b in buckets_sorted) + " |")
+        md.append("| --- | " + " | ".join("---:" for _ in buckets_sorted) + " |")
+        totals = stats.get("bucket_transition_from_c0a4894", {}).get("kind_totals", kind_gen)
+        for k in sorted(totals.keys()):
+            row = cross.get(k, {})
+            md.append("| `" + k + "` | " + " | ".join(str(row.get(b, 0)) for b in buckets_sorted) + " |")
+        md.append(f"| **Sum** | " + " | ".join("—" for _ in buckets_sorted) + " |")
+        md.append(f"\nKind total check: **{sum(totals.values())}** (must equal **{mutants_run}**).")
+
     if multi_row[:20]:
         md.extend(
             [

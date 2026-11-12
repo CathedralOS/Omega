@@ -1,0 +1,6 @@
+// Expected exit: 0
+// An uncalled machine's boundary use must not demand runtime installation.
+boundary trait Unused { machine read() -> u32 reaches; }
+Only satisfies Unused { machine read() -> u32 { 42 } }
+machine unused() -> u32 reaches Unused { Unused::read() }
+machine main() {}

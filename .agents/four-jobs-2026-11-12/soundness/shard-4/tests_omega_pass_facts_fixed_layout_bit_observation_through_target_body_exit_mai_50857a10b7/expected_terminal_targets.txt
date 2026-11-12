@@ -1,0 +1,4 @@
+windows_x86_64 0
+linux_x86_64 0
+linux_arm64 0
+macos_arm64 0

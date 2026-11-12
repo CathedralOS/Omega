@@ -1,0 +1,10 @@
+// machine_indexed_stream_dispatch build file: no standard-library package and
+// no program entry. `Stream<machine S>` is a recursive proof-only family
+// ("Recursive proof-only data may use machine binders as family indices;
+// finite-layout data rejects those binders", wiki/spec/language/generics.md),
+// so the dispatching machine has no runtime representation to execute.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "machine_indexed_stream_dispatch");
+    builder.freestanding = true;
+}

@@ -1,0 +1,54 @@
+// Expected exit: 0. Package review preserves the mathematical bound on public data.
+use vendor::main;
+use vendor::helpers;
+public data PageTableBuilder {}
+
+machine PageTableBuilder::step(base: u64, index: u64, word: u64)
+    -> helpers::X86BootstrapPageTableWalkStep
+requires 0 <= index && index <= 511 {
+    let entry: helpers::X86PageTableEntry = helpers::x86_decode_page_table_entry(word);
+    helpers::X86BootstrapPageTableWalkStep {
+        table_address: base, index: index, entry_address: base | (index * 8),
+        entry: helpers::X86BootstrapAddressBoundPageTableEntryCandidate {
+            physical_address: entry.frame_number << 12, entry: entry,
+        },
+    }
+}
+
+machine customer_word(word: u64) -> bool {
+    let step: helpers::X86BootstrapPageTableWalkStep = PageTableBuilder::step(0x12345000u64, 7u64, word);
+    step.table_address == 0x12345000u64 && step.index == 7u64 &&
+        step.entry_address == 0x12345038u64 && step.entry.physical_address == (word & 0x000FFFFFFFFFF000u64) &&
+        helpers::x86_encode_page_table_entry(&step.entry.entry) == word
+}
+
+
+// Preserve the actual selected Canonical payload-to-nested-capacity boundary.
+machine customer_capacity(new_root: u64, target: u64, virtual_address: u64, pages: u64) -> u64
+requires pages >= 1 && pages <= 512 && target <= 0x000FFFFFFFFFF000 {
+    geometry(new_root, target, virtual_address, pages)
+    machine geometry(new_root: u64, target: u64, virtual_address: u64, pages: u64) -> u64
+    requires pages >= 1 && pages <= 512 && target <= 0x000FFFFFFFFFF000 {
+        transition helpers::x86_decompose_bootstrap_virtual_address(virtual_address) {
+            helpers::X86BootstrapVirtualAddressCheck::Canonical { indices } -> capacity(new_root, target, virtual_address, pages, indices.pt_index)
+            _ -> 4096u64
+        }
+    }
+    machine capacity(new_root: u64, target: u64, virtual_address: u64, pages: u64, first: u64) -> u64
+    requires pages >= 1 && pages <= 512 && first < 512 && target <= 0x000FFFFFFFFFF000 {
+        first
+    }
+}
+
+machine main() crashes Trap {
+    let value: Bounded = Bounded { value: 73 };
+    let observed: u64 = remainder(value);
+    let saved: u8 = preserve(17u8);
+    transition observed == 27 && saved == 17u8 
+        customer_word(0xA55A123456789BCDu64) &&
+        customer_capacity(0u64, 0u64, 0u64, 1u64) == 0u64 &&
+        customer_capacity(0u64, 0u64, 4096u64, 1u64) == 1u64 &&
+        customer_capacity(0u64, 0u64, 0x0000800000000000u64, 1u64) == 4096u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,15 @@
+// Complete reference-slot summaries preserve separate opaque-region effects.
+boundary data Token;
+data Holder<'loan> { token: Token; view: &'loan [u8]; value: u64; }
+
+machine replace_token(target: &mut Token, replacement: Token) { target = replacement; }
+machine replace_value(target: &mut u64, replacement: u64) { target = replacement; }
+
+machine replace_opaque<'loan>(holder: &mut Holder<'loan>, replacement: Token) -> u64 {
+    replace_token(&mut holder.token, replacement);
+    holder.view.len
+}
+machine replace_disjoint<'loan>(holder: &mut Holder<'loan>) -> u64 {
+    replace_value(&mut holder.value, 7);
+    holder.value
+}

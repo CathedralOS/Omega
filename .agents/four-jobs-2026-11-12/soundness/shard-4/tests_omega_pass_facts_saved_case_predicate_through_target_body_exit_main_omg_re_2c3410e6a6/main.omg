@@ -1,0 +1,79 @@
+// A saved case verdict selects the same unwritten case payload after a disjoint case replacement.
+// Expected exit: 0
+domain u64::Divisor requires self > 0;
+data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
+machine clear(destination: &mut Choice) { destination = Choice::Empty; }
+machine capture<'storage, Value>(choice: Value, other: &mut Choice) -> Value requires Value == &'storage mut Choice { clear(other); choice }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine probe(choice: &mut Choice, other: &mut Choice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine probe(choice: &mut Choice, other: &mut Choice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let saved: bool = capture<&mut Choice>(&mut choice, &mut other) in Choice::Full;
+        let alias: bool = saved;
+        clear(other);
+        let ordinary: u64 = 9;
+        transition alias { true -> 490 / choice.amount false -> 0 }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(choice: &mut Choice, other: &mut Choice) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let saved: bool = capture<&mut Choice>(&mut choice, &mut other) in Choice::Full;
+        let alias: bool = saved;
+        clear(other);
+        let ordinary: u64 = 9;
+        transition alias { true -> 490 / choice.amount false -> 0 }
+    }
+}
+
+
+machine main() crashes Trap {
+    let mut choice: Choice = Choice::Full { amount: 7 };
+    let mut other: Choice = Choice::Full { amount: 7 };
+    let observed: u64 = SelectedProbe::probe(&mut choice, &mut other);
+    let mut empty: Choice = Choice::Empty;
+    let mut empty_other: Choice = Choice::Full { amount: 7 };
+    let absent: u64 = SelectedProbe::probe(&mut empty, &mut empty_other);
+    transition observed == 70 && absent == 0
+        && choice in Choice::Full && other in Choice::Empty
+        && empty in Choice::Empty && empty_other in Choice::Empty { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

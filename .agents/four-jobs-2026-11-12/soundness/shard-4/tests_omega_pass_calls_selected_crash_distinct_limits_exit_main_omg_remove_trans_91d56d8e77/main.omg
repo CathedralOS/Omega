@@ -1,0 +1,23 @@
+// Expected exit: 0
+// Different Reader limits retain their own crash conditions at each call.
+public const Zero: i32 = 0;
+public const One: i32 = 1;
+public trait Reader<const Limit: i32> {
+    machine read(value: i32) -> i32 crashes Trap value < Limit;
+}
+Provider<const Limit: i32> satisfies Reader<Limit> {
+    machine read(value: i32) -> i32 { value }
+}
+public machine safe_zero<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+requires value >= 0
+{ Implementation::read(value) }
+public machine safe_one<Implementation satisfies Reader<One>>(value: i32) -> i32
+requires value >= 1
+{ Implementation::read(value) }
+machine main() crashes Trap {
+    let first: i32 = safe_zero<Provider<Zero>>(7);
+    let second: i32 = safe_one<Provider<One>>(3);
+    transition { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

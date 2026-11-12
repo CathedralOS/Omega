@@ -1,0 +1,31 @@
+// Expected exit: 0
+boundary trait Reading {
+    machine set<const Count: u64>(target: &mut u64) reaches
+    ensures target == Count;
+}
+ReadingImplementation satisfies Reading {
+    machine set<const Count: u64>(target: &mut u64)
+    ensures target == Count
+    { target = Count; }
+}
+machine outer<const Unused: u64>(target: &mut u64) -> u64
+reaches Reading
+requires target == 0
+ensures result == 7
+{
+    Reading::set<7u64>(target);
+    target
+}
+data Cell { before: u64; value: u64; after: u64; }
+machine main() reaches Reading crashes Trap {
+    let first: Cell = Cell { before: 31, value: 0, after: 47 };
+    let mut second: Cell = Cell { before: 17, value: 0, after: 29 };
+    let left: u64 = outer<3>(&mut first.value);
+    let right: u64 = outer<4>(&mut second.value);
+    transition left == 7 && right == 7 && first.value == 7 && second.value == 7
+        && first.before == 31 && first.after == 47 && second.before == 17 && second.after == 29 {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

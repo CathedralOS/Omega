@@ -1,0 +1,162 @@
+// Expected exit: 0
+// Expected output contains: MD
+// A live run retains the actual established cells and their obligations through checked custody transfers.
+use omega::language::core::extent;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+use omega::language::core::drop;
+use omega::language::core::run;
+use omega::language::core::content;
+use omega::language::core::nat;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+public boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+}
+
+boundary trait PosixConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    reaches Console
+    terminates;
+}
+
+// All bound targets are little-endian: the low byte is the first byte.
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console
+    terminates;
+}
+
+PosixConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
+}
+}
+
+WindowsConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+}
+
+
+
+data TestMemory {}
+public data Word dropped by release_word { prefix: u64; value: u64; suffix: u64; }
+machine release_word(word: &mut Word) reaches Console {
+    Console::write_byte(68);
+    Console::write_byte(10);
+}
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 };
+    let first: AccessPlan = AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+    let second: AccessPlan = AccessPlan::with(first, schema.fields[1].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
+    AccessPlan::with(second, schema.fields[2].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
+    { storage }
+}
+
+
+// The first rung isolates singleton establishment and extraction. The parent
+// fact extends the same custody obligation to runtime-count split and merge.
+machine main() crashes Trap {
+    let address: addr = NativeAllocation::allocate(1, 24);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let grant: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 24 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(grant);
+        let parts: VacantExtentParts = split_vacant_extent(vacant, 0);
+        let empty: Run<WordPlacement, Word> in Live<WordPlacement, Word> =
+            Run::empty<WordPlacement, Word>(parts.taken);
+        let backing_base: addr = parts.rest.base;
+        let backing_length: u64 = parts.rest.length;
+        transition Run::initialize_cell<WordPlacement, Word, TestMemory>(
+            parts.rest, Word { prefix: 101, value: 17, suffix: 103 }) {
+            AccessOutcome::Ready { view } -> extract(view as Run<WordPlacement, Word> in Live<WordPlacement, Word>, empty, backing_base, backing_length)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine extract(run: Run<WordPlacement, Word> in Live<WordPlacement, Word>, empty: Run<WordPlacement, Word> in Live<WordPlacement, Word>, backing_base: addr, backing_length: u64)
+            empty.count == 0, empty.storage.length == 0, empty.storage.base == backing_base
+    {
+        transition Run::extract_cell<WordPlacement, Word, TestMemory>(run) {
+            AccessExtraction::Moved { storage, value } -> inspect(storage, value, empty, backing_base, backing_length)
+        }
+    }
+    machine inspect(storage: Extent in Granted & Vacant, value: Word, empty: Run<WordPlacement, Word> in Live<WordPlacement, Word>, backing_base: addr, backing_length: u64)
+            empty.count == 0, empty.storage.length == 0, empty.storage.base == backing_base
+    {
+        transition storage.base == backing_base && storage.length == 24 && value.prefix == 101 && value.value == 17 && value.suffix == 103
+            && empty.count == 0 && empty.storage.length == 0 && empty.storage.base == backing_base {
+            true -> finish(storage, value, empty)
+            false -> bad()
+        }
+    }
+    // Empty release returns the same backing descriptor. Process exit still
+    // abandons the returned extents; this is not allocator-return evidence.
+    machine finish(storage: Extent in Granted & Vacant, value: Word, empty: Run<WordPlacement, Word> in Live<WordPlacement, Word>)
+    {
+        let original_base: addr = empty.storage.base;
+        let reclaimed: Extent in Granted & Vacant = Run::release_empty<WordPlacement, Word>(empty);
+        transition reclaimed.length == 0 && reclaimed.base == original_base {
+            true -> released(storage, value, reclaimed)
+            false -> bad()
+        }
+    }
+    machine released(storage: Extent in Granted & Vacant, value: Word, reclaimed: Extent in Granted & Vacant) {
+        Console::write_byte(77);
+        drop(value);
+        ProcessExit::exit_process(0);
+    }
+    machine bad() { crash Trap; }
+}

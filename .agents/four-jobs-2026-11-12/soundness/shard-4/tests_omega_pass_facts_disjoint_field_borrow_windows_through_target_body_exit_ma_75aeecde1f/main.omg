@@ -1,0 +1,93 @@
+// Fact: mutating or borrowing one field (pair.left) of a structural record (Pair { left: u64, right: u64 }) preserves the static bound on its provably disjoint sibling field (pair.right <= 75u64), discharging exact subtraction 75u64 - pair.right across all nine places.
+// Expected exit: 0
+
+data Pair {
+    left: u64;
+    right: u64;
+}
+
+machine touch_left(left: &mut u64) {
+    left = 999u64;
+}
+
+machine verify(result: u64)
+requires result <= 75u64
+crashes Trap
+{
+    transition result == 50u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
+        requires pair.right <= 75u64
+    crashes Trap;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
+        requires pair.right <= 75u64
+    crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        touch_left(&mut pair.left);
+        let diff: u64 = 75u64 - pair.right;
+        verify(diff);
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(pair: &mut Pair)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
+        requires pair.right <= 75u64
+    crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        touch_left(&mut pair.left);
+        let diff: u64 = 75u64 - pair.right;
+        verify(diff);
+    }
+}
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{
+    let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
+    SelectedProbe::exercise(&mut pair);
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

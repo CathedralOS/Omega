@@ -1,6 +1,6 @@
 # Soundness mutations shard 4
 
-PIN: `0835b3aaf803ed97f905be42d94727ff58459263` (measured `c0a4894a0c452f94c874ce00a8ddb31d996692b2`). Host: linux cloud agent. Generated 2026-11-12 16:18 UTC.
+PIN: `0835b3aaf803ed97f905be42d94727ff58459263` (measured `b1feb1e3441290553fe52ddaf8bd8abd42fe3b2d`). Host: linux cloud agent. Generated 2026-11-12 17:16 UTC.
 
 ## Bucket table (mutant attempts with disk dirs only)
 
@@ -13,8 +13,11 @@ Not-applicable attempt rows (outside table): **30** (kinds with no mutant dir; f
 | `known-gap-q7-mut` | 162 |
 | `disagreement-valid` | 59 |
 | `valid-route-outside` | 2338 |
-| `discarded-valid` | 100 |
-| `rejected-both` | 939 |
+| `discarded-valid` | 748 |
+| `rejected-both` | 0 |
+| `rejected-current-no-route` | 291 |
+| `rejected-current-route-outside` | 0 |
+| `rejected-current-other` | 0 |
 | `timeout` | 0 |
 | `failed-run` | 0 |
 | **Sum** | **3620** |
@@ -24,9 +27,11 @@ Not-applicable attempt rows (outside table): **30** (kinds with no mutant dir; f
 
 ## Fixture reconcile (exact)
 
-**1130** fixtures = **18** no-mutation + **230** failed-run + **882** mutated
+**1130** fixtures = **18** no-mutation + **230** original-not-accepted + **882** mutated
 
-- Fixture-level companion rows (`stage=no-mutation`): **248** (=230 baseline-fail + 18 accepted-without-mutators)
+`original-not-accepted` means the original program got a normal `current=rejected` verdict at the PIN (not harness failed-run). The runner does not mutate those fixtures.
+
+- Fixture-level companion rows (`stage=no-mutation`): **248** (=230 original-not-accepted + 18 accepted-without-mutators)
 - Mutant attempt rows with dirs: **3620**; not-applicable: **30**; attempt rows total: **3650**
 
 ## Mutation kinds (canonical, generated attempts with dirs)
@@ -42,10 +47,80 @@ Not-applicable attempt rows (outside table): **30** (kinds with no mutant dir; f
 | `strip_and_guard` | 577 |
 | `widen_requires` | 300 |
 
-- `drop_requires` site split (header vs body): body-or-data=72, machine-header=361
+- `drop_requires` site split (header vs body): _(re-run shard4_reclassify.py if empty)_
 - **known-gap-q7-mut:** 162 (canonical kind `remove_mut` unless noted)
 - Confirmed holes by kind: drop_requires=22
 - Confirmed holes by accepted_by: both=1, current=21
+
+## Original-not-accepted breakdown (baseline audit)
+
+Fixture-level **failed-run** count: **0**. All **230** are checker rejections (`current=rejected`), not harness failures.
+
+| Category | Count | Examples |
+| --- | ---: | --- |
+| `current-rejected-other` | 11 | `tests/omega/pass/build/conditional_root_binding/main.omg`, `tests/omega/pass/calls/native_code_layout_discarded_exit/main.omg`, `tests/omega/pass/facts/installed_entry_storage_through_other_machine_exit/main.omg` |
+| `current-rejected-proof` | 23 | `tests/omega/pass/borrows/qualified_owner_state_loan_exit/main.omg`, `tests/omega/pass/borrows/incoming_reference_slot_replacement_exit/main.omg`, `tests/omega/pass/borrows/runtime_uniform_projected_reference_selection_exit/main.omg` |
+| `current-rejected-signature` | 4 | `tests/omega/pass/facts/recoverable_replacement_window_through_parameter_exit/main.omg`, `tests/omega/pass/providers/inline_provider_owner_lifetime_telescope_unapplied/main.omg`, `tests/omega/pass/traits/implementation_value_own_const_identity/main.omg` |
+| `current-rejected-slow` | 192 | `tests/omega/pass/arithmetic/saturating_signed_divide_min_by_neg_one/main.omg`, `tests/omega/pass/arithmetic/runtime_integer_casts_exit/main.omg`, `tests/omega/pass/arithmetic/const_fold_unsigned_landed_ops_exit/main.omg` |
+
+Accepted originals without mutant dirs (gap-fill re-attempted, kept=0 each): **18** — all mutation kinds not applicable on source.
+
+## Bucket transition (c0a4894 → strict audit)
+
+**rejected-both verification failures:** 0
+
+| Old | New | Count | Rule |
+| --- | --- | ---: | --- |
+| `discarded-valid` | `valid-route-outside` | 749 | Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). |
+| `rejected-both` | `rejected-current-no-route` | 291 | Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. |
+| `rejected-both` | `discarded-valid` | 197 |  |
+| `confirmed-hole` | `valid-route-outside` | 53 | Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. |
+| `discarded-valid` | `disagreement-valid` | 27 | Checker disagreement after strict validity reassessment. |
+| `confirmed-hole` | `discarded-valid` | 3 | Hole demoted: missing spec quote, obligation, or no-trap evidence. |
+| `confirmed-hole` | `known-gap-q7-mut` | 2 | Ownership/Q7 mutability gap (remove_mut / shared_instead_of_mut) per lead notes. |
+
+### Spot checks (5 per major flow)
+
+### discarded-valid → valid-route-outside (749 rows)
+
+- `tests/omega/pass/arithmetic/mixed_len_compare/main.omg` / `strip_and_guard`: Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). (cur=accepted, route=no-entry)
+- `tests/omega/pass/arithmetic/qualified_cast_in_entry_body_exit/main.omg` / `remove_transition_guard`: Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). (cur=accepted, route=outside)
+- `tests/omega/pass/arithmetic/runtime_fixed_input_policy_reuse_exit/main.omg` / `remove_transition_guard`: Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). (cur=accepted, route=outside)
+- `tests/omega/pass/arrays/qualified_array_literal_retains_element_policy_exit/main.omg` / `remove_transition_guard`: Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). (cur=accepted, route=outside)
+- `tests/omega/pass/asm/checked_asm_compare_one_block_exit/main.omg` / `remove_transition_guard`: Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict). (cur=accepted, route=outside)
+
+### discarded-valid → rejected-current-no-route (0 rows)
+
+- `tests/omega/pass/arithmetic/anonymous_rational_integer_landing/main.omg` / `drop_requires`: Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. (cur=rejected, route=∅)
+- `tests/omega/pass/arithmetic/runtime_fixed_input_policy_reuse_exit/main.omg` / `drop_requires`: Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. (cur=rejected, route=∅)
+- `tests/omega/pass/asm/checked_asm_compare_one_block_exit/main.omg` / `drop_mut_let`: Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. (cur=rejected, route=∅)
+- `tests/omega/pass/asm/checked_fence_aarch64_in_x86_body/main.omg` / `drop_requires`: Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. (cur=rejected, route=∅)
+- `tests/omega/pass/asm/scratch_hardware_flag_mix/main.omg` / `drop_mut_let`: Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection. (cur=rejected, route=∅)
+
+### confirmed-hole → valid-route-outside (53 rows)
+
+- `tests/omega/pass/arithmetic/anonymous_rational_integer_landing/main.omg` / `delete_divisor_guard`: Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. (cur=accepted, route=no-entry)
+- `tests/omega/pass/arithmetic/anonymous_rational_integer_landing/main.omg` / `strip_and_guard`: Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. (cur=accepted, route=no-entry)
+- `tests/omega/pass/arithmetic/runtime_fixed_input_policy_reuse_exit/main.omg` / `delete_divisor_guard`: Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. (cur=accepted, route=outside)
+- `tests/omega/pass/build/default_component_abi_extents/producer/main.omg` / `remove_transition_guard`: Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. (cur=accepted, route=outside)
+- `tests/omega/pass/calls/call_local_reassign/main.omg` / `remove_transition_guard`: Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge. (cur=accepted, route=no-entry)
+
+## Kind totals (canonical)
+
+## Kind × bucket cross-table
+
+| Kind | `confirmed-hole` | `disagreement-valid` | `discarded-valid` | `known-gap-q7-mut` | `rejected-current-no-route` | `valid-route-outside` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `delete_divisor_guard` | 0 | 15 | 37 | 0 | 0 | 773 |
+| `drop_requires` | 22 | 0 | 130 | 0 | 240 | 41 |
+| `remove_mut` | 0 | 0 | 10 | 160 | 15 | 162 |
+| `remove_transition_guard` | 0 | 13 | 220 | 0 | 0 | 525 |
+| `shared_instead_of_mut` | 0 | 0 | 293 | 2 | 36 | 49 |
+| `strip_and_guard` | 0 | 16 | 40 | 0 | 0 | 521 |
+| `widen_requires` | 0 | 15 | 18 | 0 | 0 | 267 |
+| **Sum** | — | — | — | — | — | — |
+
+Kind total check: **3620** (must equal **3620**).
 
 ## Fixtures with multiple mutant rows (sample)
 
@@ -139,7 +214,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_calls_runtime_constructor_child_equal_captures_exit_main_omg_dr_bb68ee90ae/main.omg	current=accepted	current_us=3441653	root=compilation	route=outside	Unsupported: machine attached data
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_calls_runtime_constructor_child_equal_captures_exit_main_omg_dr_bb68ee90ae/main.omg	current=accepted	current_us=3100396	root=compilation	route=outside	Unsupported: machine attached data
 ```
 
 ### `tests/omega/pass/facts/affine_discard_root_cleanup_through_field_exit/main.omg` / drop_requires → confirmed-hole
@@ -169,7 +244,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_affine_discard_root_cleanup_through_field_exit_main_omg_d_0cd6a9543a/main.omg	current=accepted	current_us=4831057	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_affine_discard_root_cleanup_through_field_exit_main_omg_d_0cd6a9543a/main.omg	current=accepted	current_us=3389979	root=compilation	route=outside	Unsupported: parameter mutable parameter
 ```
 
 ### `tests/omega/pass/facts/as_slice_views_through_other_state_exit/main.omg` / drop_requires → confirmed-hole
@@ -205,51 +280,220 @@ compiled 30 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_as_slice_views_through_other_state_exit_main_omg_drop_req_2ef54112b0/main.omg	current=accepted	current_us=3240369	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_as_slice_views_through_other_state_exit_main_omg_drop_req_2ef54112b0/main.omg	current=accepted	current_us=3110449	root=compilation	route=outside	Unsupported: type reference
 ```
 
 ## Hand verification — discarded drop_requires (sample)
 
-### `tests/omega/pass/facts/projection_call_premise_through_parameter_exit/main.omg` / drop_requires → discarded-valid
+### `tests/omega/pass/borrow/runtime_signed_element_inclusive_exit/main.omg` / drop_requires → discarded-valid
 
-Route reason: `route_us=1244 discharge_us=497 reverify_us=66 reverified=2 obligations=2 judged=2 core_refused=0 unproved=0 refused_other=0 needed_relation=0 needed_branch=0 published_held=0 uses=4 unestablished=0 windows=0 consumed=0 closed=0 weakened_joins=0`
+Route reason: ``
 Discard reason: ``
 Obligation: ``
 
 ```diff
 --- original
 +++ mutant
-@@ -6,5 +6,4 @@
- 
- machine project(mark: Mark) -> bool
--requires mark.kept
- {
-     mark.kept
-@@ -12,5 +11,4 @@
- 
- machine hold(direct: bool) -> bool
--requires direct == true
- {
-     true
-@@ -18,5 +16,4 @@
- 
- machine observe(mark: Mark) -> bool
--requires mark.kept
- {
-     project(mark)
+@@ -7,5 +7,4 @@
+     }
+     machine update(values: &mut [f64], amount: f64, index: i32 in Wrapping)
+-    requires index >= 0 && index < values.len {
+         values[index] = values[index] - amount;
+         transition { _ -> scan(values, amount, index + 1) }
+@@ -18,5 +17,4 @@
+     transition context.offset >= 0 && last >= context.offset && last < 8 { true -> run(context, last) _ -> bad() }
+     machine run(context: &mut Context, last: i32)
+-    requires context.offset >= 0 && last >= context.offset && last < 8 {
+         let view: &mut [f64] = &mut context.residuals[context.offset..=last];
+         shifted(view, 0.5);
 ```
 
-Current checker exit=0:
+Current checker exit=1:
 
 ```
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_projection_call_premise_through_parameter_exit_main_omg_d_032ef57012/main.omg; wrote_output=false
+cannot compile admitted project: checked compilation failed for package `window_inclusive` with 1 diagnostic(s)
+  error: /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_signed_element_inclusive_exit_main_omg_drop_requ_f75bbe1213/main.omg:9:9: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `values`
 
 ```
 
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_facts_projection_call_premise_through_parameter_exit_main_omg_d_032ef57012/main.omg	current=accepted	current_us=3038046	root=compilation	route=accepted	route_us=1593	discharge_us=719	reverify_us=89	reverified=2	obligations=2	judged=2	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_signed_element_inclusive_exit_main_omg_drop_requ_f75bbe1213/main.omg	current=stopped	current_us=705182	root=compilation	route=unreached	Some("/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_signed_element_inclusive_exit_main_omg_drop_requ_f75bbe1213/main.omg:9:9: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `bound
+```
+
+### `tests/omega/pass/borrow/runtime_write_only_utf8_field_exit/main.omg` / drop_requires → discarded-valid
+
+Route reason: ``
+Discard reason: ``
+Obligation: ``
+
+```diff
+--- original
++++ mutant
+@@ -65,8 +65,6 @@
+ 
+ machine Buffer8::copy(storage: &mut [u8; 8], bytes: &[u8], start: u64)
+-requires start <= 8, bytes.len <= 8 - start {
+     transition { _ -> copying(storage, bytes, start, 0) }
+     machine copying(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
+-    requires start <= 8, index <= 8 {
+         transition index < bytes.len && start + index < 8 {
+             true -> writing(storage, bytes, start, index)
+@@ -75,5 +73,4 @@
+     }
+     machine writing(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
+-    requires start <= 8, index < 8, index < bytes.len, start + index < 8 {
+         storage[start + index] = bytes[index];
+         transition { _ -> copying(storage, bytes, start, index + 1) }
+@@ -87,5 +84,4 @@
+     }
+     machine joining(left: &[u8], right: &[u8]) -> Buffer8
+-    requires left.len <= 8, right.len <= 8 - left.len {
+     let mut result: Buffer8;
+     Buffer8::copy(&mut result.storage, left, 0);
+@@ -98,5 +94,4 @@
+     }
+     machine checked(result: Buffer8, total: u64) -> Buffer8
+-    requires total <= 8 {
+         let mut value: Buffer8 = result;
+         value.used = total;
+```
+
+Current checker exit=1:
+
+```
+cannot compile admitted project: checked compilation failed for package `runtime_write_only_utf8_field_exit` with 1 diagnostic(s)
+  error: /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_utf8_field_exit_main_omg_drop_require_04d094f62e/main.omg:67:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found keyword `transition`
+
+```
+
+Route (first program line + diagnostics):
+
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_utf8_field_exit_main_omg_drop_require_04d094f62e/main.omg	current=stopped	current_us=717967	root=compilation	route=unreached	Some("/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_utf8_field_exit_main_omg_drop_require_04d094f62e/main.omg:67:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boun
+```
+
+### `tests/omega/pass/borrows/fixed_array_reference_results_exit/main.omg` / drop_requires → discarded-valid
+
+Route reason: ``
+Discard reason: ``
+Obligation: ``
+
+```diff
+--- original
++++ mutant
+@@ -3,14 +3,9 @@
+ data Main { weights: [[u64 in Wrapping; 13]; 33]; other: [[u64 in Wrapping; 13]; 33]; }
+ machine select_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &mut [u64 in Wrapping; 13]
+-requires depth < 33 { &mut matrix[depth] }
+ machine forward<T>(value: &mut T) -> &mut T { value }
+ machine attenuate(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &[u64 in Wrapping; 13]
+-requires depth < 33 { &matrix[depth] }
+ machine forward_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &mut [u64 in Wrapping; 13]
+-requires depth < 33 { forward(select_row(matrix, depth)) }
+ machine transition_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &mut [u64 in Wrapping; 13]
+-requires depth < 33 { transition { _ -> select_row(matrix, depth) } }
+ machine shared_row(matrix: &[[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping) -> &[u64 in Wrapping; 13]
+-requires depth < 33 { &matrix[depth] }
+ machine read_row(row: &[u64 in Wrapping; 13]) -> u64 in Wrapping { row[1] }
+ machine pair(left: &mut [u64 in Wrapping; 13], right: &mut [u64 in Wrapping; 13]) {
+@@ -18,5 +13,4 @@
+ }
+ machine accumulate(row: &mut [u64 in Wrapping; 13], bin: u64 in Wrapping, weight: u64 in Wrapping)
+-requires bin < 13 {
+     row[bin] = row[bin] + weight;
+ }
+@@ -30,5 +24,4 @@
+     }
+     machine add(main: &mut Main, depth: u64 in Wrapping, richness: u64 in Wrapping)
+-    requires depth < 33 && richness < 13 {
+         let row: &mut [u64 in Wrapping; 13] = forward_row(&mut main.weights, depth);
+         accumulate(row, richness, 4);
+```
+
+Current checker exit=1:
+
+```
+cannot compile admitted project: checked compilation failed for package `fixed_array_reference_results` with 1 diagnostic(s)
+  error: /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_fixed_array_reference_results_exit_main_omg_drop_requir_b9d2669b98/main.omg:5:1: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found keyword `machine`
+
+```
+
+Route (first program line + diagnostics):
+
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_fixed_array_reference_results_exit_main_omg_drop_requir_b9d2669b98/main.omg	current=stopped	current_us=688075	root=compilation	route=unreached	Some("/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_fixed_array_reference_results_exit_main_omg_drop_requir_b9d2669b98/main.omg:5:1: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `bound
+```
+
+### `tests/omega/pass/borrows/runtime_writeonly_checked_static_carrier_exit/main.omg` / drop_requires → discarded-valid
+
+Route reason: ``
+Discard reason: ``
+Obligation: ``
+
+```diff
+--- original
++++ mutant
+@@ -4,5 +4,4 @@
+ machine write_slot<'storage>(value: Slot<'storage>) { value.target.value = 61; }
+ machine callback<'storage, machine Write>(value: Slot<'storage>)
+-requires machine Write(value: Slot<'storage>);
+ { Write(value); }
+ machine prepare<'storage>(cell: &'storage write Cell) {
+```
+
+Current checker exit=1:
+
+```
+cannot compile admitted project: checked compilation failed for package `runtime_writeonly_checked_static_carrier_exit` with 1 diagnostic(s)
+  error: /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_runtime_writeonly_checked_static_carrier_exit_main_omg__4504c900fc/main.omg:6:1: machine parameter `Write` requires an authored declaration-site contract: write `requires machine Write(...) -> Result;` or `requires machine Write satisfies Trait::requirement;`
+
+```
+
+Route (first program line + diagnostics):
+
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_runtime_writeonly_checked_static_carrier_exit_main_omg__4504c900fc/main.omg	current=stopped	current_us=688997	root=compilation	route=unreached	Some("/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrows_runtime_writeonly_checked_static_carrier_exit_main_omg__4504c900fc/main.omg:6:1: machine parameter `Write` requires an authored declaration-site contract: write `requires machine Write(...) -> Result;` o
+```
+
+### `tests/omega/pass/calls/const_boundary_uses_exact_bound/main.omg` / drop_requires → discarded-valid
+
+Route reason: ``
+Discard reason: ``
+Obligation: ``
+
+```diff
+--- original
++++ mutant
+@@ -1,13 +1,10 @@
+ boundary trait BoundedValue {
+     machine bound<const Bound: u64>(value: u64) -> u64 reaches
+-        requires value <= Bound ensures result <= Bound;
+ }
+ PortableBoundedValue satisfies BoundedValue {
+     machine bound<const Cap: u64>(value: u64) -> u64
+-        requires value <= Cap ensures result <= Cap { value }
+ }
+ machine forward<const Available: u64, const Other: u64>(value: u64) -> u64
+     reaches BoundedValue invokes BoundedValue
+-    requires value <= Available ensures result <= Available
+ { BoundedValue::bound<Available>(value) }
+ machine main() {}
+```
+
+Current checker exit=1:
+
+```
+cannot compile admitted project: checked compilation failed for package `const_boundary_actual_identity` with 1 diagnostic(s)
+  error: /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_calls_const_boundary_uses_exact_bound_main_omg_drop_requires_53f5f292ee/main.omg:3:1: expected identifier, found punctuation `}`
+
+```
+
+Route (first program line + diagnostics):
+
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_calls_const_boundary_uses_exact_bound_main_omg_drop_requires_53f5f292ee/main.omg	current=stopped	current_us=671394	root=compilation	route=unreached	Some("/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_calls_const_boundary_uses_exact_bound_main_omg_drop_requires_53f5f292ee/main.omg:3:1: expected identifier, found punctuation `}`")
 ```
 
 ## Hand verification — known-gap-q7-mut (sample)
@@ -282,7 +526,7 @@ compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_asm_atomic_release_disposition_generic_exit_main_omg_drop_mut_l_1f9aba8004/main.omg	current=accepted	current_us=2947078	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_asm_atomic_release_disposition_generic_exit_main_omg_drop_mut_l_1f9aba8004/main.omg	current=accepted	current_us=2945724	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### `tests/omega/pass/asm/entry_zero_branch_conditional_exit/main.omg` / drop_mut_let → known-gap-q7-mut
@@ -313,7 +557,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_asm_entry_zero_branch_conditional_exit_main_omg_drop_mut_let_c37adf1f5d/main.omg	current=accepted	current_us=2934523	root=compilation	route=outside	Unsupported: machine assembly target
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_asm_entry_zero_branch_conditional_exit_main_omg_drop_mut_let_c37adf1f5d/main.omg	current=accepted	current_us=2915464	root=compilation	route=outside	Unsupported: machine assembly target
 ```
 
 ### `tests/omega/pass/borrow/runtime_write_only_call_result_observation_exit/main.omg` / drop_mut_let → known-gap-q7-mut
@@ -345,7 +589,7 @@ warning: unreachable branch: the `true` arm of a transition in machine `Main::ma
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_call_result_observation_exit_main_omg_7b67fba4b0/main.omg	current=accepted	current_us=2954542	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_call_result_observation_exit_main_omg_7b67fba4b0/main.omg	current=accepted	current_us=3016787	root=compilation	route=outside	Unsupported: parameter mutable parameter
 ```
 
 ### `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_owned_wrapper_exit/main.omg` / drop_mut_let → known-gap-q7-mut
@@ -376,7 +620,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_exclusive_reference_owned_wrapper_exi_010ef1bcbf/main.omg	current=accepted	current_us=2984585	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_runtime_write_only_exclusive_reference_owned_wrapper_exi_010ef1bcbf/main.omg	current=accepted	current_us=3058970	root=compilation	route=outside	Unsupported: parameter mutable parameter
 ```
 
 ### `tests/omega/pass/borrow/write_only_projected_state_receiver_exit/main.omg` / drop_mut_let → known-gap-q7-mut
@@ -407,6 +651,6 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 Route (first program line + diagnostics):
 
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_write_only_projected_state_receiver_exit_main_omg_drop_m_b3c3ab4d0d/main.omg	current=accepted	current_us=3046505	root=compilation	route=outside	Unsupported: machine attached data
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-4/tests_omega_pass_borrow_write_only_projected_state_receiver_exit_main_omg_drop_m_b3c3ab4d0d/main.omg	current=accepted	current_us=3071808	root=compilation	route=outside	Unsupported: machine attached data
 ```
 

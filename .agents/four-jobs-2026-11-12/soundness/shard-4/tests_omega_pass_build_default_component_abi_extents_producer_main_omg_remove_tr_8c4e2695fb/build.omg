@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "default_component_abi_producer");
+    Build::select_provider<main::Inspect<u8>, main::Inspector>(builder, windows_x86_64);
+    Build::select_provider<main::Inspect<u8>, main::Inspector>(builder, linux_x86_64);
+    Build::select_provider<main::Inspect<u8>, main::Inspector>(builder, macos_arm64);
+    Build::select_provider<main::Inspect<u8>, main::Inspector>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, component_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, component_entry);
+}

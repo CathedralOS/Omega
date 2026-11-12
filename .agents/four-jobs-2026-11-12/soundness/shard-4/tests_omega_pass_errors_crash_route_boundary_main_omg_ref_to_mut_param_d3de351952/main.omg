@@ -1,0 +1,49 @@
+// `boundary machine ==` declares an operator with an operand-guarded
+// crash route `crashes Trap !(right >= 0)`: `safe` discharges the route
+// with its own `requires`, `may_crash` propagates the uncovered route,
+// `wrapper` covers it by declaration.
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+public domain i32::Compared;
+
+boundary machine == Comparison::equal(left: i32 in Compared, right: i32 in Compared) -> bool
+crashes Trap !(right >= 0);
+
+data Comparison { }
+data ComparisonProvider { }
+
+machine ComparisonProvider::equal(left: i32 in Compared, right: i32 in Compared) -> bool
+    satisfies Comparison::equal
+{
+    transition left < right {
+        true -> false
+        _ -> !(right < left)
+    }
+}
+
+public machine safe(value: i32 in Compared) -> bool
+requires value >= 0 {
+    1 == value
+}
+
+machine may_crash(left: i32 in Compared, right: i32 in Compared) -> bool {
+    left == right
+}
+
+public machine wrapper(left: i32 in Compared, right: i32 in Compared) -> bool
+crashes Trap {
+    may_crash(left, right)
+}
+
+data Main { }
+
+machine Main::main(main: &Main) crashes Trap {
+    let discharged: bool = safe(1);
+    let covered: bool = wrapper(2, 2);
+    transition discharged && covered {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

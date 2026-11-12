@@ -1,0 +1,12 @@
+// The materialized scalar retains every unsigned u64 bit across signed interpreter storage.
+// Expected exit: 0
+machine maximum() -> u64 { 18446744073709551615u64 }
+const SAVED: u64 = maximum();
+machine main() crashes Trap {
+    transition SAVED == 18446744073709551615u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

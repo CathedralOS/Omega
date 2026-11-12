@@ -1,0 +1,8 @@
+
+public boundary trait Ping { machine ping() reaches; }
+
+data Harness { }
+// Borrowing a caller's established service preserves its exact authority.
+machine Harness::run() reaches Ping {
+    Ping::ping();
+}

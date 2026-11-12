@@ -1,0 +1,35 @@
+// A field write that preserves Interval's default domain keeps self.hi <= 4, so 4 - hi is exact.
+// Expected exit: 0.
+data Interval [copy]
+    requires (self in Interval::Empty)
+       || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 4)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+machine consume(span: Interval) -> u64 {
+    match span {
+        Interval::Range { hi, .. } -> 4 - hi
+        Interval::Empty -> 0
+    }
+}
+machine revise(span: &mut Interval) -> u64 {
+    let mut held: Interval = Interval::Range { lo: 1, hi: 2 };
+    held.hi = 3;
+    span = held;
+    transition consume(span) == 1 {
+        true -> 0
+        _ -> 1
+    }
+}
+machine main() crashes Trap {
+    let mut span: Interval = Interval::Range { lo: 1, hi: 2 };
+    let empty: Interval = Interval::Empty;
+    let result: u64 = revise(&mut span);
+    transition result == 0 && consume(empty) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

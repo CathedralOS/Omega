@@ -1,0 +1,28 @@
+// PASS canary: an owned receiver parameter on a linear type is ordinary
+// parameter syntax — it discharges only through an authorized disposition.
+// `Receipt` selects no `dropped by` cleanup, so neither normal
+// completion nor `drop` may retire the claim; the declared consuming
+// contract is the receiver's terminal disposition, exactly as it is for an
+// ordinary `receipt: Receipt` parameter.
+
+data Receipt [linear] {
+    code: i32;
+}
+
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
+
+machine ack_ordinary(receipt: Receipt) {
+    ReceiptAck::ack(receipt);
+}
+
+data Main {}
+
+machine Main::main() -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    ReceiptAck::ack(receipt);
+    let spare: Receipt = Receipt { code: 9 };
+    ack_ordinary(spare);
+    0
+}

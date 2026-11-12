@@ -330,24 +330,25 @@ def process_fixture(fixture: Path) -> int:
         return 0
     tier = fixture_tier(fixture)
     v = check_current_only(fixture)
-    log_tsv(
-        [
-            rel,
-            tier,
-            "original",
-            "",
-            "",
-            v.current,
-            "",
-            "",
-            f"{v.seconds:.2f}",
-            "baseline",
-            "",
-            "",
-            "",
-            "",
-        ]
-    )
+    if os.environ.get("SKIP_BASELINE_LOG") != "1":
+        log_tsv(
+            [
+                rel,
+                tier,
+                "original",
+                "",
+                "",
+                v.current,
+                "",
+                "",
+                f"{v.seconds:.2f}",
+                "baseline",
+                "",
+                "",
+                "",
+                "",
+            ]
+        )
     if not accepts(v.current):
         prog.mark(key)
         return 0
@@ -450,6 +451,18 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     MUT_ROOT.mkdir(parents=True, exist_ok=True)
     ensure_tsv_header()
+    argv = sys.argv[1:]
+    if len(argv) >= 2 and argv[0] == "--fixture":
+        rel = argv[1]
+        path = REPO / rel
+        if not path.is_file():
+            print(f"missing {rel}", flush=True)
+            return 1
+        progress()
+        k = process_fixture(path)
+        flush_stats()
+        print(f"fixture {rel} kept={k}", flush=True)
+        return 0
     fixtures = list_fixtures()
     limit = int(os.environ.get("SHARD_LIMIT", "0"))
     if limit > 0:

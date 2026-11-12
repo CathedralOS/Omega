@@ -1,0 +1,70 @@
+// Embedding entry: initialize, carry the resident, then extract the current Word.
+// The host verifies the same vacant allocation and an unchanged unused tail.
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+data TestMemory {}
+
+data Word { value: u64; }
+data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::inaccessible(layout),
+        BoundaryReach { services: services, service_count: 0 }
+    )
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+machine carry(storage: Extent in Granted & Resident<WordPlacement, Word>)
+    -> Extent in Granted & Resident<WordPlacement, Word> { storage }
+
+machine attempt(storage: Extent in Granted & Vacant, expected_reason: u64)
+    -> AccessReturn<Extent in Granted & Vacant, Word>
+reaches ResourceProfileSupply crashes Trap
+{
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> extract(view)
+        AccessOutcome::Rejected { returned, reason } -> unexpected(returned)
+    }
+    machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        let retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
+            AccessExtraction::Moved { storage, value } -> check_value(storage, value)
+        }
+    }
+    machine check_value(storage: Extent in Granted & Vacant, value: Word)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        transition value.value == 17 {
+            true -> done(storage, value)
+            false -> unexpected(AccessReturn { source: storage, custody: value })
+        }
+    }
+    machine done(storage: Extent in Granted & Vacant, value: Word)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        AccessReturn { source: storage, custody: value }
+    }
+    machine unexpected(returned: AccessReturn<Extent in Granted & Vacant, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> { crash Trap; }
+}
+

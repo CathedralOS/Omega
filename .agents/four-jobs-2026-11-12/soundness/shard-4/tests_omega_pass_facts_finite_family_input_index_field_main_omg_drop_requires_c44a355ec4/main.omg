@@ -1,0 +1,73 @@
+// A finite-family result retains the captured ordinary input index through selection, forwarding and storage, and its payload remains 7.
+// Expected exit: 0
+// Place: field.
+data Indexed<Limit: u32> { value: u32; }
+trait Family {
+    machine row<Width: u32>(first: u32, limit: u32, observations: &mut [u32; 5]) -> Indexed<limit>
+}
+machine produce<Span: u32>(payload: u32, bound: u32, recorded: &mut [u32; 5]) -> Indexed<bound>
+satisfies Family::row
+{
+    recorded[1] = Span;
+    recorded[2] = bound;
+    Indexed { value: payload }
+}
+Selected satisfies Family {
+    machine row<Width: u32>(first: u32, limit: u32, observations: &mut [u32; 5]) -> Indexed<limit>
+    {
+        observations[0] = 31;
+        produce<Width>(first, limit, observations)
+    }
+}
+Other satisfies Family {
+    machine row<Width: u32>(first: u32, limit: u32, observations: &mut [u32; 5]) -> Indexed<limit>
+    {
+        observations[0] = 47;
+        produce<Width>(first, limit, observations)
+    }
+}
+machine input(slot: &mut u32, observations: &mut [u32; 5]) -> u32
+{
+    observations[4] = ((observations[4] as u32 in Wrapping) + 1) as u32;
+    7
+}
+machine create(selected: dyn Family, width: u32, observations: &mut [u32; 5]) -> Indexed<16>
+{
+    let mut limit: u32 = 16;
+    let saved: u32 = limit;
+    let item: Indexed<saved> = Family::row<width>(selected, input(&mut limit, observations), limit, observations);
+    item
+}
+machine check(item: Indexed<16>) crashes Trap {
+    transition item.value == 7 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+data Stored { item: Indexed<16>; }
+
+machine check_observations(observed: &[u32; 5], expected_marker: u32, expected_width: u32, expected_branch: u32) crashes Trap {
+    transition observed[0] == expected_marker && observed[1] == expected_width
+        && observed[2] == 16 && observed[3] == expected_branch && observed[4] == 1 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine transport(selected: dyn Family, width: u32, expected_marker: u32, expected_branch: u32) crashes Trap
+{
+    let mut observed: [u32; 5] = [0, 0, 0, 0, 0];
+    let stored: Stored = Stored { item: create(selected, width, &mut observed) };
+    check(stored.item);
+    check_observations(&observed, expected_marker, width, expected_branch);
+}
+
+machine main() crashes Trap {
+    transport(Selected as dyn Family, 16, 31, 0);
+    transport(Other as dyn Family, 16, 47, 0);
+    transport(Selected as dyn Family, 32, 31, 0);
+    transport(Other as dyn Family, 32, 47, 0);
+}

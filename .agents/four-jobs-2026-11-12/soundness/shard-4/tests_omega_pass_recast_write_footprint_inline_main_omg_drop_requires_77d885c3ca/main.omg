@@ -1,0 +1,29 @@
+// Expected exit: 0
+data Value { number: u64; }
+data Alternate { number: u64; }
+
+machine observe(view: &mut Alternate) -> u64 {
+    view.number
+}
+
+machine require_seventeen(value: u64)
+{}
+
+machine main() crashes Trap {
+    let mut value: Value = Value { number: 17 };
+    transition value.number == 17 {
+        true -> inspect(value)
+        _ -> wrong()
+    }
+    machine inspect(mut value: Value)
+    {
+        let observed: u64 = observe(&mut value as &mut Alternate);
+        require_seventeen(value.number);
+        transition observed == 17 {
+            true -> done()
+            _ -> wrong()
+        }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

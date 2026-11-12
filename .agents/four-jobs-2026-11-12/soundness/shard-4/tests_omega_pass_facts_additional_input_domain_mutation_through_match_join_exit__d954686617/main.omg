@@ -1,0 +1,22 @@
+// Expected exit: 0
+// An additional Before input qualification permits writing 73 without promising Before on return.
+data Cell { value: u32; neighbor: u32; }
+domain Cell::Before requires self.value == 0;
+machine overwrite(cell: &write Cell in Before) {
+    cell.value = 73;
+}
+machine observed_neighbor(first: bool) -> u32 {
+    let cell: Cell = match first {
+        true -> Cell { value: 0, neighbor: 41 },
+        false -> Cell { value: 0, neighbor: 43 }
+    };
+    overwrite(&write cell);
+    transition cell.value == 73 { true -> cell.neighbor _ -> 0 }
+}
+machine main() crashes Trap {
+    let first: u32 = observed_neighbor(true);
+    let second: u32 = observed_neighbor(false);
+    transition first == 41 && second == 43 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

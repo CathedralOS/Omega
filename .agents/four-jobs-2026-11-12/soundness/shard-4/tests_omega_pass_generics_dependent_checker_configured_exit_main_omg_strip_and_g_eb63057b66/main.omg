@@ -1,0 +1,20 @@
+// Expected exit: 0
+// A wrapper keeps the configured helper named by its checker's guarantee.
+machine tagged_value<const Tag: u64>(value: u64) -> u64 reaches terminates { Tag }
+machine first(value: u64) -> u64 ensures result == tagged_value<37>(value) { 37 }
+machine second(value: u64) -> u64 ensures result == tagged_value<91>(value) { 91 }
+machine apply<machine Required, machine Checker>(value: u64) -> u64
+requires machine Required(value: u64) -> u64 reaches terminates;
+requires machine Checker(value: u64) -> u64 ensures result == Required(value);
+ensures result == Required(value)
+{ Checker(value) }
+machine main() crashes Trap {
+    let first_result: u64 = apply<tagged_value<37>, first>(0);
+    let second_result: u64 = apply<tagged_value<91>, second>(0);
+    transition first_result == 37 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

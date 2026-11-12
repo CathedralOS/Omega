@@ -1,0 +1,28 @@
+data Configuration<'activation> { builder: &'activation mut Build; }
+machine forward<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+    builder
+}
+machine configure(builder: &mut Build) {
+    let mut configuration: Configuration = Configuration { builder: forward(builder) };
+    configuration.builder.identifier = "com.example.borrowed";
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "borrowed_build_descriptor_home");
+    configure(builder);
+    transition builder.identifier.len == 20 {
+        true -> ready(builder)
+        _ -> wrong(builder)
+    }
+    machine ready(builder: &mut Build) {
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+    }
+    machine wrong(builder: &mut Build) {
+        Build::bind(builder, linux_x86_64::ProgramEntry, incorrect);
+        Build::bind(builder, linux_arm64::ProgramEntry, incorrect);
+        Build::bind(builder, windows_x86_64::ProgramEntry, incorrect);
+        Build::bind(builder, macos_arm64::ProgramEntry, incorrect);
+    }
+}

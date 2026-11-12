@@ -1,0 +1,36 @@
+// Expected exit: 0
+// A selector-leading call refines the requirement crash from the data actual.
+// The selector is not a formal, so `7u64` discharges `value == 0u64`.
+trait Gate {
+    machine pass(value: u64) -> u64
+    crashes Trap
+        value == 0u64;
+}
+
+Open satisfies Gate {
+    machine pass(value: u64) -> u64
+    crashes Trap
+        value == 0u64
+    {
+        transition value == 0u64 {
+            true -> bad()
+            false -> value
+        }
+        machine bad() -> u64 crashes Trap { crash Trap; }
+    }
+}
+
+public machine observe() -> u64 {
+    let selected: dyn Gate = Open as dyn Gate;
+    Gate::pass(selected, 7u64)
+}
+
+machine main() crashes Trap {
+    let observed: u64 = observe();
+    transition observed == 7u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

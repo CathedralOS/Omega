@@ -1,0 +1,189 @@
+module helpers;
+public let within_hundred(value: u64): core::Strict<0> = embed(value) <= 100;
+
+public let reflexive(value: u8): core::Strict<0> = value == value;
+public let predicate(): u8 -> core::Strict<0> = reflexive();
+public let identity<A: core::Type<0> >(value: A): A = value;
+public let apply(predicate: u8 -> core::Strict<0>, value: u8): core::Strict<0> = predicate(value);
+
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// Packed codec adapted from the x86_64 page_table.rs port at
+// cc35c876d3badb57df54a66e22f7768a52be95f2 (previously in x86_64/page_entries.omg).
+// source/platform/drivers/facts/x86_page_table_entry.omg
+//
+// Pure x86-64 paging-entry geometry for the 52-bit architectural physical
+// address envelope. The corresponding x86_page_table_layout.omg is a placement policy, not page-table
+// authority: it cannot mint an Extent, prove a frame owned, install a table,
+// invalidate a TLB, or make arbitrary address bits meaningful.
+//
+// The semantic provider derives `frame_number` from an aligned physical `addr`
+// under frame/mapping authority. Runtime-known addresses are ordinary data;
+// unlike IDT entry identities, they need no symbolic relocation source.
+
+public const X86_PAGE_SHIFT: u8 = 12;
+public const X86_PAGE_BYTES: u64 = 4096;
+public const X86_MAX_PHYSICAL_ADDRESS_BITS: u8 = 52;
+public const X86_PAGE_FRAME_NUMBER_MAX: u64 = 1099511627775;
+
+public data X86PageTableEntry
+requires 0 <= self.software_low && self.software_low <= 7 &&
+    0 <= self.frame_number && self.frame_number <= 1099511627775 &&
+    0 <= self.software_high && self.software_high <= 127 &&
+    0 <= self.protection_key && self.protection_key <= 15 {
+    present: bool;
+    writable: bool;
+    user: bool;
+    write_through: bool;
+    cache_disable: bool;
+    accessed: bool;
+    dirty: bool;
+    page_size_or_pat: bool;
+    global: bool;
+    software_low: u8;
+    frame_number: u64;
+    software_high: u8;
+    protection_key: u8;
+    no_execute: bool;
+}
+
+// The packed hardware representation belongs with its schema. Both the kernel
+// and the userspace x86-values port use this codec; neither receives authority
+// merely by encoding an address. Ordinary record layout is not a paging word.
+public machine x86_decode_page_table_entry(word: u64) -> X86PageTableEntry {
+    X86PageTableEntry {
+        present: (word & 1) != 0, writable: (word & 2) != 0,
+        user: (word & 4) != 0, write_through: (word & 8) != 0,
+        cache_disable: (word & 16) != 0, accessed: (word & 32) != 0,
+        dirty: (word & 64) != 0, page_size_or_pat: (word & 128) != 0,
+        global: (word & 256) != 0, software_low: ((word >> 9) & 7) as u8,
+        frame_number: (word >> 12) & 1099511627775,
+        software_high: ((word >> 52) & 127) as u8,
+        protection_key: ((word >> 59) & 15) as u8, no_execute: (word >> 63) != 0
+    }
+}
+
+public machine x86_encode_page_table_entry(value: &X86PageTableEntry) -> u64 {
+    (value.present as u64) | ((value.writable as u64) << 1) |
+    ((value.user as u64) << 2) | ((value.write_through as u64) << 3) |
+    ((value.cache_disable as u64) << 4) | ((value.accessed as u64) << 5) |
+    ((value.dirty as u64) << 6) | ((value.page_size_or_pat as u64) << 7) |
+    ((value.global as u64) << 8) | ((value.software_low as u64) << 9) |
+    (value.frame_number << 12) | ((value.software_high as u64) << 52) |
+    ((value.protection_key as u64) << 59) | ((value.no_execute as u64) << 63)
+}
+
+public data X86BootstrapAddressBoundPageTableEntryCandidate {
+    physical_address: u64;
+    entry: X86PageTableEntry;
+}
+
+public data X86BootstrapPageTableWalkStep
+requires 0 <= self.index && self.index <= 511 {
+    table_address: u64;
+    index: u64;
+    entry_address: u64;
+    entry: X86BootstrapAddressBoundPageTableEntryCandidate;
+}
+
+public const X86_PAGE_TABLE_ENTRY_COUNT: u64 = 512;
+public const X86_BOOTSTRAP_LOW_CANONICAL_MAX: u64 = 0x00007FFFFFFFFFFF;
+public const X86_BOOTSTRAP_HIGH_CANONICAL_MIN: u64 = 0xFFFF800000000000;
+public const X86_PAGE_TABLE_INDEX_MASK: u64 = 511;
+public const X86_PAGE_OFFSET_MASK: u64 = 4095;
+public const X86_MAX_ALIGNED_PHYSICAL_FRAME_ADDRESS: u64 = 0x000FFFFFFFFFF000;
+
+// Cathedral's first QEMU/UEFI-x64 bootstrap profile deliberately uses the
+// baseline four-level translation regime. LA57 remains a future alternate
+// platform profile rather than an inferred property of ordinary x86-64 code.
+public data X86BootstrapAddressSpaceProfile {
+    canonical_virtual_address_bits: u8;
+    translation_level_count: u8;
+    index_bits_per_level: u8;
+    entries_per_table: u64;
+    page_shift: u8;
+    page_bytes: u64;
+    level_shifts: [u8; 4];
+    la57_enabled: bool;
+}
+
+// Pure Cathedral policy data. It selects no virtual layout or page count and
+// grants no storage, mapping, placement, TLB, or machine-control authority.
+public machine x86_bootstrap_address_space_profile()
+    -> X86BootstrapAddressSpaceProfile
+{
+    X86BootstrapAddressSpaceProfile {
+        canonical_virtual_address_bits: 48,
+        translation_level_count: 4,
+        index_bits_per_level: 9,
+        entries_per_table: X86_PAGE_TABLE_ENTRY_COUNT,
+        page_shift: X86_PAGE_SHIFT,
+        page_bytes: X86_PAGE_BYTES,
+        level_shifts: [39, 30, 21, 12],
+        la57_enabled: false,
+    }
+}
+
+// Ordinary numeric decomposition under the selected four-level profile. The
+// original address is retained so later mapping policy can bind these indexes
+// to the exact request rather than treating them as a free-standing path.
+public data X86BootstrapVirtualAddressIndices
+requires 0 <= self.pml4_index && self.pml4_index <= 511 &&
+    0 <= self.pdpt_index && self.pdpt_index <= 511 &&
+    0 <= self.pd_index && self.pd_index <= 511 &&
+    0 <= self.pt_index && self.pt_index <= 511 &&
+    0 <= self.page_offset && self.page_offset <= 4095 {
+    address: u64;
+    pml4_index: u64;
+    pdpt_index: u64;
+    pd_index: u64;
+    pt_index: u64;
+    page_offset: u64;
+}
+
+public data X86BootstrapVirtualAddressCheck {
+    case Rejected;
+    case Canonical(indices: X86BootstrapVirtualAddressIndices);
+}
+
+// Reject the noncanonical hole, then derive the exact page-walk indexes and
+// byte offset. Success remains ordinary data: it grants no Extent, frame,
+// hierarchy, mapping, placement, TLB, or installation authority.
+public machine x86_decompose_bootstrap_virtual_address(
+    address: u64
+) -> X86BootstrapVirtualAddressCheck {
+    // Bind the unsigned high bound to its u64 place before using it in the
+    // comparison; no signed intermediate participates in canonicality.
+    let low_canonical_max: u64 = X86_BOOTSTRAP_LOW_CANONICAL_MAX;
+    let high_canonical_min: u64 = X86_BOOTSTRAP_HIGH_CANONICAL_MIN;
+    transition address <= low_canonical_max || address >= high_canonical_min {
+        true -> decompose(address)
+        _ -> reject()
+    }
+
+    machine decompose(address: u64) -> X86BootstrapVirtualAddressCheck {
+        let pml4_index: u64 =
+            (address >> 39) & X86_PAGE_TABLE_INDEX_MASK;
+        let pdpt_index: u64 =
+            (address >> 30) & X86_PAGE_TABLE_INDEX_MASK;
+        let pd_index: u64 =
+            (address >> 21) & X86_PAGE_TABLE_INDEX_MASK;
+        let pt_index: u64 =
+            (address >> 12) & X86_PAGE_TABLE_INDEX_MASK;
+        let page_offset: u64 = address & X86_PAGE_OFFSET_MASK;
+        X86BootstrapVirtualAddressCheck::Canonical {
+            indices: X86BootstrapVirtualAddressIndices {
+                address: address,
+                pml4_index: pml4_index,
+                pdpt_index: pdpt_index,
+                pd_index: pd_index,
+                pt_index: pt_index,
+                page_offset: page_offset,
+            },
+        }
+    }
+
+    machine reject() -> X86BootstrapVirtualAddressCheck {
+        X86BootstrapVirtualAddressCheck::Rejected
+    }
+}
+

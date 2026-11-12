@@ -1,0 +1,10 @@
+// Expected exit: 0. Read a stable provider-owned object through its retained descriptor.
+data LocaleByte { value: u8; }
+data Locale { decimal_point: &LocaleByte; }
+boundary trait LocaleAccess { machine locate() -> &Locale reaches; }
+machine main() reaches LocaleAccess crashes Trap {
+ let locale: &Locale = LocaleAccess::locate();
+ transition { true -> done() false -> bad() }
+ machine done() {}
+ machine bad() { crash Trap; }
+}

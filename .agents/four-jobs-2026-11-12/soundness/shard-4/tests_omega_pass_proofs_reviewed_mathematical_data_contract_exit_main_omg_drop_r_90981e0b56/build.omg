@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "reviewed_mathematical_data_contract_exit");
+    let mut vendor_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "vendor" });
+    dependency::with_alias(&mut vendor_dependency, "vendor");
+    let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

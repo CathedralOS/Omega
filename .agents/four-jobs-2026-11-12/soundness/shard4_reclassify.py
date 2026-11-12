@@ -198,14 +198,24 @@ def reclassify_row(fin, row: dict) -> dict:
                 row["bucket"] = "discarded-valid"
                 row["validity_reason"] = why or base.get("valid_reason") or "missing quote/obligation"
         else:
-            row["bucket"] = "rejected-both"
+            cur, route = row.get("current_verdict", ""), row.get("route_verdict", "") or ""
+            if cur == "rejected" and route == "rejected":
+                row["bucket"] = "rejected-both"
+            elif cur == "rejected" and fin.route_is_outside(route):
+                row["bucket"] = "rejected-current-route-outside"
+            elif cur == "rejected" and not route:
+                row["bucket"] = "rejected-current-no-route"
+            elif cur == "rejected":
+                row["bucket"] = "rejected-current-other"
+            else:
+                row["bucket"] = "discarded-valid"
     elif fin.route_is_outside(row.get("route_verdict", "")):
         row["bucket"] = "valid-route-outside"
     elif fin.checkers_disagree(row.get("current_verdict", ""), row.get("route_verdict", "")):
         row["bucket"] = "disagreement-valid"
     elif row.get("current_verdict") == "accepted" and row.get("route_verdict") == "accepted":
         row["bucket"] = "discarded-valid"
-    elif row.get("current_verdict") == "rejected":
+    elif row.get("current_verdict") == "rejected" and row.get("route_verdict") == "rejected":
         row["bucket"] = "rejected-both"
     else:
         row["bucket"] = "discarded-valid"
@@ -218,13 +228,13 @@ def fixture_partition(rows: list[dict]) -> dict:
     has_mut = set(
         r["fixture"] for r in rows if r.get("stage") == "mutant" and r.get("mutant_path")
     )
-    failed = {f for f, r in orig.items() if r.get("current_verdict") != "accepted"}
+    not_acc = {f for f, r in orig.items() if r.get("current_verdict") != "accepted"}
     mutated = has_mut
     no_mut = set(orig) - mutated
-    no_mut_ok = no_mut - failed
+    no_mut_ok = no_mut - not_acc
     return {
         "fixtures_total": len(orig),
-        "baseline_failed_run": len(failed),
+        "original_not_accepted": len(not_acc),
         "no_mutation_accepted_baseline": len(no_mut_ok),
         "mutated": len(mutated),
     }
@@ -273,7 +283,7 @@ def main() -> int:
 
     part = fixture_partition(originals + reclassified)
     assert (
-        part["baseline_failed_run"]
+        part["original_not_accepted"]
         + part["no_mutation_accepted_baseline"]
         + part["mutated"]
         == part["fixtures_total"]

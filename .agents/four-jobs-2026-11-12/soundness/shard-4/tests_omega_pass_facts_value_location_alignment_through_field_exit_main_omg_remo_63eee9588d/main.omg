@@ -1,0 +1,23 @@
+// Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+// Place: field. The query observes a u64 field between narrower neighbours of the same record.
+// Expected exit: 0
+
+data Slots {
+    tag: u8;
+    value: u64;
+    trailer: u32;
+}
+
+machine main() crashes Trap {
+    let slots: Slots = Slots { tag: 7u8, value: 41u64, trailer: 9u32 };
+    let alignment: u64 = align_of(slots.value);
+    let slack: u64 = alignment - 8u64;
+    let tag_alignment: u64 = align_of(slots.tag);
+    let trailer_alignment: u64 = align_of(slots.trailer);
+    transition {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,7 @@
+machine identity<T, const Expected: T>(value: T) -> T
+{ value }
+
+machine witness(value: u64, Expected: u64)
+{}
+
+machine main() {}

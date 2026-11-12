@@ -1,0 +1,16 @@
+// Expected exit: 0. A forwarded nested byte row keeps its physical base.
+machine observe(rows: &[[u8; 3]; 2]) -> bool {
+    let selected: &[u8] = &rows[1][..];
+    transition selected.len == 3 { true -> read(selected) _ -> failed() }
+    machine read(selected: &[u8]) -> bool requires selected.len == 3 {
+        selected[0] == 21 && selected[1] == 22 && selected[2] == 23
+    }
+    machine failed() -> bool { false }
+}
+machine forward(rows: &[[u8; 3]; 2]) -> bool { observe(rows) }
+machine main() crashes Trap {
+    let rows: [[u8; 3]; 2] = [[11, 12, 13], [21, 22, 23]];
+    transition forward(&rows) { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,175 @@
+// Expected exit: 0
+// Real allocator backing survives two coexisting residents, exhaustion,
+// release, checked extent recomposition, full reset, and resident reuse.
+use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+use alloc::bump;
+use omega::language::core::nat;
+
+data TestMemory {}
+public data Word { value: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
+    { storage as Extent }
+}
+
+machine main() crashes Trap
+requires addr::Bound == 18446744073709551616 {
+    let address: addr = NativeAllocation::allocate(1, 32);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 32 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        transition vacant.length == 32 { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant)
+    requires vacant.length == 32
+    {
+        let mut strategy: Bump = Bump::open(vacant);
+        let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, 32);
+        let second: Extent in Granted & Vacant = allocate(&mut strategy, 16, 16);
+        transition try_allocate(&mut strategy, 1) {
+            Attempt::Exhausted -> exercise_two(strategy, first, second)
+            Attempt::Allocated { allocation } -> bad()
+        }
+    }
+    machine bad() { crash Trap; }
+}
+
+machine exercise_two(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) crashes Trap
+requires addr::Bound == 18446744073709551616 {
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(first, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> initialize_second(strategy, view, second)
+        AccessOutcome::Rejected { returned, reason } -> bad()
+    }
+    machine initialize_second(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(second, Word { value: 43 }) {
+            AccessOutcome::Ready { view } -> observe(strategy, first, view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine observe(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        let mut left: Extent in Granted & Resident<WordPlacement, Word> = first;
+        let mut right: Extent in Granted & Resident<WordPlacement, Word> = second;
+        let left_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut left);
+        let before: u64 = read(&left_view.value);
+        write(&mut left_view.value, 29u64);
+        let right_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut right);
+        let neighbor: u64 = read(&right_view.value);
+        write(&mut right_view.value, 59u64);
+        transition before == 17 && neighbor == 43 {
+            true -> extract_left(strategy, left, right)
+            false -> bad()
+        }
+    }
+    machine extract_left(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(first) {
+            AccessExtraction::Moved { storage, value } -> extract_right(strategy, storage, value, second)
+        }
+    }
+    machine extract_right(strategy: Bump, first: Extent in Granted & Vacant, first_value: Word, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(second) {
+            AccessExtraction::Moved { storage, value } -> finish(strategy, first, storage, first_value, value)
+        }
+    }
+    machine finish(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant, first_value: Word, second_value: Word) {
+        transition first_value.value == 29 && second_value.value == 59 && first.length == 16 && second.length == 16 {
+            true -> done(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine done(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) {
+        transition first.length == 16 && second.length == 16 {
+            true -> adjacent(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine adjacent(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16 {
+        transition second.base >= first.base {
+            true -> distance(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine distance(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, second.base >= first.base, addr::Bound == 18446744073709551616 {
+        transition second.base - first.base == 16 {
+            true -> reclaim(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine reclaim(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, embed(second.base) == embed(first.base) + embed(first.length) {
+        let returned_first: Released = release(strategy, first);
+        let returned_second: Released = release(returned_first.strategy, second);
+        let whole: Extent in Granted & Vacant = merge_vacant_extents(returned_first.retired_storage, returned_second.retired_storage);
+        let released_strategy: Bump = returned_second.strategy;
+        transition whole.length == released_strategy.capacity && whole.base == released_strategy.base && released_strategy.remaining == 0 {
+            true -> reset_all(released_strategy, whole)
+            false -> bad()
+        }
+    }
+    machine reset_all(strategy: Bump, whole: Extent in Granted & Vacant)
+    requires whole.length == strategy.capacity, whole.base == strategy.base, strategy.remaining == 0 {
+        let restored: Bump = reset(strategy, whole);
+        reuse(restored.tail);
+    }
+    machine reuse(whole: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(whole, Word { value: 97 }) {
+            AccessOutcome::Ready { view } -> read_again(view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine read_again(whole: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(whole) {
+            AccessExtraction::Moved { storage, value } -> verified(storage, value)
+        }
+    }
+    machine verified(whole: Extent in Granted & Vacant, value: Word) {
+        transition whole.length == 32 && value.value == 97 {
+            true -> exit(whole)
+            false -> bad()
+        }
+    }
+    machine exit(whole: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}

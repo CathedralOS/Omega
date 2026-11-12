@@ -1,0 +1,63 @@
+// Compile canary: the managed `Quotient::define` admission shape under
+// hermetic application provenance. A standalone source rejects at hermetic symbol
+// identity; as a `Build::application` root the representative machine, its
+// congruence theorem, and the define request carry hermetic identities and
+// the checked-termination-gated admission accepts the batch proof-only. The
+// retained correspondence is never an executable callee.
+
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = core::Identity<Representative>(a, b);
+
+machine equivalent_reflexive(a: Representative)
+ensures core::Identity<Representative>(a, a)
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+    core::Identity<Representative>(a, b)
+ensures core::Identity<Representative>(b, a)
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+    core::Identity<Representative>(a, b)
+    core::Identity<Representative>(b, c)
+ensures core::Identity<Representative>(a, c)
+{
+}
+
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+    machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
+    machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
+}
+
+data EquivalenceClass = Representative % equivalent
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative {
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::define<representative, representative_respects>(value)
+}
+
+machine main() {
+}

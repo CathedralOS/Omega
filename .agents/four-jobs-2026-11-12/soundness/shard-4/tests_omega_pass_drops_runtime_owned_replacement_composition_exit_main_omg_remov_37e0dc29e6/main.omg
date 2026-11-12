@@ -1,0 +1,25 @@
+data Token dropped by drop_token { value: u64; }
+
+machine drop_token(token: &mut Token) {
+    token.value = 0;
+}
+
+machine make_token() -> Token { Token { value: 7 } }
+
+machine main() crashes Trap {
+    let mut token: Token = Token { value: 7 };
+    token = make_token();
+    let replacement: Token = make_token();
+    token = move replacement;
+    token = move token;
+    let observed: u64 = token.value;
+    transition { _ -> observe(observed) }
+    machine observe(observed: u64) {
+        transition {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

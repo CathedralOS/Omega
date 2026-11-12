@@ -1,0 +1,43 @@
+// Fact: a `&write` store into a record's reference leaf installs the incoming
+// descriptor — the stored target reads the new referent's 85 while the
+// displaced referent's 11 and the sibling stamp's 17 stay untouched.
+// Place: another selected target implementation receives the write-only slot.
+// Expected exit: 0
+data Cell { value: i64; }
+data Held<'source> { target: &'source Cell; stamp: i64; }
+
+boundary trait SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) reaches;
+}
+WindowsStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = incoming;
+    }
+}
+LinuxX86Store satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = incoming;
+    }
+}
+MacosStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = incoming;
+    }
+}
+LinuxArmStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = incoming;
+    }
+}
+machine main() crashes Trap {
+    let left: Cell = Cell { value: 11 };
+    let right: Cell = Cell { value: 85 };
+    let mut held: Held = Held { target: &left, stamp: 17 };
+    SelectedStore::install(&write held, &right);
+    transition held.target.value == 85 && held.stamp == 17 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

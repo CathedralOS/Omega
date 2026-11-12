@@ -1,0 +1,18 @@
+// Expected exit: 0
+// A precondition and body use the same helper with its supplied constant.
+
+machine tagged_value<const Tag: u64>(value: u64) -> u64 reaches terminates { Tag }
+machine apply<machine Callback>(value: u64) -> u64
+requires machine Callback(value: u64) -> u64 reaches terminates;
+requires Callback(value) == value
+{ Callback(value) }
+machine main() crashes Trap {
+    let first: u64 = apply<tagged_value<37>>(37);
+    let second: u64 = apply<tagged_value<91>>(91);
+    transition first == 37 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

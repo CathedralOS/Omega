@@ -1,0 +1,35 @@
+// Nested matches over two applications of one generic type recover each
+// application's own equations. `pair<i32, bool>` keeps the live arms
+// `Integer` then `Boolean` (2), `pair<bool, i32>` keeps `Boolean` then
+// `Integer` (3), and the two same-type pairs keep one live arm per level
+// (1 and 4). Every other arm is refuted by its instance and never runs.
+// Expected exit: 0.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine pair<A, B>(a: Value<A>, b: Value<B>) -> u64 {
+    match a {
+        Value::Integer { value } -> match b {
+            Value::Integer { value } -> 1
+            Value::Boolean { value } -> 2
+        }
+        Value::Boolean { value } -> match b {
+            Value::Integer { value } -> 3
+            Value::Boolean { value } -> 4
+        }
+    }
+}
+machine main() crashes Trap {
+    let i: Value<i32> = Value::Integer { value: 7 };
+    let b: Value<bool> = Value::Boolean { value: true };
+    transition pair(i, b) == 2 && pair(b, i) == 3 && pair(i, i) == 1 && pair(b, b) == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,12 @@
+use helpers;
+public data Bounded
+requires helpers::within_hundred(self.value)
+{ value: u64; }
+public machine remainder(value: Bounded) -> u64 { 100 - value.value }
+
+// Review keeps the supplied type and the partial and returned-function calls.
+public machine preserve(value: u8) -> u8
+ensures helpers::identity<u8>(result) == value,
+        helpers::predicate(result),
+        helpers::apply(helpers::reflexive(), result)
+{ value }

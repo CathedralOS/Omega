@@ -1,0 +1,79 @@
+// Dispatching a trait method through a dynamic trait carrier (dyn / trait conformance) whose contract establishes result <= 88u64 preserves the return bound across the selector and data lanes, discharging exact subtraction 88u64 - result.
+// Expected exit: 0
+trait PayloadEvaluator {
+    machine compute(base: u64) -> u64
+    ensures result <= 88u64;
+}
+
+ActualEvaluator satisfies PayloadEvaluator {
+    machine compute(base: u64) -> u64
+    ensures result <= 88u64
+    {
+        transition base == 10u64 { true -> 38u64 _ -> 28u64 }
+    }
+}
+
+machine alternate_value(base: u64) -> u64
+ensures result <= 88u64
+{
+    transition base == 10u64 { true -> 48u64 _ -> 58u64 }
+}
+
+AlternateEvaluator satisfies PayloadEvaluator {
+    machine compute(base: u64) -> u64
+    ensures result <= 88u64
+    { alternate_value(base) }
+}
+
+boundary trait SelectedCompute {
+    machine compute(selector: dyn PayloadEvaluator, base: u64, tag: u64) -> u64
+    reaches crashes Trap;
+}
+
+X86Compute satisfies SelectedCompute {
+    machine compute(selector: dyn PayloadEvaluator, base: u64, tag: u64) -> u64
+    crashes Trap {
+        transition tag == 17u64 {
+            true -> dispatch(selector, base)
+            _ -> wrong()
+        }
+        machine dispatch(selected: dyn PayloadEvaluator, input: u64) -> u64 {
+            let result: u64 = PayloadEvaluator::compute(selected, input);
+            88u64 - result
+        }
+        machine wrong() -> u64 { crash Trap; }
+    }
+}
+
+ArmCompute satisfies SelectedCompute {
+    machine compute(selector: dyn PayloadEvaluator, base: u64, tag: u64) -> u64
+    crashes Trap {
+        transition tag == 29u64 {
+            true -> dispatch(selector, base)
+            _ -> wrong()
+        }
+        machine dispatch(selected: dyn PayloadEvaluator, input: u64) -> u64 {
+            let result: u64 = PayloadEvaluator::compute(selected, input);
+            88u64 - result
+        }
+        machine wrong() -> u64 { crash Trap; }
+    }
+}
+
+machine verify(tag: u64) reaches invokes SelectedCompute crashes Trap {
+    let first: dyn PayloadEvaluator = ActualEvaluator as dyn PayloadEvaluator;
+    let second: dyn PayloadEvaluator = AlternateEvaluator as dyn PayloadEvaluator;
+    let first_at_ten: u64 = SelectedCompute::compute(first, 10u64, tag);
+    let first_at_twenty: u64 = SelectedCompute::compute(first, 20u64, tag);
+    let second_at_ten: u64 = SelectedCompute::compute(second, 10u64, tag);
+    let second_at_twenty: u64 = SelectedCompute::compute(second, 20u64, tag);
+    transition first_at_ten == 50u64 && first_at_twenty == 60u64{
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() reaches invokes SelectedCompute crashes Trap { verify(17u64); }
+machine arm_entry() reaches invokes SelectedCompute crashes Trap { verify(29u64); }

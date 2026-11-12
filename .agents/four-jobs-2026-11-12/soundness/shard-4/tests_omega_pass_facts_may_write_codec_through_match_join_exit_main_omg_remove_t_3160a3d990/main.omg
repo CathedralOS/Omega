@@ -1,0 +1,62 @@
+// Encoding through an owned reference field preserves a disjoint index bound.
+// Expected exit: 0
+// Place: match_join.
+
+use omega::language::core::wire;
+use omega::language::core::reflect;
+
+data Value { #0 value: u64; }
+data Counter<'a> { slot: &'a mut u64; }
+
+
+machine mark_index(other: u64, path: &write u64) -> u64
+requires other < 4
+ensures result < 4
+{
+    path = 1;
+    other
+}
+
+machine joined_index(other: u64, flag: bool, path: &write u64) -> u64
+requires other < 4
+ensures result < 4
+{
+    match flag { true -> mark_index(other, path), false -> other }
+}
+
+machine exercise(flag: bool, expected_path: u64) crashes Trap {
+    let mut chosen: u64 = 0;
+    let mut other: u64 = 1;
+    let items: [u8; 4] = [4, 7, 8, 9];
+    let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let sample: Value = Value { value: 200 };
+    let counter: Counter = Counter { slot: &mut chosen };
+    encode_packet(&sample, &mut buffer, counter.slot);
+    let mut path: u64 = 0;
+    let index: u64 = joined_index(other, flag, &write path);
+    transition {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    exercise(true, 1);
+    exercise(false, 0);
+}
+
+// The value owner authorizes field visits; the core library writes the bytes.
+machine packet_fields(value: &Value, context: &mut EncodeContext) {
+    reflect::visit_runtime_fields<Value, CompactBinary::scalar_field>(value, context);
+}
+machine encode_packet<const N: u64>(value: &Value, out: &mut [u8; N], written: &mut u64) {
+    let mut scratch: [u8; N];
+    let mut fields: [EncodedField; 1];
+    transition CompactBinary::encode<Value, packet_fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next)
+        _ -> finish(written, 0u64)
+    }
+    machine finish(written: &mut u64, next: u64) { written = next; }
+}

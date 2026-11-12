@@ -1,0 +1,38 @@
+// Expected exit: 0. Large completed copies retain initialized fields and independent storage.
+data Exact [copy] { negative: bool; magnitude: u64; }
+data Bound [copy] { finite: bool; value: Exact; }
+data Zone [copy] { bounds: [Bound; 4096]; count: u64; infeasible: bool; }
+data Pair { before: u64; zones: [Zone; 2]; after: u64; }
+machine echo(value: Zone) -> Zone { value }
+machine exercise(pair: &mut Pair, index: u64)
+{
+    let saved: Zone = pair.zones[index];
+    let returned: Zone = echo(saved);
+    pair.zones[1].bounds[4095].value.magnitude = 99;
+    pair.zones[0] = returned;
+}
+machine main() crashes Trap {
+    let mut pair: Pair;
+    pair.before = 641;
+    pair.after = 919;
+    pair.zones[1].bounds[0] = Bound { finite: true, value: Exact { negative: false, magnitude: 7 } };
+    pair.zones[1].bounds[4095] = Bound { finite: true, value: Exact { negative: true, magnitude: 41 } };
+    pair.zones[1].bounds[2049] = Bound { finite: true, value: Exact { negative: false, magnitude: 23 } };
+    pair.zones[1].count = 64;
+    pair.zones[1].infeasible = true;
+    exercise(&mut pair, 1);
+    transition pair.zones[0].bounds[0].value.magnitude == 7
+      && pair.zones[0].bounds[4095].value.magnitude == 41
+      && pair.zones[0].bounds[2049].value.magnitude == 23
+      && pair.zones[0].bounds[2049].finite
+      && pair.before == 641 && pair.after == 919
+      && pair.zones[0].bounds[4095].value.negative
+      && pair.zones[0].bounds[4095].finite
+      && pair.zones[0].count == 64 && pair.zones[0].infeasible
+      && pair.zones[1].bounds[4095].value.magnitude == 99 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

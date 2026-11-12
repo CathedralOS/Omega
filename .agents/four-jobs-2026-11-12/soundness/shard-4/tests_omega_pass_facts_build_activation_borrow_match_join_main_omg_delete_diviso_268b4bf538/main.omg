@@ -1,0 +1,40 @@
+// A borrowed configuration preserves exclusive access to the original Build activation, so binding through its stored view selects the authored entry without copying or replacing the activation.
+// Place: match_join
+// Expected exit: 0
+data Cell { before: u64; value: u64; after: u64; }
+data Carrier<'storage> { cell: &'storage mut Cell; }
+machine selected<'storage>(left: &'storage mut Cell, right: &'storage mut Cell, first: bool) -> Carrier<'storage> {
+    transition first {
+        true -> Carrier { cell: left }
+        false -> Carrier { cell: right }
+    }
+}
+machine update(carrier: &mut Carrier, incoming: u64) { carrier.cell.value = incoming; }
+machine apply(carrier: &mut Carrier) -> bool {
+    update(carrier, 41);
+    let observed: bool = carrier.cell.value == 41;
+    update(carrier, 73);
+    observed
+}
+machine journey(left: &mut Cell, right: &mut Cell, first: bool) -> bool {
+    let mut carrier: Carrier = match first {
+        true -> Carrier { cell: left }
+        false -> Carrier { cell: right }
+    };
+    apply(&mut carrier)
+}
+machine main() crashes Trap {
+    let mut left: Cell = Cell { before: 11, value: 5, after: 17 };
+    let mut right: Cell = Cell { before: 23, value: 9, after: 29 };
+    let first: bool = journey(&mut left, &mut right, true);
+    let first_correct: bool = first && left.value == 73 && right.value == 9
+        && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29;
+    let second: bool = journey(&mut left, &mut right, false);
+    transition first_correct && second && left.value == 73 && right.value == 73
+        && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

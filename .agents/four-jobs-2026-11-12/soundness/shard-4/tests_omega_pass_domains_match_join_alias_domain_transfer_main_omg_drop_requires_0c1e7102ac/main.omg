@@ -1,0 +1,35 @@
+// A match join keeps Alive when every arm yields an Alive player.
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive
+    self.health > 0;
+
+data Main {
+    player: Player;
+    spare: Player;
+}
+
+machine inspect(player: Player)
+    player in Player::Alive
+{
+}
+
+machine Main::choose(main: &Main, flag: bool)
+    main.player in Player::Alive,
+    main.spare in Player::Alive
+{
+    let mut copy: Player = match flag {
+        true -> main.player,
+        false -> main.spare,
+    };
+    inspect(copy);
+}
+
+machine Main::main(main: &mut Main)
+    main.player in Player::Alive,
+    main.spare in Player::Alive
+{
+    Main::choose(main, true);
+}

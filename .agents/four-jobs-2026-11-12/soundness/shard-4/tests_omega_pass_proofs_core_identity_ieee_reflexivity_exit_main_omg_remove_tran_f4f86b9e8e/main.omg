@@ -1,0 +1,66 @@
+// Expected exit: 0
+// Same resident NaNs and same-bit signed zeros have Id independently of IEEE ==.
+data FloatBox [copy] { value: f64; }
+data IdentityBox<A> { value: A; }
+let same<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+// Function and Type-valued arguments retain the same checked identity value.
+let invoke<A: core::Type<0>>(relation: A -> A -> core::Type<0>, left: A, right: A): core::Type<0> = relation(left, right);
+let forward<A: core::Type<0>>(relation: A -> A -> core::Type<0>): A -> A -> core::Type<0> = relation;
+let via<A: core::Type<0>>(relation: A -> A -> core::Type<0>, left: A, right: A): core::Type<0> = invoke<A>(forward<A>(relation), left, right);
+let via_value<A: core::Type<0>>(left: A, right: A): core::Type<0> = via<A>(same<A>(), left, right);
+// Merely forwarding an ordinary generic value or type adds no Id requirement.
+let selected<N: u64>(): u64 = N;
+let selected_number(): u64 = selected<17u64>();
+let type_value<A: core::Type<0>>(): core::Type<0> = A;
+let selected_type(): core::Type<0> = type_value<u8>();
+// Constructed carriers and nested wrappers keep the exact source substitution.
+let same_box<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = core::Identity<IdentityBox<A>>(left, right);
+let same_box_outer<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = same_box<A>(left, right);
+let carry(statement: core::Type<0>): core::Type<0> = statement;
+let carried<A: core::Type<0>>(left: A, right: A): core::Type<0> = carry(core::Identity<A>(left, right));
+let neutral<A: core::Type>(value: A): A = value;
+let carried_neutral<A: core::Type<0>>(left: A, right: A): core::Type<0> = neutral<core::Type<0>>(carried<A>(left, right));
+let same_typed<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+let partial<A: core::Type<0>>(left: A): A -> core::Type<0> = same<A>(left);
+let through_partial<A: core::Type<0>>(left: A, right: A): core::Type<0> = partial<A>(left, right);
+let both<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right) && core::Identity<A>(right, left);
+machine need_both(left: f64, right: f64)
+requires both<f64>(left, right)
+{ }
+machine require_both(left: f64, right: f64)
+requires core::Identity<f64>(left, right)
+{ need_both(left, right); }
+machine keep_constructed(value: IdentityBox<u8>) reaches terminates
+ensures same_box_outer<u8>(value, value)
+{ }
+machine keep_typed(value: f64) reaches terminates
+ensures same_typed<f64>(value, value)
+{ }
+machine keep(value: f64) reaches terminates
+ensures via_value<f64>(value, value)
+ensures carried_neutral<f64>(value, value)
+{ }
+machine keep_box(value: FloatBox) reaches terminates
+ensures core::Identity<FloatBox>(value, value)
+{ }
+machine require_same(left: f64, right: f64)
+requires through_partial<f64>(left, right)
+{ }
+machine main() crashes Trap {
+    let nan: f64 = 0.0f64 / 0.0f64;
+    let boxed: FloatBox = FloatBox { value: nan };
+    let narrow: IdentityBox<u8> = IdentityBox { value: 17u8 };
+    keep_constructed(narrow);
+    keep_typed(nan);
+    keep(nan);
+    keep_box(boxed);
+    require_same(nan, nan);
+    require_both(nan, nan);
+    require_same(-0.0f64, -0.0f64);
+    transition {
+        true -> bad()
+        false -> done()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

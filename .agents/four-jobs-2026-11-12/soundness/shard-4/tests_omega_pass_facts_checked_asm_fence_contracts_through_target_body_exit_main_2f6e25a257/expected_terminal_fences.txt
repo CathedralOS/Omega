@@ -1,0 +1,4 @@
+linux_x86_64 lfence sfence mfence
+windows_x86_64 lfence sfence mfence
+linux_arm64 dmb_ld dmb_st dmb_sy
+macos_arm64 dmb_ld dmb_st dmb_sy
