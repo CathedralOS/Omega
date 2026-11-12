@@ -2904,29 +2904,57 @@ mod normalized_foreign_calls {
         }
         if indirect {
             let [argument] = operands else { return None };
-            let origin = function
-                .virtual_registers
-                .get(argument.virtual_register.0 as usize)?
-                .origin;
-            let VirtualRegisterOrigin::AbiTransport {
-                instruction: prepared,
-                place,
-                byte_offset: 0,
-            } = origin
-            else {
-                return None;
+            let transport_source =
+                |register: selected_instructions::VirtualRegisterId| match function
+                    .virtual_registers
+                    .get(register.0 as usize)?
+                    .origin
+                {
+                    VirtualRegisterOrigin::AbiTransport {
+                        instruction,
+                        place,
+                        byte_offset: 0,
+                    } if place == result.place => Some(instruction),
+                    _ => None,
+                };
+            // A fixed-occurrence split may forward the prepared result address
+            // into the argument register after the floating-control save;
+            // follow those exact copies back to the frame address.
+            let mut forwarded = argument.virtual_register;
+            let mut prepared = transport_source(forwarded)?;
+            let mut limit = call_position;
+            let preparation = loop {
+                let position = block
+                    .instructions
+                    .iter()
+                    .take(limit)
+                    .position(|candidate| candidate.id == prepared)?;
+                let candidate = &block.instructions[position];
+                if candidate.kind != Kind::CopyI64 {
+                    break candidate;
+                }
+                let [input, output] = candidate.operands.as_slice() else {
+                    return None;
+                };
+                if output.virtual_register != forwarded
+                    || selected_instructions::calls::normalized_foreign::return_transport::forwarding_copy(
+                        function,
+                        candidate,
+                        input.virtual_register,
+                        Some(operation),
+                    ) != Some(forwarded)
+                {
+                    return None;
+                }
+                forwarded = input.virtual_register;
+                prepared = transport_source(forwarded)?;
+                limit = position;
             };
-            let preparation = block
-                .instructions
-                .iter()
-                .take(call_position)
-                .find(|candidate| candidate.id == prepared)?;
             let [output] = preparation.operands.as_slice() else {
                 return None;
             };
             let (prepared_offset, prepared_bytes) = fragment_instruction_span(fragment, prepared)?;
-            return (place == result.place
-                && output.virtual_register == argument.virtual_register
+            return (output.virtual_register == forwarded
                 && preparation.kind == address.kind
                 && memory_matches(
                     prepared,

@@ -621,6 +621,20 @@ pub mod normalized_foreign {
             instruction: &SelectedInstruction,
             source: VirtualRegisterId,
         ) -> Option<VirtualRegisterId> {
+            forwarding_copy(function, instruction, source, None)
+        }
+
+        // An exact register-to-register forward of one value: no fixed view,
+        // clobber or provenance of its own, and the output keeps the input's
+        // origin with this copy as its producer. A fixed-occurrence split
+        // before a call tags its copy with that call's operation, which
+        // `owner` admits; nothing else may appear in the provenance.
+        pub fn forwarding_copy(
+            function: &SelectedFunction,
+            instruction: &SelectedInstruction,
+            source: VirtualRegisterId,
+            owner: Option<semantic_vocabulary::OperationId>,
+        ) -> Option<VirtualRegisterId> {
             let [input, output] = instruction.operands.as_slice() else {
                 return None;
             };
@@ -631,7 +645,8 @@ pub mod normalized_foreign {
                 || !instruction.implicit_uses.is_empty()
                 || !instruction.implicit_defs.is_empty()
                 || !instruction.clobbers.is_empty()
-                || !instruction.provenance.operations.is_empty()
+                || !(instruction.provenance.operations.is_empty()
+                    || owner.is_some_and(|owner| instruction.provenance.operations == [owner]))
                 || !instruction.provenance.edges.is_empty()
                 || !instruction.provenance.obligations.is_empty()
                 || !instruction.provenance.work.is_empty()
