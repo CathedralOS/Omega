@@ -1248,10 +1248,8 @@ and root-specific caller chains. This transient companion changes no portable
 schema and does not replace dormant admission with emitted reachability. These
 producer-owned records are not independently admitted decoded evidence.
 Early/reference source adapters remain distinct from Product policy.
-The optional reference checked interpreter prepares adapter dispatch and selected
-float executions at its own entrance. `SelectedExecution` retains no reference
-dispatch table, and ordinary Product installation does not scan source to prepare
-an engine it will not run. Terminal/native provider admission consumes canonical
+`SelectedExecution` retains no reference dispatch table, and ordinary Product
+installation does not scan source to prepare an engine it will not run. Terminal/native provider admission consumes canonical
 demand and selected rows independently. Reference preparation never copies or
 mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
@@ -1326,8 +1324,8 @@ projections consume compilation products, not compiler orchestration; the
 compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
-`psi/interpreter/` contains the independent `checked-interpreter` and
-`terminal-interpreter` engines. `psi/compilation/build-time-evaluation/` admits execution
+`psi/interpreter/` contains the `terminal-interpreter` engine and the
+`checked-interpreter` build-time evaluator that remains to migrate onto it. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/build-system/build-settings/`; there is no
@@ -1429,7 +1427,7 @@ provider requirements and checked adapters use ordinary explicit bindings.
 
 A provider carries no value or state ([machines](../wiki/spec/language/machines.md#static-declarations-and-explicit-state)):
 the installation adapter calls the selected satisfier machine with exactly the
-requirement's arguments, and the checked interpreter does the same.
+requirement's arguments.
 
 ### Portable materialization and consumer ownership
 

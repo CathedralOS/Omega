@@ -48,6 +48,7 @@ impl PackagePolicyBaseline {
             restricted_build_requests: restricted_build::requests(&mut reader)?,
             assumed_bindings: reader.sequence(1, |reader| reader.string())?,
             service_audits: reader.sequence(1, super::identity::nominal)?,
+            component_assumptions: reader.sequence(1, component_assumption)?,
         };
         reader.finish()?;
         policy
@@ -63,6 +64,16 @@ impl PackagePolicyBaseline {
         }
         Ok((policy, reader.usage()))
     }
+}
+
+fn component_assumption(
+    reader: &mut Reader<'_>,
+) -> Result<crate::record::PackagePolicyComponentAssumption, Error> {
+    Ok(crate::record::PackagePolicyComponentAssumption {
+        component: package(reader)?,
+        assumption: reader.digest()?,
+        bound_rows: reader.sequence(1, |reader| reader.string())?,
+    })
 }
 
 fn native_binding(reader: &mut Reader<'_>) -> Result<PackagePolicyNativeBinding, Error> {

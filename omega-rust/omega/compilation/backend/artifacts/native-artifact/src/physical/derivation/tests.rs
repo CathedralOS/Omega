@@ -213,6 +213,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             claims: Vec::new(),
         },
         declaration: StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
@@ -364,6 +365,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         argument: argument.clone(),
         literal_operation: OperationId::new(47).unwrap(),
         structural_type: StructuralTypeDeclaration {
+            requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,

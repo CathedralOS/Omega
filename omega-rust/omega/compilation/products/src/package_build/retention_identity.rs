@@ -222,9 +222,20 @@ impl BuildOutputIdentity<'_> {
             root_bindings,
             behavior_exclusions,
             service_audits,
-            accepted_component_assumptions,
+            test_groups,
         } = config;
         self.settings(settings);
+        self.digest.len(test_groups.len());
+        for group in test_groups {
+            let build_time_evaluation::test_groups::TestGroupRegistration {
+                requirement,
+                selecting_machine,
+                source_span,
+            } = group;
+            self.symbol(*requirement)?;
+            self.symbol(*selecting_machine)?;
+            self.occurrence(*source_span)?;
+        }
         self.digest.len(grants.len());
         for grant in grants {
             let trust_model::AuthoredRootGrant {
@@ -418,17 +429,6 @@ impl BuildOutputIdentity<'_> {
             self.digest.string(identity);
             self.digest.string(name);
         }
-        self.digest.len(accepted_component_assumptions.len());
-        for acceptance in accepted_component_assumptions {
-            let trust_model::AuthoredComponentAssumptionAcceptance {
-                digest,
-                selecting_machine,
-                source_span,
-            } = acceptance;
-            self.digest.raw(digest);
-            self.symbol(*selecting_machine)?;
-            self.occurrence(*source_span)?;
-        }
         Ok(())
     }
 
@@ -445,7 +445,9 @@ impl BuildOutputIdentity<'_> {
             x86_deployment_claim,
             privileged_services,
             elf_interpreters,
+            tests_disabled,
         } = settings;
+        self.digest.bool(*tests_disabled);
         self.digest.bool(application_intent.is_some());
         if let Some(intent) = application_intent {
             self.digest.byte(match intent {
@@ -558,6 +560,7 @@ impl BuildOutputIdentity<'_> {
             BuildOperation::IncludedSourceHandoff => 10,
             BuildOperation::LogWriteLine => 11,
             BuildOperation::NativeBinding => 12,
+            BuildOperation::TestGroupRegistration => 13,
         });
         self.digest.len(operands.len());
         for operand in operands {

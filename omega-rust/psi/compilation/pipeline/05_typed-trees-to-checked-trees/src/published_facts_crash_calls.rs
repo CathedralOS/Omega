@@ -4215,6 +4215,35 @@ mod entry_paths {
                     self.scalar(left, depth + 1)?,
                     self.scalar(right, depth + 1)?,
                 ),
+                /*
+                    An IEEE comparison keeps its own operator. The negated kinds
+                    are not the reversed relations (`!(x < y)` holds for NaN while
+                    `x >= y` does not), so they stay a logical negation.
+                */
+                Boolean::ScalarIeeeFloatComparison { kind, left, right } => {
+                    use checked_trees::CheckedIeeeFloatComparisonKind as Kind;
+                    let (operator, negated) = match kind {
+                        Kind::Equal => (BinaryOperator::Equal, false),
+                        Kind::NotEqual => (BinaryOperator::NotEqual, false),
+                        Kind::LessThan => (BinaryOperator::Less, false),
+                        Kind::LessOrEqual => (BinaryOperator::LessOrEqual, false),
+                        Kind::NotLessThan => (BinaryOperator::Less, true),
+                        Kind::NotLessOrEqual => (BinaryOperator::LessOrEqual, true),
+                    };
+                    let comparison = binary(
+                        operator,
+                        self.scalar(left, depth + 1)?,
+                        self.scalar(right, depth + 1)?,
+                    );
+                    if negated {
+                        Expression::Unary {
+                            operator: UnaryOperator::LogicalNot as u8,
+                            operand: Box::new(comparison),
+                        }
+                    } else {
+                        comparison
+                    }
+                }
                 _ => return None,
             })
         }
@@ -4238,6 +4267,25 @@ mod entry_paths {
                 Scalar::IntegerLiteral { literal } => Some(Expression::Integer(
                     literal.decimal_value_bignum()?.to_string(),
                 )),
+                /*
+                    Route identities spell a float literal as its source text. The
+                    shortest round-trip spelling of the evaluated bits (`0.0`,
+                    `2.5`) is how such literals are ordinarily written; any other
+                    spelling of the same value only fails to match, which widens
+                    the route rather than erasing it.
+                */
+                Scalar::IeeeFloatLiteral { value } => {
+                    let (format, bits) = match *value {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                            (numerics::literals::FloatFormat::F32, u64::from(bits))
+                        }
+                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                            (numerics::literals::FloatFormat::F64, bits)
+                        }
+                    };
+                    numerics::literals::FloatLiteral::from_bits(format, bits)
+                        .map(|literal| Expression::Float(literal.text().to_owned()))
+                }
                 Scalar::Boolean(condition) => self.boolean(condition, depth + 1),
                 _ => None,
             }
@@ -5269,6 +5317,60 @@ pub(super) fn attach_checked_crash_calls(
                                 };
                                 (capsule, signature)
                             };
+                            // effects.md, "Static binder contract dependencies": a
+                            // requirement that publishes no crash route defers to
+                            // the selection (`crashes none` admits only crash-free
+                            // members, so their routes are empty), and an
+                            // application "receives ... the selected published
+                            // routes". Where the call names its realization, the
+                            // call keeps the requirement's identity and contract
+                            // and takes that member's routes over its formals.
+                            let deferred = capsule
+                                .published_buckets()
+                                .is_empty()
+                                .then(|| call_site.static_requirement_dispatch())
+                                .flatten()
+                                .and_then(|dispatch| {
+                                    let machine =
+                                        program.machine_by_symbol(dispatch.realization_machine)?;
+                                    let state = program
+                                        .state_in_machine(machine, dispatch.realization_state)?;
+                                    let index =
+                                        *plan_indices.get(&dispatch.realization_machine)?;
+                                    let plan = plans.get(index)?;
+                                    let routes = if !machine.target_family_interface
+                                        && !plan.crash.published().is_empty()
+                                    {
+                                        SelectedTargetCrashRoutes::Published {
+                                            buckets: plan.crash.published(),
+                                            contracts: program.machine_contracts(machine),
+                                        }
+                                    } else if machine.target_family_interface
+                                        || machine.supply_mode
+                                            == language_semantics::MachineSupplyMode::CheckedBody
+                                    {
+                                        SelectedTargetCrashRoutes::Private(
+                                            summary_by_machine.get(&dispatch.realization_machine)?,
+                                        )
+                                    } else {
+                                        SelectedTargetCrashRoutes::Empty
+                                    };
+                                    Some((
+                                        program.state_parameters(state),
+                                        plan_entry_parameter_names[index].as_slice(),
+                                        routes,
+                                    ))
+                                });
+                            if let Some((member_parameters, member_names, routes)) = deferred {
+                                (
+                                    member_parameters,
+                                    Vec::new(),
+                                    Some(member_names),
+                                    routes,
+                                    capsule.target_contract_report_fingerprint(),
+                                    capsule.target_contract_commitment(),
+                                )
+                            } else {
                             let parameters = program.state_signature_parameters(signature);
                             (
                                 parameters,
@@ -5285,6 +5387,7 @@ pub(super) fn attach_checked_crash_calls(
                                 capsule.target_contract_report_fingerprint(),
                                 capsule.target_contract_commitment(),
                             )
+                            }
                         };
                         if call_site.is_internal_state_transfer(program, state_flow.machine_symbol)
                         {

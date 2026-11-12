@@ -120,4 +120,3 @@ pub use provider_planning::program_entry::{
     program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use trust_model::AuthoredComponentAssumptionAcceptance;

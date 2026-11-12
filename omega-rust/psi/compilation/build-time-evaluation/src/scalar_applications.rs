@@ -364,6 +364,60 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
     )
 }
 
+/// The deployment target one build-time invocation runs under.
+///
+/// An invocation artifact can retain scalar conditions: ranges, predicates and
+/// completions that checking deferred because their values depend on the
+/// target. Terminal execution refuses to start until those are admitted, and
+/// admitting them needs the target's layout facts, carriers and address model.
+/// Those are target-owner knowledge, so the caller that names the target
+/// supplies them here; a target without layout facts cannot discharge any
+/// condition and the invocation refuses.
+#[derive(Clone, Copy)]
+pub struct InvocationTarget<'target> {
+    pub name: &'target str,
+    pub layout_target: Option<&'target terminal_installation::LayoutTargetFacts>,
+    pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
+    pub address_model: Option<&'target terminal_installation::ScalarAddressModel>,
+}
+
+/// Discharge the scalar conditions retained for one invocation entry.
+///
+/// We close the single scope of `target` rooted at the entry's checked proof
+/// declaration, which is the invocation-scoped closure calling policies
+/// already use, and evaluate every application the entry demands on Terminal
+/// Psi under `meter`. Each condition selected for that root is checked as soon
+/// as its observations are ready, and a false one fails the invocation; none
+/// is skipped.
+pub(crate) fn complete_invocation_scalar_applications<'artifact>(
+    artifact: terminal_codec::TerminalExecutionView<'artifact>,
+    target: InvocationTarget<'_>,
+    selected: &'artifact terminal_installation::AdmittedTargetMachineSelections,
+    providers: &'artifact terminal_installation::AdmittedProviderSelections,
+    declaration: terminal_psi::ProofDeclarationId,
+    requested: &[ScalarApplicationId],
+    meter: &mut WorkMeter,
+) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+    let facts = target
+        .layout_target
+        .ok_or("invocation target has no immutable layout catalogue")?;
+    let mut closure =
+        ScalarApplicationClosure::for_invocation(artifact, target.name, &[declaration]);
+    let mut observations =
+        ScalarApplicationObservations::new(artifact, selected, providers, facts)?
+            .with_target_carriers(target.carrier_layout)
+            .with_invocation_roots(&[declaration])?;
+    let conditions = evaluate_scope(
+        &mut observations,
+        target.name,
+        requested,
+        target.address_model,
+        |job, admission| execute_entry(job, admission, meter),
+    )?;
+    closure.close_scope(observations, conditions, Ok(target.address_model.cloned()))?;
+    closure.finish()
+}
+
 fn evaluate_scope<'artifact>(
     observations: &mut ScalarApplicationObservations<'artifact>,
     value_scope: &str,
@@ -1232,6 +1286,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: type_id(identity),
                 identity: identities.intern(&format!("graph::type{identity}")),
                 quotient_carrier: None,

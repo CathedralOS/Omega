@@ -13,7 +13,7 @@ requires machine Read(index: Nat) -> Observation terminates;
 machine result_projection<machine Read>(index: Nat)
 requires machine Read(index: Nat) -> Observation terminates;
 ensures
-    project<Read>(index) == (Read(index)).value
+    core::Identity<Nat>(project<Read>(index), (Read(index)).value)
 {
 }
 
@@ -23,7 +23,7 @@ machine literal(index: Nat) -> Observation terminates {
 
 machine effectful_projection(index: Nat) reaches Console
 ensures
-    project<literal>(index) == index
+    core::Identity<Nat>(project<literal>(index), index)
 {
     result_projection<literal>(index);
     Console::exit_process(0);

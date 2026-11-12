@@ -6,7 +6,9 @@
 // production inside the compiler.
 
 use super::CompilationSession;
-use compilation_products::{CheckedCompileRequest, CompileFailure, PreparedPackageBuild};
+use compilation_products::{
+    CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild,
+};
 use diagnostics::Diagnostic;
 
 pub struct PackageCompilationRequest {
@@ -451,10 +453,55 @@ impl CompilationSession {
                     )
                 })
                 .collect();
-            let mut products = Vec::new();
+            // Each application and each of its separately selected test roots
+            // is one product request in the same Terminal batch. Test roots are
+            // produced only beside a native application, where completion can
+            // execute them before the application report succeeds.
+            let mut requests = Vec::new();
+            let mut applications = Vec::new();
             for ((owner, root, product, permissions), selected) in
                 self.select_build_batch(builds, None)
             {
+                let position = applications.len();
+                let test_product = match &product {
+                    crate::CompilationProduct::Native(request) => {
+                        Some(crate::CompilationProduct::Native(NativeProductRequest {
+                            retain_native_inputs: false,
+                            image: compilation_products::NativeImageDemand::Emit,
+                            private_entry_ram: Vec::new(),
+                            ..request.clone()
+                        }))
+                    }
+                    _ => None,
+                };
+                let mut identities = Vec::new();
+                let notes = if test_product.is_some() {
+                    selected.test_notes
+                } else {
+                    Vec::new()
+                };
+                if let Some(test_product) = test_product {
+                    for (identity, result) in selected.tests {
+                        requests.push((
+                            (position, Some(identities.len())),
+                            result
+                                .map(|realization| {
+                                    crate::product_execution::ProductRequest::Requested {
+                                        realization,
+                                        root: root.clone(),
+                                        product: test_product.clone(),
+                                        permissions: permissions.clone(),
+                                    }
+                                })
+                                .map_err(|failure| {
+                                    crate::CompilationProductError::Production(
+                                        failure.into_diagnostics(),
+                                    )
+                                }),
+                        ));
+                        identities.push(identity);
+                    }
+                }
                 let request = selected
                     .result
                     .map(
@@ -468,9 +515,57 @@ impl CompilationSession {
                     .map_err(|failure| {
                         crate::CompilationProductError::Production(failure.into_diagnostics())
                     });
-                products.push((owner, request));
+                requests.push(((position, None), request));
+                applications.push((owner, identities, notes));
             }
-            Ok(crate::target_batch::produce_products(products))
+            let mut outputs: Vec<_> = applications
+                .iter()
+                .map(|(_, identities, _)| (None, Vec::with_capacity(identities.len())))
+                .collect();
+            for ((position, test), output) in crate::target_batch::produce_products(requests) {
+                match test {
+                    None => outputs[position].0 = Some(output),
+                    Some(_) => outputs[position].1.push(output),
+                }
+            }
+            Ok(applications
+                .into_iter()
+                .zip(outputs)
+                .map(|((owner, identities, notes), (application, tests))| {
+                    let application = application.unwrap_or_else(|| {
+                        Err(vec![Diagnostic::error(
+                            "product batch lost a requested application",
+                        )]
+                        .into())
+                    });
+                    let application = application.map(|output| match output {
+                        crate::CompilationOutput::Native(mut pending) => {
+                            pending.test_notes = notes;
+                            pending.tests = identities
+                                .into_iter()
+                                .zip(tests)
+                                .map(|(identity, product)| {
+                                    compilation_products::PendingTestProduct {
+                                        identity,
+                                        product: match product {
+                                            Ok(crate::CompilationOutput::Native(pending)) => {
+                                                Ok(pending)
+                                            }
+                                            Ok(_) => Err(vec![Diagnostic::error(
+                                                "test root lost its native product",
+                                            )]),
+                                            Err(error) => Err(error.into_diagnostics()),
+                                        },
+                                    }
+                                })
+                                .collect();
+                            crate::CompilationOutput::Native(pending)
+                        }
+                        output => output,
+                    });
+                    (owner, application)
+                })
+                .collect())
         })
     }
 }

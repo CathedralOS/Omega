@@ -3,6 +3,8 @@
 // referent beneath the minted reference carrier without an FFI address: errno
 // begins zeroed, gnu_get_libc_version exposes a stable nonzero cell, and
 // localeconv exposes shared references to the "C" locale decimal point byte.
+// Only reference-typed declarations are ours; an integer address result is the
+// native sponsor's.
 
 use super::TerminalRuntimeError;
 use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape};
@@ -39,6 +41,14 @@ impl ReferenceStateImport {
         let Some(operation) = select(binding)? else {
             return Ok(None);
         };
+        // A declaration that takes the raw address as an integer (std's
+        // `PosixCanonicalLibc::error_location() -> u64`, read back by `memcpy`)
+        // names the real thread-local cell in the process that made the failing
+        // call. A modeled referent cannot be that cell, so the native sponsor,
+        // which made the call, answers it instead.
+        if !matches!(declaration.result, BoundaryMachineResult::Structural(_)) {
+            return Ok(None);
+        }
         let signature = TerminalImportSignature::from(declaration);
         let result = validate(
             program,

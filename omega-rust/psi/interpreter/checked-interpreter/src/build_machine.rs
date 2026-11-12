@@ -12,28 +12,6 @@ use crate::interpreter::evaluator::{
 use symbols::SymbolHandle;
 
 impl Evaluator<'_> {
-    pub(crate) fn try_component_assumption_acceptance(
-        &mut self,
-        target: SymbolHandle,
-        arguments: &[ExpressionHandle],
-        frame: &mut Frame,
-    ) -> EvalResult<Option<Value>> {
-        if !target.is_valid()
-            || !self.exact_build_facet_method("Build", "accept_component_assumption", target)
-        {
-            return Ok(None);
-        }
-        let [builder, digest] = arguments else {
-            return Err(Halt::Trap(
-                "component assumption acceptance takes an explicit Build argument and one digest spelling".to_owned(),
-            ));
-        };
-        let builder = self.eval_argument(*builder, frame)?;
-        self.require_root_build_argument(self.deref_cell(builder), "accept_component_assumption")?;
-        self.eval_expression(*digest, frame)?;
-        Ok(Some(Value::Unit))
-    }
-
     pub(crate) fn try_build_facet_routes(
         &mut self,
         target: SymbolHandle,
@@ -68,10 +46,7 @@ impl Evaluator<'_> {
         if let Some(value) = self.try_required_output_path_call(target, arguments, frame)? {
             return Ok(Some(value));
         }
-        if let Some(value) = self.try_build_log_write_line_call(target, arguments, frame)? {
-            return Ok(Some(value));
-        }
-        self.try_component_assumption_acceptance(target, arguments, frame)
+        self.try_build_log_write_line_call(target, arguments, frame)
     }
 
     pub(crate) fn try_build_product_description_call(
@@ -823,15 +798,11 @@ pub(crate) mod output_obligations {
 }
 
 pub(crate) mod paths {
-    use crate::interpreter::evaluator::filesystem::real::real_fs;
     use crate::interpreter::evaluator::{
         BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame,
         Halt, SymbolHandle, Value, trap,
     };
-    use crate::{
-        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
-        MAX_INCLUDED_BUILD_SOURCES,
-    };
+    use crate::{FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity};
 
     pub(crate) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
     const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
@@ -975,20 +946,6 @@ pub(crate) mod paths {
                                 return trap("Build filesystem path belongs to another facet root");
                             }
                         }
-                        crate::interpreter::evaluator::PreparedFilesystemCall::Read {
-                            fd, ..
-                        }
-                        | crate::interpreter::evaluator::PreparedFilesystemCall::Write {
-                            fd, ..
-                        }
-                        | crate::interpreter::evaluator::PreparedFilesystemCall::Close { fd } => {
-                            if let Some(issued) = real_fs(evaluator)
-                                .and_then(|filesystem| filesystem.descriptor_root(*fd))
-                                && issued != root
-                            {
-                                return trap("Build descriptor belongs to another facet root");
-                            }
-                        }
                         _ => {}
                     }
                     Ok(call)
@@ -1068,34 +1025,9 @@ pub(crate) mod paths {
                 return trap("generated-source handoff path belongs to a different build root");
             }
             validate_build_relative_path(&relative_path)?;
-            self.real_fs
-                .as_ref()
-                .ok_or_else(|| {
-                    Halt::Trap("generated source requires scoped output custody".into())
-                })?
-                .require_sealed_rooted_file(output_root, &relative_path)?;
-            let scoped_real_output = real_fs(self)
-                .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped);
-            if !scoped_real_output {
-                return trap("generated-source handoff requires a scoped build-output grant");
-            }
-            if self.build_included_sources.len() == MAX_INCLUDED_BUILD_SOURCES {
-                return Err(Halt::Resource(format!(
-                    "generated-source handoff exceeds its {MAX_INCLUDED_BUILD_SOURCES}-source ceiling"
-                )));
-            }
-            if self.build_included_sources.iter().any(|source| {
-                source.root() == included_root && source.relative_path() == relative_path
-            }) {
-                return trap("generated-source handoff names the same path more than once");
-            }
-            self.build_included_sources
-                .push(crate::BuildIncludedSource::new(
-                    included_root,
-                    relative_path,
-                    self.filesystem_operation_attempts.len(),
-                ));
-            Ok(Value::Unit)
+            // Generated sources need sealed output custody from a scoped host
+            // grant, which build-time evaluation never supplies.
+            trap("generated source requires scoped output custody")
         }
 
         pub(crate) fn exact_build_facet_method(
@@ -1539,7 +1471,8 @@ pub(crate) mod provider_selections {
             let Some(
                 operation @ (BuildOperation::ProviderSelection
                 | BuildOperation::AssumedBindingContract
-                | BuildOperation::ServiceAudit),
+                | BuildOperation::ServiceAudit
+                | BuildOperation::TestGroupRegistration),
             ) = BuildOperation::from_call_target(call.target.as_str())
             else {
                 return Ok(None);
@@ -1552,7 +1485,9 @@ pub(crate) mod provider_selections {
                 BuildOperation::ProviderSelection => {
                     self.provider_composition_case(arguments, frame)?
                 }
-                BuildOperation::AssumedBindingContract | BuildOperation::ServiceAudit => {
+                BuildOperation::AssumedBindingContract
+                | BuildOperation::ServiceAudit
+                | BuildOperation::TestGroupRegistration => {
                     let [builder] = arguments else {
                         return trap(format!(
                             "{} registration takes exactly the mutable Build argument",
@@ -1691,6 +1626,7 @@ pub(crate) mod root_bindings {
                     protocol,
                     Some(
                         "prepare"
+                            | "prepare_tests"
                             | "bind"
                             | "bind_description"
                             | "select"
@@ -1728,7 +1664,7 @@ pub(crate) mod root_bindings {
             };
             let requires_selecting_machine = binding.requires_lexical_subject();
             let preparation = protocol.and_then(|name| match name {
-                "prepare" => Some(true),
+                "prepare" | "prepare_tests" => Some(true),
                 name if name == operation => Some(false),
                 _ => None,
             });
@@ -1742,13 +1678,16 @@ pub(crate) mod root_bindings {
                 let [receiver_expression] = arguments else {
                     return trap("root binding requires one explicit Build argument");
                 };
+                let facet = protocol == Some("prepare_tests");
                 let receiver = self.eval_read_cell(*receiver_expression, frame)?;
                 let receiver = self.deref_cell(receiver);
-                if !self
-                    .root_build
-                    .as_ref()
-                    .is_some_and(|root| Cell::ptr_eq(root, &receiver))
-                {
+                // Test-group registration is prepared through the original
+                // Build's own `tests` facet cell, not a copy of its value.
+                let original = match self.root_build.as_ref() {
+                    Some(root) if facet => Some(self.field_cell(root, "tests")?),
+                    root => root.cloned(),
+                };
+                if !original.is_some_and(|root| Cell::ptr_eq(&root, &receiver)) {
                     return trap(
                         "root binding requires the current activation's original Build value",
                     );

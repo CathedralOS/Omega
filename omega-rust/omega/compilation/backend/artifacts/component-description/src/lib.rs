@@ -41,8 +41,8 @@ pub use component_description::{
     encode_component_description,
 };
 pub use component_verification::{
-    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
-    VerifiedComponent, verify_component,
+    AcceptedComponentAssumptions, ComponentVerificationRejection, ComponentVerificationRequest,
+    IndependentRealizationMismatch, VerifiedComponent, verify_component,
 };
 
 pub fn publish_component_description(

@@ -14,6 +14,15 @@ conclusions, a caller establishes the assumptions under the exact argument
 substitution. Naming a condition does not prove it; failed proof search does
 not prove its negation.
 
+Ordinary calls also follow [local call summaries](../language/state_contracts.md#local-call-summaries):
+an exact checked call in the same fixed verification unit may expose additional
+checked body-derived facts. Outside that unit, additional semantic guarantees
+must be authored in the published contract. A written `ensures` remains an
+obligation and a minimum guarantee; local precision neither rewrites it nor
+strengthens an abstract requirement. Existing published operational and ownership
+information keeps its own rules. A written `requires` is complete, including on
+private helpers, under [entry inference](../language/state_contracts.md#private-entry-inference).
+
 The same [call-precondition rule](../language/machines.md#call-preconditions)
 also governs forming a mathematical result term, even if none of the callee's
 conclusions is used. Proof-to-proof calls have no exemption. Named calls and
@@ -98,6 +107,14 @@ automatically executable call. The same checked contract may serve
 runtime, compile-time, or proof use when its types and reach permit it. A fact-only
 invocation emits no runtime call or work.
 
+Law, lemma and theorem describe uses of ordinary declarations, not separate
+source declaration kinds. In a trait schema, a requirement declared with
+`machine` always contributes a selected callable field, including a resultless
+requirement with `ensures`. To carry mathematical evidence instead, declare an
+ordinary field of that evidence type or state a schema validity constraint.
+Its identity follows the declared type, not the initializer's spelling or
+runtime erasure; see [record elaboration](../language/conformances.md#implementations-are-operation-records).
+
 Traits bundle mathematical operations, witnesses, and checked laws. A named
 conformance supplies the complete bundle. Its name, expected shape, or nearby
 facts cannot supply a missing law or select an implementation. Preserve the
@@ -135,12 +152,15 @@ materialized without a checked computation or realization. The
 distinction; no new domain atom or runtime provider search stands in for it.
 
 Runtime integer/address values enter mathematical integer arithmetic through the
-total `embed` projection, retaining exact carrier range. Removing a policy
+total `embed` projection, retaining exact carrier range. This includes the
+unbounded computational carriers `i` and `u`; it does not depend on a chosen
+storage representation. Removing a policy
 domain with `as` instead leaves Exact carrier arithmetic and retains
 representability obligations. Trapping arithmetic, including the `!`
 [policy operators](../language/numeric_values.md#policy-operators), does not
-form a proof term; the normal return of a `!` operation establishes that its
-result equals the exact mathematical result. Floats project to
+form a proof term; the normal return of a `!` operation establishes its
+operation-specific mathematical denotation. For division that denotation is
+integer quotient, not rational `/`. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 
@@ -167,7 +187,10 @@ term to justify its own formation. Removing the policy domain with a cast or
 Integer/address embedding is injective within its exact source carrier and
 preserves that carrier's range. It neither mutates the source nor creates runtime
 storage. Computed operands preserve their selected policy: embedding a wrapped
-sum does not turn it into unbounded addition. A call interpreted denotationally
+sum does not turn it into unbounded addition. Subsequent mathematical operations
+use their own declared meanings: `embed(7u32) / 2` is rational `7/2`, whereas
+`embed(7u32 / 2u32)` is integer `3`. These are typed values, not a return to
+anonymous literal inference. A call interpreted denotationally
 needs a checked observation-free, reach-free, crash-free, terminating invocation,
 not merely a same-spelled mathematical operation.
 
@@ -178,7 +201,7 @@ the requirement must guarantee service-free invocation. Under
 omission permits the selected implementation's row; today's pure selections
 cannot justify proof use in an otherwise open generic body.
 
-Builtin fixed-integer equality and order have the same meaning as the relation
+Builtin computational-integer equality and order, including `i` and `u`, have the same meaning as the relation
 between the operands' exact `embed` projections, including operands with different
 widths or signedness. This characterizes the comparison; authors need no explicit
 embedding or cast to compare admitted runtime integer values. Each projection
@@ -203,6 +226,32 @@ Target-relative bounds retain the exact observation dependency. An exclusive
 one-past address bound may be representable in proof mathematics without fitting
 the runtime address carrier.
 
+Named decisions `unbounded-computational-integers`,
+`mathematical-exact-division` and `explicit-landing-proof-int-peer` are specified
+under [numeric values](../language/numeric_values.md#unbounded-computational-integers).
+Mathematical `/` admits `Nat`, `Int` and `Rat` by exact rational inclusions,
+and anonymous operands by their complete exact rational value. Its result is
+always `Rat`; the divisor's nonzero premise is established before forming the
+term. Constant folding and expected result types do not change that result type.
+An anonymous integral final value can land in mathematical `Int` or `Nat`
+without fractional-history acknowledgment; a typed `Rat` needs explicit exact
+narrowing for an integer-only use. Other mathematical promotions are not implied.
+
+For admitted computational division, the proof correspondence is
+`embed(a / b) == integer::quotient(embed(a), embed(b))`, subject to the source
+operation's policy and formation conditions. Computational remainder similarly
+corresponds to `integer::remainder`. The signed quotient truncates toward zero;
+its remainder is zero or has the dividend's sign. These operations remain
+available for number-theoretic reasoning; neither is mathematical rational `/`.
+For an overflow-policy result, apply that policy to the operation-specific
+integer denotation rather than to a rational division expression.
+
+Each nested term retains its formation obligation: neither cancellation in
+`x / x` nor multiplication by zero establishes an unproved nonzero divisor.
+The desired conclusion cannot justify its own formation. The same semantics
+apply to symbolic variables, generic selections and closed constants; a
+constant-only arithmetic shortcut does not implement this contract.
+
 For mathematical primitive result `M` and result-carrier bounds `[MIN, MAX]`,
 the selected catalog supplies these denotations after primitive definedness:
 
@@ -212,6 +261,12 @@ the selected catalog supplies these denotations after primitive definedness:
 | Wrapping | Embedded result equals width-specific wrapping of `M`. |
 | Saturating | Embedded result equals `M` clamped to the carrier. |
 | Trapping | A normal return embeds to `M`; the exact primitive trap predicate governs failure. |
+
+Here `M` is the selected primitive's integer denotation: for computational
+division it is truncating quotient, even though source mathematical `/` returns
+a rational. Unbounded `i`/`u` have no upper representability bound; `u` retains
+nonnegativity. This table does not supply a modulus, finite endpoint or overflow
+policy for an unbounded type.
 
 The trap predicate is not a generic range test: division includes zero and
 signed minimum divided by -1, while shift counts and floats follow their own

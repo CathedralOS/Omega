@@ -31,6 +31,29 @@ impl BoundaryCallingPlanCommitment {
     }
 }
 
+// The promise an evaluated calling plan makes at the boundary: its convention
+// placements and effective machine-state contract
+// (`ValidatedBoundaryEntryPlan::contract_commitment_digest`). Unlike
+// `BoundaryCallingPlanCommitment` it does not name the selecting owner or the
+// policy that produced it, so it is what two owners must agree on to supply the
+// same receiver application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryCallingPlanPromise([u8; 32]);
+
+impl BoundaryCallingPlanPromise {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
 evidence_digest!(
     ProviderPlanDigest,
     from: #[doc(hidden)] pub
@@ -57,6 +80,26 @@ pub struct ServiceSchema {
 pub struct ServiceCallingPlan {
     pub report_fingerprint: u64,
     pub commitment: BoundaryCallingPlanCommitment,
+    pub promise: BoundaryCallingPlanPromise,
+}
+
+// Which part of the calling evidence two schemas must agree on. Supplying a
+// demanded receiver needs the exact owner-bound application; detecting that two
+// owners supply the same receiver compares only what the plan promises, so
+// distinct policies that publish one promise still conflict.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CallingAgreement {
+    ExactApplication,
+    PlanPromise,
+}
+
+impl ServiceCallingPlan {
+    fn agrees_with(&self, other: &Self, agreement: CallingAgreement) -> bool {
+        match agreement {
+            CallingAgreement::ExactApplication => self == other,
+            CallingAgreement::PlanPromise => self.promise == other.promise,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,14 +145,14 @@ impl ServiceSchema {
         requirement: ProviderIdentityId,
         other: &Self,
         other_requirement: ProviderIdentityId,
+        agreement: CallingAgreement,
     ) -> bool {
-        self.calling_for_requirement(requirement)
-            .iter()
-            .map(|application| (&application.abi, application.plan))
-            .eq(other
-                .calling_for_requirement(other_requirement)
-                .iter()
-                .map(|application| (&application.abi, application.plan)))
+        let left = self.calling_for_requirement(requirement);
+        let right = other.calling_for_requirement(other_requirement);
+        left.len() == right.len()
+            && left.iter().zip(&right).all(|(left, right)| {
+                left.abi == right.abi && left.plan.agrees_with(&right.plan, agreement)
+            })
     }
 
     pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
@@ -153,8 +196,11 @@ impl ServiceSchema {
             if application.abi.requirement_identity != self.identity_text(application.requirement) {
                 return Err("calling evidence ABI key differs from its requirement coordinate");
             }
-            if application.plan.report_fingerprint == 0 || application.plan.commitment.is_zero() {
-                return Err("calling evidence has an empty fingerprint or commitment");
+            if application.plan.report_fingerprint == 0
+                || application.plan.commitment.is_zero()
+                || application.plan.promise.is_zero()
+            {
+                return Err("calling evidence has an empty fingerprint, commitment or promise");
             }
         }
         Ok(())
@@ -210,6 +256,7 @@ impl PartialEq for ServiceSchema {
                         left.requirement_identity,
                         other,
                         right.requirement_identity,
+                        CallingAgreement::ExactApplication,
                     )
                 })
     }
@@ -226,16 +273,25 @@ impl ServiceSchema {
         self.declaration
             .receiver_applications
             .iter()
-            .position(|application| self.receiver_contract_matches(application, demanded, root))
+            .position(|application| {
+                self.receiver_contract_matches(
+                    application,
+                    demanded,
+                    root,
+                    CallingAgreement::ExactApplication,
+                )
+            })
     }
 
+    // Two selected owners conflict when any receiver they supply agrees on the
+    // declaration and on every calling plan's promise. The owner-bound
+    // commitment names the selecting owner and its policy, so comparing it here
+    // would let two policies that publish the same plan escape the conflict.
     pub fn shares_receiver_application(&self, other: &Self) -> bool {
         self.declaration.receiver_applications.iter().any(|left| {
-            other
-                .declaration
-                .receiver_applications
-                .iter()
-                .any(|right| self.receiver_contract_matches(left, other, right))
+            other.declaration.receiver_applications.iter().any(|right| {
+                self.receiver_contract_matches(left, other, right, CallingAgreement::PlanPromise)
+            })
         })
     }
 
@@ -244,6 +300,7 @@ impl ServiceSchema {
         application: &ServiceReceiverApplication,
         other: &Self,
         other_application: &ServiceReceiverApplication,
+        agreement: CallingAgreement,
     ) -> bool {
         application.eq_in(
             &self.declaration.identities,
@@ -267,6 +324,7 @@ impl ServiceSchema {
                     method.requirement_identity,
                     other,
                     other_method.requirement_identity,
+                    agreement,
                 )
             })
         })
@@ -401,6 +459,7 @@ mod tests {
                 plan: ServiceCallingPlan {
                     report_fingerprint: u64::from(calling),
                     commitment: BoundaryCallingPlanCommitment::from_digest([calling; 32]),
+                    promise: BoundaryCallingPlanPromise::from_digest([calling; 32]),
                 },
             }],
         }
@@ -423,6 +482,24 @@ mod tests {
         let second = schema("SecondRoot", 1, true);
         assert!(first.shares_receiver_application(&second));
         assert!(second.shares_receiver_application(&first));
+    }
+
+    // Two policies that publish one plan promise still commit to different
+    // owner-bound applications; the promise alone decides the conflict, while
+    // supplying a demanded receiver still needs the exact application.
+    #[test]
+    fn same_plan_promise_from_different_policies_still_competes() {
+        let first = schema("FirstRoot", 1, false);
+        let mut second = schema("SecondRoot", 1, true);
+        second.calling_applications[0].plan.commitment =
+            BoundaryCallingPlanCommitment::from_digest([2; 32]);
+        second.calling_applications[0].plan.report_fingerprint = 2;
+        assert!(first.shares_receiver_application(&second));
+        assert!(second.shares_receiver_application(&first));
+        let mut demanded = schema("Parent", 1, true);
+        demanded.calling_applications[0].plan = second.calling_applications[0].plan;
+        assert!(!first.supplies_receiver_schema(&demanded));
+        assert!(second.supplies_receiver_schema(&demanded));
     }
 
     #[test]

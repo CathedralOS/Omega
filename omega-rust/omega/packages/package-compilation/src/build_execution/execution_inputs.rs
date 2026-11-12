@@ -23,6 +23,10 @@ pub struct BuildExecutionInputs {
     pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     pub snapshot: Option<BuildSnapshotRequest>,
     pub restricted_grants: Option<Box<dyn RestrictedBuildGrants>>, // Absence reports restricted requests without executing them.
+    // A dependency's Build executed while resolving its consumer's sources.
+    // The request's subject is the consumer, so this Build checks only what
+    // its entry reaches (wiki/spec/build/validation_subjects.md#orchestration).
+    pub dependency_activation: bool,
 }
 
 impl BuildExecutionInputs {

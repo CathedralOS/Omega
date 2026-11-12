@@ -768,6 +768,7 @@ mod tests {
 
     fn declaration() -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            requires: Vec::new(),
             id: StructuralTypeId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,

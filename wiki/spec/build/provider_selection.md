@@ -56,10 +56,22 @@ the same source select another operation on a different target.
 `Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait or package-qualified same-path boundary-
 operator family. Provider resolves to one
-named provider implementation, not a data type or a provider instance. Both retain compiler-derived package ownership. Plans and
-checked adapters rejoin exact slot, realizing machine, provider, schema, and
+fully evaluated static record of the required provider schema, whether constructed
+by a named implementation or computed by ordinary admitted compile-time code.
+A `const` record value is accepted in the existing Provider position; no naming
+wrapper or second Build operation is required. A data type or runtime provider
+descriptor is not such a value. The slot and every selected declaration retain
+compiler-derived package ownership and supply dependencies. Plans and
+checked adapters rejoin exact slot, realizing machine, provider value, schema, and
 requirement owners. Leaf names, strings, normalized signatures, ordinals,
 declaration order, and compact fingerprints cannot select overloads.
+
+The assembled record must satisfy the slot's complete schema, operation contracts
+and evidence constraints. Selected operation identities, private dependencies,
+native supply, target realization and admission requirements survive evaluation
+and forwarding. Equal provider values do not erase the proof or supply
+dependencies actually used; construction grants no selection or runtime
+authority. See [operation records](../language/conformances.md#implementations-are-operation-records).
 
 The first value argument is the current activation's original mutable `Build`
 value, passed explicitly as for other static Build operations. Helpers forward
@@ -76,8 +88,8 @@ is explicit and must belong to the current activation. An ordinary declaration
 named `accept_boundary` grants no authority. Receiver-style acceptance is
 retired, with no implicit insertion of the Build argument.
 
-Selection configuration is nominal, apart from the optional declared composition
-mode supplied after `builder`:
+Selection names an exact slot and supplies a typed static provider value, apart
+from the optional declared composition mode supplied after `builder`:
 
 ```omega
 Build::select_provider<Console, CapturedConsole>(builder);
@@ -88,8 +100,9 @@ Runtime-variable descriptors are ordinary capability values, not provider
 selectors. An explicit compile-time target-catalog reference keys a Build row;
 it is not a runtime routing descriptor or an observation of the realized target.
 Physical handles and runtime descriptors stay inside selected implementations.
-Distinct authored configurations use distinct
-nominal/static identities. A facade may compose checked target-specific leaves.
+Distinct configurations must differ in their resulting schema or relevant
+contents, not merely in a constructor's name or unused arguments. A facade may
+compose checked target-specific leaves.
 An exact call to a realization machine delegates directly; spelling its operator
 inside the provider redispatches and can recurse.
 
@@ -312,7 +325,11 @@ and that application's complete original requirement roster. It is not another
 provider plan or a union of independently selected rows. A whole descendant
 choice can settle automatic ancestor selection only when the complete demanded
 application agrees; it cannot suppress a competing authored choice. Shared
-realizer code does not merge selecting owners. Erased runtime-carrier identities
+realizer code does not merge selecting owners. Two selected owners compete for
+an inherited receiver when its declaration and every calling plan's promise
+(convention placements and effective machine-state contract) agree; the
+owner-bound application commitment names the selecting owner and its policy, so
+different policies publishing one promise still compete. Erased runtime-carrier identities
 cannot establish agreement between region-bearing applications.
 
 Service schemas retain linear routed-parameter claims structurally: exact

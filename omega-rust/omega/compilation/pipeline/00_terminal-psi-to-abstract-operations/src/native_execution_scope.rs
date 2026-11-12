@@ -400,7 +400,7 @@ impl NativeExecutionScope {
             );
         }
         if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-            crate::optimization::target_family_member(module, Some(targets), boundary)
+            terminal_installation::admitted_boundary_member(module, Some(targets), boundary)
                 .map_err(NativeExecutionScopeError::TargetFamily)?
         {
             pending.push(member);

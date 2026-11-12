@@ -66,6 +66,16 @@ access obligations, retains permitted effects and progress, and supplies checked
 postconditions and returned-borrow origins. Calls can take zero, one or multiple
 state arguments. They are not method calls on the record containing the field.
 
+Additional body-derived semantic facts follow the
+[local-summary boundary](state_contracts.md#local-call-summaries). A retained
+exact checked selection may use its summary in the same fixed verification
+unit; an unknown callable or abstract requirement uses its contract. Target
+prediction and mere availability of an implementation do not establish an exact
+selection. Callable construction and conversion check any inferred private
+entry conditions as part of the effective input contract; a helper needing a
+positive argument cannot inhabit a callable that admits zero. The originating
+interface must never be silently narrowed from a selected body's requirements.
+
 Forwarding, reassignment, joins, fields and containers preserve the selected code
 and its contract evidence. Known selection may narrow the operational envelope
 only by [retained checked evidence](effects.md#known-dynamic-selections).
@@ -84,9 +94,12 @@ mixing compatible machines from different named implementations is permitted
 unless a published record predicate or explicit evidence relates them. Field
 completeness is not a proof of cross-operation laws, matching allocators, or a
 shared implementation identity. Such relationships must be stated and proved.
-Static trait laws do not appear on a record that does not carry them; a trait's
-[schema](conformances.md#implementations-are-operation-records) carries its laws
-as fields, and construction proves them.
+Static trait guarantees do not appear on a record that does not carry them.
+A trait's [schema](conformances.md#implementations-are-operation-records) has
+selected callable fields for its machine requirements, ordinary values for its
+explicitly typed evidence fields, and validity obligations for its constraints.
+Construction checks each according to its declared type. No resultless machine
+member is silently converted into proof-irrelevant evidence.
 
 Callable addresses do not automatically supply executable equality, ordering,
 hashing, or proof identity. Ordinary conformance synthesis needs its published
@@ -110,11 +123,13 @@ consumer taking the record as a static parameter calls the selected declaration
 under its exact published contract, with reach, suspension, blocking, crash,
 termination, carry and result relations projected per selected field.
 
-The same record schema may be materialized at runtime, where each field is the
-callable descriptor described above. Materialization requires every selection's
-static arguments closed and a finite published envelope; an open generic family
-has no descriptor. [Implementations](conformances.md#implementations-are-operation-records)
-are records of these selections.
+The same record schema may be materialized at runtime, where each callable field
+is the descriptor described above and ordinary fields retain their ordinary
+representation. Erased fields contribute no runtime storage. Materialization
+requires every selection's static arguments closed and a finite published
+envelope; an open generic family has no descriptor.
+[Implementations](conformances.md#implementations-are-operation-records)
+are records of these selections and their explicitly declared ordinary fields.
 
 ## Static and runtime selection
 

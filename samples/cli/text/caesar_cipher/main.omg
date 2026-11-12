@@ -3,7 +3,7 @@
 // write a new carrier, output it. The shift reads cleanly now that a carrier
 // indexed read works inside an expression:
 //
-//   out[i] = text[i] as u8 in Wrapping + key
+//   out[i] = (text[i] as u8 in Wrapping) + key
 //
 // `in Wrapping` makes the byte add wrap (decision 17: byte arithmetic is modular,
 // not exact -- 'X' + 3 would otherwise need an unprovable no-overflow proof). The
@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
     machine shift(text: &[u8; 5] in Utf8, output: &mut [u8; 5], position: i32)
         requires 0 <= position && position < 5
     {
-        let shifted: u8 in Wrapping = text[position] as u8 in Wrapping + 3;
+        let shifted: u8 in Wrapping = (text[position] as u8 in Wrapping) + 3;
         output[position] = shifted as u8;
         transition {
             _ -> block step(text, output, position + 1)

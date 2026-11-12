@@ -468,6 +468,11 @@ pub mod snapshot {
                     arithmetic_domain: cast.domain.name(),
                     form: match cast.form {
                         language_core::cast_form::CastForm::Value => "value",
+                        language_core::cast_form::CastForm::Entry(entry) => match entry.kind {
+                            language_core::cast_form::CastEntryKind::Keep => "entry_keep",
+                            language_core::cast_form::CastEntryKind::Remove => "entry_remove",
+                            language_core::cast_form::CastEntryKind::Add => "entry_add",
+                        },
                         language_core::cast_form::CastForm::Recast(access) => match access {
                             language_core::ReferenceAccess::Shared => "recast_shared",
                             language_core::ReferenceAccess::Mutable => "recast_mutable",
@@ -757,6 +762,33 @@ pub mod snapshot {
             )
         }
 
+        /// One pattern's field roster, for a dispatch arm or a record
+        /// pattern's marker local alike.
+        pub(crate) fn snapshot_match_fields(
+            syntax_trees: &SyntaxTrees,
+            fields: arena::HandleSpan<crate::expression::TableMatchField>,
+        ) -> Vec<MatchFieldSnapshot> {
+            syntax_trees
+                .expressions
+                .match_fields(fields)
+                .iter()
+                .map(|field| MatchFieldSnapshot {
+                    component: (field.component == language_core::PatternComponent::Case)
+                        .then_some("case"),
+                    member: snapshot_identifier(syntax_trees, &field.member),
+                    action: match &field.action {
+                        MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
+                            binding: snapshot_identifier(syntax_trees, binding),
+                        },
+                        MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
+                            value: Box::new(snapshot_expression_handle(syntax_trees, *value)),
+                        },
+                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
+                    },
+                })
+                .collect()
+        }
+
         pub(crate) fn snapshot_match_pattern(
             syntax_trees: &SyntaxTrees,
             pattern: MatchPattern,
@@ -773,28 +805,7 @@ pub mod snapshot {
                         ))
                     }),
                     head: Box::new(snapshot_expression_handle(syntax_trees, pattern.head)),
-                    fields: syntax_trees
-                        .expressions
-                        .match_fields(pattern.fields)
-                        .iter()
-                        .map(|field| MatchFieldSnapshot {
-                            component: (field.component == language_core::PatternComponent::Case)
-                                .then_some("case"),
-                            member: snapshot_identifier(syntax_trees, &field.member),
-                            action: match &field.action {
-                                MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
-                                    binding: snapshot_identifier(syntax_trees, binding),
-                                },
-                                MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
-                                    value: Box::new(snapshot_expression_handle(
-                                        syntax_trees,
-                                        *value,
-                                    )),
-                                },
-                                MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
-                            },
-                        })
-                        .collect(),
+                    fields: snapshot_match_fields(syntax_trees, pattern.fields),
                     has_rest: pattern.has_rest,
                     guard: pattern
                         .guard
@@ -883,7 +894,7 @@ pub mod snapshot {
                 #[serde(skip_serializing_if = "Option::is_none")]
                 quotient: Option<QuotientSnapshot>,
                 #[serde(skip_serializing_if = "Vec::is_empty")]
-                where_facts: Vec<ProofFactSnapshot>,
+                requires_facts: Vec<ProofFactSnapshot>,
                 members: Vec<DataMemberSnapshot>,
             },
             TypeAlias {
@@ -1339,7 +1350,7 @@ pub mod snapshot {
                             }
                         }),
                     }),
-                    where_facts: snapshot_proof_facts(syntax_trees, value.where_facts),
+                    requires_facts: snapshot_proof_facts(syntax_trees, value.requires_facts),
                     members: syntax_trees
                         .items
                         .data_members(value.members)
@@ -2057,6 +2068,8 @@ pub mod snapshot {
                 initial_value: ExpressionSnapshot,
                 is_mutable: bool,
                 relevance: &'static str,
+                #[serde(skip_serializing_if = "Vec::is_empty")]
+                pattern_fields: Vec<super::expression_and_type_snapshots::MatchFieldSnapshot>,
             },
             Transition {
                 #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -2389,6 +2402,10 @@ pub mod snapshot {
                     initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
                     is_mutable: value.is_mutable,
                     relevance: super::item_snapshots::snapshot_binding_relevance(value.relevance),
+                    pattern_fields: super::expression_and_type_snapshots::snapshot_match_fields(
+                        syntax_trees,
+                        value.pattern_fields,
+                    ),
                 },
                 StatementNode::Transition(value) => StatementSnapshot::Transition {
                     patterns: syntax_trees
@@ -2502,7 +2519,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(
                     syntax_trees
                         .items
@@ -2542,7 +2559,7 @@ pub mod snapshot {
                             carry: None,
                         },
                         quotient: None,
-                        where_facts: Vec::new(),
+                        requires_facts: Vec::new(),
                         members: vec![super::DataMemberSnapshot::Field {
                             identity: None,
                             name: super::IdentifierSnapshot {
@@ -2591,7 +2608,7 @@ pub mod snapshot {
                     identity: Some(3),
                     name: Identifier::generated("Certified"),
                     payload: arena::HandleSpan::from_parts(payload, 1),
-                    where_facts: arena::HandleSpan::empty(),
+                    requires_facts: arena::HandleSpan::empty(),
                     retired_payload_identities: Vec::new(),
                 }));
             syntax_trees.push_root_item(Item::Data(DataDefinition {
@@ -2605,7 +2622,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: crate::item::DataProperties::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
                 members: arena::HandleSpan::from_parts(member, 1),
             }));
 
@@ -2652,7 +2669,7 @@ pub mod snapshot {
                 generic_instance: None,
                 properties: Default::default(),
                 quotient: None,
-                where_facts: arena::HandleSpan::empty(),
+                requires_facts: arena::HandleSpan::empty(),
             }));
 
             let snapshot = syntax_trees.snapshot();

@@ -1,9 +1,14 @@
 # Compile-time admission and elaboration
 
 This compiler service admits evaluation and installs its results into source
-and typed programs. Checked fixed-array-length jobs execute through the shared
-Terminal producer and interpreter; remaining pure value and policy jobs still
-use the [checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs).
+and typed programs. Every invocation of an already checked machine (fixed-array
+lengths, checked constant and `via` producer invocations) executes through the
+shared Terminal producer and interpreter: `build_machines::evaluate_checked_invocation`
+binds compiler-materialized arguments through [terminal_values](src/terminal_values.rs)
+and publishes engine-tagged `BuildEvaluationUsage` (usage schema 8). Jobs that
+still evaluate typed trees before checking use the
+[checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs)
+and publish usage schema 7.
 Build activation executes only through Omega's
 [Terminal Build host](../../../omega/build-system/build-settings/src/build_evaluation.rs).
 This service owns neither Build configuration nor package acquisition or target realization.

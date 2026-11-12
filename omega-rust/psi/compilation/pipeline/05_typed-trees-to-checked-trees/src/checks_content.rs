@@ -7177,7 +7177,9 @@ pub(crate) fn prepare_retained_content_custody(
         .iter()
         .filter(|definition| definition.is_boundary)
     {
-        for signature in program.trait_machine_signatures(definition) {
+        // Keyed as `check_retained_content_custody` keys them: by each closed
+        // instance a call of the requirement targets.
+        for signature in program.trait_machine_instances(definition) {
             let contracts = program
                 .state_signature_contracts(signature)
                 .iter()
@@ -7225,8 +7227,11 @@ pub(crate) fn check_retained_content_custody(
 
     let mut retained_borrow_custodies = Vec::new();
 
+    // A call of a requirement closed over static arguments targets its closed
+    // instance, and lowering realizes that instance as the boundary machine, so
+    // a custody names each instance the requirement executes as.
     for trait_definition in program.traits() {
-        for signature in program.trait_machine_signatures(trait_definition) {
+        for signature in program.trait_machine_instances(trait_definition) {
             let contracts = program
                 .state_signature_contracts(signature)
                 .iter()

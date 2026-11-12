@@ -925,9 +925,9 @@ crashes Trap
         }
     }
 
-    // A field store into a value whose data carries `where` facts would
+    // A field store into a value whose data carries `requires` facts would
     // open an invariant window this slice does not close.
-    // Storing a field of a value whose data carries `where` facts opens an
+    // Storing a field of a value whose data carries `requires` facts opens an
     // invariant window; the statement must close it again: the facts hold
     // of the value's fields as they now are
     // (wiki/spec/language/dependent_values.md#invariant-windows).
@@ -1406,8 +1406,7 @@ crashes Trap
 // subject hold or fail, and another value pattern, an integer literal or a
 // path denoting no case, makes the subject equal it. Passing over a value
 // pattern establishes nothing. A case arm's binders are places of their
-// payload types, and a chosen case arm assumes its case's own `where`
-// facts.
+// payload types; a case states no facts of its own.
 public machine Checker::arm_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
@@ -1468,31 +1467,19 @@ crashes Trap
     ) {
         let binding: ValueBinding = NameResolution::value_binding(resolution, arm.pattern);
         transition chosen {
-            true -> matched(checker, syntax, resolution, typing, subject, pattern, arm, binding)
+            true -> matched(checker, subject, pattern, binding)
             _ -> done()
         }
     }
 
-    // A case pattern assumes its case's facts; a path denoting no case is a
-    // value pattern, which the subject equals.
-    machine matched(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        subject: u64 in Trapping,
-        pattern: Value,
-        arm: TransitionArm,
-        binding: ValueBinding
-    ) {
+    // A case pattern carries no facts of its own (the data declaration's
+    // `requires` states every case condition); a path denoting no case is
+    // a value pattern, which the subject equals.
+    machine matched(checker: &mut Checker, subject: u64 in Trapping, pattern: Value, binding: ValueBinding) {
         transition binding {
-            ValueBinding::DataCase { item, data_case } -> selected(checker, syntax, resolution, typing, subject, arm, data_case)
+            ValueBinding::DataCase { item, data_case } -> done()
             _ -> equal(checker, subject, pattern)
         }
-    }
-
-    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, subject: u64 in Trapping, arm: TransitionArm, data_case: u64 in Trapping) {
-        Checker::assume_case_facts(checker, syntax, resolution, typing, subject, arm, data_case);
     }
 
     machine done() {}

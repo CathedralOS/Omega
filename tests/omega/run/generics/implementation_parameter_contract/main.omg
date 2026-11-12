@@ -1,0 +1,46 @@
+// Expected exit: 0.
+// A generic body is checked against its requirement's contract, not against
+// the implementations its callers select. `advance` is proved once from
+// `Step::apply`'s `requires` and `ensures`, so it may promise `result <= 21`
+// and no less. `Hold` and `Shift` each promise more than `Step::apply` does,
+// and `Shift` asks less; both run the one body. The fail twin
+// `fail/generics/implementation_parameter_contract_only_holds_for_selection`
+// differs only in the bound `advance` promises.
+trait Step {
+    machine apply(value: u32) -> u32
+    requires value <= 10
+    ensures result <= 20
+    crashes none;
+}
+Hold satisfies Step {
+    machine apply(value: u32) -> u32
+    requires value <= 10
+    ensures result <= 10
+    crashes none
+    {
+        value
+    }
+}
+Shift satisfies Step {
+    machine apply(value: u32) -> u32
+    requires value <= 12
+    ensures result <= 17
+    crashes none
+    {
+        value + 5
+    }
+}
+machine advance<Selected satisfies Step>(start: u32) -> u32
+requires start <= 10
+ensures result <= 21
+crashes none
+{
+    Selected::apply(start) + 1
+}
+machine main() crashes Trap {
+    let held: u32 = advance<Hold>(4);
+    let shifted: u32 = advance<Shift>(4);
+    transition held == 5 && shifted == 10 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

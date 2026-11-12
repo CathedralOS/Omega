@@ -266,6 +266,35 @@ pub(crate) mod selection {
                     actual_state.return_type,
                     proposals,
                 );
+                /*
+                    The machine argument's parameters were unwrapped above, so a
+                    domain qualification such as `Token in Carry::AcrossSuspend`
+                    is not part of what they propose. When the caller already
+                    bound that slot explicitly to the qualified form of the same
+                    carrier, the derived proposal only restates the explicit
+                    binding without its qualification; keep the explicit one.
+                    A derived proposal naming a different carrier still
+                    conflicts, and the machine argument's own parameter
+                    contract is still checked against the explicit binding.
+                */
+                let mut ordinal = 0usize;
+                let explicit_types = proposals.types[..first_type_proposal].to_vec();
+                proposals.types.retain(|&(candidate_index, slot, binding)| {
+                    let derived = ordinal >= first_type_proposal;
+                    ordinal += 1;
+                    !derived
+                        || !explicit_types.iter().any(|&(explicit_candidate, explicit_slot, explicit)| {
+                            explicit_candidate == candidate_index
+                                && explicit_slot == slot
+                                && !crate::monomorphization::selection::static_bindings::same_type_identity(program, explicit, binding)
+                                && crate::monomorphization::selection::static_bindings::same_type_identity(
+                                    program,
+                                    validation::unwrapped_type_reference(program, explicit)
+                                        .unwrap_or(explicit),
+                                    binding,
+                                )
+                        })
+                });
                 let provider = program.machine_containing_state(selected.symbol);
                 if let Some(provider) = provider {
                     let provider_binders: Vec<_> = program

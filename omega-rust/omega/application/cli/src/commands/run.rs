@@ -86,6 +86,9 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             std::process::exit(compile_failure_status(&error));
         }
     };
+    for entry in &outcome.test_roster {
+        eprintln!("{entry}");
+    }
     let status = match outcome.execution {
         ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
         ExecutionOutcome::TargetOnly { target_name } => {

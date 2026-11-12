@@ -80,7 +80,7 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
     machine emit(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
-        Console::write_byte(digit as i32 + 48);
+        Console::write_byte((digit as i32) + 48);
         transition place == 100 { true -> tens(main, (value / 10) % 10, value) _ -> ones(main, value) }
     }
     machine ones(main: &mut Main, value: i64 in Wrapping) {
@@ -93,7 +93,7 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches Console {
     machine finish(main: &mut Main, digit: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
-        Console::write_byte(digit as i32 + 48);
+        Console::write_byte((digit as i32) + 48);
     }
 }
 

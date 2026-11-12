@@ -7,13 +7,15 @@ authors do not rebuild or repeat review just because main advances.
 ## Admission
 
 `.github/workflows/compiler.yml` runs on main PRs, `merge_group`, and manual
-dispatch. Its only required status, **compiler-check**, runs
+dispatch. Its required status, **compiler-check**, runs
 `python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
 on Linux. Clippy type-checks the same crates `cargo check -p omega` did and
 rejects warnings in them. `.github/workflows/repository-lint.yml` runs the full
 `--workspace --all-targets` clippy, which also covers test and example targets,
-after each main push and nightly. It is not required, so a red run there is a
-main regression to repair rather than a refused PR. Default checkout selects the PR merge
+as the second required status, **workspace-clippy**, on each PR push and in the
+merge queue, and again after each main push and nightly.
+`.github/workflows/lint-when-mergeable.yml` starts it for a PR whose base
+changes to main or that is marked ready when its head has no run yet. Default checkout selects the PR merge
 candidate or merge-group commit, not just the source head. No path filters leave
 the required status absent. Permissions are read-only; checkout credentials are
 not retained. Compilation runs on ephemeral GitHub-hosted runners, not the owner's
@@ -83,6 +85,91 @@ Cargo dependency/output caches are restored by toolchain/lock/config identity;
 Cargo still checks freshness. Admission has a separate cache from executable
 smoke. Neither a cache hit nor a successful prior run replaces this run's check.
 PR updates cancel superseded PR jobs; queue jobs do not cancel one another.
+
+## Corpus gate
+
+Before this gate no CI job ran the corpus, so a compiler change could break
+ledger rows and land green; #2370 broke more than 100 and nobody saw it until a
+sweep. `.github/workflows/corpus-gate.yml` runs, for every pull request that is
+not a draft and for every merge-queue entry, the corpus rows the change can
+affect, and fails when one of them gets worse than
+`tests/omega/corpus_outcomes.txt` records:
+
+- a `pass/` or `run/` row stops checking (or loses a matched native rejection),
+- a `fail/` row is now accepted, or
+- a `fail/` row still rejects but no longer with its pinned reason.
+
+A new diagnostic wording, timing or fact on a row that keeps its verdict is not
+a failure. A fixture with no ledger row is held to its tier.
+
+**Which rows.** `cargo xtask corpus-gate plan --base HEAD^1` reads the diff. A
+pull request that changes only corpus ledgers and Markdown skips, by #2375's
+rule: it changes nothing the corpus reads. Otherwise the plan takes, in order,
+every touched fixture with its twins in the other tiers (and the fixtures whose
+`build.omg` names a touched `samples/` package), the fixed smoke set in
+`corpus_gate_smoke.txt` (the fastest green row of every tier/group), the
+families `corpus_gate_paths.txt` maps the touched paths to, and, when any path
+can reach the compiler, a sample spread round-robin over every tier/group in a
+fixed hash order. Paths under `.github/`, `tools/`, `wiki/`, `samples/`,
+`bootstrap/` and `.agents/` cannot reach the compiler; every other path can,
+including ones nobody listed. Families get at most two thirds of the budget.
+The runner selects by substring, so a chosen `pass/a/x` also runs `pass/a/x_l`;
+the plan names those rows and judges them too.
+
+**How much.** Rows are packed into at most 8 shards by recorded time, 2200
+recorded seconds each, which took 6 to 10 minutes of fixtures at 4 jobs on a
+4-CPU host in the replays of #2370 and #2461. A compiler change got 1,550 to
+2,130 rows there, 9 to 12% of the corpus.
+The broad sample skips fixtures recorded above 40 seconds; touched and mapped
+fixtures do not.
+
+**Whose regression.** A row worse than the ledger is first run once more at
+the candidate; a row that recovers is reported as flaky and not counted. A
+confirmed row whose ledger line the pull request did not change is then
+excused when main already shows the same loss: in the nightly sweep's
+observations (the `observed.txt` asset of the `corpus-sweep-main` release) or
+in a run of that row at the base commit, which the shard builds only when it
+needs it. Whatever remains fails the shard. Each shard's summary tables every
+row by class, with the ledger and observed outcome and the first diagnostic,
+and uploads its evidence as `corpus-gate-shard-N-attempt`.
+
+**Build.** Shards run in `ubuntu:24.04` as root at `/home/user/Omega`, the
+container and path the warm-build job builds main in, and restore that build
+with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
+
+**Required status.** The last job, `corpus-gate`, is the one to require: it is
+green when the plan skips or every shard passes, and red when the plan or any
+shard fails or does not finish. Requiring it is an owner change to the main
+ruleset (`main-ruleset.json`), not something this workflow does.
+
+Run a shard locally with the same code:
+
+```bash
+mbx xtask corpus-gate plan --base origin/main --out build/corpus-gate/plan.json
+mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard 0 < /dev/null
+```
+
+### Nightly sweep
+
+`.github/workflows/corpus-sweep.yml` runs every fixture on main's head at 02:41
+UTC in 64 shards (`cargo xtask corpus-gate sweep-shard`), then
+`cargo xtask corpus-gate sweep-report` splices every row whose outcome differs
+from the ledger with `--record`'s rules (the measured commit as the stamp, and
+`regressed-from:` on a pass/run row that lost a success) and opens or replaces
+one ledger-only pull request from `work/tests-nightly-corpus-sweep`. Its
+description starts with the soundness alerts, every `fail/` fixture the
+compiler now accepts, and then tables the worse rows by first diagnostic. A
+ledger-only pull request may record red rows, so a reviewer must read the
+alerts before it lands; recording an accepted must-reject program keeps the
+ledger honest and does not make it acceptable. The sweep also publishes its
+observations for the gate.
+
+Owner settings: a pull request opened with the default `GITHUB_TOKEN` starts
+no workflows, so its required checks never report. Store a token that can push
+a branch and open pull requests as the `CORPUS_SWEEP_TOKEN` secret. Without it
+the sweep falls back to `GITHUB_TOKEN`, which needs "Allow GitHub Actions to
+create and approve pull requests" enabled and leaves the pull request without
+checks until someone pushes to it.
 
 ## Administration and rollout
 

@@ -1808,7 +1808,7 @@ pub(crate) mod structural_reference_input {
                 )
                 .then_some(StructuralFieldType::Structural(expected.id));
             }
-            field.borrowed_presentation_type(access, expected)
+            terminal_semantics::borrowed_field_presentation(field, access, expected)
         }
     }
 

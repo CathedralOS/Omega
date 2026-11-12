@@ -49,8 +49,8 @@ pub mod target_machines;
 
 pub use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
-    CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
-    verify_selected_compositions_are_realized,
+    CheckedProviderSelection, ComponentAssumptionDemand, ProviderSettlement,
+    settle_checked_providers, verify_selected_compositions_are_realized,
 };
 
 pub use build_time_evaluation::provider_declarations::{

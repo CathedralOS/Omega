@@ -74,6 +74,7 @@ layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
 psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
@@ -86,7 +87,6 @@ terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" 
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
@@ -162,6 +162,25 @@ path = "tests/anonymous_module_owner.rs"
 [[test]]
 name = "typed_frontier"
 path = "tests/typed_frontier.rs"
+
+# The checker on the lowered form judges every declaration a check claims: a
+# defect in a machine the entry never calls is rejected or handed back, never
+# accepted.
+[[test]]
+name = "lowered_route_subjects"
+path = "tests/lowered_route_subjects.rs"
+
+# The lowered route's rejection messages contain each fixture's pinned
+# fragment.
+[[test]]
+name = "lowered_route_messages"
+path = "tests/lowered_route_messages.rs"
+
+# A generic body is checked once on the lowered form and its certificates
+# are re-decided by the kernel in each generated specialization.
+[[test]]
+name = "lowered_route_generics"
+path = "tests/lowered_route_generics.rs"
 
 [[test]]
 name = "package_review"

@@ -232,13 +232,13 @@ pub(crate) mod data {
             data_definition,
             lowerer.constant_selection.as_ref(),
         )?;
-        let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
+        let requires_facts = crate::lowering::domain::lower_proof_facts_excluding(
             lowerer,
             syntax_trees,
-            data_definition.where_facts,
+            data_definition.requires_facts,
             &type_equations,
         )?;
-        let zero_gated = !where_facts.is_empty();
+        let zero_gated = !requires_facts.is_empty();
 
         Ok(DataDefinition {
             symbol: SymbolHandle::invalid(),
@@ -274,7 +274,7 @@ pub(crate) mod data {
                     })
                     .transpose()?,
                 quotient,
-                where_facts,
+                requires_facts,
                 zero_gated,
                 retired_identities,
                 members,
@@ -353,6 +353,7 @@ suspends: contract.suspends,
 blocks: contract.blocks,
 contracts: contract.contracts,
 terminates_guarantee: contract.terminates_guarantee,
+declares_no_crash_route: contract.declares_no_crash_route,
 })?;
                         (
                             TypeParameterKind::Machine {
@@ -505,13 +506,14 @@ terminates_guarantee: contract.terminates_guarantee,
                             .push((DeclaredTypeOrigin::Payload(handle), field.type_reference));
                     }
                 }
-                let where_facts = lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
+                let requires_facts =
+                    lower_proof_facts(lowerer, syntax_trees, variant.requires_facts)?;
                 Ok(DataMember::Variant(DataVariant {
                     identity: variant.identity,
                     symbol: SymbolHandle::invalid(),
                     name: lower_name(syntax_trees, &variant.name),
                     payload,
-                    where_facts,
+                    requires_facts,
                     retired_payload_identities: variant.retired_payload_identities.clone(),
                 }))
             }
@@ -3031,6 +3033,41 @@ pub(crate) mod state {
             } else {
                 TypeReference::Unit
             };
+            /*
+                A record pattern's roster keeps its authored spellings here.
+                Each entry receives its field once the subject's type is known,
+                in typed preparation, so no entry is resolved by this stage.
+            */
+            let roster = syntax
+                .expressions
+                .match_fields(local.pattern_fields)
+                .iter()
+                .map(|field| {
+                    use symbol_resolved_trees::expression::{MatchFieldAction, TableMatchField};
+                    TableMatchField {
+                        component: field.component,
+                        member: crate::lowering::name::lower_name(syntax, &field.member),
+                        field_symbol: SymbolHandle::invalid(),
+                        action: match &field.action {
+                            syntax::expression::MatchFieldAction::Bind(binding) => {
+                                MatchFieldAction::Bind(crate::lowering::name::lower_name(
+                                    syntax, binding,
+                                ))
+                            }
+                            syntax::expression::MatchFieldAction::Waive
+                            | syntax::expression::MatchFieldAction::Equal(_) => {
+                                MatchFieldAction::Waive
+                            }
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+            let pattern_fields = lowerer
+                .symbol_resolved_trees
+                .tables
+                .bodies
+                .expressions
+                .insert_match_fields(roster);
             Ok(LocalData {
                 symbol: SymbolHandle::invalid(),
                 name: crate::lowering::name::lower_name(syntax, &local.name),
@@ -3042,6 +3079,7 @@ pub(crate) mod state {
                     type_is_inferred: !local.type_reference.is_valid(),
                     is_operand_capture: false,
                     relevance: local.relevance,
+                    pattern_fields,
                 },
             })
         }
@@ -3307,6 +3345,7 @@ pub(crate) mod state {
                 blocks: signature.blocks,
                 contracts: signature.contracts,
                 terminates_guarantee: signature.terminates_guarantee,
+                declares_no_crash_route: signature.declares_no_crash_route,
             },
         )
     }
@@ -3336,6 +3375,7 @@ pub(crate) mod state {
         pub(crate) blocks: bool,
         pub(crate) contracts: HandleSpan<CapabilityContract>,
         pub(crate) terminates_guarantee: bool,
+        pub(crate) declares_no_crash_route: bool,
     }
 
     pub(crate) fn lower_state_signature_parts(
@@ -3363,6 +3403,7 @@ pub(crate) mod state {
             blocks,
             contracts,
             terminates_guarantee,
+            declares_no_crash_route,
         } = inputs;
         let type_parameters =
             crate::lowering::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
@@ -3412,6 +3453,7 @@ pub(crate) mod state {
                     blocks,
                     contracts,
                     terminates_guarantee,
+                    declares_no_crash_route,
                 },
             },
             service_reach_keyword_source_spans: service_reach_keyword_source_spans.to_vec(),
@@ -3917,6 +3959,7 @@ pub(crate) mod trait_definition {
                     blocks: clause_signature.blocks,
                     contracts: clause_signature.contracts,
                     terminates_guarantee: clause_signature.terminates_guarantee,
+                    declares_no_crash_route: clause_signature.declares_no_crash_route,
                 },
             )?;
             refinement_clauses.push(TraitRefinementClause {
@@ -4701,7 +4744,7 @@ pub(crate) mod wire {
         A codec view exists only for records the generated codec can check against
         the public wire requirement end to end. The view is withheld for any
         declaration carrying an obligation the codec cannot establish:
-        whole-record domain (`where` facts, which cover every `zero_gated` and
+        whole-record domain (`requires` facts, which cover every `zero_gated` and
         membership-gated carrier), declared properties, lifetime or type
         parameters, variant members, fields without `#n` identities, bodyless
         forms (quotient and opaque `boundary data` both lower with no members),
@@ -4713,7 +4756,7 @@ pub(crate) mod wire {
         if !definition.type_parameters.is_empty()
             || !definition.lifetime_parameters.is_empty()
             || definition.properties != DataProperties::default()
-            || !definition.where_facts.is_empty()
+            || !definition.requires_facts.is_empty()
             || definition.supply_mode != language_core::DataSupplyMode::CheckedShape
         {
             return;

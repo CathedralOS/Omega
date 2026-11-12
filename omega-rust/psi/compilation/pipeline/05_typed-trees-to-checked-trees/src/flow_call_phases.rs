@@ -1239,6 +1239,7 @@ mod invalidation {
         build: &mut FlowBuildContext,
         active_contexts: HandleSpan<FlowSemanticContextRef>,
         active_constraints: HandleSpan<FlowConstraintRef>,
+        state_symbol: symbols::SymbolHandle,
         borrow_call: &BorrowCallFact,
         writes: Option<&CallStorageWrites>,
     ) -> CallInvalidationResult {
@@ -1301,6 +1302,17 @@ mod invalidation {
                             place,
                             &contribution.observations,
                         )
+                        .or_else(|| {
+                            crate::flow::domain::matching_mutation_for_settled_occurrence(
+                                program,
+                                plan,
+                                domains,
+                                fact,
+                                place,
+                                &contribution.observations,
+                                (state_symbol, borrow_call.statement_index),
+                            )
+                        })
                     })
                 },
             ),

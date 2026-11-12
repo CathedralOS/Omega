@@ -3409,7 +3409,7 @@ pub mod expression_owners {
                         }),
                 );
                 let mut reached = Vec::new();
-                for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+                for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                     reached.extend(super::indexing::proof_fact_reachable_expressions(
                         program, fact,
                     ));
@@ -3424,7 +3424,7 @@ pub mod expression_owners {
                         }
                         typed_trees::data::DataMember::Variant(variant) => {
                             let mut payload_reached = Vec::new();
-                            for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+                            for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                                 payload_reached.extend(
                                     super::indexing::proof_fact_reachable_expressions(
                                         program, fact,
@@ -4747,13 +4747,13 @@ pub mod expression_owners {
             let marker = program
                 .expression_table
                 .insert(ExpressionNode::Boolean(true));
-            let where_facts = program
+            let requires_facts = program
                 .proof_facts
                 .insert_many([ProofFact::Expression(marker), ProofFact::Expression(marker)]);
             program.push_data_definition(DataDefinition {
                 symbol: a,
                 name: Identifier::from("A"),
-                where_facts,
+                requires_facts,
                 ..Default::default()
             });
             program.push_data_definition(DataDefinition {

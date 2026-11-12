@@ -4,7 +4,7 @@
 // (`x86_deployment_features = Baseline`, `subsystem = Console`, `freestanding = false`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
-// false `privileged_services` flags, empty `elf_interpreter` rows for each ELF
+// false `privileged_services` flags, an enabled `tests` facet, empty `elf_interpreter` rows for each ELF
 // target profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
 
@@ -92,6 +92,17 @@ pub(super) fn initial_value(
                         )
                     })
                     .collect(),
+            },
+        ));
+    }
+    // Testing starts enabled: a zero-initialized `tests` facet never silently
+    // disables registered groups (wiki/spec/build/testing.md).
+    if has_exact_toolchain_build_facet(typed, "BuildTests") {
+        build_fields.push((
+            "tests".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "BuildTests".to_owned(),
+                fields: vec![("disabled".to_owned(), BuildTimeValue::Bool(false))],
             },
         ));
     }

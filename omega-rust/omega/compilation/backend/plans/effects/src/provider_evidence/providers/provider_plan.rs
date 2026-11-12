@@ -23,7 +23,7 @@ pub use evaluated_bindings::{
 pub use language_semantics::service_surface::identities::{
     ProviderIdentityId, ProviderIdentityTable,
 };
-pub use service_schemas::BoundaryCallingPlanCommitment;
+pub use service_schemas::{BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise};
 pub use service_schemas::{
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
     ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,

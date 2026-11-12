@@ -1,0 +1,30 @@
+// A shared record view freezes `main.pair_bytes` until its last use, so the
+// forwarded mutable owner cannot write that field while the view is still
+// read (wiki/spec/language/ownership.md#borrows-and-aliases).
+data Pair {
+    low: u16;
+    high: u16;
+}
+
+data Main {
+    pair_bytes: [u8; 12];
+}
+
+machine Main::main(main: &mut Main) {
+    transition { _ -> read_pairs(main, &main.pair_bytes[4] as &[Pair]) }
+
+    machine read_pairs(main: &mut Main, pairs: &[Pair]) {
+    main.pair_bytes[4] = 0;
+    transition pairs.len > 1 && pairs[0].low == 0 {
+        true -> done(main)
+        _ -> done(main)
+    }
+    }
+
+    machine done(main: &mut Main) {}
+}
+
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

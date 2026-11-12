@@ -129,24 +129,14 @@ pub(crate) fn prepare_permission_events(
         inputs,
     ) {
         Some(scratch) => scratch,
-        None => {
-            let prepared_walks = prepare_walks(
-                program,
-                facts,
-                &state_flows,
-                mutation_summaries,
-                call_frames,
-            );
-            walk_states_serially(
-                program,
-                facts,
-                claim_outcomes,
-                mutation_summaries,
-                call_frames,
-                &state_flows,
-                prepared_walks,
-            )
-        }
+        None => walk_states_serially(
+            program,
+            facts,
+            claim_outcomes,
+            mutation_summaries,
+            call_frames,
+            &state_flows,
+        ),
     };
     let PermissionWalkScratch {
         mut permission_events,
@@ -294,6 +284,19 @@ fn prepare_walks<'program>(
 /*
     Walk every state in roster order on `facts` itself. Each state's control
     row takes its storage-transfer span right after that state's walk.
+
+    Each state's walk is prepared just before it is walked, not all at once:
+    every prepared walk holds its case exclusions and conservation answers, and
+    holding all of them for a large program (the psi product package's 2,135
+    states, about 2.7 GB) pushed `omega update` past a 15 GB host. Preparing
+    late reads the same facts. A walk writes only `flow.ownership`, the
+    `qualifications.content` body tables (`CheckFactsWalk` hands out nothing
+    else mutably) and, after it, its own state row's `storage_transfers`.
+    Preparation reads none of those: it reads the control rows' calls,
+    statements, operands and retirements, the flow contexts, `borrow`,
+    `operators` and the content plans and conservation plans, which no walk
+    changes. Each prepared walk depends only on its own state, so preparing a
+    one-state slice gives the same answer as preparing the whole roster.
 */
 fn walk_states_serially<'program>(
     program: &'program dyn ::validation::CheckingInput,
@@ -302,12 +305,19 @@ fn walk_states_serially<'program>(
     mutation_summaries: &MutationSummaries,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     state_flows: &[StateFlow],
-    prepared_walks: Vec<PreparedStateWalk>,
 ) -> PermissionWalkScratch<'program> {
     let mut scratch = PermissionWalkScratch::default();
-    for (position, ((state_handle, state_flow), prepared)) in
-        state_flows.iter().zip(prepared_walks).enumerate()
-    {
+    for (position, state_entry) in state_flows.iter().enumerate() {
+        let (state_handle, state_flow) = state_entry;
+        let prepared = prepare_walks(
+            program,
+            facts,
+            std::slice::from_ref(state_entry),
+            mutation_summaries,
+            call_frames,
+        )
+        .pop()
+        .expect("one prepared walk per state");
         scratch.claim_identities.begin_state(position);
         let Some(storage_transfers) = walk_state(
             program,
@@ -317,7 +327,7 @@ fn walk_states_serially<'program>(
             mutation_summaries,
             call_frames,
             state_flow,
-            prepared,
+            &prepared,
         ) else {
             continue;
         };
@@ -375,11 +385,12 @@ struct StateWalkedApart {
     - every claim-outcome map and join binding the state looked up, by
       equality (`ClaimOutcomePreparation::reads_unchanged`).
 
-    A state that fails the last check walks again from scratch, from its
-    previous *preparation* (`PreparedStateWalk`): preparing reads only the
-    facts the first two checks cover, never a claim-outcome summary, so it is
-    still exact. When the first two checks fail, every state is prepared and
-    walked afresh. Nothing is spliced into a fresh walk.
+    A state that fails the last check is prepared and walked again from
+    scratch: preparing reads only the facts the first two checks cover, never
+    a claim-outcome summary, so the new preparation equals the old one. No
+    preparation is kept between calls; holding one per state for the psi gate
+    batch cost gigabytes. When the first two checks fail, every state is
+    prepared and walked afresh. Nothing is spliced into a fresh walk.
 */
 #[derive(Default)]
 pub(crate) struct PermissionWalkMemory {
@@ -396,11 +407,6 @@ struct PreviousWalk {
     /* The claim-outcome maps and join bindings the walks read. */
     summaries: ClaimOutcomePreparation,
     states: Vec<StateWalkedApart>,
-    /*
-        Every state's prepared walk, which reads only the facts the guard
-        covers and none of the claim-outcome summaries.
-    */
-    prepared: Vec<PreparedStateWalk>,
 }
 
 /*
@@ -424,10 +430,7 @@ impl PermissionWalkMemory {
         state_flows: &[StateFlow],
         first_page: u32,
         claim_outcomes: &ClaimOutcomePreparation,
-    ) -> (
-        Vec<Option<StateWalkedApart>>,
-        Option<Vec<PreparedStateWalk>>,
-    ) {
+    ) -> Vec<Option<StateWalkedApart>> {
         let previous = self.previous.take();
         let Some(previous) = previous.filter(|previous| {
             inputs.restored
@@ -438,23 +441,19 @@ impl PermissionWalkMemory {
                 && previous.plans == facts.qualifications.content.plans
                 && previous.conservation_plans == facts.qualifications.content.conservation_plans
         }) else {
-            return (vec![None; state_flows.len()], None);
+            return vec![None; state_flows.len()];
         };
         let PreviousWalk {
-            summaries,
-            states,
-            prepared,
-            ..
+            summaries, states, ..
         } = previous;
-        let states = states
+        states
             .into_iter()
             .map(|state| {
                 claim_outcomes
                     .reads_unchanged(&summaries, &state.consulted)
                     .then_some(state)
             })
-            .collect();
-        (states, Some(prepared))
+            .collect()
     }
 }
 
@@ -496,7 +495,8 @@ struct WalkWorker<'program> {
     returns `None`, before walking anything, for a call too small to split.
 
     States whose previous walk is still exact (`PermissionWalkMemory`) take
-    that walk instead of walking again; the rest walk from scratch.
+    that walk instead of walking again; the rest are prepared and walked from
+    scratch, each on its worker just before its walk.
 */
 #[allow(clippy::too_many_arguments)]
 fn walk_states_apart<'program>(
@@ -533,35 +533,38 @@ fn walk_states_apart<'program>(
     let page_of = |position: usize| {
         first_page + u32::try_from(position).expect("state position fits the page range")
     };
-    let (mut walked, remembered_prepared) =
-        memory.take_reusable(inputs, facts, state_flows, first_page, claim_outcomes);
+    let mut walked = memory.take_reusable(inputs, facts, state_flows, first_page, claim_outcomes);
     let positions = walked
         .iter()
         .enumerate()
         .filter_map(|(position, state)| state.is_none().then_some(position))
         .collect::<Vec<_>>();
-    let all_prepared = match remembered_prepared {
-        Some(prepared) => prepared,
-        None => prepare_walks(program, facts, state_flows, mutation_summaries, call_frames),
-    };
-    let prepared_walks = positions
-        .iter()
-        .map(|&position| all_prepared[position].clone())
-        .collect::<Vec<_>>();
     facts.flow.ownership.share_pages();
     let shared: &CheckFacts = facts;
     let summaries: &ClaimOutcomePreparation = claim_outcomes;
     let rewalked = pool.install(|| {
-        prepared_walks
-            .into_par_iter()
-            .zip(positions.par_iter())
+        positions
+            .par_iter()
             .map_init(
                 || WalkWorker {
                     ownership: shared.flow.ownership.clone(),
                     claim_outcomes: summaries.fork_for_walk(),
                     selector_lookup: None,
                 },
-                |worker, (prepared, &position)| {
+                |worker, &position| {
+                    // Prepared here, not for the whole roster up front, so at
+                    // most one preparation per worker is alive; see
+                    // `walk_states_serially` for why late preparation reads
+                    // the same facts.
+                    let prepared = prepare_walks(
+                        program,
+                        shared,
+                        std::slice::from_ref(&state_flows[position]),
+                        mutation_summaries,
+                        call_frames,
+                    )
+                    .pop()
+                    .expect("one prepared walk per state");
                     walk_state_apart(
                         program,
                         shared,
@@ -571,7 +574,7 @@ fn walk_states_apart<'program>(
                         position,
                         page_of(position),
                         &state_flows[position].1,
-                        prepared,
+                        &prepared,
                     )
                 },
             )
@@ -621,7 +624,6 @@ fn walk_states_apart<'program>(
         conservation_plans: facts.qualifications.content.conservation_plans.clone(),
         summaries: claim_outcomes.fork_for_walk(),
         states: walked.clone(),
-        prepared: all_prepared,
     });
 
     let mut scratch = PermissionWalkScratch {
@@ -678,7 +680,7 @@ fn walk_state_apart<'program>(
     position: usize,
     page: u32,
     state_flow: &checked_trees::FlowStateFact,
-    prepared: PreparedStateWalk,
+    prepared: &PreparedStateWalk,
 ) -> StateWalkedApart {
     worker.ownership.begin_page(page);
     worker.ownership.walk_guard =
@@ -777,7 +779,7 @@ fn walk_state<'program>(
     mutation_summaries: &MutationSummaries,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
     state_flow: &checked_trees::FlowStateFact,
-    prepared: PreparedStateWalk,
+    prepared: &PreparedStateWalk,
 ) -> Option<arena::HandleSpan<checked_trees::FlowStorageTransferFact>> {
     let PermissionWalkScratch {
         permission_events,
@@ -904,11 +906,11 @@ fn walk_state<'program>(
             }
         }
     };
-    let call_writes = prepared.call_writes;
-    let temporary_owners = match prepared.temporary_owners {
+    let call_writes = &prepared.call_writes;
+    let temporary_owners = match &prepared.temporary_owners {
         Ok(owners) => owners,
         Err(diagnostic) => {
-            selection_diagnostics.push(diagnostic);
+            selection_diagnostics.push(diagnostic.clone());
             return None;
         }
     };
@@ -917,7 +919,7 @@ fn walk_state<'program>(
     for ((statement_index, statement), temporary_occurrences) in statements
         .iter()
         .enumerate()
-        .zip(prepared.temporary_occurrences)
+        .zip(&prepared.temporary_occurrences)
     {
         for &(expression, reference) in &temporary_occurrences.completed {
             reserve_owner_places(
@@ -927,8 +929,8 @@ fn walk_state<'program>(
                 &mut places,
             );
         }
-        completed_temporaries_by_statement.push(temporary_occurrences.completed);
-        observed_receivers_by_statement.push(temporary_occurrences.observed);
+        completed_temporaries_by_statement.push(temporary_occurrences.completed.as_slice());
+        observed_receivers_by_statement.push(temporary_occurrences.observed.clone());
         for (expression, _) in completed_statement_values(program, statement) {
             let Some(place) = place_at(program, state.symbol, statement_index, expression) else {
                 continue;
@@ -946,7 +948,7 @@ fn walk_state<'program>(
             }
         }
     }
-    for owner in &temporary_owners {
+    for owner in temporary_owners {
         reserve_owner_places(
             program,
             facts::PlaceRoot::Expression(owner.expression),
@@ -1071,11 +1073,11 @@ fn walk_state<'program>(
                         state.symbol,
                         &moves,
                         &occurrences,
-                        &completed_temporaries_by_statement[statement_index],
+                        completed_temporaries_by_statement[statement_index],
                         &calls,
                         &completion_regions,
-                        &call_writes,
-                        &temporary_owners,
+                        call_writes,
+                        temporary_owners,
                         statement_index,
                         &statements[statement_index],
                         evaluation,
@@ -1281,10 +1283,9 @@ fn walk_state<'program>(
 /*
     The parts of one state's permission walk that read only the program and
     facts the walk never writes: flow control rows, semantic facts and content
-    plans. The checking pool prepares them for every state at once. The walk
-    itself stays sequential in roster order, because it mints claim ordinals,
-    interns place segments and appends events and cleanup rows into tables
-    shared by all states, and later passes observe those numbers.
+    plans. Each state's preparation is built just before that state is
+    walked, on the serial and the parallel path alike, and dropped after it,
+    so a large roster never holds every preparation at once.
 */
 #[derive(Clone)]
 struct PreparedStateWalk {

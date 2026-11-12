@@ -1,1 +1,1 @@
-expects 2 argument(s), got 1
+qualified call `accept_component_assumption` has no resolved callable declaration

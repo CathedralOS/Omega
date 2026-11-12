@@ -23,7 +23,7 @@ use psi::types::types;
 //   demand on `p` through, `next(&mut p.output)` prefixes it with `output`);
 // - what each machine it calls reads below a parameter in its `requires`
 //   facts, behind the path the argument names;
-// - the fields a data declaration's `where` fact names beside a demanded
+// - the fields a data declaration's `requires` fact names beside a demanded
 //   field, whose relation a store into that field must keep.
 //
 // Demand settles over a machine's states to a fixed point; a path beyond a

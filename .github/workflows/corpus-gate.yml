@@ -1,0 +1,149 @@
+name: Corpus gate
+
+# CI checked formatting, lints and the base branch but ran no corpus, so a
+# compiler change could break hundreds of ledger rows and land green: #2370
+# broke more than 100. This workflow runs, for each pull request, the corpus
+# rows its diff can affect and fails when one gets worse than
+# tests/omega/corpus_outcomes.txt records: a pass/run row that stops checking,
+# a fail row the compiler now accepts, or a fail row that loses its pinned
+# reason. `cargo xtask corpus-gate` explains how rows are chosen and how a
+# row main already lost is told apart from this change's own; tools/ci/README.md
+# has the operating notes.
+#
+# Required status: `corpus-gate` (the last job). It reports success when the
+# plan skips (a pull request that changes only ledgers and Markdown) and fails
+# when any shard fails or does not finish.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+    branches: [main]
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    # A draft is still being written; the gate starts when it is marked ready
+    # so draft pushes do not take the runners the required checks need.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # The candidate's first parent is the base it is compared with.
+          fetch-depth: 2
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Choose the rows this change can affect
+        id: plan
+        run: |
+          mkdir -p build/corpus-gate
+          mbx xtask corpus-gate plan --base HEAD^1 --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: corpus-gate-plan
+          path: build/corpus-gate/plan.json
+          retention-days: 7
+
+  shard:
+    needs: plan
+    if: needs.plan.outputs.skip == 'false'
+    name: shard ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    # The same container, user and path as a cloud session and the warm-build
+    # job, so the build that job published for main is reused and only the
+    # crates this change touches compile (tools/warm_build.sh).
+    container:
+      image: ubuntu:24.04
+      options: --user root
+    env:
+      HOME: /root
+      OMEGA_CORPUS_JOBS: '4'
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+          echo "/root/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Check out the candidate at the session path
+        run: |
+          git config --global --add safe.directory '*'
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
+          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
+          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+      - name: Set up the host and restore main's warm build
+        run: cd /home/user/Omega && bash tools/ci/corpus_host.sh
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: corpus-gate-plan
+          path: /home/user/Omega/build/corpus-gate
+      - name: Check this shard's rows against the ledger
+        run: |
+          cd /home/user/Omega
+          # The nightly sweep's observations of main, so a row main already
+          # lost is not charged to this change. Absent before the first sweep.
+          curl -fsSL -o build/corpus-gate/observed.txt \
+            "https://github.com/${{ github.repository }}/releases/download/corpus-sweep-main/observed.txt" ||
+            rm -f build/corpus-gate/observed.txt
+          # A session is not a CI job: Cargo and mbx change their defaults when
+          # CI is set, and the warm build was made without it.
+          CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
+            mbx xtask corpus-gate check --plan build/corpus-gate/plan.json --shard "${{ matrix.shard }}" \
+            --known build/corpus-gate/observed.txt --out build/corpus-gate/runs < /dev/null
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: corpus-gate-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            /home/user/Omega/build/corpus-gate/runs/
+          if-no-files-found: warn
+          retention-days: 7
+
+  corpus-gate:
+    needs: [plan, shard]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Report the gate's verdict
+        env:
+          PLAN: ${{ needs.plan.result }}
+          SKIP: ${{ needs.plan.outputs.skip }}
+          SHARDS: ${{ needs.shard.result }}
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+        run: |
+          if [ "$DRAFT" = true ]; then
+            echo "Draft pull request: the corpus gate runs when it is marked ready."
+            exit 0
+          fi
+          if [ "$PLAN" != success ]; then
+            echo "The plan job did not succeed ($PLAN)."; exit 1
+          fi
+          if [ "$SKIP" = true ]; then
+            echo "Nothing the corpus reads changed; no rows to check."; exit 0
+          fi
+          if [ "$SHARDS" != success ]; then
+            echo "A shard failed or did not finish ($SHARDS); its summary names the rows."; exit 1
+          fi
+          echo "Every selected row is at least as good as the ledger."

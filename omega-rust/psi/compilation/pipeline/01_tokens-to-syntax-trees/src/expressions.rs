@@ -1166,6 +1166,11 @@ pub(crate) mod parse_postfix {
             if input.at_keyword(KeywordKind::As) {
                 let cast_source = input.current_source_span();
                 input = input.take_keyword(KeywordKind::As, "as")?;
+                if at_cast_entry(input) {
+                    (expression, input) =
+                        parse_cast_entries(syntax_trees, expression, input, false)?;
+                    continue;
+                }
                 let mut form = language_core::cast_form::CastForm::Value;
                 if input.at_punctuation(PunctuationKind::Ampersand) {
                     input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
@@ -1239,12 +1244,128 @@ pub(crate) mod parse_postfix {
                         form,
                     }));
                 exprs(syntax_trees).set_source_span(expression, cast_source);
+                if at_cast_entry(input) {
+                    if form.is_recast() {
+                        return Err(input.error_here(
+                            "a recast re-views a place's bytes and takes no domain entries",
+                        ));
+                    }
+                    if domain != ArithmeticDomain::Exact || !semantic_domain.is_empty() {
+                        return Err(input.error_here(
+                            "a cast names its domains either with entries (`as T +D`) or with the older `as T in D`, not both",
+                        ));
+                    }
+                    (expression, input) =
+                        parse_cast_entries(syntax_trees, expression, input, true)?;
+                }
                 continue;
             }
 
             break;
         }
 
+        Ok((expression, input))
+    }
+
+    fn at_cast_entry(input: Input<'_, '_>) -> bool {
+        input.at_punctuation(PunctuationKind::Plus)
+            || input.at_punctuation(PunctuationKind::Minus)
+            || input.at_punctuation(PunctuationKind::Equal)
+    }
+
+    /*
+        The run of `=D`, `-D` and `+D` entries after `as` (domains.md,
+        "Grouping"). A `+` or `-` here always begins an entry, so no name lookup
+        is needed and arithmetic on a cast result takes parentheses. Each entry
+        becomes its own cast node over the previous one, because a cast node
+        names one domain; typing accounts for the run as one simultaneous cast.
+    */
+    fn parse_cast_entries<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
+        mut expression: ExpressionHandle,
+        mut input: Input<'tokens, 'source>,
+        after_carrier: bool,
+    ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+        use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
+        let mut first = true;
+        while at_cast_entry(input) {
+            let kind = if input.at_punctuation(PunctuationKind::Plus) {
+                CastEntryKind::Add
+            } else if input.at_punctuation(PunctuationKind::Minus) {
+                CastEntryKind::Remove
+            } else {
+                CastEntryKind::Keep
+            };
+            let sign = kind.sign();
+            if after_carrier && kind != CastEntryKind::Add {
+                return Err(input.error_here(format!(
+                    "a carrier cast `as T` may only add domains; `{sign}` entries belong to a domain-only cast written first, as in `value as -D as T +D`. For arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
+                )));
+            }
+            let entry_start = input;
+            let entry_source = input.current_source_span();
+            let after_sign = match kind {
+                CastEntryKind::Add => input.take_punctuation(PunctuationKind::Plus, "+")?,
+                CastEntryKind::Remove => input.take_punctuation(PunctuationKind::Minus, "-")?,
+                CastEntryKind::Keep => input.take_punctuation(PunctuationKind::Equal, "=")?,
+            };
+            if !after_sign.at_name_like() {
+                return Err(after_sign.error_here(format!(
+                    "`{sign}` after a cast begins a domain entry such as `{sign}Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
+                )));
+            }
+            let (domain_name, rest) =
+                crate::grammar::type_syntax::parse_type::parse_static_name(after_sign)?;
+            let mut domain = ArithmeticDomain::Exact;
+            let mut semantic_domain = arena::HandleSpan::empty();
+            let mut semantic_domain_arguments = arena::HandleSpan::empty();
+            match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
+                Some(parsed) => {
+                    if rest.at_punctuation(PunctuationKind::Less) {
+                        return Err(rest.error_here(
+                            "compiler arithmetic domains do not take index arguments",
+                        ));
+                    }
+                    domain = parsed;
+                    input = rest;
+                }
+                None => {
+                    exprs(syntax_trees)
+                        .append_identifier_path_member_to_span(&mut semantic_domain, domain_name);
+                    let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
+                    semantic_domain_arguments = arguments;
+                    input = rest;
+                }
+            }
+            let consumed = entry_start.tokens.len().saturating_sub(input.tokens.len());
+            let label_text = entry_start.tokens[..consumed]
+                .iter()
+                .map(|token| entry_start.text(token).as_str())
+                .collect::<String>();
+            let mut target_label = HandleSpan::empty();
+            exprs(syntax_trees).append_identifier_path_member_to_span(
+                &mut target_label,
+                Identifier::generated(label_text),
+            );
+            // Typing replaces this placeholder with the operand's carrier.
+            let target_type = crate::storage::tables::type_refs(syntax_trees).insert_unit();
+            expression = exprs(syntax_trees).insert(ExpressionNode::Cast(TableCastExpression {
+                value: expression,
+                target_type,
+                target_label,
+                domain,
+                semantic_domain,
+                semantic_domain_arguments,
+                form: CastForm::Entry(CastEntry {
+                    kind,
+                    first,
+                    after_carrier,
+                }),
+            }));
+            // Each entry reports at its own sign, not at the shared `as`.
+            exprs(syntax_trees).set_source_span(expression, entry_source);
+            first = false;
+        }
         Ok((expression, input))
     }
 
@@ -1319,7 +1440,6 @@ pub(crate) mod parse_postfix {
                 let path = *path;
                 let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
                 let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
-
                 Ok(TableCallExpression {
                     target_is_static: true,
                     receiver,
@@ -1351,6 +1471,7 @@ pub(crate) mod parse_postfix {
                 "call target must be a path or member access",
             )),
         }?;
+        let call = spell_test_group_facet(syntax_trees, call);
         let source = call.target.source_span();
         let expression = exprs(syntax_trees).insert(ExpressionNode::Call(call));
         exprs(syntax_trees).set_source_span(expression, source);
@@ -1748,6 +1869,53 @@ pub(crate) mod parse_postfix {
             },
             rest,
         ))
+    }
+
+    /*
+        `owner.tests.group<Requirement>()` registers a test group through the
+        Build's `tests` facet (wiki/spec/build/testing.md). The facet is a value
+        operand, so its receiver takes the same member projection an ordinary
+        `owner.tests` value does rather than the static path a dotted call
+        prefix otherwise becomes. Every other call keeps its parsed receiver.
+    */
+    fn spell_test_group_facet(
+        syntax_trees: &mut SyntaxTrees,
+        mut call: TableCallExpression,
+    ) -> TableCallExpression {
+        if call.target.as_str(syntax_trees) != "group"
+            || call.machine_arguments.is_empty()
+            || !call.receiver.is_valid()
+        {
+            return call;
+        }
+        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(call.receiver) else {
+            return call;
+        };
+        let path = *path;
+        let members = exprs_of(syntax_trees)
+            .identifier_path_members(path)
+            .to_vec();
+        let [.., facet] = members.as_slice() else {
+            return call;
+        };
+        if members.len() < 2 || facet.as_str(syntax_trees) != "tests" {
+            return call;
+        }
+        let facet = facet.clone();
+        let owner_path = syntax_trees
+            .expressions
+            .copy_identifier_path_prefix(path, members.len() - 1);
+        let owner = exprs(syntax_trees).insert(ExpressionNode::Name(owner_path));
+        let receiver = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+            receiver: owner,
+            access_source_span: facet.source_span(),
+            member: facet.clone(),
+            case_variant: None,
+        }));
+        exprs(syntax_trees).set_source_span(receiver, facet.source_span());
+        call.receiver = receiver;
+        call.target_is_static = false;
+        call
     }
 
     pub(crate) fn call_path_target_and_receiver(

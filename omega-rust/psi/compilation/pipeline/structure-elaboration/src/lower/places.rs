@@ -39,8 +39,12 @@ nothing else: lowering never asks what a place holds.
   reads a copy's source.
 - A call's record result is one `Content::Overwritten` on its root: nothing
   here knows the callee's values.
-- A local declared without an initializer writes nothing: its home is
-  reserved and holds no content until a store reaches it.
+- A data local declared without an initializer writes one
+  `Content::Overwritten` on its fresh root and a constant zero on each
+  scalar leaf of the zero value. A scalar local declared that way writes
+  the zero constant its home is established with on that home
+  (`local-without-initializer`: a builtin scalar admits zero, so the zero is
+  an established value).
 - What a formal holds at entry is not a write. It is one value per scalar
   leaf with `ValueOrigin::EntryContent { place }`, minted the first time an
   operation names the leaf or a place above it, whatever is stored there
@@ -53,6 +57,7 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
+use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
@@ -209,6 +214,7 @@ pub(crate) fn declare<'a>(
             ));
         };
         structural_types.push(StructuralTypeDeclaration {
+            requires: record.requires.clone(),
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
@@ -247,6 +253,7 @@ pub(crate) fn declare<'a>(
                 )
             })?;
             structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
                 quotient_carrier: None,
                 id,
                 identity: identities.intern(home),
@@ -753,6 +760,7 @@ impl<'a> Lowering<'a> {
             });
         }
         let operation = self.operation_identity(source);
+        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(
             operation,
             record,
@@ -835,6 +843,7 @@ impl<'a> Lowering<'a> {
             }
         };
         let operation = self.operation_identity(source);
+        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(operation, record, kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
@@ -1135,24 +1144,60 @@ impl<'a> Lowering<'a> {
         self.read_scalar(at.root, path, declared, scalar_type, source)
     }
 
-    /// `let x: T;`: reserves the local's storage and stores nothing the
-    /// checker may rely on. The operations are the ones the current pipeline
-    /// emits, so the module runs: a record home is `EstablishZeroedStructural`
-    /// and a scalar home is `EstablishPrimitiveLocal` of a zero constant
+    /// `let x: T;`. The operations are the ones the current pipeline emits,
+    /// so the module runs: a data home is `EstablishZeroedStructural` and a
+    /// scalar home is `EstablishPrimitiveLocal` of a zero constant
     /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
-    /// typed SSA initializer and establishes the referent"). No row is
-    /// written for either: state_contracts.md, "Uninitialized storage has no
-    /// assumed zero." Whether such a declaration instead establishes the zero
-    /// value is `OWNER_QUESTIONS.md`, `local-without-initializer`.
+    /// typed SSA initializer and establishes the referent").
+    ///
+    /// A data local is logged as holding the zero value: one row for the
+    /// root's new contents, then on each scalar leaf of the zero value a
+    /// constant zero of the leaf's type. The zero value of a sum is its
+    /// first declared case with a zeroed payload (data_and_literals.md:
+    /// "The ordinary zero representation of a sum selects the first declared
+    /// case and a recursively zeroed payload."), so only that case's payload
+    /// leaves get a row. The current pipeline emits no constant for a data
+    /// home; the constants here are what gives each leaf's content a value
+    /// identity the module contains, as its own scalar home's constant does.
+    /// The establishment owes every `requires` clause of the type and of
+    /// each data-typed place of the zero value; whether they hold decides
+    /// whether the storage is an established value (`lowered-discharge`).
+    ///
+    /// A scalar local is zero-constructed the same way
+    /// (`local-without-initializer`): its home is logged as holding the
+    /// zero constant it is established with. dependent_values.md: "If zero
+    /// satisfies the default domain, the value is zero-constructible.
+    /// Otherwise the type is gated: construction or checked qualification
+    /// must establish the domain before observation." Every scalar type
+    /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
+    /// scalar type is refused by the reader, so a scalar home owes no
+    /// domain clause and is never gated.
     pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
             ValueType::Record(record) => {
+                // The zero of each scalar leaf, as a constant the module
+                // holds, so the row that says what the leaf holds names a
+                // value. The constants come first: the establishment's
+                // domain obligations are stated over them.
+                let mut zeros = Vec::new();
+                let mut owed = 0;
+                self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
                 let operation = self.operation_identity(source);
-                let (root, _) = self.produce(
+                self.owe_domains(operation, owed, source)?;
+                let (root, exact) = self.produce(
                     operation,
                     record,
                     OperationKind::EstablishZeroedStructural {},
                 )?;
+                let at = ProgramPoint::AfterOperation(operation);
+                self.write(exact, at, Content::Overwritten)?;
+                for (segments, zero) in zeros {
+                    let mut leaf = exact;
+                    for segment in segments {
+                        leaf = self.project(leaf, segment)?;
+                    }
+                    self.write(leaf, at, Content::Value(zero))?;
+                }
                 Bound::Record(root)
             }
             ValueType::Scalar(scalar_type) => {
@@ -1163,28 +1208,23 @@ impl<'a> Lowering<'a> {
                     .find(|(known, _)| *known == scalar_type)
                     .map(|(_, home)| *home)
                     .ok_or_else(|| self.internal("a homed scalar type is not declared"))?;
-                let zero = self.operation_identity(source);
-                let kind = match scalar_type {
-                    ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
-                    ScalarType::Integer(integer) => OperationKind::IntegerConstant {
-                        value: IntegerValue::for_sign(integer.sign(), 0)
-                            .map_err(|_| self.internal("zero is not an integer value"))?,
-                    },
-                    ScalarType::IeeeFloat(_) => {
-                        return Err(self.internal("a float local reached lowering"));
-                    }
-                };
-                let Value::Scalar(value) = self.emit(zero, Some(scalar_type), kind)? else {
-                    return Err(self.internal("a constant produced no value"));
-                };
+                let value = self.zero(scalar_type, source)?;
                 let operation = self.operation_identity(source);
-                let (root, _) = self.produce(
+                let (root, exact) = self.produce(
                     operation,
                     home,
                     OperationKind::EstablishPrimitiveLocal {
                         value,
                         range_obligation: None,
                     },
+                )?;
+                // The home holds the zero it was established with: a local
+                // declared without an initializer is zero-constructed, and a
+                // builtin scalar admits zero, so nothing is owed here.
+                self.write(
+                    exact,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Value(value),
                 )?;
                 Bound::Home(root)
             }
@@ -1294,6 +1334,15 @@ impl<'a> Lowering<'a> {
             owner: record,
             field: *final_field,
         };
+        // Every type that owns a step of the written path owes its clauses:
+        // the type of the field's own record and each type that contains it.
+        let mut owed = self.record_type(record)?.requires.len();
+        for step in &steps {
+            let Step::Field { owner, .. } = step else {
+                return Err(self.internal("a store path crosses a case payload"));
+            };
+            owed += self.record_type(*owner)?.requires.len();
+        }
         let declared = self.declared(last)?;
         let place = self.step(place, last)?;
         if value.result != Some(declared.value_type) {
@@ -1303,6 +1352,7 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(_) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
+                self.owe_domains(operation, owed, source)?;
                 self.emit(
                     operation,
                     None,
@@ -1323,6 +1373,7 @@ impl<'a> Lowering<'a> {
             ValueType::Record(_) => {
                 let constructed = self.record(value)?;
                 let operation = self.operation_identity(source);
+                self.owe_domains(operation, owed, source)?;
                 self.emit(
                     operation,
                     None,
@@ -1343,6 +1394,88 @@ impl<'a> Lowering<'a> {
                 )
             }
         }
+    }
+
+    /// A constant zero of a scalar type.
+    fn zero(&mut self, scalar_type: ScalarType, source: SourceOrigin) -> Checked<ValueId> {
+        let kind = match scalar_type {
+            ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
+            ScalarType::Integer(integer) => OperationKind::IntegerConstant {
+                value: IntegerValue::for_sign(integer.sign(), 0)
+                    .map_err(|_| self.internal("zero is not an integer value"))?,
+            },
+            ScalarType::IeeeFloat(_) => {
+                return Err(self.internal("a float local reached lowering"));
+            }
+        };
+        let operation = self.operation_identity(source);
+        match self.emit(operation, Some(scalar_type), kind)? {
+            Value::Scalar(value) => Ok(value),
+            Value::Record(_) | Value::Unit => Err(self.internal("a constant produced no value")),
+        }
+    }
+
+    /// Emits the zero constant of every scalar leaf of the zero value of
+    /// `record`, each with its path beneath the value, and counts the
+    /// `requires` clauses the zero value owes: the type's own, then those of
+    /// each data-typed field in declaration order, parent first. A sum's
+    /// zero value is its first declared case, so only that case's payload
+    /// is walked.
+    fn zero_leaves(
+        &mut self,
+        record: StructuralTypeId,
+        prefix: &mut Vec<Segment>,
+        zeros: &mut Vec<(Vec<Segment>, ValueId)>,
+        owed: &mut usize,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let data = self.record_type(record)?;
+        *owed += data.requires.len();
+        let (fields, case) = match data.cases.first() {
+            Some(first) => (&first.fields, Some(first.id)),
+            None => (&data.fields, None),
+        };
+        if let Some(case) = case {
+            prefix.push(Segment::Case(case));
+        }
+        for field in fields {
+            prefix.push(Segment::Field(field.id));
+            match field.value_type {
+                ValueType::Scalar(scalar_type) => {
+                    let zero = self.zero(scalar_type, source)?;
+                    zeros.push((prefix.clone(), zero));
+                }
+                ValueType::Record(nested) => {
+                    self.zero_leaves(nested, prefix, zeros, owed, source)?;
+                }
+            }
+            prefix.pop();
+        }
+        if case.is_some() {
+            prefix.pop();
+        }
+        Ok(())
+    }
+
+    /// Mints the `DataDomain` obligations of `operation`, one per clause it
+    /// owes, at the point before it. data_and_literals.md: "Construction and
+    /// every restoring write prove the owning default-domain clauses."
+    fn owe_domains(
+        &mut self,
+        operation: OperationId,
+        clauses: usize,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let before = self.here()?;
+        for clause in 0..clauses {
+            let clause = self.position(clause)?;
+            self.obligation(
+                ObligationKind::DataDomain { operation, clause },
+                before,
+                source,
+            );
+        }
+        Ok(())
     }
 
     /// Ends the block after a call that consumed record arguments and

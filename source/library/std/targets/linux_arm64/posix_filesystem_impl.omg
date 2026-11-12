@@ -234,7 +234,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::fchmodat(-100, &terminated[0], mode);
+    let outcome: i32 = PosixFilesystemLinux::fchmodat(-100, &terminated, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -261,7 +261,7 @@ reaches FilesystemNamespaceMutation
     let mut second: [u8; 4096];
     let first_fits: bool = posix_terminated_path(from, &mut first);
     let second_fits: bool = posix_terminated_path(to, &mut second);
-    let outcome: i32 = PosixFilesystemLinux::renameat(-100, &first[0], -100, &second[0]);
+    let outcome: i32 = PosixFilesystemLinux::renameat(-100, &first, -100, &second);
     transition first_fits && second_fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -280,7 +280,7 @@ reaches FilesystemNamespaceMutation
     let mut second: [u8; 4096];
     let first_fits: bool = posix_terminated_path(original, &mut first);
     let second_fits: bool = posix_terminated_path(link, &mut second);
-    let outcome: i32 = PosixFilesystemLinux::linkat(-100, &first[0], -100, &second[0], 0);
+    let outcome: i32 = PosixFilesystemLinux::linkat(-100, &first, -100, &second, 0);
     transition first_fits && second_fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -299,7 +299,7 @@ reaches FilesystemNamespaceMutation
     let mut second: [u8; 4096];
     let first_fits: bool = posix_terminated_path(target, &mut first);
     let second_fits: bool = posix_terminated_path(link, &mut second);
-    let outcome: i32 = PosixFilesystemLinux::symlinkat(&first[0], -100, &second[0]);
+    let outcome: i32 = PosixFilesystemLinux::symlinkat(&first, -100, &second);
     transition first_fits && second_fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -425,7 +425,7 @@ reaches FilesystemMetadataMutation
     transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
     machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32 {
         // The raw syscall copies bytes from user storage, without a libc object.
-        PosixFilesystemLinux::utimensat(fd, 0, &times[0], 0)
+        PosixFilesystemLinux::utimensat(fd, 0, &times[0] as &[u8; 32], 0)
     }
 }
 
@@ -467,7 +467,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::fchownat(-100, &terminated[0], uid, gid, 0);
+    let outcome: i32 = PosixFilesystemLinux::fchownat(-100, &terminated, uid, gid, 0);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -484,7 +484,7 @@ reaches FilesystemMetadataMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::fchownat(-100, &terminated[0], uid, gid, 256);
+    let outcome: i32 = PosixFilesystemLinux::fchownat(-100, &terminated, uid, gid, 256);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)

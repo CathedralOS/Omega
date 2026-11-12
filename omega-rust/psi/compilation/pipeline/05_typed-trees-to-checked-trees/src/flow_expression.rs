@@ -5031,7 +5031,6 @@ mod transitions {
             self.context.active_completed_copies =
                 self.capture_dispatch_payloads(transition, target, contexts, constraints);
             let mut returned_value = arena::Handle::invalid();
-            let mut normal_outgoing = true;
             let mut cannot_return_normally = false;
             let mut operands = Vec::new();
             let mut captured_operands = Vec::new();
@@ -5106,21 +5105,13 @@ mod transitions {
                         contexts,
                         constraints,
                     );
-                    normal_outgoing = validation::expression_normal_completion_possible(
+                    cannot_return_normally = validation::expression_normal_completion_possible(
                         self.program,
                         *expression,
-                    ) != Some(false);
-                    cannot_return_normally = !normal_outgoing;
-                    if normal_outgoing {
+                    ) == Some(false);
+                    if !cannot_return_normally {
                         returned_value = self.context.control.operands.append(completed.capture);
                     }
-                    normal_outgoing = normal_outgoing
-                        || matches!(
-                            self.program.expression_table.expression(*expression),
-                            typed_trees::expression::ExpressionNode::Call(call)
-                                if validation::call_target_state(self.program, call.target_symbol)
-                                    .is_some()
-                        );
                 }
                 TransitionTargetNode::Terminal => {}
             }
@@ -5152,21 +5143,23 @@ mod transitions {
                 &values,
                 argument_qualifications,
             );
-            if normal_outgoing {
-                super::super::exits::append_outgoing_state_fact(
-                    self.context,
-                    self.machine.symbol,
-                    self.state.symbol,
-                    self.statement_index,
-                    target,
-                    operand_entry_constraints,
-                    *constraints,
-                    returned_value,
-                    self.storage_snapshot,
-                    cannot_return_normally,
-                    self.context.active_completed_copies,
-                );
-            }
+            // Every selected edge publishes its outgoing frontier, including one
+            // that cannot return (a diverging state call or a terminal external
+            // completion such as process exit). The flag keeps it out of normal
+            // return contracts; lowering still needs the edge's payload births.
+            super::super::exits::append_outgoing_state_fact(
+                self.context,
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                target,
+                operand_entry_constraints,
+                *constraints,
+                returned_value,
+                self.storage_snapshot,
+                cannot_return_normally,
+                self.context.active_completed_copies,
+            );
             let completed = self.invoke(
                 InvocationSite::Transition(target),
                 super::InvocationInputs {
@@ -6040,8 +6033,15 @@ mod view_footprints {
             let places = if !value.referents.is_empty() {
                 direct_referent_places(&self.context.control, value.referents)?
             } else {
-                let operand = self.context.control.operands.insert(*value);
-                projectable_reference_places(self.program, &self.context.control, operand, &[])?
+                // The resolver reads operands by handle, so the query needs a
+                // temporary row. Rewind it: a left-behind copy would later look
+                // like a second capture of the same expression in this statement.
+                let retained = self.context.control.operands.frontier();
+                let operand = self.context.control.operands.append(*value);
+                let places =
+                    projectable_reference_places(self.program, &self.context.control, operand, &[]);
+                self.context.control.operands.rewind_appended(retained);
+                places?
             };
             Some(
                 places
@@ -11632,6 +11632,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             FlowInvalidationSource::Statement {
                 statement_index: self.statement_index,
             },
+            (self.state.symbol, self.statement_index),
         );
         *constraints = project_constraint_refs_to_active_contexts(
             &mut self.context.contexts.constraint_refs,

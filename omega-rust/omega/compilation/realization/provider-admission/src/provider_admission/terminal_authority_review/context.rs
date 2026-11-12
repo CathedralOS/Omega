@@ -101,6 +101,30 @@ impl<'a> ReviewContext<'a> {
                 binding,
             ) = &settlement.realization
             {
+                // A checked independent component call has no terminal
+                // mechanism row: its authority is the separately emitted
+                // component execution (`component_authority`). It still
+                // needs exactly that execution for this receiving boundary.
+                if matches!(
+                    binding.mechanism,
+                    target_operations::NormalizedForeignCallMechanism::Component { .. }
+                ) {
+                    if !components.iter().any(|component| {
+                        matches!(
+                            component.realization,
+                            crate::provider_admission::NativeBoundaryRealization::Component {
+                                call,
+                                ..
+                            } if call.selection().receiving_boundary() == settlement.boundary
+                        )
+                    }) {
+                        return Err(format!(
+                            "component settlement {:?} has no admitted component execution",
+                            settlement.boundary
+                        ));
+                    }
+                    continue;
+                }
                 let row = mechanism_map.get_mut(&settlement.boundary).ok_or_else(|| {
                     format!(
                         "foreign settlement {:?} has no admitted mechanism",

@@ -13052,12 +13052,17 @@ mod source_integer {
                 .map(Some)
             }
 
+            /// `level_arity` is the caller's universe-level binder count: a goal
+            /// over a level-generic family (a type-parameterized source data
+            /// constructor) mentions those level parameters, so sorting it in a
+            /// level-free context would refuse a well-formed proposition.
             pub(super) fn source_assumption_predicate(
                 &mut self,
                 goal: TermHandle,
                 assumptions: &[TermHandle],
+                level_arity: u32,
             ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-                let context = Context::empty()
+                let context = Context::with_level_arity(level_arity)
                     .with_signature(Signature::from_declarations(self.declarations.clone()));
                 for proposition in assumptions.iter().copied().chain(std::iter::once(goal)) {
                     infer_sort(
@@ -13163,7 +13168,8 @@ mod source_integer {
                         &mut arena,
                         &mut declarations,
                         goal,
-                        &[premise]
+                        &[premise],
+                        0
                     ),
                     Err(BoundedDenotationError::Unsupported(_))
                 ));
@@ -13222,7 +13228,13 @@ mod source_integer {
                 let goal = binary(&mut arena, vocabulary.less_or_equal, total, limit);
                 let assumptions = [head_bound, length_equation, total_equation, ih];
                 let proof = theory
-                    .predicate_from_assumptions(&mut arena, &mut declarations, goal, &assumptions)
+                    .predicate_from_assumptions(
+                        &mut arena,
+                        &mut declarations,
+                        goal,
+                        &assumptions,
+                        0,
+                    )
                     .unwrap()
                     .unwrap();
                 assert!(
@@ -13231,7 +13243,8 @@ mod source_integer {
                             &mut arena,
                             &mut declarations,
                             goal,
-                            &assumptions[..3]
+                            &assumptions[..3],
+                            0
                         )
                         .unwrap()
                         .is_none()
@@ -13250,7 +13263,8 @@ mod source_integer {
                                 &mut arena,
                                 &mut declarations,
                                 goal,
-                                &reduced
+                                &reduced,
+                                0
                             )
                             .unwrap()
                             .is_none(),
@@ -13375,9 +13389,10 @@ mod source_integer {
             declarations: &mut Vec<Declaration>,
             goal: TermHandle,
             assumptions: &[TermHandle],
+            level_arity: u32,
         ) -> Result<Option<TermHandle>, BoundedDenotationError> {
             self.with(arena, declarations, |state| {
-                state.source_assumption_predicate(goal, assumptions)
+                state.source_assumption_predicate(goal, assumptions, level_arity)
             })
         }
 

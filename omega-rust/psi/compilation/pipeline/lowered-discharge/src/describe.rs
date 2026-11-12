@@ -1,0 +1,236 @@
+/*
+What a rejection states: the condition that was not proved, in the words the
+current checker uses for the same obligation, so a programmer who knows one
+checker's messages can act on the other's. For example a call requirement
+reads "cannot prove requires contract for call halve from run: count > 1",
+where the lowered form alone could only say "requires clause 1 of the called
+machine".
+
+The obligation kind and the lowered form give the identities: the callee and
+clause of a `CallRequirement`, the operation of an `OperationSafety` and its
+carrier, the machine of a guarantee. Elaboration's names table
+(`structure_elaboration::MachineNames`) gives what to call them: machine and
+state names, each clause's authored text, the binder an operation's value
+lands in, and a call's argument text, so a callee clause is stated over the
+caller's actuals as the current checker states it. Without that table (bodies
+lowered without typed trees) a statement names the identities only.
+
+A statement says what was not proved, never that it is false
+(`wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a proof
+is not proof of falsehood"). So it never says "provably zero" or
+"structurally false", which the current checker says when it has decided the
+operand; the route has not decided it.
+*/
+
+use semantic_vocabulary::{IntegerCarrier, IntegerSign, MachineId, OperationId, ScalarType};
+use structure_elaboration::{Binder, Elaboration, MachineNames, SourceOrigin};
+use terminal_check_tables::MachineTables;
+use terminal_check_tables::edges::Callee;
+use terminal_check_tables::obligations::ObligationKind;
+use terminal_psi::{OperationKind, OperationResult};
+
+/// The statement of one unproved obligation of `machine`, which arises at
+/// `site`.
+pub(crate) fn unproved(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    kind: ObligationKind,
+    site: SourceOrigin,
+) -> String {
+    let names = elaboration.names.get(machine);
+    match kind {
+        ObligationKind::CallRequirement { invocation, clause } => {
+            let callee = tables
+                .invocations
+                .get(invocation)
+                .and_then(|row| match row.callee {
+                    Callee::Machine(callee) => Some(callee),
+                    Callee::Selected { .. } => None,
+                });
+            let callee_names = callee.and_then(|callee| elaboration.names.get(callee));
+            let text = callee_names.and_then(|callee_names| {
+                let clause = callee_names.requires.get(usize::try_from(clause).ok()?)?;
+                let arguments = match site {
+                    SourceOrigin::Authored(span) => names.and_then(|names| names.arguments(span)),
+                    SourceOrigin::Unpositioned(_) => None,
+                };
+                Some(clause.render(&|position| {
+                    arguments
+                        .and_then(|arguments| arguments.get(position))
+                        .or_else(|| callee_names.formals.get(position))
+                        .cloned()
+                        .unwrap_or_else(|| String::from("?"))
+                }))
+            });
+            match (names, callee_names, text) {
+                (Some(names), Some(callee_names), Some(text)) => format!(
+                    "cannot prove requires contract for call {} from {}: {text}",
+                    callee_names.machine, names.machine
+                ),
+                _ => format!(
+                    "cannot prove requires clause {} of the called machine",
+                    u64::from(clause) + 1
+                ),
+            }
+        }
+        ObligationKind::NormalGuarantee { clause, .. }
+        | ObligationKind::PublishedGuarantee { clause } => {
+            let text = names.and_then(|names| {
+                let text = names.ensures.get(usize::try_from(clause).ok()?)?;
+                Some((names, names.authored(text)))
+            });
+            match text {
+                Some((names, text)) => match names.exit_statement(site) {
+                    Some(statement) => format!(
+                        "cannot prove ensures contract for exit from {} at statement {statement}: \
+                         {text}",
+                        names.machine
+                    ),
+                    None => format!(
+                        "cannot prove ensures contract for exit from {}: {text}",
+                        names.machine
+                    ),
+                },
+                None => format!("cannot prove ensures clause {}", u64::from(clause) + 1),
+            }
+        }
+        ObligationKind::OperationSafety { operation } => {
+            operation_safety(elaboration, machine, names, operation, site)
+        }
+        ObligationKind::DataDomain { clause, .. } => format!(
+            "cannot prove requires clause {} of a data type in {}",
+            u64::from(clause) + 1,
+            owner(names, site)
+        ),
+        ObligationKind::ArrivalInvariant { .. } => {
+            format!("cannot prove block invariant in {}", owner(names, site))
+        }
+        ObligationKind::CrashCoverage { .. } => {
+            format!("cannot prove crash coverage in {}", owner(names, site))
+        }
+        ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. } => {
+            format!("cannot prove termination in {}", owner(names, site))
+        }
+        ObligationKind::Claim { .. }
+        | ObligationKind::Loan { .. }
+        | ObligationKind::RestorationWindow { .. }
+        | ObligationKind::DomainDebt { .. }
+        | ObligationKind::EstablishmentDebt { .. } => {
+            format!(
+                "cannot prove conserved obligation in {}",
+                owner(names, site)
+            )
+        }
+    }
+}
+
+/// The current checker's statement of a partial operation's safety
+/// (`validation`'s arithmetic domains): overflow of an add, subtract or
+/// multiply, the count of a shift, the definedness of a division or
+/// remainder. Each names the operation's carrier.
+fn operation_safety(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    names: Option<&MachineNames>,
+    operation: OperationId,
+    site: SourceOrigin,
+) -> String {
+    let owner = owner(names, site);
+    let found = usize::try_from(machine.get() - 1)
+        .ok()
+        .and_then(|position| elaboration.module.machines.get(position))
+        .and_then(|lowered| {
+            lowered
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|candidate| candidate.id == operation)
+        });
+    let Some(found) = found else {
+        return format!("cannot prove operation safety in {owner}");
+    };
+    let carrier = match &found.result {
+        OperationResult::Scalar(declaration) => primitive(declaration.scalar_type),
+        OperationResult::Unit | OperationResult::Structural(_) => String::from("?"),
+    };
+    let signed = matches!(
+        &found.result,
+        OperationResult::Scalar(declaration)
+            if matches!(declaration.scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed)
+    );
+    let partial = |operation: &str| {
+        let conditions = if signed {
+            "the divisor must be proven nonzero and the signed `MIN / -1` primitive pair must \
+             be excluded"
+        } else {
+            "the divisor must be proven nonzero"
+        };
+        format!("partial exact {operation} in {owner}: {conditions}")
+    };
+    match found.kind {
+        OperationKind::ExactIntegerAdd { .. }
+        | OperationKind::ExactIntegerSubtract { .. }
+        | OperationKind::ExactIntegerMultiply { .. } => format!(
+            "exact arithmetic in {owner} may overflow `{carrier}`: the operands are not provably \
+             in range (decision 17 -- exact arithmetic is a proof obligation)"
+        ),
+        // A left shift's goal is a conjunction: the count is below the width
+        // and the shifted value fits. The route does not say which conjunct
+        // it failed, so the statement names both, each in the current
+        // checker's words.
+        OperationKind::ExactIntegerShiftLeft { .. } => format!(
+            "exact arithmetic in {owner} may overflow `{carrier}`: the shift count is not \
+             provably below the operand width or the shifted value is not provably in range"
+        ),
+        OperationKind::ExactIntegerShiftRight { .. } => {
+            format!(
+                "shift count in {owner} is not provably below the operand width for `{carrier}`"
+            )
+        }
+        OperationKind::ExactIntegerDivide { .. } => partial("division"),
+        OperationKind::ExactIntegerRemainder { .. } => partial("remainder"),
+        _ => format!("cannot prove operation safety in {owner}"),
+    }
+}
+
+/// Where a value is computed, as the current checker names it:
+/// "machine `run` state `entry` local `quotient`", or "... return value".
+pub(crate) fn owner(names: Option<&MachineNames>, site: SourceOrigin) -> String {
+    let Some(names) = names else {
+        return String::from("this machine");
+    };
+    let mut owner = format!("machine `{}` state `{}`", names.machine, names.state);
+    let binder = match site {
+        SourceOrigin::Authored(span) => names.binder(span),
+        SourceOrigin::Unpositioned(_) => None,
+    };
+    match binder {
+        Some(Binder::Local(name)) => {
+            owner.push_str(" local `");
+            owner.push_str(name);
+            owner.push('`');
+        }
+        Some(Binder::ReturnValue) => owner.push_str(" return value"),
+        None => {}
+    }
+    owner
+}
+
+/// A scalar type as Omega spells it.
+fn primitive(scalar_type: ScalarType) -> String {
+    match scalar_type {
+        ScalarType::Boolean => String::from("bool"),
+        ScalarType::IeeeFloat(_) => String::from("float"),
+        ScalarType::Integer(integer) => {
+            let sign = match integer.sign() {
+                IntegerSign::Signed => 'i',
+                IntegerSign::Unsigned => 'u',
+            };
+            match integer.carrier() {
+                IntegerCarrier::Address => format!("{sign}size"),
+                IntegerCarrier::Fixed => format!("{sign}{}", integer.bits()),
+            }
+        }
+    }
+}

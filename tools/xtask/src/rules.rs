@@ -65,6 +65,7 @@ const AGENT_NAMES: &[&str] = &[
     "Antigravity",
     "Dot",
     "Human",
+    "Corpus sweep",
 ];
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -1333,12 +1334,42 @@ fn changed_golden_rows(diff: &str) -> BTreeSet<String> {
     names
 }
 
-pub fn golden_row_quality_violations(diff: &str) -> Vec<String> {
+/// Whether a pull request only writes down measurements: every changed path is
+/// a corpus ledger or Markdown that no fixture reads. Such a diff changes no
+/// compiler, library or fixture source, so any regression it records already
+/// existed on its base and cannot be its own.
+pub fn records_observations_only(changes: &[(char, String)]) -> bool {
+    let ledger = |path: &str| {
+        path.strip_prefix("tests/omega/corpus_")
+            .is_some_and(|rest| rest.ends_with(".txt") && !rest.contains('/'))
+    };
+    let prose = |path: &str| {
+        path.ends_with(".md") && !path.starts_with("tests/") && !path.starts_with("samples/")
+    };
+    !changes.is_empty() && changes.iter().all(|(_, path)| ledger(path) || prose(path))
+}
+
+const REGRESSION_RECORDING: &str = "a regression that already exists on the base is recorded by a pull request that changes only corpus ledgers and Markdown (tools/testing.md 'Who may record a regression')";
+
+/// Refuses ledger rows that would turn bad news into a baseline.
+///
+/// A pull request that changes source may not write a red row: it could be
+/// blessing its own breakage. An observation-only pull request (see
+/// [`records_observations_only`]) may, because it cannot have caused the
+/// outcome; its pass/run rows that lose a success must still carry the
+/// recorder's `regressed-from:` token so the loss stays distinguishable from a
+/// fixture that never worked.
+pub fn golden_row_quality_violations(diff: &str, observations_only: bool) -> Vec<String> {
     let removed: BTreeSet<&str> = diff
         .lines()
         .filter(|l| l.starts_with('-') && !l.starts_with("---"))
         .map(|l| &l[1..])
         .collect();
+    let replaced_green = |name: &str| {
+        removed.iter().any(|row| {
+            row.split_whitespace().next() == Some(name) && ledger_row_is_red(row) == Some(false)
+        })
+    };
     let mut violations = Vec::new();
     for line in diff.lines() {
         if !line.starts_with('+') || line.starts_with("+++") {
@@ -1356,18 +1387,25 @@ pub fn golden_row_quality_violations(diff: &str) -> Vec<String> {
         for &token in &tokens[2..] {
             if token.starts_with('@') && token.ends_with("+wt") {
                 violations.push(format!(
-                    "{GOLDEN}: {name} carries a dirty worktree stamp ({token}); commit all changes before running corpus_gate.py --record"
+                    "{GOLDEN}: {name} carries a dirty worktree stamp ({token}); commit all changes before running cargo xtask corpus --record"
                 ));
             }
         }
+        let marked = tokens[2..].iter().any(|t| t.starts_with("regressed-from:"));
         if name.starts_with("pass/") || name.starts_with("run/") {
-            if outcome == "rejected" || tokens[2..].iter().any(|t| t.starts_with("regressed-from:"))
-            {
+            if observations_only {
+                if ledger_row_is_red(body) == Some(true) && !marked && replaced_green(name) {
+                    violations.push(format!(
+                        "{GOLDEN}: {name} lost its recorded success but carries no `regressed-from:` token; write the row with cargo xtask corpus --record instead of editing it"
+                    ));
+                }
+            } else if outcome == "rejected" || marked {
                 violations.push(format!(
-                    "{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; fix the fixture or compiler before recording"
+                    "{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; fix the fixture or compiler before recording; {REGRESSION_RECORDING}"
                 ));
             }
         } else if name.starts_with("fail/")
+            && !observations_only
             && (outcome != "rejected" || tokens[2..].contains(&"unexpected"))
         {
             let shown = if tokens[2..].contains(&"unexpected") {
@@ -1376,7 +1414,7 @@ pub fn golden_row_quality_violations(diff: &str) -> Vec<String> {
                 outcome
             };
             violations.push(format!(
-                "{GOLDEN}: {name} is a fail fixture recorded as {shown}; ensure it rejects with its expected obligation before recording"
+                "{GOLDEN}: {name} is a fail fixture recorded as {shown}; ensure it rejects with its expected obligation before recording; {REGRESSION_RECORDING}"
             ));
         }
     }
@@ -1612,6 +1650,15 @@ fn recorded_pin_migration(
         })
 }
 
+// `tests/omega/pending/` holds a witness the checker accepts wrongly until a
+// fix lands; the fix then moves it to the same place under `fail/`. The pin is
+// kept, not removed, when that move carries identical fragments and the moved
+// fixture has a freshly recorded intended rejection containing every one.
+fn pending_promotion_path(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("tests/omega/pending/")?;
+    Some(format!("tests/omega/fail/{rest}"))
+}
+
 fn expected_pin_violations(
     root: &Path,
     base_rev: &str,
@@ -1659,6 +1706,30 @@ fn expected_pin_violations(
             )
         {
             continue;
+        }
+        if *status == 'D'
+            && let Some(promoted) = pending_promotion_path(path)
+            && changes.contains(&('A', promoted.clone()))
+            && let Some(fixture) = promoted
+                .strip_prefix("tests/omega/")
+                .and_then(|path| path.strip_suffix("/expected.txt"))
+            && let (Some(base), Some(head)) = (&base_records, &head_records)
+        {
+            let promoted_pins: BTreeSet<String> = show_git_file(root, "HEAD", &promoted)
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect();
+            if canonical_work_pins(&old) == canonical_work_pins(&promoted_pins)
+                && recorded_pin_migration(
+                    &promoted_pins,
+                    head.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+                    base.get(fixture).map(Vec::as_slice).unwrap_or_default(),
+                )
+            {
+                continue;
+            }
         }
         let detail = if *status == 'D' {
             "removed the file and its pinned diagnostic".to_owned()
@@ -2005,7 +2076,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &rewritten,
             &fixture_directories(&root),
         ));
-        violations.extend(golden_row_quality_violations(&golden_diff));
+        violations.extend(golden_row_quality_violations(
+            &golden_diff,
+            records_observations_only(&changes),
+        ));
         violations.extend(diff_hygiene_violations(&changes));
         violations.extend(expected_pin_violations(
             &root,
@@ -2150,6 +2224,18 @@ struct Ledger;
     }
 
     #[test]
+    fn pending_pin_promotes_only_to_the_same_fail_place() {
+        assert_eq!(
+            pending_promotion_path("tests/omega/pending/dependent/example/expected.txt").as_deref(),
+            Some("tests/omega/fail/dependent/example/expected.txt")
+        );
+        assert_eq!(
+            pending_promotion_path("tests/omega/fail/dependent/example/expected.txt"),
+            None
+        );
+    }
+
+    #[test]
     fn pin_record_index_retains_duplicate_rows_and_refuses_malformed_input() {
         let text = "fail/contracts/example rejected 1ms expected @bbbbbbbbbbbb\n";
         let index = pin_records_by_fixture(&text.repeat(2)).unwrap();
@@ -2208,6 +2294,95 @@ struct Ledger;
         assert!(provenance_violations("Summary\n\nAgent: Antigravity | Model: Gemini 3.1 Pro | Effort: high | Tokens: 1.2M in (1.1M cached), 24k out | Steps: 12 | Time: 8m | Steers: 0\n").is_empty());
         assert!(provenance_violations("Summary\n\nAgent: Antigravity, main-rs\n").is_empty());
         assert!(!provenance_violations("Summary without agent line\n").is_empty());
+    }
+
+    fn changed(paths: &[&str]) -> Vec<(char, String)> {
+        paths.iter().map(|path| ('M', (*path).to_owned())).collect()
+    }
+
+    #[test]
+    fn only_ledgers_and_unread_prose_make_an_observation_only_diff() {
+        assert!(records_observations_only(&changed(&[
+            "tests/omega/corpus_outcomes.txt",
+            "tests/omega/corpus_native_linux_x86_64.txt",
+            "wiki/drafts/audits/ledger.md",
+            "TASKS.md",
+        ])));
+        for source in [
+            "omega-rust/psi/src/lib.rs",
+            "source/library/core/mod.omg",
+            "tests/omega/pass/a/x/main.omg",
+            "tests/omega/fail/a/x/expected.txt",
+            "tests/omega/fail/a/x/notes.md",
+            "samples/cli/a/README.md",
+            "tests/omega/corpus_runs/outcomes.txt",
+            "tools/xtask/src/rules.rs",
+        ] {
+            assert!(
+                !records_observations_only(&changed(&["tests/omega/corpus_outcomes.txt", source])),
+                "{source}"
+            );
+        }
+        assert!(!records_observations_only(&[]));
+    }
+
+    const LOST_PASS: &str = "+++ b/l\n-pass/a/x checked 1ms @aaaaaaaaaaaa\n+pass/a/x rejected 2ms regressed-from:checked @bbbbbbbbbbbb\n+\tcannot prove\n";
+    const ACCEPTED_FAIL: &str = "+++ b/l\n-fail/a/x rejected 1ms expected @aaaaaaaaaaaa\n-\tcannot prove\n+fail/a/x checked 2ms @bbbbbbbbbbbb\n";
+    const WRONG_REASON_FAIL: &str = "+++ b/l\n-fail/a/y rejected 1ms expected @aaaaaaaaaaaa\n+fail/a/y rejected 2ms unexpected @bbbbbbbbbbbb\n";
+
+    #[test]
+    fn a_source_changing_diff_cannot_record_a_red_row() {
+        for diff in [LOST_PASS, ACCEPTED_FAIL, WRONG_REASON_FAIL] {
+            let violations = golden_row_quality_violations(diff, false);
+            assert_eq!(violations.len(), 1, "{diff}");
+            assert!(
+                violations[0].contains("changes only corpus ledgers"),
+                "{diff}"
+            );
+        }
+        // An unmarked pass row is refused too: dropping the token is not a way round.
+        let unmarked = "+++ b/l\n-pass/a/x checked 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n";
+        assert_eq!(golden_row_quality_violations(unmarked, false).len(), 1);
+    }
+
+    #[test]
+    fn an_observation_only_diff_records_regressions() {
+        for diff in [LOST_PASS, ACCEPTED_FAIL, WRONG_REASON_FAIL] {
+            assert!(
+                golden_row_quality_violations(diff, true).is_empty(),
+                "{diff}"
+            );
+        }
+        // Recording them raises the red count; it never lowers it.
+        assert_eq!(ledger_red_row_delta(LOST_PASS), 1);
+        assert_eq!(ledger_red_row_delta(ACCEPTED_FAIL), 1);
+        assert_eq!(ledger_red_row_delta(WRONG_REASON_FAIL), 1);
+    }
+
+    #[test]
+    fn an_observed_lost_success_must_carry_its_regression_token() {
+        for status in ["rejected", "incomplete", "timeout"] {
+            let unmarked = format!(
+                "+++ b/l\n-run/a/x built 1ms exit:0\n+run/a/x {status} 2ms @bbbbbbbbbbbb\n"
+            );
+            let violations = golden_row_quality_violations(&unmarked, true);
+            assert_eq!(violations.len(), 1, "{status}");
+            assert!(violations[0].contains("regressed-from:"), "{status}");
+        }
+        // A row that was already red, or is new, lost nothing to name.
+        let standing = "+++ b/l\n-pass/a/x rejected 1ms\n+pass/a/x rejected 2ms @bbbbbbbbbbbb\n+pass/a/new incomplete 2ms @bbbbbbbbbbbb\n";
+        assert!(golden_row_quality_violations(standing, true).is_empty());
+        // A weaker success is not a loss.
+        let weaker = "+++ b/l\n-run/a/x built 1ms\n+run/a/x checked 2ms @bbbbbbbbbbbb\n";
+        assert!(golden_row_quality_violations(weaker, true).is_empty());
+    }
+
+    #[test]
+    fn a_dirty_stamp_is_refused_in_every_diff() {
+        let dirty =
+            "+++ b/l\n-fail/a/x rejected 1ms expected\n+fail/a/x checked 2ms @bbbbbbbbbbbb+wt\n";
+        assert_eq!(golden_row_quality_violations(dirty, true).len(), 1);
+        assert_eq!(golden_row_quality_violations(dirty, false).len(), 2);
     }
 
     #[test]

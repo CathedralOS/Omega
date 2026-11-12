@@ -1,0 +1,10 @@
+use omega::language::core::assembly;
+public boundary trait Signal {
+    machine emit() reaches PortIo;
+}
+public Serial satisfies Signal {
+    machine emit() reaches PortIo {
+        asm clobbers r10, r11, r15, rax, rdx { out 0x3F8, 0x41 }
+    }
+}
+machine component_entry() {}

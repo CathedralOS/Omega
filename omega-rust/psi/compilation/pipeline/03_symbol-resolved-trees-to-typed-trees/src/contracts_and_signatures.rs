@@ -1,5 +1,5 @@
 /*
-Authored contract invocations, `where` proof facts, and parameter domain
+Authored contract invocations, `requires` proof facts, and parameter domain
 membership (`contracts`) alongside shared parameter, type-parameter, evidence,
 and callable-signature lowering (`signatures`).
 */
@@ -611,6 +611,7 @@ pub(crate) mod signatures {
                 } else {
                     language_semantics::TerminationGuarantee::NoGuarantee
                 },
+                declares_no_crash_route: signature.declares_no_crash_route,
             };
 
             typed_signature.type_parameters =

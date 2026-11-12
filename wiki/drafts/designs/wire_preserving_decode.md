@@ -16,7 +16,7 @@ or when the board retires the `PreserveUnknown` leg.
 
 ## Landed surface
 
-- Carriers and requirements (`source/library/std/wire.omg`):
+- Carriers and requirements (`source/library/core/wire.omg`):
   `OpaqueWireRemainder { codec_identity: u64, bytes_and_ordering: &[u8] }`,
   `Relayed<T> { value: T, remainder: OpaqueWireRemainder }`,
   `PreservingDecode<Policy, Value>::decode_preserving(bytes: &[u8]) -> DecodeResult<Relayed<Value>>`,
@@ -144,7 +144,7 @@ become mode-aware when a preserving codec is selected:
   for the preserving mode.
 - `build-evaluation/src/admission/wire_protocol.rs`: mode-aware
   `unknown_member_behavior` and requirement strings.
-- `source/library/std/wire.omg`: only if the relay-encode requirement gets
+- `source/library/core/wire.omg`: only if the relay-encode requirement gets
   a spelled trait (e.g. `EncodeRelayed<Policy, Value>`) — today the splice
   contract rides inside the codec-private sidecar.
 

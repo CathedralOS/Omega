@@ -6,17 +6,17 @@ machine minus(a: Nat, b: Nat) -> Nat {
 }
 machine cancel(a: Nat, b: Nat) -> Nat
 requires
-    (a) == (b)
+    core::Identity<Nat>(a, b)
 ensures
-    (minus(a, b)) == (minus(a, b))
+    core::Identity<Nat>(minus(a, b), minus(a, b))
 {
     transition { _ -> (minus(a, b)) }
 }
 machine cite_with_requires(x: Nat, y: Nat) -> Nat
 requires
-    (x) == (y)
+    core::Identity<Nat>(x, y)
 ensures
-    (minus(x, x)) == (minus(x, y))
+    core::Identity<Nat>(minus(x, x), minus(x, y))
 {
     _ = cancel(x, y);
     transition { _ -> (minus(x, x)) }

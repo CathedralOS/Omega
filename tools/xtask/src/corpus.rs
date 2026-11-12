@@ -34,7 +34,7 @@ pub struct CorpusRecord {
 }
 
 /// Parse `tests/omega/corpus_outcomes.txt` and return all pinned regressions:
-/// - `pass/` or `run/` rows whose status is not `checked`/`built` or that carry `regressed-from:*`
+/// - `pass/` or `run/` rows that neither check/build nor match a pinned native rejection, or that carry `regressed-from:*`
 /// - `fail/` rows whose status is not `rejected` or that carry `unexpected`
 pub fn list_pinned_regressions_from_text(text: &str) -> Vec<PinnedRegression> {
     let mut regressions = Vec::new();
@@ -276,14 +276,35 @@ pub fn splice_records(text: &str, records: &[CorpusRecord]) -> String {
     out
 }
 
-fn carried_regression(prior: Option<&CorpusRecord>, observed: &CorpusRecord) -> Option<String> {
-    let is_success = matches!(observed.status.as_str(), "built" | "checked");
-    if is_success {
+/// A positive row succeeds when it checks or builds, or when its fixture pins a
+/// native rejection and the observed refusal matched it. `check-rules` and
+/// `--list-pinned-regressions` read the same rows as green, so the recorder must
+/// mark the loss of either kind with `regressed-from:`; otherwise a matched
+/// native rejection that stops matching lands as an unmarked red row.
+pub(crate) fn is_recorded_success(record: &CorpusRecord) -> bool {
+    matches!(record.status.as_str(), "built" | "checked")
+        || (matches!(record.tier.as_str(), "pass" | "run")
+            && record.status == "rejected"
+            && record.expected_satisfied == Some(true)
+            && record
+                .facts
+                .iter()
+                .any(|(key, value)| key == "native-rejection" && value == "match"))
+}
+
+pub(crate) fn carried_regression(
+    prior: Option<&CorpusRecord>,
+    observed: &CorpusRecord,
+) -> Option<String> {
+    if is_recorded_success(observed) {
         return None;
     }
     let prior = prior?;
-    if matches!(prior.status.as_str(), "built" | "checked") {
+    if is_recorded_success(prior) {
         let mut token = prior.status.clone();
+        if prior.expected_satisfied == Some(true) {
+            token.push_str("+expected");
+        }
         for (k, v) in &prior.facts {
             token.push_str(&format!("+{k}:{v}"));
         }
@@ -376,7 +397,7 @@ fn selected_fixture_count(
     Ok(count)
 }
 
-fn current_stamp(root: &Path) -> String {
+pub(crate) fn current_stamp(root: &Path) -> String {
     let rev = Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
         .current_dir(root)
@@ -435,7 +456,6 @@ pub fn observe(
     shard: &str,
     native_target: Option<&str>,
     interpret: bool,
-    checked_interpreter: bool,
     check_sites: bool,
     evidence: &Path,
 ) -> Result<String, String> {
@@ -457,7 +477,6 @@ pub fn observe(
         .env_remove("OMEGA_CORPUS_SHARD")
         .env_remove("OMEGA_CORPUS_NATIVE")
         .env_remove("OMEGA_CORPUS_INTERPRET")
-        .env_remove("OMEGA_CORPUS_CHECKED_INTERPRETER")
         .env_remove("OMEGA_CORPUS_NATIVE_TARGET");
     if !shard.is_empty() {
         command.env("OMEGA_CORPUS_SHARD", shard);
@@ -469,9 +488,6 @@ pub fn observe(
     }
     if interpret {
         command.env("OMEGA_CORPUS_INTERPRET", "1");
-    }
-    if checked_interpreter {
-        command.env("OMEGA_CORPUS_CHECKED_INTERPRETER", "1");
     }
     if check_sites {
         command.env("OMEGA_COMPILER_CHECK_SITES", "1");
@@ -531,7 +547,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut native = false;
     let mut native_target: Option<String> = None;
     let mut interpret = false;
-    let mut checked_interpreter = false;
     let mut list_pinned = false;
     let mut sweep = std::env::var("OMEGA_CORPUS_SWEEP").is_ok_and(|v| !v.is_empty());
     let mut golden: Option<PathBuf> = None;
@@ -550,10 +565,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             "--record" => record = true,
             "--native" => native = true,
             "--interpret" => interpret = true,
-            "--checked-interpreter" => {
-                interpret = true;
-                checked_interpreter = true;
-            }
             "--both" => {
                 native = true;
                 interpret = true;
@@ -617,21 +628,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let golden_path = golden.unwrap_or_else(|| {
         let tests_omega = root.join("tests/omega");
         if native && interpret {
-            let prefix = if checked_interpreter {
-                "corpus_checked_both"
-            } else {
-                "corpus_both"
-            };
-            tests_omega.join(format!("{prefix}_{target}.txt"))
+            tests_omega.join(format!("corpus_both_{target}.txt"))
         } else if native {
             tests_omega.join(format!("corpus_native_{target}.txt"))
         } else if interpret {
-            let name = if checked_interpreter {
-                "corpus_checked_interpreted.txt"
-            } else {
-                "corpus_interpreted.txt"
-            };
-            tests_omega.join(name)
+            tests_omega.join("corpus_interpreted.txt")
         } else {
             tests_omega.join("corpus_outcomes.txt")
         }
@@ -692,7 +693,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         &shard,
         native.then_some(target),
         interpret,
-        checked_interpreter,
         false,
         &evidence,
     )
@@ -803,6 +803,23 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn losing_a_matched_native_rejection_carries_a_regression_token() {
+        let row = |text: &str| parse_records(text).unwrap().remove(0);
+        let prior = row(
+            "pass/host/scalar rejected 3ms expected check-target:linux_x86_64 native-rejection:match @aaaaaaaaaaaa",
+        );
+        let lost = row("pass/host/scalar rejected 9ms check-target:linux_x86_64 @bbbbbbbbbbbb");
+        assert_eq!(
+            carried_regression(Some(&prior), &lost).as_deref(),
+            Some("rejected+expected+check-target:linux_x86_64+native-rejection:match")
+        );
+        assert_eq!(carried_regression(Some(&prior), &prior), None);
+        let fail =
+            row("fail/host/refusal rejected 3ms expected native-rejection:match @aaaaaaaaaaaa");
+        assert!(!is_recorded_success(&fail));
+    }
 
     #[test]
     fn shards_count_from_zero_and_stop_before_the_total() {

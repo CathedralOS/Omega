@@ -56,14 +56,27 @@ fn sample_projects_ignore_local_build_output() {
         sample_root.display()
     );
 
+    // The repository root ignores every sample's build output with one
+    // `/samples/**/build/` rule; a project may also ignore its own `/build/`.
+    // Either keeps generated output out of git, so a project needs its own
+    // file only when the root rule is absent.
+    let root_gitignore = fs::read_to_string(repo_root.join(".gitignore"))
+        .unwrap_or_else(|error| panic!("failed to read the root .gitignore: {error}"));
+    let root_ignores_sample_builds = root_gitignore
+        .lines()
+        .any(|line| line.trim() == "/samples/**/build/");
+
     for project_root in sample_projects {
+        if root_ignores_sample_builds {
+            continue;
+        }
         let gitignore_path = project_root.join(".gitignore");
-        let gitignore = fs::read_to_string(&gitignore_path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
+        let gitignore = fs::read_to_string(&gitignore_path).unwrap_or_default();
 
         assert!(
             gitignore.lines().any(|line| line.trim() == "/build/"),
-            "sample project {} should ignore its local build directory",
+            "sample project {} should ignore its local build directory, \
+             or the root .gitignore should ignore `/samples/**/build/`",
             project_root.display()
         );
     }

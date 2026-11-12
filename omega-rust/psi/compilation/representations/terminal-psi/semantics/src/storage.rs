@@ -2447,6 +2447,7 @@ pub(crate) mod calling_storage {
 
         fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                requires: Vec::new(),
                 id: identity(value),
                 identity: TerminalIdentityIndex::ABSENT,
                 shape,

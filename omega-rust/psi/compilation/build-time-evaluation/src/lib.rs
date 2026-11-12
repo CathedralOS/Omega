@@ -35,6 +35,7 @@
 #![forbid(unsafe_code)]
 
 pub use product::assumed_bindings;
+pub use product::test_groups;
 mod const_generic_expressions;
 mod const_initializers;
 pub(crate) mod build_time_evaluation {
@@ -848,9 +849,10 @@ pub(crate) mod reflection {
     pub use validation::reflection::*;
 }
 mod scalar_applications;
+pub mod terminal_values;
 pub use scalar_applications::{
-    ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
-    evaluate_scalar_applications_with_address_model,
+    InvocationTarget, ScalarScopeEvaluation, complete_scalar_applications,
+    evaluate_scalar_applications, evaluate_scalar_applications_with_address_model,
 };
 mod syntax_probes;
 /* Build-time evaluation collects landing diagnostics beside its value.
@@ -911,8 +913,8 @@ pub use language_semantics::wire::WireCompatibilityDemand;
 
 pub use build_time_values::BuildTimeValue;
 pub use checked_interpreter::{
-    CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
-    SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody,
+    CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, SelectedBuildTimeBinaryOperator,
+    SelectedBuildTimeMachineBody,
 };
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
@@ -924,6 +926,7 @@ pub use const_evaluation::data_layout_queries::{
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
+pub use evaluation_accounting::MeasuredEvaluation;
 pub use layouts::access_lifecycles::{admit_access_lifecycle_plans, retain_access_lifecycle_plans};
 pub use layouts::access_views::{AccessViewRecord, desugar_access_views};
 pub use layouts::layout_plans::compute_native_layout_plan_for_machine;

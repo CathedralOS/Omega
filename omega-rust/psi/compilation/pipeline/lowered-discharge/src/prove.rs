@@ -18,7 +18,10 @@ best upper and lower literal bound, each with a node concluding
 - its own result equation when it is an exact multiply: the bound on the
   mathematical product (`IntegerAffineBound`) carried through the equation
   (`ValueEqualityTransport`) and restated in the carrier
-  (`IntegerOrderSubstitution`).
+  (`IntegerOrderSubstitution`);
+- its own result equation when it is a divide, remainder, shift, bitwise and
+  or bitwise or with one literal operand: a one-step endpoint chain the
+  kernel replays (`ranges`).
 
 Goals decompose structurally (conjunction, disjunction, antisymmetry for
 equality). A comparison closes when the left side's bound and the right
@@ -44,14 +47,17 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::values::ValueRow;
 
+mod ranges;
+
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
-/// conjunctions and disjunctions of covered parts, integer orders and
-/// equalities, and an arithmetic bound of an add, subtract or multiply
-/// against a literal. Anything else the prover can only take from an equal
+/// conjunctions and disjunctions of covered parts, an implication whose
+/// conclusion is covered, integer orders and
+/// equalities, and an arithmetic bound of an add, subtract, multiply or
+/// left shift against a literal. Anything else the prover can only take from an equal
 /// hypothesis, so a failure on it says nothing about the program: it is
 /// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
 /// `NoDerivation`.
@@ -61,6 +67,8 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(has_rules_for)
         }
+        // The premise is only assumed; the conclusion is what is proved.
+        Proposition::Implication { conclusion, .. } => has_rules_for(conclusion),
         Proposition::LessOrEqual(left, _)
         | Proposition::LessThan(left, _)
         | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
@@ -71,6 +79,7 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
                     IntegerMathTerm::Add(..)
                         | IntegerMathTerm::Subtract(..)
                         | IntegerMathTerm::Multiply(..)
+                        | IntegerMathTerm::ShiftLeft { .. }
                 )
             };
             match (left, right) {
@@ -135,12 +144,23 @@ struct Fact {
     axiom: Option<usize>,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// How many provers were started on this thread: the reuse tests assert
+    /// that re-verifying a saved proof starts none.
+    pub(crate) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) struct Prover<'a> {
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
     values: &'a IdTable<ValueId, ValueRow>,
     facts: Vec<Fact>,
+    /// The definitions transport substitutes: each proved `v == t` whose
+    /// subject `v` is a Boolean value, or whose definition is a literal, with
+    /// its proof.
+    equations: Vec<(Proposition, ProofNode)>,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
     /// Whether relations between values are searched (off only to measure
@@ -236,6 +256,42 @@ fn flip(equality: ProofNode) -> Result<ProofNode, Unproven> {
     ))
 }
 
+/// The facts transport may substitute: `v == t` for a Boolean value `v` (an
+/// operation result equation, a callee guarantee or a block invariant's
+/// definition of a join parameter) or for any value defined as a literal.
+/// A Boolean literal on the right is a branch fact, not a definition. The
+/// kernel keeps the first definition of each subject, as this does.
+fn definitions(facts: &[Fact]) -> Vec<(Proposition, ProofNode)> {
+    facts
+        .iter()
+        .filter(|fact| match &fact.proposition {
+            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
+                match definition {
+                    ScalarTerm::Boolean(_) => fact.axiom.is_some(),
+                    ScalarTerm::Integer { .. } => true,
+                    _ => subject.scalar_type() == ScalarType::Boolean,
+                }
+            }
+            _ => false,
+        })
+        .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
+        .collect()
+}
+
+/// `c == true` or `c == false` for a Boolean value `c`.
+fn is_branch_fact(proposition: &Proposition) -> bool {
+    matches!(
+        proposition,
+        Proposition::Equal(
+            ScalarTerm::Value {
+                scalar_type: ScalarType::Boolean,
+                ..
+            },
+            ScalarTerm::Boolean(_),
+        )
+    )
+}
+
 fn flatten(
     proposition: &Proposition,
     proof: ProofNode,
@@ -269,6 +325,8 @@ impl<'a> Prover<'a> {
         values: &'a IdTable<ValueId, ValueRow>,
         relations: bool,
     ) -> Self {
+        #[cfg(test)]
+        SEARCHES.with(|searches| searches.set(searches.get() + 1));
         let mut facts = Vec::new();
         for (index, assumption) in assumptions.iter().enumerate() {
             let proof = node(assumption.clone(), ProofRule::Assumption { index });
@@ -279,61 +337,32 @@ impl<'a> Prover<'a> {
             flatten(axiom, proof, Some(index), &mut facts);
         }
         // A branch fact `c == true` says what `c`'s comparison says. Transport
-        // it through the result equations of Boolean values and constants, so
+        // it through the definitions of Boolean values and constants, so
         // integer values stay values and their bounds stay findable; the
         // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let equations: Vec<(usize, &Proposition)> = axioms
-            .iter()
-            .enumerate()
-            .filter(|(_, axiom)| match axiom {
-                Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
-                    subject.scalar_type() == ScalarType::Boolean
-                        || matches!(
-                            definition,
-                            ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
-                        )
-                }
-                _ => false,
-            })
-            .collect();
+        let equations = definitions(&facts);
         if !equations.is_empty() {
-            for (index, assumption) in assumptions.iter().enumerate() {
-                let Proposition::Equal(
-                    ScalarTerm::Value { scalar_type, .. },
-                    ScalarTerm::Boolean(_),
-                ) = assumption
-                else {
-                    continue;
-                };
-                if *scalar_type != ScalarType::Boolean {
-                    continue;
-                }
+            let premises: Vec<(Proposition, ProofNode)> = facts
+                .iter()
+                .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
+                .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
+                .collect();
+            for (premise, proof) in premises {
                 let Ok(transported) = check_value_equality_denotation(
                     context,
-                    assumption,
-                    equations.iter().map(|(_, equation)| *equation),
+                    &premise,
+                    equations.iter().map(|(equation, _)| equation),
                 ) else {
                     continue;
                 };
-                if &transported == assumption {
+                if transported == premise {
                     continue;
                 }
                 let proof = node(
                     transported.clone(),
                     ProofRule::ValueEqualityTransport {
-                        premise: Box::new(node(
-                            assumption.clone(),
-                            ProofRule::Assumption { index },
-                        )),
-                        equalities: equations
-                            .iter()
-                            .map(|(axiom, equation)| {
-                                node(
-                                    (*equation).clone(),
-                                    ProofRule::SemanticAxiom { index: *axiom },
-                                )
-                            })
-                            .collect(),
+                        premise: Box::new(proof),
+                        equalities: equations.iter().map(|(_, proof)| proof.clone()).collect(),
                     },
                 );
                 flatten(&transported, proof, None, &mut facts);
@@ -345,12 +374,51 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            equations,
             bounds: (0..values.len())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
             relations,
             case_split: true,
         }
+    }
+
+    /// `goal` by `ValueEqualityTransport`: under the definitions the prover
+    /// holds, its denotation is `Truth`, or is the denotation of a fact. The
+    /// kernel recomputes both denotations from the same definitions.
+    fn by_transport(&self, goal: &Proposition) -> Option<ProofNode> {
+        if self.equations.is_empty() {
+            return None;
+        }
+        let denotation = |proposition: &Proposition| {
+            check_value_equality_denotation(
+                self.context,
+                proposition,
+                self.equations.iter().map(|(equation, _)| equation),
+            )
+            .ok()
+        };
+        let target = denotation(goal)?;
+        let premise = if target == Proposition::Truth {
+            primitive(Proposition::Truth, PrimitiveJudgment::Truth)
+        } else {
+            self.facts
+                .iter()
+                .find(|fact| fact.proposition == target)?
+                .proof
+                .clone()
+        };
+        Some(node(
+            goal.clone(),
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise),
+                equalities: self
+                    .equations
+                    .iter()
+                    .map(|(_, proof)| proof.clone())
+                    .collect(),
+            },
+        ))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -377,11 +445,38 @@ impl<'a> Prover<'a> {
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    // Owed where nothing may happen: a crash site whose
+                    // machine publishes no route for its cause. It holds
+                    // only where what is known is contradictory.
+                    | Proposition::Falsehood
             )
         {
             return direct;
         }
-        self.split(goal).ok_or(direct.err().unwrap_or("no proof"))
+        if let Some(split) = self.split(goal) {
+            return Ok(split);
+        }
+        self.unreachable(goal)
+            .ok_or(direct.err().unwrap_or("no proof"))
+    }
+
+    /// `goal` at a point no execution reaches: some order fact known there
+    /// contradicts the rest, so anything follows
+    /// (`wiki/spec/proofs/contracts.md`, "Required automatic discharge":
+    /// order reasoning includes "contradiction of an unreachable path"). The
+    /// derivation is `refute`'s, applied to a fact instead of a split
+    /// alternative. It is tried last, so a reachable point pays for it only
+    /// when its goal is otherwise unproved.
+    fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let orders: Vec<ProofNode> = self
+            .facts
+            .iter()
+            .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
+            .map(|fact| fact.proof.clone())
+            .collect();
+        orders
+            .into_iter()
+            .find_map(|known| self.refute(known, goal))
     }
 
     /// `goal` from a disjunctive fact (a disequality guard transports to
@@ -475,7 +570,44 @@ impl<'a> Prover<'a> {
         ))
     }
 
+    /// `premise => conclusion`: the kernel adds the premise as the next
+    /// assumption and checks the conclusion under it, as it does a split
+    /// alternative.
+    fn implication(
+        &mut self,
+        premise: &Proposition,
+        conclusion: &Proposition,
+        goal: &Proposition,
+    ) -> Result<ProofNode, Unproven> {
+        let mut assumptions = self.assumptions.to_vec();
+        assumptions.push(premise.clone());
+        let mut under = Prover::new(
+            self.context,
+            &assumptions,
+            self.axioms,
+            self.values,
+            self.relations,
+        );
+        under.case_split = self.case_split;
+        let body = under.prove(conclusion)?;
+        Ok(node(
+            goal.clone(),
+            ProofRule::ImplicationIntroduction {
+                body: Box::new(body),
+            },
+        ))
+    }
+
     fn prove_direct(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
+        let structural = self.prove_structural(goal);
+        if structural.is_ok() {
+            return structural;
+        }
+        self.by_transport(goal)
+            .ok_or(structural.err().unwrap_or("no proof"))
+    }
+
+    fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
             return Ok(fact.proof.clone());
         }
@@ -555,8 +687,11 @@ impl<'a> Prover<'a> {
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
-            | Proposition::Implication { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => self.implication(premise, conclusion, goal),
         }
     }
 
@@ -728,6 +863,18 @@ impl<'a> Prover<'a> {
                             ),
                             true,
                         ));
+                    }
+                }
+                // `a % d < d` for an unsigned remainder when `0 < d`.
+                Proposition::Equal(
+                    output,
+                    expression @ ScalarTerm::ExactIntegerRemainder { .. },
+                ) if output == at => {
+                    if let Some(axiom) = axiom
+                        && let Some((divisor, below)) =
+                            self.remainder_below_divisor(axiom, output, expression)
+                    {
+                        steps.push((divisor, below, true));
                     }
                 }
                 _ => {}
@@ -935,9 +1082,25 @@ impl<'a> Prover<'a> {
                 let other = if left == subject { right } else { left };
                 self.through(weaken(proof).ok()?, other, direction)
             }
-            // Exact add, subtract and multiply result equations.
+            // Result equations: the output's bound from its operands' bounds.
             (Proposition::Equal(output, expression), _) if output == subject => {
-                self.definition(axiom?, subject, integer, expression, direction)
+                let axiom = axiom?;
+                let defined = self.definition(axiom, subject, integer, expression, direction);
+                // An unsigned remainder is also below its divisor.
+                let below = (direction == Direction::Upper)
+                    .then(|| self.remainder_below_divisor(axiom, subject, expression))
+                    .flatten()
+                    .and_then(|(divisor, relation)| self.through(relation, &divisor, direction));
+                match (defined, below) {
+                    (Some(defined), Some(below)) => Some(
+                        if integer.compare(below.literal, defined.literal) == Some(Ordering::Less) {
+                            below
+                        } else {
+                            defined
+                        },
+                    ),
+                    (defined, below) => defined.or(below),
+                }
             }
             _ => None,
         }
@@ -1005,7 +1168,7 @@ impl<'a> Prover<'a> {
             ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 (left, right, direction.opposite(), false)
             }
-            _ => return None,
+            _ => return self.chain_step(axiom, subject, integer, expression, direction),
         };
         let left_proof = self.evidence(left, direction).ok()?;
         let right_proof = self.evidence(right, right_direction).ok()?;
@@ -1283,7 +1446,10 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::Add(first, second) => (Arithmetic::Add, first, second),
             IntegerMathTerm::Subtract(first, second) => (Arithmetic::Subtract, first, second),
             IntegerMathTerm::Multiply(first, second) => (Arithmetic::Multiply, first, second),
-            IntegerMathTerm::ShiftLeft { .. } => return Err("shift-left bound is not built"),
+            IntegerMathTerm::ShiftLeft { value, count } => {
+                let affine = self.shift_left_image(value, count, direction)?;
+                return self.land(affine, term, limit, direction);
+            }
             _ => return Err("arithmetic goal over a single term"),
         };
         let integer = [first.as_ref(), second.as_ref()]
@@ -1319,6 +1485,19 @@ impl<'a> Prover<'a> {
         }
         .map_err(|_| "operation term")?;
         let affine = self.image(operation, &first, &second, target, direction)?;
+        self.land(affine, term, limit, direction)
+    }
+
+    /// The goal `term <= limit` (or `limit <= term`) from `affine`, the
+    /// kernel's image bound on `term`: the image itself when it is the goal,
+    /// or chained with the closed relation between the image and the limit.
+    fn land(
+        &self,
+        affine: ProofNode,
+        term: &IntegerMathTerm,
+        limit: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
         let image = affine.conclusion.clone();
         let image_term = match (&image, direction) {
             (Proposition::IntegerMathLessOrEqual(term, _), Direction::Upper)

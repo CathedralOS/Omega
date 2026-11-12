@@ -58,7 +58,7 @@ pub mod bound_expression_meaning {
                 || program.symbols.get(data.symbol).kind != SymbolKind::Data
                 || definitions.next() != Some(data)
                 || definitions.next().is_some()
-                || !owns_expression(program, data.where_facts, expression, comparison)
+                || !owns_expression(program, data.requires_facts, expression, comparison)
             {
                 return false;
             }
@@ -1837,7 +1837,7 @@ pub mod collection_predicates {
                         return definition.quotient.is_none()
                             && program
                                 .proof_facts
-                                .span_or_empty(definition.where_facts)
+                                .span_or_empty(definition.requires_facts)
                                 .is_empty()
                             && program.data_members(definition).iter().all(|member| {
                                 member.as_field().is_some_and(|field| {
@@ -7144,7 +7144,7 @@ pub mod collection_predicates {
             return None;
         };
         let mut constrained = false;
-        for fact in program.conjunctive_proof_facts(definition.where_facts) {
+        for fact in program.conjunctive_proof_facts(definition.requires_facts) {
             let Some(fact) = fact.as_expression() else {
                 continue;
             };
@@ -7281,9 +7281,9 @@ pub mod default_domains {
     pub(crate) mod assignment_windows {
         use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
         use crate::proof_contracts::default_domains::place_queries::{
-            data_definition_for_expression, data_has_case_where_facts, declared_root_established,
-            is_data_rooted, is_subplace, membership_field, place_spelling_covers,
-            place_spellings_may_overlap, write_place_spelling,
+            data_definition_for_expression, data_has_case_requires_facts,
+            declared_root_established, is_data_rooted, is_subplace, membership_field,
+            place_spelling_covers, place_spellings_may_overlap, write_place_spelling,
         };
         use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
         use crate::proof_contracts::default_domains::symbolic_values::{
@@ -7372,15 +7372,30 @@ pub mod default_domains {
             let Some(assignment) = statement.as_assignment() else {
                 return;
             };
-            let resident_requirement = crate::atomic_assignment_carrier(program, assignment)
-                .and_then(|_| {
-                    super::where_fact_intervals::stored_field_where_interval(
+            let resident_requirement = match crate::atomic_assignment_carrier(program, assignment) {
+                Some(_) => super::requires_fact_intervals::stored_field_requires_interval(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                )
+                .map(|source_interval| {
+                    super::requires_fact_intervals::ResidentRequirement {
+                        source_interval,
+                        reinterpreted: false,
+                    }
+                }),
+                None => call_frames.and_then(|frames| {
+                    super::requires_fact_intervals::reinterpreted_view_store(
                         program,
                         machine,
                         state,
-                        assignment.target,
+                        frames,
+                        statement,
+                        statement_index,
                     )
-                });
+                }),
+            };
             let target = assignment.target;
             let value = assignment.value;
             let data_binding = program
@@ -7789,7 +7804,7 @@ pub mod default_domains {
             born_zero: bool,
             statement_index: usize,
             data_binding: Option<&str>,
-            resident_requirement: Option<crate::proof_contracts::arithmetic_domains::Interval>,
+            resident_requirement: Option<super::requires_fact_intervals::ResidentRequirement>,
         ) {
             if store.replaces_place
                 && let Some(spelling) = invariant_place_spelling(program, &store.destination)
@@ -7801,8 +7816,8 @@ pub mod default_domains {
             let Some(receiver_spelling) = invariant_place_spelling(program, &store.receiver) else {
                 return;
             };
-            if definition.where_facts.is_empty()
-                && !data_has_case_where_facts(program, definition)
+            if definition.requires_facts.is_empty()
+                && !data_has_case_requires_facts(program, definition)
                 && !crate::value_custody::data::data_requires_establishment(program, definition)
             {
                 return;
@@ -7955,12 +7970,21 @@ pub mod default_domains {
             let resident_field = resident_requirement
                 .filter(|checked| {
                     whole_field
-                        && store.preserves_scalar_value
-                        && super::where_fact_intervals::atomic_field_interval(
-                            program,
-                            place.definition,
-                            store.field,
-                        ) == Some(*checked)
+                        && if checked.reinterpreted {
+                            super::requires_fact_intervals::single_field_requires_interval(
+                                program,
+                                place.definition,
+                                store.field,
+                            )
+                            .is_some_and(|lender| lender.contains(checked.source_interval))
+                        } else {
+                            store.preserves_scalar_value
+                                && super::requires_fact_intervals::atomic_field_interval(
+                                    program,
+                                    place.definition,
+                                    store.field,
+                                ) == Some(checked.source_interval)
+                        }
                 })
                 .map(|_| store.field.symbol);
             let requirements = domain_requirements(program, place.definition, place.active_case);
@@ -8247,7 +8271,7 @@ pub mod default_domains {
             active_case: Option<symbols::SymbolHandle>,
         ) -> Vec<DomainRequirement> {
             let mut requirements = program
-                .conjunctive_proof_facts(definition.where_facts)
+                .conjunctive_proof_facts(definition.requires_facts)
                 .map(|fact| DomainRequirement {
                     case: symbols::SymbolHandle::invalid(),
                     fact,
@@ -8260,7 +8284,7 @@ pub mod default_domains {
                 if active_case.is_some_and(|active| active != case.symbol) {
                     continue;
                 }
-                requirements.extend(program.conjunctive_proof_facts(case.where_facts).map(
+                requirements.extend(program.conjunctive_proof_facts(case.requires_facts).map(
                     |fact| DomainRequirement {
                         case: case.symbol,
                         fact,
@@ -8388,7 +8412,7 @@ pub mod default_domains {
                 return Vec::new();
             };
             let mut requirements = Vec::new();
-            for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+            for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                 let Some(expression) = fact.as_expression() else {
                     continue;
                 };
@@ -8407,7 +8431,7 @@ pub mod default_domains {
             case: symbols::SymbolHandle,
         ) -> Vec<ExpressionHandle> {
             let mut requirements = selected_case_requirements(program, definition, case);
-            for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+            for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                 let Some(expression) = fact.as_expression() else {
                     continue;
                 };
@@ -9253,7 +9277,7 @@ pub mod default_domains {
                 .iter()
                 .map(|(name, value)| (name.as_str(), *value))
                 .collect::<Vec<_>>();
-            for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+            for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
                 let Some(expression) = fact.as_expression() else {
                     return false;
                 };
@@ -9517,7 +9541,7 @@ pub mod default_domains {
             Some(facts::PlaceSegment::Field { symbol }) if *symbol == field.symbol)
                 });
             let affected = program
-                .conjunctive_proof_facts(definition.where_facts)
+                .conjunctive_proof_facts(definition.requires_facts)
                 .filter(|fact| {
                     super::place_queries::fact_reads_field_contents(
                         program,
@@ -10129,13 +10153,13 @@ pub mod default_domains {
             evaluated
         }
 
-        pub(crate) fn data_has_case_where_facts(
+        pub(crate) fn data_has_case_requires_facts(
             program: &dyn crate::CheckingInput,
             definition: &DataDefinition,
         ) -> bool {
             program.data_members(definition).iter().any(|member| {
                 matches!(member, typed_trees::data::DataMember::Variant(variant)
-            if !variant.where_facts.is_empty())
+            if !variant.requires_facts.is_empty())
             })
         }
 
@@ -11080,7 +11104,7 @@ pub mod default_domains {
                         DataMember::Field(_) | DataMember::Variant(_) => None,
                     })?;
             let (_, low, high) =
-                super::where_fact_intervals::data_where_field_intervals(program, definition)?
+                super::requires_fact_intervals::data_requires_field_intervals(program, definition)?
                     .into_iter()
                     .find(|(symbol, _, _)| *symbol == field)?;
             if low.is_none() && high.is_none() {
@@ -11259,7 +11283,7 @@ pub mod default_domains {
                 return false;
             }
             program
-                .conjunctive_proof_facts(definition.where_facts)
+                .conjunctive_proof_facts(definition.requires_facts)
                 .any(|fact| {
                     let Some(fact) = fact.as_expression() else {
                         return false;
@@ -11491,7 +11515,7 @@ pub mod default_domains {
                 .map(|(name, value)| (name.as_str(), *value))
                 .collect::<Vec<_>>();
             program
-                .conjunctive_proof_facts(definition.where_facts)
+                .conjunctive_proof_facts(definition.requires_facts)
                 .all(|fact| {
                     let Some(expression) = fact.as_expression() else {
                         return false;
@@ -12026,7 +12050,7 @@ pub mod default_domains {
             }
         }
     }
-    pub(crate) mod where_fact_intervals {
+    pub(crate) mod requires_fact_intervals {
         use crate::frozen_program::expression_table;
         use typed_trees::data::DataMember;
         use typed_trees::data::{DataDefinition, DataField, DataVariant};
@@ -12038,7 +12062,7 @@ pub mod default_domains {
         use super::place_queries::data_definition_for_expression;
         use crate::proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
 
-        pub fn data_where_field_intervals(
+        pub fn data_requires_field_intervals(
             program: &dyn crate::CheckingInput,
             definition: &DataDefinition,
         ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
@@ -12047,11 +12071,11 @@ pub mod default_domains {
                 program,
                 &fields,
                 definition.symbol,
-                program.proof_facts.span_or_empty(definition.where_facts),
+                program.proof_facts.span_or_empty(definition.requires_facts),
             )
         }
 
-        pub fn case_where_field_intervals(
+        pub fn case_requires_field_intervals(
             program: &dyn crate::CheckingInput,
             case: &DataVariant,
         ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
@@ -12060,7 +12084,7 @@ pub mod default_domains {
                 program,
                 &fields,
                 case.symbol,
-                program.proof_facts.span_or_empty(case.where_facts),
+                program.proof_facts.span_or_empty(case.requires_facts),
             )
         }
 
@@ -12071,7 +12095,7 @@ pub mod default_domains {
             use typed_trees::expression::ExpressionNode;
             program
                 .proof_facts
-                .span_or_empty(variant.where_facts)
+                .span_or_empty(variant.requires_facts)
                 .iter()
                 .any(|fact| match fact {
                     typed_trees::domain::ProofFact::Expression(expression) => {
@@ -12279,7 +12303,7 @@ pub mod default_domains {
             }
         }
 
-        pub(crate) fn data_where_field_representation_bounds(
+        pub(crate) fn data_requires_field_representation_bounds(
             program: &dyn crate::CheckingInput,
             definition: &DataDefinition,
         ) -> Option<Vec<FieldRepresentationBound>> {
@@ -12288,7 +12312,7 @@ pub mod default_domains {
             let fields = declared_data_fields(program, definition);
             let mut conjuncts = program
                 .proof_facts
-                .span_or_empty(definition.where_facts)
+                .span_or_empty(definition.requires_facts)
                 .iter()
                 .map(|fact| fact.as_expression().copied())
                 .collect::<Option<Vec<_>>>()?;
@@ -12410,13 +12434,146 @@ pub mod default_domains {
             {
                 return None;
             }
-            data_where_field_intervals(program, definition)?
+            data_requires_field_intervals(program, definition)?
                 .into_iter()
                 .find(|(symbol, _, _)| *symbol == field.symbol)
                 .map(|(_, low, high)| Interval { low, high })
         }
 
-        pub(crate) fn stored_field_where_interval(
+        /*
+            A store whose value the default-domain window cannot fold from the
+            lender's carrier, so the window instead trusts an interval proved
+            for the written value. `source_interval` is that interval in the
+            stored field's own carrier; `reinterpreted` marks a store whose
+            bits cross carriers, where the window's literal and symbol
+            tracking does not apply.
+        */
+        #[derive(Clone, Copy)]
+        pub(crate) struct ResidentRequirement {
+            pub(crate) source_interval: Interval,
+            pub(crate) reinterpreted: bool,
+        }
+
+        /*
+            Recasts spec, "Shared and mutable views": every value writable
+            through an immediately established mutable view must leave the
+            lender valid. When the view presents the stored scalar under
+            another integer carrier (`i32` storage seen as `u32`), the stored
+            bits do not carry the written number into the lender's carrier, so
+            the lender's window cannot fold the literal and stays open. The
+            written value's proved bounds are carried into the lender's
+            carrier only when every value in them has the same bits and the
+            same number in both carriers. A wrapping or unbounded value
+            translates to nothing and the lender's window stays open, so a
+            write the lender's `requires` would not admit is still refused.
+        */
+        pub(crate) fn reinterpreted_view_store(
+            program: &dyn crate::CheckingInput,
+            machine: &Machine,
+            state: &State,
+            frames: &crate::CallFrameResolver<'_>,
+            statement: &typed_trees::statement::StatementNode,
+            statement_index: usize,
+        ) -> Option<ResidentRequirement> {
+            let assignment = statement.as_assignment()?;
+            let origins = frames.assignment_storage_origins(machine, statement).ok()?;
+            let [destination] = origins.destinations.as_slice() else {
+                return None;
+            };
+            if destination.collection_coarse || destination.recasts.is_empty() {
+                return None;
+            }
+            let scalar = destination
+                .scalar_storage_coordinate_result(program, state)
+                .ok()?;
+            if scalar.preserves_scalar_value || !scalar.preserves_primitive_bits {
+                return None;
+            }
+            let (low, high) =
+                crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    assignment.value,
+                )?;
+            same_number_interval(
+                Interval {
+                    low: Some(low),
+                    high: Some(high),
+                },
+                scalar.view_primitive,
+                scalar.source_primitive,
+            )
+            .map(|source_interval| ResidentRequirement {
+                source_interval,
+                reinterpreted: true,
+            })
+        }
+
+        fn same_number_interval(
+            view_interval: Interval,
+            view: typed_trees::types::PrimitiveType,
+            source: typed_trees::types::PrimitiveType,
+        ) -> Option<Interval> {
+            use crate::proof_contracts::arithmetic_domains::primitive_range;
+            if !view.is_fixed_integer()
+                || !source.is_fixed_integer()
+                || view.scalar_byte_size()? != source.scalar_byte_size()?
+            {
+                return None;
+            }
+            let interval = view_interval.intersect(primitive_range(view)?);
+            let (low, high) = interval.low.zip(interval.high)?;
+            let shared = primitive_range(view)?.intersect(primitive_range(source)?);
+            (shared.low.is_none_or(|minimum| low >= minimum)
+                && shared.high.is_none_or(|maximum| high <= maximum))
+            .then_some(interval)
+        }
+
+        /*
+            The interval that the `requires` facts reading `field` place on it,
+            when each such fact is a conjunction of literal bounds on `field`
+            alone. Unlike `data_requires_field_intervals`, a sibling's float
+            bound does not hide this field's interval; a fact relating `field`
+            to anything else leaves no interval.
+        */
+        pub(crate) fn single_field_requires_interval(
+            program: &dyn crate::CheckingInput,
+            definition: &DataDefinition,
+            field: &DataField,
+        ) -> Option<Interval> {
+            let fields = declared_data_fields(program, definition);
+            let mut interval = None;
+            for fact in program.proof_facts.span_or_empty(definition.requires_facts) {
+                let read = super::place_queries::data_predicate_fields(program, definition, fact);
+                if !read.contains(&field.symbol) {
+                    continue;
+                }
+                if read != [field.symbol] {
+                    return None;
+                }
+                let rows = field_intervals(
+                    program,
+                    &fields,
+                    definition.symbol,
+                    std::slice::from_ref(fact),
+                )?;
+                for (symbol, low, high) in rows {
+                    if symbol != field.symbol {
+                        return None;
+                    }
+                    interval = Some(
+                        interval
+                            .unwrap_or(Interval::UNBOUNDED)
+                            .intersect(Interval { low, high }),
+                    );
+                }
+            }
+            interval
+        }
+
+        pub(crate) fn stored_field_requires_interval(
             program: &dyn crate::CheckingInput,
             machine: &Machine,
             state: &State,
@@ -12475,7 +12632,7 @@ pub mod default_domains {
                     DataMember::Field(field) if field.name == member.member => Some(field),
                     _ => None,
                 })?;
-            data_where_field_intervals(program, definition)?
+            data_requires_field_intervals(program, definition)?
                 .into_iter()
                 .find(|(symbol, _, _)| *symbol == field.symbol)
                 .map(|(_, low, high)| Interval { low, high })
@@ -12502,15 +12659,15 @@ pub mod default_domains {
     pub(crate) use place_queries::data_predicate_fields;
     pub(crate) use place_queries::membership_field;
     pub(crate) use place_queries::predicate_projection;
+    pub(crate) use requires_fact_intervals::{
+        FieldRepresentationBound, atomic_field_interval, data_requires_field_representation_bounds,
+        stored_field_requires_interval,
+    };
+    pub use requires_fact_intervals::{
+        case_requires_field_intervals, data_requires_field_intervals, impossible_variant,
+    };
     pub use standing_requirements::standing_facts_prove_requirement;
     pub(crate) use symbolic_values::applied_const_integer;
-    pub(crate) use where_fact_intervals::{
-        FieldRepresentationBound, atomic_field_interval, data_where_field_representation_bounds,
-        stored_field_where_interval,
-    };
-    pub use where_fact_intervals::{
-        case_where_field_intervals, data_where_field_intervals, impossible_variant,
-    };
 
     use diagnostics::Diagnostic;
     use typed_trees::data::DataDefinition;
@@ -13352,12 +13509,18 @@ pub mod default_domains {
         let mut poisoned_paths: Vec<String> = Vec::new();
         let mut call_established: Vec<String> = Vec::new();
         let mut inherited_windows: Vec<InvariantWindow> = entry_windows.to_vec();
-        let mut has_explicit_crash = false;
+        // A state is left through its transition rows or by running off the end
+        // of its statements, and each exit is judged by its own kind: a return
+        // must find every `requires` window closed, a crash may abandon one.
+        // `left_by_crash` records that a crash row ended the dispatch, so nothing
+        // after it runs and the end of the list is not a return. `return_refused`
+        // keeps a state whose arms all return from repeating one diagnostic per
+        // arm.
+        let mut left_by_crash = false;
+        let mut return_refused = false;
+        let statements = program.statement_table.statements(state.statement_nodes);
 
-        for (statement_ordinal, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
+        for (statement_ordinal, statement) in statements.iter().enumerate() {
             scan_statement_reads(
                 program,
                 machine,
@@ -13606,11 +13769,15 @@ pub mod default_domains {
                     seed_transported_initializer(program, local, &mut tracked);
                 }
                 StatementNode::Transition(transition) => {
-                    if matches!(
+                    let is_crash_row = matches!(
                         transition.exit,
                         typed_trees::statement::TransitionExit::Crash(_)
-                    ) {
-                        has_explicit_crash = true;
+                    );
+                    if is_crash_row {
+                        left_by_crash |= crate::declarations::transitions::admitted_dispatch_ends(
+                            transition,
+                            statements.get(statement_ordinal + 1),
+                        );
                         if record_crash_sites {
                             let mut open_data = tracked
                                 .iter()
@@ -13683,12 +13850,29 @@ pub mod default_domains {
                             active_callees,
                         );
                     }
+                    // An ordinary row of a state with no sibling-state edge
+                    // leaves the machine, so it is a return and is checked
+                    // here, where the row runs. Waiting for the end of the list
+                    // would let a later crash row answer for it.
+                    if exit_is_terminal && !is_crash_row && !left_by_crash && !return_refused {
+                        let reported = diagnostics.len();
+                        refuse_open_windows(
+                            &tracked,
+                            &inherited_windows,
+                            machine,
+                            state,
+                            None,
+                            "return",
+                            diagnostics,
+                        );
+                        return_refused = diagnostics.len() > reported;
+                    }
                 }
                 _ => {}
             }
         }
 
-        if exit_is_terminal && !has_explicit_crash {
+        if exit_is_terminal && !left_by_crash && !return_refused {
             refuse_open_windows(
                 &tracked,
                 &inherited_windows,
@@ -14068,7 +14252,7 @@ pub mod domains {
                         expression,
                         test.subject,
                         domain,
-                        "executable domain test",
+                        MembershipSite::ExecutableTest,
                     )?;
                 }
             }
@@ -14095,10 +14279,42 @@ pub mod domains {
                     membership.value,
                     membership.value,
                     domain,
-                    "domain membership",
+                    MembershipSite::ProofFact,
                 )?;
             }
             Ok(())
+        }
+
+        /*
+            Where a membership whose carriers do not match on their face was
+            written. A domain over a generic carrier binds that carrier at each
+            use and is matched where the arguments are known, at either site.
+
+            A proof fact (`requires value in Small` with `value: T`) is a
+            hypothesis: each caller must establish it for its own carrier, so
+            the generic declaration is judged on each specialized copy.
+
+            An executable test in a body (`cell in Cell::Ready` with
+            `cell: &Value`) is code the body runs for every admitted `Value`.
+            generics.md: "An unspecialized body checks every admitted
+            alternative; one consumer cannot authorize an otherwise invalid
+            generic body." So it is refused even when the only caller passes a
+            `Cell`, unless a declared equation such as `requires Value == Cell`
+            made the carriers match.
+        */
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum MembershipSite {
+            ExecutableTest,
+            ProofFact,
+        }
+
+        impl MembershipSite {
+            fn label(self) -> &'static str {
+                match self {
+                    Self::ExecutableTest => "executable domain test",
+                    Self::ProofFact => "domain membership",
+                }
+            }
         }
 
         fn validate_membership_carrier(
@@ -14108,7 +14324,7 @@ pub mod domains {
             owner_expression: ExpressionHandle,
             subject: ExpressionHandle,
             domain: &DomainDefinition,
-            label: &str,
+            site: MembershipSite,
         ) -> Result<(), Diagnostic> {
             let Err(diagnostic) = validate_declaration_carrier(
                 program,
@@ -14117,7 +14333,7 @@ pub mod domains {
                 owner_expression,
                 subject,
                 domain,
-                label,
+                site,
             ) else {
                 return Ok(());
             };
@@ -14134,7 +14350,7 @@ pub mod domains {
                     owner_expression,
                     subject,
                     candidate,
-                    label,
+                    site,
                 )
                 .is_ok()
                 {
@@ -14151,7 +14367,7 @@ pub mod domains {
             owner_expression: ExpressionHandle,
             subject: ExpressionHandle,
             domain: &DomainDefinition,
-            label: &str,
+            site: MembershipSite,
         ) -> Result<(), Diagnostic> {
             let Some(subject_type) =
                 crate::expression_owners::checked_expression_type_reference_from_exact_owner(
@@ -14190,13 +14406,15 @@ pub mod domains {
             }
             let subject_type = normalized_subject.unwrap_or(subject_type);
             let target = normalized_target.unwrap_or(target);
-            if mentions_type_parameter(program, subject_type)
-                || mentions_type_parameter(program, target)
+            if mentions_type_parameter(program, target)
+                || (site == MembershipSite::ProofFact
+                    && mentions_type_parameter(program, subject_type))
             {
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "{label} `{}` expects subject carrier `{}`, got `{}`",
+                "{} `{}` expects subject carrier `{}`, got `{}`",
+                site.label(),
                 domain.name.as_str(),
                 program.display_type_reference_with_constraints(target),
                 program.display_type_reference_with_constraints(subject_type),

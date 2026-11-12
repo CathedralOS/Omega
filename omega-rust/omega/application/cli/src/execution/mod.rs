@@ -105,6 +105,7 @@ pub struct RunRequest {
 
 pub struct RunOutcome {
     pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
+    pub test_roster: Vec<compilation_products::TestRosterEntry>, // Registered tests that ran before the program.
     pub execution: ExecutionOutcome,
 }
 
@@ -211,6 +212,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         psi_work_budget,
     )
     .map_err(RunError::Compilation)?;
+    let test_roster = report.test_roster().to_vec();
     let (replay_input, interpretation) =
         if request.selection == ExecutionSelection::Both && request.target_name.is_none() {
             match compilation::interpret_product(&report, None, target_name, psi_work_budget) {
@@ -295,6 +297,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     };
     Ok(RunOutcome {
         build_dir,
+        test_roster,
         execution,
     })
 }
@@ -323,6 +326,7 @@ fn run_terminal(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
+    let test_roster = report.test_roster().to_vec();
     let outcome = match compilation::interpret_product(
         &report,
         Some(Box::new(std::io::stdin())),
@@ -342,6 +346,7 @@ fn run_terminal(
     };
     Ok(RunOutcome {
         build_dir,
+        test_roster,
         execution: ExecutionOutcome::Terminal(outcome),
     })
 }

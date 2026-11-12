@@ -117,6 +117,13 @@ jobs:
         run: |
           mbx test --locked -p xtask samples::tests
           mbx xtask sample-gate --filter samples/cli/facts/length/local
+      # The checker on the lowered form must judge every declaration of the
+      # checked package, not only what the entry calls. These fixture
+      # compilations are the only test of that, and no other job runs the
+      # `compiler` crate's tests (#2379, #2386).
+      - name: Check the lowered route's verdicts on fixture programs
+        if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' && inputs.qualification_controls == '' }}
+        run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics
       - name: Check native provider frames and retained mapped homes
         if: inputs.provider_tests
         run: mbx test --locked -p native-compiler -p machine-emission -p native-provider-runtime

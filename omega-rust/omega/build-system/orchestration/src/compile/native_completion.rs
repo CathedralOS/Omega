@@ -69,7 +69,7 @@ enum NativeStop {
     RuntimeAdmission(Option<compilation_products::TerminalRuntimeProvisions>),
 }
 
-fn complete_native(
+pub(crate) fn complete_native(
     product: PendingNativeProduct,
 ) -> Result<CompilationOutput, CompilationProductError> {
     let PendingNativeProduct {
@@ -81,7 +81,12 @@ fn complete_native(
         rollback,
         subsystem,
         mut settlement,
+        tests,
+        test_notes,
     } = product;
+    // Registered tests run before the application can succeed. A failing or
+    // incomplete test refuses the application with its exact identity.
+    let roster = super::test_execution::run_tests(tests, test_notes)?;
     let image = request.image;
     let produced = {
         let selected = components
@@ -161,5 +166,5 @@ fn complete_native(
             diagnostics: error.into_diagnostics(),
             accounting,
         })?;
-    Ok(CompilationOutput::Report(report))
+    Ok(CompilationOutput::Report(report.with_test_roster(roster)))
 }

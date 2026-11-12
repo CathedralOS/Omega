@@ -445,6 +445,19 @@ because the runner ignores a shard it cannot use and would run every fixture.
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
 
+### The corpus in CI
+
+Every pull request that is not a draft, and every merge-queue entry, runs the
+corpus rows its diff can affect against this ledger, and the job fails when a
+row gets worse: a pass/run row that stops checking, a fail row that is
+accepted, or a fail row that loses its pinned reason. A row main already lost
+is not charged to the pull request. Each night a sweep measures the whole
+corpus on main and opens one ledger-only pull request recording every row that
+moved, with accepted fail rows listed first as soundness alerts. Both are
+described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by
+`cargo xtask corpus-gate`; the gate's own plan and shard run locally with the
+commands there.
+
 ### Re-recording the whole ledger
 
 A whole-ledger re-record measures every fixture at one commit, so that the
@@ -867,6 +880,44 @@ ls -l target/debug/omega                # inspect age; verify the producer recei
 OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
 ```
 
+When the compiler cannot prove a call's precondition, this trace reports which
+check stopped it and the values available then. `Requires` clauses declare those
+preconditions. Each checked alternative has an `observation` ID that connects its
+arguments, the values used in place of the callee's parameters, the check's
+result, and the same alternative's stored values and known equalities (called
+retained equations). Join records by these IDs rather than adjacent lines.
+
+Select the call with the existing structural trace switch:
+`OMEGA_STRUCT_TRACE='caller::path->callee::path@root_index:root_generation'`.
+Use the machine names and retained Symbol-root handle from that compiler's own
+trace; these identities can change between compilations. Ordinary values such
+as `1` keep the existing structural trace without selecting these additional
+`STRUCT call-consumer` records.
+
+A `phase=begin` record precedes the attempt to obtain the call's argument values.
+The `stage` records distinguish an early failure, a precondition proved from
+static types, and a reached precondition judgment. If no call entry was formed,
+its stored-value snapshot is labeled `source=pre-entry entry=none`. When there
+are several entries to check, each additional entry has a fresh ID linked by
+`parent_observation` and `entry_index`; its arguments, result and stored values
+use that ID. Selection covers complete authored `Requires` clauses for a
+specific callee state. Checks that stop before `CallRequirement::observe`,
+alternatives already marked unproven before `observe`, and unmatched or inherited
+preconditions remain outside this trace.
+
+The additional records are limited to 16 observations, 32 stored-value or
+equation rows per collection, and 4096 characters per record. Truncation is
+explicit, and `root_present=false` means the selected stored root was absent.
+Only equations that directly contain an observed argument or a retained value
+of the selected root are included. This is a subset of the known equalities;
+it does not follow indirect chains of equalities. Missing or clipped rows do
+not establish a missing fact.
+
+The trace reuses the original results without repeating a judgment, projection
+or preservation query, and it does not change the program's proof outcome.
+Retain the compiler and input identities and use the existing bounded runner;
+the ordinary structural trace is emitted alongside these records.
+
 An unbound or different producer cannot establish the current baseline. Earlier
 verified results retain their original producer and may remain applicable under
 main-change validation; binary age alone neither validates nor invalidates them. One wave
@@ -982,19 +1033,6 @@ new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
 debt stays nonzero and never exempts a wrong native result. The bounded replay
 command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
-
-`--checked-interpreter` explicitly selects the independent checked-tree source
-oracle instead of Terminal. It compiles the same reviewed fixture inputs and
-executes the exact selected entry with its admitted installed arguments; it never serves
-as a fallback for a Terminal refusal. Legacy automatic context construction is
-migration debt under `EXPLICIT-ENTRY-STORAGE`, not permission to fabricate test
-storage or authority. Records include
-`interpreter-engine:checked-tree`, and the separate default goldens are
-`corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
-combined with `--both`. An absent golden still requires an explicit `--golden`.
-The [corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md)
-documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
-the same unchanged authored exit or stdout promises.
 
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign
@@ -1122,6 +1160,71 @@ carries no diagnostic.
 ```bash
 python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 ```
+
+### Who may record a regression
+
+A pull request that changes only corpus ledgers and Markdown may record a row
+as red; a pull request that changes anything else may not. Before this rule
+`cargo xtask check-rules` refused every red row in
+`tests/omega/corpus_outcomes.txt`, whoever wrote it, so the ledger could only
+move toward green. When the compiler regressed, the row kept its old good line
+because nothing was allowed to replace it. A full sweep at `759c80404428`
+found 1,296 rows worse than recorded, 34 of them `fail/` programs the compiler
+accepted, and the ledger said none of it.
+
+The refusal existed for a good reason, and that reason is narrower than the
+rule was. A pull request that edits a fixture must re-record its row, and a
+worker whose change broke the fixture could satisfy that by recording the
+breakage: a `pass/` row as `rejected`, a `fail/` row as `unexpected`. The row
+then reads as a baseline and the regression lands as if it were the expected
+result. What must be prevented is a pull request writing down a failure *it
+could have caused*.
+
+`check-rules` cannot run the compiler at the base to learn who caused a row,
+but it can read the diff. If every changed path is a `tests/omega/corpus_*.txt`
+ledger or a Markdown file outside `tests/` and `samples/`, the pull request
+changes no compiler, library, tool or fixture source, so the compiler and
+fixtures it measured are exactly those of its base. Whatever it records was
+already true there. That one condition is the whole change:
+
+| The pull request changes | Red row in `corpus_outcomes.txt` |
+| --- | --- |
+| only ledgers and Markdown | recorded |
+| anything else | refused, as before: repair the compiler or fixture first |
+
+Three things stay as they were, and they are the guard.
+
+- **A pull request cannot hide its own regression.** One that touches source
+  still cannot write a red row, and one that touches a fixture still has to
+  re-record it, so its only way through is green. Splitting the work does not
+  help: the recording pull request shows the loss on `main` under its own
+  title instead of inside a repair.
+- **A red row is never progress.** The `Gate:` line's `red rows:` number is
+  still computed from the ledger diff by the same definition
+  `--list-pinned-regressions` uses. Recording a regression raises it, and the
+  repair's `-1` only cancels the `+1` the recording put on `main`, so a break
+  followed by a repair sums to zero. Under the old rule the break was never
+  counted, which made the unrecorded ledger look better than the compiler.
+- **A loss stays distinguishable from a fixture that never worked.** When a
+  `pass/` or `run/` row replaces a recorded success with anything else,
+  `check-rules` requires the `regressed-from:` token that `--record` derives
+  (see [above](#recording-a-regression-without-pinning-it)). A hand-edited row
+  that drops it is refused. A `fail/` row needs no token: `checked` or
+  `unexpected` on a `fail/` fixture already says the rejection was lost.
+
+Dirty `+wt` stamps are refused in every pull request. A recorded regression is
+still a measurement: run `cargo xtask corpus --record --filter <fixtures>` on a
+clean checkout of the base, and attribute each row first
+([Attributing a move](#attributing-a-move)) so a host-only or flaky result is
+not written down as the compiler's.
+
+Alternatives considered and not taken: letting any pull request record a red
+row that carries `regressed-from:` (the recorder writes that token for the
+author's own breakage too, so it proves nothing about cause); a declaration in
+the pull request body (a claim, where the changed-path list is a fact); and
+checking that each row's stamp is an ancestor of the base (squash merges and a
+second recording commit both break it, and the path condition already implies
+the measured source is the base's).
 
 `python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
@@ -1309,6 +1412,64 @@ sh tests/bootstrap/alpha-beta-edge.sh --edge
 The first is the single repository-topology gate. The second is the currently
 closed bootstrap floor. There is deliberately no wrapper that pretends to run
 the whole chain.
+
+## Stage line coverage
+
+`cargo xtask stage-coverage` answers one question: how many lines of the
+checking stages does a program make the compiler run? It measures, it does not
+gate; nothing in CI calls it. Use it to compare a program against another, or
+one commit against another, when deciding what a change to the checker removes.
+
+```bash
+mbx xtask stage-coverage tests/omega/pass/build/conditional_root_binding < /dev/null
+mbx xtask stage-coverage --list fixtures.txt --json report.json < /dev/null
+```
+
+A program is a `main.omg` or a fixture directory holding one; `--list` reads
+one path per line and ignores blank lines and lines starting with `#`. The
+report has one row per program and, for more than one program, a row for the
+lines run by any of them:
+
+```
+| Lines | Exit | Psi 05 | validation | Psi 06 | All three |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Instrumented | | ... | ... | ... | ... |
+| Run by `tests/omega/pass/build/conditional_root_binding/main.omg` | 1 | ... | ... | ... | ... |
+```
+
+How to read it:
+
+- **A line is counted by source path.** Psi 05 is
+  `pipeline/05_typed-trees-to-checked-trees/`, validation is `validation/src/`
+  (not its `terminal-installation` or `representation-planning` subcrates) and
+  Psi 06 is `pipeline/06_checked-trees-to-lowered-psi/`, all under
+  `omega-rust/psi/compilation/`.
+- **Instrumented** lines are the lines that carry a coverage counter in this
+  build, which is fewer than the lines in the files. A line is **run** when its
+  counter is not zero.
+- **Exit** is the compiler's own exit code. A program that fails still gets a
+  row, because its count up to the failure is real; read the exit code before
+  comparing rows. A program rejected in checking never reaches Psi 06.
+- **Counts are comparable only within one build.** A different commit
+  instruments a different set of lines, so compare two commits by their run
+  counts and quote each commit's instrumented total beside them.
+
+The command builds `omega` with `-C instrument-coverage` at
+`CARGO_PROFILE_DEV_OPT_LEVEL=1` into its own `target/stage-coverage`, so it
+does not disturb the ordinary build cache. The first build is a full build of
+the compiler; `--build-only` does just that step, and `--target-dir` moves it.
+By default each program runs as `omega run --engine terminal <main.omg>`;
+arguments after `--` replace that, for example `-- --check`. Programs run one
+at a time, and each program's compiler output is kept under
+`target/stage-coverage/stage-coverage-profiles/<index>/`.
+
+It needs the `llvm-profdata` and `llvm-cov` that ship with the pinned
+toolchain, because the profile format changes between LLVM releases and a
+system `llvm-cov` usually cannot read it:
+
+```bash
+rustup component add llvm-tools
+```
 
 
 ## Full baseline
@@ -1523,6 +1684,41 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
+
+### Warm build for cloud sessions
+
+A Claude Code cloud session starts in a fresh container with nothing built, and
+`mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
+container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
+container set up like a session and publishes the build directory, about
+270 MB compressed, on the `warm-build-linux-x86_64` prerelease. The
+SessionStart hook in `.claude/settings.json` runs
+`bash tools/warm_build.sh session-start`, which unpacks it into the primary
+checkout's `target/` and into `.agents/worktree/worker-1/target` before the
+session's first command. Measured on the same container with the archives CI
+published for commit `fd5aef2f7`: 14 s to restore both, then
+`mbx build -p omega` took 30 s in the primary checkout, where it reran the
+`compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
+
+That holds only while the checkout's compiler sources match the published
+commit. A change to a foundation crate recompiles every workspace crate above
+it: the same restored build, three commits away with `language-core` changed,
+took 673 s. So the hook creates `.agents/worktree/worker-1` at the published
+commit, `cargo xtask worktree acquire` hands it out there while it is untouched
+(it prints how many commits behind `origin/main` that is), and the work keeps
+that commit as its base; the merge queue integrates it with main. A slot that
+has been released or moved resets to `origin/main` as before.
+
+`mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns
+on Cargo's checksum freshness, Cargo then passes
+`-Zchecksum-hash-algorithm=blake3` to rustc, and mbx 1.29.2 bypasses its cache
+for a flag it does not model: a full build reports `0 hits, 0 misses, 213
+bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
+`mbx` still schedules builds and manages target directories.
+
+The hook also sets `gc.min_free_size` to 5 GiB when it is unset. The
+container's disk reports 252 GB while a session may use about 30 GB of it, so
+the default floor described below is 25 GiB and one compiler build crosses it.
 
 ### Build cache placement
 

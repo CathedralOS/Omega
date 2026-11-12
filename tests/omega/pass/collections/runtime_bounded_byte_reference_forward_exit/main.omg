@@ -27,7 +27,7 @@ machine put(bytes: &mut [u8; 8], index: u64) {
 
 machine narrow_index(index: u64) -> u8 {
     transition index < 255 {
-        true -> (index as u8 + 1)
+        true -> ((index as u8) + 1)
         _ -> (0)
     }
 }

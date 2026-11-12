@@ -3166,7 +3166,7 @@ pub mod struct_literals {
             }
             program
                 .proof_facts
-                .span_or_empty(variant.where_facts)
+                .span_or_empty(variant.requires_facts)
                 .iter()
                 .all(|fact| {
                     fact.as_expression().is_some_and(|expression| {
@@ -3491,7 +3491,7 @@ pub mod struct_literals {
             data_definition: &DataDefinition,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            if data_definition.where_facts.is_empty() {
+            if data_definition.requires_facts.is_empty() {
                 return;
             }
             let declared = common_field_symbols(program, data_definition);
@@ -3504,7 +3504,7 @@ pub mod struct_literals {
                 statement_index,
                 literal,
                 data_definition.symbol,
-                data_definition.where_facts,
+                data_definition.requires_facts,
                 &declared,
                 &format!("data `{}`", literal.type_name.as_str()),
                 "the default domain",
@@ -3526,7 +3526,7 @@ pub mod struct_literals {
             variant: &typed_trees::data::DataVariant,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            if variant.where_facts.is_empty() {
+            if variant.requires_facts.is_empty() {
                 return;
             }
             let mut declared = common_field_symbols(program, data_definition);
@@ -3537,7 +3537,7 @@ pub mod struct_literals {
                     .map(|field| field.symbol),
             );
             let mut out_of_scope = Vec::new();
-            for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+            for fact in program.proof_facts.span_or_empty(variant.requires_facts) {
                 if let Some(expression) = fact.as_expression() {
                     collect_out_of_scope_leaf_names(
                         program,
@@ -3566,7 +3566,7 @@ pub mod struct_literals {
                 statement_index,
                 literal,
                 data_definition.symbol,
-                variant.where_facts,
+                variant.requires_facts,
                 &declared,
                 &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
                 "the case constraint",
