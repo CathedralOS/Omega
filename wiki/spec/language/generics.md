@@ -304,8 +304,9 @@ promise.
 A type equation in a contract guards what follows it, as a case test does:
 in `(T == u8 && result == 0u8) || (T == u16 && result == 0u16)`, each
 conjunct after `T == u8` is typed with `T` fixed to `u8`. Conjuncts are read
-left to right; a disjunct whose type equation is false for the instantiation
-holds vacuously. Type parameters remain static even when their admissible set has
+left to right; when a type equation is false for the instantiation, the
+conjuncts after it are not typed or evaluated and that disjunct is false, so in
+`min<u16>` the clause above reduces to `result == 0u16`. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
 A [case-dependent default domain](data_and_literals.md#case-constraints) can
