@@ -1,0 +1,27 @@
+machine first(values: &[u64]) -> u64 {
+    let nonempty: bool = values.len > 0;
+    transition nonempty {
+        true -> select(values, 0)
+        false -> empty()
+    }
+    machine select(values: &[u64], position: u64) -> u64 {
+        transition position < values.len {
+            true -> read(values, position)
+            false -> empty()
+        }
+    }
+    machine read(values: &[u64], position: u64) -> u64 { values[position] }
+    machine empty() -> u64 { 0 }
+}
+
+machine main() crashes Trap {
+    let values: [u64; 2];
+    values[0] = 7;
+    let observed: u64 = first(&values[..]);
+    transition observed == 7 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

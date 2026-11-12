@@ -1,0 +1,22 @@
+data Entry {
+    value: i32;
+}
+
+machine main() -> u64 {
+    transition {
+        _ -> 0
+    }
+
+    machine choose(entries: &mut[Entry], start: u64, end: u64) -> u64 {
+        transition start <= end && end < entries.len {
+            true -> length(entries[start..end])
+            false -> 0
+        }
+    }
+
+    machine length(entries: &[Entry]) -> u64 {
+        transition {
+            _ -> entries.len
+        }
+    }
+}
