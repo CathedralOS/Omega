@@ -6,8 +6,10 @@
 //
 // The trees are copied out where they are produced
 // (`psi_compiler::CheckRequest::check_keeping_typed_frontier`), through one
-// optional slot passed down the existing check calls. Product callers pass no
-// slot, so they clone nothing and take the same path as before.
+// optional slot passed down the existing check calls. The Product check
+// keeps them for itself too, because the checker on the lowered form may
+// govern a rejection's verdict (`lowered_route`); a caller's slot receives
+// the same copy.
 
 use compilation_products::{CheckedCompilation, CompileFailure};
 

@@ -46,6 +46,10 @@ validation = { path = "../../../psi/compilation/validation" }
 representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+# The checker on the lowered form, which governs a compilation's verdict where
+# the owner's split gives it (src/checked/checking/lowered_route.rs).
+structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
+lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
@@ -91,11 +95,10 @@ installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 language-core = { path = "../../../psi/foundation/language-core" }
-# Route one corpus probe (examples/structure_elaboration_corpus.rs).
-structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
+# The checker on the lowered form (route one) is also used by the corpus
+# probe (examples/structure_elaboration_corpus.rs) and the side-by-side
+# comparison (examples/route_one_comparison.rs).
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
-# Route one side-by-side comparison (examples/route_one_comparison.rs).
-lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
@@ -169,6 +172,12 @@ path = "tests/typed_frontier.rs"
 [[test]]
 name = "lowered_route_subjects"
 path = "tests/lowered_route_subjects.rs"
+
+# The default compile reports the lowered route's verdict where the owner's
+# split gives it, and the current checker's everywhere else.
+[[test]]
+name = "lowered_route_governance"
+path = "tests/lowered_route_governance.rs"
 
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
