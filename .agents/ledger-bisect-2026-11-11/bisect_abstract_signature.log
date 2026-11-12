@@ -1,0 +1,356 @@
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 371 revisions left to test after this (roughly 9 steps)
+[67fe2f11131f26a1b58cb393b9891dde2f215ceb] psi: resolve field-borrow lifetime arguments through each enclosing frame (#1330)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 371 revisions left to test after this (roughly 9 steps)
+[7a4ac3583a4f86cc2969bba3ef1a6e1acd993831] psi: reject proofs from reserved atomic result initializers (#1281)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 214 revisions left to test after this (roughly 8 steps)
+[b5a897e857199e318e4c24157def87bfffa55250] psi: keep one FNV-1a in semantic-vocabulary and delete six crate shims (#1501)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 106 revisions left to test after this (roughly 7 steps)
+[c58a7b2c593a00968138a2a5974f8a496c5b88f4] omega: run package-local native reach in Terminal on the matching host (#1367)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 53 revisions left to test after this (roughly 6 steps)
+[8b06bbe9eb155cf5fb2ab43926fbb783eb5faf69] omega: share the staged custody core through the selected representation (#1347)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 25 revisions left to test after this (roughly 5 steps)
+[3404d9c5bd0d0e5ab20ede5fd73516b63f781250] omega: take opaque selections from the selections package in dispatch (#1394)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 13 revisions left to test after this (roughly 4 steps)
+[4a93353f827428ef278a01912043ab3c01ff5979] psi: evaluate call-computed runtime indices from the callee's returned value (#1419)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[5bc86646c7bd4e1ae9f1a629bde92ff9735982f8] omega: run calling policies in build evaluation, not provider planning (#1400)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[3d51175fee9b34ec4b252e6b499f0a0184307923] psi: group the checking stage into published, shared and products (#1408)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[29f25c7de497816b5e2d0833e033c8161c3f0de6] psi: prove selected representation agreement (#1291)
+running '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+29f25c7de497816b5e2d0833e033c8161c3f0de6 is the first bad commit
+commit 29f25c7de497816b5e2d0833e033c8161c3f0de6
+Author: AsclepiusBot <asclepiusbot@proton.me>
+Date:   Mon Nov 2 06:13:05 2026 +0000
+
+    psi: prove selected representation agreement (#1291)
+    
+    * samples: author selected representation agreement witness
+    
+    State five nonvacuous obligations over exact fallible encode/decode maps and transport an arbitrary two-byte semantic pair. A local pure terminating refinement leaves the base conversion API general; the corruption control preserves endpoint types and success coverage while breaking one decoder field.
+    
+    This draft records the fixed executable witness before its first optimized diagnostic. Native and Terminal acceptance and any necessary general proof-observation repair remain pending.
+    
+    * samples: pin representation agreement transports and clause operands
+    
+    Parenthesize Result constructor terms so header bodies remain unambiguous, preserving the exact agreement obligations. Carry the same semantic pair through fields and explicit parameters and add six exact pass/fail corpus mirrors for the first three places.
+    
+    The initial optimized pilot is retained as failed at the parser boundary. This draft still claims no source, native or Terminal pass; the next exact-scope observation will expose the first checking obligation.
+    
+    * psi: parse refinement members with one header terminator
+    
+    A transparent refinement still parsed reaches and operational axes as separately terminated clauses. Canonical machine headers therefore turned suspends, false and terminates into reach names and rejected the fixed representation-agreement witness during typed lowering.
+    
+    Use the shared reach-clause boundary and one final member terminator. The Omega parser gives the same terminator to the refinement member and removes its per-axis continuation path. Migrate the two existing multi-axis consumers and pin rejection of the retired inner-semicolon grammar. Constructor and terminal-expression grouping corrections retain the authored agreement propositions and runtime oracle.
+    
+    Actual initial authoring refusals and compiler/profile identities are preserved externally. Scoped current-source qualification remains pending; base TryFrom, affine Result and proof/custody rules are unchanged.
+    
+    * psi: carry selected requirement namespaces through trait laws
+    
+    * psi: preserve proposition identity during selected call formation
+    
+    * psi: retain trait bound result applications in proof scopes
+    
+    * psi: read identity arguments through the public type table
+    
+    * tests: admit authored native and Terminal trap agreement
+    
+    * psi: retain selected map identities and constructor peer types
+    
+    * psi: retain logical source call scopes before signature copies
+    
+    * psi: observe exact pure law citations without transferring values
+    
+    * psi: retain refined public call promises and exact map heads
+    
+    * psi: retain declaration map routes for proof observations
+    
+    Reference refresh revisits all callable headers during selected body completion. Rejoin exact map and target-family header routes independently of executable body demand. Use the authenticated closed entry for structural denotation eligibility and preserve distinct symbolic operation heads in declaration frames.
+    
+    * psi: observe affine values without quotienting custody
+    
+    Separate ordinary Prop value observation from initial quotient-carrier formation over the same exact shape and route graph. Keep quotient non-copy restrictions; reject linear, borrowed, opaque, carry and routed contents before admitting repeatable value calls. Preserve Type multiplicity and check fresh linear outputs independently of reflexive proof spelling.
+    
+    * psi: retain formed content projection observations
+    
+    Conservation equations already authenticate each selected projection and borrowed subject under exact owner, callable and source identities. Keep those observations in their existing judgment instead of admitting them as ordinary repeatable reference-taking value calls. Retain the ordinary resource-content denotation fence.
+    
+    * psi: preserve applied fact subjects through law citations
+    
+    Classify cases against the exact subject result application, preserve symbolic data identity separately from executable comparison, and retain selected map heads during contract substitution. Record reconstruction recognizes the same typed field projections already produced by symbolic evaluation; missing and permuted fields remain incomplete.
+    
+    * psi: carry data identity through selected law premises
+    
+    Prefix observers classify formed data identity as a supported logical requirement. Specification-only abstract calls retain their exact public pure terminating promise without a body or stronger guarantee. Pin decoder corruption to the actual round-trip preservation refusal and fresh linear outputs to their own denotation refusal.
+    
+    * psi: preserve erased law subjects across prefix checking
+    
+    Reuse the checked fact-only requirement classifier when completing a statement prefix: an erased citation has no physical call frame to retire its subjects. Continue discharging exact public preconditions before importing any selected guarantee.
+    
+    Read abstract Boolean predicates through their occurrence-owned public signature. Share complete data-identity carrier formation and judge substituted Id requirements as propositions over observed values, retaining existing IEEE and resource fences.
+    
+    * psi: name local refined contract identity coordinates
+    
+    * psi: use the grammar owner for refinement reach parsing
+    
+    * psi: keep proof variable substitutions acyclic
+    
+    Apply the existing rewrite occurs check to both variable orientations. A checked equation may rebuild a value from its own fields, but orienting that equation as a recursive variable replacement makes prefix observation expand repeatedly to its depth bound. Keep source formation and identity judgments unchanged and retain exact declined orientations under the existing structural trace.
+    
+    * psi: transport selected implementation operations in predicates
+    
+    Reuse the public-signature materializer exact namespace correspondence when projecting an authenticated call application into its requires predicates. Keep forwarded requirement children and selected named entry identities distinct, retaining the complete public result recipe rather than a private stronger contract.
+    
+    Carry the resulting callable substitutions through both prefix and specification-call premise judgments. Retained implementation operands no longer disappear while crossing a generic free-machine contract.
+    
+    * psi: inherit evidence member provenance from its binder
+    
+    * psi: observe shared call inputs without returning reference authority
+    
+    * tests: select an executable entry for the map-law control
+    
+    * samples: activate the authored decoder trap oracle files
+    
+    * psi: pin accepted representation agreement observations and frontier
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zcanann@Zacharys-Mac-mini.local>
+
+ TASKS.md                                           |   8 +-
+ omega-rust/psi/compilation/checking/src/lib.rs     |   2 +-
+ .../src/machine_calls/calls/generic_requirement.rs |  32 ++-
+ .../src/machine_calls/denotational_calls.rs        | 102 +++++--
+ .../denotational_calls/specification.rs            |  42 ++-
+ .../src/machine_calls/fact_call_projections.rs     |   6 +-
+ .../src/machine_calls/fact_only_citations.rs       |  95 +++++++
+ .../compilation/checking/src/proof_contracts.rs    |   1 +
+ .../src/proof_contracts/carrier_contents.rs        | 312 +++++++++++++++++++++
+ .../src/proof_contracts/contextual_identity.rs     |  31 +-
+ .../contract_entailment/call_requirements.rs       | 146 +++++++---
+ .../contract_entailment/specification_calls.rs     | 132 +++++++--
+ .../specification_calls/applied_bindings.rs        |   2 +
+ .../applied_bindings/operations.rs                 | 123 ++++++++
+ .../contract_entailment/structural_judgment.rs     |  68 +++--
+ .../structural_judgment/cases.rs                   |   2 +-
+ .../structural_judgment/equations.rs               |  18 +-
+ .../normal_returns/call_completion.rs              |   3 +-
+ .../normal_returns/statements.rs                   |  16 +-
+ .../structural_judgment/selected_contracts.rs      |  86 ++++--
+ .../selected_contracts/terms.rs                    |  13 +-
+ .../contract_entailment/structural_terms.rs        |  59 +++-
+ .../structural_terms/equality.rs                   | 108 ++++++-
+ .../checking/src/proof_contracts/quotients.rs      |  14 +-
+ .../src/proof_contracts/quotients/carrier_fence.rs | 188 -------------
+ .../quotients/formation_collection.rs              |  10 +-
+ .../src/value_custody/content_conservation.rs      |  19 ++
+ .../value_custody/expression_types/result_type.rs  |  49 ++--
+ .../src/grammar/declarations/trait_definition.rs   |  69 +++--
+ .../src/grammar/expressions/primary.rs             |   9 +-
+ .../src/selection/body_calls.rs                    |  50 +++-
+ .../src/selection/conformance_blocks.rs            |  82 +++---
+ .../src/symbols/symbol_table.rs                    |  21 +-
+ .../src/symbols/symbol_table/children/machines.rs  |  14 +-
+ .../src/symbols/symbol_table/children/traits.rs    |  33 ++-
+ .../src/symbols/symbol_table/names.rs              |   9 +
+ .../src/symbols/target_siblings.rs                 |   3 +-
+ .../src/lowerer.rs                                 |   3 +
+ .../src/constructed_results.rs                     |  57 +++-
+ .../src/constructed_results/identity_context.rs    |  98 +++++++
+ .../monomorphization/requirement_applications.rs   |  25 ++
+ .../src/preparation.rs                             | 171 ++++++-----
+ .../src/preparation/selections.rs                  | 145 +---------
+ .../src/flow/ownership/calls.rs                    |  33 ++-
+ .../src/references/source_occurrences.rs           |   2 +
+ .../source_occurrences/call_applications.rs        | 143 ++++++++++
+ .../src/typed_trees/callable_applications.rs       |   5 +-
+ .../callable_applications/namespaces.rs            | 150 ++++++++++
+ .../typed_trees/callable_applications/payloads.rs  |  27 +-
+ .../callable_applications/trait_scopes.rs          |  84 +++++-
+ .../typed-trees/src/typed_trees/calls/mod.rs       |  33 +++
+ .../declarations/trait_definition/applications.rs  |  31 +-
+ .../trait_definition/applications/evidence.rs      |  39 ++-
+ .../applications/refinement_views.rs               | 155 ++++++++++
+ .../src/typed_trees/type_system/type_identity.rs   |  32 +++
+ .../type_system/type_identity/coordinates.rs       |   4 +
+ .../cli/facts/representation_agreement/README.md   |  23 ++
+ .../controls/corrupt_decode/build.omg              |   7 +
+ .../corrupt_decode/expected_interpreter_exit.txt   |   1 +
+ .../corrupt_decode/expected_native_exit.txt        |   1 +
+ .../controls/corrupt_decode/input.txt              |   0
+ .../controls/corrupt_decode/main.omg               |  85 ++++++
+ .../controls/empty_encoder/invalid/build.omg       |   7 +
+ .../controls/empty_encoder/invalid/expected.txt    |   2 +
+ .../controls/empty_encoder/invalid/main.omg        |  22 ++
+ .../controls/empty_encoder/invalid/sample.json     |   7 +
+ .../facts/representation_agreement/field/build.omg |   7 +
+ .../field/expected_interpreter_exit.txt            |   1 +
+ .../field/expected_native_exit.txt                 |   1 +
+ .../field/invalid/build.omg                        |   7 +
+ .../field/invalid/expected.txt                     |   2 +
+ .../field/invalid/main.omg                         | 183 ++++++++++++
+ .../field/invalid/sample.json                      |   6 +
+ .../facts/representation_agreement/field/main.omg  | 183 ++++++++++++
+ .../facts/representation_agreement/local/build.omg |   7 +
+ .../local/expected_interpreter_exit.txt            |   1 +
+ .../local/expected_native_exit.txt                 |   1 +
+ .../local/invalid/build.omg                        |   7 +
+ .../local/invalid/expected.txt                     |   2 +
+ .../local/invalid/main.omg                         | 181 ++++++++++++
+ .../local/invalid/sample.json                      |   6 +
+ .../facts/representation_agreement/local/main.omg  | 181 ++++++++++++
+ .../representation_agreement/parameter/build.omg   |   7 +
+ .../parameter/expected_interpreter_exit.txt        |   1 +
+ .../parameter/expected_native_exit.txt             |   1 +
+ .../parameter/invalid/build.omg                    |   7 +
+ .../parameter/invalid/expected.txt                 |   2 +
+ .../parameter/invalid/main.omg                     | 183 ++++++++++++
+ .../parameter/invalid/sample.json                  |   6 +
+ .../representation_agreement/parameter/main.omg    | 183 ++++++++++++
+ samples/cli/probes/trait_refinement_axes/main.omg  |   8 +-
+ source/psi/parse/clause.omg                        |  88 +-----
+ source/psi/parse/traits.omg                        |  40 +--
+ tests/omega/corpus_outcomes.txt                    |  58 +++-
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       | 183 ++++++++++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       | 181 ++++++++++++
+ .../build.omg                                      |   7 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       | 183 ++++++++++++
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  15 +
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |   8 +
+ .../quotient_runtime_affine_carrier/build.omg      |   2 +-
+ .../quotient_runtime_routed_carrier/build.omg      |   2 +-
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  17 ++
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  22 ++
+ .../expected.txt                                   |   2 +
+ .../main.omg                                       |  17 ++
+ .../refinement_clause_terminators/expected.txt     |   1 +
+ .../traits/refinement_clause_terminators/main.omg  |   6 +
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       | 183 ++++++++++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       | 181 ++++++++++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       | 183 ++++++++++++
+ .../build.omg                                      |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../main.omg                                       |  85 ++++++
+ .../selected_map_law_application_exit/build.omg    |   7 +
+ .../expected_interpreter_exit.txt                  |   1 +
+ .../expected_native_exit.txt                       |   1 +
+ .../selected_map_law_application_exit/main.omg     |  14 +
+ .../expected_native_exit.txt                       |   1 +
+ .../transparent_refinement_declaration/main.omg    |   3 +-
+ tools/ci/compiler_pilot.py                         |  26 +-
+ tools/tests/test_compiler_pilot.py                 |  38 +++
+ 141 files changed, 5236 insertions(+), 926 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/carrier_contents.rs
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls/applied_bindings/operations.rs
+ delete mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/quotients/carrier_fence.rs
+ create mode 100644 omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/constructed_results/identity_context.rs
+ create mode 100644 omega-rust/psi/compilation/representations/typed-trees/src/references/source_occurrences/call_applications.rs
+ create mode 100644 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/callable_applications/namespaces.rs
+ create mode 100644 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declarations/trait_definition/applications/refinement_views.rs
+ create mode 100644 samples/cli/facts/representation_agreement/README.md
+ create mode 100644 samples/cli/facts/representation_agreement/controls/corrupt_decode/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/controls/corrupt_decode/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/controls/corrupt_decode/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/controls/corrupt_decode/input.txt
+ create mode 100644 samples/cli/facts/representation_agreement/controls/corrupt_decode/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/controls/empty_encoder/invalid/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/controls/empty_encoder/invalid/expected.txt
+ create mode 100644 samples/cli/facts/representation_agreement/controls/empty_encoder/invalid/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/controls/empty_encoder/invalid/sample.json
+ create mode 100644 samples/cli/facts/representation_agreement/field/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/field/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/field/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/field/invalid/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/field/invalid/expected.txt
+ create mode 100644 samples/cli/facts/representation_agreement/field/invalid/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/field/invalid/sample.json
+ create mode 100644 samples/cli/facts/representation_agreement/field/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/local/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/local/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/local/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/local/invalid/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/local/invalid/expected.txt
+ create mode 100644 samples/cli/facts/representation_agreement/local/invalid/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/local/invalid/sample.json
+ create mode 100644 samples/cli/facts/representation_agreement/local/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/expected_interpreter_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/expected_native_exit.txt
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/invalid/build.omg
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/invalid/expected.txt
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/invalid/main.omg
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/invalid/sample.json
+ create mode 100644 samples/cli/facts/representation_agreement/parameter/main.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_field_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_field_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_field_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_local_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_local_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_local_rejected/main.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_parameter_rejected/build.omg
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_parameter_rejected/expected.txt
+ create mode 100644 tests/omega/fail/facts/representation_agreement_through_parameter_rejected/main.omg
+ create mode 100644 tests/omega/fail/proofs/distinct_selected_map_law_not_interchangeable/expected.txt
+ create mode 100644 tests/omega/fail/proofs/distinct_selected_map_law_not_interchangeable/main.omg
+ create mode 100644 tests/omega/fail/proofs/linear_result_not_repeatable_denotation/expected.txt
+ create mode 100644 tests/omega/fail/proofs/linear_result_not_repeatable_denotation/main.omg
+ create mode 100644 tests/omega/fail/proofs/refined_conversion_does_not_strengthen_base_view/expected.txt
+ create mode 100644 tests/omega/fail/proofs/refined_conversion_does_not_strengthen_base_view/main.omg
+ create mode 100644 tests/omega/fail/proofs/representation_agreement_empty_encoder/expected.txt
+ create mode 100644 tests/omega/fail/proofs/representation_agreement_empty_encoder/main.omg
+ create mode 100644 tests/omega/fail/proofs/selected_law_citation_linear_resource_reuse/expected.txt
+ create mode 100644 tests/omega/fail/proofs/selected_law_citation_linear_resource_reuse/main.omg
+ create mode 100644 tests/omega/fail/traits/refinement_clause_terminators/expected.txt
+ create mode 100644 tests/omega/fail/traits/refinement_clause_terminators/main.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_field_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_field_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_field_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_field_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_local_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_local_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_local_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_local_exit/main.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_parameter_exit/build.omg
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_parameter_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_parameter_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/facts/representation_agreement_through_parameter_exit/main.omg
+ create mode 100644 tests/omega/pass/proofs/representation_agreement_corrupt_decode_traps/build.omg
+ create mode 100644 tests/omega/pass/proofs/representation_agreement_corrupt_decode_traps/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/proofs/representation_agreement_corrupt_decode_traps/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/proofs/representation_agreement_corrupt_decode_traps/main.omg
+ create mode 100644 tests/omega/pass/proofs/selected_map_law_application_exit/build.omg
+ create mode 100644 tests/omega/pass/proofs/selected_map_law_application_exit/expected_interpreter_exit.txt
+ create mode 100644 tests/omega/pass/proofs/selected_map_law_application_exit/expected_native_exit.txt
+ create mode 100644 tests/omega/pass/proofs/selected_map_law_application_exit/main.omg
+ create mode 100644 tests/omega/pass/traits/transparent_refinement_declaration/expected_native_exit.txt
+bisect found first bad commit

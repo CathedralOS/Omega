@@ -1,0 +1,58 @@
+We are not bisecting.
+Bisecting: 752 revisions left to test after this (roughly 10 steps)
+[a8702ea202aa2865d5ffe05360f62f14801995d9] omega: find the entry block by id in the independent block-order check (#1688)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 375 revisions left to test after this (roughly 9 steps)
+[dc0af1ded8d716e6819cf1001b1f11339278419d] samples: carry captured alias suppliers through results and joins (#1324)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 187 revisions left to test after this (roughly 8 steps)
+[ef4d3d15250e23d3b2d0320223b9ac7bdcc2d8f6] psi: preserve interface captures and account for moved results once (#1130)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 93 revisions left to test after this (roughly 7 steps)
+[2be2bd0442046813713c68acbdf6da8b35b8b85e] checking: env/judge fingerprint diagnostics for transition-path dedup (#1036)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 46 revisions left to test after this (roughly 6 steps)
+[8a9afca404ffaafe48695a8e800b88fafa9d64ab] tests: select projected structural read through a trait (#992)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 23 revisions left to test after this (roughly 5 steps)
+[ca8584002f1f06e31f64866ca85a1b9b43432902] psi: refine selector crashes and rank dispatch cycles (#963)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[2b731269fd23aa7c7636345f262c7dddf54244e6] packages: preserve exact data predicate subjects and case fields (#959)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[0a2e70dee92b185753277a8921d5fbe3d031e689] psi: retire case-local predicates onto data requires (#958)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[28a27c6a3419b80f375f65654aedb60ce66de783] loc: fold repeated 5-9 line blocks across five crates (batch H) (#948)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[e8679f56553d8affc95e9fec56d0903c67c8e434] psi: record shared declaration pages and dependency judgments (#951)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[942b80fe7dd2481f22b91eded42ba4805c0e0c93] psi: preserve indexed case facts through private rank calls (#938)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[6f7c917d90c1907f686a830d7223e980bddd21c9] samples: restore scalar bounds across seven CLI customers (#956)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 11 revisions left to test after this (roughly 4 steps)
+[0005c20eed041fe09fc4122d72498910787aed12] samples: land Squalr nested-machine migration (#967)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[190f9fe465b54d546aab71207b05a8a66c4b5f45] repo: retire qualified linux numeric conversion fixtures (#950)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[8ac4fe24280f137492b888dacb2607c597083337] psi: separate service declarations from target calling evidence (#953)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[0d26ad36d8dcd89eb736252e2454d270f3fef0ad] psi: preserve declared rank views across private recursive components (#955)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[075894756e557faf50d24c22fec5e605c3da0fac] psi: use closed private arrivals for constructor predicates (#954)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[ca46befc85d31f323a816d6f3447c62ae65e6336] psi: retain established locals in structural returns (#962)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[682a6f421b5431290b80b354422eb9cf4a7d88cd] loc: fold repeated 5-9 line blocks across six crates (batch I) (#957)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

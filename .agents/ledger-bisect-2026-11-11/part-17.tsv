@@ -1,0 +1,17 @@
+pass/facts/abstract_signature_call_generic_actual_through_call_result_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_const_name_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_field_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_local_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_match_join_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_other_state_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_parameter_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/abstract_signature_call_generic_actual_through_target_body_exit	broken	machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T	c0
+pass/facts/opaque_independent_qualified_result_import_alias_exit	broken	`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)	c1
+pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit	broken	`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)	c1
+pass/facts/opaque_independent_qualified_result_through_local_exit	broken	`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)	c1
+fail/facts/selected_value_application_through_field_rejected	fixed	—	—
+fail/traits/evidence_binder_given_data_type	fixed	—	—
+pass/facts/resident_backing_plain_ram_exit	fixed	—	—
+pass/facts/selected_value_application_through_field_exit	fixed	—	—
+pass/recast/returned_same_type_view_capture_exit	fixed	—	—

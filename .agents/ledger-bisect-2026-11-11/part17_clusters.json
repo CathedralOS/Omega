@@ -1,0 +1,30 @@
+[
+  {
+    "diag_norm": "machine-parameter requirement `_` requires contract constant expression call argument `_` does not form parameter `_` of `_`: actual T, required T",
+    "diag_sample": "machine-parameter requirement `Observe` requires contract constant expression call argument `kept` does not form parameter `kept` of `premise`: actual T, required T",
+    "count": 9,
+    "members": [
+      "pass/facts/abstract_signature_call_generic_actual_through_call_result_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_const_name_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_field_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_local_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_match_join_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_other_state_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_parameter_exit",
+      "pass/facts/abstract_signature_call_generic_actual_through_target_body_exit"
+    ],
+    "witness": "pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit"
+  },
+  {
+    "diag_norm": "`_` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)",
+    "diag_sample": "`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower its declaration of it yet (signature: authored result domains)",
+    "count": 3,
+    "members": [
+      "pass/facts/opaque_independent_qualified_result_import_alias_exit",
+      "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit",
+      "pass/facts/opaque_independent_qualified_result_through_local_exit"
+    ],
+    "witness": "pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit"
+  }
+]
