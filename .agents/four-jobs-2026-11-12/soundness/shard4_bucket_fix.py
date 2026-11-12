@@ -77,7 +77,13 @@ def fix_bucket(row: dict, fin, rc) -> dict:
                 row["accepted_by"] = ac_by
                 row["no_trap_evidence"] = why
             else:
-                row["bucket"] = "discarded-valid"
+                row["bucket"] = (
+                    "disagreement-valid"
+                    if fin.checkers_disagree(cur, route)
+                    else "rejected-both"
+                    if cur == "rejected" and route == "rejected"
+                    else "rejected-current-other"
+                )
         elif cur == "rejected" and route == "rejected":
             row["bucket"] = "rejected-both"
         elif cur == "rejected" and fin.route_is_outside(route):
@@ -87,7 +93,7 @@ def fix_bucket(row: dict, fin, rc) -> dict:
         elif cur == "rejected":
             row["bucket"] = "rejected-current-other"
         else:
-            row["bucket"] = "discarded-valid"
+            row["bucket"] = "rejected-current-other"
     elif fin.route_is_outside(route):
         row["bucket"] = "valid-route-outside"
     elif fin.checkers_disagree(cur, route):

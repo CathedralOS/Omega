@@ -1,1 +1,0 @@
-Write-only callees must return valid referents. Runtime concatenation preserves UTF-8 membership, live length, source bytes and a sibling; the caller forwards its owner to another state and installs an empty replacement. A mutable control worked while write-only calls lost the field membership before state forwarding.

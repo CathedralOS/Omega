@@ -1,7 +1,0 @@
-// Expected exit: 0
-machine main() crashes Trap {
-    let selected: &[u8] = &"123456789"[1..=7];
-    transition { true -> done() false -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}

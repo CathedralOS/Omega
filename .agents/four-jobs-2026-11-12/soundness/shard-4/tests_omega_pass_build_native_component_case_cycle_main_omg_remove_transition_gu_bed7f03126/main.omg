@@ -1,8 +1,0 @@
-// Expected exit: 0. A case-selected terminal call stays inside its recursive component.
-use producer::main;
-machine main() reaches Reading crashes Trap {
-    let value: u64 = block Reading::read();
-    transition { true -> done() _ -> wrong() }
-    machine done() {}
-    machine wrong() crashes Trap { crash Trap; }
-}

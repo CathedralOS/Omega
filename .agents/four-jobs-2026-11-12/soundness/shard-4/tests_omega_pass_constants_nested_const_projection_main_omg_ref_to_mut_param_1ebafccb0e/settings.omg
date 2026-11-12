@@ -1,7 +1,0 @@
-module settings;
-
-public data Inner [copy] { value: u64; }
-public data Middle [copy] { inner: Inner; }
-public data Outer [copy] { middle: Middle; }
-machine make() -> Outer { Outer { middle: Middle { inner: Inner { value: 7 } } } }
-public const VALUE: Outer = make();

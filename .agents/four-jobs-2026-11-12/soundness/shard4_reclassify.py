@@ -195,7 +195,14 @@ def reclassify_row(fin, row: dict) -> dict:
                         row["validity_reason"] = note
                 row["minimal_diff"] = fin.minimal_diff(orig, mut)[:2000]
             else:
-                row["bucket"] = "discarded-valid"
+                cur, route = row.get("current_verdict", ""), row.get("route_verdict", "") or ""
+                row["bucket"] = (
+                    "disagreement-valid"
+                    if fin.checkers_disagree(cur, route)
+                    else "rejected-both"
+                    if cur == "rejected" and route == "rejected"
+                    else "rejected-current-other"
+                )
                 row["validity_reason"] = why or base.get("valid_reason") or "missing quote/obligation"
         else:
             cur, route = row.get("current_verdict", ""), row.get("route_verdict", "") or ""

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "predicate_domain_param");
-    builder.freestanding = true;
-}

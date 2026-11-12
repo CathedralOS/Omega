@@ -1,7 +1,0 @@
-// A runtime selector is a dependency, while items[position] is the subject.
-domain u64::NonZero requires self != 0;
-data Handle { value: u64; }
-domain Handle::Open requires self.value != 0 established by translate;
-machine translate(items: &[u64; 2], position: u64) -> Handle in Open
-    Handle { value: items[position] }
-}

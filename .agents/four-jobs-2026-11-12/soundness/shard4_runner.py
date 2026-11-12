@@ -374,29 +374,6 @@ def process_fixture(fixture: Path) -> int:
         cur_v = parse_current(c_out, c_code)
         bump_stat("mutants_run")
         route_reason = ""
-        if cur_v == "rejected":
-            bump_stat("mutants_current_rejected")
-            bump_stat("mutants_logged_tsv")
-            log_tsv(
-                [
-                    rel,
-                    tier,
-                    "mutant",
-                    kind,
-                    str(dst.relative_to(REPO)),
-                    cur_v,
-                    "",
-                    "",
-                    "0",
-                    "discarded-both-reject",
-                    "",
-                    "",
-                    "discarded-both-reject",
-                    "",
-                ]
-            )
-            prog.mark(mk)
-            continue
         if cur_v in ("timeout", "error"):
             bump_stat("mutants_failed_run")
             prog.mark(mk)

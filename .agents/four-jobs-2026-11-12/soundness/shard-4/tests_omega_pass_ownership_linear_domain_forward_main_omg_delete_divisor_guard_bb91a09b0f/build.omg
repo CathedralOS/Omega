@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "linear_domain_forward");
-    builder.freestanding = true;
-}

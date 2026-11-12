@@ -1,74 +1,36 @@
 {
   "mutants_not_applicable": 7,
-  "baseline_audit": {
-    "definitions": {
-      "original-not-accepted": "Fixture original `omega --check` at PIN returned a normal verdict (rejected), not a harness failure. Runner skips mutation when original is not accepted.",
-      "failed-run": "Mutant or harness could not produce a checker verdict (timeout, crash, I/O). Does not include originals that current rejects with a diagnostic.",
-      "current-rejected-slow": "Quick re-check (20s) timed out but shard runner recorded `current=rejected` at PIN with 90s budget \u2014 treated as slow reject, not harness failed-run."
-    },
-    "original_not_accepted_total": 230,
-    "by_category": {
-      "current-rejected-proof": 23,
-      "current-rejected-signature": 4,
-      "current-rejected-other": 11,
-      "current-rejected-slow": 192
-    },
-    "examples": {
-      "current-rejected-proof": [
-        "tests/omega/pass/borrows/qualified_owner_state_loan_exit/main.omg",
-        "tests/omega/pass/borrows/incoming_reference_slot_replacement_exit/main.omg",
-        "tests/omega/pass/borrows/runtime_uniform_projected_reference_selection_exit/main.omg"
-      ],
-      "current-rejected-signature": [
-        "tests/omega/pass/facts/recoverable_replacement_window_through_parameter_exit/main.omg",
-        "tests/omega/pass/providers/inline_provider_owner_lifetime_telescope_unapplied/main.omg",
-        "tests/omega/pass/traits/implementation_value_own_const_identity/main.omg"
-      ],
-      "current-rejected-other": [
-        "tests/omega/pass/build/conditional_root_binding/main.omg",
-        "tests/omega/pass/calls/native_code_layout_discarded_exit/main.omg",
-        "tests/omega/pass/facts/installed_entry_storage_through_other_machine_exit/main.omg"
-      ],
-      "current-rejected-slow": [
-        "tests/omega/pass/arithmetic/saturating_signed_divide_min_by_neg_one/main.omg",
-        "tests/omega/pass/arithmetic/runtime_integer_casts_exit/main.omg",
-        "tests/omega/pass/arithmetic/const_fold_unsigned_landed_ops_exit/main.omg"
-      ]
-    },
-    "accepted_without_mutant_dirs": 18,
-    "accepted_gap_fixtures": [
-      "tests/omega/pass/arithmetic/checked_flag_proof_saturating_cast_fits/main.omg",
-      "tests/omega/pass/build/build_helper_call/main.omg",
-      "tests/omega/pass/build/captured_source_generated_constant/main.omg",
-      "tests/omega/pass/build/executed_dependency_source_library/main.omg",
-      "tests/omega/pass/build/provider_package_default_exit/reading_provider/main.omg",
-      "tests/omega/pass/build/selected_const_array_length_exit/main.omg",
-      "tests/omega/pass/components/independent_same_spelling_packages/api/main.omg",
-      "tests/omega/pass/contracts/header_blocks_before_body/main.omg",
-      "tests/omega/pass/core/content_conservation_constructed_argument/main.omg",
-      "tests/omega/pass/expressions/owned_match_mixed_values/main.omg",
-      "tests/omega/pass/generics/runtime_index_carrier_named_static/main.omg",
-      "tests/omega/pass/modules/machine_constant_initializers/main.omg",
-      "tests/omega/pass/modules/nominal_constant_bodies/main.omg",
-      "tests/omega/pass/modules/packaged_structured_const_declared_carrier_exit/dependency/main.omg",
-      "tests/omega/pass/modules/qualified_case_membership/main.omg",
-      "tests/omega/pass/modules/selected_constant_nominal_alias/main.omg",
-      "tests/omega/pass/providers/named_boundary_applied_issuance/main.omg",
-      "tests/omega/pass/terminal_psi/unsupported_optimizer_component/main.omg"
-    ],
-    "runner_excludes_not_accepted": true,
-    "tsv_verdict_breakdown": {
-      "current_rejected": 230,
-      "current_stopped": 0,
-      "harness_timeout": 0,
-      "harness_error": 0
-    }
-  },
   "fixture_partition": {
     "fixtures_total": 1130,
     "original_not_accepted": 230,
     "no_mutation_accepted_baseline": 18,
     "mutated": 882
+  },
+  "not_applicable_attempts": 149,
+  "mutant_rows_with_path": 3620,
+  "mutation_attempts_progress": 3769,
+  "mutant_buckets": {
+    "valid-route-outside": 2981,
+    "rejected-current-route-outside": 265,
+    "disagreement-valid": 59,
+    "known-gap-q7-mut": 162,
+    "discarded-valid": 100,
+    "confirmed-hole": 22,
+    "rejected-both": 31
+  },
+  "canonical_kind_counts": {
+    "delete_divisor_guard": 825,
+    "drop_requires": 433,
+    "strip_and_guard": 577,
+    "widen_requires": 300,
+    "shared_instead_of_mut": 380,
+    "remove_transition_guard": 758,
+    "remove_mut": 347,
+    "mut_ref_instead_of_shared": 0
+  },
+  "drop_requires_site_split": {
+    "machine-header": 361,
+    "body-or-data": 72
   },
   "bucket_transition_from_c0a4894": {
     "matrix": {
@@ -76,17 +38,19 @@
       "confirmed-hole -> known-gap-q7-mut": 2,
       "confirmed-hole -> valid-route-outside": 53,
       "discarded-valid -> disagreement-valid": 27,
-      "discarded-valid -> valid-route-outside": 749,
-      "rejected-both -> discarded-valid": 197,
-      "rejected-both -> rejected-current-no-route": 291
+      "discarded-valid -> rejected-both": 5,
+      "discarded-valid -> valid-route-outside": 1195,
+      "rejected-both -> rejected-current-route-outside": 265,
+      "rejected-both -> valid-route-outside": 197
     },
     "rules": {
       "confirmed-hole -> valid-route-outside": "Hole demoted: guard/divisor/param lacks compile-time invalidity or run-time trap discharge.",
-      "rejected-both -> rejected-current-no-route": "Rename: rejected-both requires route=rejected; empty route is route-skipped not dual rejection.",
-      "rejected-both -> discarded-valid": "",
+      "rejected-both -> rejected-current-route-outside": "",
       "discarded-valid -> valid-route-outside": "Strict validity: mutant read valid; route is outside/no-entry (fix3 route-only non-verdict).",
+      "rejected-both -> valid-route-outside": "",
       "discarded-valid -> disagreement-valid": "Checker disagreement after strict validity reassessment.",
       "confirmed-hole -> known-gap-q7-mut": "Ownership/Q7 mutability gap (remove_mut / shared_instead_of_mut) per lead notes.",
+      "discarded-valid -> rejected-both": "Superseded rename to rejected-current-no-route (same rule).",
       "confirmed-hole -> discarded-valid": "Hole demoted: missing spec quote, obligation, or no-trap evidence."
     },
     "rejected_both_verification_failures": 0,
@@ -101,43 +65,89 @@
     },
     "kind_bucket_cross": {
       "delete_divisor_guard": {
-        "valid-route-outside": 773,
-        "discarded-valid": 37,
+        "valid-route-outside": 775,
+        "discarded-valid": 35,
         "disagreement-valid": 15
       },
       "drop_requires": {
-        "rejected-current-no-route": 240,
-        "discarded-valid": 130,
-        "valid-route-outside": 41,
-        "confirmed-hole": 22
+        "rejected-current-route-outside": 214,
+        "valid-route-outside": 165,
+        "confirmed-hole": 22,
+        "rejected-both": 31,
+        "discarded-valid": 1
       },
       "remove_mut": {
         "known-gap-q7-mut": 160,
-        "rejected-current-no-route": 15,
-        "valid-route-outside": 162,
-        "discarded-valid": 10
+        "rejected-current-route-outside": 15,
+        "valid-route-outside": 172
       },
       "remove_transition_guard": {
-        "discarded-valid": 220,
-        "valid-route-outside": 525,
+        "valid-route-outside": 719,
+        "discarded-valid": 26,
         "disagreement-valid": 13
       },
       "shared_instead_of_mut": {
-        "discarded-valid": 293,
-        "valid-route-outside": 49,
-        "rejected-current-no-route": 36,
+        "valid-route-outside": 342,
+        "rejected-current-route-outside": 36,
         "known-gap-q7-mut": 2
       },
       "strip_and_guard": {
-        "valid-route-outside": 521,
-        "discarded-valid": 40,
-        "disagreement-valid": 16
+        "valid-route-outside": 540,
+        "disagreement-valid": 16,
+        "discarded-valid": 21
       },
       "widen_requires": {
-        "valid-route-outside": 267,
+        "valid-route-outside": 268,
         "disagreement-valid": 15,
-        "discarded-valid": 18
+        "discarded-valid": 17
       }
+    }
+  },
+  "pin_baseline_rerun": {
+    "pin": "0835b3aaf803ed97f905be42d94727ff58459263",
+    "timeout_sec": 300,
+    "by_category": {
+      "accepted": 900,
+      "rejected-with-diagnostic": 230
+    },
+    "examples": {
+      "accepted": [
+        {
+          "fixture": "tests/omega/pass/arithmetic/anonymous_rational_integer_landing/main.omg",
+          "diagnostic": ""
+        },
+        {
+          "fixture": "tests/omega/pass/arithmetic/checked_flag_proof_saturating_cast_fits/main.omg",
+          "diagnostic": ""
+        },
+        {
+          "fixture": "tests/omega/pass/arithmetic/fixed_array_live_length_compound_guard/main.omg",
+          "diagnostic": ""
+        }
+      ],
+      "rejected-with-diagnostic": [
+        {
+          "fixture": "tests/omega/pass/arithmetic/const_fold_unsigned_landed_ops_exit/main.omg",
+          "diagnostic": "error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding;"
+        },
+        {
+          "fixture": "tests/omega/pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit/main.omg",
+          "diagnostic": "error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding;"
+        },
+        {
+          "fixture": "tests/omega/pass/arithmetic/runtime_domain_boundaries_exit/main.omg",
+          "diagnostic": "error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding;"
+        }
+      ]
+    }
+  },
+  "valid_route_outside_audit": {
+    "total": 2981,
+    "missing_route_verdict": 0,
+    "by_route_verdict": {
+      "no-entry": 260,
+      "outside": 2566,
+      "unreached": 155
     }
   }
 }

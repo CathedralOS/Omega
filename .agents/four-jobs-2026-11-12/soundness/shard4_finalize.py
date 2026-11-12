@@ -788,6 +788,8 @@ def main() -> None:
         f"{not_acc}+{no_mut_ok}+{mutated_n}!={originals}"
     )
     baseline_audit = stats.get("baseline_audit", {})
+    pin_baseline = stats.get("pin_baseline_rerun", {})
+    route_outside_audit = stats.get("valid_route_outside_audit", {})
     bucket_transition = stats.get("bucket_transition_from_c0a4894", {})
 
     fixture_rows: Counter[str] = Counter()
@@ -851,6 +853,57 @@ def main() -> None:
             f"attempt rows total: **{mutants_run + len(not_applicable)}**",
         ]
     )
+    if pin_baseline.get("by_category"):
+        md.extend(
+            [
+                "",
+                "## PIN baseline (timeout "
+                f"{pin_baseline.get('timeout_sec', 300)}s, all originals)",
+                "",
+            ]
+        )
+        md.append(
+            f"Shard fixtures at PIN **`{pin_baseline.get('pin', PIN)}`**. "
+            f"**{not_acc}** originals stay `original-not-accepted` (real checker diagnostics at 300s, not harness timeout)."
+        )
+        md.append("")
+        md.append("| Category | Count |")
+        md.append("| --- | ---: |")
+        for cat, n in sorted(pin_baseline["by_category"].items()):
+            md.append(f"| `{cat}` | {n} |")
+        for cat in (
+            "accepted",
+            "rejected-with-diagnostic",
+            "timeout",
+            "stopped",
+            "error",
+        ):
+            ex = pin_baseline.get("examples", {}).get(cat, [])
+            if not ex:
+                continue
+            md.extend(["", f"### Examples: `{cat}`", ""])
+            for item in ex[:3]:
+                if isinstance(item, dict):
+                    md.append(
+                        f"- `{item.get('fixture', '')}`: {item.get('diagnostic', '')[:400]}"
+                    )
+                else:
+                    md.append(f"- `{item}`")
+    if route_outside_audit:
+        md.extend(
+            [
+                "",
+                "## `valid-route-outside` route verdict audit",
+                "",
+                f"Rows in bucket: **{route_outside_audit.get('total', bucket_counts.get('valid-route-outside', 0))}**. "
+                f"Missing/empty `route_verdict`: **{route_outside_audit.get('missing_route_verdict', 0)}**.",
+                "",
+                "| `route_verdict` | Count |",
+                "| --- | ---: |",
+            ]
+        )
+        for rv, n in sorted(route_outside_audit.get("by_route_verdict", {}).items()):
+            md.append(f"| `{rv}` | {n} |")
     md.extend(
         [
             "",
