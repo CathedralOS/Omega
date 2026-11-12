@@ -630,7 +630,7 @@ def main() -> None:
     accepted(
         program,
         "declared-domains-qualify-their-carrier",
-        b"domain u64::Small(value)\nrequires value < 8;\ndomain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\n"
+        b"domain u64::Small\nrequires self < 8;\ndomain [u8]::Text\nrequires valid_utf8(self);\n"
         b"machine take(x: u64 in Small) -> u64 { x }\n"
         b"machine show(text: &[u8] in Text) {}\n"
         b"machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n"
@@ -919,9 +919,9 @@ def main() -> None:
     rejected(
         program,
         "byte-predicates-apply-to-byte-views",
-        b"domain u64::Odd(value)\nrequires valid_utf8(value);",
+        b"domain u64::Odd\nrequires valid_utf8(self);",
         "NoMatchingMachine",
-        b"valid_utf8(value)",
+        b"valid_utf8(self)",
     )
     rejected(
         program,
@@ -1119,7 +1119,7 @@ def main() -> None:
     rejected(
         program,
         "match-arms-of-two-domains",
-        b"domain i64::Km(value) requires value >= 0;\ndomain i64::Miles(value) requires value >= 0;\n"
+        b"domain i64::Km requires self >= 0;\ndomain i64::Miles requires self >= 0;\n"
         b"machine f(b: bool, near: i64 in Km, far: i64 in Miles) -> i64 in Km { match b { true -> near, false -> far } }",
         "MismatchedTypes",
         b"far!2",
@@ -1186,7 +1186,7 @@ def main() -> None:
     accepted(
         program,
         "array-literal-tree-is-its-elements",
-        b"domain u8::Small(value)\nrequires value < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
+        b"domain u8::Small\nrequires self < 4;\nmachine f() -> u8 { let a: [u8; 2] = [1, 9]; a[0] }",
         ((b"[1, 9]", "[u8; 2]"),),
     )
     accepted(
@@ -1310,8 +1310,8 @@ def main() -> None:
     accepted(
         program,
         "quoted-literals-copy-exact-qualified-byte-arrays",
-        b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
-        b"domain [u8]::Utf8(bytes) requires valid_utf8(bytes);\n"
+        b"domain [u8; 2]::Utf8 requires valid_utf8(self);\n"
+        b"domain [u8]::Utf8 requires valid_utf8(self);\n"
         b"data M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\n"
         b"machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n"
         b"    m.line = \"ok\";\n    m.raw = \"hi\";\n    let local: [u8; 2] in Utf8 = \"go\";\n"
@@ -1323,7 +1323,7 @@ def main() -> None:
         rejected(
             program,
             "qualified-quoted-width-" + str(len(literal) - 2),
-            b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
+            b"domain [u8; 2]::Utf8 requires valid_utf8(self);\n"
             b"data M { line: [u8; 2] in Utf8; }\n"
             b"machine f(m: &mut M) { m.line = " + literal + b"; }",
             "MismatchedTypes",
@@ -1498,13 +1498,13 @@ def main() -> None:
     accepted(
         program,
         "domain-membership-fact",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }",
+        b"domain u64::Small\nrequires self < 4;\nmachine f(x: u64) -> u64\nrequires x in Small\n{ x }",
         ((b"x in Small", "bool"),),
     )
     rejected(
         program,
         "membership-of-another-carrier",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }",
+        b"domain u64::Small\nrequires self < 4;\nmachine f(x: u8) -> bool\nrequires x in Small\n{ true }",
         "MismatchedTypes",
         b"x!2",
     )
@@ -1575,13 +1575,13 @@ def main() -> None:
     accepted(
         program,
         "declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }",
+        b"domain u64::Small requires self < 4;\nmachine f(x: u64 in Small) -> u64 in Small { x }",
         ((b"x!2", "u64 in Domain0"),),
     )
     accepted(
         program,
         "path-qualified-declared-domain",
-        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }",
+        b"domain u64::Small requires self < 4;\nmachine f(x: u64 in u64::Small) -> u64 in Small { x }",
         ((b"x!2", "u64 in Domain0"),),
     )
     rejected(
@@ -1835,9 +1835,9 @@ def main() -> None:
     accepted(
         program,
         "generic-data-requires-self-applies-its-parameters",
-        b"data Value<T> requires self.value == self.value { value: T; }\n"
+        b"data Value<T> requires self.count == self.count { value: T; count: u64; }\n"
         b"machine use(v: Value<u8>) -> u8 { v.value }",
-        ((b"self", "D0<G0>"), (b"self.value", "G0"), (b"v.value", "u8")),
+        ((b"self", "D0<G0>"), (b"self.count", "u64"), (b"v.value", "u8")),
     )
     rejected(
         program,
@@ -1845,7 +1845,7 @@ def main() -> None:
         b"data Value<T> requires self.missing == self.missing { value: T; }\n"
         b"machine use(v: Value<u8>) -> u8 { v.value }",
         "UnknownField",
-        b"self.missing",
+        b"missing",
     )
 
     # A non-Unit result is dropped only through `_ = call();`.
