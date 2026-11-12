@@ -2874,27 +2874,27 @@ fail/calls/ordered_bound_requires_argument_rejected rejected 13643ms expected @c
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false (`2 > 5`)
 fail/calls/ordered_terminal_skipped_arm_type_rejected rejected 15129ms expected @32c7663ba3ad
 	argument `value` for state `identity` expects `u64`, got `bool`
-fail/calls/outcome_specific_computed_mutated rejected 2169ms expected @ccdb99ca2214
+fail/calls/outcome_specific_computed_mutated rejected 1816ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold + 1) in state `entry`
-fail/calls/outcome_specific_failure_selector rejected 2295ms expected @6970b2a448ed+wt
+fail/calls/outcome_specific_failure_selector rejected 2140ms expected @ea12dfca92e4
 	outcome proof selector `selected` is not a named guarantee of the matching result case
-fail/calls/outcome_specific_later_mutated rejected 3435ms expected @ccdb99ca2214
+fail/calls/outcome_specific_later_mutated rejected 1711ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_mixed_mutated rejected 3129ms expected @ccdb99ca2214
+fail/calls/outcome_specific_mixed_mutated rejected 1631ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:pair(gate.threshold,count) in state `entry`
-fail/calls/outcome_specific_mutated_subject rejected 2962ms expected @ccdb99ca2214
+fail/calls/outcome_specific_mutated_subject rejected 1829ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_nonmatching_scope rejected 3348ms expected @ccdb99ca2214
+fail/calls/outcome_specific_nonmatching_scope rejected 1876ms expected @ea12dfca92e4
 	unknown incoming evidence term `proof` in call `accepted`; erased arguments must name an explicit requires binding
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(before.threshold) in state `entry`
-fail/calls/outcome_specific_primary_expression_mutated rejected 2770ms expected @ccdb99ca2214
+fail/calls/outcome_specific_primary_expression_mutated rejected 1781ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 10019ms expected @ccdb99ca2214
+fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 14941ms expected @ea12dfca92e4
 	outcome-specific evidence `selected` is assigned on a nonmatching ordinary exit through pick::entry
 fail/calls/plain_let_reassign_rejected rejected 14995ms expected @ccdb99ca2214
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
@@ -20832,18 +20832,15 @@ pass/calls/nonreturning_record_match_stopped_exit checked 17453ms check-target:m
 pass/calls/nonreturning_scalar_arithmetic_operand_exit checked 15624ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_scalar_call_initialization_exit checked 17836ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/ordered_field_selector_calls_exit checked 65924ms check-target:macos_arm64 @911f6617ba9e
-pass/calls/outcome_specific_closed_argument checked 3561ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_later_snapshot incomplete 3624ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `probe::accepted` reaches no executable callee plan; in state `probe::entry`, statement 5
+pass/calls/outcome_specific_closed_argument checked 5713ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_later_snapshot checked 5719ms check-target:macos_arm64 @ea12dfca92e4
 pass/calls/outcome_specific_mixed_snapshot rejected 3990ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("guarded evidence input has no current selected result case"))
-pass/calls/outcome_specific_nested_formals checked 3119ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_primary_expression incomplete 3539ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `accepted` reaches no executable callee plan; in state `probe::entry`, statement 6
-pass/calls/outcome_specific_root_exit checked 3478ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_snapshot_runtime checked 3339ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_snapshot_subject incomplete 3111ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `probe::accepted` reaches no executable callee plan; in state `probe::entry`, statement 6
+pass/calls/outcome_specific_nested_formals checked 5340ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_primary_expression checked 5220ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_root_exit checked 4878ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_snapshot_runtime checked 5251ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_snapshot_subject checked 5564ms check-target:macos_arm64 @ea12dfca92e4
 pass/calls/owned_indirect_argument_complete_forwarding_exit checked 3761ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_mixed_overaligned_call checked 12475ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_overaligned_local_call checked 3953ms check-target:macos_arm64 @ccdb99ca2214
@@ -28849,7 +28846,7 @@ run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @6
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 11504ms check-target:macos_arm64 @5708d93d2a13
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/outcome_specific_selected_guarantee_exit checked 66263ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_exit checked 19918ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
@@ -28858,11 +28855,11 @@ run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-t
 run/calls/outcome_specific_selected_guarantee_inputs_exit rejected 6914ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_nested_exit checked 78318ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_nested_exit checked 14922ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/outcome_specific_selected_guarantee_result_exit rejected 7362ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_variants_exit checked 75509ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_variants_exit checked 15173ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/owned_literal_call_operands checked 2565ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_exit checked 3003ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_plain_exit checked 3007ms check-target:macos_arm64 @ccdb99ca2214
