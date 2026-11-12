@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from bounded
+machine `bounded` cannot prove ensures contract proof fact `result >= -9223372036854775806`
