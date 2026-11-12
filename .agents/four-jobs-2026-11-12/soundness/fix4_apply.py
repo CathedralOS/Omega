@@ -169,15 +169,6 @@ def apply_fix4(
             ok = False
             note = f"confirmed downgrade: runtime trap/crash route present ({scan[:120]})"
         if not ok:
-            if cs == "accept" and route_is_outside(route):
-                return replace(
-                    oc,
-                    bucket="valid-route-outside",
-                    accepted_by="current",
-                    valid=True,
-                    note=note,
-                    runtime_trap_scan=scan,
-                )
             return replace(
                 oc,
                 bucket="discarded-valid",

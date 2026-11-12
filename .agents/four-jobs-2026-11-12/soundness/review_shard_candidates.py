@@ -130,6 +130,16 @@ def main() -> None:
         return
 
     raw = parse_tsv()
+    old_buckets: dict[tuple[str, str, str], str] = {}
+    for line in TSV.read_text().splitlines():
+        if not line.startswith("tests/"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 10:
+            key = (parts[0], parts[1], parts[2] or "")
+            old_buckets[key] = parts[9]
+
+    bucket_moves: Counter[str] = Counter()
     buckets: Counter[str] = Counter()
     accepted_by: Counter[str] = Counter()
     by_kind: Counter[str] = Counter()
@@ -245,6 +255,11 @@ def main() -> None:
                     oc = replace(oc, discard_class="drop-req-body-restate")
                 elif note.startswith("valid:"):
                     oc = replace(oc, discard_class="other-valid-note")
+
+        key = (row.orig, row.kind, row.mutant_rel)
+        prev = old_buckets.get(key, "")
+        if prev and prev != oc.bucket:
+            bucket_moves[f"{prev}->{oc.bucket}"] += 1
 
         buckets[oc.bucket] += 1
         if oc.bucket == "confirmed-hole" and oc.accepted_by:
@@ -401,11 +416,19 @@ def main() -> None:
     md.append("")
     md.append("## Bucket table")
     md.append("")
+    md.append(f"_Audited from `shard-{SHARD}.tsv` via `bucket_audit.py` (no duplicate keys)._")
+    md.append("")
     md.append("| Bucket | Count |")
     md.append("| --- | ---: |")
     for name in sorted(buckets):
         md.append(f"| `{name}` | {buckets[name]} |")
     md.append(f"| **sum** | **{total}** |")
+    if bucket_moves:
+        md.append("")
+        md.append("### Verdict-policy reclasssifications (this review pass)")
+        md.append("")
+        for label, n in bucket_moves.most_common():
+            md.append(f"- `{label}`: {n}")
     md.append("")
     md.append("### Confirmed holes by kind")
     for k, n in by_kind.most_common():
@@ -539,8 +562,17 @@ def main() -> None:
     md.append("")
 
     TSV.write_text("\n".join(out) + "\n")
+    from bucket_audit import audit_tsv
+
+    audited_total, audited = audit_tsv(TSV)
+    assert audited_total == total
+    for k, v in buckets.items():
+        assert audited.get(k, 0) == v, f"bucket mismatch {k}: counted={v} tsv={audited.get(k)}"
+
+  # Replace bucket table section counts with audited (already built with buckets - should match)
+
     MD.write_text("\n".join(md) + "\n")
-    print(f"fix3: total={total} confirmed={len(confirmed)} buckets={dict(buckets)}")
+    print(f"fix3: total={total} confirmed={audited.get('confirmed-hole',0)} buckets={dict(audited)}")
 
 
 if __name__ == "__main__":

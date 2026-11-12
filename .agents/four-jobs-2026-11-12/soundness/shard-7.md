@@ -71,16 +71,24 @@ Fixtures with more than one mutant row (first 20):
 
 ## Bucket table
 
+_Audited from `shard-7.tsv` via `bucket_audit.py` (no duplicate keys)._
+
 | Bucket | Count |
 | --- | ---: |
 | `confirmed-hole` | 7 |
-| `discarded-valid` | 343 |
+| `disagreement-valid` | 4 |
+| `discarded-valid` | 361 |
 | `known-gap-q7-mut` | 230 |
 | `no-mutation` | 147 |
-| `rejected-both` | 1932 |
+| `rejected-both` | 1910 |
 | `timeout` | 1 |
 | `valid-route-outside` | 269 |
 | **sum** | **2929** |
+
+### Verdict-policy reclasssifications (this review pass)
+
+- `rejected-both->discarded-valid`: 18
+- `rejected-both->disagreement-valid`: 4
 
 ### Confirmed holes by kind
 - `drop_requires`: 7
@@ -95,7 +103,7 @@ Fixtures with more than one mutant row (first 20):
 ## discarded-valid breakdown
 
 ### By discard_class (why accepted)
-- `unclassified`: 135
+- `unclassified`: 153
 - `ref-signature-or-call-only`: 99
 - `mut-ref-stricter-signature`: 80
 - `ensures-weaken`: 20
@@ -104,8 +112,8 @@ Fixtures with more than one mutant row (first 20):
 - `confirmed-downgrade`: 2
 
 ### By mutation kind
+- `remove_mut`: 114
 - `shared_instead_of_mut`: 99
-- `remove_mut`: 96
 - `mut_ref_instead_of_shared`: 83
 - `drop_requires`: 45
 - `drop_ensures`: 20
@@ -367,7 +375,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg	current=accepted	current_us=1496723	root=compilation	route=no-entry
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__control_flow__record_result_dispatch_compile__main.omg/drop_requires_b139efc8d2/main.omg	current=accepted	current_us=1509537	root=compilation	route=no-entry
 
 - `drop_requires` `tests/omega/pass/drops/runtime_nominal_state_loan_nonlending_branch_exit/main.omg` — invalid (modular entry): machine `drop_room(room:` missing entry `room.count == 10` | fix4 airtight | probe drop_room(0) rejected (exit 1)
 ```diff
@@ -384,7 +392,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg	current=accepted	current_us=3399649	root=compilation	route=outside	Unsupported: machine service reach
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__drops__runtime_nominal_state_loan_nonlending_branch_exit__main.omg/drop_requires_eab7e56c6e/main.omg	current=accepted	current_us=3342602	root=compilation	route=outside	Unsupported: machine service reach
 
 - `drop_requires` `tests/omega/pass/generics/mixed_value_nullary_case_checked/main.omg` — invalid (modular entry): removed requires `((self in Tagged::Empty) && (Limit<10))` | fix4 airtight
 ```diff
@@ -395,7 +403,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg	current=accepted	current_us=3111947	root=compilation	route=outside	Unsupported: type generic data
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__generics__mixed_value_nullary_case_checked__main.omg/drop_requires_9c6180c1c5/main.omg	current=accepted	current_us=3135836	root=compilation	route=outside	Unsupported: type generic data
 
 - `drop_requires` `tests/omega/pass/proofs/embedded_successor_call_requirement_exit/main.omg` — invalid (modular entry): machine `require_length<Length: u64>()` missing entry `Length <= 8` | fix4 airtight | probe require_length<Length: u64>(0) rejected (exit 1)
 ```diff
@@ -412,7 +420,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg	current=accepted	current_us=3275825	root=compilation	route=outside	Unsupported: machine generic parameters
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__embedded_successor_call_requirement_exit__main.omg/drop_requires_7e84fe46ee/main.omg	current=accepted	current_us=3639335	root=compilation	route=outside	Unsupported: machine generic parameters
 
 - `drop_requires` `tests/omega/pass/proofs/proposition_const_operand_application/main.omg` — invalid (modular entry): machine `inspect(value:` missing entry `valid<3u64>(value)` | fix4 airtight | probe inspect(0) rejected (exit 1)
 ```diff
@@ -425,7 +433,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__proposition_const_operand_application__main.omg/drop_requires_9ef71b3696/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__proposition_const_operand_application__main.omg/drop_requires_9ef71b3696/main.omg	current=accepted	current_us=1451200	root=compilation	route=no-entry
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__proofs__proposition_const_operand_application__main.omg/drop_requires_9ef71b3696/main.omg	current=accepted	current_us=1543479	root=compilation	route=no-entry
 
 ### 5 discarded drop_requires (current accepts)
 
@@ -444,7 +452,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg	current=accepted	current_us=3478723	root=compilation	route=accepted	route_us=11941	discharge_us=10517	reverify_us=8771	reverified=12	obligations=14	judged=12	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	publi
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__live_across_two_calls_preservation_bound_through_other_state_exit__main.omg/drop_requires_b80f167658/main.omg	current=accepted	current_us=3131779	root=compilation	route=accepted	route_us=13597	discharge_us=12495	reverify_us=8571	reverified=12	obligations=14	judged=12	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	publi
 
 - `drop_requires` `tests/omega/pass/facts/projection_call_premise_through_field_exit/main.omg` — no removed requires
 ```diff
@@ -461,7 +469,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg	current=accepted	current_us=3303523	root=compilation	route=incomplete	route_us=999	discharge_us=429	reverify_us=66	reverified=2	obligations=3	judged=2	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablish
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__projection_call_premise_through_field_exit__main.omg/drop_requires_9fa9392ad7/main.omg	current=accepted	current_us=3287238	root=compilation	route=incomplete	route_us=1183	discharge_us=487	reverify_us=64	reverified=2	obligations=3	judged=2	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=4	unestablis
 
 - `drop_requires` `tests/omega/pass/facts/range_fact_delivery_through_call_result_exit/main.omg` — no removed requires
 ```diff
@@ -478,7 +486,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg	current=accepted	current_us=3208151	root=compilation	route=accepted	route_us=1985	discharge_us=1347	reverify_us=763	reverified=8	obligations=9	judged=8	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestabl
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__range_fact_delivery_through_call_result_exit__main.omg/drop_requires_bd26803be7/main.omg	current=accepted	current_us=3180022	root=compilation	route=accepted	route_us=1664	discharge_us=1228	reverify_us=745	reverified=8	obligations=9	judged=8	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=1	uses=0	unestabl
 
 - `drop_requires` `tests/omega/pass/facts/signed_arithmetic_shift_right_through_call_result_exit/main.omg` — valid: in-machine body/guard restates removed requires | requires: `diff >= 0i64 && diff <= 0i64` | restate: `diff`
 ```diff
@@ -495,7 +503,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg	current=accepted	current_us=3000599	root=compilation	route=rejected	route_us=2899	discharge_us=2177	reverify_us=1386	reverified=9	obligations=12	judged=9	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	use
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_arithmetic_shift_right_through_call_result_exit__main.omg/drop_requires_be51a89af9/main.omg	current=accepted	current_us=3208278	root=compilation	route=rejected	route_us=2874	discharge_us=2229	reverify_us=1373	reverified=9	obligations=12	judged=9	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=2	use
 
 - `drop_requires` `tests/omega/pass/facts/signed_exact_addition_bound_through_other_machine_exit/main.omg` — valid: in-machine body/guard restates removed requires | requires: `margin >= 0i64 && margin <= 40i64` | restate: `margin`
 ```diff
@@ -512,7 +520,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg	current=accepted	current_us=3230936	root=compilation	route=accepted	route_us=25909	discharge_us=25272	reverify_us=22897	reverified=6	obligations=6	judged=6	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	u
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__facts__signed_exact_addition_bound_through_other_machine_exit__main.omg/drop_requires_d82f31b8cf/main.omg	current=accepted	current_us=3339119	root=compilation	route=accepted	route_us=25840	discharge_us=25246	reverify_us=23402	reverified=6	obligations=6	judged=6	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	u
 
 ### 5 known-gap Q7 remove_mut
 
@@ -523,7 +531,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg	current=accepted	current_us=3116680	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__call_argument_snapshot_survives_write_exit__main.omg/remove_mut_8f93f94ace/main.omg	current=accepted	current_us=3334403	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit/main.omg` — binding `flag` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -532,7 +540,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg	current=accepted	current_us=3345413	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__arithmetic__runtime_captured_call_result_subtracts_itself_exit__main.omg/remove_mut_233016365f/main.omg	current=accepted	current_us=3250254	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_affine_sum_exit/main.omg` — binding `entry_storage` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -541,7 +549,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg	current=accepted	current_us=3187418	root=compilation	route=outside	Unsupported: type data with custody
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_affine_sum_exit__main.omg/remove_mut_3842ac4802/main.omg	current=accepted	current_us=3205700	root=compilation	route=outside	Unsupported: type data with custody
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_call_operand_exit/main.omg` — binding `held` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -550,7 +558,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg	current=accepted	current_us=3309559	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_call_operand_exit__main.omg/remove_mut_c1fe05d15f/main.omg	current=accepted	current_us=3113880	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 - `remove_mut` `tests/omega/pass/borrow/runtime_write_only_indexed_record_copy_exit/main.omg` — binding `entry_storage` lacks `mut` but is written or `&mut`-loaned
 ```diff
@@ -559,7 +567,7 @@ Fixtures with more than one mutant row (first 20):
 ```
 - omega exit=0
 - compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg; wrote_output=false | 
-- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg	current=accepted	current_us=3134374	root=compilation	route=outside	Unsupported: parameter mutable parameter
+- program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-7/tests__omega__pass__borrow__runtime_write_only_indexed_record_copy_exit__main.omg/remove_mut_c3dcdea5f6/main.omg	current=accepted	current_us=3081982	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ### mut_ref `let view: &[T] = &mut ...` (prior confirmed pair)
 

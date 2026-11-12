@@ -18,6 +18,22 @@ from mutation_validate import (
 ROUTE_MEANS_INVALID = frozenset({"outside", "no-entry", "unreached", "missing"})
 
 
+def both_checkers_rejected(omg: str, cur: str) -> bool:
+    if omg in ("timeout", "error") or cur in ("timeout", "error"):
+        return False
+    if omg == "rejected" and cur == "rejected":
+        return True
+    if omg == "skipped" and cur == "rejected":
+        return True
+    return False
+
+
+def omega_current_disagree(omg: str, cur: str) -> bool:
+    if omg in ("skipped", "timeout", "error", ""):
+        return False
+    return (omg == "accepted" and cur == "rejected") or (omg == "rejected" and cur == "accepted")
+
+
 @dataclass
 class Outcome:
     bucket: str
@@ -34,13 +50,14 @@ class Outcome:
 
 
 def checker_side(omg: str, cur: str) -> str:
-    if omg == "accepted":
-        return "accept"
-    if omg == "skipped" and cur == "accepted":
+    """Composite checker accept when either omega or current accepts."""
+    if omg == "accepted" or cur == "accepted":
         return "accept"
     if omg in ("timeout", "error") or cur in ("timeout", "error"):
         return "fail"
-    if omg == "rejected" or cur == "rejected":
+    if omg == "rejected" and cur == "rejected":
+        return "reject"
+    if omg == "skipped" and cur == "rejected":
         return "reject"
     return "unknown"
 
@@ -95,9 +112,18 @@ def classify_drop_requires(original: str, mutant: str, omg: str, cur: str, route
     cs, rs = checker_side(omg, cur), route_side(route)
 
     if not removed:
-        return Outcome("rejected-both" if cs == "reject" and rs != "accept" else "discarded-valid", ab, True, None, None, None, None, "no removed requires")
+        return Outcome(
+            "rejected-both" if both_checkers_rejected(omg, cur) else "discarded-valid",
+            ab,
+            True,
+            None,
+            None,
+            None,
+            None,
+            "no removed requires",
+        )
 
-    if cs == "reject" and rs != "accept":
+    if both_checkers_rejected(omg, cur):
         return Outcome("rejected-both", "", False, None, None, None, None, "")
 
     clause = removed[0]
@@ -228,8 +254,7 @@ def _ref_diff_lines(original: str, mutant: str) -> list[tuple[str, str]]:
 
 def classify_reference_kind(kind: str, original: str, mutant: str, omg: str, cur: str, route: str) -> Outcome:
     ab = accepted_by(omg, cur, route)
-    cs, rs = checker_side(omg, cur), route_side(route)
-    if cs == "reject" and rs != "accept":
+    if both_checkers_rejected(omg, cur):
         return Outcome("rejected-both", "", False, None, None, None, None, "")
 
     diffs = _ref_diff_lines(original, mutant)
@@ -366,7 +391,7 @@ def classify_fix3(
     elif kind in ("drop_mut", "remove_mut"):
         from mutation_validate import classify_remove_mut
 
-        if checker_side(omg, cur) != "accept" and route_side(route) != "accept":
+        if both_checkers_rejected(omg, cur):
             oc = Outcome("rejected-both", "", False, None, None, None, None, "")
         else:
             v = classify_remove_mut(original, mutant, omg, cur, route)
@@ -383,8 +408,7 @@ def classify_fix3(
             )
     else:
         ab = accepted_by(omg, cur, route)
-        cs, rs = checker_side(omg, cur), route_side(route)
-        if cs == "reject" and rs != "accept":
+        if both_checkers_rejected(omg, cur):
             oc = Outcome("rejected-both", "", False, None, None, None, None, "")
         elif kind == "drop_ensures":
             oc = (
@@ -415,4 +439,7 @@ def classify_fix3(
         else:
             oc = Outcome("rejected-both", "", False, None, None, None, None, "")
 
-    return apply_fix4(oc, kind, original, mutant, omg, cur, route)
+    from verdict_reconcile import reconcile_verdict_bucket
+
+    oc = apply_fix4(oc, kind, original, mutant, omg, cur, route)
+    return reconcile_verdict_bucket(oc, kind, omg, cur, route)
