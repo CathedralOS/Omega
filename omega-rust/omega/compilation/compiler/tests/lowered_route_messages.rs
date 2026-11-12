@@ -54,6 +54,11 @@ const REJECTIONS: &[(&str, &str)] = &[
         "tests/omega/fail/arithmetic/exact_divisor_unproven",
         "quotient",
     ),
+    // A case payload read where no case was selected.
+    (
+        "tests/omega/fail/contracts/case_payload_requires_declared_premise",
+        "main",
+    ),
     // A shift count.
     (
         "tests/omega/fail/arithmetic/boolean_shift_guard_missing_lower_bound",
