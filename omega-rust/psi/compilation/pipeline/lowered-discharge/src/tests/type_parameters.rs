@@ -52,6 +52,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> structure_elaboration::El
         signatures.push(Signature {
             parameters: machine.parameters,
             erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_value()),
             requires: machine.requires,
             ensures: machine.ensures,

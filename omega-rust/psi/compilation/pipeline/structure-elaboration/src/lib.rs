@@ -54,8 +54,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, Termination, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
+    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -591,7 +591,7 @@ pub fn lower_generic(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies)?;
+    let declared = lower::places::declare(entry, records, bodies, signatures)?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;

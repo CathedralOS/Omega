@@ -173,6 +173,9 @@ impl Lowering<'_> {
             ExpressionKind::Record { .. } | ExpressionKind::Case { .. } => {
                 Err(self.internal("a data literal has a scalar type"))
             }
+            ExpressionKind::Borrow { .. } => {
+                Err(self.internal("a loan outside a call's arguments"))
+            }
             ExpressionKind::Not(operand) => {
                 let operand = self.scalar(operand)?;
                 let operation = self.operation_identity(source);

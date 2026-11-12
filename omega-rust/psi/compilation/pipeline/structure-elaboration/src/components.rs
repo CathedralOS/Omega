@@ -219,7 +219,8 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
-        } => expression(operand, sites),
+        }
+        | ExpressionKind::Borrow { place: operand, .. } => expression(operand, sites),
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
                 expression(operand, sites);
@@ -273,7 +274,8 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
             | ExpressionKind::IsCase { .. }
-            | ExpressionKind::Match { .. } => true,
+            | ExpressionKind::Match { .. }
+            | ExpressionKind::Borrow { .. } => true,
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand) => stored(operand),
@@ -290,6 +292,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
     }
     let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_));
     signature.parameters.iter().any(data)
+        || !signature.borrowed.is_empty()
         || signature.result.as_ref().is_some_and(data)
         || body.slots.iter().any(data)
         || body.statements.iter().any(|statement| match statement {

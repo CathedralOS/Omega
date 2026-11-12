@@ -135,6 +135,7 @@ impl RouteJudgment {
             RouteVerdict::Rejected {
                 unproved,
                 unestablished,
+                conflicts,
             } => {
                 let mut reported = Vec::new();
                 // A rejection may list goals of a form the prover has no
@@ -145,6 +146,7 @@ impl RouteJudgment {
                     reported.extend(entry.opening_diagnostic());
                 }
                 reported.extend(unestablished.iter().map(|entry| entry.reject_diagnostic()));
+                reported.extend(conflicts.iter().map(|entry| entry.reject_diagnostic()));
                 if reported.is_empty() {
                     // `Rejected` is never empty; one that is would be a
                     // defect of the route, and a defect decides nothing.

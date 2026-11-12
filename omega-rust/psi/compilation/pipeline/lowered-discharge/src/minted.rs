@@ -122,6 +122,25 @@ impl Minted<'_> {
         self.claim(obligation, kind, point)
     }
 
+    /// The root a place lies beneath, by its parent links.
+    fn root_of(
+        &self,
+        place: terminal_check_tables::ExactPlaceId,
+    ) -> Option<semantic_vocabulary::PlaceId> {
+        let mut at = place;
+        // A parent is minted before its projections, so the chain is no
+        // longer than the table.
+        for _ in 0..=self.tables.places.len() {
+            match self.tables.places.get(at)?.origin {
+                terminal_check_tables::bindings::PlaceOrigin::Root(root) => return Some(root),
+                terminal_check_tables::bindings::PlaceOrigin::Projection { parent, .. } => {
+                    at = parent;
+                }
+            }
+        }
+        None
+    }
+
     fn foreign(&self, concerns: Construct, detail: &str) -> Refusal {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -201,8 +220,16 @@ impl Minted<'_> {
         for actual in &row.actuals {
             let restated = match actual {
                 Actual::Value(value) => scalars.next() == Some(value),
+                // An owned record argument is a root, passed whole. A loan
+                // passes a place beneath a root; its full path is checked
+                // against the place where loans are judged (`places::loans`).
                 Actual::Place(place) => records.next().is_some_and(|argument| {
-                    argument.path.is_empty() && self.tables.roots.get(argument.place) == Some(place)
+                    if argument.access == terminal_psi::StructuralAccess::Owned {
+                        argument.path.is_empty()
+                            && self.tables.roots.get(argument.place) == Some(place)
+                    } else {
+                        self.root_of(*place) == Some(argument.place)
+                    }
                 }),
             };
             if !restated {

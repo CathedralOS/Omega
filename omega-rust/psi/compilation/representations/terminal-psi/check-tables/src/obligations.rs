@@ -175,6 +175,13 @@ pub enum Lender {
     Owner,
     /// Reborrowed from this immediate parent loan.
     Loan(ObligationId),
+    /// Reborrowed from the loan the invocation passed in at the captured
+    /// place's root, a borrowed formal. That parent resource is the
+    /// caller's, so this machine has no row for it and names it by the
+    /// root; its access is the formal's declared access. loans.md: "A
+    /// direct reborrow names its immediate parent resource, exact formation
+    /// event, and projection."
+    Incoming,
 }
 
 impl ObligationKind {
