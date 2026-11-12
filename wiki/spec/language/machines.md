@@ -283,7 +283,14 @@ Pass them explicitly, including references, capabilities and lifetime-bearing
 values. Enclosing generic/static declaration bindings remain lexical context;
 resolution and specialization retain their exact identities without creating an
 implicit runtime environment. Nested contracts can use that static context and
-their own parameters, not another invocation's local values or live facts.
+their own parameters, not another invocation's local values or live facts by
+lexical ancestry. [Private entry inference](state_contracts.md#private-entry-inference)
+may discover conditions for a private helper only when it omits `requires`;
+every call proves those conditions. A written entry contract remains complete
+even when all currently visible callers happen to establish stronger facts.
+Exact checked calls may use [local summaries](state_contracts.md#local-call-summaries)
+within the fixed verification unit, through argument substitution rather than
+implicit runtime capture.
 
 An ordinary call resumes its continuation on normal return. A machine call in a
 terminal `transition` arm forwards its normal result as the current invocation's

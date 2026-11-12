@@ -1029,25 +1029,13 @@ pub(crate) mod admission {
     }
     mod failures {
         use super::{
-            BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
-            BuildTimeProgram, closure_validation::has_authored_requires, concrete_invocation,
+            BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeProgram,
+            closure_validation::has_authored_requires, concrete_invocation,
         };
         use crate::BuildTimeValue;
         use typed_trees::machine::Machine;
 
         impl BuildTimeAdmissionPlan {
-            pub(super) fn require_supplied_invocation(
-                &self,
-                input: BuildTimeProgram<'_>,
-                machine: &Machine,
-                arguments: &mut [BuildTimeValue],
-                custody: Option<BuildTimeInvocationCustody>,
-            ) -> Result<(), BuildTimeAdmissionRejection> {
-                self.require_invocation_failures(input, machine, arguments, custody)
-                    .map_err(BuildTimeAdmissionRejection::from)?;
-                self.require_floor(input, machine, custody, true)
-            }
-
             pub(crate) fn require_invocation_failures(
                 &self,
                 input: BuildTimeProgram<'_>,
@@ -1173,6 +1161,52 @@ pub(crate) mod admission {
                     .expect("compilation test");
             }
 
+            /// Run one invocation the way constant evaluation does: admit the
+            /// machine's checked closure and its concrete arguments, then execute
+            /// the checked machine with no deployment target.
+            fn evaluate(
+                admission: &BuildTimeAdmissionPlan,
+                input: BuildTimeProgram<'_>,
+                machine_name: &str,
+                arguments: Vec<BuildTimeValue>,
+            ) -> Result<BuildTimeValue, String> {
+                let symbol = input
+                    .typed()
+                    .realized_machine_named(machine_name)
+                    .expect("the invoked machine exists")
+                    .symbol;
+                admission
+                    .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
+                        input,
+                        symbol,
+                        arguments,
+                        BuildTimeInvocationCustody::Symbol(symbol),
+                        None,
+                    )
+                    .map(crate::MeasuredEvaluation::into_value)
+            }
+
+            /// Run one invocation whose machine has an authored `requires`: the
+            /// concrete arguments are the only proof of that premise, so this is
+            /// the entry a constant call with literal arguments uses.
+            fn evaluate_under_concrete_premises(
+                admission: &BuildTimeAdmissionPlan,
+                program: &typed_trees::TypedTrees,
+                machine_name: &str,
+                arguments: Vec<BuildTimeValue>,
+            ) -> Result<BuildTimeValue, String> {
+                let symbol = program
+                    .realized_machine_named(machine_name)
+                    .expect("the invoked machine exists")
+                    .symbol;
+                admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+                    program,
+                    symbol,
+                    arguments,
+                    BuildTimeInvocationCustody::Symbol(symbol),
+                )
+            }
+
             #[test]
             fn source_admission_proves_guarded_actuals_before_execution() {
                 on_compilation_stack(|| {
@@ -1189,27 +1223,24 @@ pub(crate) mod admission {
         "#,
                     );
                     let admission = BuildTimeAdmissionPlan::infer(&program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Typed(&program),
-                            "divide",
-                            vec![BuildTimeValue::Int(14), BuildTimeValue::Int(2)],
-                        )
-                        .expect("a nonzero concrete denominator removes the route");
+                    let value = evaluate(
+                        &admission,
+                        BuildTimeProgram::Typed(&program),
+                        "divide",
+                        vec![BuildTimeValue::Int(14), BuildTimeValue::Int(2)],
+                    )
+                    .expect("a nonzero concrete denominator removes the route");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Typed(&program),
-                            "divide",
-                            vec![BuildTimeValue::Int(14), BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a surviving route must refuse before interpretation");
-                    assert!(
-                        error.reason.contains("not build-time admissible"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("unhandled [Trap]"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    let error = evaluate(
+                        &admission,
+                        BuildTimeProgram::Typed(&program),
+                        "divide",
+                        vec![BuildTimeValue::Int(14), BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a surviving route must refuse before interpretation");
+                    assert!(error.contains("not build-time admissible"), "{error}");
+                    assert!(error.contains("unhandled [Trap]"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
 
@@ -1330,28 +1361,33 @@ pub(crate) mod admission {
                         little_endian: true,
                     };
                     let admission = BuildTimeAdmissionPlan::infer(&program, None);
-                    let value = admission
-                        .evaluate_machine(
+                    let machine = program.realized_machine_named("plan").expect("plan");
+                    // The compiler-issued target has no value an authored program
+                    // could write, so this test stops at the admission judgment
+                    // that every policy invocation passes before it executes.
+                    admission
+                        .require_invocation_failures(
                             BuildTimeProgram::Typed(&program),
-                            "plan",
-                            vec![
+                            machine,
+                            &mut [
                                 BuildTimeValue::LayoutTarget(target.clone()),
                                 BuildTimeValue::Int(1),
                             ],
+                            None,
                         )
                         .expect("a real opaque target does not prevent concrete guard discharge");
-                    assert_eq!(value, BuildTimeValue::Int(7));
                     let error = admission
-                        .evaluate_machine(
+                        .require_invocation_failures(
                             BuildTimeProgram::Typed(&program),
-                            "plan",
-                            vec![BuildTimeValue::LayoutTarget(target), BuildTimeValue::Int(0)],
+                            machine,
+                            &mut [BuildTimeValue::LayoutTarget(target), BuildTimeValue::Int(0)],
+                            None,
                         )
                         .expect_err(
                             "the same target with a zero actual must refuse before execution",
                         );
-                    assert!(error.reason.contains("unhandled [Trap]"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    assert!(error.contains("unhandled [Trap]"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
 
@@ -1382,57 +1418,27 @@ pub(crate) mod admission {
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the body is crash-free under its declared parameter domain");
                     let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "divide",
-                            vec![BuildTimeValue::Int(1)],
-                        )
-                        .expect("a host actual in the declared domain is established");
+                    let value = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "divide",
+                        vec![BuildTimeValue::Int(1)],
+                    )
+                    .expect("a host actual in the declared domain is established");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let value = admission
-                        .evaluate_machine_symbol_for_invocation_measured(
-                            BuildTimeProgram::Checked(&checked),
-                            symbol,
-                            vec![BuildTimeValue::Int(1)],
-                            BuildTimeInvocationCustody::Symbol(symbol),
-                        )
-                        .expect("the symbol entry establishes the same valid host domain")
-                        .into_parts()
-                        .0;
-                    assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "divide",
-                            vec![BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a body summary cannot establish its host argument domain");
-                    assert!(
-                        error
-                            .reason
-                            .contains("constant invocation failed ordinary checking"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("requires"), "{error:?}");
-                    assert!(
-                        error.reason.contains("not build-time admissible"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("before execution"), "{error:?}");
-                    let error = admission
-                        .evaluate_machine_symbol_for_invocation_measured(
-                            BuildTimeProgram::Checked(&checked),
-                            symbol,
-                            vec![BuildTimeValue::Int(0)],
-                            BuildTimeInvocationCustody::Symbol(symbol),
-                        )
-                        .expect_err("the symbol entry must establish the same host domain");
+                    let error = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "divide",
+                        vec![BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a body summary cannot establish its host argument domain");
                     assert!(
                         error.contains("constant invocation failed ordinary checking"),
                         "{error}"
                     );
                     assert!(error.contains("requires"), "{error}");
+                    assert!(error.contains("not build-time admissible"), "{error}");
                     assert!(error.contains("before execution"), "{error}");
                 });
             }
@@ -1459,29 +1465,27 @@ pub(crate) mod admission {
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the constant body has an empty failure summary");
                     let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "answer",
-                            vec![BuildTimeValue::Int(1)],
-                        )
-                        .expect("the exact actual establishes the authored entry requirement");
+                    let value = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "answer",
+                        vec![BuildTimeValue::Int(1)],
+                    )
+                    .expect("the exact actual establishes the authored entry requirement");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "answer",
-                            vec![BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a crash-free body cannot grant its invocation precondition");
+                    let error = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "answer",
+                        vec![BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a crash-free body cannot grant its invocation precondition");
                     assert!(
-                        error
-                            .reason
-                            .contains("constant invocation failed ordinary checking"),
-                        "{error:?}"
+                        error.contains("constant invocation failed ordinary checking"),
+                        "{error}"
                     );
-                    assert!(error.reason.contains("requires"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    assert!(error.contains("requires"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
         }
@@ -1524,7 +1528,10 @@ pub(crate) mod admission {
                 if let BuildTimeValue::LayoutTarget(facts) = value {
                     facts.validate()?;
                     let symbol = program.type_reference_table.type_symbol(destination);
-                    if !program.core_layout_declaration(symbol, "LayoutTarget") {
+                    if !program.core_layout_declaration(
+                        symbol,
+                        language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
+                    ) {
                         return Err(
                     "compiler target context must arrive at the exact core LayoutTarget carrier"
                         .into(),
@@ -4130,57 +4137,6 @@ pub(crate) mod admission {
             })
         }
 
-        pub fn evaluate_machine(
-            &self,
-            input: BuildTimeProgram<'_>,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-        ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
-            let program = input.typed();
-            let machine = program
-                .realized_machine_named(machine_name)
-                .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-            let mut arguments = arguments;
-            self.require_supplied_invocation(input, machine, &mut arguments, None)?;
-            self.accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(program),
-                    BuildMachineEvaluationRequest {
-                        ..BuildMachineEvaluationRequest::named(machine_name, arguments)
-                    },
-                )
-                .map(BuildTimeOperationEvaluation::into_value)
-                .map_err(|error| BuildTimeAdmissionRejection::from(error.to_string()))
-        }
-
-        pub fn evaluate_machine_symbol_for_invocation_measured(
-            &self,
-            input: BuildTimeProgram<'_>,
-            machine_symbol: SymbolHandle,
-            arguments: Vec<BuildTimeValue>,
-            custody: BuildTimeInvocationCustody,
-        ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
-            let program = input.typed();
-            let machine = program.machine(machine_symbol).ok_or_else(|| {
-            format!(
-                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-            )
-        })?;
-            let mut arguments = arguments;
-            self.require_supplied_invocation(input, machine, &mut arguments, Some(custody))?;
-            self.accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(program),
-                    BuildMachineEvaluationRequest {
-                        ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                    },
-                )
-                .map_err(String::from)
-                .and_then(|evaluation| {
-                    crate::MeasuredEvaluation::from_checked(evaluation.into_measured())
-                })
-        }
-
         pub fn admitted_program_machine_closure_symbols(
             &self,
             input: BuildTimeProgram<'_>,
@@ -4238,44 +4194,34 @@ pub(crate) mod admission {
             Ok(closure)
         }
 
-        pub fn evaluate_const_evaluable_machine(
+        pub fn evaluate_const_evaluable_machine_for_invocation(
             &self,
             program: &TypedTrees,
             machine_name: &str,
             arguments: Vec<BuildTimeValue>,
-        ) -> Result<BuildTimeValue, String> {
-            self.evaluate_const_evaluable_machine_for_invocation_opt(
-                program,
-                machine_name,
-                arguments,
-                None,
-            )
-        }
-
-        fn evaluate_const_evaluable_machine_for_invocation_opt(
-            &self,
-            program: &TypedTrees,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-            custody: Option<BuildTimeInvocationCustody>,
+            custody: BuildTimeInvocationCustody,
         ) -> Result<BuildTimeValue, String> {
             let machine = program
                 .realized_machine_named(machine_name)
                 .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
             let mut arguments = arguments;
-            let discharge =
-                self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
+            let discharge = self.zero_argument_invocation_discharge(
+                program,
+                machine,
+                &arguments,
+                Some(custody),
+            );
             self.require_floor(
                 BuildTimeProgram::Typed(program),
                 machine,
-                custody,
+                Some(custody),
                 discharge,
             )?;
             self.require_invocation_failures(
                 BuildTimeProgram::Typed(program),
                 machine,
                 &mut arguments,
-                custody,
+                Some(custody),
             )?;
             let value = self
                 .accounting
@@ -4291,21 +4237,6 @@ pub(crate) mod admission {
                 .0;
             require_const_evaluable_result(program, machine, &value)?;
             Ok(value)
-        }
-
-        pub fn evaluate_const_evaluable_machine_for_invocation(
-            &self,
-            program: &TypedTrees,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-            custody: BuildTimeInvocationCustody,
-        ) -> Result<BuildTimeValue, String> {
-            self.evaluate_const_evaluable_machine_for_invocation_opt(
-                program,
-                machine_name,
-                arguments,
-                Some(custody),
-            )
         }
 
         pub fn evaluate_const_evaluable_machine_symbol_for_invocation(
@@ -4360,14 +4291,16 @@ pub(crate) mod admission {
         }
 
         /// `target` names the deployment target whose family members the
-        /// invocation may run; `None` refuses target-selected entries.
+        /// invocation may run and whose facts discharge its retained scalar
+        /// conditions; `None` refuses target-selected entries and any entry
+        /// that retains such a condition.
         pub fn evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
             &self,
             input: BuildTimeProgram<'_>,
             machine_symbol: SymbolHandle,
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
-            target: Option<&str>,
+            target: Option<crate::InvocationTarget<'_>>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             match input {
                 BuildTimeProgram::Typed(program) => self
@@ -4437,7 +4370,7 @@ pub(crate) mod admission {
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
             discharge_authored_requires: bool,
-            target: Option<&str>,
+            target: Option<crate::InvocationTarget<'_>>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             let matching: Vec<_> = program
                 .machines()
@@ -4987,7 +4920,7 @@ pub(crate) mod build_machines {
         symbol: SymbolHandle,
         arguments: Vec<crate::BuildTimeValue>,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
-        target: Option<&str>,
+        target: Option<crate::InvocationTarget<'_>>,
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
         use crate::terminal_values::{
@@ -5027,8 +4960,28 @@ pub(crate) mod build_machines {
                 // A target-family member runs only under its target's selection.
                 // Without a named target the entry stays unselected and refuses.
                 let selected = target.map(|target| {
-                    terminal_installation::admit_target_machine_selections(artifact.view(), target)
+                    terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        target.name,
+                    )
                 });
+                // An artifact with target layout applications runs only under
+                // the selected target's layouts, so we admit them from the
+                // target's facts whenever the caller supplied them.
+                let layouts = match (target, &selected) {
+                    (Some(target), Some(selected)) => target
+                        .layout_target
+                        .map(|facts| {
+                            terminal_installation::admit_target_layouts(
+                                artifact.view(),
+                                selected,
+                                facts,
+                            )
+                        })
+                        .transpose()
+                        .map_err(|error| format!("invocation Terminal target layouts: {error}"))?,
+                    _ => None,
+                };
                 let installation = selected
                     .as_ref()
                     .map(|selected| {
@@ -5041,7 +4994,7 @@ pub(crate) mod build_machines {
                                 host_imports: &[],
                                 entry: None,
                                 target_machines: Some(selected),
-                                target_layouts: None,
+                                target_layouts: layouts.as_ref(),
                             },
                         )
                     })
@@ -5052,6 +5005,86 @@ pub(crate) mod build_machines {
                     None => program.entry(),
                 }
                 .map_err(|error| format!("invocation Terminal entry: {error:?}"))?;
+                // Checking can defer a scalar condition into the artifact
+                // when its value depends on the target. Terminal execution
+                // refuses to start while one is unadmitted, so we discharge the
+                // entry's conditions for this target first and run under that
+                // exact admission. Nothing here skips a condition: without a
+                // target, or when one fails, the invocation refuses.
+                let completed = if artifact
+                    .view()
+                    .module()
+                    .scalar_applications
+                    .conditions
+                    .is_empty()
+                {
+                    None
+                } else {
+                    let (Some(target), Some(selected), Some(unconditioned)) =
+                        (target, &selected, &installation)
+                    else {
+                        return Err(
+                            "invocation retains scalar conditions that only a named target can discharge"
+                                .into(),
+                        );
+                    };
+                    let requirements = program
+                        .execution_requirements(Some(unconditioned))
+                        .map_err(|error| format!("invocation Terminal demands: {error:?}"))?;
+                    let mut demanded = requirements.scalar_applications;
+                    for application in requirements.scalar_entry_conditions {
+                        if !demanded.contains(&application) {
+                            demanded.push(application);
+                        }
+                    }
+                    let declaration = artifact
+                        .view()
+                        .module()
+                        .scalar_applications
+                        .proof_scope
+                        .callable_declaration(terminal_psi::TargetMachineCallable::Machine(
+                            entry.machine,
+                        ))
+                        .ok_or("invocation entry has no exact checked proof declaration")?;
+                    let providers = terminal_installation::admit_provider_execution_installation(
+                        artifact.view(),
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| format!("invocation Terminal providers: {error:?}"))?;
+                    let scalars = crate::scalar_applications::complete_invocation_scalar_applications(
+                        artifact.view(),
+                        target,
+                        selected,
+                        &providers,
+                        declaration,
+                        &demanded,
+                        meter,
+                    )
+                    .map_err(|error| format!("invocation scalar conditions: {error}"))?;
+                    Some((providers, scalars))
+                };
+                let installation = match (&completed, &selected) {
+                    (Some((providers, scalars)), Some(selected)) => Some(
+                        program
+                            .admit_runtime_supplies(
+                                terminal_interpreter::TerminalRuntimeSupplyRequest {
+                                    native_code_layouts: None,
+                                    x86_flags: None,
+                                    memory_ordering: None,
+                                    installation: Some(providers),
+                                    host_imports: &[],
+                                    entry: None,
+                                    target_machines: Some(selected),
+                                    target_layouts: Some(scalars.primary().layouts()),
+                                },
+                            )
+                            .map_err(|error| {
+                                format!("invocation Terminal scalar installation: {error:?}")
+                            })?,
+                    ),
+                    _ => installation,
+                };
                 if entry.scalar_parameters.len() + entry.structural_parameters.len()
                     != arguments.len()
                 {
@@ -5110,6 +5143,7 @@ pub(crate) mod build_machines {
                         },
                         installation: installation.as_ref(),
                         account: account.as_ref(),
+                        scalar_admission: completed.as_ref().map(|(_, scalars)| scalars),
                         ..Default::default()
                     })
                     .map_err(|error| format!("invocation Terminal arguments: {error:?}"))?;

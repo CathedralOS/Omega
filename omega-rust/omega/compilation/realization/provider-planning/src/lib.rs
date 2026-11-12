@@ -49,17 +49,18 @@ pub mod target_machines;
 
 pub use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
-    CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
-    verify_selected_compositions_are_realized,
+    CheckedProviderSelection, ComponentAssumptionDemand, ProviderSettlement,
+    settle_checked_providers, verify_selected_compositions_are_realized,
 };
 
 pub use build_time_evaluation::provider_declarations::{
-    CompositionMode, ProviderPlanningContext, ProviderSelection, ProviderSelectionSubject,
-    TargetProviderDefaults,
+    ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
 };
+pub use checked_trees::typed_trees::provider_declarations::ProviderPlanningContext;
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
+pub use language_semantics::declaration_selection::CompositionMode;
 pub use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
     DeferredProviderRows, DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource,

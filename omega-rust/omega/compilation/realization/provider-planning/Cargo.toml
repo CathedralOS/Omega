@@ -20,10 +20,10 @@ effects = { path = "../../backend/plans/effects" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-representation-selections = { path = "../../../../psi/compilation/validation/representation-planning/selections" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
+build-time-values = { path = "../../../../psi/foundation/build-time-values" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }

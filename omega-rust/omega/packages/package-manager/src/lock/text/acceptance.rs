@@ -59,6 +59,7 @@ pub(in crate::lock) fn read(
             "assumed_binding_contract" => PackagePolicyRowKind::AssumedBindingContract,
             "service_audit" => PackagePolicyRowKind::ServiceAudit,
             "native_binding" => PackagePolicyRowKind::NativeBinding,
+            "component_assumption" => PackagePolicyRowKind::ComponentAssumption,
             _ => return Err(Error::InvalidFraming),
         };
         let key = hex_digest(reader.field("key")?).ok_or(Error::InvalidFraming)?;

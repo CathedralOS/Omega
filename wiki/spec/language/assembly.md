@@ -121,7 +121,12 @@ Instruction requirements generate proof goals; an instruction's presence does
 not establish its own premises. Existing flow facts and admissible private
 contract inference can discharge those goals without repeated annotations, but
 every actual incoming edge must justify any inferred requirement. Public
-contracts cannot silently strengthen from one implementation's body.
+contracts cannot silently strengthen from one implementation's body. The
+[ordinary entry-inference rule](state_contracts.md#private-entry-inference)
+also makes an authored private `requires` complete: omitted private requirements
+may be inferred, written requirements may not silently gain more conditions.
+An instruction unsafe for an input admitted by the written contract rejects;
+convenient incoming facts do not rewrite that contract.
 
 Block propositions observe the symbolic assembly state; they emit no instruction
 and grant no runtime access. A modeled memory proposition such as `[eax] == 1`

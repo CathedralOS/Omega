@@ -38,11 +38,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedApply {
     machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Apply satisfies SelectedApply {
     machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -56,6 +58,7 @@ X86Apply satisfies SelectedApply {
 
 ArmApply satisfies SelectedApply {
     machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);

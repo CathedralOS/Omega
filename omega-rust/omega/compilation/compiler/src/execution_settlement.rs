@@ -403,7 +403,6 @@ fn prepare_target_provider_selection(
     deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
-    let build_config = &source.computed_build_config.config;
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
@@ -416,7 +415,6 @@ fn prepare_target_provider_selection(
         selected_target_profile,
         package_inputs,
         prepared_providers,
-        &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         code,
     )

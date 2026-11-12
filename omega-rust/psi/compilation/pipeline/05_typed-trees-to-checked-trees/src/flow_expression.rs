@@ -5195,6 +5195,16 @@ mod value_observations {
         Scalar(ScalarValue),
         IntegerBounds(facts::IntegerRange),
         Case(symbols::SymbolHandle),
+        /*
+            A zero-formed array carried whole: `variant` at `element` inside
+            every index of `first..end`, as `FactPayload::ZeroCaseElements` states.
+        */
+        ZeroCaseElements {
+            first: usize,
+            end: usize,
+            element: Vec<PlaceSegment>,
+            variant: symbols::SymbolHandle,
+        },
         Capture {
             source: facts::PlaceHandle,
             point: ProgramPoint,
@@ -5699,7 +5709,7 @@ mod value_observations {
                         let Some(place) = fact.place.as_place() else {
                             continue;
                         };
-                        let Some(place) = crate::flow::canonical_place_from_semantic_place(
+                        let Some(mut place) = crate::flow::canonical_place_from_semantic_place(
                             self.program,
                             self.semantic,
                             self.semantic.places.get(place),
@@ -5709,6 +5719,52 @@ mod value_observations {
                         if place.root != source.root {
                             continue;
                         }
+                        /*
+                            A `ZeroCaseElements` fact below the captured value is
+                            judged on the tagged place it stands for: its first
+                            element when the value holds the whole array, which
+                            then carries the fact itself, or the one element the
+                            value is inside.
+                        */
+                        let mut elements = None;
+                        let payload = match fact.payload {
+                            FactPayload::ZeroCaseElements {
+                                first,
+                                end,
+                                element,
+                                variant,
+                            } => {
+                                if first >= end {
+                                    continue;
+                                }
+                                let element = self.semantic.place_segments.span_or_empty(element);
+                                match crate::flow::zero_case_below(
+                                    self.program,
+                                    &place.segments,
+                                    first..end,
+                                    element,
+                                    &source.segments,
+                                ) {
+                                    Some(crate::flow::ZeroCaseBelow::Elements { array }) => {
+                                        elements = Some((array, first, end, element.to_vec()));
+                                        place
+                                            .segments
+                                            .push(PlaceSegment::FixedIndex { index: first });
+                                        place.segments.extend_from_slice(element);
+                                    }
+                                    Some(crate::flow::ZeroCaseBelow::Element { place: below }) => {
+                                        place.segments.clone_from(&source.segments);
+                                        place.segments.extend(below);
+                                    }
+                                    None => continue,
+                                }
+                                FactPayload::CaseValue {
+                                    variant,
+                                    value: true,
+                                }
+                            }
+                            payload => payload,
+                        };
                         let Some(relative) =
                             place.segments.strip_prefix(source.segments.as_slice())
                         else {
@@ -5728,7 +5784,7 @@ mod value_observations {
                             continue;
                         };
                         if validation::reference_shell(self.program, member_type).is_some()
-                            || (!matches!(fact.payload, FactPayload::CaseValue { value: true, .. })
+                            || (!matches!(payload, FactPayload::CaseValue { value: true, .. })
                                 && !validation::has_contents(
                                     self.program,
                                     member_type,
@@ -5763,7 +5819,25 @@ mod value_observations {
                         {
                             continue;
                         }
-                        let value = match fact.payload {
+                        if let (
+                            Some((array, first, end, element)),
+                            FactPayload::CaseValue { variant, .. },
+                        ) = (elements, payload)
+                        {
+                            let mut path = destination.to_vec();
+                            path.extend(array);
+                            values.push((
+                                path,
+                                OwnedValueObservation::ZeroCaseElements {
+                                    first,
+                                    end,
+                                    element,
+                                    variant,
+                                },
+                            ));
+                            continue;
+                        }
+                        let value = match payload {
                             FactPayload::AssignedIntegerBounds { bounds } => {
                                 Some(OwnedValueObservation::IntegerBounds(
                                     self.semantic.integer_ranges.get(bounds).clone(),
@@ -5827,6 +5901,25 @@ mod value_observations {
                         variant,
                         value: true,
                     },
+                    OwnedValueObservation::ZeroCaseElements {
+                        first,
+                        end,
+                        element,
+                        variant,
+                    } => {
+                        let mut span = HandleSpan::empty();
+                        for segment in element {
+                            self.semantic
+                                .place_segments
+                                .append_to_span(&mut span, segment);
+                        }
+                        FactPayload::ZeroCaseElements {
+                            first,
+                            end,
+                            element: span,
+                            variant,
+                        }
+                    }
                     OwnedValueObservation::Capture { source, point } => {
                         FactPayload::AssignedValueCapture { source, point }
                     }
@@ -6033,8 +6126,15 @@ mod view_footprints {
             let places = if !value.referents.is_empty() {
                 direct_referent_places(&self.context.control, value.referents)?
             } else {
-                let operand = self.context.control.operands.insert(*value);
-                projectable_reference_places(self.program, &self.context.control, operand, &[])?
+                // The resolver reads operands by handle, so the query needs a
+                // temporary row. Rewind it: a left-behind copy would later look
+                // like a second capture of the same expression in this statement.
+                let retained = self.context.control.operands.frontier();
+                let operand = self.context.control.operands.append(*value);
+                let places =
+                    projectable_reference_places(self.program, &self.context.control, operand, &[]);
+                self.context.control.operands.rewind_appended(retained);
+                places?
             };
             Some(
                 places
@@ -11613,6 +11713,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.statement_index,
             &mut changed,
         );
+        let mut restated = crate::flow::RestatedContexts::default();
         *contexts = filter_contexts_after_place_mutations(
             self.program,
             self.semantic,
@@ -11626,12 +11727,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 statement_index: self.statement_index,
             },
             (self.state.symbol, self.statement_index),
+            &mut restated,
         );
-        *constraints = project_constraint_refs_to_active_contexts(
+        *constraints = crate::flow::project_constraint_refs_after_invalidation(
             &mut self.context.contexts.constraint_refs,
             *constraints,
             *contexts,
             &self.context.contexts.semantic_context_refs,
+            &restated,
         );
     }
 
