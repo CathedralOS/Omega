@@ -4363,14 +4363,16 @@ pub(crate) mod admission {
         }
 
         /// `target` names the deployment target whose family members the
-        /// invocation may run; `None` refuses target-selected entries.
+        /// invocation may run and whose facts discharge its retained scalar
+        /// conditions; `None` refuses target-selected entries and any entry
+        /// that retains such a condition.
         pub fn evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
             &self,
             input: BuildTimeProgram<'_>,
             machine_symbol: SymbolHandle,
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
-            target: Option<&str>,
+            target: Option<crate::InvocationTarget<'_>>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             match input {
                 BuildTimeProgram::Typed(program) => self
@@ -4440,7 +4442,7 @@ pub(crate) mod admission {
             arguments: Vec<BuildTimeValue>,
             custody: BuildTimeInvocationCustody,
             discharge_authored_requires: bool,
-            target: Option<&str>,
+            target: Option<crate::InvocationTarget<'_>>,
         ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
             let matching: Vec<_> = program
                 .machines()
@@ -4990,7 +4992,7 @@ pub(crate) mod build_machines {
         symbol: SymbolHandle,
         arguments: Vec<crate::BuildTimeValue>,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
-        target: Option<&str>,
+        target: Option<crate::InvocationTarget<'_>>,
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
         use crate::terminal_values::{
@@ -5030,7 +5032,10 @@ pub(crate) mod build_machines {
                 // A target-family member runs only under its target's selection.
                 // Without a named target the entry stays unselected and refuses.
                 let selected = target.map(|target| {
-                    terminal_installation::admit_target_machine_selections(artifact.view(), target)
+                    terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        target.name,
+                    )
                 });
                 let installation = selected
                     .as_ref()
@@ -5055,6 +5060,86 @@ pub(crate) mod build_machines {
                     None => program.entry(),
                 }
                 .map_err(|error| format!("invocation Terminal entry: {error:?}"))?;
+                // Checking can defer a scalar condition into the artifact
+                // when its value depends on the target. Terminal execution
+                // refuses to start while one is unadmitted, so we discharge the
+                // entry's conditions for this target first and run under that
+                // exact admission. Nothing here skips a condition: without a
+                // target, or when one fails, the invocation refuses.
+                let completed = if artifact
+                    .view()
+                    .module()
+                    .scalar_applications
+                    .conditions
+                    .is_empty()
+                {
+                    None
+                } else {
+                    let (Some(target), Some(selected), Some(unconditioned)) =
+                        (target, &selected, &installation)
+                    else {
+                        return Err(
+                            "invocation retains scalar conditions that only a named target can discharge"
+                                .into(),
+                        );
+                    };
+                    let requirements = program
+                        .execution_requirements(Some(unconditioned))
+                        .map_err(|error| format!("invocation Terminal demands: {error:?}"))?;
+                    let mut demanded = requirements.scalar_applications;
+                    for application in requirements.scalar_entry_conditions {
+                        if !demanded.contains(&application) {
+                            demanded.push(application);
+                        }
+                    }
+                    let declaration = artifact
+                        .view()
+                        .module()
+                        .scalar_applications
+                        .proof_scope
+                        .callable_declaration(terminal_psi::TargetMachineCallable::Machine(
+                            entry.machine,
+                        ))
+                        .ok_or("invocation entry has no exact checked proof declaration")?;
+                    let providers = terminal_installation::admit_provider_execution_installation(
+                        artifact.view(),
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| format!("invocation Terminal providers: {error:?}"))?;
+                    let scalars = crate::scalar_applications::complete_invocation_scalar_applications(
+                        artifact.view(),
+                        target,
+                        selected,
+                        &providers,
+                        declaration,
+                        &demanded,
+                        meter,
+                    )
+                    .map_err(|error| format!("invocation scalar conditions: {error}"))?;
+                    Some((providers, scalars))
+                };
+                let installation = match (&completed, &selected) {
+                    (Some((providers, scalars)), Some(selected)) => Some(
+                        program
+                            .admit_runtime_supplies(
+                                terminal_interpreter::TerminalRuntimeSupplyRequest {
+                                    native_code_layouts: None,
+                                    x86_flags: None,
+                                    memory_ordering: None,
+                                    installation: Some(providers),
+                                    host_imports: &[],
+                                    entry: None,
+                                    target_machines: Some(selected),
+                                    target_layouts: Some(scalars.primary().layouts()),
+                                },
+                            )
+                            .map_err(|error| {
+                                format!("invocation Terminal scalar installation: {error:?}")
+                            })?,
+                    ),
+                    _ => installation,
+                };
                 if entry.scalar_parameters.len() + entry.structural_parameters.len()
                     != arguments.len()
                 {
@@ -5113,6 +5198,7 @@ pub(crate) mod build_machines {
                         },
                         installation: installation.as_ref(),
                         account: account.as_ref(),
+                        scalar_admission: completed.as_ref().map(|(_, scalars)| scalars),
                         ..Default::default()
                     })
                     .map_err(|error| format!("invocation Terminal arguments: {error:?}"))?;
