@@ -20018,8 +20018,7 @@ pass/borrow/runtime_write_only_affine_sum_exit checked 3784ms check-target:macos
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_boundary_satisfier_exit rejected 6289ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @234ea171ee6e
-	no provider is selected for boundary requirement `Sink::write`, which the program entry reaches on target `macos_arm64`
+pass/borrow/runtime_write_only_boundary_satisfier_exit checked 13955ms check-target:macos_arm64 @dc5655adb651
 pass/borrow/runtime_write_only_call_result_observation_exit checked 3829ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3870ms check-target:macos_arm64 @ccdb99ca2214
