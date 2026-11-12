@@ -31,7 +31,12 @@ if [[ "$pin_ec" -ne 1 ]]; then
 fi
 
 FINDLOG="/tmp/find-good-${CLUSTER_ID}.log"
-: >"$FINDLOG"
+SAVED_FIND="$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log"
+if [[ -f "$SAVED_FIND" ]]; then
+  cp "$SAVED_FIND" "$FINDLOG"
+else
+  : >"$FINDLOG"
+fi
 INTRO=$(python3 - "$WITNESS" <<'PY'
 import subprocess, sys
 witness = sys.argv[1]
@@ -58,25 +63,27 @@ revs.reverse()
 print("\n".join(revs))
 PY
 )
-GOOD=""
-lo=0
-hi=$((${#CHAIN[@]} - 1))
-while [[ "$lo" -le "$hi" ]]; do
-  mid=$(( (lo + hi) / 2 ))
-  rev="${CHAIN[$mid]}"
-  git checkout -f -q "$rev"
-  set +e
-  nice -n 19 "$SCRIPT"
-  ec=$?
-  set -e
-  echo "probe $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
-  if [[ "$ec" -eq 0 ]]; then
-    GOOD="$rev"
-    lo=$((mid + 1))
-  else
-    hi=$((mid - 1))
-  fi
-done
+GOOD=$(awk '/^probe / && /exit=0/ {rev=$2} END{print rev}' "$FINDLOG")
+if [[ -z "$GOOD" ]]; then
+  lo=0
+  hi=$((${#CHAIN[@]} - 1))
+  while [[ "$lo" -le "$hi" ]]; do
+    mid=$(( (lo + hi) / 2 ))
+    rev="${CHAIN[$mid]}"
+    git checkout -f -q "$rev"
+    set +e
+    nice -n 19 "$SCRIPT"
+    ec=$?
+    set -e
+    echo "probe $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
+    if [[ "$ec" -eq 0 ]]; then
+      GOOD="$rev"
+      lo=$((mid + 1))
+    else
+      hi=$((mid - 1))
+    fi
+  done
+fi
 git checkout -f -q "$PIN"
 cp "$FINDLOG" "$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log" 2>/dev/null || true
 if [[ -z "$GOOD" ]]; then
@@ -84,15 +91,91 @@ if [[ -z "$GOOD" ]]; then
   exit 0
 fi
 
-git bisect reset 2>/dev/null || true
-git bisect start --first-parent "$PIN" "$GOOD"
+mapfile -t PROBE_CHAIN < <(python3 - "$GOOD" "$PIN" <<'PY'
+import subprocess, sys
+
+good, pin = sys.argv[1], sys.argv[2]
+revs = []
+cur = pin
+while True:
+    revs.append(cur)
+    if cur == good:
+        break
+    cur = subprocess.check_output(["git", "rev-parse", f"{cur}^1"], text=True).strip()
+revs.reverse()
+
+
+def touches_compiler(rev: str) -> bool:
+    parent = subprocess.check_output(["git", "rev-parse", f"{rev}^1"], text=True).strip()
+    files = subprocess.check_output(
+        ["git", "diff", "--name-only", parent, rev], text=True
+    ).splitlines()
+    if not files:
+        return False
+    for path in files:
+        if path == "tests/omega/corpus_outcomes.txt":
+            continue
+        if path.endswith(".md"):
+            continue
+        return True
+    return False
+
+
+for rev in revs[1:]:
+    if touches_compiler(rev):
+        print(rev)
+PY
+)
+
+BREAK=""
+RC=0
+if [[ ${#PROBE_CHAIN[@]} -eq 0 ]]; then
+  echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=no_compiler_commits"
+  git checkout -f -q "$PIN"
+  exit 0
+fi
+lo=0
+hi=$((${#PROBE_CHAIN[@]} - 1))
+git checkout -f -q "${PROBE_CHAIN[$hi]}"
 set +e
-git bisect run "$SCRIPT"
-RC=$?
+nice -n 19 "$SCRIPT"
+pin_probe=$?
 set -e
-BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || echo "")
+echo "walk ${PROBE_CHAIN[$hi]} exit=$pin_probe $(git log -1 --oneline "${PROBE_CHAIN[$hi]}" 2>/dev/null)" >>"$FINDLOG"
+if [[ "$pin_probe" -ne 1 ]]; then
+  echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=pin_not_bad_on_compiler_chain_${pin_probe}"
+  git checkout -f -q "$PIN"
+  exit 0
+fi
+while [[ "$lo" -lt "$hi" ]]; do
+  mid=$(( (lo + hi) / 2 ))
+  rev="${PROBE_CHAIN[$mid]}"
+  git checkout -f -q "$rev"
+  set +e
+  nice -n 19 "$SCRIPT"
+  ec=$?
+  set -e
+  echo "walk $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
+  if [[ "$ec" -eq 1 ]]; then
+    hi="$mid"
+  else
+    lo=$((mid + 1))
+  fi
+done
+BREAK="${PROBE_CHAIN[$lo]}"
+git checkout -f -q "$BREAK"
+set +e
+nice -n 19 "$SCRIPT"
+confirm=$?
+set -e
+echo "walk_confirm $BREAK exit=$confirm $(git log -1 --oneline "$BREAK" 2>/dev/null)" >>"$FINDLOG"
+RC=$confirm
+if [[ "$confirm" -ne 1 ]]; then
+  echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=break_not_bad_${confirm}"
+  git checkout -f -q "$PIN"
+  exit 0
+fi
 PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
-git bisect reset
 git checkout -f -q "$PIN"
 
 if [[ -n "$BREAK" ]]; then
