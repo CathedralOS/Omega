@@ -187,7 +187,8 @@ A collection runs once per extraction; authored definitions are never
 captured. Collections visit disjoint fragment interiors: each collection's
 direct references are distinct local-reference occurrences, so
 `sum(R) <= 32*N`, and fragment-owned binders are visited only by their
-innermost collection, so `sum(O) <= G <= 40*S + 15`. Each completed helper
+innermost collection, so `sum(O) <= G_binding <= 40*S + 15`: literal
+constructors add no binders. Each completed helper
 batch is prepended into exactly one parent collection, so `sum(k) <= J`, and
 `sum(E)` is the nested helpers' parameter totals — forwarded capture
 incidences bounded by the injective `(origin, ancestor cut)` charge at
@@ -199,12 +200,30 @@ sum(T) = sum(R) + sum(E) <= 32*N + 512*N*N
 
 Summing the traversal bullets and the complete finish bound over at most
 `J <= 64*N*N <= 2^50` collections — with `ceil(log2(R)) <= 27`,
-`ceil(log2(G)) <= 25`, and `ceil(log2(J + 1)) <= 51` under the admitted
+`ceil(log2(G_binding)) <= 25`, and `ceil(log2(J + 1)) <= 51` under the admitted
 extents — bounds program-wide capture allocation by
 
 ```text
 capture pairs <= 60,672*N*N + 5,680*N + 2,980*S + 1,118
+                 + 128*(5*Decoded + 2*Literals)
 ```
+
+Here `Decoded` counts decoded literal bytes and `Literals` counts literals;
+these are distinct from parameter/let quantities in the source-occurrence
+ledger. Overall `G <= 40*S + 15 + 5*Decoded + 2*Literals` can exceed `2^25`;
+only the binder-bearing bound is used for the owned-binder sort above.
+
+Each extraction root is an original plan occurrence. Its helper body restarts
+with budget 255 and its replacement call fits budget 1, so that root cannot be
+extracted again. Thus `J <= G <= 47*N + 15 <= 64*N*N` for nonempty source,
+using `S <= N`, `Decoded <= N`, and `Literals <= N`; the 51-pass bound remains
+conservative. Literal subtrees contain no direct references or owned binders,
+so they add no capture entries or forwarded lexical incidences. Their added
+cost is constant-degree traversal, collection/empty-list metadata, and merging
+empty helper batches. Charging 128 pairs per additional literal plan occurrence
+covers the fixed metadata, at most two argument continuations, and at most 51
+empty-list merge passes. This deliberately loose charge is kept explicit rather
+than hiding literal expansion in the one syntax atom.
 
 This is a closed admitted-source envelope for the previously open `sum(T)`
 aggregate, not a demonstration that the total fits the 3,422,453,760-pair
@@ -219,7 +238,7 @@ Earlier checking/lowering frames and rebuilt nodes also allocate or perform
 work; the [checking audit](../checking/README.md#traversal-and-rebuild-pairs)
 and [lowering audit](../lowering/README.md#traversal-and-rebuild-pairs) charge
 each of those pairs per source occurrence, including the produced plan size
-`G <= 40*S + 15` that this section's `45*G + 7*F + 1` consumes. Emission
+`G <= 40*S + 15 + 5*Decoded + 2*Literals` that this section's `45*G + 7*F + 1` consumes. Emission
 preflight allocates no pairs, and its publication traversal is separately
 bounded below the pair arena by the admitted payload extent (see
 [emission](../emission/README.md#publication-traversal-pairs)). The

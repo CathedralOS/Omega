@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--reuse-constructed", action="store_true")
     parser.add_argument("--seconds", type=int, default=1800)
     parser.add_argument("--omega", action="store_true")
+    parser.add_argument("--literals", action="store_true",
+                        help="validate Delta byte literals and the actual Epsilon source encoder")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
@@ -42,7 +44,7 @@ def main():
     result = {"state": "running", "stage": "preflight", "passed_stages": [],
               "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
               "reused_constructed_predecessor": args.reuse_constructed,
-              "omega_fixture": args.omega}
+              "omega_fixture": args.omega, "byte_literals": args.literals}
 
     def checkpoint(stage, subjects):
         result["stage"] = stage
@@ -94,6 +96,15 @@ def main():
     checkpoint("epsilon", (("delta_source", "delta.gamma"),
                            ("delta_elf", "delta.elf"),
                            ("delta_receipt", "receipt.gamma")))
+    if args.literals:
+        literal_spec = importlib.util.spec_from_file_location(
+            "literal_controls", Path(__file__).parent / "epsilon/literal_controls.py")
+        literal_controls = importlib.util.module_from_spec(literal_spec)
+        literal_spec.loader.exec_module(literal_controls)
+        result["literal_controls"] = literal_controls.run(
+            work, vm, NativeCompiler, construction.realize, args.seconds)
+        result["passed_stages"].append("literal_emitter")
+        checkpoint("epsilon", ())
     vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize)
     result["passed_stages"].append("epsilon")
     checkpoint("omega" if args.omega else "complete",

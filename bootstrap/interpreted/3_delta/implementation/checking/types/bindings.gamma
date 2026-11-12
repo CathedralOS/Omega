@@ -13,12 +13,14 @@
                 depth frames globals)
               (typing_reject 16 node)))
           (typing_reject 12 node)))
-      (if (if (is_digit byte) 1 (eq byte 45))
+      (if (eq byte '"')
+        (typing_resume (bytes_type) depth frames globals)
+        (if (if (is_digit byte) 1 (eq byte 45))
         (typing_resume (int_type) depth frames globals)
         (let found Int (local_environment_lookup locals start after)
           (if (first found)
             (typing_resume (second found) depth frames globals)
-            (typing_reject 14 node)))))))
+            (typing_reject 14 node))))))))
 
 ; Preserve body-let order: annotation, active conflict, provision, initializer.
 ; Frame payload is (pair initializer (pair declared-type (pair body locals))).

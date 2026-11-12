@@ -1,0 +1,36 @@
+; Decode only the lexically admitted token span. Lower to the existing Bytes
+; constructors, so literals add no runtime representation or byte authority.
+(def lowering_byte_literal ((node Int)) Int
+  (let decoded Int
+    (lowering_literal_bytes (+ (syntax_start node) 1)
+      (- (syntax_after node) 1) 0 0)
+    (if (eq (first decoded) 0)
+      (gamma_call (lowering_bytes_head 1) 0 0)
+      (first (lowering_literal_tree (first decoded) (second decoded))))))
+
+(def lowering_literal_bytes
+  ((index Int) (end Int) (count Int) (reversed Int)) Int
+  (if (eq index end)
+    (pair count (syntax_reverse_nodes count reversed 0))
+    (let byte Int (source_read index)
+      (if (byte_literal_escape_marker byte)
+        (let decoded Int (byte_literal_escape_value (source_read (+ index 1)))
+          (if (lt decoded 0) (fail)
+            (lowering_literal_bytes (+ index 2) end (+ count 1)
+              (pair decoded reversed))))
+        (lowering_literal_bytes (+ index 1) end (+ count 1)
+          (pair byte reversed))))))
+
+; A balanced concatenation tree has logarithmic expression and reconstruction
+; depth. Return the unused spine along with each tree; no repeated list scans.
+(def lowering_literal_tree ((count Int) (bytes Int)) Int
+  (if (eq count 1)
+    (pair (gamma_call (lowering_bytes_head 2) 1
+        (pair (gamma_integer (first bytes)) 0))
+      (second bytes))
+    (let ((left_count Int (/ count 2))
+          (left Int (lowering_literal_tree left_count bytes))
+          (right Int (lowering_literal_tree (- count left_count) (second left))))
+      (pair (gamma_call (lowering_bytes_head 5) 2
+          (pair (first left) (pair (first right) 0)))
+        (second right)))))

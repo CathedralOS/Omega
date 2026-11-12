@@ -423,7 +423,10 @@ plan-node occurrences; and the
 [lowering](../lowering/README.md#traversal-and-rebuild-pairs) audits now
 charge census metadata, resolution rows, typing and lowering continuations,
 plan construction, and the shared name-trie/cursor rebuilds per source
-occurrence, bounding the produced plan size `G <= 40*S + 15`. Name-trie branch
+occurrence, bounding the produced plan size
+`G <= 40*S + 15 + 5*Decoded + 2*Literals`, where `Decoded` counts decoded
+literal bytes and `Literals` the literal count. Literal trees add no bindings
+or captures; normalization separately charges their traversal/empty batches. Name-trie branch
 replacement now prepends the fresh row at a fixed five pairs per rebuilt level
 instead of copying up to 63 sibling rows, so that product no longer multiplies
 departed levels by row count. The capture merge term is logarithmic in batch

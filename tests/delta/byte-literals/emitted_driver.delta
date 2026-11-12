@@ -1,0 +1,20 @@
+; The generated function's ordinary Delta entry is supplied separately from
+; the source encoder. Its runtime contains type declarations, not an Epsilon
+; parser or expression/state evaluator.
+(def main ((source Bytes)) Bytes
+  (let result EpsilonEvaluatorOutcome
+    (ep_free_omega_is_identifier_start (EpsilonRuntimeInteger 7)
+      (EpsilonRuntimeStoreState 0 NoEpsilonRuntimeRoots
+        (EpsilonRuntimeConsoleInputAt source 0))
+      (bytes_empty))
+    (match result
+      ((EpsilonEvaluatorValue value place store output)
+        (match value
+          ((EpsilonRuntimeInteger scalar) (bytes_single scalar))
+          ((EpsilonRuntimeAggregate typeValue children) (bytes_empty))
+          ((EpsilonRuntimeSumValue owner caseValue payloads) (bytes_empty))
+          ((EpsilonRuntimeViewValue view) (bytes_empty))))
+      ((EpsilonEvaluatorResultless store output) (bytes_empty))
+      ((EpsilonEvaluatorExit code output) (bytes_empty))
+      ((EpsilonEvaluatorTrap kind output) (bytes_empty))
+      ((EpsilonEvaluatorInternal offset) (bytes_empty)))))

@@ -16,13 +16,14 @@
   (let ((start Int (syntax_start node))
         (after Int (syntax_after node))
         (byte Int (source_read start))
-        (valid Int (if (is_digit byte)
+        (valid Int (if (eq byte '"') 1
+          (if (is_digit byte)
             1
             (if (if (eq byte 45) (lt (+ start 1) after) 0)
               1
               (if (upper_name_valid start after)
                 1
-                (value_name_valid start after))))))
+                (value_name_valid start after)))))))
     (if valid (grammar_run count work used) (grammar_reject node))))
 
 (def grammar_expression_head
