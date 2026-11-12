@@ -759,9 +759,8 @@ pub mod float_projection_bindings {
             symbol: symbols::SymbolHandle,
             relative_source: &str,
         ) -> bool {
-            program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|relative| relative == std::path::Path::new(relative_source))
+            language_core::core_vocabulary::CoreSource::from_file(relative_source)
+                .is_some_and(|core| program.symbols.core_source(symbol) == Some(core))
         }
 
         pub(crate) fn is_sealed_toolchain_float_operator(

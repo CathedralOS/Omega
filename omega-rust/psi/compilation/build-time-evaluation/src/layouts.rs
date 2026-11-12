@@ -746,9 +746,7 @@ pub(crate) mod access_lifecycles {
                 (AccessLifecycleOwner::Extent, None, parameter.type_reference)
             };
             let extent = definition(program, extent_reference)?;
-            if !validation::is_extent_declaration(program, extent.symbol)
-                || program.symbols.name(extent.symbol) != "Extent"
-            {
+            if !validation::is_core_extent(program, extent.symbol) {
                 return Err(Diagnostic::error(
                     "placement storage is not the core extent",
                 ));
@@ -763,17 +761,13 @@ pub(crate) mod access_lifecycles {
             ))
             .collect::<Vec<_>>();
             let domain = |name: &str| {
-                let mut matches =
-                    domains
-                        .iter()
-                        .filter(|row| {
-                            validation::is_extent_declaration(program, row.domain_symbol)
-                                && program.domain_definition(row.domain_symbol).is_some_and(
-                                    |domain| domain.name.as_str().rsplit("::").next() == Some(name),
-                                )
-                        })
-                        .map(|row| row.semantic_domain)
-                        .collect::<Vec<_>>();
+                let mut matches = domains
+                    .iter()
+                    .filter(|row| {
+                        validation::is_core_extent_domain(program, row.domain_symbol, name)
+                    })
+                    .map(|row| row.semantic_domain)
+                    .collect::<Vec<_>>();
                 matches.sort_unstable_by_key(|domain| domain.0);
                 matches.dedup();
                 match matches.as_slice() {
@@ -1120,9 +1114,8 @@ pub(crate) mod access_lifecycles {
             .symbol_source_span(symbol)
             .and_then(|span| program.symbols.source_file(span))
             .is_some_and(|source| {
-                source.origin == source::SourceOrigin::Toolchain
-                    && source.path.strip_prefix(&source.package_root).ok()
-                        == Some(std::path::Path::new("layout.omg"))
+                symbols::core_source_at(source)
+                    == Some(language_core::core_vocabulary::CoreSource::Layout)
             })
     }
 }
@@ -1828,9 +1821,8 @@ pub(crate) mod access_views {
                         .symbol_source_span(application.base_symbol)
                         .and_then(|span| resolved.symbols.source_file(span))
                         .is_some_and(|source| {
-                            source.origin == source::SourceOrigin::Toolchain
-                                && source.path.strip_prefix(&source.package_root).ok()
-                                    == Some(std::path::Path::new("layout.omg"))
+                            symbols::core_source_at(source)
+                                == Some(language_core::core_vocabulary::CoreSource::Layout)
                         });
                     if sealed && resolved.symbols.name(application.base_symbol) == "Access" {
                         let [policy, schema] = arguments else {
@@ -2303,9 +2295,8 @@ pub(crate) mod access_views {
     ) -> bool {
         sources.is_none_or(|sources| {
             sources.file_at(span).is_some_and(|source| {
-                source.origin == source::SourceOrigin::Toolchain
-                    && source.path.strip_prefix(&source.package_root).ok()
-                        == Some(std::path::Path::new("layout.omg"))
+                symbols::core_source_at(source)
+                    == Some(language_core::core_vocabulary::CoreSource::Layout)
             })
         })
     }
@@ -2625,9 +2616,8 @@ pub(crate) mod access_views {
                     sources
                         .file_at(machine.name.source_span())
                         .is_some_and(|source| {
-                            source.origin == source::SourceOrigin::Toolchain
-                                && source.path.strip_prefix(&source.package_root).ok()
-                                    == Some(std::path::Path::new("layout.omg"))
+                            symbols::core_source_at(source)
+                                == Some(language_core::core_vocabulary::CoreSource::Layout)
                         })
                 })
         }
@@ -3944,9 +3934,8 @@ pub(crate) mod access_views {
             let canonical = template
                 .and_then(|declaration| sources.and_then(|sources| sources.file_at(declaration)))
                 .is_some_and(|source| {
-                    source.origin == source::SourceOrigin::Toolchain
-                        && source.path.strip_prefix(&source.package_root).ok()
-                            == Some(std::path::Path::new("layout.omg"))
+                    symbols::core_source_at(source)
+                        == Some(language_core::core_vocabulary::CoreSource::Layout)
                 })
                 && template.is_some_and(|declaration| {
                     data.iter().any(|candidate| {

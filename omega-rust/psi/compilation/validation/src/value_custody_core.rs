@@ -6,7 +6,6 @@ storage, constants, locals, partial affine residuals, and structural identity
 pub mod activation_storage {
     use crate::CheckingInput;
     use language_core::ReferenceAccess;
-    use language_core::activation_storage::ACTIVATION_CORE_SOURCE;
     pub use language_core::activation_storage::ActivationStorageOperation;
     use language_semantics::{DataSupplyMode, MachineSupplyMode, Multiplicity};
     use symbols::SymbolHandle;
@@ -26,9 +25,8 @@ pub mod activation_storage {
     }
 
     fn sealed(program: &dyn CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
-        program
-            .symbol_toolchain_relative_path(symbol)
-            .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
+        program.symbols.core_source(symbol)
+            == Some(language_core::core_vocabulary::CoreSource::Activation)
             && program
                 .normalized_hermetic_symbol_identity(symbol)
                 .ok()
@@ -601,7 +599,7 @@ pub mod activation_storage {
 
 pub mod atomic_fences {
     use crate::CheckingInput;
-    use language_core::atomic::{ATOMIC_CORE_SOURCE, FenceOrdering};
+    use language_core::atomic::FenceOrdering;
     use symbols::SymbolHandle;
     use typed_trees::operator::OperatorDefinition;
 
@@ -617,9 +615,8 @@ pub mod atomic_fences {
             .ok()
             .as_deref()
             == Some(identity)
-            && program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|path| path == std::path::Path::new(ATOMIC_CORE_SOURCE))
+            && program.symbols.core_source(symbol)
+                == Some(language_core::core_vocabulary::CoreSource::Atomic)
     }
 
     pub fn exact_toolchain_atomic_fence_contract(
@@ -890,8 +887,8 @@ pub mod atomic_operations {
                     .as_deref()
                     .and_then(|name| name.strip_prefix("toolchain::"))
                     != Some(custody.outcome_identity.name())
-                || program.symbol_toolchain_relative_path(*base_symbol)
-                    != Some(std::path::Path::new("layout.omg"))
+                || program.symbols.core_source(*base_symbol)
+                    != Some(language_core::core_vocabulary::CoreSource::Layout)
                 || data.properties.multiplicity != match custody.observation {
                     language_core::atomic::AtomicCompareExchangeObservationAxis::Observing => {
                         language_semantics::Multiplicity::Unrestricted
@@ -9011,7 +9008,7 @@ pub mod resident_content {
         else {
             return None;
         };
-        if !is_extent_declaration(program, *extent) || program.symbols.name(*extent) != "Extent" {
+        if !is_core_extent(program, *extent) {
             return None;
         }
         let domains = crate::value_custody::field_domains::declared_domain_constraint_records(
@@ -9019,10 +9016,9 @@ pub mod resident_content {
         );
         let canonical_domain = |name| {
             let mut matching = domains.iter().copied().filter(|domain| {
-            is_extent_declaration(program, domain.symbol)
+            is_core_extent_domain(program, domain.symbol, name)
                 && program.domain_definition(domain.symbol).is_some_and(|definition| {
-                    definition.name.as_str().rsplit("::").next() == Some(name)
-                        && matches!(
+                    matches!(
                             program.type_reference_table.type_reference(
                                 program.type_reference_table.peeled_type_reference(definition.target_type)
                             ),
@@ -9052,16 +9048,22 @@ pub mod resident_content {
         })
     }
 
-    pub fn is_extent_declaration(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+    /// Whether `symbol` is core `extent.omg`'s `Extent` data.
+    pub fn is_core_extent(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
+        program.symbols.core_vocabulary(symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::Extent)
+    }
+
+    /// Whether `symbol` is the `extent.omg` domain declared with member `name`.
+    pub fn is_core_extent_domain(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        name: &str,
+    ) -> bool {
         program
             .symbols
-            .symbol_source_span(symbol)
-            .and_then(|span| program.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new("extent.omg"))
-            })
+            .core_vocabulary(symbol)
+            .is_some_and(|vocabulary| vocabulary.is_extent_domain_named(name))
     }
 }
 

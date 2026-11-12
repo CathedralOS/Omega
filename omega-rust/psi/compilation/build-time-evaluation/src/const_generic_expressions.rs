@@ -1429,22 +1429,10 @@ mod call_custody {
             } else {
                 call.target_symbol
             };
-            let source = program
-                .symbols
-                .symbol_source_span(declaration)
-                .and_then(|span| program.symbols.source_file(span))?;
-            (source.origin == source::SourceOrigin::Toolchain
-                && source.path.strip_prefix(&source.package_root).ok()
-                    == Some(std::path::Path::new("reflect.omg"))
-                && matches!(
-                    program.symbols.name(declaration),
-                    "visit_runtime_fields"
-                        | "visit_runtime_fields_mut"
-                        | "inspect_record_fields"
-                        | "visit_active_fields"
-                        | "visit_active_fields_mut"
-                ))
-            .then_some((query, source_state))
+            program
+                .core_vocabulary(declaration)
+                .is_some_and(|vocabulary| vocabulary.is_reflection_field_visitor())
+                .then_some((query, source_state))
         }
 
         fn reflected_query_dependency(
@@ -1490,22 +1478,10 @@ mod call_custody {
             } else {
                 query.target_symbol
             };
-            let query_source = program
-                .symbols
-                .symbol_source_span(declaration)
-                .and_then(|span| program.symbols.source_file(span));
-            if !query_source.is_some_and(|source| {
-                source.origin == source::SourceOrigin::Toolchain
-                    && source.path.strip_prefix(&source.package_root).ok()
-                        == Some(std::path::Path::new("reflect.omg"))
-            }) || !matches!(
-                program.symbols.name(declaration),
-                "visit_runtime_fields"
-                    | "visit_runtime_fields_mut"
-                    | "inspect_record_fields"
-                    | "visit_active_fields"
-                    | "visit_active_fields_mut"
-            ) {
+            if !program
+                .core_vocabulary(declaration)
+                .is_some_and(|vocabulary| vocabulary.is_reflection_field_visitor())
+            {
                 return Err(
                     "reflected callback does not retain its selected reflection declaration".into(),
                 );

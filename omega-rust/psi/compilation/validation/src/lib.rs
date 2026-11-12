@@ -838,24 +838,21 @@ pub mod product_entries {
                 "target semantic arrival has no requirement owner",
             ));
         };
-        let mut declarations = typed
-            .symbols
-            .source_files()
-            .filter(|file| {
-                file.origin == source::SourceOrigin::Toolchain
-                    && file.dependency_scope == source::DependencyScope::Product
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new("extent.omg"))
-            })
-            .flat_map(|file| {
-                typed.traits().iter().filter(move |definition| {
-                    typed
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .is_some_and(|span| span.source_id == file.source_id)
-                        && definition.name.as_str() == owner
-                })
-            });
+        /*
+            The arrival requirement's owner must be the core `ProgramStorageEntry`
+            trait, declared in the product-scope toolchain source. A target that
+            names any other owner finds no declaration and is refused.
+        */
+        let mut declarations = typed.traits().iter().filter(|definition| {
+            definition.name.as_str() == owner
+                && typed.symbols.core_vocabulary(definition.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::ProgramStorageEntry)
+                && typed
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| file.dependency_scope == source::DependencyScope::Product)
+        });
         let Some(definition) = declarations.next() else {
             return Err(Diagnostic::error(format!(
                 "target semantic arrival `{requirement}` has no exact core declaration"
@@ -956,8 +953,6 @@ pub mod product_entries {
 pub mod native_locators {
     pub(crate) mod vocabulary {
         use diagnostics::Diagnostic;
-        use source::{SourceFile, SourceOrigin};
-        use std::path::Path;
         use symbols::SymbolHandle;
         use typed_trees::TypedTrees;
         use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
@@ -986,7 +981,14 @@ pub mod native_locators {
                             && definition.is_public
                             && definition.supply_mode
                                 == language_semantics::DataSupplyMode::CheckedShape
-                            && exact_external_binding_source(typed, definition.symbol).is_some()
+                            && typed.symbols.core_vocabulary(definition.symbol).is_some_and(
+                                |vocabulary| {
+                                    matches!(
+                                        vocabulary,
+                                        language_core::core_vocabulary::CoreVocabulary::ExternalBinding(_)
+                                    )
+                                },
+                            )
                     })
                     .collect::<Vec<_>>()
             };
@@ -1020,7 +1022,11 @@ pub mod native_locators {
                     "native locator lost its exact generic origin",
                 )]);
             };
-            let binding = exact_vocabulary(typed, *base_symbol, "ForeignBinding")?;
+            let binding = exact_vocabulary(
+                typed,
+                *base_symbol,
+                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding,
+            )?;
             let import_symbol = typed
                 .data_members(binding)
                 .first()
@@ -1040,7 +1046,11 @@ pub mod native_locators {
                         "compiler-owned ForeignBinding lost its exact DllImport payload",
                     )]
                 })?;
-            let import = exact_vocabulary(typed, import_symbol, "DllImport")?;
+            let import = exact_vocabulary(
+                typed,
+                import_symbol,
+                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
+            )?;
             let parameters = exact_width_parameters(typed, binding)?;
             let import_parameters = exact_width_parameters(typed, import)?;
             validate_dll_import_shape(typed, import, import_parameters)?;
@@ -1054,7 +1064,11 @@ pub mod native_locators {
             symbol: SymbolHandle,
             case: SymbolHandle,
         ) -> Option<[bool; 3]> {
-            if let Ok(definition) = exact_vocabulary(typed, symbol, "DllImport") {
+            if let Ok(definition) = exact_vocabulary(
+                typed,
+                symbol,
+                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
+            ) {
                 let parameters = exact_width_parameters(typed, definition).ok()?;
                 validate_dll_import_shape(typed, definition, parameters).ok()?;
                 let ordinal = typed.data_members(definition).iter().position(|member| {
@@ -1071,7 +1085,12 @@ pub mod native_locators {
                 .get(ordinal)
                 .copied();
             }
-            let definition = exact_vocabulary(typed, symbol, "ForeignBinding").ok()?;
+            let definition = exact_vocabulary(
+                typed,
+                symbol,
+                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding,
+            )
+            .ok()?;
             let widths = exact_width_parameters(typed, definition).ok()?;
             let import_symbol = typed
                 .data_members(definition)
@@ -1087,7 +1106,12 @@ pub mod native_locators {
                         _ => None,
                     }
                 })?;
-            let import = exact_vocabulary(typed, import_symbol, "DllImport").ok()?;
+            let import = exact_vocabulary(
+                typed,
+                import_symbol,
+                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
+            )
+            .ok()?;
             validate_dll_import_shape(typed, import, exact_width_parameters(typed, import).ok()?)
                 .ok()?;
             validate_binding_shape(typed, definition, widths, import_symbol).ok()?;
@@ -1099,11 +1123,17 @@ pub mod native_locators {
             [[false; 3], [true; 3]].get(ordinal).copied()
         }
 
-        fn exact_vocabulary<'a>(
-            typed: &'a TypedTrees,
+        fn exact_vocabulary(
+            typed: &TypedTrees,
             symbol: SymbolHandle,
-            name: &str,
-        ) -> Result<&'a DataDefinition, Vec<Diagnostic>> {
+            vocabulary: language_core::core_vocabulary::ExternalBindingVocabulary,
+        ) -> Result<&DataDefinition, Vec<Diagnostic>> {
+            let name = match vocabulary {
+                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding => {
+                    "ForeignBinding"
+                }
+                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport => "DllImport",
+            };
             let definition = typed
                 .unique_data_definition_by_symbol(symbol)
                 .ok_or_else(|| {
@@ -1111,20 +1141,13 @@ pub mod native_locators {
                         "native binding lost the exact `{name}` template declaration"
                     ))]
                 })?;
-            let admitted = typed.symbols.name(symbol) == name
+            let admitted = typed.symbols.core_vocabulary(symbol)
+                == Some(
+                    language_core::core_vocabulary::CoreVocabulary::ExternalBinding(vocabulary),
+                )
                 && definition.generic_instance.is_none()
                 && definition.is_public
-                && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                && typed
-                    .symbols
-                    .symbol_source_span(symbol)
-                    .and_then(|span| typed.symbols.source_file(span))
-                    .is_some_and(|file| {
-                        file.origin == SourceOrigin::Toolchain
-                            && file
-                                .path
-                                .ends_with(std::path::Path::new("core/external_binding.omg"))
-                    });
+                && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape;
             if !admitted {
                 return Err(vec![Diagnostic::error(format!(
                     "native binding requires the exact compiler-owned `{name}` declaration"
@@ -1147,21 +1170,6 @@ pub mod native_locators {
                 TypeReferenceNode::Generic { .. } => Ok(reference),
                 _ => Err("native locator must return a closed Binding application".to_owned()),
             }
-        }
-
-        fn exact_external_binding_source(
-            typed: &TypedTrees,
-            symbol: SymbolHandle,
-        ) -> Option<&SourceFile> {
-            let source = typed
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| typed.symbols.source_file(span))?;
-            (source.origin == SourceOrigin::Toolchain
-                && source
-                    .path
-                    .ends_with(Path::new("core/external_binding.omg")))
-            .then_some(source)
         }
 
         fn exact_width_parameters(
@@ -1888,7 +1896,8 @@ pub use value_custody::recasts::{
     validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
 };
 pub use value_custody::resident_content::{
-    ResidentOwnerQualifications, is_extent_declaration, resident_owner_qualifications,
+    ResidentOwnerQualifications, is_core_extent, is_core_extent_domain,
+    resident_owner_qualifications,
 };
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{
