@@ -1,0 +1,4 @@
+We are not bisecting.
+Bisecting: 91 revisions left to test after this (roughly 7 steps)
+[af5163405363b1c2c2044208c5a39746b29a719b] tools: mark a lost native-rejection match as a regression when recording (#2404)
+running '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

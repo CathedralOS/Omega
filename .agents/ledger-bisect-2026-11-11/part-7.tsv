@@ -1,0 +1,32 @@
+fixture	class	first_diagnostic	cluster_id
+pass/termination/measure_computed_endpoint	still broken	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view	pin-0
+pass/termination/measure_field_computed_limit	still broken	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view	pin-0
+pass/proofs/family_carrier_relation_laws	still broken	proposition `chained` expects 2 proof-static binder argument(s), received 0	pin-1
+pass/proofs/kernel_integer_subtract_order	still broken	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view	pin-2
+fail/arithmetic/wrapping_target_plain_operands_rejected	fixed on main	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)	fixed
+fail/facts/source_indexed_type_parameter_through_call_result_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_const_name_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_field_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_local_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_match_join_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_other_machine_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_other_state_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_parameter_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_through_target_body_rejected	fixed on main	source constructor predicate has no checked derivation yet	fixed
+fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected	fixed on main	argument `evidence` for state `bounded` expects `Vector<u64, 1, 7>`, got `named value`; expected carrier `generic(name(nominal\\(package-owner\\(32:7a7d6b0d1e3d22b78d6cd4e476556ca6492d67d191817cda6748a7c6a6d73129\\)\\,path\\(Vector\\)\\)),named(name(u64)),integer(1),integer(7))`, declared place carrier `generic(name(nominal\\(package-owner\\(32:7a7d6b0d1e3d22b78d6cd4e476556ca6492d67d191817cda6748a7c6a6d73129\\)\\,path\\(Vector\\)\\)),named(name(bool)),integer(1),integer(7))`	fixed
+fail/layouts/target_layout_call_checks_all_widths	fixed on main	IntegerAt call in program requires every performed value to fit its physical storage: performed integer value is not proven to fit	fixed
+fail/proofs/kernel_integer_subtract_order_false_twin	fixed on main	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view	fixed
+pass/borrows/foreign_output_captured_reference_exit	fixed on main	completed output has no captured lifetime-input receipt; completed output from `again` in machine `repeat`, state `entry` (Handle { arena_index: 2711, generation: 1 }), statement 0, call 0, loan Handle { arena_index: 14, generation: 1 }	fixed
+pass/facts/source_indexed_type_parameter_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_call_result_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_const_name_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_field_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_local_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_match_join_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_other_machine_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_other_state_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_parameter_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_through_target_body_exit	fixed on main		fixed
+pass/facts/source_indexed_type_parameter_u64_payload_exit	fixed on main		fixed
+pass/layouts/runtime_recast_reference_captures_index_exit	fixed on main		fixed
+pass/recast/runtime_byte_region_state_transfer_exit	fixed on main		fixed

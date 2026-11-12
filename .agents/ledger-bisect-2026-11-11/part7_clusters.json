@@ -1,0 +1,53 @@
+{
+  "clusters": [
+    {
+      "index": 7,
+      "diag_norm": "cannot prove ensures contract for exit from whole_view at statement N: result.len == Count",
+      "diag_sample": "cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count",
+      "count": 8,
+      "members": [
+        "pass/facts/as_slice_views_generic_root_exit",
+        "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+        "pass/facts/as_slice_views_generic_through_call_result_exit",
+        "pass/facts/as_slice_views_generic_through_const_name_exit",
+        "pass/facts/as_slice_views_generic_through_match_join_exit",
+        "pass/facts/as_slice_views_generic_through_other_machine_exit",
+        "pass/facts/as_slice_views_generic_through_other_state_exit",
+        "pass/facts/as_slice_views_generic_through_target_body_exit"
+      ],
+      "witness": "pass/facts/as_slice_views_generic_stored_reference_selectors_exit"
+    },
+    {
+      "index": 47,
+      "diag_norm": "`_` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `_`",
+      "diag_sample": "`main` has no executable body: this compiler does not lower a state of it yet (reference retirement: stored occurrences); in state `main::entry`",
+      "count": 1,
+      "members": [
+        "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+      ],
+      "witness": "pass/borrows/copied_intermediate_descriptor_snapshot_exit"
+    },
+    {
+      "index": 87,
+      "diag_norm": "machine `_` state `_` cannot prove runtime index subject equality at statement N; an indexed value retains its captured index",
+      "diag_sample": "machine `IndexingProvider::index` state `index` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index",
+      "count": 1,
+      "members": [
+        "pass/providers/generic_provider_structural_result_composition_exit"
+      ],
+      "witness": "pass/providers/generic_provider_structural_result_composition_exit"
+    }
+  ],
+  "all_members": [
+    "pass/facts/as_slice_views_generic_root_exit",
+    "pass/facts/as_slice_views_generic_stored_reference_selectors_exit",
+    "pass/facts/as_slice_views_generic_through_call_result_exit",
+    "pass/facts/as_slice_views_generic_through_const_name_exit",
+    "pass/facts/as_slice_views_generic_through_match_join_exit",
+    "pass/facts/as_slice_views_generic_through_other_machine_exit",
+    "pass/facts/as_slice_views_generic_through_other_state_exit",
+    "pass/facts/as_slice_views_generic_through_target_body_exit",
+    "pass/borrows/copied_intermediate_descriptor_snapshot_exit",
+    "pass/providers/generic_provider_structural_result_composition_exit"
+  ]
+}

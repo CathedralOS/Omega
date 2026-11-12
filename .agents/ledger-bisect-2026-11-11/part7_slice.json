@@ -1,0 +1,92 @@
+[
+  [
+    7,
+    {
+      "rows": 18,
+      "kind": "fail wrong reason",
+      "diag_table": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity:",
+      "witness": "fail/facts/source_indexed_type_parameter_through_call_result_rejected",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "fail/facts/source_indexed_type_parameter_through_call_result_rejected"
+      ],
+      "diag_sample": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity:"
+    }
+  ],
+  [
+    47,
+    {
+      "rows": 4,
+      "kind": "pass/run rejected",
+      "diag_table": "terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the",
+      "witness": "pass/proofs/kernel_integer_subtract_order",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "pass/proofs/kernel_integer_subtract_order"
+      ],
+      "diag_sample": "terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the"
+    }
+  ],
+  [
+    87,
+    {
+      "rows": 2,
+      "kind": "pass/run rejected",
+      "diag_table": "duplicate machine `_`",
+      "witness": "pass/layouts/runtime_recast_reference_captures_index_exit",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "pass/layouts/runtime_recast_reference_captures_index_exit"
+      ],
+      "diag_sample": "duplicate machine `_`"
+    }
+  ],
+  [
+    127,
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_table": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity",
+      "witness": "pass/proofs/family_carrier_relation_laws",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "pass/proofs/family_carrier_relation_laws"
+      ],
+      "diag_sample": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity"
+    }
+  ],
+  [
+    167,
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_table": "completed output has no captured lifetime-input receipt; completed output from `again` in machin",
+      "witness": "pass/borrows/foreign_output_captured_reference_exit",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "pass/borrows/foreign_output_captured_reference_exit"
+      ],
+      "diag_sample": "completed output has no captured lifetime-input receipt; completed output from `again` in machin"
+    }
+  ],
+  [
+    207,
+    {
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag_table": "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrappi",
+      "witness": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "diag_norm": "",
+      "members": [
+        "fail/arithmetic/wrapping_target_plain_operands_rejected"
+      ],
+      "diag_sample": "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrappi"
+    }
+  ]
+]

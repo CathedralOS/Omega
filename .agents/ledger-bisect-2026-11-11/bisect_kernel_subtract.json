@@ -1,0 +1,9 @@
+{
+  "witness": "pass/proofs/kernel_integer_subtract_order",
+  "good": "",
+  "breaking_commit": "",
+  "pr": null,
+  "mechanism": "propagated: not run (one build/corpus at a time; countdown bisect consumed budget)",
+  "status": "propagated",
+  "bisect_exit": null
+}

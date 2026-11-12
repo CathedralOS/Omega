@@ -1,0 +1,11 @@
+We are not bisecting.
+status: waiting for good commit(s), bad commit known
+{
+  "witness": "pass/proofs/family_carrier_relation_laws",
+  "good": "ccdb99ca2214",
+  "breaking_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pr": "2505",
+  "mechanism": "psi: check a body over a const value parameter once and carry its proofs (#2505) \u2014 .github/workflows/compiler-regression.yml          |   2 +-;  omega-rust/omega/compilation/compiler/Cargo.toml   |   6 +;  .../compiler/examples/generic_certificate_carry.rs | 288 +--------------;  .../compiler/tests/lowered_route_generics.rs       | 124 +++++++;  .../tests/support/generic_certificate_carry.rs     | 295 +++++++++++++++;  .../pipeline/lowered-discharge/README.md           | 109 +++",
+  "status": "propagated",
+  "bisect_exit": 1
+}

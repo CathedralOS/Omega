@@ -1,0 +1,121 @@
+{
+  "pin": "51e8c45c793007f211d0d9baee7de16767172444",
+  "part": 7,
+  "clusters": [
+    {
+      "rows": 18,
+      "kind": "fail wrong reason",
+      "diag_table": "source constructor predicate derivation failed: Kernel(UnboundLevelParameter { index: 0, arity:",
+      "witness": "fail/facts/source_indexed_type_parameter_through_call_result_rejected",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/facts/source_indexed_type_parameter_through_call_result_rejected",
+        "fail/facts/source_indexed_type_parameter_through_const_name_rejected",
+        "fail/facts/source_indexed_type_parameter_through_field_rejected"
+      ],
+      "slice_index": 7,
+      "members": [
+        "fail/facts/source_indexed_type_parameter_through_call_result_rejected",
+        "fail/facts/source_indexed_type_parameter_through_const_name_rejected",
+        "fail/facts/source_indexed_type_parameter_through_field_rejected",
+        "fail/facts/source_indexed_type_parameter_through_local_rejected",
+        "fail/facts/source_indexed_type_parameter_through_match_join_rejected",
+        "fail/facts/source_indexed_type_parameter_through_other_machine_rejected",
+        "fail/facts/source_indexed_type_parameter_through_other_state_rejected",
+        "fail/facts/source_indexed_type_parameter_through_parameter_rejected",
+        "fail/facts/source_indexed_type_parameter_through_target_body_rejected",
+        "fail/facts/source_indexed_type_parameter_wrong_type_fiber_rejected",
+        "pass/facts/source_indexed_type_parameter_exit",
+        "pass/facts/source_indexed_type_parameter_through_call_result_exit",
+        "pass/facts/source_indexed_type_parameter_through_const_name_exit",
+        "pass/facts/source_indexed_type_parameter_through_field_exit",
+        "pass/facts/source_indexed_type_parameter_through_local_exit",
+        "pass/facts/source_indexed_type_parameter_through_match_join_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_machine_exit",
+        "pass/facts/source_indexed_type_parameter_through_other_state_exit",
+        "pass/facts/source_indexed_type_parameter_through_parameter_exit",
+        "pass/facts/source_indexed_type_parameter_through_target_body_exit",
+        "pass/facts/source_indexed_type_parameter_u64_payload_exit"
+      ]
+    },
+    {
+      "rows": 4,
+      "kind": "pass/run rejected",
+      "diag_table": "terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the",
+      "witness": "pass/proofs/kernel_integer_subtract_order",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/proofs/kernel_integer_subtract_order_false_twin",
+        "pass/proofs/kernel_integer_subtract_order",
+        "pass/termination/measure_computed_endpoint",
+        "pass/termination/measure_field_computed_limit"
+      ],
+      "slice_index": 47,
+      "members": [
+        "pass/proofs/kernel_integer_subtract_order",
+        "fail/proofs/kernel_integer_subtract_order_false_twin",
+        "pass/termination/measure_computed_endpoint",
+        "pass/termination/measure_field_computed_limit"
+      ]
+    },
+    {
+      "rows": 2,
+      "kind": "pass/run rejected",
+      "diag_table": "duplicate machine `_`",
+      "witness": "pass/layouts/runtime_recast_reference_captures_index_exit",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/layouts/target_layout_call_checks_all_widths",
+        "pass/recast/runtime_byte_region_state_transfer_exit"
+      ],
+      "slice_index": 87,
+      "members": [
+        "pass/layouts/runtime_recast_reference_captures_index_exit",
+        "fail/layouts/target_layout_call_checks_all_widths",
+        "pass/recast/runtime_byte_region_state_transfer_exit"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_table": "authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity",
+      "witness": "pass/proofs/family_carrier_relation_laws",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "pass/proofs/family_carrier_relation_laws"
+      ],
+      "slice_index": 127,
+      "members": [
+        "pass/proofs/family_carrier_relation_laws"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "pass/run rejected",
+      "diag_table": "completed output has no captured lifetime-input receipt; completed output from `again` in machin",
+      "witness": "pass/borrows/foreign_output_captured_reference_exit",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "pass/borrows/foreign_output_captured_reference_exit"
+      ],
+      "slice_index": 167,
+      "members": [
+        "pass/borrows/foreign_output_captured_reference_exit"
+      ]
+    },
+    {
+      "rows": 1,
+      "kind": "fail wrong reason",
+      "diag_table": "store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrappi",
+      "witness": "fail/arithmetic/wrapping_target_plain_operands_rejected",
+      "old_break": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+      "members_explicit": [
+        "fail/arithmetic/wrapping_target_plain_operands_rejected"
+      ],
+      "slice_index": 207,
+      "members": [
+        "fail/arithmetic/wrapping_target_plain_operands_rejected"
+      ]
+    }
+  ]
+}
