@@ -1,0 +1,2 @@
+Bisecting: 69 revisions left to test after this (roughly 6 steps)
+[fdf2d33f8205d959a6b7200b57c7a52033fa2ad9] psi: stop a pending recast view from admitting its own predicate (#2426)

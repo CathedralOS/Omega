@@ -1,0 +1,22 @@
+pass/contracts/borrowed_descriptor_guarded_end_exit checked 3645ms check-target:macos_arm64
+pass/effects/gui_semantic_services rejected 11417ms
+	machine `pace` omits `invokes DarwinClock` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+	machine `observe_clock` omits `invokes DarwinClock` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+pass/facts/opaque_independent_inherited_result_through_local_exit incomplete 4170ms check-target:macos_arm64
+	`AddressBridgeProvider::classified_make` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `AddressBridgeProvider::classified_make::classified_make`
+pass/facts/recoverable_replacement_window_through_const_name_exit incomplete 2733ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_field_exit incomplete 2802ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_local_exit incomplete 2841ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_other_state_exit incomplete 2863ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_parameter_exit incomplete 2815ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/ownership/runtime_borrowed_match_repeated_repair_exit incomplete 3076ms check-target:macos_arm64
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/traits/runtime_qualified_owned_requirement_calls_exit incomplete 3035ms check-target:macos_arm64
+	`CellReading::Reading::observed` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `CellReading::Reading::observed::observed`
+fail/layouts/resident_field_write_preserves_qualification rejected 3969ms unexpected
+	accessor write application for `Accessor<Access<WordPlacement,Word>,value>` with value `u64`: value type does not match the accessor's exact value type
