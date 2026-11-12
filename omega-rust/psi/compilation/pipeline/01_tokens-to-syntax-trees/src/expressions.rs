@@ -1273,10 +1273,12 @@ pub(crate) mod parse_postfix {
             return parse_static_type_argument(syntax_trees, input).map(Some);
         }
         let Some((argument, rest)) = parse_static_name_selection(syntax_trees, input)? else {
+            syntax_trees.rewind_appended(argument_checkpoint);
             return try_parse_static_value_argument(syntax_trees, input);
         };
         input = rest;
         if input.at_punctuation(PunctuationKind::LeftBracket) || input.at_contextual("in") {
+            syntax_trees.rewind_appended(argument_checkpoint);
             return parse_static_type_argument(syntax_trees, authored).map(Some);
         }
 
