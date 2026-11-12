@@ -3,10 +3,18 @@
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
 ROOT="${OMEGA_REPO:-/agent/repos/omega}"
-TOOLS="$(dirname "$0")"
+TOOLS="/tmp/ledger_bisect_tools_2026_11_11"
+BRANCH_REF="work/ledger-bisect-part-10"
+
+if [[ ! -x "$TOOLS/bisect_test.py" ]]; then
+  mkdir -p "$TOOLS"
+  git -C "$ROOT" archive "${BRANCH_REF}:.agents/ledger-bisect-2026-11-11/tools" \
+    | tar -x -C "$TOOLS"
+  chmod +x "$TOOLS"/*.sh "$TOOLS"/*.py 2>/dev/null || true
+fi
+
 cd "$ROOT"
 
-# Skip ledger-only first-parent commits.
 if git rev-parse HEAD^1 >/dev/null 2>&1; then
   mapfile -t CHANGED < <(git diff --name-only HEAD^1 HEAD 2>/dev/null || true)
   if ((${#CHANGED[@]} > 0)); then
