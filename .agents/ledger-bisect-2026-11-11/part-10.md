@@ -10,7 +10,7 @@ Measured PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 | pin-c2 | 1 | pass/run rejected | anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix | `pass/build/explicit_provider_storage_extent_exit` | `55f4a84e523c` | 1074 | psi: preserve indexed observations through normal call completion (#1074) | bisected |
 | pin-c3 | 1 | pass/run rejected | cannot establish assignment invariants: partial write enclosure has no exact active-case frontier | `pass/borrows/returned_record_case_field_store_exit` | `3a76781c7ff3` | 2068 | psi: preserve bounded writes through mutable byte recasts (#2068) | bisected |
 | pin-c4 | 1 | pass/run rejected | const argument expression in generic data `ForwardedBuffer` is invalid: const operator application r | `pass/generics/runtime_const_data_symbolic_expression_exit` | `177036705c1f` | 535 | psi: preserve retained closed const applications (#535) | bisected |
-| pin-c5 | 1 | pass/run rejected | machine call cycle: Caller::read... | `pass/traits/applied_requirement_lexical_isolation_exit` | `` |  |  | pending |
+| pin-c5 | 1 | pass/run rejected | machine call cycle: Caller::read... | `pass/traits/applied_requirement_lexical_isolation_exit` | `7a3c7bf8631d` | 1710 | psi: rank cycles through every supplied boundary implementation (#1710) | bisected |
 
 ## Members
 

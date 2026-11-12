@@ -1,0 +1,11 @@
+{
+  "cluster_id": "pin-c5",
+  "witness": "pass/traits/applied_requirement_lexical_isolation_exit",
+  "good": "43f027d12200816eec311d5290856c3145d5d204",
+  "breaking_commit": "7a3c7bf8631d7be922792203d304e43b22ce45dc",
+  "pr": "1710",
+  "mechanism": "psi: rank cycles through every supplied boundary implementation (#1710)",
+  "status": "bisected",
+  "bisect_exit": 2,
+  "note": "git bisect stopped on skip-only #1728 docs neighbor; first compiler commit is #1710"
+}
