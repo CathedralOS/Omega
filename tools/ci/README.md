@@ -63,6 +63,14 @@ newer push replaces it, so a burst of merges is judged once.
   ledger and main accepts no direct push, so the file in the repository is
   left as it is.
 
+A run started by hand with the input `full` set (Actions, Post-merge check,
+Run workflow) also runs every Rust test in the workspace in `build`, and
+measures the whole corpus instead of the batch's rows: 48 shards, four at a
+time, each running `corpus-gate sweep-shard` on the prebuilt runner. `ledger`
+then compares every measured row with the ledger, publishes it, and `report`
+lists the rows that differ, accepted must-reject programs first. It is meant
+for after a large wave of merges; pushes run as before. Linux only.
+
 The run reverts nothing; that is a later step of
 `wiki/drafts/designs/ci_rebuild_plan.md`.
 
