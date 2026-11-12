@@ -361,7 +361,7 @@ mod tests {
         let package = PackageSourceBinding::new(
             identity,
             "local_route_test",
-            PathBuf::from("/local-route-test"),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("local-route-test"),
         )
         .with_captured_source(Arc::new(
             CapturedSourceTree::new([(

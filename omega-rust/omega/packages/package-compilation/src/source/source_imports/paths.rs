@@ -2,7 +2,7 @@
 // Authored imports select logical names; no filename-prefix lookup lives here.
 
 use diagnostics::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
@@ -40,16 +40,4 @@ pub(crate) fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
 
 pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
     Ok(bundled_omega_root()?.join("core"))
-}
-
-pub(super) fn normalize_path(
-    path: &Path,
-    filesystem: &source::SourceFileSystem,
-) -> Result<PathBuf, Vec<Diagnostic>> {
-    filesystem.canonicalize(path).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "failed to resolve {}: {error}",
-            path.display()
-        ))]
-    })
 }
