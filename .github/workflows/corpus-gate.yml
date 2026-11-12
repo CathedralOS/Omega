@@ -38,23 +38,36 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
-      skip: ${{ steps.plan.outputs.skip }}
+      skip: ${{ steps.queue.outputs.skip || steps.plan.outputs.skip }}
       shards: ${{ steps.plan.outputs.shards }}
     steps:
+      # A merge-queue entry carries the diff its pull request's own gate
+      # already judged. Re-running eight shards per entry on hosted runners
+      # held the queue for hours on 2026-11-12, so the queue reuses that
+      # verdict; post-merge smoke and the nightly sweep cover what main
+      # gains in between.
+      - name: Reuse the pull request's verdict in the merge queue
+        id: queue
+        if: github.event_name == 'merge_group'
+        run: echo "skip=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
           # The candidate's first parent is the base it is compared with.
           fetch-depth: 2
       - name: Install verified mbx
+        if: github.event_name != 'merge_group'
         shell: bash
         run: bash tools/xtask/bootstrap-mbx.sh
       - name: Choose the rows this change can affect
         id: plan
+        if: github.event_name != 'merge_group'
         run: |
           mkdir -p build/corpus-gate
           mbx xtask corpus-gate plan --base HEAD^1 --shards 8 --shard-secs 2200 --out build/corpus-gate/plan.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name != 'merge_group'
         with:
           name: corpus-gate-plan
           path: build/corpus-gate/plan.json
