@@ -4,5 +4,7 @@ machine build(builder: &mut Build) {
 }
 
 machine request_dependency(builder: &mut Build) {
-    Build::depend_as(builder, "selected", Source::Path { location: "missing-source" });
+    let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "missing-source" });
+    dependency::with_alias(&mut selected_dependency, "selected");
+    let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }

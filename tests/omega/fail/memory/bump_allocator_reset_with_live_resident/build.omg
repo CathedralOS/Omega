@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "bump_allocator_reset_with_live_resident");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/alloc" });
+    let alloc_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/alloc" }));
 }
