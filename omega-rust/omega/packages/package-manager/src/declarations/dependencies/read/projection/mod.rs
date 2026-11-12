@@ -56,7 +56,7 @@ fn project_editable_dependencies(
         syntax_trees,
         &dependencies.accepted_statements,
         &dependencies.accepted_sources,
-        &dependencies.accepted_aliases,
+        &dependencies.accepted_calls,
     )?;
     shared::project_build_declaration_in_entry(syntax_trees, build_entry)
         .map_err(map_build_declaration_error)?;

@@ -1277,6 +1277,9 @@ fail/borrows/direct_reference_array_range_narrowing rejected 3638ms expected @91
 	cannot prove ensures contract for exit from Main::read at statement 2: result >= 0 && result <= 50
 fail/borrows/dispatch_boundary_returning_sibling_escape rejected 3545ms expected @54cd60288b4c
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/dispatch_subject_view_carried_with_owner rejected 6987ms expected @d0478b7180a6
+	state `keep` receives `main` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/dropped_reference_qualification_after_alias_write rejected 1980ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket in Ticket::Issued
 fail/borrows/dropped_reference_qualification_carrier_write rejected 2356ms expected @ccdb99ca2214
@@ -4394,6 +4397,8 @@ fail/data/record_pattern_missing_field rejected 27301ms expected @911f6617ba9e
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
 fail/data/recursive_data_infinite_size rejected 10889ms expected @ccdb99ca2214
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/data/reference_local_store_breaks_collection_predicate rejected 2357ms expected @dd36590272d6
+	cannot complete return from machine `poke` state `entry`: this write left the `requires` facts of `b` (data `B`) unproved; restore them first
 fail/data/struct_literal_duplicate_field_rejected rejected 14472ms expected @ccdb99ca2214
 	data `Point` literal has duplicate field `x`
 fail/data/unbounded_integer_field rejected 584ms expected @ccdb99ca2214
@@ -8872,9 +8877,9 @@ fail/facts/fixed_layout_reference_readback_through_local_wrong_region_rejected r
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 9924ms expected @bc53b23707f6
+fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 59561ms expected @14237126e671
 	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
-	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4689` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/facts/fixed_layout_reference_readback_through_other_machine_wrong_region_rejected rejected 10184ms expected @bc53b23707f6
@@ -14802,8 +14807,9 @@ fail/float/trapping_arithmetic_requires_same_cause_ceiling rejected 3914ms expec
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_named_conversion_requires_site_coverage rejected 4641ms expected @ccdb99ca2214
 	`F32.from_f64(value)` in machine `narrow` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_nonentry_site_requires_matching_path rejected 4941ms unexpected @ccdb99ca2214
+fail/float/trapping_nonentry_site_requires_matching_path rejected 7930ms expected @e1d8af390723
 	call from `scale` to `risky` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `scale` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 7280ms expected @18fc751d0060+wt
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 4019ms expected @ccdb99ca2214
@@ -16877,8 +16883,8 @@ fail/packages/retained_dependency_body_loan rejected 2879ms expected @ccdb99ca22
 	statement 2 mutates `cell.value` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 6)
 fail/packages/rootless_numeric_provider_missing_satisfaction rejected 20665ms expected @03a7e97e20a3
 	build selects provider `UnusedNumericProvider` for canonical float operation `operator::F32::negate(named(name(f32)))->named(name(f32))`; canonical f32/f64 operations are realized by target `linux_x86_64`'s declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm
-fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2214
-	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
+fail/packages/std_missing_dependency_rejected rejected 1038ms expected @7ab13dd83100
+	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (7c94027e29736aa1f2ad51127c7b2b3762ed3790cbb4199788c67b303456bc77) declares no product dependency under that alias -- register it with `Build::dependency(builder, description)` in its build.omg, configuring the description with `dependency::with_alias(&mut description, "omega_language_std")` when the package's own name differs, to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
 fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
@@ -19735,9 +19741,8 @@ fail/wire/reflection_callback_not_unique rejected 6760ms expected @4815ea579d91
 	generic machine `visit_runtime_fields` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Machine slot `Visitor` has no proposal
 fail/wire/reflection_foreign_query_without_delegation rejected 10297ms expected @4815ea579d91
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/wire/returned_preserving_remainder_input_write rejected 15050ms expected @66914f73c885
+fail/wire/returned_preserving_remainder_input_write rejected 21435ms expected @d0478b7180a6
 	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
-	state `refused` receives `main` while local borrow `decoded` is still active
 	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 13523ms expected @1e29a538216e
 	machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments
@@ -20011,8 +20016,7 @@ pass/borrow/runtime_write_only_affine_sum_exit checked 3784ms check-target:macos
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_boundary_satisfier_exit rejected 6289ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @234ea171ee6e
-	no provider is selected for boundary requirement `Sink::write`, which the program entry reaches on target `macos_arm64`
+pass/borrow/runtime_write_only_boundary_satisfier_exit checked 13955ms check-target:macos_arm64 @dc5655adb651
 pass/borrow/runtime_write_only_call_result_observation_exit checked 3829ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3870ms check-target:macos_arm64 @ccdb99ca2214
@@ -20098,6 +20102,7 @@ pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2903ms check-t
 pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-target:macos_arm64 @867738eb9535+wt
 pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/dispatch_subject_view_released_exit checked 8842ms check-target:macos_arm64 @d0478b7180a6
 pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/erased_input_before_returned_reference_exit checked 7151ms check-target:macos_arm64 @7e859cc5b918
@@ -20639,15 +20644,8 @@ pass/build/runtime_retained_const_application_exit checked 4046ms check-target:m
 pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/same_leaf_runner_entry_left_exit checked 40012ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/same_leaf_runner_entry_right_exit checked 40083ms check-target:macos_arm64 @a4f3937d72ab
-pass/build/segment_selector_reload rejected 14387ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @8ae4ed44ee3e
-	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(127), permitted MachineStateSet(93), clobbered MachineStateSet(63), saved MachineStateSet(0)
-pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
-	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-13` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-17` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-21` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-25` has non-hermetic source origin `User`"))
+pass/build/segment_selector_reload checked 77704ms check-target:linux_x86_64 @2b8a1382008c
+pass/build/selected_const_array_length_exit checked 17101ms check-target:macos_arm64 @5482b092e70b
 pass/build/separate_build_product_imports_exit checked 8375ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_slot_family_rows_exit checked 39605ms check-target:macos_arm64 @a4f3937d72ab
@@ -23628,7 +23626,7 @@ pass/facts/fixed_layout_reference_readback_through_call_result_exit checked 1167
 pass/facts/fixed_layout_reference_readback_through_const_name_exit checked 11493ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_field_exit checked 11555ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_local_exit checked 11593ms check-target:macos_arm64 @bc53b23707f6
-pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 11554ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 67536ms check-target:macos_arm64 @14237126e671
 pass/facts/fixed_layout_reference_readback_through_other_machine_exit checked 11853ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_other_state_exit checked 11732ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_reference_readback_through_parameter_exit checked 11730ms check-target:macos_arm64 @bc53b23707f6
@@ -26397,8 +26395,7 @@ pass/float/runtime_named_float_to_integer_conversion_exit checked 447632ms check
 pass/float/runtime_named_fma_sequence_exit checked 15445ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_named_format_conversion_exit checked 16029ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_named_policy_conversion_composition_exit checked 428199ms check-target:macos_arm64 @ff514b7f093c
-pass/float/runtime_named_policy_result_exit rejected 16749ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8ae4ed44ee3e
-	boundary operator `operator::F32::qualify(named(name(f32)))->constrained(named(name(f32)),arithmetic-domain(name(Saturating)))` in package Some(PackageKeyIdentity([108, 99, 124, 156, 42, 231, 157, 123, 216, 179, 86, 207, 206, 83, 101, 111, 11, 85, 121, 129, 38, 241, 199, 109, 115, 77, 111, 225, 107, 50, 7, 126])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/float/runtime_named_policy_result_exit checked 144231ms check-target:macos_arm64 @4797bfaf5f64
 pass/float/runtime_nested_float_min_max_exit checked 16259ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_owned_mutable_float_parameter_exit checked 6769ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_qualified_carrier_conversion_exit checked 6857ms check-target:macos_arm64 @ccdb99ca2214
@@ -27162,7 +27159,7 @@ pass/operators/runtime_declared_range_guarded_collection_exit checked 3733ms che
 pass/operators/runtime_declared_reference_index_capture_exit checked 3406ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_generic_copy_index_result_projection_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_generic_reference_selector_snapshot_exit checked 6639ms check-target:macos_arm64 @911f6617ba9e
-pass/operators/runtime_named_unit_statement_effects_exit checked 4455ms check-target:macos_arm64 @ccdb99ca2214
+pass/operators/runtime_named_unit_statement_effects_exit checked 35460ms check-target:macos_arm64 @4797bfaf5f64
 pass/operators/runtime_selected_operator_requires_after_effects_exit checked 6439ms check-target:macos_arm64 @12385533695f
 pass/operators/runtime_xorshift_prng_exit checked 13755ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/slice_index_bounds_from_operator_contract checked 8246ms @93ac4da811fe
@@ -27662,13 +27659,11 @@ pass/providers/build_product_adapter_frontiers_exit rejected 951ms check-target:
 pass/providers/calling_application_region_scopes_exit checked 4336ms check-target:macos_arm64 @5d84e10310e4+wt
 pass/providers/canonical_inherited_provider_instances_exit checked 15153ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @d25b32be7ef5
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 161757ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_boundary_operator_physical_custody rejected 23016ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+boundary-provider-controls:match+terminal-inspections:match @8ae4ed44ee3e
-	boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([226, 0, 116, 190, 198, 48, 187, 236, 182, 178, 251, 225, 247, 58, 156, 1, 115, 38, 197, 53, 203, 6, 197, 220, 203, 30, 108, 197, 144, 119, 10, 183])) resolves to 0 selected ProviderPlans; expected exactly one
-	inspection entry_start admission: [Diagnostic { severity: Error, message: "boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([226, 0, 116, 190, 198, 48, 187, 236, 182, 178, 251, 225, 247, 58, 156, 1, 115, 38, 197, 53, 203, 6, 197, 220, 203, 30, 108, 197, 144, 119, 10, 183])) resolves to 0 selected ProviderPlans; expected exactly one", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/providers/checked_boundary_operator_physical_custody checked 201321ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @4797bfaf5f64
 pass/providers/checked_boundary_requirement_dispatch_exit checked 15252ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/checked_const_application_copied_scope checked 171621ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_fixed_operator_dispatch_exit checked 108436ms check-target:macos_arm64 @12385533695f
-pass/providers/checked_fixed_operator_physical_custody checked 108131ms check-target:macos_arm64 @12385533695f
+pass/providers/checked_fixed_operator_dispatch_exit checked 96440ms check-target:macos_arm64 @4797bfaf5f64
+pass/providers/checked_fixed_operator_physical_custody checked 115259ms check-target:macos_arm64 @4797bfaf5f64
 pass/providers/checked_operator_declaration_without_application rejected 2491ms @d25b32be7ef5
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Policy::identity", reason: "attached Unit closure is missing a checked boundary machine plan", gap: None })
 pass/providers/closed_boundary_callback_contract checked 134962ms check-target:linux_x86_64 @6e30f0a63175
@@ -27728,9 +27723,7 @@ pass/providers/linear_structural_provider_pure_exit checked 74877ms check-target
 pass/providers/linear_structural_provider_return_exit rejected 11689ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d25b32be7ef5
 	cannot prove ensures contract for exit from TokenProviderTokenFlowImplementation::forward at statement 0: result in Carry::AcrossSuspend
 pass/providers/local_record_foreign_borrow_exit checked 52736ms check-target:macos_arm64 @e8e0e531e729
-pass/providers/module_named_operator_result_domain_satisfaction rejected 11570ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8ae4ed44ee3e
-	boundary operator `operator::Policy::convert(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([185, 76, 87, 81, 142, 127, 40, 98, 78, 4, 241, 239, 219, 145, 199, 224, 10, 42, 162, 139, 5, 8, 60, 45, 126, 11, 158, 59, 21, 110, 98, 25])) resolves to 0 selected ProviderPlans; expected exactly one
-	boundary operator `operator::Policy::convert(named(name(i32)))->constrained(named(name(i32)),arithmetic-domain(name(Wrapping)))` in package Some(PackageKeyIdentity([185, 76, 87, 81, 142, 127, 40, 98, 78, 4, 241, 239, 219, 145, 199, 224, 10, 42, 162, 139, 5, 8, 60, 45, 126, 11, 158, 59, 21, 110, 98, 25])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/providers/module_named_operator_result_domain_satisfaction checked 96373ms check-target:macos_arm64 @4797bfaf5f64
 pass/providers/named_boundary_applied_issuance checked 2394ms @ccdb99ca2214
 pass/providers/named_boundary_issuance_ordinary_guarantee checked 2294ms @ccdb99ca2214
 pass/providers/named_boundary_mutable_issuance checked 2612ms @ccdb99ca2214
@@ -27983,7 +27976,7 @@ pass/relevance/erased_reference_receiver_field_exit checked 3777ms check-target:
 pass/relevance/erased_signature_param checked 3361ms @ccdb99ca2214
 pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
-pass/relevance/runtime_static_proof_namespace_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
+pass/relevance/runtime_static_proof_namespace_exit checked 27771ms check-target:macos_arm64 @98e615c5c08f
 pass/resources/owned_extent_label_erasure_exit checked 25697ms check-target:macos_arm64 @089c0a150e63
 pass/slices/bare_range_returned_subslice_exit checked 5613ms check-target:macos_arm64 @66914f73c885
 pass/slices/bounded_byte_parameter_range_exit checked 3766ms check-target:macos_arm64 @ccdb99ca2214
@@ -28828,8 +28821,7 @@ pass/wire/systems_wire_protocol_exit checked 43709ms check-target:macos_arm64 @6
 pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 56196ms @1e29a538216e
-pass/wire/wire_preserving_decode_relay_exit rejected 11589ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8ae4ed44ee3e
-	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 32, generation: 368 } in Main::main::main statement 3: no exact invocation access supplies this descriptor; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments); source Handle { arena_index: 33, generation: 368 } in Main::main::main statement 3: completed descriptor formation is unresolved; carrier Some("ref(slice(named(name(u8))))"), expected None, path [] (0 segments)
+pass/wire/wire_preserving_decode_relay_exit checked 25322ms check-target:macos_arm64 @d0478b7180a6
 pass/wire/wire_retired_field checked 4022ms @ccdb99ca2214
 pass/write_only/returned_destination_transport_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
 pass/write_only/state_forwarded_scalar_store_exit checked 13290ms check-target:macos_arm64 @ccdb99ca2214
@@ -28851,6 +28843,7 @@ run/arithmetic/policy_operator_zero_divisor_traps checked 72982ms check-target:m
 run/arithmetic/policy_operators_match_policy_domains checked 116124ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 73850ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/call_result_reference_field_overwrite checked 4167ms check-target:macos_arm64 @7ab13dd83100
 run/borrows/computed_element_view_state_extent checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/conditional_disjoint_field_loans_exit checked 109257ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:macos_arm64 @ccdb99ca2214

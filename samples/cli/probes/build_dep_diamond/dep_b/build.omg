@@ -1,4 +1,6 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "right_kit");
-    Build::depend_as(builder, "kit", Source::Path { location: "../dep_c" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../dep_c" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }

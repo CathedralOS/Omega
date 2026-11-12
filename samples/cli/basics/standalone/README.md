@@ -5,7 +5,7 @@ The smallest deployable Omega program: `data Main {}` with an empty
 dependencies** — not even the standard library.
 
 It exists for the benchmark harness (`tools/benchmark/`). Every other measured
-subject `depend()`s on `source/library/std`, whose compile currently rejects at
+subject registers a dependency on `source/library/std`, whose compile currently rejects at
 the comparison-occurrence realization gate. This subject stands alone: the
 compile reaches a published native artifact (~25 s on a w9 Linux x86-64 host),
 so `compile_time_ms`, `peak_memory_bytes`, and `code_size_bytes` are honest

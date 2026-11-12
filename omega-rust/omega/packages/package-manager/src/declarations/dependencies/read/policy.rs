@@ -1,10 +1,11 @@
 // Syntax policy guards rejecting package-authored toolchain vocabulary and unprojected dependency calls or literals.
-// `reject_unprojected_dependency_syntax` walks all statement containers (machine states, trait requirement default bodies, conformance members, and capability state signatures) as well as all expressions so `StatementNode::Call`, `Source::`, and `PackageSelection::` occurrences outside projected direct rows are rejected.
+// `reject_unprojected_dependency_syntax` walks all statement containers (machine states, trait requirement default bodies, conformance members, and capability state signatures) as well as all expressions so registration and description-helper calls, `Source::`, and `PackageSelection::` occurrences outside projected direct rows are rejected.
 
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use build_declarations::{
-    BUILD_TYPE_NAME, DependencyOperation, is_dependency_call_name, package_authored_type_name,
+    BUILD_TYPE_NAME, DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call,
+    package_authored_type_name,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -19,7 +20,12 @@ pub(super) fn reject_authored_toolchain_vocabulary(
             Some(name)
                 if matches!(
                     machine_leaf_name(name),
-                    BUILD_TYPE_NAME | SOURCE_TYPE_NAME | PACKAGE_SELECTION_TYPE_NAME
+                    BUILD_TYPE_NAME
+                        | SOURCE_TYPE_NAME
+                        | PACKAGE_SELECTION_TYPE_NAME
+                        | DEPENDENCY_HELPER_OWNER
+                        | DEPENDENCY_DESCRIPTION_TYPE_NAME
+                        | REGISTRATION_TYPE_NAME
                 ) =>
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
@@ -28,25 +34,26 @@ pub(super) fn reject_authored_toolchain_vocabulary(
             }
             _ => {}
         }
-        match item {
-            Item::Machine(machine)
-                if machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|owner| owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
-                    && is_dependency_call_name(machine_leaf_name(
-                        machine.name.as_str(syntax_trees),
-                    )) =>
-            {
-                return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
-                    name: format!("Build::{}", machine.name.as_str(syntax_trees)),
-                });
-            }
-            _ => {}
+        if let Item::Machine(machine) = item
+            && let Some(owner) = machine.attached_data.as_ref()
+            && is_dependency_call(
+                Some(owner.as_str(syntax_trees)),
+                machine_leaf_name(machine.name.as_str(syntax_trees)),
+            )
+        {
+            return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
+                name: format!(
+                    "{}::{}",
+                    owner.as_str(syntax_trees),
+                    machine.name.as_str(syntax_trees)
+                ),
+            });
         }
     }
     Ok(())
 }
+
+const REGISTRATION_TYPE_NAME: &str = "DependencyRegistration";
 
 fn machine_leaf_name(name: &str) -> &str {
     name.rsplit("::").next().unwrap_or(name)
@@ -56,7 +63,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
     syntax_trees: &SyntaxTrees,
     accepted_statements: &[StatementHandle],
     accepted_sources: &[ExpressionHandle],
-    accepted_aliases: &[ExpressionHandle],
+    accepted_calls: &[Vec<ExpressionHandle>],
 ) -> Result<(), DependencyProjectionError> {
     let mut accepted_selections = Vec::new();
     for source_handle in accepted_sources {
@@ -136,19 +143,17 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 }
             }
             ExpressionNode::Call(call)
-                if is_dependency_call_name(call.target.as_str(syntax_trees)) =>
+                if is_dependency_call(
+                    expression_owner(syntax_trees, call.receiver),
+                    call.target.as_str(syntax_trees),
+                ) =>
             {
-                match (
-                    DependencyOperation::classify(call.target.as_str(syntax_trees)),
-                    syntax_trees.expressions.expression_handles(call.arguments),
-                ) {
-                    (Some(operation), [_builder, source])
-                        if !operation.takes_alias() && accepted_sources.contains(source) => {}
-                    (Some(operation), [_builder, alias, source])
-                        if operation.takes_alias()
-                            && accepted_aliases.contains(alias)
-                            && accepted_sources.contains(source) => {}
-                    _ => return Err(DependencyProjectionError::UnsupportedDependencyShape),
+                let arguments = syntax_trees.expressions.expression_handles(call.arguments);
+                if !accepted_calls
+                    .iter()
+                    .any(|accepted| accepted.as_slice() == arguments)
+                {
+                    return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
             }
             _ => {}
@@ -182,11 +187,33 @@ fn reject_dependency_statements(
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
             continue;
         };
-        if is_dependency_call_name(call.target.as_str(syntax_trees))
+        let owner = match syntax_trees
+            .statements
+            .identifier_path_members(call.receiver)
+        {
+            [owner] => Some(owner.as_str(syntax_trees)),
+            _ => None,
+        };
+        if is_dependency_call(owner, call.target.as_str(syntax_trees))
             && !accepted_statements.contains(statement_handle)
         {
             return Err(DependencyProjectionError::UnsupportedDependencyShape);
         }
     }
     Ok(())
+}
+
+// The single-segment static owner of a call expression (`Build` or
+// `dependency`), or none for a value receiver or an unqualified call.
+fn expression_owner(syntax_trees: &SyntaxTrees, receiver: ExpressionHandle) -> Option<&str> {
+    if !receiver.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(receiver) else {
+        return None;
+    };
+    match syntax_trees.expressions.identifier_path_members(*path) {
+        [owner] => Some(owner.as_str(syntax_trees)),
+        _ => None,
+    }
 }

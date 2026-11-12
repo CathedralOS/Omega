@@ -1,0 +1,56 @@
+name: Post-merge check
+
+# Checks main after merge, since nothing heavier than `admission` runs before
+# it (wiki/drafts/designs/ci_rebuild_plan.md). One run at a time: while a run
+# is active, GitHub keeps only the newest pending push, so a burst of merges
+# is verified as one batch. This first version builds once, lints the
+# workspace and runs the smoke programs; corpus rows and blame come next.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-merge-check
+  cancel-in-progress: false
+
+jobs:
+  post-merge-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: /tmp/ot
+      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+      CARGO_BUILD_FINGERPRINT: content
+      OMEGA_CORPUS_JOBS: '2'
+      OMEGA_CORPUS_FIXTURE_SECS: '300'
+      RUST_MIN_STACK: '67108864'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            post-merge-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Check production dependency boundaries
+        run: mbx xtask check-boundary
+      - name: Lint every workspace target
+        run: mbx clippy --locked --keep-going --workspace --all-targets -- -D warnings
+      - name: Run a sample natively and in the interpreter
+        run: mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
+      - name: Check the lowered route's verdicts on fixture programs
+        run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics

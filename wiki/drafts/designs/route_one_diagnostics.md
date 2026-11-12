@@ -202,3 +202,60 @@ pass its fixtures' `main.omg` files, then `--tally`. The tool's header
 documents each line it prints. Machine names and sites are on the
 `program`, `diagnostic`, `use` and `quality` lines, which is what the
 classification above needs.
+
+## Re-run, 2026-11-12
+
+**The route's rejections now carry the pinned wording in 259 of 296 cases,
+up from 1 of 292, and one more wrongly accepted machine body was found and
+closed.** The sweep was repeated over all 8,325 `fail/` fixtures with the
+route at `4edaadd25` (value and type parameters, finite-family instances;
+before the wording changes of `#2577`). The current checker rejects 7,191.
+
+| | Entry only | Entry and each own machine |
+| --- | ---: | ---: |
+| Lowered by the new route | 194 | 1,854 |
+| 1. Rejected by the new route | 187 | 296 |
+| 2. Message contains every pinned fragment | 164 of 187 | 259 of 296 |
+| 2. Contains none / some / fixture pins none | 20 / 3 / 0 | 31 / 5 / 1 |
+| 3. Site exact or on the same line | 177 | 275 |
+| 3. Different site | 5 | 12 |
+| 3. Current checker gave no position | 5 | 5 |
+| 3. No position from the new route | 0 | 4, all `ImplicitReturn` |
+
+**Entry-rooted programs the route accepted: 5.** Four are program-entry
+contract defects in `fail/build/` (`program_entry_returns_value`,
+`unrequested_target_entry_returns_value`,
+`hosted_program_entry_visible_parameter`,
+`uefi_program_entry_missing_storage_roots`); the route does not read the
+entry contract, which is the open item of
+[gate condition 1](check_on_lowered_form.md#the-gate). The fifth,
+`executed_dependency_private_call`, is refused since `#2577`.
+
+**Fixtures with every own machine accepted: 63 the current checker
+rejects.** 62 have their defect in a declaration, a data or trait rule, a
+specification or a Build rule, none of which the route judges. One was a
+machine body: `calls/non_unit_compound_expression_requires_use`, where
+`invalid` evaluates `identity(false) || identity(false);` and drops the
+value. `wiki/spec/language/effects.md`: "A non-Unit call result cannot be
+silently discarded." The reader now hands back a statement that has a value
+and is not the machine's final value, unless the call is written as an
+explicit discard.
+
+**Messages that still differ, and why.** Of the mismatches read:
+
+- Nine "needs fact ... here" requirement sentences, one case-payload
+  sentence: worded to match since `#2577`, after this binary.
+- Four crash-route texts pin "statement N call K". Those numbers count slots
+  of the current checker's statement layout; the route states the same
+  sentence at the source position without them.
+- "division by zero ... provably zero" and "violates required fact ...
+  structurally false": the route has not decided the operand or the fact
+  false, and does not say so (`wiki/spec/build/compiler_request.md`:
+  "Failure to find a proof is not proof of falsehood").
+- `facts/four_variant_enum_payload_bound_through_call_result_rejected` pins
+  "at statement 7"; the current checker and the route both say
+  "statement 3". The route's message equals the current checker's.
+
+Taken with `route_one_comparison` built at `4edaadd25`, one process per
+fixture, three or four at a time, 300 s each, Linux x86_64. The sweep was
+not repeated after `#2577` or after the discard refusal.
