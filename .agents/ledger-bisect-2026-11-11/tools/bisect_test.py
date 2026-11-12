@@ -103,6 +103,9 @@ def main() -> int:
         return 1
     if ledger_good():
         return 0
+    if tier != "fail":
+        if obs_status in ("rejected", "incomplete") or rank(obs_status) < rank(expected):
+            return 1
     return 125
 
 
