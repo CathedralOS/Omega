@@ -24,6 +24,12 @@ its dividend, for either sign: it lies between zero and the dividend, so
 `min(L, 0) <= result`, once the divisor is proved positive or below minus one
 (`remainder_within_dividend`). The kernel trusts that statement as a
 provisional rule; its mathematical core does not derive it.
+
+An exact quotient by a divisor that is a value is at most its dividend when
+the dividend is nonnegative and the divisor positive
+(`quotient_at_most_dividend`): an order step between two values, also a
+provisional rule. A divisor fixed by a literal is a value with a literal
+definition here, so `value / 2 <= value` is this step.
 */
 
 use std::cmp::Ordering;
@@ -262,6 +268,60 @@ impl Prover<'_> {
                 },
             ),
         })
+    }
+
+    /// `output <= dividend` for an exact quotient `output == dividend /
+    /// divisor` whose divisor is a value: the kernel's
+    /// quotient-at-most-dividend form, a provisional rule
+    /// (`AcceptedProofRule::IntegerQuotientAtMostDividend`). It needs the
+    /// dividend bounded below by a nonnegative literal and the divisor proved
+    /// positive. An order step between two values, like
+    /// `remainder_below_divisor`. `None` when the kernel refuses the witness
+    /// or either premise is unproved.
+    pub(super) fn quotient_at_most_dividend(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+    ) -> Option<(ScalarTerm, ProofNode)> {
+        let ScalarTerm::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: output.clone(),
+            definition_axioms: vec![axiom],
+            literal_axioms: vec![None],
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let nonnegative = self.evidence(dividend, Direction::Lower).ok()?;
+        let positive = self.positive(*scalar_type, divisor)?;
+        let parts = vec![nonnegative, positive];
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let image = map_integer_affine_bound(&form, &root).ok()?;
+        matches!(&image, Proposition::LessOrEqual(left, right) if left == output && right == dividend)
+            .then(|| {
+                (
+                    dividend.clone(),
+                    node(
+                        image,
+                        ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(node(
+                                root,
+                                ProofRule::ConjunctionIntroduction(parts),
+                            )),
+                            witness,
+                        },
+                    ),
+                )
+            })
     }
 
     /// The kernel's image of an exact left shift's operand bounds: a bound in

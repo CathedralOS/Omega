@@ -416,6 +416,7 @@ mod bound_mapping {
     enum BoundRoute {
         Remainder,
         RemainderWithinDividend,
+        QuotientAtMostDividend,
         CorrelatedAdd,
         CorrelatedSubtract,
         CorrelatedMultiply,
@@ -431,6 +432,9 @@ mod bound_mapping {
             [CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder] => BoundRoute::Remainder,
             [CheckedIntegerEndpointStep::RemainderWithinDividend { .. }] => {
                 BoundRoute::RemainderWithinDividend
+            }
+            [CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }] => {
+                BoundRoute::QuotientAtMostDividend
             }
             [CheckedIntegerEndpointStep::CorrelatedAddLower]
             | [CheckedIntegerEndpointStep::CorrelatedAddUpper] => BoundRoute::CorrelatedAdd,
@@ -596,6 +600,7 @@ mod bound_mapping {
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
                 | CheckedIntegerEndpointStep::RemainderWithinDividend { .. }
+                | CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                     return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
@@ -619,6 +624,9 @@ mod bound_mapping {
             BoundRoute::Remainder => return super::remainder::map_bound(form, root_bound),
             BoundRoute::RemainderWithinDividend => {
                 return super::remainder::map_dividend_bound(form, root_bound);
+            }
+            BoundRoute::QuotientAtMostDividend => {
+                return super::remainder::map_quotient_relation(form, root_bound);
             }
             BoundRoute::CorrelatedAdd => return map_correlated_add_bound(form, root_bound),
             BoundRoute::CorrelatedSubtract => {
@@ -1704,6 +1712,9 @@ mod remainder {
     /// kernel trusts this statement; the mathematical core does not derive
     /// it. A divisor that is a literal, or that a cited landing fixes to one,
     /// is the endpoint chain's `Remainder` step and is not matched here.
+    ///
+    /// The same witness over an exact quotient is the
+    /// quotient-at-most-dividend form (`map_quotient_relation`).
     pub(super) fn check_dividend_witness(
         context: &PropositionContext,
         semantic_axioms: &[Proposition],
@@ -1715,16 +1726,21 @@ mod remainder {
         ) else {
             return Ok(None);
         };
-        let Some(Proposition::Equal(
-            result,
+        let Some(Proposition::Equal(result, expression)) = semantic_axioms.get(*position) else {
+            return Ok(None);
+        };
+        let (scalar_type, left, right, quotient) = match expression {
             ScalarTerm::ExactIntegerRemainder {
                 scalar_type,
                 left,
                 right,
-            },
-        )) = semantic_axioms.get(*position)
-        else {
-            return Ok(None);
+            } => (scalar_type, left, right, false),
+            ScalarTerm::ExactIntegerDivide {
+                scalar_type,
+                left,
+                right,
+            } => (scalar_type, left, right, true),
+            _ => return Ok(None),
         };
         let (dividend, divisor) = (left.as_ref(), right.as_ref());
         let is_value = |term: &ScalarTerm| matches!(term, ScalarTerm::Value { .. });
@@ -1758,10 +1774,73 @@ mod remainder {
             integer_type: *scalar_type,
             coefficient: 1,
             offset: 0,
-            endpoint_steps: vec![CheckedIntegerEndpointStep::RemainderWithinDividend {
-                divisor: divisor.clone(),
+            endpoint_steps: vec![if quotient {
+                CheckedIntegerEndpointStep::QuotientAtMostDividend {
+                    divisor: divisor.clone(),
+                }
+            } else {
+                CheckedIntegerEndpointStep::RemainderWithinDividend {
+                    divisor: divisor.clone(),
+                }
             }],
         }))
+    }
+
+    /// The quotient-at-most-dividend form: for `result = dividend / divisor`,
+    /// an exact quotient whose divisor is a value, the relation
+    /// `result <= dividend`. `check_dividend_witness` checks the witness as
+    /// it does a remainder's.
+    ///
+    /// Dividing a nonnegative integer by a positive one, truncating, gives a
+    /// quotient between zero and the dividend. The child is the conjunction,
+    /// in this order, of `L <= dividend` for a literal `L >= 0` of the
+    /// carrier and `0 < divisor`. The first is needed on a signed carrier,
+    /// where a negative dividend has a quotient above it (`-4 / 2 == -2`),
+    /// and is required on an unsigned one too, where the carrier's own lower
+    /// bound supplies it. The second excludes a zero divisor and every
+    /// negative one, and with them the signed `MIN / -1`. Both operands are
+    /// nonnegative, so truncation toward zero and flooring agree. The
+    /// conclusion relates two values of one fixed carrier at any width and
+    /// computes no endpoint, so nothing here can overflow. A strict or
+    /// negative dividend bound, `0 <= divisor`, or a premise about another
+    /// value rejects.
+    ///
+    /// Provisional (`AcceptedProofRule::IntegerQuotientAtMostDividend`): the
+    /// kernel trusts this statement; the mathematical core does not derive
+    /// it.
+    pub(super) fn map_quotient_relation(
+        form: &CheckedIntegerAffineForm,
+        root_bound: &Proposition,
+    ) -> Result<Proposition, IntegerAffineBoundConversionError> {
+        let mismatch = IntegerAffineBoundConversionError::RootBoundMismatch;
+        let [CheckedIntegerEndpointStep::QuotientAtMostDividend { divisor }] =
+            form.endpoint_steps.as_slice()
+        else {
+            return Err(mismatch);
+        };
+        let Proposition::Conjunction(parts) = root_bound else {
+            return Err(mismatch);
+        };
+        let [
+            Proposition::LessOrEqual(lower, dividend),
+            Proposition::LessThan(zero, positive),
+        ] = parts.as_slice()
+        else {
+            return Err(mismatch);
+        };
+        let literal = |term: &ScalarTerm| fixed_integer_as_i128(term, form.integer_type());
+        let nonnegative = literal(lower).is_some_and(|lower| lower >= 0);
+        if dividend != form.root()
+            || !nonnegative
+            || literal(zero) != Some(0)
+            || positive != divisor
+        {
+            return Err(mismatch);
+        }
+        Ok(Proposition::LessOrEqual(
+            form.target().clone(),
+            form.root().clone(),
+        ))
     }
 
     /// The image of one bound on the dividend. The child is the conjunction
@@ -2232,6 +2311,7 @@ mod truth_bounds {
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
                 | CheckedIntegerEndpointStep::RemainderWithinDividend { .. }
+                | CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                     return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
@@ -2942,6 +3022,11 @@ mod witness_checking {
         RemainderWithinDividend {
             divisor: ScalarTerm,
         },
+        /// An exact quotient by `divisor`, a value, rooted at its dividend
+        /// (`remainder::check_dividend_witness`).
+        QuotientAtMostDividend {
+            divisor: ScalarTerm,
+        },
         CorrelatedMultiplyMinimum,
         CorrelatedMultiplyMaximum,
     }
@@ -2992,6 +3077,14 @@ mod witness_checking {
             matches!(
                 self.endpoint_steps.as_slice(),
                 [CheckedIntegerEndpointStep::RemainderWithinDividend { .. }]
+            )
+        }
+
+        /// Whether this is the provisional quotient-at-most-dividend form.
+        pub(crate) fn is_quotient_at_most_dividend(&self) -> bool {
+            matches!(
+                self.endpoint_steps.as_slice(),
+                [CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }]
             )
         }
     }

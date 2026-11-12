@@ -178,6 +178,71 @@ fn a_remainder_by_a_value_that_may_be_zero_or_minus_one_gets_no_bound() {
     assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
 }
 
+/// `return (a - a / b) - extra` over two u32 formals: the inner subtract is
+/// in range exactly when `a / b <= a`, and the outer one, for `extra == 1`,
+/// only if `a / b < a`.
+fn dividend_less_quotient(requires: Vec<Proposition>, extra: Option<u128>) -> Machine {
+    let quotient = strict(Strict::Divide, slot(0, u32_type()), slot(1, u32_type()));
+    let difference = strict(Strict::Subtract, slot(0, u32_type()), quotient);
+    let value = match extra {
+        Some(extra) => strict(Strict::Subtract, difference, unsigned(extra)),
+        None => difference,
+    };
+    Machine {
+        requires,
+        ..machine(vec![u32_type(), u32_type()], vec![returns(value)])
+    }
+}
+
+#[test]
+fn a_quotient_by_a_positive_value_is_at_most_its_nonnegative_dividend() {
+    // 1 <= b gives a / b <= a, so a - a / b is in range: a relation between
+    // two values, with no bound on either.
+    let (elaboration, result) = run(vec![dividend_less_quotient(vec![at_least(2, 1)], None)]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    // The relation is `<=` and no more: a / b == a when b == 1, so one less
+    // is not in range.
+    let (elaboration, result) = run(vec![dividend_less_quotient(vec![at_least(2, 1)], Some(1))]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+    // Through the dividend's bound it bounds the quotient: signed, with
+    // 0 <= a <= 1000 and 1 <= b, a / b <= 1000 exactly.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let program = |lowest: i128, addend: i128| {
+        after(
+            i32_type(),
+            vec![
+                Proposition::LessOrEqual(signed(lowest), formal(1, i32_type())),
+                Proposition::LessOrEqual(formal(1, i32_type()), signed(1000)),
+                Proposition::LessOrEqual(signed(1), formal(2, i32_type())),
+            ],
+            Strict::Divide,
+            slot(1, i32_type()),
+            Strict::Add,
+            IntegerValue::Signed(addend),
+        )
+    };
+    let fits = i128::from(i32::MAX) - 1000;
+    let (elaboration, result) = run(vec![program(0, fits)]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let (elaboration, result) = run(vec![program(0, fits + 1)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+    // A dividend that may be negative is outside the rule.
+    let (elaboration, result) = run(vec![program(-1, fits)]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+}
+
+#[test]
+fn a_quotient_by_a_value_that_may_be_zero_is_not_related_to_its_dividend() {
+    for requires in [Vec::new(), vec![at_most(2, 10)]] {
+        let (elaboration, result) = run(vec![dividend_less_quotient(requires, None)]);
+        assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+    }
+}
+
 #[test]
 fn a_mask_bounds_its_result_and_an_or_is_bounded_by_both_operands() {
     assert_upper(Vec::new(), Strict::BitwiseAnd, unsigned(15), 15);

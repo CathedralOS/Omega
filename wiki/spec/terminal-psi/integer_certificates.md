@@ -184,6 +184,21 @@ or the result rejects. An acceptance records this form as
 provisional row of the [certificate rules](../proofs/classicality.md), not as
 `IntegerAffineBound`.
 
+The same witness over an exact quotient, `result = divide(dividend, divisor)`
+with a divisor that is a value, establishes the relation `result <= dividend`.
+Its child is the conjunction, in this order, of `L <= dividend` for a
+literal `L >= 0` of the carrier and `0 < divisor`. A nonnegative integer
+divided by a positive one, truncating, lies between zero and the dividend.
+The dividend premise is required on unsigned carriers too, where the carrier
+bound supplies it; on a signed carrier it excludes negative dividends, whose
+quotient can exceed them. The divisor premise excludes a zero divisor and
+every negative one, and with them signed `MIN / -1`. The conclusion relates
+two values of one fixed carrier at any width and computes no endpoint. A
+strict or negative dividend bound, `0 <= divisor`, a premise about another
+value, the premises in the other order, a `Truth` child, a strict or reversed
+conclusion, or a Wrapping quotient rejects. An acceptance records this form as
+`IntegerQuotientAtMostDividend`, also a provisional row.
+
 An additive translation word also admits a relative comparison with its own
 root. Its child proves `root <= root` together with every independently
 reconstructed no-wrap condition for the word’s Wrapping steps. The checked

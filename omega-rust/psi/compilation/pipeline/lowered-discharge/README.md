@@ -624,6 +624,12 @@ rests on a provisional kernel rule: the kernel trusts the statement
 [classicality](../../../../../wiki/spec/proofs/classicality.md)), and its
 mathematical core does not derive it.
 
+An exact quotient is at most its dividend when the dividend is nonnegative and
+the divisor positive (`quotient_at_most_dividend`): `value / 2 <= value`, an
+order step between two values, which also carries the dividend's upper bound
+to the quotient. This too rests on a provisional kernel rule
+(`IntegerQuotientAtMostDividend`).
+
 `verify_obligation` then decides the whole certificate. Its acceptance records
 whether the mathematical core judged it as well. Most certificates are
 `Judged`; a discreteness step from a transported strict guard (`a < 10` to
@@ -645,13 +651,12 @@ so the obligation is `Unproved`. None is worked around here.
   [route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
   needs it: a guard that contradicts an order is closed through the
   guard's value, above.
-- *A quotient by a divisor that is not a literal.* The endpoint chain
-  replays a divide only by a literal or landed divisor, so `value / divisor`
-  with `divisor >= 2` gets no bound
+- *A quotient bounded through its divisor's bound.* `value / divisor` with
+  `divisor >= 2` is at most half the carrier's maximum. The endpoint chain
+  replays a divide only by a literal or landed divisor, and the relation
+  `value / divisor <= value` gives only the dividend's own bound. It would
+  take endpoint propagation with the divisor's interval
   (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`).
-- *A quotient related to its dividend.* `value / 2 <= value` is a
-  relation between two values; the chain maps literal endpoints only
-  (`run/contracts/scalar_crash_route_exit`).
 - *A bitwise operation of two known operands.* A mask bounds its result
   in `[0, mask]`, but `-9 & 15 == 7` needs the operation evaluated, and
   closed evaluation covers add, subtract, multiply and left shift only.
