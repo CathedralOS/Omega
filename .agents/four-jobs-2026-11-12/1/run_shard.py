@@ -10,7 +10,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 SHARD = int(sys.argv[1]) if len(sys.argv) > 1 else 2
-PARALLEL = int(sys.argv[2]) if len(sys.argv) > 2 else 3
+# Test VMs: one heavy compiler batch at a time (tools/build_slot.md).
+PARALLEL = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 OUT = Path(__file__).resolve().parent / f"shard-{SHARD}.tsv"
 RUNNER = Path(__file__).resolve().parent / "run_shard_fixture.py"
 HEADER = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"

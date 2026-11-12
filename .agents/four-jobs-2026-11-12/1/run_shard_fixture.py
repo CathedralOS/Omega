@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -24,105 +25,161 @@ def tier(fixture: str) -> str:
     return "unknown"
 
 
-def parse_output(text: str, fixture: str) -> tuple[str, str, str, str]:
-    """Return route_verdict, current_verdict, agreement, first_refusal."""
-    routes: list[str] = []
-    currents: list[str] = []
-    first_refusal = ""
+@dataclass
+class ProgramRoot:
+    root: str
+    current: str
+    route: str
+    refusal_detail: str
+    fields: list[str]
 
+
+def field_value(fields: list[str], prefix: str) -> str:
+    for f in fields:
+        if f.startswith(prefix):
+            return f[len(prefix) :]
+    return ""
+
+
+def refusal_construct(route: str, detail: str, fields: list[str]) -> str:
+    """Map a route refusal to the construct or meta-bucket for ranking."""
+    if route == "no-entry":
+        return "meta:no-program-entry"
+    if route == "unreached":
+        return "meta:typed-frontier-stopped"
+    if route == "refused-module":
+        reason = field_value(fields, "reason=")
+        return reason if reason else "refused-module"
+    if route == "fallback":
+        # fallback lines use field 4 for Concerns debug; detail in field 5
+        return detail if detail else "fallback"
+    if detail:
+        # e.g. "Unsupported: machine generic parameters"
+        if ": " in detail:
+            _kind, spec = detail.split(": ", 1)
+            return spec.strip() or detail.strip()
+        return detail.strip()
+    if route in ("defect", "panicked", "incomplete"):
+        return route
+    return route if route else "outside"
+
+
+def classify_route(route: str) -> str:
+    base = route.split()[0]
+    if base == "accepted":
+        return "accepted"
+    if base in ("rejected", "incomplete"):
+        return "rejected"
+    if base == "outside" or base.startswith("outside"):
+        return "outside"
+    if base in (
+        "fallback",
+        "refused-module",
+        "defect",
+        "panicked",
+        "no-entry",
+        "unreached",
+    ):
+        return "outside"
+    return "outside"
+
+
+def parse_program_lines(text: str, fixture: str) -> tuple[list[ProgramRoot], list[tuple[str, str, str]]]:
+    """Return program roots in harness order and fallback rows (root, construct, detail)."""
+    programs: list[ProgramRoot] = []
+    fallbacks: list[tuple[str, str, str]] = []
     for line in text.splitlines():
         if not line.strip():
             continue
         fields = line.split("\t")
-        kind = fields[0] if fields else ""
+        kind = fields[0]
         if kind == "program" and len(fields) > 1 and fields[1] == fixture:
-            route = "-"
-            current = "-"
-            for f in fields:
+            current = field_value(fields, "current=")
+            root = field_value(fields, "root=")
+            route = ""
+            detail = ""
+            for i, f in enumerate(fields):
+                if f == "route=outside" and i + 1 < len(fields):
+                    route = "outside"
+                    detail = fields[i + 1]
+                    break
                 if f.startswith("route="):
                     route = f[len("route=") :]
-                elif f.startswith("current="):
-                    current = f[len("current=") :]
-            if route != "-":
-                routes.append(route)
-            if current != "-":
-                currents.append(current)
-            if route.startswith("outside") and not first_refusal:
-                # route=outside\t<reason...> may be split across fields after route=
-                idx = next((i for i, f in enumerate(fields) if f == "route=outside"), None)
-                if idx is not None and idx + 1 < len(fields):
-                    first_refusal = fields[idx + 1].split(":")[0].strip()
-                else:
-                    first_refusal = "outside"
-        elif kind == "fallback" and len(fields) > 1 and fields[1] == fixture and not first_refusal:
-            if len(fields) >= 5:
-                first_refusal = fields[4].strip()
-            elif len(fields) >= 4:
-                first_refusal = fields[3].strip()
+            programs.append(
+                ProgramRoot(
+                    root=root,
+                    current=current,
+                    route=route,
+                    refusal_detail=detail,
+                    fields=fields,
+                )
+            )
+        elif kind == "fallback" and len(fields) > 1 and fields[1] == fixture:
+            root = field_value(fields, "root=")
+            construct = fields[4].strip() if len(fields) > 4 else ""
+            detail = fields[5].strip() if len(fields) > 5 else ""
+            fallbacks.append((root, construct, detail))
+    return programs, fallbacks
 
-    current_verdict = currents[0] if currents else "unknown"
+
+def aggregate_route(programs: list[ProgramRoot]) -> str:
+    routes = [p.route for p in programs if p.route]
     if not routes:
-        return "error", current_verdict, "n-a", "no-program-line"
-
-    # Aggregate like route_one_comparison --tally (decided before undecided).
-    def classify_route(route: str) -> str:
-        base = route.split("\t")[0].split()[0]
-        if base in ("accepted",):
-            return "accepted"
-        if base in ("rejected", "incomplete"):
-            return "rejected"
-        if base.startswith("outside"):
-            return "outside"
-        if base in (
-            "fallback",
-            "refused-module",
-            "defect",
-            "panicked",
-            "no-entry",
-            "unreached",
-        ):
-            return "outside"
-        return "outside"
-
+        return "error"
     has_rejected = any(classify_route(r) == "rejected" for r in routes)
     has_outside = any(classify_route(r) == "outside" for r in routes)
     has_accepted = any(classify_route(r) == "accepted" for r in routes)
-
     if has_rejected:
-        route_verdict = "rejected"
-    elif has_accepted and has_outside:
-        route_verdict = "accepted"
-    elif has_outside:
-        route_verdict = "outside"
-    elif has_accepted:
-        route_verdict = "accepted"
-    else:
-        route_verdict = "outside"
+        return "rejected"
+    if has_accepted and has_outside:
+        return "accepted"
+    if has_outside:
+        return "outside"
+    if has_accepted:
+        return "accepted"
+    return "outside"
 
-    if not first_refusal and route_verdict == "outside":
-        for r in routes:
-            base = r.split("\t")[0].split()[0]
-            if base == "no-entry":
-                first_refusal = "no-entry"
-                break
-            if base == "unreached":
-                first_refusal = "unreached"
-                break
-            if base == "fallback":
-                first_refusal = "fallback"
-                break
-            if base.startswith("outside"):
-                m = re.match(r"outside[:\s]+(\S+)", r)
-                first_refusal = m.group(1) if m else "outside"
-                break
-            if base == "refused-module":
-                first_refusal = "refused-module"
-                break
-            if base in ("defect", "panicked", "incomplete"):
-                first_refusal = base
-                break
-        if not first_refusal:
-            first_refusal = routes[0].split("\t")[0][:120]
+
+def first_refusal(
+    programs: list[ProgramRoot],
+    fallbacks: list[tuple[str, str, str]],
+    fixture: str,
+) -> str:
+    skip_entry_no_entry = tier(fixture) == "fail" and any(
+        p.root.startswith("machine:") for p in programs
+    )
+    fallback_by_root = {r: (c, d) for r, c, d in fallbacks}
+    for prog in programs:
+        if (
+            skip_entry_no_entry
+            and prog.root == "compilation"
+            and prog.route == "no-entry"
+        ):
+            continue
+        base = prog.route.split()[0] if prog.route else ""
+        if base in ("outside", "no-entry", "unreached", "fallback", "refused-module"):
+            if base == "fallback" and prog.root in fallback_by_root:
+                c, d = fallback_by_root[prog.root]
+                return refusal_construct("fallback", f"{c}: {d}".strip(": "), prog.fields)
+            return refusal_construct(base, prog.refusal_detail, prog.fields)
+        if base == "incomplete":
+            return "incomplete-proof-rule"
+        if base in ("defect", "panicked"):
+            return base
+    # Fallback lines without a matching program route=fallback in program lines
+    for _root, construct, detail in fallbacks:
+        return refusal_construct("fallback", f"{construct}: {detail}".strip(": "), [])
+    return ""
+
+
+def parse_output(text: str, fixture: str) -> tuple[str, str, str, str]:
+    programs, fallbacks = parse_program_lines(text, fixture)
+    if not programs:
+        return "error", "unknown", "n-a", "no-program-line"
+
+    current_verdict = programs[0].current or "unknown"
+    route_verdict = aggregate_route(programs)
+    refusal = first_refusal(programs, fallbacks, fixture)
 
     agreement = "n-a"
     if route_verdict == "accepted" and current_verdict == "accepted":
@@ -135,8 +192,10 @@ def parse_output(text: str, fixture: str) -> tuple[str, str, str, str]:
         "stopped",
     ):
         agreement = "disagree"
+    elif route_verdict == "outside":
+        agreement = "n-a"
 
-    return route_verdict, current_verdict, agreement, first_refusal
+    return route_verdict, current_verdict, agreement, refusal
 
 
 def main() -> None:
