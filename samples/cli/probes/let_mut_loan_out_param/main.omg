@@ -27,7 +27,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    let found: Item = Item { key: 0, val: 0 };
+    let mut found: Item = Item { key: 0, val: 0 };
     find(2, &mut found);
     transition found.key == 2 && found.val == 5 {
         true -> pass(main)

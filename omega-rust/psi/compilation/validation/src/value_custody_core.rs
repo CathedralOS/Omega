@@ -5696,7 +5696,7 @@ pub mod locals {
     }
 
     impl WritableRoots<'_, '_> {
-        pub(crate) fn contains_for_write(&self, root_name: &str, bare_reassignment: bool) -> bool {
+        pub(crate) fn contains_for_write(&self, root_name: &str) -> bool {
             (self.machine_symbols.has_owned_data(root_name)
                 && self
                     .program
@@ -5710,9 +5710,12 @@ pub mod locals {
                     if local_data.name.as_str() != root_name {
                         return false;
                     }
-                    if !bare_reassignment {
-                        return true;
-                    }
+                    /*
+                        Writing an owned field or element of a local, like replacing
+                        it, requires a `mut` binding (`ownership.md`, owned local
+                        mutability). A write through a reference the local holds is
+                        judged by that reference's access instead, before this check.
+                    */
                     local_data.is_mutable || local_is_mutable_reference(self.program, local_data)
                 })
                 || self
@@ -8618,8 +8621,17 @@ pub mod reference_access {
                 path.symbol,
             )
         {
+            /*
+                An ordinary local lends its own storage for mutation only when it is
+                declared `mut` (`ownership.md`, owned local mutability). A place that
+                crosses a reference takes its write authority from that reference
+                instead, so a non-`mut` local holding `&mut T` still lends its referent.
+                A local with no `let` declaration (a pattern binding) keeps its own rule.
+            */
             let owned_root_is_writable = match program.symbols.get(path.symbol).kind {
-                symbols::SymbolKind::Local => true,
+                symbols::SymbolKind::Local => program
+                    .state_local_declaration(state, path.symbol)
+                    .is_none_or(|(_, local)| local.is_mutable),
                 symbols::SymbolKind::Parameter => program
                     .state_parameters(state)
                     .iter()

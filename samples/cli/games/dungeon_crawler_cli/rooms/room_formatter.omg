@@ -37,7 +37,7 @@ machine RoomFormatter::write_room_info(
     out_line: &mut TextBuffer
 )
 {
-    let room: Room;
+    let mut room: Room;
     RoomLookup::find_room(level, cell, &mut room);
     TextBuffer::set(out_line, RoomDescription::live(&room.description));
 }
@@ -49,7 +49,7 @@ machine RoomFormatter::write_room_event(
     out_line: &mut TextBuffer
 )
 {
-    let room: Room;
+    let mut room: Room;
     RoomLookup::find_room(level, cell, &mut room);
 
     transition {

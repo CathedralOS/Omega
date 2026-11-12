@@ -33,14 +33,14 @@ machine array() -> bool {
 }
 machine make_receipt(code: u64) -> Receipt { Receipt { code: code } }
 machine returned() -> bool {
-    let package: Envelope<Receipt>;
+    let mut package: Envelope<Receipt>;
     package.contents = make_receipt(17);
     package.contents.code == 17
 }
 machine unfinished() -> bool {
     let untouched: Envelope<Receipt>;
     let mixed: PartlyZero;
-    let package: Envelope<Pair<Receipt, Receipt>>;
+    let mut package: Envelope<Pair<Receipt, Receipt>>;
     package.contents.first = Receipt { code: 7 };
     package.contents.first.code == 7 && mixed.marker == 0
 }

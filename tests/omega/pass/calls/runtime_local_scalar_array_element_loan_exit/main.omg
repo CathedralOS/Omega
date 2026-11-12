@@ -9,7 +9,7 @@ machine write_marker(value: &mut u32) {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let values: [u32; 2] = [10, 20];
+    let mut values: [u32; 2] = [10, 20];
     let position: u64 = 1;
     write_marker(&mut values[position]);
     transition values[0] == 10 && values[1] == 70 {

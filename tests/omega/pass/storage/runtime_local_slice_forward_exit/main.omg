@@ -6,7 +6,7 @@ data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 2]; }
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let room: Room = Room {
+    let mut room: Room = Room {
         exits: [ Counter { n: 10 }, Counter { n: 20 } ]
     };
     let exits: &mut [Counter] = &mut room.exits[..];

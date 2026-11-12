@@ -37,7 +37,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let found: Item;
+    let mut found: Item;
     Store::find(&mut main.store, 2, &mut found);
 
     transition found.val == 5 {

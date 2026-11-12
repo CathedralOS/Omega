@@ -16,7 +16,7 @@ data Main { span: u64; }
 machine Main::frame(start: u64, limit: u64) -> u64
 requires start <= limit, limit <= 100
 {
-    let window: Window = Window { low: 0, high: 0 };
+    let mut window: Window = Window { low: 0, high: 0 };
     window.low = start;
     window.high = limit;
     window.high

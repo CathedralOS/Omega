@@ -17,7 +17,7 @@ machine exercise() -> bool {
     let sibling: Cell = Cell { value: 7 };
     let mut message: Message = Message { body: &mut original };
     let replaced: bool = replace(&mut message, &mut incoming);
-    let selected: Message = match replaced { true -> message false -> message };
+    let mut selected: Message = match replaced { true -> message false -> message };
     let written: bool = store(&mut selected.body, 41);
     replaced && written && original.value == 17 && incoming.value == 41 && sibling.value == 7
 }

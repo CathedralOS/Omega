@@ -32,7 +32,7 @@ reaches Console
  room.count = 99;
 }
 machine scope() reaches Console crashes Trap {
- let room: Room = Room { count: 10 };
+ let mut room: Room = Room { count: 10 };
  let loan: &mut Room = &mut room;
  transition { _ -> observe(loan) }
  machine observe(room: &mut Room) {

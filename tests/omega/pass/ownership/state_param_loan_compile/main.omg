@@ -14,7 +14,7 @@ machine Main::main(main: &mut Main) {
     }
 
     machine measure(main: &mut Main, captured: u64) {
-        let held: u64 = captured;
+        let mut held: u64 = captured;
         Main::fill(&mut held);
         main.answer = held;
     }

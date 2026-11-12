@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[5] = 226;
     main.buffer[6] = 130;
     main.buffer[7] = 172;
-    let decoded: LabelSample;
+    let mut decoded: LabelSample;
     decoded.count = 0;
     decoded.label = "";
     LabelCodec::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.buffer[5] = 224;
         main.buffer[6] = 128;
         main.buffer[7] = 128;
-        let d2: LabelSample;
+        let mut d2: LabelSample;
         d2.count = 0;
         d2.label = "";
         LabelCodec::decode(&mut d2, &main.buffer, &mut main.read, &mut main.verdict);
@@ -64,7 +64,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.buffer[5] = 237;
         main.buffer[6] = 160;
         main.buffer[7] = 128;
-        let d3: LabelSample;
+        let mut d3: LabelSample;
         d3.count = 0;
         d3.label = "";
         LabelCodec::decode(&mut d3, &main.buffer, &mut main.read, &mut main.verdict);
@@ -77,7 +77,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.buffer[5] = 244;
         main.buffer[6] = 144;
         main.buffer[7] = 128;
-        let d4: LabelSample;
+        let mut d4: LabelSample;
         d4.count = 0;
         d4.label = "";
         LabelCodec::decode(&mut d4, &main.buffer, &mut main.read, &mut main.verdict);
@@ -90,7 +90,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.buffer[4] = 2;
         main.buffer[5] = 240;
         main.buffer[6] = 144;
-        let d5: LabelSample;
+        let mut d5: LabelSample;
         d5.count = 0;
         d5.label = "";
         LabelCodec::decode(&mut d5, &main.buffer, &mut main.read, &mut main.verdict);

@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) {
     main.hits = 0;
     let mut first: i32 = 0;
     let second: i32 = 9;
-    let selected: View = select(&mut first, &second);
+    let mut selected: View = select(&mut first, &second);
     selected.body = 7;
     let kept: i32 = second;
     transition first == 7 && kept == 9 {

@@ -8,7 +8,7 @@ ensures value.value == 256 && result <= 255
     0
 }
 machine main() {
-    let value: Wide = Wide { value: 7 };
+    let mut value: Wide = Wide { value: 7 };
     let converted: u8 = widen(&mut value) as u8;
     let invalid: Narrow in Seven = Narrow { value: value.value };
 }

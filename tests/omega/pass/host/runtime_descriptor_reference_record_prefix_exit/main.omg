@@ -39,7 +39,7 @@ machine observe_packet(packet: &Packet) -> u64 in Wrapping {
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     main.cell.value = 31;
-    let packet: Packet = Packet { header: Header { value: 16706 }, reference: &main.cell, counter: 7, tail: 29 };
+    let mut packet: Packet = Packet { header: Header { value: 16706 }, reference: &main.cell, counter: 7, tail: 29 };
     let before: i64 = DescriptorIo::write(1, &packet, 1);
     let zero: i64 = block receive(&mut packet.header, 0);
     let moved: i64 = block receive(&mut packet.header, 1);

@@ -18,11 +18,11 @@ machine write_owner(bytes: &mut TextBuffer) crashes Trap {
 }
 
 machine main() crashes Trap {
-    let entries: [TextBuffer; 2] = make();
+    let mut entries: [TextBuffer; 2] = make();
     let before: [TextBuffer; 2] = entries;
     let changed: bool = edit(&mut entries);
     let container: Container = Container { entries: entries };
-    let empty: [TextBuffer; 2] = [TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }];
+    let mut empty: [TextBuffer; 2] = [TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }, TextBuffer { storage: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8], used: 0 }];
     let was_empty: bool = observe(&empty) == 0;
     write_owner(&mut empty[1]);
     transition changed && observe(&entries) == 2 && observe(&before) == 4

@@ -8,7 +8,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let rooms: [Room; 1] = [Room { exit_count: 0 }];
+    let mut rooms: [Room; 1] = [Room { exit_count: 0 }];
     let from_index: u64 = 0;
 
     Main::bump(main, &mut rooms[from_index]);
