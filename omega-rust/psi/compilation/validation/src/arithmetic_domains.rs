@@ -22850,7 +22850,12 @@ pub(crate) mod selected_scalar_intervals {
             } => (*primitive_type, source.binding(*position, *primitive_type)?),
             Expression::ConstantApplication { .. }
             | Expression::ErasedParameter { .. }
-            | Expression::StructuralLocalField { .. } => {
+            | Expression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            } => {
                 return None;
             }
             Expression::StorageRead {
@@ -22858,7 +22863,10 @@ pub(crate) mod selected_scalar_intervals {
                 primitive_type,
             } => (*primitive_type, source.storage(*symbol, *primitive_type)?),
             Expression::StructuralParameterField {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 primitive_type,
                 ..

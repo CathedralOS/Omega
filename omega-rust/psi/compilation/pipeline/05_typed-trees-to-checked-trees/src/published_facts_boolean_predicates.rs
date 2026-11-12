@@ -1440,7 +1440,7 @@ pub(crate) fn entry_scalar(
         }
         return Some(Scalar::StructuralParameterField {
             observation: Default::default(),
-            parameter_position: position,
+            root: checked_trees::CheckedStorageRoot::Parameter { index: position },
             path,
             primitive_type: primitive,
         });
@@ -1689,7 +1689,10 @@ pub(crate) fn declared_observation(
         }
         Scalar::StorageRead { symbol, .. } => crate::flow::canonical_place_from_symbol(*symbol)?,
         Scalar::StructuralParameterField {
-            parameter_position,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
             path,
             ..
         } => {
@@ -1926,7 +1929,7 @@ impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> crate::values::Scal
         parameter_position: u32,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {
-        let binding = self.predicate.bindings.iter().find(|binding| matches!(binding.operand.scalar(), Some(Scalar::StructuralParameterField { observation: candidate_observation, parameter_position: candidate, path: candidate_path, .. }) if *candidate_observation == observation && *candidate == parameter_position && candidate_path == path))?;
+        let binding = self.predicate.bindings.iter().find(|binding| matches!(binding.operand.scalar(), Some(Scalar::StructuralParameterField { observation: candidate_observation, root: checked_trees::CheckedStorageRoot::Parameter { index: candidate }, path: candidate_path, .. }) if *candidate_observation == observation && *candidate == parameter_position && candidate_path == path))?;
         (self.resolve)(&binding.place)
     }
 }
@@ -2283,7 +2286,9 @@ pub(crate) fn map_observations(
         } => {
             let mut scalar = Scalar::StructuralParameterField {
                 observation: *observation,
-                parameter_position: *parameter_position,
+                root: checked_trees::CheckedStorageRoot::Parameter {
+                    index: *parameter_position,
+                },
                 path: path.clone(),
                 primitive_type: PrimitiveType::Bool,
             };
@@ -2359,7 +2364,10 @@ fn boolean_operand(operand: Scalar) -> Option<Boolean> {
         } => Some(Boolean::Parameter { position }),
         Scalar::StructuralParameterField {
             observation,
-            parameter_position,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
             path,
             primitive_type: PrimitiveType::Bool,
         } => Some(Boolean::StructuralParameterField {
@@ -2386,7 +2394,10 @@ pub(crate) fn map_scalar(
 ) -> Option<()> {
     match expression {
         Scalar::Parameter { .. }
-        | Scalar::StructuralParameterField { .. }
+        | Scalar::StructuralParameterField {
+            root: checked_trees::CheckedStorageRoot::Parameter { .. },
+            ..
+        }
         | Scalar::StructuralParameterIndexedRead { .. }
         | Scalar::Local { .. }
         | Scalar::StorageRead { .. } => map_scalar_observation(expression, map)?,
@@ -2404,7 +2415,12 @@ pub(crate) fn map_scalar(
         | Scalar::IeeeFloatLiteral { .. }
         | Scalar::ImplementationSelection { .. } => {}
         Scalar::StructuralSequenceLength { .. }
-        | Scalar::StructuralLocalField { .. }
+        | Scalar::StructuralParameterField {
+            root:
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            ..
+        }
         | Scalar::ErasedParameter { .. } => return None,
     }
     Some(())
