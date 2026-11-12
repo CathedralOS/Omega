@@ -93,4 +93,4 @@ Full log: `work/stability_matrix.txt`. (`0` = meets ledger / good; `1` = reprodu
 
 Frozen ledger at `/tmp/ledger_bisect_corpus_outcomes.txt` and per-fixture `pin_observed.txt` witnesses. `bisect_witness.sh` uses commit-scoped `target/bisect-pool-<12-char-sha>/` (fixes shared-pool skew). Skip ledger-only commits (exit 125).
 
-Branch head: `work/ledger-bisect-part-9` at `82ae26e22f86bdc76cd6b2c731400f5899e4408d`.
+Branch head: `work/ledger-bisect-part-9` at `bb86abb7b313ecf2ab2f744aee03cc8133fcb5d8`.
