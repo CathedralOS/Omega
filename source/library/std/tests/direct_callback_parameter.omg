@@ -1,5 +1,4 @@
 
-use omega::language::std::calling;
 
 data HookProcedurePolicy { }
 public HookProcedurePolicyCallingPolicy satisfies CallingPolicy {

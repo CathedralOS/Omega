@@ -1,14 +1,2 @@
 // Ordinary package review entry for the portable standard-library surface.
-// Target implementation modules are reached from their owning portable
-// modules; target-only contracts remain separate until that target requests
-// them explicitly.
-use calling;
-use clock;
-use console;
-use filesystem;
-use macos_gui;
-use posix_filesystem_host;
-use process_exit;
-use windows_filesystem_host;
-use windows_gui_host;
-use time;
+// Its declarations share the package-root logical module with sibling sources.

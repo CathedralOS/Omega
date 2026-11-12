@@ -3,16 +3,10 @@
 // Attribute updates resolve a path once, retain unrelated observed attributes,
 // and leave all timestamps unchanged; this is not atomic against another
 // writer changing those same attributes. Capture failure before releasing.
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_impl;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_paths;
-use targets::windows_x86_64::windows_filesystem_metadata;
-use targets::windows_x86_64::windows_filesystem_metadata_native;
-use targets::windows_x86_64::windows_filesystem_file_control_native;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 machine windows_file_control_completion(status: i32, released: i32) -> i32 {
     transition status != 0 { true -> (status) false -> (released) }

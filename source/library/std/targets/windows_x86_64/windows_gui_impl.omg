@@ -5,7 +5,6 @@
 // Client sizing uses the same native frame metrics as CreateWindowExA.
 // Drawing lends live bitmap storage synchronously; its caller releases the HDC
 // on the acquiring thread before destroying its window.
-use windows_gui_host;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `std/build.omg`

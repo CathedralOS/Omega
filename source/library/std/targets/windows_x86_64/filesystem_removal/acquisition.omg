@@ -3,15 +3,12 @@
 // no pathname is reconstructed, case-folded, or reopened after classification.
 // Enumeration attributes select requested rights only. The opened object's
 // actual attributes, not that hint, decide whether traversal can descend.
-use filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::windows_filesystem_native;
-use targets::windows_x86_64::windows_filesystem_paths;
-use targets::windows_x86_64::windows_filesystem_directory_native;
-use targets::windows_x86_64::windows_filesystem_private_handles;
-use targets::windows_x86_64::filesystem_removal::native;
-use targets::windows_x86_64::filesystem_removal::completion;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 windows_x86_64 machine windows_removal_open_root(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {

@@ -4,7 +4,9 @@
 // Return the unit count, or -1 for NUL input, malformed UTF-8 or insufficient
 // output. A written prefix never authorizes an OS call after failure.
 // Output is the raw adapter's fixed native path capacity; no generic view ABI is needed.
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_u32;
+use omega::language::core::narrow_u32_to_u16_wrapping;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 data WindowsPathCharacter {
     valid: bool;

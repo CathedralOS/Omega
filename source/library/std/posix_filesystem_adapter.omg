@@ -1,17 +1,23 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // POSIX implementation state is local to an entered portable operation. Raw
 // calls are static provider dependencies; no raw binding enters app data.
 // Free helpers receive operation scratch explicitly; PosixFilesystem is data only.
 // Portable operations and directory traversal are shared. Target files own
 // stat layouts, directory-record geometry, flags, errno translation and libc
 // imports; only a target with that complete implementation installs defaults.
-use filesystem;
-use posix_filesystem_host;
-use omega::language::core::layout;
-use omega::language::core::numeric_conversion;
-use targets::linux_x86_64::filesystem_impl;
-use targets::linux_arm64::filesystem_impl;
-use targets::macos_arm64::filesystem_impl;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::narrow_i64_to_i32_wrapping;
+use omega::language::core::narrow_u64_to_i32_exact;
+use omega::language::core::narrow_i32_to_u64_exact;
+use omega::language::core::narrow_i32_to_u64_wrapping;
+use omega::language::core::narrow_i64_to_u8_wrapping;
+use omega::language::core::narrow_i64_to_u64_exact;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 // Native mode bits are decoded only inside the POSIX family. The portable
 // metadata kind is not an alias for a POSIX permission or file-type bitfield.

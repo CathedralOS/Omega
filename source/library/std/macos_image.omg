@@ -1,7 +1,4 @@
 // Offscreen images own copied native storage. No image retains an Omega loan.
-use calling;
-use darwin_calling;
-use posix_byte_view_calling;
 
 // CFDataCreate has three C arguments: allocator, byte pointer and CFIndex.
 // The explicit calling policy exports the complete shared view as pointer/count.
