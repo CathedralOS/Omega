@@ -26776,12 +26776,12 @@ pass/host/runtime_semantic_gui_reach_exit rejected 27595ms check-target:macos_ar
 pass/host/runtime_stored_scalar_reference_foreign_export_exit checked 22295ms check-target:macos_arm64 @2be83686053c
 pass/host/runtime_windows_bitmap_client_cleanup_exit checked 18172ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_windows_gui_argument_failures_exit checked 15063ms check-target:windows_x86_64 @ccdb99ca2214
-pass/host/scalar_reference_mixed_backing_foreign_export rejected 7766ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
-	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
-pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 8108ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
-	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
-pass/host/scalar_reference_narrow_backing_foreign_export rejected 7717ms check-target:linux_x86_64 regressed-from:rejected+expected+check-target:linux_x86_64+native-rejection:match @af5163405363
-	no provider is selected for boundary requirement `Compare::compare`, which the program entry reaches on target `linux_x86_64`
+pass/host/scalar_reference_mixed_backing_foreign_export rejected 33986ms expected check-target:linux_x86_64 native-rejection:match @33b52a448286
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(15)), operation: Some(OperationId(112)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/scalar_reference_mixed_index_backing_foreign_export rejected 35251ms expected check-target:linux_x86_64 native-rejection:match @33b52a448286
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(13)), operation: Some(OperationId(99)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
+pass/host/scalar_reference_narrow_backing_foreign_export rejected 36562ms expected check-target:linux_x86_64 native-rejection:match @33b52a448286
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(13)), operation: Some(OperationId(92)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("thin scalar foreign pointer requires the same byte footprint in every backing") }))
 pass/host/std_clock_explicit_override_exit checked 8639ms check-target:macos_arm64 @b852a38544d0
 pass/host/std_clock_sleep_exit checked 11855ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/user32_window_procedure_registration checked 25394ms check-target:windows_x86_64 @17566023e3d8
