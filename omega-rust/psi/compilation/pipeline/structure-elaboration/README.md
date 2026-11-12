@@ -908,3 +908,12 @@ worked around by adding to `terminal-check-tables`.
     the caller's obligations on the ordinary call rows; a later lane that
     wants requirements out of `module.machines` needs a callee row for one.
 
+33. **A resolved call is not a permitted call.** The typed trees hold a call
+    into a dependency's private machine fully resolved; the current checker
+    rejects it later, where a product selects the callee. The reader
+    therefore checks visibility itself: a callee that is not public must be
+    declared in the caller's package, by the source file each symbol was
+    declared in, with a generated machine placed where its declaration is
+    (`visible_to`). Any other call is refused as `call private machine of
+    another package`, so the current checker decides the compilation
+    (`tests/omega/fail/build/executed_dependency_private_call`).

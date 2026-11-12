@@ -683,10 +683,46 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = self.machine(machine)?;
         self.call_of(id, slots, callee, arguments, source)
+    }
+
+    /// Refuses a call from machine `id` to a machine of another package that
+    /// is not public. Which package a declaration belongs to is the package
+    /// of the source file its symbol was declared in, as for subjects
+    /// (`subjects`); a declaration with no source file cannot be placed and
+    /// is refused. The typed trees can hold such a call: the current checker
+    /// rejects it after them, where a product selects the callee, so a
+    /// reader that took every resolved call as permitted would accept a
+    /// program that reaches into a dependency's private machine.
+    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let Some(declaration) = self.typed.machine_by_symbol(callee) else {
+            return unserved("target is not a machine declaration");
+        };
+        if declaration.is_public {
+            return Ok(());
+        }
+        let symbols = &self.typed.symbols;
+        // A machine stage 04 generated belongs where its declaration does.
+        let package = |symbol: SymbolHandle| {
+            let symbol = crate::template_of(self.typed, symbol).unwrap_or(symbol);
+            symbol
+                .is_valid()
+                .then(|| symbols.symbol_provenance_source_span(symbol))
+                .flatten()
+                .and_then(|span| symbols.source_file(span))
+                .map(|file| (file.origin, file.package_identity))
+        };
+        let caller = self.symbols.get(id).copied().and_then(package);
+        match (caller, package(callee)) {
+            (Some(caller), Some(callee)) if caller == callee => Ok(()),
+            (Some(_), Some(_)) => unserved("private machine of another package"),
+            _ => unserved("call between declarations without a source file"),
+        }
     }
 
     /// The call of `callee`, a machine or a requirement already read.

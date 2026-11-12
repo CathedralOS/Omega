@@ -309,6 +309,22 @@ that cannot fail cannot hold work back, and work went ahead
      a subject. Which check judges them when the route governs is undecided,
      and until it is the route's verdict does not cover a whole compilation.
      `Build::validate` rows are not handled either; nothing implements them.
+     The `fail/` sweep of 2026-11-12 shows what that costs: four programs
+     the current checker rejects for their entry are accepted whole by the
+     route, because nothing it roots states what the target asks of an
+     entry. They are `fail/build/program_entry_returns_value` and
+     `fail/build/unrequested_target_entry_returns_value` ("`ProgramEntry`
+     has no result"), `fail/build/hosted_program_entry_visible_parameter`
+     ("hosted `ProgramEntry` exposes no arrival parameters") and
+     `fail/build/uefi_program_entry_missing_storage_roots` ("exposes exactly
+     image and initial-storage roots"). A rule in the route that an entry
+     takes and returns nothing would close three and wrongly accept the
+     fourth, so none is added: the repair is to root the entry-contract
+     source, which is this open item. A fifth program of that sweep,
+     `fail/build/executed_dependency_private_call`, was accepted for another
+     reason, a call into a dependency's private machine, and is now handed
+     back (`lowered_route_subjects`,
+     `a_call_into_another_packages_private_machine_is_never_accepted`).
    - *The current pipeline is too wide*, and this record must not copy it:
      see [the library correction](#the-library-is-a-dependency-not-a-subject).
 
