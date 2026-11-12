@@ -1658,25 +1658,104 @@ pub mod expression_types {
             }
         }
 
+        // The operands whose float-ness decides `operand`'s, if it has any.
+        fn float_operands(
+            program: &dyn crate::CheckingInput,
+            operand: ExpressionHandle,
+        ) -> Option<Vec<ExpressionHandle>> {
+            match program.expression_table.expression(operand) {
+                ExpressionNode::Borrow(inner) => Some(vec![inner.target]),
+                ExpressionNode::Binary(binary) => Some(vec![binary.left, binary.right]),
+                ExpressionNode::Unary(unary) => Some(vec![unary.operand]),
+                _ => None,
+            }
+        }
+
+        /*
+            Whether `operand` is float-typed, memoized per state-owned
+            expression and decided bottom-up from a stack the query owns, for
+            the reason `value_class` is.
+        */
         pub(crate) fn expression_is_float_typed(
             program: &dyn crate::CheckingInput,
             machine: &typed_trees::machine::Machine,
             state: Option<&typed_trees::state::State>,
             operand: ExpressionHandle,
         ) -> bool {
+            let Some((memos, state)) =
+                crate::frozen_program::frozen_program_memos(program).zip(state)
+            else {
+                return float_typed(program, machine, state, operand, &mut |operand| {
+                    expression_is_float_typed(program, machine, state, operand)
+                });
+            };
+            let key = |expression| {
+                crate::proof_contracts::bound_expression_meaning::meaning_key(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            };
+            let cached = |expression| {
+                let key = key(expression)?;
+                memos
+                    .expression_float_operands
+                    .read()
+                    .ok()?
+                    .get(&key)
+                    .copied()
+            };
+            if let Some(answer) = cached(operand) {
+                return answer;
+            }
+            let mut pending = vec![(operand, false)];
+            while let Some((expression, operands_ready)) = pending.pop() {
+                if cached(expression).is_some() {
+                    continue;
+                }
+                if !operands_ready && let Some(operands) = float_operands(program, expression) {
+                    pending.push((expression, true));
+                    pending.extend(operands.into_iter().map(|operand| (operand, false)));
+                    continue;
+                }
+                let answer = float_typed(program, machine, Some(state), expression, &mut |inner| {
+                    cached(inner).unwrap_or_else(|| {
+                        expression_is_float_typed(program, machine, Some(state), inner)
+                    })
+                });
+                match key(expression) {
+                    Some(key) => {
+                        if let Ok(mut answers) = memos.expression_float_operands.write() {
+                            answers.insert(key, answer);
+                        }
+                    }
+                    None if expression == operand => return answer,
+                    None => {}
+                }
+            }
+            cached(operand).unwrap_or_else(|| {
+                float_typed(program, machine, Some(state), operand, &mut |inner| {
+                    expression_is_float_typed(program, machine, Some(state), inner)
+                })
+            })
+        }
+
+        fn float_typed(
+            program: &dyn crate::CheckingInput,
+            machine: &typed_trees::machine::Machine,
+            state: Option<&typed_trees::state::State>,
+            operand: ExpressionHandle,
+            operand_is_float: &mut dyn FnMut(ExpressionHandle) -> bool,
+        ) -> bool {
             match program.expression_table.expression(operand) {
                 ExpressionNode::UndeterminedNaN(_) => true,
                 ExpressionNode::Float(literal) => literal.landing().is_some(),
-                ExpressionNode::Borrow(inner) => {
-                    expression_is_float_typed(program, machine, state, inner.target)
-                }
+                ExpressionNode::Borrow(inner) => operand_is_float(inner.target),
                 ExpressionNode::Binary(binary) => {
-                    expression_is_float_typed(program, machine, state, binary.left)
-                        || expression_is_float_typed(program, machine, state, binary.right)
+                    operand_is_float(binary.left) || operand_is_float(binary.right)
                 }
-                ExpressionNode::Unary(unary) => {
-                    expression_is_float_typed(program, machine, state, unary.operand)
-                }
+                ExpressionNode::Unary(unary) => operand_is_float(unary.operand),
                 ExpressionNode::Cast(cast) => program
                     .primitive_type_reference(cast.target_type)
                     .is_some_and(|primitive| primitive.accepts_float_literal()),
@@ -2447,7 +2526,115 @@ pub mod expression_types {
             }
         }
 
+        impl ValueClass {
+            fn encode(class: Option<Self>) -> Option<u8> {
+                class.map(|class| match class {
+                    Self::Boolean => 0,
+                    Self::Text => 1,
+                    Self::Numeric => 2,
+                })
+            }
+
+            fn decode(code: Option<u8>) -> Option<Self> {
+                code.map(|code| match code {
+                    0 => Self::Boolean,
+                    1 => Self::Text,
+                    _ => Self::Numeric,
+                })
+            }
+        }
+
+        /*
+            An arithmetic or bitwise binary's class is a function of its
+            operands' classes; every other expression's class reads no other
+            expression's class.
+        */
+        fn classifies_from_operands(
+            program: &dyn crate::CheckingInput,
+            value: ExpressionHandle,
+        ) -> Option<[ExpressionHandle; 2]> {
+            use typed_trees::expression::BinaryOperator;
+            if ValueClass::of_literal(program, value).is_some() {
+                return None;
+            }
+            let binary = program.expression_table.binary_node(value)?;
+            (!binary.operator.is_comparison()
+                && !matches!(
+                    binary.operator,
+                    BinaryOperator::And | BinaryOperator::Or | BinaryOperator::CaseMembership
+                ))
+            .then_some([binary.left, binary.right])
+        }
+
+        /*
+            The class of `value`, memoized per state-owned expression. An
+            unmemoized operand subtree is classified bottom-up from a stack the
+            query owns, so each expression is classified once and a long
+            operator chain neither repeats work per enclosing operator nor
+            recurses once per operand.
+        */
         pub(crate) fn value_class(
+            program: &dyn crate::CheckingInput,
+            machine: Option<&typed_trees::machine::Machine>,
+            state: Option<&typed_trees::state::State>,
+            value: ExpressionHandle,
+        ) -> Option<ValueClass> {
+            let memos = machine.zip(state).and_then(|(machine, state)| {
+                Some((
+                    crate::frozen_program::frozen_program_memos(program)?,
+                    machine,
+                    state,
+                ))
+            });
+            let Some((memos, machine, state)) = memos else {
+                return classify(program, machine, state, value);
+            };
+            let key = |expression| {
+                crate::proof_contracts::bound_expression_meaning::meaning_key(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+            };
+            let cached = |expression| {
+                let key = key(expression)?;
+                memos
+                    .expression_value_classes
+                    .read()
+                    .ok()?
+                    .get(&key)
+                    .copied()
+            };
+            if let Some(code) = cached(value) {
+                return ValueClass::decode(code);
+            }
+            let mut pending = vec![(value, false)];
+            while let Some((expression, operands_ready)) = pending.pop() {
+                if cached(expression).is_some() {
+                    continue;
+                }
+                if !operands_ready
+                    && let Some(operands) = classifies_from_operands(program, expression)
+                {
+                    pending.push((expression, true));
+                    pending.extend(operands.map(|operand| (operand, false)));
+                    continue;
+                }
+                let class = classify(program, Some(machine), Some(state), expression);
+                if let Some(key) = key(expression)
+                    && let Ok(mut classes) = memos.expression_value_classes.write()
+                {
+                    classes.insert(key, ValueClass::encode(class));
+                }
+            }
+            cached(value).map_or_else(
+                || classify(program, Some(machine), Some(state), value),
+                ValueClass::decode,
+            )
+        }
+
+        fn classify(
             program: &dyn crate::CheckingInput,
             machine: Option<&typed_trees::machine::Machine>,
             state: Option<&typed_trees::state::State>,

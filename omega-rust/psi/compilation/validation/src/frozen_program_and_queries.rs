@@ -1311,6 +1311,16 @@ pub mod frozen_program {
     pub(crate) bound_subtree_meanings: Mutex<
         symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
     >,
+    /// `value_class` and float-operand answers per state-owned expression.
+    /// Operator validation asks both of each binary's operands, and each
+    /// answer descends its operand's whole arithmetic subtree, so without
+    /// these an operator chain was classified once per enclosing operator.
+    pub(crate) expression_value_classes: std::sync::RwLock<
+        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
+    >,
+    pub(crate) expression_float_operands: std::sync::RwLock<
+        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
+    >,
     pub(crate) expression_result_types: std::sync::RwLock<
         symbols::SymbolKeyMap<
             (u32, u32, typed_trees::expression::ExpressionHandle),

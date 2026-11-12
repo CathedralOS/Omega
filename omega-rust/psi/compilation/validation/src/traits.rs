@@ -5507,7 +5507,8 @@ pub(crate) mod dynamic {
         let mut diagnostics = Vec::new();
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                let mut visited = Vec::new();
+                let mut visited =
+                    crate::queries::expression_traversal::EnteredExpressions::default();
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     for (_, root) in program.tables.expression_roots(statement) {
                         collect_selections_in(
@@ -5530,7 +5531,7 @@ pub(crate) mod dynamic {
                 SymbolHandle::invalid(),
                 SymbolHandle::invalid(),
                 root,
-                &mut Vec::new(),
+                &mut crate::queries::expression_traversal::EnteredExpressions::default(),
                 &mut selections,
                 &mut diagnostics,
             );
@@ -5556,31 +5557,44 @@ pub(crate) mod dynamic {
         }
     }
 
+    // Every dynamic selector in `expression`'s subtree, children before
+    // parents, skipping expressions already entered.
     fn collect_selections_in(
         program: &dyn crate::CheckingInput,
         machine: SymbolHandle,
         state: SymbolHandle,
         expression: ExpressionHandle,
-        visited: &mut Vec<ExpressionHandle>,
+        entered: &mut crate::queries::expression_traversal::EnteredExpressions,
         selections: &mut Vec<DynamicImplementationSelection>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if !expression.is_valid() || visited.contains(&expression) {
-            return;
-        }
-        visited.push(expression);
-        let node = expression_table(program).expression(expression);
-        crate::queries::expression_traversal::children(program, node, |child| {
-            collect_selections_in(
-                program,
-                machine,
-                state,
-                child,
-                visited,
-                selections,
-                diagnostics,
-            )
-        });
+        crate::queries::expression_traversal::visit_post_order(
+            program,
+            expression,
+            entered,
+            |expression, node| {
+                collect_selection_at(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    node,
+                    selections,
+                    diagnostics,
+                )
+            },
+        );
+    }
+
+    fn collect_selection_at(
+        program: &dyn crate::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        expression: ExpressionHandle,
+        node: &ExpressionNode,
+        selections: &mut Vec<DynamicImplementationSelection>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let ExpressionNode::Cast(cast) = node else {
             return;
         };
@@ -5739,7 +5753,8 @@ pub(crate) mod dynamic {
         }
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                let mut visited = Vec::new();
+                let mut visited =
+                    crate::queries::expression_traversal::EnteredExpressions::default();
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(call) = statement.as_call()
                         && let Some(demand) = dynamic_call_demand(
@@ -5774,22 +5789,22 @@ pub(crate) mod dynamic {
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
-        visited: &mut Vec<ExpressionHandle>,
+        entered: &mut crate::queries::expression_traversal::EnteredExpressions,
         push: &mut impl FnMut(DynamicSlotDemand),
     ) {
-        if !expression.is_valid() || visited.contains(&expression) {
-            return;
-        }
-        visited.push(expression);
-        let node = expression_table(program).expression(expression);
-        crate::queries::expression_traversal::children(program, node, |child| {
-            collect_call_demands_in(program, machine, state, child, visited, push)
-        });
-        if let ExpressionNode::Call(call) = node
-            && let Some(demand) = dynamic_expression_call_demand(program, machine, state, call)
-        {
-            push(demand);
-        }
+        crate::queries::expression_traversal::visit_post_order(
+            program,
+            expression,
+            entered,
+            |_, node| {
+                if let ExpressionNode::Call(call) = node
+                    && let Some(demand) =
+                        dynamic_expression_call_demand(program, machine, state, call)
+                {
+                    push(demand);
+                }
+            },
+        );
     }
 
     pub fn dynamic_expression_call_demand(
