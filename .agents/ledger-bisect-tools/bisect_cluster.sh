@@ -5,11 +5,12 @@ CLUSTER_ID="${1:?id}"
 WITNESS="${2:?witness}"
 OUT="${3:?out json}"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+TOOLROOT=/tmp/ledger-bisect-tools
+ROOT="$(git -C "$TOOLROOT" rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)"
 cd "$ROOT"
-SCRIPT="$ROOT/.agents/ledger-bisect-tools/bisect_witness.sh"
-MEASURE="$ROOT/.agents/ledger-bisect-tools/measure_one.sh"
-TEST="$ROOT/.agents/ledger-bisect-tools/bisect_test.py"
+SCRIPT="$TOOLROOT/bisect_witness.sh"
+MEASURE="$TOOLROOT/measure_one.sh"
+TEST="$TOOLROOT/bisect_test.py"
 BRANCH="${BISECT_RETURN_BRANCH:-work/ledger-bisect-part-29}"
 
 ledger_only_commit() {
