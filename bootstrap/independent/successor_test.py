@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--literals", action="store_true",
                         help="validate Delta byte literals and the actual Epsilon source encoder")
     parser.add_argument("--compile-epsilon", action="store_true",
-                        help="compile the complete lexical module and check scalar/nominal refusals")
+                        help="compile production lexical/request modules and exercise receiver storage/views")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")

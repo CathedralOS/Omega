@@ -1,0 +1,51 @@
+data Main {
+    console: Console;
+    bytes: [u8; 4096];
+    envelope: OmegaRequestEnvelope;
+    structure: OmegaRequestStructure;
+    utf8: OmegaUtf8Validation;
+}
+
+machine Main::word(&mut self, value: i32) {
+    self.console.write_byte(value & 255);
+    self.console.write_byte((value >> 8) & 255);
+    self.console.write_byte((value >> 16) & 255);
+    self.console.write_byte((value >> 24) & 255);
+}
+
+machine Main::main(&mut self) {
+    transition true { true -> read(0) }
+    state read(length: i32) {
+        let value: i32 = self.console.read_byte();
+        transition value >= 0 {
+            true -> append(length, value)
+            _ -> inspect(length)
+        }
+    }
+    state append(length: i32, value: i32) {
+        assert length < 4096;
+        self.bytes[length] = value;
+        transition true { true -> read(length + 1) }
+    }
+    state inspect(length: i32) {
+        let request: &[u8] = self.bytes[0..length];
+        self.envelope.frame_ocreq(request);
+        self.structure.check(request);
+        self.utf8.validate(request);
+        self.word(self.envelope.complete);
+        self.word(self.envelope.error_offset);
+        self.word(self.envelope.subject_start);
+        self.word(self.envelope.subject_end);
+        self.word(self.envelope.invocation_start);
+        self.word(self.envelope.invocation_end);
+        self.word(self.structure.complete);
+        self.word(self.structure.malformed_offset);
+        self.word(self.structure.outcome_tag);
+        self.word(self.structure.outcome_space);
+        self.word(self.structure.outcome_code);
+        self.word(self.structure.outcome_coordinate);
+        self.word(self.utf8.valid);
+        self.word(self.utf8.error_offset);
+        self.console.exit_process(42);
+    }
+}

@@ -1,7 +1,7 @@
 """Construct and exercise actual Epsilon source compiled through Delta/native.
 
-The first customer is the unchanged scalar prefix of D's lexical module.
-Effects, aggregates and remaining D source are explicit future capabilities.
+Customers include the unchanged lexical and request/UTF8 production modules.
+Receiver storage and views use direct functions over shared runtime leaves.
 """
 import hashlib
 import importlib.util
@@ -48,6 +48,64 @@ CONTROLS = [
 
 def identity(data):
     return {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+
+
+def stored_customers(work, observe, compile_delta, reference, compiler):
+    boundary = CONSOLE[:CONSOLE.index(b'data Main')]
+    driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
+
+    def program(source, name):
+        (work / f'{name}.epsilon').write_bytes(source)
+        observation = observe(compiler, source)
+        (work / f'{name}.observation').write_bytes(observation)
+        generated, runtime = composition.decode_module(observation)
+        assert runtime == 'storage', observation[:80]
+        target = composition.program_source(generated, driver, runtime)
+        executable = compile_delta(target, name)
+        return executable, {'source': identity(source), 'generated': identity(generated),
+                            'target': identity(target), 'image': identity(executable.read_bytes())}
+
+    base = ROOT / 'bootstrap/interpreted/5_omega'
+    # Complete existing production owners, with no body extraction or rewriting.
+    source = ((base / 'representations.epsilon').read_bytes()
+              + (base / 'request_and_utf8.epsilon').read_bytes() + boundary
+              + (FIXTURES / 'request_main.epsilon').read_bytes())
+    executable, request_report = program(source, 'request-target')
+    spec = importlib.util.spec_from_file_location('omega_request_fixture', ROOT / 'tests/bootstrap/omega-executable/gate.py')
+    fixture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixture)
+    valid = fixture.ocreq_request(b'machine main() -> u8 { 42 }', b'program.omg')
+    request_report['cases'] = []
+    for name, payload in [('ocreq', valid), ('truncated', valid[:-1]), ('empty', b''),
+                          ('identity', b'X' + valid[1:]),
+                          ('unicode', b'\xf0\x90\x80\x80'), ('surrogate', b'\xed\xa0\x80')]:
+        actual = observe(executable, payload)
+        expected = reference(source, payload, f'request-reference-{name}')
+        assert actual == expected and actual[:5] == b'\0' + struct.pack('<i', 42), (name, actual, expected)
+        fields = struct.unpack('<14i', actual[5:])
+        if name == 'ocreq':
+            assert fields[0] == 1 and fields[6] == 1, fields
+        if name == 'unicode':
+            assert fields[12] == 1, fields
+        if name == 'surrogate':
+            assert fields[12] == 0 and fields[13] == 0, fields
+        request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
+
+    source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
+    executable, storage_report = program(source, 'storage-target')
+    storage_report['cases'] = []
+    for name, payload, expected in [('live', b'\2', b'\0' + struct.pack('<i', 42) + b'A'),
+                                    ('bounds', b'\10', b'\1\6A'), ('eof', b'', b'\1\6A')]:
+        actual = observe(executable, payload)
+        assert actual == expected == reference(source, payload, f'storage-reference-{name}'), (name, actual, expected)
+        storage_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
+    # The same compiled entry takes 300,000 state transfers while retaining a
+    # local array through its view. The short path above has the independent
+    # source-built evaluator oracle; this longer path falsifies growing frames.
+    actual = observe(executable, b'\2\1')
+    assert actual == b'\0' + struct.pack('<i', 42) + b'A', actual
+    storage_report['native_state_transfers'] = 300000
+    return {'request': request_report, 'storage': storage_report}
 
 
 def run(work, vm, producer, realize, seconds):
@@ -174,10 +232,10 @@ def run(work, vm, producer, realize, seconds):
         assert refusal == b'rejected 17 ' + str(invalid.index(b'missing')).encode(), refusal
         assert reference(invalid, b'', 'invalid-reference') == (
             b'\2\x11' + struct.pack('<I', invalid.index(b'missing')))
-        # A valid, unreachable effectful machine and an unused nominal parameter
-        # must both refuse; the compiler publishes no previously emitted prefix.
+        # Unsupported Console text output and a payload parameter remain valid
+        # Epsilon source. Neither may publish a previously emitted prefix.
         for name, suffix in (
-            ('effect', b'machine Main::unused_write(&mut self) { self.console.write_byte(1); }\n'),
+            ('effect', b'machine Main::unused_write(&mut self) { self.console.write_line("text"); }\n'),
             ('nominal', b'data Color { case Red(value: i32); case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
         ):
             request = source + suffix
@@ -193,6 +251,9 @@ def run(work, vm, producer, realize, seconds):
         enum_controls = importlib.util.module_from_spec(enum_spec)
         enum_spec.loader.exec_module(enum_controls)
         report['enum_customer'] = enum_controls.run(work, vm, producer, realize, seconds, composition, compiler)
+        report['stage'] = 'actual-request-and-storage'
+        checkpoint()
+        report['stored_customers'] = stored_customers(work, observe, compile_delta, reference, compiler)
         report.update(state='passed', stage='complete', refusal_controls=3, finished=time.time())
         checkpoint()
         return report

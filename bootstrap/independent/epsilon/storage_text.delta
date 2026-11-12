@@ -1,0 +1,70 @@
+; Shared effect fields stay named at their generated continuation boundary.
+(def epsilon_emit_stored_fields ((value Bytes) (place Bytes)
+  (store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_spaced (epsilon_emit_spaced value place) (epsilon_emit_spaced store output)))
+
+(def epsilon_emit_stored_alias_effects ((coordinate Int) (store Bytes)
+  (output Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_call "let" (epsilon_emit_spaced
+    (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate) "EpsilonRuntimeStore")
+    (epsilon_emit_spaced store (epsilon_emit_call "let" (epsilon_emit_spaced
+      (epsilon_emit_spaced (epsilon_emit_generated "output" coordinate) "Bytes")
+      (epsilon_emit_spaced output continuation)))))))
+
+(def epsilon_emit_stored_integer ((value Bytes) (store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_call "epsilon_evaluator_integer"
+    (epsilon_emit_spaced value (epsilon_emit_spaced store output))))
+
+(def epsilon_emit_stored_resultless ((store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorResultless" (epsilon_emit_spaced store output)))
+
+(def epsilon_emit_stored_internal ((offset Int)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorInternal" (epsilon_emit_decimal offset)))
+
+(def epsilon_emit_stored_trap ((kind Int) (output Bytes)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorTrap" (epsilon_emit_spaced (epsilon_emit_decimal kind) output)))
+
+(def epsilon_emit_stored_propagation () Bytes
+  "((EpsilonEvaluatorExit ep_exit ep_prefix) (EpsilonEvaluatorExit ep_exit ep_prefix))\n((EpsilonEvaluatorTrap ep_trap ep_prefix) (EpsilonEvaluatorTrap ep_trap ep_prefix))\n((EpsilonEvaluatorInternal ep_offset) (EpsilonEvaluatorInternal ep_offset))\n")
+
+(def epsilon_emit_stored_value_pattern ((coordinate Int)) Bytes
+  (epsilon_emit_call "EpsilonEvaluatorValue" (epsilon_emit_stored_fields
+    (epsilon_emit_generated "value" coordinate) (epsilon_emit_generated "place" coordinate)
+    (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))))
+
+(def epsilon_emit_stored_value_then ((coordinate Int)
+  (expression Bytes) (continuation Bytes)) Bytes
+  (let accepted Bytes (epsilon_emit_case (epsilon_emit_stored_value_pattern coordinate) continuation)
+    (let missing Bytes (epsilon_emit_case
+      "(EpsilonEvaluatorResultless ep_unused_store ep_unused_output)" (epsilon_emit_stored_internal coordinate))
+      (epsilon_emit_match expression
+        (bytes_concat accepted (bytes_concat missing (epsilon_emit_stored_propagation)))))))
+
+(def epsilon_emit_stored_scalar_cases ((coordinate Int) (continuation Bytes)) Bytes
+  (let accepted Bytes (epsilon_emit_case
+    (epsilon_emit_call "EpsilonRuntimeInteger" (epsilon_emit_generated "scalar" coordinate)) continuation)
+    (let invalid Bytes (epsilon_emit_stored_internal coordinate)
+      (bytes_concat accepted (bytes_concat
+        (epsilon_emit_case "(EpsilonRuntimeAggregate ep_type ep_children)" invalid)
+        (bytes_concat (epsilon_emit_case "(EpsilonRuntimeSumValue ep_owner ep_case ep_payload)" invalid)
+          (epsilon_emit_case "(EpsilonRuntimeViewValue ep_view)" invalid)))))))
+
+(def epsilon_emit_stored_scalar_then ((coordinate Int)
+  (expression Bytes) (continuation Bytes)) Bytes
+  (epsilon_emit_stored_value_then coordinate expression
+    (epsilon_emit_match (epsilon_emit_generated "value" coordinate)
+      (epsilon_emit_stored_scalar_cases coordinate continuation))))
+
+; A postfix statement discards an ordinary value or resultless completion;
+; both preserve the exact new store/output before the next statement runs.
+; Normalize once so the successor text is not duplicated at every statement.
+(def epsilon_emit_stored_effect_then ((coordinate Int)
+  (expression Bytes) (continuation Bytes)) Bytes
+  (let valueCase Bytes (epsilon_emit_case (epsilon_emit_stored_value_pattern coordinate)
+    (epsilon_emit_stored_internal coordinate))
+    (let resultless Bytes (epsilon_emit_case
+      (epsilon_emit_call "EpsilonEvaluatorResultless" (epsilon_emit_spaced
+        (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate)))
+      continuation)
+      (epsilon_emit_match (epsilon_emit_call "epsilon_compiled_discard" expression)
+        (bytes_concat valueCase (bytes_concat resultless (epsilon_emit_stored_propagation)))))))

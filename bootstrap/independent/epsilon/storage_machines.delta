@@ -1,0 +1,147 @@
+; Receiver parameters have mutable homes. Lifted states capture the original
+; machine homes, while their own parameters receive fresh homes on transfer.
+; The invocation floor remains fixed across all of its states.
+(def epsilon_delta_stored_parameter_names ((source EpsilonSourceView)
+  (parameters EpsilonParameterList) (homes Int)) Bytes
+  (match parameters
+    (NoEpsilonParameters "")
+    ((MoreEpsilonParameters parameter rest)
+      (match parameter
+        ((EpsilonParameterSyntax start end name typeValue)
+          (epsilon_emit_spaced
+            (if homes (epsilon_delta_home_name source name)
+              (epsilon_compiled_parameter_name source name))
+            (epsilon_delta_stored_parameter_names source rest homes)))))))
+
+(def epsilon_delta_stored_signature ((source EpsilonSourceView)
+  (parameters EpsilonParameterList) (homes Int)) EpsilonDeltaCompilation
+  (match parameters
+    (NoEpsilonParameters (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonParameters parameter rest)
+      (match parameter
+        ((EpsilonParameterSyntax start end name typeValue)
+          (match typeValue
+            ((EpsilonNeverType typeStart typeEnd) (EpsilonDeltaUnsupported typeStart))
+            ((EpsilonNamedType typeStart typeEnd owner) (EpsilonDeltaUnsupported typeStart))
+            ((EpsilonArrayType typeStart typeEnd element extent) (EpsilonDeltaUnsupported typeStart))
+            ((EpsilonI32Type typeStart typeEnd)
+              (epsilon_delta_stored_signature_next source parameter rest homes))
+            ((EpsilonU8Type typeStart typeEnd)
+              (epsilon_delta_stored_signature_next source parameter rest homes))
+            ((EpsilonViewType typeStart typeEnd element)
+              (epsilon_delta_stored_signature_next source parameter rest homes))))))))
+
+(def epsilon_delta_stored_signature_next ((source EpsilonSourceView)
+  (parameter EpsilonParameter) (rest EpsilonParameterList) (homes Int)) EpsilonDeltaCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match (epsilon_delta_stored_signature source rest homes)
+        ((EpsilonDeltaCompiled tail)
+          (EpsilonDeltaCompiled (epsilon_emit_spaced
+            (epsilon_emit_call
+              (if homes (epsilon_delta_home_name source name)
+                (epsilon_compiled_parameter_name source name))
+              (if homes "Int" "EpsilonRuntimeValue")) tail)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+(def epsilon_delta_stored_bind_parameters ((source EpsilonSourceView)
+  (parameters EpsilonParameterList) (store Bytes) (continuation Bytes)) Bytes
+  (match parameters
+    (NoEpsilonParameters (epsilon_emit_call "let"
+      (epsilon_emit_spaced "ep_store EpsilonRuntimeStore"
+        (epsilon_emit_spaced store continuation))))
+    ((MoreEpsilonParameters parameter rest)
+      (match parameter
+        ((EpsilonParameterSyntax start end name typeValue)
+          (let nextStore Bytes (epsilon_emit_generated "bound_store" start)
+            (let pattern Bytes (epsilon_emit_call "EpsilonRuntimeAllocated"
+              (epsilon_emit_spaced (epsilon_delta_home_name source name) nextStore))
+              (epsilon_emit_match
+                (epsilon_emit_call "epsilon_runtime_allocate"
+                  (epsilon_emit_spaced (epsilon_compiled_parameter_name source name) store))
+                (epsilon_emit_case pattern
+                  (epsilon_delta_stored_bind_parameters source rest nextStore continuation))))))))))
+
+(def epsilon_delta_stored_function ((name Bytes) (signature Bytes) (body Bytes)) Bytes
+  (bytes_concat "(def " (bytes_concat name (bytes_concat " ("
+    (bytes_concat signature (bytes_concat ") EpsilonEvaluatorOutcome\n  "
+      (bytes_concat body ")\n")))))))
+
+(def epsilon_delta_stored_state ((context EpsilonDeltaContext)
+  (machineParameters EpsilonParameterList) (captureSignature Bytes)
+  (state EpsilonState)) EpsilonDeltaCompilation
+  (match state
+    ((EpsilonStateSyntax start end name parameters body)
+      (let source EpsilonSourceView (epsilon_delta_context_source context)
+        (match (epsilon_delta_stored_signature source parameters 0)
+          ((EpsilonDeltaCompiled parameterText)
+            (match body
+              ((EpsilonStateBodySyntax bodyStart bodyEnd statements terminal)
+                (let captures EpsilonNameList (epsilon_delta_stored_parameter_names_list machineParameters
+                  (epsilon_delta_stored_parameter_names_list parameters NoEpsilonNames))
+                  (match (epsilon_delta_stored_blocks context captures statements terminal bodyStart)
+                  ((EpsilonDeltaCompiled definitions)
+                    (let signature Bytes (epsilon_emit_spaced
+                      "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)" (epsilon_emit_spaced
+                        captureSignature (epsilon_emit_spaced parameterText
+                          "(ep_input_store EpsilonRuntimeStore) (ep_output Bytes)")))
+                      (epsilon_delta_append (EpsilonDeltaCompiled (epsilon_delta_stored_function
+                        (epsilon_delta_state_name source state) signature
+                        (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
+                          (epsilon_delta_stored_block_call source captures statements bodyStart "ep_store" "ep_output"))))
+                        (EpsilonDeltaCompiled definitions))))
+                  ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                  ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                  ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+
+(def epsilon_delta_stored_states ((context EpsilonDeltaContext)
+  (machineParameters EpsilonParameterList) (captureSignature Bytes)
+  (states EpsilonStateList)) EpsilonDeltaCompilation
+  (match states
+    (NoEpsilonStates (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonStates state rest)
+      (epsilon_delta_append (epsilon_delta_stored_state context machineParameters captureSignature state)
+        (epsilon_delta_stored_states context machineParameters captureSignature rest)))))
+
+(def epsilon_delta_stored_machine ((context EpsilonDeltaContext)
+  (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
+  (body EpsilonMachineBody)) EpsilonDeltaCompilation
+  (let source EpsilonSourceView (epsilon_delta_context_source context)
+    (let parameters EpsilonParameterList (epsilon_machine_input_parameters inputs)
+      (match (epsilon_delta_stored_signature source parameters 0)
+        ((EpsilonDeltaCompiled parameterText)
+          (match (epsilon_delta_stored_signature source parameters 1)
+            ((EpsilonDeltaCompiled captureSignature)
+              (match body
+                ((EpsilonMachineBodySyntax start end statements terminal states)
+                  (let captures EpsilonNameList (epsilon_delta_stored_parameter_names_list parameters NoEpsilonNames)
+                    (match (epsilon_delta_stored_blocks context captures statements terminal start)
+                    ((EpsilonDeltaCompiled definitions)
+                      (let signature Bytes (epsilon_emit_spaced
+                        "(ep_receiver EpsilonRuntimePlace)" (epsilon_emit_spaced parameterText
+                          "(ep_input_store EpsilonRuntimeStore) (ep_output Bytes)"))
+                        (let definition Bytes (epsilon_delta_stored_function
+                          (epsilon_compiled_function_name source name) signature
+                          (epsilon_emit_call "let" (epsilon_emit_spaced "ep_floor Int"
+                            (epsilon_emit_spaced "(epsilon_runtime_next_identifier ep_input_store)"
+                              (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
+                                (epsilon_emit_call "epsilon_compiled_finish_call"
+                                  (epsilon_emit_spaced "ep_floor"
+                                    (epsilon_delta_stored_block_call source captures statements start "ep_store" "ep_output"))))))))
+                          (epsilon_delta_append (EpsilonDeltaCompiled definition)
+                            (epsilon_delta_append (EpsilonDeltaCompiled definitions)
+                              (epsilon_delta_stored_states context parameters captureSignature states))))))
+                    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))

@@ -360,3 +360,55 @@ nominal controls, unchanged canonical Epsilon artifacts, and the Omega smoke
 fixture passed. It took 166.949 seconds with 748,544 KiB maximum child RSS on the
 shared host. Earlier cold receipts remain historical evidence for their exact
 sources; this invocation does not claim a new cold seed run or controlled timing.
+
+Receiver methods and views now compile to direct Delta functions over the
+existing Epsilon storage primitives. The complete 23,678-byte production
+`request_and_utf8.epsilon` owner, including all ten request framing, structure
+and UTF-8 machines, constructs a standalone native program. Its six request
+and Unicode observations agree exactly with the constructed Epsilon evaluator.
+
+Parameters and local variables have live homes. Lifted states retain machine
+parameter homes and the ultimate array roots borrowed by transferred views.
+Assignments evaluate the destination before the value; call arguments retain
+their snapshots and order. Record and array copies, indexing, slices, lengths,
+short circuiting and the three byte/exit Console primitives share the reference
+runtime's leaf operations. Generated programs contain no source parser or AST
+execution dispatcher. The supplied runtime declarations still include syntax
+types required by their shared metadata representation.
+
+Each statement has a named tail continuation carrying home identifiers and
+effects. This prevents both duplicated successor text and excessive expression
+nesting; the seed's existing expression-depth bound remains unchanged. A
+300,000-transfer native execution retains a local array through a view and
+exits 42 with the expected output. It takes 14.968 seconds and peaks at
+1,058,456 KiB in this observation. This exercises tail control, not bounded
+heap usage: the common persistent storage implementation still allocates.
+
+| Receiver construction artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Compiler source closure | 760,507 | `926a0d2f36860e0dcf13eb31943747e03cd0cb36d23560bd2a47978c8b96d42f` |
+| Compiler native ELF | 35,684,546 | `328b1377ba2bb47c29fcd13e4465d0d46678cc34d95b2538a76b77dd777c1506` |
+| Request/UTF8 test program source | 61,490 | `f3337980f94a8e0043de63d137ac4920983df537477c18540027562833067eb3` |
+| Request/UTF8 native ELF | 61,440,709 | `db153206dad893ac51a2137a4bef9ee8620e4f2f0ea6de1b7ad426b2b4419c2a` |
+
+The full invocation repeats the scalar and nominal controls, including the
+unchanged Alpha lexical artifact, then compares six production-module and three
+storage observations against the constructed evaluator. The storage program
+also checks parameter mutation, argument snapshots, sibling fields, record and
+array copies, live view backing, and preserved output on bounds traps and EOF.
+Its longer native transfer path is a separate stress observation. Receipts are
+under `build/independent-storage-blocks/`; retained earlier failures show the
+successor-duplication and expression-depth defects that these continuations fix.
+Final source cleanup reproduces the same tested compiler and customer native
+images, with distinct source receipts recorded there.
+
+This invocation explicitly reuses the verified cold Gamma, Delta and Epsilon
+predecessors. Extracting shared primitive leaves preserves the complete
+617,354-byte evaluator source and its previously constructed artifact. It adds
+no compiler or assembler to the construction seed. Valid source outside the
+implemented calling conventions still produces an explicit unsupported result
+with no partial module. The full 808,585-byte bootstrap compiler construction
+source now reaches the lexer's nominal diagnostic parameter at coordinate
+64,677, beyond the previous first slice parameter at 38,291. Nominal values in
+stored methods and Console text output remain subsequent implementation work;
+this is a completed receiver/view capability, not an Omega compiler self-build.
