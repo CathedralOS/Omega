@@ -11,5 +11,36 @@
     "known-gap-q7-mut": 160,
     "disagreement-valid": 32
   },
-  "mutated_fixtures": 882
+  "mutated_fixtures": 882,
+  "fixture_partition": {
+    "fixtures_total": 1130,
+    "baseline_failed_run": 230,
+    "no_mutation_accepted_baseline": 18,
+    "mutated": 882
+  },
+  "not_applicable_attempts": 30,
+  "mutant_rows_with_path": 3620,
+  "mutant_buckets": {
+    "valid-route-outside": 2338,
+    "rejected-both": 939,
+    "disagreement-valid": 59,
+    "known-gap-q7-mut": 162,
+    "discarded-valid": 100,
+    "confirmed-hole": 22
+  },
+  "canonical_kind_counts": {
+    "delete_divisor_guard": 825,
+    "drop_requires": 433,
+    "strip_and_guard": 577,
+    "widen_requires": 300,
+    "shared_instead_of_mut": 380,
+    "remove_transition_guard": 758,
+    "remove_mut": 347,
+    "mut_ref_instead_of_shared": 0
+  },
+  "drop_requires_site_split": {
+    "machine-header": 361,
+    "body-or-data": 72
+  },
+  "mutation_attempts_progress": 3650
 }

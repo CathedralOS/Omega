@@ -70,8 +70,14 @@ BUCKETS = (
     "rejected-both",
     "timeout",
     "failed-run",
-    "no-mutation",
 )
+
+CANONICAL_KIND = {
+    "drop_mut_let": "remove_mut",
+    "ref_to_mut_param": "shared_instead_of_mut",
+    "mut_to_ref_param": "mut_ref_instead_of_shared",
+    "widen_requires_lt": "widen_requires",
+}
 
 ROUTE_NON_VERDICT = frozenset({"outside", "no-entry", "unreached"})
 
@@ -139,49 +145,64 @@ def probe_modular_entry(
         return "probe-not-built", f"no automated probe for: {req[:80]}"
     param, bound = m.group(1), m.group(2)
     try:
+        import tempfile
+
         mut_dir = (REPO / mutant_rel).parent
-        probe_dir = mut_dir / "entry_probe"
-        if probe_dir.exists():
-            shutil.rmtree(probe_dir)
-        shutil.copytree(mut_dir, probe_dir)
-        main = (probe_dir / "main.omg").read_text()
-        violator = min(int(bound), 0)
-        snippet = (
-            f"\n// fix5 entry probe\nmachine __soundness_entry_probe() {{\n"
-            f"    let bad = {violator};\n"
-            f"    // callee with removed requires `{req.strip()}` should reject this call\n"
-            f"}}\n"
-        )
-        (probe_dir / "main.omg").write_text(main + snippet)
-        env = os.environ.copy()
-        env["OMEGA_LIBRARY_ROOT"] = str(REPO / "source/library")
-        mutant_ok = subprocess.run(
-            ["timeout", str(CHECK_TIMEOUT), str(OMEGA), "--check", str(mut_dir / "main.omg")],
-            cwd=REPO,
-            env=env,
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-        )
-        probe = subprocess.run(
-            ["timeout", str(CHECK_TIMEOUT), str(OMEGA), "--check", str(probe_dir / "main.omg")],
-            cwd=REPO,
-            env=env,
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-        )
-        if mutant_ok.returncode != 0:
-            return "probe-not-built", "mutant no longer accepts under re-check"
-        if probe.returncode == 0:
-            return (
-                "violating-caller-accepted",
-                f"mutant accepts; external probe caller with {param}={violator} also accepted",
+        probe_dir = Path(tempfile.mkdtemp(prefix="soundness-entry-probe-"))
+        try:
+            shutil.copytree(mut_dir, probe_dir, dirs_exist_ok=True)
+            main = (probe_dir / "main.omg").read_text()
+            violator = min(int(bound), 0)
+            snippet = (
+                f"\n// fix5 entry probe\nmachine __soundness_entry_probe() {{\n"
+                f"    let bad = {violator};\n"
+                f"    // callee with removed requires `{req.strip()}` should reject this call\n"
+                f"}}\n"
             )
-        return (
-            "inferred-entry",
-            f"mutant accepts but external probe caller with {param}={violator} rejected",
-        )
+            (probe_dir / "main.omg").write_text(main + snippet)
+            env = os.environ.copy()
+            env["OMEGA_LIBRARY_ROOT"] = str(REPO / "source/library")
+            mutant_ok = subprocess.run(
+                [
+                    "timeout",
+                    str(CHECK_TIMEOUT),
+                    str(OMEGA),
+                    "--check",
+                    str(mut_dir / "main.omg"),
+                ],
+                cwd=REPO,
+                env=env,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            )
+            probe = subprocess.run(
+                [
+                    "timeout",
+                    str(CHECK_TIMEOUT),
+                    str(OMEGA),
+                    "--check",
+                    str(probe_dir / "main.omg"),
+                ],
+                cwd=REPO,
+                env=env,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            )
+            if mutant_ok.returncode != 0:
+                return "probe-not-built", "mutant no longer accepts under re-check"
+            if probe.returncode == 0:
+                return (
+                    "violating-caller-accepted",
+                    f"mutant accepts; external probe caller with {param}={violator} also accepted",
+                )
+            return (
+                "inferred-entry",
+                f"mutant accepts but external probe caller with {param}={violator} rejected",
+            )
+        finally:
+            shutil.rmtree(probe_dir, ignore_errors=True)
     except OSError as exc:
         return "probe-not-built", str(exc)
 
@@ -399,6 +420,7 @@ def assess_validity_from_mutant(kind: str, orig: str, mut: str) -> dict:
         for i, ln in enumerate(mut.splitlines(), 1):
             if re.search(r"\b\w+\.\w+\s*=", ln) or re.search(r"&mut\s+", ln):
                 out["invalid"] = True
+                out["q7_only"] = True
                 out["obligation_line"] = f"{i}: {ln.strip()}"
                 rule = SPEC_RULES["ref_to_mut_param"]
                 out["spec_rule_file"] = rule[0]
@@ -614,6 +636,53 @@ def hand_verify_block(title: str, rows: list[dict], limit: int = 5) -> list[str]
     return lines
 
 
+def canonical_kind(kind: str) -> str:
+    return CANONICAL_KIND.get(kind, kind)
+
+
+def md_cell(text: str, limit: int = 120) -> str:
+    s = re.sub(r"\s+", " ", (text or "").replace("|", "\\|").replace("\n", " "))
+    return s[:limit] + ("…" if len(s) > limit else "")
+
+
+def hole_table_md(rows: list[dict]) -> list[str]:
+    lines = [
+        "## Confirmed holes (full table)",
+        "",
+        "| # | fixture | kind | accepted_by | hole_subtype | spec quote | obligation | no-trap / check-time | diff |",
+        "| ---: | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for i, r in enumerate(rows, 1):
+        orig_t, mut_t = read_pair(r["fixture"], r["mutant_path"])
+        diff = minimal_diff(orig_t, mut_t)
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(i),
+                    f"`{r['fixture']}`",
+                    f"`{canonical_kind(r.get('mutation_kind', ''))}`",
+                    r.get("accepted_by", "") or "?",
+                    r.get("hole_subtype", "") or "—",
+                    md_cell(r.get("spec_quote", ""), 100),
+                    md_cell(r.get("obligation_line", ""), 80),
+                    md_cell(
+                        r.get("no_trap_evidence", "")
+                        or r.get("check_time_note", "")
+                        or r.get("probe_note", ""),
+                        80,
+                    ),
+                    md_cell(diff, 100),
+                ]
+            )
+            + " |"
+        )
+    if not rows:
+        lines.append("| — | _none_ | — | — | — | — | — | — | — |")
+    lines.append("")
+    return lines
+
+
 def hand_verify_sections(rows: list[dict]) -> list[str]:
     kept = [r for r in rows if r.get("bucket") == "confirmed-hole"]
     widen = [r for r in rows if r.get("bucket") == "confirmed-hole" and r.get("mutation_kind") == "widen_requires_lt"]
@@ -632,32 +701,28 @@ def hand_verify_sections(rows: list[dict]) -> list[str]:
 def main() -> None:
     md_only = "--md-only" in sys.argv
     rows = load_rows()
-    originals = sum(1 for r in rows if r.get("stage") == "original")
-    mutants = [r for r in rows if r.get("stage") == "mutant"]
+    orig_rows = [r for r in rows if r.get("stage") == "original"]
+    originals = len(orig_rows)
     no_mut_fixture = [r for r in rows if r.get("stage") == "no-mutation"]
+    not_applicable = [r for r in rows if r.get("stage") == "not-applicable"]
+    mutants_all = [r for r in rows if r.get("stage") == "mutant"]
+    mutants = [r for r in mutants_all if r.get("mutant_path")]
     mutants_run = len(mutants)
     stats_path = OUT / f"shard-{SHARD}.stats.json"
-    stats_note = ""
+    stats: dict = {}
     if stats_path.exists():
         try:
             stats = json.loads(stats_path.read_text())
-            stats_note = (
-                f"Runner stats: generated={stats.get('mutants_generated', '?')}, "
-                f"run={stats.get('mutants_run', '?')}, "
-                f"logged={stats.get('mutants_logged_tsv', '?')}, "
-                f"current_rejected={stats.get('mutants_current_rejected', '?')}, "
-                f"not_applicable={stats.get('mutants_not_applicable', '?')}, "
-                f"failed_run={stats.get('mutants_failed_run', '?')}. "
-                "Delta between generated and logged = early rejects + unlogged kinds before drop_requires rule."
-            )
         except json.JSONDecodeError:
-            stats_note = "Stats file present but unreadable."
+            stats = {}
 
     finalized_mutants: list[dict] = []
     for r in mutants:
         row = dict(r)
+        row["canonical_kind"] = canonical_kind(row.get("mutation_kind", ""))
         if not md_only or not row.get("bucket"):
             row = classify_row(row)
+            row["canonical_kind"] = canonical_kind(row.get("mutation_kind", ""))
         if row.get("bucket") == "confirmed-hole" and row.get("mutation_kind") == "drop_requires":
             orig, mut = read_pair(row["fixture"], row["mutant_path"])
             rem = removed_requires(orig, mut)
@@ -672,54 +737,73 @@ def main() -> None:
         bucket_counts[b] += 1
 
     assert sum(bucket_counts.values()) == mutants_run, (
-        f"buckets {sum(bucket_counts.values())} != mutants {mutants_run}"
+        f"buckets {sum(bucket_counts.values())} != mutants with path {mutants_run}"
     )
 
     by_kind: Counter[str] = Counter()
     by_accepted: Counter[str] = Counter()
     for r in finalized_mutants:
         if r.get("bucket") == "confirmed-hole":
-            by_kind[r["mutation_kind"]] += 1
+            by_kind[canonical_kind(r.get("mutation_kind", ""))] += 1
             by_accepted[r.get("accepted_by", "") or "?"] += 1
 
-    # Rewrite TSV: originals unchanged, replace mutant rows
-    orig_rows = [r for r in rows if r.get("stage") != "mutant"]
-    out_rows = orig_rows + finalized_mutants
-    fieldnames = [
-        "fixture",
-        "tier",
-        "stage",
-        "mutation_kind",
-        "mutant_path",
-        "current_verdict",
-        "route_verdict",
-        "route_rejection_reason",
-        "seconds",
-        "hand_check",
-        "spec_rule_file",
-        "spec_quote",
-        "bucket",
-        "obligation_line",
-        "accepted_by",
-        "validity_reason",
-        "check_time_note",
-        "hole_subtype",
-        "probe_note",
-    ]
-    with TSV.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
-        w.writeheader()
-        w.writerows(out_rows)
+    if not md_only:
+        other_rows = [
+            r
+            for r in rows
+            if r.get("stage") not in ("mutant",) or not r.get("mutant_path")
+        ]
+        other_rows = [r for r in other_rows if r.get("stage") != "mutant" or not r.get("mutant_path")]
+        preserved = [r for r in rows if r.get("stage") != "mutant"]
+        out_rows = preserved + finalized_mutants + not_applicable
+        fieldnames = list(rows[0].keys()) if rows else []
+        with TSV.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore")
+            w.writeheader()
+            w.writerows(out_rows)
 
     kept = [r for r in finalized_mutants if r.get("bucket") == "confirmed-hole"]
+
+    part = stats.get("fixture_partition", {})
+    failed_run = part.get(
+        "baseline_failed_run",
+        sum(1 for r in orig_rows if r.get("current_verdict") != "accepted"),
+    )
+    no_mut_ok = part.get(
+        "no_mutation_accepted_baseline",
+        len({r["fixture"] for r in orig_rows if r.get("current_verdict") == "accepted"})
+        - len({r["fixture"] for r in mutants}),
+    )
+    mutated_n = part.get(
+        "mutated",
+        len({r["fixture"] for r in mutants}),
+    )
+    assert failed_run + no_mut_ok + mutated_n == originals, (
+        f"{failed_run}+{no_mut_ok}+{mutated_n}!={originals}"
+    )
 
     fixture_rows: Counter[str] = Counter()
     for r in finalized_mutants:
         fixture_rows[r["fixture"]] += 1
-    mutated_fixtures = set(fixture_rows)
-    orig_fixture_set = {r["fixture"] for r in orig_rows}
-    no_mutation_fixtures = sorted(orig_fixture_set - mutated_fixtures)
     multi_row = sorted((fx, n) for fx, n in fixture_rows.items() if n > 1)
+
+    kind_gen = Counter(
+        canonical_kind(r.get("mutation_kind", "")) for r in finalized_mutants
+    )
+    for ck in (
+        "drop_requires",
+        "widen_requires",
+        "remove_mut",
+        "shared_instead_of_mut",
+        "mut_ref_instead_of_shared",
+        "remove_transition_guard",
+        "strip_and_guard",
+        "delete_divisor_guard",
+    ):
+        kind_gen.setdefault(ck, 0)
+
+    drop_split = stats.get("drop_requires_site_split", {})
+    q7_n = bucket_counts.get("known-gap-q7-mut", 0)
 
     harness = git_head()
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
@@ -728,47 +812,76 @@ def main() -> None:
         "",
         f"PIN: `{PIN}` (measured `{harness}`). Host: linux cloud agent. Generated {now}.",
         "",
-        "## Bucket table (mutants only)",
+        "## Bucket table (mutant attempts with disk dirs only)",
         "",
-        f"Total mutants run: **{mutants_run}** (must equal sum of buckets).",
+        f"Mutant rows in bucket table: **{mutants_run}** (equals sum of buckets).",
+        f"Not-applicable attempt rows (outside table): **{len(not_applicable)}** "
+        f"(kinds with no mutant dir; former per-attempt `no-mutation`).",
         "",
         "| Bucket | Count |",
         "| --- | ---: |",
     ]
     for b in BUCKETS:
-        if bucket_counts[b]:
-            md.append(f"| `{b}` | {bucket_counts[b]} |")
+        md.append(f"| `{b}` | {bucket_counts.get(b, 0)} |")
     md.append(f"| **Sum** | **{sum(bucket_counts.values())}** |")
-    if stats_note:
-        md.extend(["", f"- {stats_note}", ""])
     md.extend(
         [
             "",
-            "## Fixture / mutant reconcile (fix4)",
+            f"- `timeout` among mutants: **{bucket_counts.get('timeout', 0)}**",
+            f"- `failed-run` among mutants: **{bucket_counts.get('failed-run', 0)}**",
             "",
-            f"- Fixtures in shard: **{originals}**",
-            f"- Fixture-level `no-mutation` rows: **{len(no_mut_fixture)}**",
-            f"- Fixtures with ≥1 generated mutant dir: **{len(mutated_fixtures)}**",
-            f"- Mutant attempt rows (`stage=mutant`): **{mutants_run}**",
-            f"- Fixtures with >1 mutant row: **{len(multi_row)}**",
-            f"- Reconcile: {originals} fixtures ≈ {len(no_mut_fixture)} no-output + {len(mutated_fixtures)} mutated",
+            "## Fixture reconcile (exact)",
+            "",
+            f"**{originals}** fixtures = **{no_mut_ok}** no-mutation + **{failed_run}** failed-run + **{mutated_n}** mutated",
+            "",
+            f"- Fixture-level companion rows (`stage=no-mutation`): **{len(no_mut_fixture)}** "
+            f"(={failed_run} baseline-fail + {len(no_mut_fixture) - failed_run if len(no_mut_fixture) >= failed_run else '?'} accepted-without-mutators)",
+            f"- Mutant attempt rows with dirs: **{mutants_run}**; not-applicable: **{len(not_applicable)}**; "
+            f"attempt rows total: **{mutants_run + len(not_applicable)}**",
+        ]
+    )
+    md.extend(
+        [
+            "",
+            "## Mutation kinds (canonical, generated attempts with dirs)",
+            "",
+            "| Canonical kind | Count |",
+            "| --- | ---: |",
+        ]
+    )
+    for k in sorted(kind_gen.keys()):
+        md.append(f"| `{k}` | {kind_gen[k]} |")
+    md.extend(
+        [
+            "",
+            f"- `drop_requires` site split (header vs body): "
+            + (
+                ", ".join(f"{k}={v}" for k, v in sorted(drop_split.items()))
+                or "_(re-run shard4_reclassify.py if empty)_"
+            ),
+            f"- **known-gap-q7-mut:** {q7_n} (canonical kind `remove_mut` unless noted)",
+            f"- Confirmed holes by kind: "
+            + (", ".join(f"{k}={v}" for k, v in sorted(by_kind.items())) or "none"),
+            f"- Confirmed holes by accepted_by: "
+            + (", ".join(f"{k}={v}" for k, v in sorted(by_accepted.items())) or "none"),
         ]
     )
     if multi_row[:20]:
-        md.append("")
-        md.append("| Fixture | Mutant rows |")
-        md.append("| --- | ---: |")
+        md.extend(
+            [
+                "",
+                "## Fixtures with multiple mutant rows (sample)",
+                "",
+                "| Fixture | Mutant rows |",
+                "| --- | ---: |",
+            ]
+        )
         for fx, n in multi_row[:20]:
             md.append(f"| `{fx}` | {n} |")
         if len(multi_row) > 20:
             md.append(f"| … | ({len(multi_row) - 20} more) |")
     md.extend(
         [
-            "",
-            f"- Confirmed holes by mutation kind: "
-            + (", ".join(f"{k}={v}" for k, v in sorted(by_kind.items())) or "none"),
-            f"- Confirmed holes by accepted_by: "
-            + (", ".join(f"{k}={v}" for k, v in sorted(by_accepted.items())) or "none"),
             "",
             "## Commands",
             "",
@@ -782,39 +895,8 @@ def main() -> None:
             "",
         ]
     )
+    md.extend(hole_table_md(kept))
     md.extend(hand_verify_sections(finalized_mutants))
-    md.extend(["", "## Confirmed holes and disagreements", ""])
-    if not kept:
-        md.append("_No confirmed-hole rows after fix3/fix4 review._")
-    else:
-        for i, r in enumerate(kept, 1):
-            orig_t, mut_t = read_pair(r["fixture"], r["mutant_path"])
-            diff = minimal_diff(orig_t, mut_t)
-            code, cur_out, route_out = rerun_checker(REPO / r["mutant_path"])
-            md.extend(
-                [
-                    f"### {i}. `{r['fixture']}` ({r['mutation_kind']})",
-                    "",
-                    f"- Bucket: `{r['bucket']}`; accepted_by: **{r.get('accepted_by', '')}**",
-                    f"- Mutant: `{r['mutant_path']}`",
-                    f"- Current: **{r['current_verdict']}**; route: **{r['route_verdict']}**",
-                    f"- Route hint (not validity): `{r.get('route_rejection_reason', '')}`",
-                    f"- hole_subtype (fix5): **{r.get('hole_subtype', '')}** — {r.get('probe_note', '')}",
-                    f"- Check-time note (fix4a): {r.get('check_time_note', '')}",
-                    f"- Obligation line (fix4c): `{r.get('obligation_line', '')}`",
-                    f"- Spec file/heading/quote (fix4a): `{r.get('spec_rule_file', '')}` — {r.get('spec_quote', '')}",
-                    f"- Check-only evidence (fix4b): `omega --check` exit **{code}** on mutant; no runtime witness run in this shard",
-                    "",
-                    "```diff",
-                    diff,
-                    "```",
-                    "",
-                    "```",
-                    cur_out[:800],
-                    "```",
-                    "",
-                ]
-            )
 
     MD.write_text("\n".join(md) + "\n")
     print(f"mutants={mutants_run} buckets_sum={sum(bucket_counts.values())}")
