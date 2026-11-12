@@ -1,8 +1,15 @@
 {
-  "mutants_attempted": 3650,
-  "mutants_generated": 3650,
-  "mutants_logged_tsv": 161,
-  "mutants_run": 161,
-  "mutants_not_applicable": 0,
-  "mutant_total_accounted": 3650
+  "fixtures_in_shard": 1130,
+  "mutation_attempts": 3650,
+  "fixture_no_mutation_rows": 248,
+  "buckets": {
+    "confirmed-hole": 80,
+    "no-mutation": 30,
+    "rejected-both": 488,
+    "valid-route-outside": 1536,
+    "discarded-valid": 1324,
+    "known-gap-q7-mut": 160,
+    "disagreement-valid": 32
+  },
+  "mutated_fixtures": 882
 }

@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -324,6 +325,35 @@ def assess_validity_from_mutant(kind: str, orig: str, mut: str) -> dict:
         "valid_reason": "",
         "q7_only": False,
     }
+    if kind == "widen_requires_lt":
+        orig_r = [
+            ln.strip()
+            for ln in orig.splitlines()
+            if re.match(r"\s*requires\b", ln) and not ln.strip().startswith("//")
+        ]
+        mut_r = [
+            ln.strip()
+            for ln in mut.splitlines()
+            if re.match(r"\s*requires\b", ln) and not ln.strip().startswith("//")
+        ]
+        if orig_r == mut_r:
+            out["valid_reason"] = "widen_requires_lt did not change a requires line"
+            return out
+        weakened = [o for o in orig_r if o not in mut_r] or [
+            o for o, m in zip(orig_r, mut_r) if o != m
+        ]
+        obl = obligation_drop_requires(weakened, mut)
+        if obl:
+            out["invalid"] = True
+            out["obligation_line"] = obl
+            rule = SPEC_RULES["widen_requires_lt"]
+            out["spec_rule_file"] = rule[0]
+            out["spec_quote"] = f"({rule[1]}) {rule[2]}"
+        else:
+            out["valid_reason"] = (
+                "widened requires does not leave a body/ensures line needing the original bound"
+            )
+        return out
     if kind == "drop_requires":
         rem = removed_requires(orig, mut)
         restated, req_q, trans_q = requires_restated_in_transition(rem, mut)
@@ -423,8 +453,6 @@ def mutant_still_valid_heuristic(kind: str, orig: str, mut: str, fixture: str) -
             return True
         if "!= 0" in mut or "> 0" in mut:
             return True
-    if kind == "widen_requires_lt":
-        return False
     return False
 
 
@@ -588,21 +616,25 @@ def hand_verify_block(title: str, rows: list[dict], limit: int = 5) -> list[str]
 
 def hand_verify_sections(rows: list[dict]) -> list[str]:
     kept = [r for r in rows if r.get("bucket") == "confirmed-hole"]
+    widen = [r for r in rows if r.get("bucket") == "confirmed-hole" and r.get("mutation_kind") == "widen_requires_lt"]
     drop_req = [
         r for r in rows if r.get("mutation_kind") == "drop_requires" and r.get("bucket") == "discarded-valid"
     ]
     q7 = [r for r in rows if r.get("bucket") == "known-gap-q7-mut"]
     lines: list[str] = []
-    lines.extend(hand_verify_block("Hand verification — confirmed holes (fix4)", kept, 5))
+    picks = widen[:2] + [r for r in kept if r not in widen[:2]][:3]
+    lines.extend(hand_verify_block("Hand verification — confirmed holes (fix4)", picks, 5))
     lines.extend(hand_verify_block("Hand verification — discarded drop_requires (sample)", drop_req, 5))
     lines.extend(hand_verify_block("Hand verification — known-gap-q7-mut (sample)", q7, 5))
     return lines
 
 
 def main() -> None:
+    md_only = "--md-only" in sys.argv
     rows = load_rows()
     originals = sum(1 for r in rows if r.get("stage") == "original")
     mutants = [r for r in rows if r.get("stage") == "mutant"]
+    no_mut_fixture = [r for r in rows if r.get("stage") == "no-mutation"]
     mutants_run = len(mutants)
     stats_path = OUT / f"shard-{SHARD}.stats.json"
     stats_note = ""
@@ -623,7 +655,9 @@ def main() -> None:
 
     finalized_mutants: list[dict] = []
     for r in mutants:
-        row = classify_row(r)
+        row = dict(r)
+        if not md_only or not row.get("bucket"):
+            row = classify_row(row)
         if row.get("bucket") == "confirmed-hole" and row.get("mutation_kind") == "drop_requires":
             orig, mut = read_pair(row["fixture"], row["mutant_path"])
             rem = removed_requires(orig, mut)
@@ -713,10 +747,11 @@ def main() -> None:
             "## Fixture / mutant reconcile (fix4)",
             "",
             f"- Fixtures in shard: **{originals}**",
-            f"- Fixtures with no logged mutant row: **{len(no_mutation_fixtures)}**",
-            f"- Fixtures with ≥1 mutant row: **{len(mutated_fixtures)}**",
-            f"- Mutant rows in TSV: **{mutants_run}**",
+            f"- Fixture-level `no-mutation` rows: **{len(no_mut_fixture)}**",
+            f"- Fixtures with ≥1 generated mutant dir: **{len(mutated_fixtures)}**",
+            f"- Mutant attempt rows (`stage=mutant`): **{mutants_run}**",
             f"- Fixtures with >1 mutant row: **{len(multi_row)}**",
+            f"- Reconcile: {originals} fixtures ≈ {len(no_mut_fixture)} no-output + {len(mutated_fixtures)} mutated",
         ]
     )
     if multi_row[:20]:
