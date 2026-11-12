@@ -6,8 +6,8 @@ git fetch origin work/ledger-bisect-part-4
 git checkout work/ledger-bisect-part-4
 git reset --hard origin/work/ledger-bisect-part-4
 export BISECT_REPO_ROOT="$ROOT/.agents/ledger-bisect-wt"
-if [[ ! -d "$BISECT_REPO_ROOT/.git" ]]; then
-  git worktree add -f "$BISECT_REPO_ROOT" work/ledger-bisect-part-4
+if [[ ! -f "$BISECT_REPO_ROOT/.git" ]]; then
+  git worktree add -f "$BISECT_REPO_ROOT" 51e8c45c793007f211d0d9baee7de16767172444
 fi
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$BISECT_REPO_ROOT"
