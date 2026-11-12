@@ -330,6 +330,7 @@ pub(crate) use diagnostics::Diagnostic;
 pub use product_operands::{
     PreparedProductRequirement, prepare_product_operand_application,
     prepare_product_requirement_operand, prepare_retained_product_application,
+    prepare_retained_product_requirement_operand,
 };
 pub(crate) mod default_domain_zero {
     use typed_trees::TypedTrees;

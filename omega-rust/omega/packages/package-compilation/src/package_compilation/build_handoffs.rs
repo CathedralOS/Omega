@@ -138,7 +138,7 @@ impl PackageBuildHandoff {
 
     pub fn native_declarations(
         &self,
-    ) -> &[language_semantics::declaration_selection::CapturedNativeDeclaration] {
+    ) -> &[build_time_evaluation::native_bindings::CapturedNativeDeclaration] {
         &self.contents.native.declarations
     }
 
@@ -155,7 +155,7 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_native_binding_outputs(
         self,
-        declarations: Vec<language_semantics::declaration_selection::CapturedNativeDeclaration>,
+        declarations: Vec<build_time_evaluation::native_bindings::CapturedNativeDeclaration>,
         intents: Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {

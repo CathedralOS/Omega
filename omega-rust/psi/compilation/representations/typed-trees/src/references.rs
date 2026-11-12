@@ -1767,11 +1767,8 @@ pub fn visit_product_operand_inputs(
                 roots.authored_selection(occurrence);
             }
         }
-        if let Some(arguments) = &application.argument.application {
-            for argument in arguments.arguments.iter() {
-                visit_static_argument(program, roots, argument);
-            }
-        }
+        visit_static_machine_bindings(program, roots, application.supplying_application);
+        visit_static_argument(program, roots, &application.argument);
         application.scope.visit_references(program, roots);
         roots.leave_lexical_scope();
     }

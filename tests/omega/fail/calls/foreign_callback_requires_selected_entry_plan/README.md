@@ -6,6 +6,6 @@ reach that missing-plan refusal, rather than fail because no registrar provider
 was selected. The locator is authored in Build under the current binding
 contract; the retired source-level `via` forwarder supplies no binding.
 
-The Product call and handler remain unchanged. Its diagnostic oracle requires
+The registrar explicitly declares its native callback slot, as required by the current calling contract. The Product call and handler remain unchanged. Its diagnostic oracle requires
 the explicit selected callback calling plan error; a missing provider does not
 satisfy it. The invalid program must not execute the foreign call.

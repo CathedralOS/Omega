@@ -1,6 +1,6 @@
 public boundary trait Handler { machine notify() reaches; }
 public boundary trait Registrar {
-    machine install<machine Callback>() -> i32
+    machine install<machine Callback>(native callback procedure from Callback) -> i32
     requires machine Callback satisfies Handler::notify;
     reaches;
 }

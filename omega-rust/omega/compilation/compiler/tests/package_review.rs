@@ -1003,3 +1003,273 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+// The foreign contract keeps its authored method identity, while its closed
+// outer and local arguments control exactly which call instances it can supply.
+#[test]
+fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
+    use checked_trees::provider_declarations::{
+        ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
+        ProviderDeclarationRow,
+    };
+    let root = fixture_package_inputs::repo_root();
+    let fixture =
+        root.join("tests/omega/fail/calls/foreign_applied_callback_requires_selected_entry_plan");
+    let scratch = root.join("build").join(format!(
+        "omega-applied-native-binding-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&scratch).unwrap();
+    let original = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    let (declarations, _) = original
+        .split_once("machine main()")
+        .expect("fixture entry");
+    let callback = &declarations[declarations.find("data CallbackBody").unwrap()..];
+    let source = format!(
+        "{declarations}\n{}\npublic boundary trait Getter<Value> {{ machine read() -> i32 reaches; }}\nmachine main() {{}}\n",
+        callback.replace("CallbackBody", "SpareCallbackBody")
+    );
+    std::fs::write(scratch.join("main.omg"), source).unwrap();
+    let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
+    let start = build
+        .find("    Build::bind<Registrar<u64>::install>")
+        .expect("exact applied binding");
+    let end = start + build[start..].find("    });").unwrap() + "    });".len();
+    let binding = &build[start..end];
+    let second = binding.replace("Registrar<u64>", "Registrar<u32>");
+    let closed = binding.replace(
+        "Registrar<u64>::install",
+        "Registrar<u16>::install<CallbackBody::notify>",
+    );
+    let getter = binding
+        .replace("Registrar<u64>::install", "Getter<u8>::read")
+        .replace("atexit", "getpid");
+    let dormant = closed.replace("CallbackBody", "SpareCallbackBody");
+    let mut build = build;
+    build.insert_str(end, &format!("\n{second}\n{closed}\n{getter}"));
+    build.push_str(&format!(
+        "\nmachine unused(builder: &mut Build) {{\n{dormant}\n}}\n"
+    ));
+    std::fs::write(scratch.join("build.omg"), build).unwrap();
+    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &scratch.join("main.omg"),
+        Some("linux_x86_64"),
+    )
+    .expect("closed native applications form without executing callbacks");
+    let checked =
+        fixture_package_inputs::check_fixture(&mut prepared, "linux_x86_64", Default::default())
+            .expect("declared and selected native applications check");
+    let package = checked.sources().package_identity().unwrap();
+    let native = checked
+        .providers()
+        .native_build_plans
+        .iter()
+        .filter(|candidate| candidate.plan.origin_package_identity == Some(package))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native.len(),
+        4,
+        "two open methods, one closed method and one method without locals"
+    );
+    let mut applications = native
+        .iter()
+        .map(|candidate| {
+            candidate
+                .plan
+                .identities
+                .text(candidate.plan.provider_application)
+        })
+        .collect::<Vec<_>>();
+    applications.sort_unstable();
+    applications.dedup();
+    assert_eq!(
+        applications.len(),
+        4,
+        "no static application may merge into another"
+    );
+    let mut aliases = Vec::new();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    for candidate in &native {
+        assert!(
+            candidate
+                .plan
+                .validate_candidate_against_schema()
+                .is_empty()
+        );
+        let rows = candidate
+            .plan
+            .rows
+            .iter()
+            .zip(&candidate.provenance.row_realizations)
+            .map(|(row, realization)| {
+                let origin = realization.native().expect("actual native row");
+                ProviderDeclarationRow {
+                    requirement: origin.requirement,
+                    origin: ProviderDeclarationOrigin::BuildNative {
+                        requirement: origin.requirement,
+                        application: origin.application,
+                    },
+                    requirement_identity: candidate.plan.identities.text(row.requirement_identity),
+                    application: ProviderApplicationView::External,
+                }
+            })
+            .collect::<Vec<_>>();
+        let declarations = checked.provider_declarations(ProviderDeclarationRequest {
+            rows: &rows,
+            named_application: None,
+            provider_application_identity: Some(
+                candidate
+                    .plan
+                    .identities
+                    .text(candidate.plan.provider_application),
+            ),
+            installation_reach: false,
+        });
+        for (row, declaration) in candidate.plan.rows.iter().zip(declarations.rows) {
+            for application in declaration
+                .external_applications
+                .applications
+                .expect("authenticated native application aliases")
+            {
+                aliases.push(effects::SelectedExternalRequirementApplication {
+                    provider_plan_report_identity: candidate.plan.report_fingerprint(),
+                    provider_plan_digest: candidate.plan.identity_digest(),
+                    selected_requirement_identity: identities
+                        .intern(candidate.plan.identities.text(row.requirement_identity)),
+                    requirement_identity: identities.intern(&application),
+                });
+            }
+        }
+    }
+    let facts = effects::SelectedProviderPlanFacts::from_selected_plans(
+        native
+            .iter()
+            .map(|candidate| candidate.plan.clone())
+            .collect(),
+    )
+    .unwrap()
+    .with_external_requirement_applications(aliases, &identities.build())
+    .unwrap();
+    let closed = checked
+        .typed
+        .closed_requirement_applications()
+        .filter(|application| {
+            checked
+                .typed
+                .trait_machine_signature(application.template)
+                .is_some_and(|(owner, _)| checked.symbols.name(owner.symbol) == "Registrar")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        closed.len(),
+        2,
+        "selected and dormant callback instances are both formed"
+    );
+    let selected_closed = native
+        .iter()
+        .flat_map(|candidate| &candidate.provenance.row_realizations)
+        .filter_map(|realization| realization.native())
+        .filter_map(|origin| origin.application)
+        .map(|application| {
+            checked
+                .typed
+                .product_operand_applications
+                .get(application)
+                .declaration
+        })
+        .filter(|selected| {
+            closed
+                .iter()
+                .any(|application| application.signature.symbol == *selected)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected_closed.len(),
+        1,
+        "exactly one Registrar method instance is bound"
+    );
+    for application in closed {
+        let (owner, _) = checked
+            .typed
+            .trait_machine_signature(application.template)
+            .unwrap();
+        let identity = checked
+            .typed
+            .trait_requirement_callable_identity_text(owner, application.signature);
+        assert_eq!(
+            facts.selected_requirement_row(&identity).is_some(),
+            application.signature.symbol == selected_closed[0],
+            "selected origin must supply its own local instance and refuse the dormant sibling: {identity}"
+        );
+    }
+    let handoff = checked
+        .package_build_handoff()
+        .expect("capture checked applications");
+    let bytes = package_compilation::native_output_codec::encode(&handoff);
+    let restored = package_compilation::native_output_codec::decode(&bytes, handoff.clone())
+        .expect("reload exact application graphs");
+    assert_eq!(
+        package_compilation::native_output_codec::digest(&restored),
+        package_compilation::native_output_codec::digest(&handoff)
+    );
+    assert_eq!(
+        (
+            restored.native_declarations().len(),
+            restored.native_intents().len()
+        ),
+        (5, 4)
+    );
+    let mut typed = checked.typed.clone().into_inner();
+    let selections = build_time_evaluation::native_bindings::collect_captured(
+        &mut typed,
+        restored.native_declarations(),
+        restored.native_intents(),
+    )
+    .expect("authenticate receiving applications");
+    assert_eq!(selections.len(), 4);
+    let mut outer = selections
+        .iter()
+        .map(|selection| {
+            typed
+                .product_operand_application_identity(selection.application.unwrap())
+                .unwrap()
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    outer.sort_unstable();
+    outer.dedup();
+    assert_eq!(outer.len(), 4);
+    for missing in [false, true] {
+        let mut declarations = restored.native_declarations().to_vec();
+        if missing {
+            declarations[0].application = None;
+        } else {
+            declarations[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .identity
+                .push_str("changed");
+        }
+        let errors = build_time_evaluation::native_bindings::collect_captured(
+            &mut checked.typed.clone().into_inner(),
+            &declarations,
+            restored.native_intents(),
+        )
+        .expect_err("a saved binding cannot erase or substitute its application");
+        let expected = if missing {
+            "closed static boundary application"
+        } else {
+            "complete outer application identity"
+        };
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    }
+    std::fs::remove_dir_all(scratch).unwrap();
+}

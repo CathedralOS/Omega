@@ -230,7 +230,11 @@ pub mod product_operand {
                 let application = self.product_operand_applications.get(handle);
                 if !matches!(
                     application.role,
-                    Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)
+                    Some(
+                        ProductOperandRole::BoundarySubject
+                            | ProductOperandRole::Provider
+                            | ProductOperandRole::Requirement
+                    )
                 ) {
                     return Err("Product application has no nominal declaration role");
                 }
@@ -238,14 +242,19 @@ pub mod product_operand {
                     .data_type_parameters
                     .span(application.declaration_parameters)
                     .ok_or("Product application has a stale declared formal table")?;
-                if parameters.is_empty() && application.declaration_lifetime_count == 0 {
+                if parameters.is_empty()
+                    && application.declaration_lifetime_count == 0
+                    && application.role != Some(ProductOperandRole::Requirement)
+                {
                     return Ok(None);
                 }
                 let identity = match application.role {
-                    Some(ProductOperandRole::BoundarySubject) => application
-                        .scope
-                        .scope(self)
-                        .and_then(|scope| scope.portable_application_identity(self)),
+                    Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Requirement) => {
+                        application
+                            .scope
+                            .scope(self)
+                            .and_then(|scope| scope.portable_application_identity(self))
+                    }
                     Some(ProductOperandRole::Provider) => self
                         .portable_conformance_application_identity(
                             application
@@ -3431,7 +3440,7 @@ pub mod trait_definition {
             .chain(
                 self.live_product_operand_applications().into_iter().filter_map(|handle| {
                     let application = self.product_operand_applications.get(handle);
-                    (application.role == Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject))
+                    matches!(application.role, Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject | language_semantics::declaration_selection::ProductOperandRole::Requirement))
                         .then(|| application.scope.scope(self)).flatten()
                 }),
             )

@@ -380,14 +380,15 @@ mod authored_completion {
 use authored_completion::AuthoredCompletions;
 mod product_policy {
     use super::SourceContinuation;
-    use build_time_evaluation::native_bindings::NativeBindingSelection;
+    use build_time_evaluation::native_bindings::{
+        CapturedNativeDeclaration, NativeBindingSelection,
+    };
     use build_time_evaluation::product_declarations::AdmittedProductDeclarations;
     use build_time_evaluation::provider_declarations::ProviderSelection;
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
-        AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeDeclaration,
-        CapturedNativeIntent, ExecutedEnumExclusion, ExecutedNativeBinding,
-        ExecutedProductSelection, ProductDeclarationRequest,
+        AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeIntent, ExecutedEnumExclusion,
+        ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationRequest,
     };
     use representation_selections::OpaqueRepresentationSelection;
     use std::sync::Arc;
@@ -412,12 +413,25 @@ mod product_policy {
 
     impl SourceContinuation {
         pub fn capture_package_native_bindings(
-            &self,
+            &mut self,
             package: semantic_vocabulary::PackageKeyIdentity,
             formations: &[language_semantics::declaration_selection::NativeBindingFormation],
             executed: &[ExecutedNativeBinding],
         ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
         {
+            for formation in formations {
+                let author = typed_trees::product_operand::resolve_build_request_author(
+                    self.typed(),
+                    formation.author,
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let [operand] = formation.request.operands.as_ref() else {
+                    return Err(vec![Diagnostic::error(
+                        "native formation lost its exact requirement operand",
+                    )]);
+                };
+                self.prepare_product_requirement_operand(operand, author, None)?;
+            }
             build_time_evaluation::native_bindings::capture_package_intents(
                 self.typed(),
                 package,
@@ -435,6 +449,18 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
+            let formations = self.product_formation_authors(request.declared, |request| {
+                request.operation
+                    == language_semantics::declaration_selection::BuildOperation::NativeBinding
+            })?;
+            for (request, author) in formations {
+                let [operand] = request.operands.as_ref() else {
+                    return Err(vec![Diagnostic::error(
+                        "native binding lost its exact requirement operand",
+                    )]);
+                };
+                self.prepare_product_requirement_operand(operand, author, None)?;
+            }
             let typed = self.typed();
             let representations =
                 representation_planning::collect_opaque_representation_selections(
@@ -479,12 +505,12 @@ mod product_policy {
         }
 
         pub fn admit_captured_native_bindings(
-            &self,
+            &mut self,
             declarations: &[CapturedNativeDeclaration],
             intents: &[CapturedNativeIntent],
         ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
             build_time_evaluation::native_bindings::collect_captured(
-                self.typed(),
+                Arc::make_mut(&mut self.input).typing.typed_mut(),
                 declarations,
                 intents,
             )
@@ -512,7 +538,7 @@ mod provider_requests {
             declared: &[Arc<ProductDeclarationRequest>],
             executed: &[ExecutedProductSelection],
         ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-            let formations = self.provider_formation_authors(declared)?;
+            let formations = self.product_formation_authors(declared, has_provider_application)?;
             for (request, author) in formations {
                 self.prepare_provider_request(
                     &request,
@@ -549,18 +575,16 @@ mod provider_requests {
             )
         }
 
-        fn provider_formation_authors(
+        pub(super) fn product_formation_authors(
             &self,
             declared: &[Arc<ProductDeclarationRequest>],
+            selects: impl Fn(&ProductDeclarationRequest) -> bool,
         ) -> Result<Vec<(Arc<ProductDeclarationRequest>, SymbolHandle)>, Vec<Diagnostic>> {
             let typed = self.typed();
             let occurrences =
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
             let mut formations = Vec::new();
-            for request in declared
-                .iter()
-                .filter(|request| has_provider_application(request))
-            {
+            for request in declared.iter().filter(|request| selects(request)) {
                 let mut owners = occurrences
                     .iter()
                     .filter(|occurrence| {
@@ -570,7 +594,7 @@ mod provider_requests {
                 let owner = owners.next().ok_or_else(|| {
                     vec![
                         Diagnostic::error(
-                            "Product provider recipe lost its original authored body occurrence",
+                            "Product declaration recipe lost its original authored body occurrence",
                         )
                         .with_source_span(request.source_span),
                     ]
@@ -578,7 +602,7 @@ mod provider_requests {
                 if owners.any(|other| other != owner) {
                     return Err(vec![
                         Diagnostic::error(
-                            "Product provider recipe has multiple original lexical owners",
+                            "Product declaration recipe has multiple original lexical owners",
                         )
                         .with_source_span(request.source_span),
                     ]);
@@ -992,7 +1016,10 @@ impl SourceContinuation {
         >,
     ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
         typed_trees_to_typed_trees::prepare_product_requirement_operand(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            Arc::make_mut(&mut self.input)
+                .typing
+                .typed_mut()
+                .product_declarations_mut(),
             operand,
             author,
             static_environment,

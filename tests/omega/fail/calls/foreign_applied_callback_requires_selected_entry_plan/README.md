@@ -6,7 +6,7 @@ reach that missing-plan refusal, rather than fail because no registrar provider
 was selected. The locator is authored in Build under the current binding
 contract; the retired source-level `via` forwarder supplies no binding.
 
-Build selects the declared `Registrar::install` member family. The Product
+Build selects the exact `Registrar<u64>::install` member, leaving its callback parameter for the Product call. The registrar explicitly declares its native callback slot. The Product
 call remains `Registrar<u64>::install<CallbackBody::notify>()`, so the closed
 trait application stays part of the witness. A generic-operand or provider
 selection error does not satisfy its unchanged diagnostic oracle.

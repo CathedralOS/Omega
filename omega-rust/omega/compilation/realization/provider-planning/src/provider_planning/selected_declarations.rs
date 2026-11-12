@@ -39,6 +39,7 @@ pub(crate) fn capture_plan_declarations(
                 }
                 crate::ProviderRowRealization::BuildNative(native) => {
                     ProviderDeclarationOrigin::BuildNative {
+                        application: native.application,
                         requirement: native.requirement,
                     }
                 }
@@ -57,6 +58,10 @@ pub(crate) fn capture_plan_declarations(
     let declarations = checked.provider_declarations(ProviderDeclarationRequest {
         rows: &rows,
         named_application: provider.named_application,
+        provider_application_identity: plan
+            .provider_application
+            .is_valid()
+            .then(|| plan.identities.text(plan.provider_application)),
         installation_reach: !matches!(
             provider.schema,
             crate::ProviderSchemaDeclaration::BoundaryOperator(_)

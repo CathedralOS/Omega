@@ -1,7 +1,7 @@
 /*
-We projectPsi-owned boundary service declarations (`service_declarations`) and
-provider declaration contexts (`provider_declarations`) from `TypedTrees`,
-keeping semantic service requirements independent of target calling plans.
+Boundary service declarations say which calls a provider promises to implement.
+We keep those contracts independent of target calling plans, retaining each exact
+typed declaration and application for later provider selection.
 */
 
 pub mod provider_declarations {
@@ -1450,6 +1450,23 @@ pub(crate) mod catalog {
             schema: ProviderSchemaDeclaration,
         ) -> Option<RetainedServiceSurface> {
             let record = self.catalog.record(ServiceOrigin::Declaration(schema));
+            self.catalog.view(self.catalog.records.get(record))?;
+            Some(RetainedServiceSurface {
+                catalog: Arc::clone(self.catalog),
+                record,
+            })
+        }
+
+        pub fn retain_application(
+            self,
+            scope: AppliedTraitScope<'_>,
+        ) -> Option<RetainedServiceSurface> {
+            let origin = ServiceOrigin::Application {
+                declaration: scope.declaration.symbol,
+                argument_owner: scope.argument_owner,
+                application: scope.application_identity(self.context.typed)?,
+            };
+            let record = self.catalog.record(origin);
             self.catalog.view(self.catalog.records.get(record))?;
             Some(RetainedServiceSurface {
                 catalog: Arc::clone(self.catalog),

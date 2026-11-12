@@ -1,8 +1,7 @@
 /*
-We represent checked provider declarations (`provider_declarations`), provider
-instances (`provider_instances`), prepared provider inventories
-(`provider_inventory`), and explicit trust declarations (`trust_declarations`)
-in `CheckedTrees`.
+Provider choices must keep the declarations and instances that were checked,
+even after source is no longer available. This module retains that correspondence
+and the explicit trust declarations used by provider admission.
 */
 
 pub mod provider_declarations {
@@ -21,7 +20,11 @@ pub mod provider_declarations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ProviderDeclarationOrigin {
         Authored(symbols::SymbolHandle),
-        BuildNative { requirement: symbols::SymbolHandle },
+        BuildNative {
+            requirement: symbols::SymbolHandle,
+            application:
+                Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
+        },
         Toolchain,
     }
 
@@ -35,6 +38,7 @@ pub mod provider_declarations {
     pub struct ProviderDeclarationRequest<'rows> {
         pub rows: &'rows [ProviderDeclarationRow<'rows>],
         pub named_application: Option<NamedProviderApplication>,
+        pub provider_application_identity: Option<&'rows str>,
         pub installation_reach: bool,
     }
 
@@ -74,7 +78,12 @@ pub mod provider_declarations {
                                     })
                             });
                 let applications = if matches!(row.application, ProviderApplicationView::External) {
-                    self.provider_external_applications(row, row_index, request.named_application)
+                    self.provider_external_applications(
+                        row,
+                        row_index,
+                        request.named_application,
+                        request.provider_application_identity,
+                    )
                 } else {
                     Ok(Vec::new())
                 };
@@ -155,6 +164,7 @@ pub mod provider_declarations {
             row: &ProviderDeclarationRow<'_>,
             row_index: usize,
             named: Option<NamedProviderApplication>,
+            provider_application_identity: Option<&str>,
         ) -> Result<Vec<String>, String> {
             use typed_trees::trait_definition::AppliedTraitScope;
             let typed = &self.typed;
@@ -168,13 +178,18 @@ pub mod provider_declarations {
                     "selected Import template identity disagrees with its provenance".into(),
                 );
             }
+            let mut native_scope = None;
+            let mut native_closed = None;
             let realization = match row.origin {
                 ProviderDeclarationOrigin::Authored(symbol) => Some(
                     typed
                         .machine(symbol)
                         .ok_or("selected Import provenance lost its realization declaration")?,
                 ),
-                ProviderDeclarationOrigin::BuildNative { requirement } => {
+                ProviderDeclarationOrigin::BuildNative {
+                    requirement,
+                    application,
+                } => {
                     if !requirement.is_valid() || requirement != row.requirement {
                         return Err("native Import origin names another exact requirement".into());
                     }
@@ -183,7 +198,53 @@ pub mod provider_declarations {
                             "native Import origin cannot substitute a named implementation".into(),
                         );
                     }
-                    if !owner.is_boundary
+                    if !owner.is_boundary {
+                        return Err("native Import origin lost its boundary declaration".into());
+                    }
+                    if let Some(application) = application {
+                        if !typed.product_operand_applications.is_valid(application) {
+                            return Err(
+                                "native Import origin has a stale Product application".into()
+                            );
+                        }
+                        let prepared = typed.product_operand_applications.get(application);
+                        if prepared.role != Some(language_semantics::declaration_selection::ProductOperandRole::Requirement) { return Err("native Import origin has another Product operand role".into()); }
+                        let closed = typed.closed_requirement_application(prepared.declaration);
+                        if closed
+                            .as_ref()
+                            .map_or(prepared.declaration, |closed| closed.template)
+                            != row.requirement
+                        {
+                            return Err(
+                                "native Import origin changed its exact requirement template"
+                                    .into(),
+                            );
+                        }
+                        let scope = prepared
+                            .scope
+                            .scope(typed)
+                            .filter(|scope| scope.declaration.symbol == owner.symbol)
+                            .ok_or("native Import origin lost its exact applied boundary scope")?;
+                        let identity = match &closed {
+                            Some(closed) => {
+                                Some(typed.trait_requirement_callable_identity_text(
+                                    owner,
+                                    closed.signature,
+                                ))
+                            }
+                            None => scope
+                                .portable_application_identity(typed)
+                                .and_then(|identity| typed.type_identity_text(identity)),
+                        }
+                        .ok_or(
+                            "native Import origin lost its complete selected application identity",
+                        )?;
+                        if provider_application_identity != Some(identity.as_str()) {
+                            return Err("native Import origin differs from the selected application identity".into());
+                        }
+                        native_scope = Some(scope);
+                        native_closed = closed.map(|_| prepared.declaration);
+                    } else if provider_application_identity.is_some()
                         || !typed.trait_type_parameters(owner).is_empty()
                         || !owner.lifetime_parameters.is_empty()
                     {
@@ -244,7 +305,16 @@ pub mod provider_declarations {
                     AppliedTraitScope::from_machine_conformance(typed, realization, edge)
                 }
             } else {
-                Some(AppliedTraitScope::abstract_scope(owner))
+                match row.origin {
+                    ProviderDeclarationOrigin::BuildNative {
+                        application: Some(_),
+                        ..
+                    } => native_scope,
+                    ProviderDeclarationOrigin::BuildNative {
+                        application: None, ..
+                    } => Some(AppliedTraitScope::abstract_scope(owner)),
+                    _ => None,
+                }
             }
             .ok_or("selected Import lost its complete declaring application")?;
             let mut identities = Vec::new();
@@ -252,6 +322,8 @@ pub mod provider_declarations {
                 .closed_requirement_applications()
                 .filter(|application| {
                     application.template == row.requirement
+                        && native_closed
+                            .is_none_or(|selected| application.signature.symbol == selected)
                         && typed.requirement_application_matches_scope(
                             application.signature.symbol,
                             &scope,

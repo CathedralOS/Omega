@@ -6,7 +6,7 @@
 // checkout does not alter the semantic digest.
 
 use build_time_evaluation::provider_declarations::{
-    RetainedProviderApplication, RetainedProviderSelection,
+    RetainedProductApplication, RetainedProviderSelection,
 };
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::declaration_selection::product_operands::ProductStaticOperandGraph;
@@ -44,16 +44,21 @@ impl SelectionSources {
                 .into_iter()
                 .flatten()
             {
-                let mut graph = application.graph.clone();
-                graph.remap_source_spans(|span| {
-                    let source = application.sources.get(span.source_id).expect(
-                        "captured application source coordinates belong to their retained map",
-                    );
-                    source::SourceSpan::new(pool.intern_source(source), span.span)
-                });
+                pool.intern_application(application);
             }
         }
         pool
+    }
+
+    fn intern_application(&mut self, application: &RetainedProductApplication) {
+        let mut graph = application.graph.clone();
+        graph.remap_source_spans(|span| {
+            let source = application
+                .sources
+                .get(span.source_id)
+                .expect("captured application source coordinates belong to their retained map");
+            source::SourceSpan::new(self.intern_source(source), span.span)
+        });
     }
 
     fn intern_source(&mut self, source: &SourceFile) -> SourceId {
@@ -70,7 +75,7 @@ impl SelectionSources {
         SourceId(index)
     }
 
-    fn application(&self, application: Option<&RetainedProviderApplication>, output: &mut Vec<u8>) {
+    fn application(&self, application: Option<&RetainedProductApplication>, output: &mut Vec<u8>) {
         let Some(application) = application else {
             output.push(0);
             return;
@@ -313,6 +318,68 @@ pub fn decode_package_provider_selections(
     cursor.exhausted().then_some((rows, observation))
 }
 
+// Native bindings retain the same closed operands as provider selections.
+// Share their source pooling and graph codec so relocation and source custody
+// have one wire contract.
+pub(super) fn encode_product_applications(rows: &[Option<&RetainedProductApplication>]) -> Vec<u8> {
+    let mut pool = SelectionSources {
+        sources: Vec::new(),
+    };
+    for application in rows.iter().flatten() {
+        pool.intern_application(application);
+    }
+    let mut output = Vec::new();
+    encode_sources(&pool.sources, &mut output);
+    integer(&mut output, rows.len() as u64);
+    for application in rows {
+        pool.application(*application, &mut output);
+    }
+    output
+}
+
+pub(super) fn product_applications_digest(
+    rows: &[Option<&RetainedProductApplication>],
+) -> [u8; 32] {
+    let mut pool = SelectionSources {
+        sources: Vec::new(),
+    };
+    for application in rows.iter().flatten() {
+        pool.intern_application(application);
+    }
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-product-applications-v1\0");
+    digest_sources(&pool.sources, &mut digest);
+    let mut records = Vec::new();
+    integer(&mut records, rows.len() as u64);
+    for application in rows {
+        pool.application(*application, &mut records);
+    }
+    digest.bytes(&records);
+    digest.finish()
+}
+
+pub(super) fn decode_product_applications(
+    bytes: &[u8],
+) -> Option<Vec<Option<RetainedProductApplication>>> {
+    let mut cursor = ObservationCursor::new(bytes);
+    let sources = Arc::new(source::SourceMap::from_files(
+        decode_sources(&mut cursor)?
+            .into_iter()
+            .enumerate()
+            .map(|(index, mut source)| {
+                source.source_id = SourceId(index);
+                source
+            })
+            .collect(),
+    ));
+    let count = sequence_length(&mut cursor)?;
+    let mut rows = Vec::with_capacity(count);
+    for _ in 0..count {
+        rows.push(decode_application(&mut cursor, &sources)?);
+    }
+    cursor.exhausted().then_some(rows)
+}
+
 fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>> {
     let count = sequence_length(cursor)?;
     let mut sources = Vec::with_capacity(count);
@@ -360,7 +427,7 @@ fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>>
 fn decode_application(
     cursor: &mut ObservationCursor<'_>,
     sources: &Arc<source::SourceMap>,
-) -> Option<Option<RetainedProviderApplication>> {
+) -> Option<Option<RetainedProductApplication>> {
     match cursor.u8()? {
         0 => Some(None),
         1 => {
@@ -383,7 +450,7 @@ fn decode_application(
             if !valid {
                 return None;
             }
-            Some(Some(RetainedProviderApplication {
+            Some(Some(RetainedProductApplication {
                 identity,
                 graph,
                 sources: sources.clone(),
