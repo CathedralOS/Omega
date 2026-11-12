@@ -4582,12 +4582,10 @@ pub(crate) mod requirement_instances {
                 symbolic,
             ]
             .map(|symbol| {
+                let name = Identifier::from(program.symbols.name(symbol));
                 program
                     .type_reference_table
-                    .insert(types::TypeReferenceNode::Named {
-                        symbol,
-                        name: Identifier::from(program.symbols.name(symbol)),
-                    })
+                    .insert(types::TypeReferenceNode::Named { symbol, name })
             });
             let identities = references.map(|reference| {
                 RequirementLocalArgument::Static(reference).portable_identity(
