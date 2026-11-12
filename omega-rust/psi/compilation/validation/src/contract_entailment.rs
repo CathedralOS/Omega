@@ -17437,12 +17437,6 @@ pub(crate) mod law_conformance {
                         {
                             return false;
                         }
-                        if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                            eprintln!(
-                                "CORRESP subjects required={:?} provided={:?}",
-                                required_identity.subjects, provided_identity.subjects
-                            );
-                        }
                         (self.matching_values(
                             program,
                             required.scope(),
@@ -17608,14 +17602,6 @@ pub(crate) mod law_conformance {
                 provided_expression: ExpressionHandle,
                 provided_binders: &[(SymbolHandle, String)],
             ) -> bool {
-                let refuse = |reason| {
-                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                        eprintln!(
-                            "CORRESP values required={required_expression:?} provided={provided_expression:?} gate={reason}"
-                        );
-                    }
-                    false
-                };
                 let required_key = self.canonical_source_value(
                     program,
                     required,
@@ -17637,24 +17623,10 @@ pub(crate) mod law_conformance {
                     provided_expression,
                     provided_binders,
                 ) {
-                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                        eprintln!(
-                            "CORRESP values required={required_expression:?} provided={provided_expression:?} gate=operation-payload required_node={:?} provided_node={:?}",
-                            program.expression_table.expression(required_expression),
-                            program.expression_table.expression(provided_expression)
-                        );
-                    }
-                    return refuse("operation-payload");
+                    return false;
                 }
                 let source_keys_disagree = match (required_key, provided_key) {
-                    (Some(required), Some(provided)) if required == provided => {
-                        if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                            eprintln!(
-                                "CORRESP values required={required_expression:?} provided={provided_expression:?} gate=equal-source-keys"
-                            );
-                        }
-                        return true;
-                    }
+                    (Some(required), Some(provided)) if required == provided => return true,
                     (Some(_), Some(_)) => true,
                     _ => false,
                 };
@@ -17667,42 +17639,27 @@ pub(crate) mod law_conformance {
                         None,
                     )
                 };
-                let required_term = term(required, required_expression);
-                let provided_term = term(provided, provided_expression);
-                let (Some(required_term), Some(provided_term)) = (required_term, provided_term)
-                else {
-                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                        let admission = |scope: (SymbolHandle, &[StateParameter]), expression| {
-                            let call = program.expression_table.call_node(expression)?;
-                            let owner = crate::proof_contracts::contract_entailment::specification_calls::selected_call_contract_for_parameters(
-                                program, call, scope.0, scope.1,
-                            )?;
-                            let target = crate::proof_contracts::contract_entailment::specification_calls::owner_symbol(&owner);
-                            Some((target, crate::proof_contracts::contract_entailment::structural_judgment::specification_application_candidate(program, scope.0, target, &[], None)))
-                        };
-                        eprintln!(
-                            "CORRESP formation required={required_expression:?} provided={provided_expression:?} required_admission={:?} provided_admission={:?}",
-                            admission(required, required_expression),
-                            admission(provided, provided_expression)
-                        );
-                    }
-                    return refuse("structural-term-formation");
+                let (Some(required_term), Some(provided_term)) = (
+                    term(required, required_expression),
+                    term(provided, provided_expression),
+                ) else {
+                    return false;
                 };
                 let (Some(required_roles), Some(provided_roles)) = (
                     parameter_roles(required.1, required_binders),
                     parameter_roles(provided.1, provided_binders),
                 ) else {
-                    return refuse("positional-roles-formation");
+                    return false;
                 };
                 if required_roles.len() != provided_roles.len() {
-                    return refuse("positional-role-count");
+                    return false;
                 }
                 let mut bindings = Vec::with_capacity(required_roles.len());
                 for ((required_key, required_parameter), (provided_key, provided_parameter)) in
                     required_roles.into_iter().zip(provided_roles)
                 {
                     if required_key != provided_key {
-                        return refuse("positional-role-identity");
+                        return false;
                     }
                     bindings.push((
                         required_parameter.name.as_str().to_owned(),
@@ -17741,14 +17698,7 @@ pub(crate) mod law_conformance {
                     &[],
                     false,
                 );
-                let judgment =
-                    judge.judge_explicit_identity(required_term.clone(), provided_term.clone(), 0);
-                if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                    eprintln!(
-                        "CORRESP values required={required_expression:?} provided={provided_expression:?} gate=identity judgment={judgment:?} pair={}",
-                        judge.diagnostic_identity_pair(required_term, provided_term)
-                    );
-                }
+                let judgment = judge.judge_explicit_identity(required_term, provided_term, 0);
                 matches!(judgment, super::super::StructuralJudgment::Proven)
             }
             /// The shared index key intentionally omits some operation payloads. Check
@@ -17801,14 +17751,6 @@ pub(crate) mod law_conformance {
                     }
                     let left = program.expression_table.expression(required);
                     let right = program.expression_table.expression(provided);
-                    let refuse = |reason| {
-                        if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                            eprintln!(
-                                "CORRESP payload required={required:?} provided={provided:?} depth={depth} reason={reason} left={left:?} right={right:?}"
-                            );
-                        }
-                        false
-                    };
                     let call_value_difference = matches!(
                         (left, right),
                         (ExpressionNode::Call(_), _) | (_, ExpressionNode::Call(_))
@@ -17823,7 +17765,7 @@ pub(crate) mod law_conformance {
                         if !neutral_operation_payloads(program, required, &mut remaining_work)
                             || !neutral_operation_payloads(program, provided, &mut remaining_work)
                         {
-                            return refuse("non-neutral-call-value-payload");
+                            return false;
                         }
                         // This grants no equation. Only the subsequent checked
                         // closed-value normalization can compare these different forms.
@@ -17866,13 +17808,13 @@ pub(crate) mod law_conformance {
                                 || left.operational_acknowledgement.acknowledges_block
                                     != right.operational_acknowledgement.acknowledges_block
                             {
-                                return refuse("call-metadata");
+                                return false;
                             }
                         }
                         (ExpressionNode::Call(call), ExpressionNode::Binary(_))
                         | (ExpressionNode::Binary(_), ExpressionNode::Call(call)) => {
                             if !neutral_call_payload(call) {
-                                return refuse("call-binary-metadata");
+                                return false;
                             }
                         }
                         (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
@@ -17898,14 +17840,14 @@ pub(crate) mod law_conformance {
                                     .zip(right_arguments)
                                     .all(|(left, right)| type_matches(*left, *right))
                             {
-                                return refuse("cast-metadata");
+                                return false;
                             }
                         }
                         (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
                             if left.member_symbol != right.member_symbol
                                 || left.case_variant != right.case_variant
                             {
-                                return refuse("member-identity");
+                                return false;
                             }
                         }
                         (
@@ -17923,7 +17865,7 @@ pub(crate) mod law_conformance {
                                     .zip(fields(right))
                                     .all(|(left, right)| left.field_symbol == right.field_symbol)
                             {
-                                return refuse("constructor-identity");
+                                return false;
                             }
                         }
                         (ExpressionNode::Match(_), _)
@@ -17935,7 +17877,7 @@ pub(crate) mod law_conformance {
                         | (ExpressionNode::StructLiteral(_), _)
                         | (_, ExpressionNode::StructLiteral(_))
                         | (ExpressionNode::Call(_), _)
-                        | (_, ExpressionNode::Call(_)) => return refuse("source-node-shape"),
+                        | (_, ExpressionNode::Call(_)) => return false,
                         _ => {}
                     }
                     let children =
@@ -17964,7 +17906,7 @@ pub(crate) mod law_conformance {
                     children(left, required_scope.0, &mut required_children);
                     children(right, provided_scope.0, &mut provided_children);
                     if required_children.len() != provided_children.len() {
-                        return refuse("child-count");
+                        return false;
                     }
                     pending.extend(
                         required_children
@@ -50489,265 +50431,6 @@ pub(crate) mod structural_judgment {
                     StructuralJudgment::Proven
                 } else {
                     StructuralJudgment::Unknown
-                }
-            }
-
-            // Temporary exact-payload diagnostic, removed before landing.
-            pub(crate) fn diagnostic_identity_pair(
-                &self,
-                left: StructuralTerm,
-                right: StructuralTerm,
-            ) -> String {
-                let mut original_remaining = IDENTITY_QUERY_WORK_LIMIT;
-                let original = self.exact_identity_congruence(
-                    left.clone(),
-                    right.clone(),
-                    1,
-                    &mut original_remaining,
-                );
-                let arguments = match (&left, &right) {
-                    (
-                        StructuralTerm::Application {
-                            target: left_target,
-                            arguments: left_arguments,
-                            ..
-                        },
-                        StructuralTerm::Application {
-                            target: right_target,
-                            arguments: right_arguments,
-                            ..
-                        },
-                    ) => {
-                        let verdicts = left_arguments
-                            .iter()
-                            .zip(right_arguments)
-                            .map(|(left, right)| {
-                                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
-                                let verdict = self.judge_identity_with_budget(
-                                    left.clone(),
-                                    right.clone(),
-                                    2,
-                                    &mut remaining,
-                                );
-                                (verdict, remaining)
-                            })
-                            .collect::<Vec<_>>();
-                        format!(
-                            "arity={:?}/{:?}, actuals={}/{}, verdicts={verdicts:?}",
-                            self.identity_application_arity(*left_target),
-                            self.identity_application_arity(*right_target),
-                            left_arguments.len(),
-                            right_arguments.len()
-                        )
-                    }
-                    _ => "not applications".to_owned(),
-                };
-                let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
-                let normalized = match self.normalize_identity_values(
-                    [left.clone(), right.clone()],
-                    1,
-                    &mut remaining,
-                ) {
-                    Err(reason) => format!("refused={reason}, remaining={remaining}"),
-                    Ok(IdentityNormalization::Proven) => format!("Proven, remaining={remaining}"),
-                    Ok(IdentityNormalization::Values([normalized_left, normalized_right])) => {
-                        let verdict = self.exact_identity_congruence(
-                            normalized_left.clone(),
-                            normalized_right.clone(),
-                            1,
-                            &mut remaining,
-                        );
-                        format!(
-                            "Values, changed={}/{}, congruence={verdict:?}, remaining={remaining}, left={}, right={}",
-                            !left.same_resolution_payload(&normalized_left),
-                            !right.same_resolution_payload(&normalized_right),
-                            self.diagnostic_identity_term(&normalized_left, 0),
-                            self.diagnostic_identity_term(&normalized_right, 0)
-                        )
-                    }
-                };
-                format!(
-                    "original={original:?}, remaining={original_remaining}, {arguments}, normalized={normalized}, left_query={}, right_query={}",
-                    self.diagnostic_identity_query(left),
-                    self.diagnostic_identity_query(right)
-                )
-            }
-
-            pub(crate) fn diagnostic_identity_query(&self, value: StructuralTerm) -> String {
-                let mut remaining = 64;
-                let forms = self.data_identity_forms(value.clone(), 2, &mut remaining);
-                let describe = |value: &StructuralTerm| self.diagnostic_identity_term(value, 0);
-                let forms = forms
-                    .iter()
-                    .map(|term| (describe(term), self.identity_value_is_available(term)))
-                    .collect::<Vec<_>>();
-                let published =
-                    self.specification_application_guarantees(&value, 3)
-                        .map(|guarantees| {
-                            guarantees
-                                .data_identities
-                                .iter()
-                                .map(|(left, right)| {
-                                    let endpoint = |term: &StructuralTerm| {
-                                        let mut budget = 64;
-                                        let verdict = self.identity_representation_correspondence(
-                                            term.clone(),
-                                            value.clone(),
-                                            3,
-                                            &mut budget,
-                                        );
-                                        (describe(term), verdict, budget)
-                                    };
-                                    (endpoint(left), endpoint(right))
-                                })
-                                .collect::<Vec<_>>()
-                        });
-                format!(
-                    "input={} available={} admission={} forms={forms:?} remaining={remaining} published={published:?}",
-                    describe(&value),
-                    self.identity_value_is_available(&value),
-                    self.diagnostic_application_admission(&value),
-                )
-            }
-
-            fn diagnostic_application_admission(&self, value: &StructuralTerm) -> String {
-                let StructuralTerm::Application {
-                    target, selections, ..
-                } = value
-                else {
-                    return "not application".to_owned();
-                };
-                let admission = super::specification_application_candidate(
-                    self.program,
-                    self.machine_symbol,
-                    *target,
-                    selections,
-                    self.frame_resolver(),
-                );
-                let operator =
-                    self.program
-                        .operator_definition_by_symbol(*target)
-                        .map(|operator| {
-                            (
-                                operator.symbol,
-                                operator.is_boundary,
-                                self.program.operator_parameters(operator).len(),
-                                self.program.operator_contracts(operator).len(),
-                            )
-                        });
-                let Some(machine) = super::super::structural_terms::selected_application_machine(
-                    self.program,
-                    *target,
-                ) else {
-                    return format!("{admission:?}, operator={operator:?}, no selected machine");
-                };
-                let Some(state) = self.program.machine_states(machine).first() else {
-                    return format!(
-                        "{admission:?}, operator={operator:?}, machine={:?}, no entry",
-                        machine.symbol
-                    );
-                };
-                let plans = crate::operand_call_plans(self.program, self.frame_resolver());
-                let (operational, reaches) = plans.as_ref();
-                let mutable = self
-                    .program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.is_mutable);
-                let pure = crate::machine_calls::denotational_calls::has_pure_effect_closure(
-                    self.program,
-                    machine.symbol,
-                    state.symbol,
-                    mutable,
-                    operational,
-                    reaches,
-                );
-                let observation_free =
-                    crate::machine_calls::denotational_calls::has_observation_free_checked_closure(
-                        self.program,
-                        machine.symbol,
-                        operational,
-                    );
-                let no_crash = crate::machine_calls::denotational_calls::has_no_crash_routes(
-                    self.program,
-                    machine.symbol,
-                    operational,
-                );
-                let summaries = operational
-                    .machines()
-                    .iter()
-                    .filter(|summary| summary.symbol == machine.symbol)
-                    .collect::<Vec<_>>();
-                let mut calls = Vec::new();
-                for summary in &summaries {
-                    for state in operational.states.span_or_empty(summary.states) {
-                        for call in operational.calls.span_or_empty(state.calls).iter().take(8) {
-                            let closed_operator = typed_trees::operator::declaration_by_symbol(self.program, call.target_operator_symbol)
-                                .map(|operator| crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(self.program, operator));
-                            calls.push(format!("{call:?}, closed_operator={closed_operator:?}"));
-                        }
-                    }
-                }
-                format!(
-                    "{admission:?}, operator={operator:?}, machine={:?}/{}, entry={:?}, body={}, supply={:?}, mutable={mutable}, pure={pure}, observation_free={observation_free}, no_crash={no_crash}, summaries={summaries:?}, calls={calls:?}",
-                    machine.symbol,
-                    machine.name,
-                    state.symbol,
-                    machine.body_is_present,
-                    machine.supply_mode
-                )
-            }
-
-            fn diagnostic_identity_term(&self, value: &StructuralTerm, depth: usize) -> String {
-                if depth >= 10 {
-                    return "depth-limit".to_owned();
-                }
-                let reference = |reference: typed_trees::types::TypeReferenceHandle| {
-                    if reference.is_valid() {
-                        format!(
-                            "{reference:?}/{:?}/{}",
-                            self.program.normalized_type_identity(reference),
-                            self.program.display_type_reference(reference)
-                        )
-                    } else {
-                        "invalid".to_owned()
-                    }
-                };
-                match value {
-                    StructuralTerm::ObservedValue {
-                        observed_type,
-                        value,
-                        descriptor,
-                    } => format!(
-                        "Observed(type={}, reference={}, value={}, descriptor={:?})",
-                        reference(*observed_type),
-                        crate::reference_shell(self.program, *observed_type).is_some(),
-                        self.diagnostic_identity_term(value, depth + 1),
-                        descriptor
-                            .as_ref()
-                            .map(|term| self.diagnostic_identity_term(term, depth + 1))
-                    ),
-                    StructuralTerm::Application {
-                        result_type,
-                        target,
-                        selections,
-                        machine,
-                        arguments,
-                    } => format!(
-                        "Application(type={}, target={target:?}, selections={selections:?}, machine={machine}, arguments={:?})",
-                        reference(*result_type),
-                        arguments
-                            .iter()
-                            .map(|term| self.diagnostic_identity_term(term, depth + 1))
-                            .collect::<Vec<_>>()
-                    ),
-                    _ => {
-                        let mut children = Vec::new();
-                        value.for_each_child(|child| {
-                            children.push(self.diagnostic_identity_term(child, depth + 1))
-                        });
-                        format!("{value:?}/children={children:?}")
-                    }
                 }
             }
 

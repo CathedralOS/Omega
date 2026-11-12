@@ -5,6 +5,7 @@
 // members with checked bodies retain their ordinary contract and call plans.
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
+use omega::language::core::float_semantics;
 
 trait FloatNativeOperations {
     machine float_add_f32_f32(left: f32, right: f32) -> f32;

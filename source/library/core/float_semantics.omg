@@ -1,0 +1,21 @@
+module FloatSemantics;
+
+use omega::language::core::float_operations;
+use omega::language::core::float_format;
+use omega::language::core::float_meaning;
+
+// Each operation rounds to the same format. The intermediate product is
+// retained, so overflow, underflow and signed zeros follow two roundings;
+// NaNs keep the payload-erased FloatMeaning policy of multiply and add.
+public machine multiply_then_add(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning,
+    addend: FloatMeaning
+) -> FloatMeaning
+ensures core::Identity<FloatMeaning>(result,
+    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend))
+{
+    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend)
+}
+

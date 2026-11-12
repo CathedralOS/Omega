@@ -12,6 +12,7 @@
 
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
+use omega::language::core::float_semantics;
 
 use omega::language::core::float_provider;
 
@@ -48,8 +49,8 @@ ensures core::Identity<FloatMeaning>(result, Float::meaning64(value))
 }
 
 // The executable, representation-free semantic definitions. Except for the
-// explicit multiply-then-add composition below, these are exact compiler
-// primitives from the closed float-semantics catalog: bare bodyless
+// ordinary multiply-then-add composition in FloatSemantics, these are exact
+// compiler primitives from the closed float-semantics catalog: bare bodyless
 // machine signatures supplied because this sealed toolchain source declares
 // them with exactly this path and complete signature (the `from_integer`
 // carriers are distinct catalog rows). The compiler's core implementation is
@@ -125,21 +126,6 @@ public machine FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;
 public machine FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
 public machine FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
 public machine FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
-
-// Each operation rounds to the same format. The intermediate product is
-// retained, so overflow, underflow and signed zeros follow two roundings;
-// NaNs keep the payload-erased FloatMeaning policy of multiply and add.
-public machine FloatSemantics::multiply_then_add(
-    format: FloatFormat,
-    left: FloatMeaning,
-    right: FloatMeaning,
-    addend: FloatMeaning
-) -> FloatMeaning
-ensures core::Identity<FloatMeaning>(result,
-    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend))
-{
-    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend)
-}
 
 public machine FloatSemantics::fused_multiply_add(
     format: FloatFormat,
