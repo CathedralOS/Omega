@@ -445,8 +445,20 @@ that cannot fail cannot hold work back, and work went ahead
    [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
    only where `T` is a scalar type; no operation has a result of type `T`;
    a `T` value is used at most once unless `T` is `[copy]`, because the
-   route has no judgment of moves. A type parameter the body branches on
-   (a finite family) is still not served.
+   route has no judgment of moves.
+
+   **Fourth result, 2026-11-12: a finite type family.** Under the owner's
+   ruling that checking a finite family once per listed alternative
+   satisfies "every admitted alternative" (generics.md, "Static type
+   equality"), `pick<T>` with `requires T == u8 || T == u16` is checked
+   with `T` fixed to `u8` and to `u16`, each alternative's certificates are
+   carried into the machine stage 04 generated for it, and the kernel
+   decides them there. The pair is `run/generics/finite_family_contract`
+   (`omega run --both`: native exit 0, Psi exit 0) and its twin
+   `fail/generics/finite_family_contract_wrong_alternative`, refused at the
+   `u16` alternative. Limits, in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families):
+   one type parameter listed by one clause of builtin scalar types.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed

@@ -65,13 +65,14 @@ generated machine is read under its own type and judged as a closed machine:
 `pass/contracts/generic_effective_result_comparison_exit`, and `choose<u32>`
 and `choose<u64>` in `fail/contracts/specialized_normal_call_wrong_type_contract`,
 are each accepted by the route (compiler test `lowered_route_generics`).
-That is the per-type check of [the middle form](#the-alternative-check-only-specializations),
-for the types in use, and it is what a carried certificate would be decided
-against. The generic form of such a body (rigid outside its arms, concrete
-inside each) is not built: it needs a check-only terminator the lowered
-form does not have, and whether it is needed at all is the question filed
-as `finite-family-generic-check`. `core::integer::min` waits for
-`contract-conjunct-under-type-equation`.
+The owner then ruled (generics.md, "Static type equality") that checking
+the body once per listed alternative, each with `T` fixed to that type,
+satisfies the rule for a finite family, and that a type equation in a
+contract guards the conjuncts after it. So the generic form with a
+check-only terminator is not needed and not built. Each listed type is
+checked, used or not, and each generated machine takes the certificates of
+the alternative whose body it is
+([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families)).
 
 ## What the specification asks
 

@@ -44,10 +44,10 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let reading = if self.rigid && self.symbols.is_empty() {
-            Reading::GenericEntry
-        } else {
-            Reading::Closed
+        let reading = match (&self.alternative, self.symbols.is_empty()) {
+            (Some(arguments), true) => Reading::Alternative(arguments.clone()),
+            _ if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
+            _ => Reading::Closed,
         };
         self.read_machine(id, symbol, reading)?;
         Ok(id)
@@ -332,8 +332,8 @@ impl<'t> Program<'t> {
                 _ => false,
             }),
             // Applied at one type argument per parameter, all type
-            // parameters.
-            Reading::Applied(arguments) => {
+            // parameters; so is one alternative of a finite family.
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
                 parameters.len() == arguments.len()
                     && parameters.iter().all(|parameter| {
                         parameter.kind == typed_trees::data::TypeParameterKind::Type
@@ -404,7 +404,7 @@ impl<'t> Program<'t> {
         // formals; `machine_shape` refuses them on every other machine.
         let binders = match reading {
             Reading::GenericEntry => self.value_binders(id, machine)?,
-            Reading::Closed | Reading::Applied(_) => Vec::new(),
+            Reading::Closed | Reading::Applied(_) | Reading::Alternative(_) => Vec::new(),
         };
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
@@ -423,7 +423,7 @@ impl<'t> Program<'t> {
                     (parameter.symbol, ValueType::Rigid(rigid))
                 })
                 .collect(),
-            Reading::Applied(arguments) => self
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => self
                 .typed
                 .machine_type_parameters(machine)
                 .iter()
@@ -1292,6 +1292,10 @@ enum Reading {
     /// A generic machine at the type arguments of one call in a generic
     /// check form's entry, in declaration order.
     Applied(Vec<ValueType>),
+    /// The entry of one alternative's check of a finite type family: the
+    /// generic machine with its body, each type parameter fixed to that
+    /// alternative's type (`elaborate_alternatives`).
+    Alternative(Vec<ValueType>),
 }
 
 /// Counts, per slot, how often `statement` names it.

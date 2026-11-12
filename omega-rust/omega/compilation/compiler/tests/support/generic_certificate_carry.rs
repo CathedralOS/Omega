@@ -144,11 +144,11 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         return format!("{head}\troute=no-specialization");
     }
     // Each generic machine is elaborated and discharged once, however many
-    // applications of it the program makes.
+    // applications of it the program makes: one check form, or for a finite
+    // type family one per alternative it lists.
     let mut generics: Vec<(
         symbols::SymbolHandle,
-        Elaboration,
-        lowered_discharge::Discharge,
+        Vec<(Elaboration, lowered_discharge::Discharge)>,
     )> = Vec::new();
     let mut carried_all = true;
     for (mut consumer, specialization) in roots {
@@ -160,39 +160,50 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             return format!("{head}\troute=defect\tspecialization without a template");
         };
         // 1. The generic body, once, against its requirements alone.
-        if !generics.iter().any(|(symbol, _, _)| *symbol == template) {
-            let mut generic = match structure_elaboration::elaborate_generic(typed, template) {
-                Ok(generic) => generic,
-                Err(refusal) => {
-                    return format!(
-                        "{head}\troute=outside\tgeneric: {}",
-                        one_line(&refusal.detail)
-                    );
-                }
+        if !generics.iter().any(|(symbol, _)| *symbol == template) {
+            let forms = match structure_elaboration::elaborate_generic(typed, template) {
+                Ok(generic) => vec![generic],
+                Err(opaque) => match structure_elaboration::elaborate_alternatives(typed, template)
+                {
+                    Ok(alternatives) => alternatives,
+                    Err(_) => {
+                        return format!(
+                            "{head}\troute=outside\tgeneric: {}",
+                            one_line(&opaque.detail)
+                        );
+                    }
+                },
             };
-            let found = match discharge(&mut generic) {
-                Ok(found) => found,
-                Err(refusal) => {
-                    return format!(
-                        "{head}\troute=defect\tgeneric: {}",
-                        one_line(&refusal.detail)
-                    );
-                }
-            };
-            report(
-                "generic",
-                main,
-                specialization.get(),
-                &generic,
-                &found,
-                entry_machine,
-                lines,
-            );
-            generics.push((template, generic, found));
+            let mut checked = Vec::new();
+            for mut form in forms {
+                let found = match discharge(&mut form) {
+                    Ok(found) => found,
+                    Err(refusal) => {
+                        return format!(
+                            "{head}\troute=defect\tgeneric: {}",
+                            one_line(&refusal.detail)
+                        );
+                    }
+                };
+                // A generic body is checked for every use it admits, so an
+                // obligation it refuses rejects the program even when no
+                // generated machine needs it (a family's unused alternative).
+                carried_all &= report(
+                    "generic",
+                    main,
+                    specialization.get(),
+                    &form,
+                    &found,
+                    entry_machine,
+                    lines,
+                );
+                checked.push((form, found));
+            }
+            generics.push((template, checked));
         }
-        let (_, generic, found) = generics
+        let (_, forms) = generics
             .iter()
-            .find(|(symbol, _, _)| *symbol == template)
+            .find(|(symbol, _)| *symbol == template)
             .expect("pushed above");
         // What a search over this generated machine alone proves, with the
         // selected implementation's own contract: what a use-by-use check
@@ -212,89 +223,105 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 lines,
             );
         }
-        // 2. Each selected implementation's refinement proof.
         let selected: Vec<_> = consumer
             .selections
             .iter()
             .filter(|selected| selected.caller == specialization)
             .cloned()
             .collect();
-        let mut witnesses = Vec::new();
-        for selected in &selected {
-            let Some(requirement) = generic
-                .machines
-                .iter()
-                .find(|(machine, symbol)| {
-                    **symbol == selected.requirement
-                        && generic.requirements.contains(machine)
-                        && generic.value_arguments.get(*machine) == Some(&selected.value_arguments)
-                })
-                .map(|(machine, _)| machine)
-            else {
-                return format!(
-                    "{head}\troute=defect\tselection names no requirement of the generic form"
+        // The certificates of the one check form this machine is: for a
+        // family, the alternative whose body it is. Which one is decided by
+        // the carrier's own correspondence of the two lowered bodies, never
+        // by the type's spelling; a form it does not correspond to carries
+        // nothing, and the kernel re-decides whatever is carried.
+        let mut outcome = None;
+        for (generic, found) in forms {
+            // 2. Each selected implementation's refinement proof.
+            let mut witnesses = Vec::new();
+            for selected in &selected {
+                let Some(requirement) = generic
+                    .machines
+                    .iter()
+                    .find(|(machine, symbol)| {
+                        **symbol == selected.requirement
+                            && generic.requirements.contains(machine)
+                            && generic.value_arguments.get(*machine)
+                                == Some(&selected.value_arguments)
+                    })
+                    .map(|(machine, _)| machine)
+                else {
+                    return format!(
+                        "{head}\troute=defect\tselection names no requirement of the generic form"
+                    );
+                };
+                let Some(implementation) = consumer.machines.get(selected.implementation).copied()
+                else {
+                    return format!("{head}\troute=defect\tselection names no machine");
+                };
+                let mut witness = match structure_elaboration::elaborate_witness(
+                    typed,
+                    selected.declaring_trait,
+                    selected.requirement,
+                    &selected.value_arguments,
+                    implementation,
+                ) {
+                    Ok(witness) => witness,
+                    Err(refusal) => {
+                        return format!(
+                            "{head}\troute=outside\twitness: {}",
+                            one_line(&refusal.detail)
+                        );
+                    }
+                };
+                let refinement = match discharge(&mut witness) {
+                    Ok(refinement) => refinement,
+                    Err(refusal) => {
+                        return format!(
+                            "{head}\troute=defect\twitness: {}",
+                            one_line(&refusal.detail)
+                        );
+                    }
+                };
+                report(
+                    "witness",
+                    main,
+                    specialization.get(),
+                    &witness,
+                    &refinement,
+                    entry_machine,
+                    lines,
                 );
-            };
-            let Some(implementation) = consumer.machines.get(selected.implementation).copied()
-            else {
-                return format!("{head}\troute=defect\tselection names no machine");
-            };
-            let mut witness = match structure_elaboration::elaborate_witness(
-                typed,
-                selected.declaring_trait,
-                selected.requirement,
-                &selected.value_arguments,
-                implementation,
-            ) {
-                Ok(witness) => witness,
-                Err(refusal) => {
-                    return format!(
-                        "{head}\troute=outside\twitness: {}",
-                        one_line(&refusal.detail)
-                    );
-                }
-            };
-            let refinement = match discharge(&mut witness) {
-                Ok(refinement) => refinement,
-                Err(refusal) => {
-                    return format!(
-                        "{head}\troute=defect\twitness: {}",
-                        one_line(&refusal.detail)
-                    );
-                }
-            };
-            report(
-                "witness",
-                main,
-                specialization.get(),
-                &witness,
-                &refinement,
+                witnesses.push((requirement, witness, refinement));
+            }
+            let selections: Vec<Selection<'_>> = witnesses
+                .iter()
+                .map(|(requirement, witness, refinement)| Selection {
+                    requirement: *requirement,
+                    witness,
+                    refinement,
+                })
+                .collect();
+            // 3. Carry the generic body's certificates; the kernel re-decides.
+            let carried = reverify_specialization(
+                generic,
+                found,
                 entry_machine,
-                lines,
+                &mut consumer,
+                specialization,
+                &selections,
             );
-            witnesses.push((requirement, witness, refinement));
+            let corresponds = carried.is_ok();
+            outcome = Some(carried);
+            if corresponds {
+                break;
+            }
         }
-        let selections: Vec<Selection<'_>> = witnesses
-            .iter()
-            .map(|(requirement, witness, refinement)| Selection {
-                requirement: *requirement,
-                witness,
-                refinement,
-            })
-            .collect();
-        // 3. Carry the generic body's certificates; the kernel re-decides.
-        let verdicts = match reverify_specialization(
-            generic,
-            found,
-            entry_machine,
-            &mut consumer,
-            specialization,
-            &selections,
-        ) {
-            Ok(verdicts) => verdicts,
-            Err(refusal) => {
+        let verdicts = match outcome {
+            Some(Ok(verdicts)) => verdicts,
+            Some(Err(refusal)) => {
                 return format!("{head}\troute=defect\tcarry: {}", one_line(&refusal.detail));
             }
+            None => return format!("{head}\troute=defect\tno check form"),
         };
         for (obligation, verdict) in &verdicts {
             let (outcome, detail) = match verdict {
