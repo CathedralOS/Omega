@@ -52,9 +52,12 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/tmp/bisect_runner.log 2>&1 || true
+RC=125
 set +e
-RC=$(python3 "$(dirname "$0")/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt)
+python3 "$SCRIPT_DIR/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
+RC=$?
 set -e
+[[ -z "${RC:-}" || ! "$RC" =~ ^[0-9]+$ ]] && RC=125
 if [[ -f "$REASON_FILE" ]]; then
   detail=$(tr '\n' ' ' <"$REASON_FILE")
 else
