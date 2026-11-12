@@ -1,0 +1,11 @@
+// Each guarantee names the other machine in a specification call. Neither
+// proof cites the other guarantee: both bodies are the plain definition
+// `value`, so the checked body summary of the callee proves each exit
+// (state_contracts.md, local call summaries). No body is recursive, so no
+// summary is assumed around a cycle. A false variant still rejects in
+// fail/core/scoped_integer_call_guarantee_retains_actual.
+machine first(value: i16) -> i16
+ensures (second(value) as i16 in Saturating) == result { value }
+machine second(value: i16) -> i16
+ensures (first(value) as i16 in Wrapping) == result { value }
+machine main() {}
