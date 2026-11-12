@@ -1087,6 +1087,18 @@ mod product {
                 _ => false,
             }
         }
+
+        // The checked recording call must agree with the authored request.
+        // Keep its ordinary operands beside its name so preparation and
+        // validation cannot admit a different Product operation's protocol.
+        pub const fn product_recording_operation(self) -> Option<(&'static str, usize)> {
+            match self {
+                Self::NativeBinding => Some(("bind_native", 3)),
+                Self::ProviderSelection => Some(("select_provider", 3)),
+                operation if operation.selects_product_declarations() => Some(("select", 1)),
+                _ => None,
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
