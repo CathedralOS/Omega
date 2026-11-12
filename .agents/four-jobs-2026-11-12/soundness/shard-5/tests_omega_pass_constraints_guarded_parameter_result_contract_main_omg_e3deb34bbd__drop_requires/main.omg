@@ -1,0 +1,17 @@
+machine bounded(ignored: bool, input: u16) -> u16
+ensures result == input || result < input
+{
+    transition { _ -> finish(input) }
+    machine finish(saved: u16) -> u16 { saved }
+}
+
+machine value(selected: bool, input: u16) -> bool
+requires true == true
+ensures true == true
+{
+    transition selected {
+        true -> finish(selected && ((bounded(!selected, input % 256u16) as u8) == 7u8))
+        false -> finish(false)
+    }
+    machine finish(result: bool) -> bool { result }
+}

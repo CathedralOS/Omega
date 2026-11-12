@@ -1,0 +1,21 @@
+// Expected exit: 0
+// Both result shapes consume the evaluated record, including its entry requirement.
+data Packet [copy] { first: u8; last: u8; }
+
+machine make(first: u8, last: u8) -> Packet { Packet { first: first, last: last } }
+machine read(packet: Packet) -> u8
+{ packet.last }
+machine keep(packet: Packet) -> Packet
+requires packet.first == 7u8
+{ packet }
+
+const SCALAR: u8 = read(make(7u8, 9u8));
+const RECORD: Packet = keep(make(7u8, 11u8));
+
+machine main() crashes Trap {
+    transition SCALAR == 9u8 && RECORD.first == 7u8 && RECORD.last == 11u8 {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
