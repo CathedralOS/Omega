@@ -1,0 +1,13 @@
+; One complete checked-source request yields source text or a distinct refusal.
+; The newline after success is framing, not part of the emitted Delta module.
+(def main ((source Bytes)) Bytes
+  (match (epsilon_delta_compile source)
+    ((EpsilonDeltaCompiled text) (bytes_concat "compiled\n" text))
+    ((EpsilonDeltaRejected reason offset)
+      (bytes_concat "rejected " (epsilon_emit_spaced
+        (epsilon_emit_decimal (epsilon_reject_reason_identity reason))
+        (epsilon_emit_decimal offset))))
+    ((EpsilonDeltaUnsupported offset)
+      (bytes_concat "unsupported " (epsilon_emit_decimal offset)))
+    ((EpsilonDeltaInternal offset)
+      (bytes_concat "internal " (epsilon_emit_decimal offset)))))

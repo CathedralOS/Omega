@@ -50,7 +50,7 @@
       (epsilon_emit_owned_function_name source owner member))))
 
 ; A source parameter's retained coordinate is its lexical identity. User
-; spellings cannot capture generated store/output names in the Delta target.
+; spellings cannot capture generated temporaries in the Delta target.
 (def epsilon_compiled_parameter_name ((name EpsilonName)) Bytes
   (match name
     ((EpsilonNameSpan start end)
@@ -61,7 +61,7 @@
     ((EpsilonParameterSyntax start end name typeValue)
       (let named Bytes
         (bytes_concat "(" (epsilon_compiled_parameter_name name))
-        (bytes_concat named " EpsilonRuntimeValue) ")))))
+        (bytes_concat named " Int) ")))))
 
 (def epsilon_emit_parameters ((parameters EpsilonParameterList)) Bytes
   (match parameters
@@ -76,11 +76,10 @@
     ((EpsilonPlainMachineInputs start end parameters)
       (epsilon_emit_parameters parameters))
     ((EpsilonReceiverMachineInputs start end receiver parameters)
-      (bytes_concat "(ep_receiver EpsilonRuntimeOptionalPlace) "
-        (epsilon_emit_parameters parameters)))))
+      (epsilon_emit_parameters parameters))))
 
-; Every compiled machine returns the existing effect-threaded outcome. Scalar,
-; resultless, exit, trap and contradiction results therefore stay distinct.
+; Pure compiled machines return named scalar/resultless/trap/internal outcomes.
+; The checked capability boundary excludes storage and Console effects.
 (def epsilon_emit_compiled_function
   ((source EpsilonSourceView) (name EpsilonQualifiedName)
    (inputs EpsilonMachineInputs) (body Bytes)) Bytes
@@ -90,14 +89,12 @@
       (bytes_concat " (" (epsilon_emit_inputs inputs))
       (let signature Bytes
         (bytes_concat parameters
-          "(ep_store EpsilonRuntimeStore) (ep_output Bytes)) EpsilonEvaluatorOutcome\n  ")
+          ") EpsilonCompiledOutcome\n  ")
         (bytes_concat named
           (bytes_concat signature (bytes_concat body ")\n")))))))
 
-(def epsilon_emit_resultless () Bytes
-  "(EpsilonEvaluatorResultless ep_store ep_output)")
+(def epsilon_emit_resultless () Bytes "EpsilonCompiledResultless")
 
 (def epsilon_emit_integer ((value Int)) Bytes
-  (bytes_concat "(EpsilonEvaluatorValue (EpsilonRuntimeInteger "
-    (bytes_concat (epsilon_emit_decimal value)
-      ") NoEpsilonRuntimePlace ep_store ep_output)")))
+  (bytes_concat "(EpsilonCompiledScalar "
+    (bytes_concat (epsilon_emit_decimal value) ")")))

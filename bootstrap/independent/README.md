@@ -203,7 +203,7 @@ The next compiler's source encoder now uses Delta byte literals rather than
 packed numeric text templates. Run its facility and actual encoder controls
 with `successor_test.py --literals` (and optionally `--omega`). The encoder
 consumes existing semantic name/input records; this remains an encoding module,
-not a completed Epsilon lowering pass. Its emitted Delta function is compiled
+now used by the checked scalar lowering below. Its emitted Delta function is compiled
 to native code and executed; generated-function runtime needs shared semantic
 types, not the Epsilon parser or expression/state dispatcher.
 
@@ -230,3 +230,82 @@ the Alpha VM observation. That record owns exact input/artifact provenance,
 reused-runtime disclosure, allocation samples and shared-host timing limits;
 it is stronger evaluator workload evidence, not compiled-Epsilon or Omega
 self-rebuild acceptance.
+
+## Checked scalar Epsilon compilation
+
+`successor_test.py --compile-epsilon --literals --omega` constructs a
+Delta-written compiler using the source-constructed native predecessors, then
+compiles and executes the first four unchanged machines from the actual
+bootstrap compiler's `lexical_classification.epsilon`. This is a compiled source
+customer: the generated executable contains direct functions and lifted states,
+with no Epsilon parser, checker, expression tree or AST dispatcher in its runtime.
+The default invocation repeats cold construction; `--reuse-constructed` retains
+the earlier explicitly checked reuse meaning.
+
+The compiler first applies the complete existing Epsilon body-checking boundary,
+including its [legacy arm-return admission profile](../interpreted/4_epsilon/README.md).
+It then lowers
+every machine and state body, including unreachable bodies. The current pure
+capability is scalar parameters, literals, checked scalar operators, free calls,
+returns and scalar state transitions. Parameter identity and call/control
+identity come from the checker's retained records. Storage reads/writes,
+receiver access, Console operations, sums, arrays, views and ordinary statements
+remain explicit `unsupported` results. Invalid source returns `rejected` with
+the existing reason and packed offset; contradictions return `internal`.
+Success is `compiled` followed by a newline and one complete Delta module.
+Rejected, unsupported and internal responses contain no module. This is an experimental module compiler,
+not a standalone compiled bootstrap compiler or full Epsilon implementation.
+
+Pure functions use direct `Int` parameters under the checked Epsilon scalar
+contract and a named scalar/resultless/trap/internal outcome. Literal and typed
+parameter reads lower directly; operations that can trap retain outcome
+propagation and short-circuit evaluation order. The shared Epsilon I32 helpers
+own overflow, division, remainder, shifts and bitwise meaning. Delta primitive
+failure is not an Epsilon trap. Future effectful lowering must bridge these pure
+results to the existing store/outcome contract where effects occur. Omega's
+full-u64 `Wrapping` customers are not implemented by this I32 capability.
+Named `EvaluateBoth`, `ShortOnTrue` and `ShortOnFalse` compiler cases express
+eager and short-circuit control.
+
+The complete Epsilon source still packs to exactly 617,354 bytes and the same
+canonical Gamma/native evaluator artifacts. Only the source ownership changes:
+binary operator and scalar outcome declarations now have shared leaf files.
+`epsilon/composition.py` selects those complete files plus the checked scalar
+implementation and a small named result adapter. It performs no host semantic
+extraction or dead-code selection. The compiler executable currently includes
+the full shared Epsilon closure; narrowing that retained checking dependency is
+still a whole-chain cost opportunity.
+
+An initial implementation threaded generic runtime values and stores through
+every scalar node. Its lexical target was 123,827 Delta source bytes and
+5,308,895 native bytes, with 68,837 bytes of fixed runtime. The direct scalar
+lowering reduced the marginal generated functions to 11,105 bytes and the
+native target to 882,941 bytes; its shared runtime is 5,429 bytes. These are
+source/artifact sizes, not runtime speed measurements. Exact current identities,
+requests, Gamma receipts, images and observations are retained in
+`build/independent-successors/compiled-epsilon/`.
+
+The focused customer checks all 256 byte values against the canonical Epsilon
+evaluator and an independent expected observation. Twenty scalar controls cover
+call/state arguments, I32 overflow, division/remainder traps, shift bounds,
+logical guards/short-circuiting, scalar transition fallthrough, comparisons and
+bitwise operations. Invalid-name and valid unsupported twins cover refusal
+publication; empty input and byte 255 distinguish EOF. These controls do not discharge the native auditability debt above
+or the remaining path through actual storage/Console customers, the complete
+bootstrap compiler, shared Omega compiler and Omega self-rebuild.
+
+| Current artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Epsilon-to-Delta compiler source closure | 658,613 | `97631db8c1962aca6331e08e03cf18d0c5b3013f86e9795ada2d876f67b50c7e` |
+| Compiler native ELF | 28,287,105 | `69cbea7eda03e57ec362e282daabcc1c542614d0f636d273e95944eee4fbea6a` |
+| Target scalar runtime | 5,429 | `89f0634a158f6c7ae4ad3acc58347713ce385f38010335dc4f019b69f4d2db6a` |
+| Generated lexical functions | 11,105 | `feb75abbca7ec4ad5d97a676f2e065edfab3c9f5e7bdcc03d5d10ade71b7a5ea` |
+| Lexical native ELF | 882,941 | `d54ea84617373d07691ea6d8bf166e78d10ace940a39c3c1fce9c679ca43aac7` |
+
+Validation retained the complete cold run, including native/Alpha compiler
+controls and the Omega fixture. Final shared-file separators were revalidated
+with explicit predecessor reuse, and the named-control refinement repeated the
+focused compiled customer and all its controls. The last focused run took
+45.526 seconds with 716,928 KiB maximum child RSS on the shared host. Cold native
+compiler construction took 149.653 seconds and rebuilt byte-identically twice.
+These observations are functional receipts, not controlled speed comparisons.

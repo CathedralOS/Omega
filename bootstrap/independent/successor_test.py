@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--omega", action="store_true")
     parser.add_argument("--literals", action="store_true",
                         help="validate Delta byte literals and the actual Epsilon source encoder")
+    parser.add_argument("--compile-epsilon", action="store_true",
+                        help="compile the actual scalar lexical customer and check its refusals")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
@@ -44,7 +46,8 @@ def main():
     result = {"state": "running", "stage": "preflight", "passed_stages": [],
               "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
               "reused_constructed_predecessor": args.reuse_constructed,
-              "omega_fixture": args.omega, "byte_literals": args.literals}
+              "omega_fixture": args.omega, "byte_literals": args.literals,
+              "compile_epsilon": args.compile_epsilon}
 
     def checkpoint(stage, subjects):
         result["stage"] = stage
@@ -107,10 +110,20 @@ def main():
         checkpoint("epsilon", ())
     vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize)
     result["passed_stages"].append("epsilon")
-    checkpoint("omega" if args.omega else "complete",
+    next_stage = "omega" if args.omega else "complete"
+    checkpoint("compiled_epsilon" if args.compile_epsilon else next_stage,
                (("epsilon_request", "epsilon-request.bin"),
                 ("epsilon_gamma_receipt", "epsilon.gamma"),
                 ("epsilon_elf", "epsilon.elf")))
+    if args.compile_epsilon:
+        compilation_spec = importlib.util.spec_from_file_location(
+            "epsilon_compilation_controls", Path(__file__).parent / "epsilon/compile_test.py")
+        compilation_controls = importlib.util.module_from_spec(compilation_spec)
+        compilation_spec.loader.exec_module(compilation_controls)
+        result["compiled_epsilon"] = compilation_controls.run(
+            work, vm, NativeCompiler, construction.realize, args.seconds)
+        result["passed_stages"].append("compiled_epsilon_scalar_customer")
+        checkpoint(next_stage, ())
     if args.omega:
         vm.omega_customer(work, args.seconds)
         result["passed_stages"].append("omega_fixture")
