@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# Each push and each description edit starts this check. Only the newest one
+# says anything about the pull request, so an older one still waiting for a
+# runner gives its place up.
+concurrency:
+  group: base-branch-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   base-is-main:
     runs-on: ubuntu-24.04
