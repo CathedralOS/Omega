@@ -393,11 +393,11 @@ impl SourceFileSystem {
                 }
                 Ok(tree
                     .entries()
-                    .filter_map(|(path, node)| {
-                        (path.starts_with(&relative)
-                            && matches!(node, CapturedSourceNode::File { .. }))
-                        .then(|| root.join(path))
+                    .filter(|(path, node)| {
+                        path.starts_with(&relative)
+                            && matches!(node, CapturedSourceNode::File { .. })
                     })
+                    .map(|(path, _)| root.join(path))
                     .collect())
             }
             SourcePath::Physical(_) => Err(io::Error::new(

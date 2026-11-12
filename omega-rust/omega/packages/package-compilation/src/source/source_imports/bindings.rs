@@ -80,13 +80,14 @@ impl PendingPackageImport {
                     build_declarations::DependencyPurpose::Product => DependencyScope::Product,
                     build_declarations::DependencyPurpose::Build => DependencyScope::Build,
                 };
-                if bundle.package() == self.request.package && scope == self.scope {
-                    if let Some(unit) = bundle.sources().first() {
-                        paths.push(super::generated::dependency_generated_source_logical_path(
-                            &self.request.expected_root,
-                            unit,
-                        )?);
-                    }
+                if bundle.package() == self.request.package
+                    && scope == self.scope
+                    && let Some(unit) = bundle.sources().first()
+                {
+                    paths.push(super::generated::dependency_generated_source_logical_path(
+                        &self.request.expected_root,
+                        unit,
+                    )?);
                 }
             }
         }

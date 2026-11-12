@@ -147,7 +147,7 @@ impl LogicalSourceInventory {
             .filter(|path| {
                 matches!(
                     path.extension().and_then(|extension| extension.to_str()),
-                    Some("omg" | "omega")
+                    Some("omg")
                 ) && !path.file_name().is_some_and(|name| name == "build.omg")
                     && !excluded_roots
                         .iter()
@@ -178,27 +178,11 @@ impl LogicalSourceInventory {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| vec![error])?;
         let mut syntax = SyntaxTrees::default();
+        // SourceInput renders lexical/parser locations against these private
+        // loaded units before returning diagnostics. No private source IDs or
+        // syntax nodes escape into the later checked-source cohort.
         let parsed = SourceInput(loaded.iter().cloned().collect())
-            .append(&mut syntax, &mut UnmeasuredProduction)
-            .map_err(|mut errors| {
-                // Discovery coordinates are private to this temporary forest.
-                // Resolve them now rather than letting the caller mistake them
-                // for IDs in the real checked source cohort.
-                for error in &mut errors {
-                    if let Some(span) = error.source_span.take()
-                        && let Some(unit) = loaded.get(span.source_id.0)
-                    {
-                        let position = source::SourcePosition::of(&unit.source, span.span.start);
-                        error.resolved_location = Some(diagnostics::ResolvedSourceLocation {
-                            package: None,
-                            path: unit.path.clone(),
-                            line: position.line.min(u32::MAX as usize) as u32,
-                            column: position.column.min(u32::MAX as usize) as u32,
-                        });
-                    }
-                }
-                errors
-            })?;
+            .append(&mut syntax, &mut UnmeasuredProduction)?;
         let mut result = Self {
             filesystem: filesystem.clone(),
             excluded_roots: excluded_roots.to_vec(),
@@ -240,6 +224,10 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
+    fn capture_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("logical-test-capture")
+    }
+
     fn captured(rows: &[(&str, &str)]) -> SourceFileSystem {
         let mut entries = BTreeMap::new();
         for (name, body) in rows {
@@ -260,7 +248,7 @@ mod tests {
         let mut filesystem = SourceFileSystem::default();
         filesystem
             .add_capture(
-                PathBuf::from("/logical-test"),
+                capture_root(),
                 Arc::new(CapturedSourceTree::new(entries).unwrap()),
             )
             .unwrap();
@@ -279,30 +267,30 @@ mod tests {
         let mut discovery = Vec::<RegisteredPackageRoot>::new();
         assert_eq!(
             discovery
-                .select(Path::new("/logical-test"), &["Record".into()], &filesystem)
+                .select(&capture_root(), &["Record".into()], &filesystem)
                 .unwrap(),
-            ["/logical-test/another.omg", "/logical-test/odd.omg"].map(PathBuf::from)
+            ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
         );
         assert_eq!(
             discovery
                 .siblings(
-                    Path::new("/logical-test"),
-                    Path::new("/logical-test/odd.omg"),
+                    &capture_root(),
+                    &capture_root().join("odd.omg"),
                     &filesystem,
                     Vec::new()
                 )
                 .unwrap(),
-            ["/logical-test/another.omg", "/logical-test/odd.omg"].map(PathBuf::from)
+            ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
         );
         assert!(
             discovery
                 .select(
-                    Path::new("/logical-test"),
+                    &capture_root(),
                     &["api".into(), "Export".into()],
                     &filesystem
                 )
                 .unwrap()
-                .contains(&PathBuf::from("/logical-test/renamed.omg"))
+                .contains(&capture_root().join("renamed.omg"))
         );
     }
 
@@ -315,26 +303,14 @@ mod tests {
         ]);
         let mut owners = Vec::<RegisteredPackageRoot>::new();
         assert_eq!(
-            owners
-                .select(Path::new("/logical-test"), &[], &filesystem)
-                .unwrap(),
-            [
-                "/logical-test/child.omg",
-                "/logical-test/deep.omg",
-                "/logical-test/root.omg"
-            ]
-            .map(PathBuf::from)
+            owners.select(&capture_root(), &[], &filesystem).unwrap(),
+            ["child.omg", "deep.omg", "root.omg"].map(|path| capture_root().join(path))
         );
         assert_eq!(
             owners
-                .select(Path::new("/logical-test"), &["child".into()], &filesystem)
+                .select(&capture_root(), &["child".into()], &filesystem)
                 .unwrap(),
-            [
-                "/logical-test/child.omg",
-                "/logical-test/deep.omg",
-                "/logical-test/root.omg"
-            ]
-            .map(PathBuf::from)
+            ["child.omg", "deep.omg", "root.omg"].map(|path| capture_root().join(path))
         );
     }
 
@@ -342,7 +318,7 @@ mod tests {
     fn named_parent_namespace_can_be_introduced_only_by_a_descendant_unit() {
         let filesystem = captured(&[("renamed.omg", "module outer::inner; public data Item {}")]);
         let mut owners = Vec::<RegisteredPackageRoot>::new();
-        let root = Path::new("/logical-test");
+        let root = &capture_root();
         assert_eq!(
             owners.select(root, &[], &filesystem).unwrap(),
             [root.join("renamed.omg")]
@@ -361,7 +337,7 @@ mod tests {
             ("two.omg", "public data Two {}"),
             ("child/three.omg", "public data Three {}"),
         ]);
-        let root = Path::new("/logical-test");
+        let root = &capture_root();
         let mut owners = Vec::<RegisteredPackageRoot>::new();
         assert_eq!(
             owners.select(root, &[], &first).unwrap(),
@@ -396,34 +372,33 @@ mod tests {
         ]);
         let paths = Vec::<RegisteredPackageRoot>::new()
             .select_owned(
-                Path::new("/logical-test"),
+                &capture_root(),
                 &["Record".into()],
                 &filesystem,
-                vec![PathBuf::from("/logical-test/child")],
+                vec![capture_root().join("child")],
             )
             .unwrap();
-        assert_eq!(paths, [PathBuf::from("/logical-test/unit.omg")]);
+        assert_eq!(paths, [capture_root().join("unit.omg")]);
     }
 
     #[test]
     fn discovery_coordinates_do_not_escape_into_checked_source_ids() {
         let filesystem = captured(&[("bad.omg", "machine")]);
         let errors = Vec::<RegisteredPackageRoot>::new()
-            .select(Path::new("/logical-test"), &[], &filesystem)
+            .select(&capture_root(), &[], &filesystem)
             .unwrap_err();
         assert!(errors.iter().all(|error| error.source_span.is_none()));
         assert!(errors.iter().any(|error| {
             error
-                .resolved_location
-                .as_ref()
-                .is_some_and(|location| location.path == Path::new("/logical-test/bad.omg"))
+                .message
+                .starts_with(&format!("{}:1:", capture_root().join("bad.omg").display()))
         }));
     }
 
     #[test]
     fn missing_capture_cannot_fall_back_to_live_directory_membership() {
         let error = SourceFileSystem::default()
-            .captured_files(Path::new("/logical-test"))
+            .captured_files(&capture_root())
             .unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     }
