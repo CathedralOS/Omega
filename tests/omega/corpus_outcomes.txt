@@ -3066,6 +3066,10 @@ fail/capabilities/undeclared_synchronous_invocation rejected 1502ms expected @2f
 	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler` (requirement invokes: [])
 fail/capabilities/via_producer_without_target_body rejected 16700ms expected @ccdb99ca2214
 	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
+fail/capabilities/windows_applied_requirement_import_conflict rejected 33799ms expected @71da08e4e585
+	conflicting native bindings for the same requirement, target and supplier precedence
+fail/capabilities/windows_applied_requirement_import_mismatch rejected 38614ms expected @71da08e4e585
+	no provider is selected for boundary requirement `Magnitude::of`, which the program entry reaches on target `windows_x86_64`
 fail/cases/borrowed_case_component_cannot_recover_common_fields rejected 3916ms expected @9af3eb514e16
 	match pattern does not select a record or case of its subject's exact carrier in `inspect::entry`: selected Some(("Message", Handle { arena_index: 1221, generation: 1 })), subject Handle { arena_index: 13367, generation: 1 } Borrow(TableBorrowExpression { target: Handle { arena_index: 13366, generation: 1 }, access: Shared }), type Some(Reference { referee: Handle { arena_index: 2975, generation: 1 }, access: Shared, lifetime: None }); parameters [("message", Handle { arena_index: 4258, generation: 1 }, Handle { arena_index: 2976, generation: 1 })]; locals []
 fail/cases/borrowed_case_payload_cannot_move rejected 9183ms expected @4815ea579d91
@@ -21095,6 +21099,7 @@ pass/capabilities/transitive_effect_inference checked 2696ms @ccdb99ca2214
 pass/capabilities/uses_caller_folder checked 2500ms @ccdb99ca2214
 pass/capabilities/win64_large_aggregate_result_import_compile checked 62674ms check-target:windows_x86_64 @e8e0e531e729
 pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 60793ms check-target:macos_arm64 @e8e0e531e729
+pass/capabilities/windows_applied_requirement_import_exit checked 41871ms check-target:windows_x86_64 @71da08e4e585
 pass/capabilities/windows_provides_import_exit checked 147503ms check-target:windows_x86_64 @e8e0e531e729
 pass/cases/arm_field_placement checked 3837ms @17566023e3d8
 pass/cases/arm_rename_waive checked 3490ms @ccdb99ca2214

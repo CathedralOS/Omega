@@ -944,6 +944,7 @@ pass/capabilities/transitive_effect_inference checked 2626ms @5f668826adf3+wt
 pass/capabilities/uses_caller_folder checked 2232ms @5f668826adf3+wt
 pass/capabilities/win64_large_aggregate_result_import_compile built 2877ms @5f668826adf3+wt
 pass/capabilities/win64_pointer_length_vs_descriptor_compile built 2484ms @5f668826adf3+wt
+pass/capabilities/windows_applied_requirement_import_exit built 26701ms exit:70 @71da08e4e585
 pass/capabilities/windows_provides_import_exit built 8745ms exit:70 @5f668826adf3+wt
 pass/cases/arm_field_placement checked 3224ms @5f668826adf3+wt
 pass/cases/arm_rename_waive checked 2468ms @5f668826adf3+wt
