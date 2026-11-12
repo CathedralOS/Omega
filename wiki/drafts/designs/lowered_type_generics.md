@@ -40,8 +40,38 @@ record a generated machine's argument only as its spelling. A requirement
 with value parameters is read at the literals of each call, so the fail
 twin is refused at `Units == 7`, where the member's refinement proof is
 missing, not "for every `Units`, before any specialization". And a body that
-reads the parameter as an operand is not carried yet. Steps 2 and 3 are not
-built.
+reads the parameter as an operand is not carried yet.
+
+Step 2, an opaque type parameter, is built and recorded as
+[condition 3's third result](check_on_lowered_form.md#condition-3-type-parameters).
+It differs from the text below in four ways. The sort is on the check
+tables' value row, not beside `ScalarType`, which is matched at 263 places
+across the compiler; the lowered form declares a rigid value with a stand-in
+type that nothing may read. No kernel rule has an "any sort" premise yet:
+no proposition may name a rigid value at all, which the checker enforces,
+and the premise arrives with the first rule that needs it. There is no
+rigid place type, so a `T` instantiated at a data type takes no proof, and
+no abstract cleanup step. And a `T` value may be used once unless `T` is
+`[copy]`, a restriction the text does not have, because the route has no
+judgment of moves.
+
+Step 3, a finite family, is built for generated machines only. The method
+below noted that "whether stage 04 folds a type-equation branch in a
+generated specialization was not checked"; it does not. The machine
+generated for `u32` keeps `u32 == u32`, both arms and the arm of the other
+type. The reader now decides closed type equations statically, so each
+generated machine is read under its own type and judged as a closed machine:
+`threshold<u32>` and `threshold<u64>` in
+`pass/contracts/generic_effective_result_comparison_exit`, and `choose<u32>`
+and `choose<u64>` in `fail/contracts/specialized_normal_call_wrong_type_contract`,
+are each accepted by the route (compiler test `lowered_route_generics`).
+That is the per-type check of [the middle form](#the-alternative-check-only-specializations),
+for the types in use, and it is what a carried certificate would be decided
+against. The generic form of such a body (rigid outside its arms, concrete
+inside each) is not built: it needs a check-only terminator the lowered
+form does not have, and whether it is needed at all is the question filed
+as `finite-family-generic-check`. `core::integer::min` waits for
+`contract-conjunct-under-type-equation`.
 
 ## What the specification asks
 
@@ -321,7 +351,10 @@ for `core::integer`), cannot serve an opaque `T`, and whether it counts as
 Not decided here. Each is a language or gate question; the lowered-form
 representation itself is delegated
 ([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi representation
-paragraph).
+paragraph). They are filed there, in this order, as the decisions
+`type-family-operation-outside-arm`, `contract-conjunct-under-type-equation`
+and `finite-family-generic-check`, each with what the current checker does
+with a small program of that shape.
 
 1. **Operations on `T` outside an arm.** In a finite family, may a body apply
    an operator to a value of type `T` outside a branch that establishes one

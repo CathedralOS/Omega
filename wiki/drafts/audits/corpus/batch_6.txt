@@ -1,0 +1,252 @@
+pass/asm/instruction_disposition_native rejected 2537ms check-target:linux_x86_64
+	cannot prove ensures contract for exit from write_eoi_by_choice at statement 1: proposition:fact:model_specific_written(2059,0)
+	cannot prove ensures contract for exit from write_eoi_by_choice at statement 2: proposition:fact:model_specific_written(2059,0)
+	linear value `token` reaches scope exit without being consumed or transferred in machine `work` state `entry`
+	linear value `token` reaches scope exit without being consumed or transferred in machine `finish_by_choice` state `entry`
+pass/borrow/owned_capture_weaker_formal rejected 1176ms
+	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
+pass/borrows/carried_loan_replacement rejected 1124ms
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
+pass/build/default_component_abi_extents rejected 6465ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(21) has no admitted mechanism
+pass/build/descriptor_table_round_trip rejected 12054ms check-target:linux_x86_64
+	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(93), clobbered MachineStateSet(95), saved MachineStateSet(0)
+pass/build/executed_git_source_join_exit rejected 677ms
+	source adapter failed for product dependency row 0 of package `executed_git_source_join_exit`: cannot retain Git pin for `https://omega-source.invalid/executed-source.git` at `executed-build-fixture-v1`: offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required
+pass/build/native_component_case_cycle rejected 4595ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(21) has no admitted mechanism
+pass/build/native_component_reuse_foreign rejected 4150ms check-target:macos_arm64
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
+pass/build/receiver_view_writeback_exit checked 42843ms check-target:macos_arm64 terminal-runtime.configure_build_boundary:unrequested terminal-runtime.build:unrequested terminal-runtime.bind_reborrowed:unrequested terminal-runtime.case_storage:unrequested terminal-runtime.record_storage:unrequested terminal-runtime.moved_record_storage:unrequested terminal-runtime.copied_record_storage:unrequested terminal-runtime.primitive_storage:unrequested terminal-runtime.primitive_entry:unrequested terminal-runtime.byte_field_storage:unrequested terminal-runtime.array_result:unrequested terminal-runtime.empty_array_result:unrequested terminal-runtime.frame_sequence:unrequested terminal-inspections:match
+pass/build/segment_selector_reload rejected 9633ms check-target:linux_x86_64
+	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(127), permitted MachineStateSet(93), clobbered MachineStateSet(63), saved MachineStateSet(0)
+pass/build/task_register_activation rejected 9405ms check-target:linux_x86_64
+	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(93), clobbered MachineStateSet(95), saved MachineStateSet(0)
+pass/build/uefi_entry_schema_same_leaf rejected 10676ms check-target:uefi_x86_64
+	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
+pass/build/uefi_os_handoff_invocation rejected 8589ms check-target:uefi_x86_64
+	machine `launch` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/build/uefi_provisioned_context_roots rejected 7858ms check-target:uefi_x86_64
+	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
+pass/calls/generic_operator_guard_result rejected 1172ms
+	machine `inspect` state `entry` statement 1: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/calls/native_code_layout_frame_exit rejected 1672ms check-target:macos_arm64
+	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/calls/private_callback_call_closure rejected 14201ms check-target:macos_arm64
+	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `macos_arm64`
+pass/cases/case_call_premises rejected 1256ms
+	machine `concrete` ensures contract proof fact `empty_only(Tree) == empty_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	machine `concrete` ensures contract proof fact `node_only(Tree) == node_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+	machine `symbolic` ensures contract proof fact `empty_only(value) == empty_only(value)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+pass/contracts/match_payload_contract rejected 2389ms check-target:macos_arm64
+	cannot prove requires contract for call kept from roundtrip: __transition_subject#142.neighbor == 23 (needs fact `neighbor == 23` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call refused from roundtrip: __transition_subject#142.neighbor == 41 (needs fact `neighbor == 41` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from roundtrip at statement 1: result == input
+	cannot prove ensures contract for exit from roundtrip at statement 2: result == input
+	cannot prove ensures contract for exit from second_result at statement 2: result == other
+	cannot prove ensures contract for exit from second_result at statement 3: result == other
+pass/core/task_lifecycle_operations rejected 3064ms check-target:macos_arm64
+	no provider is selected for boundary requirement `TaskLifecycle::finish`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `TaskLifecycle::request_cancel`, which the program entry reaches on target `macos_arm64`
+pass/dependent/valuation_order_cycle rejected 1223ms
+	cannot complete return from machine `done` state `entry`: this write left the `requires` facts of `storage.pair` (data `Pair`) unproved; restore them first
+pass/domains/domain_axis_cast rejected 1344ms
+	cannot prove requires contract for call relay from choose: picked in package:d0ddf9aa41929a0ad8409fb171c23b0a1e9b5bbaac91c11f822772afcdb02fdb:product::Coord<integer:u64:7> in state `entry`
+pass/effects/gui_semantic_services rejected 8442ms
+	machine `pace` omits `invokes DarwinClock` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+	machine `observe_clock` omits `invokes DarwinClock` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
+pass/facts/source_indexed_family rejected 4792ms check-target:macos_arm64 terminal-inspections:failed
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+	inspection main admission: [Diagnostic { severity: Error, message: "machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/source_indexed_family_alpha_positive rejected 2433ms check-target:macos_arm64
+	machine `main` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_capture_roster_positive rejected 2464ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_forwarded_parameter_exit checked 9231ms check-target:macos_arm64 terminal-inspections:match
+pass/facts/source_indexed_family_open_constructor_exit checked 4371ms check-target:macos_arm64
+pass/facts/source_indexed_family_recursive_index_positive rejected 2419ms check-target:macos_arm64
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/facts/source_indexed_family_through_call_result_exit checked 4326ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_const_name_exit checked 4124ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_field_exit checked 3950ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_local_exit checked 4226ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_match_join_exit checked 4072ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_other_machine_exit checked 4019ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_other_state_exit checked 4089ms check-target:macos_arm64
+pass/facts/source_indexed_family_through_parameter_exit checked 8620ms check-target:macos_arm64 terminal-inspections:match
+pass/facts/source_indexed_family_through_target_body_exit checked 4076ms check-target:macos_arm64
+pass/filesystem/dir_walk_wrappers_exit timeout 120000ms
+pass/filesystem/windows_raw_lock_exit checked 95440ms check-target:windows_x86_64 terminal-inspections:match
+pass/float/float_range_field_storage_exit checked 10715ms check-target:macos_arm64
+pass/float/float_trapping_overflow_traps checked 10525ms check-target:macos_arm64
+pass/float/named_nan_semantic_only_exit rejected 8603ms check-target:macos_arm64
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(34)]
+pass/generics/generic_seq_map_filter rejected 1224ms
+	generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$168f7f0591239da4$0$4670` state `map$specialized$168f7f0591239da4$0$4670::entry`: Type slot `U` conflicts: T [identity named(name(nominal\\(package-owner\\(32:dfb035cae8db3690eca38fc8d946f182af1327179d69e1dce149972e8591a1bd\\)\\,path\\(Seq::T\\)\\))); supplier unretained] versus u64 [identity named(name(u64)); supplier unretained]; Type proposals retain an open supplying parameter
+pass/generics/seq_map_filter rejected 1169ms
+	generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$d842f1f8123dfb23$0$4667` state `map$specialized$d842f1f8123dfb23$0$4667::entry`: Type slot `U` conflicts: T [identity named(name(nominal\\(package-owner\\(32:ff4708a9e7540df37c062812763c3bba92a6ba79895c962a57f92953494a152d\\)\\,path\\(Seq::T\\)\\))); supplier unretained] versus u64 [identity named(name(u64)); supplier unretained]; Type proposals retain an open supplying parameter
+pass/host/process_exit_selected_frontier checked 8978ms check-target:macos_arm64
+pass/host/runtime_semantic_gui_reach_exit rejected 7776ms check-target:macos_arm64
+	a value call to generic machine `macos_window_create` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+	argument `title` for state `macos_window_create` expects `&[u8; Count]`, got `indexed value`; expected carrier `ref(array(named(name(u8)),const-parameter(nominal\\(package-owner\\(32:1e7e5bf5d4036ea6f813db369bae4f107293555a43bb8c851830dc73c957ada3\\)\\,path\\(macos_window_create::Count\\)\\))))`, declared place carrier `named(name(u8))`
+pass/layouts/extent_view_external_content rejected 13459ms terminal-inspections:failed
+	inspection attempt production: [Diagnostic { severity: Error, message: "`attempt` calls `read_stored`; `read_stored` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `read_stored::entry`", exceeded_provision: Some(ExceededProvision { resource: "coverage_state_signatures", limit: 0, requested: 1, coordinate: 1541 }), source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 1541, end: 1552 } }), resolved_location: None }]
+pass/layouts/placed_primitive_callback rejected 6001ms check-target:macos_arm64
+	terminal-artifact production failed: Lowering(Unsupported("closed reach call lost its exact emitted invocation"))
+pass/layouts/placed_view_call_custody checked 10330ms terminal-inspections:match
+pass/memory/interrupt_table_canary rejected 11807ms
+	cannot establish call-result qualification `InterruptMaskGuard::Active` in `InterruptMaskProviderMaskControl::save_and_mask`, state `save_and_mask` (statement 0, call 0): the qualified domain has no retained content projection for conservation
+pass/modules/match_constant_indices rejected 882ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "anonymous operand `7/2` is not an integer in closed const argument; type an operand before division if integer division was intended", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(30), span: Span { start: 422, end: 423 } }), resolved_location: None })
+pass/modules/rational_boolean_indices rejected 823ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot form specification operator `<` in closed const argument: no exact selected meaning for operand types [<unavailable>, <unavailable>]", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(32), span: Span { start: 90, end: 91 } }), resolved_location: None })
+pass/operators/crash_routes rejected 2807ms check-target:macos_arm64
+	boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43, 170, 217, 141, 239, 57, 225])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary requirement `Comparison::equal` in package Some(PackageKeyIdentity([81, 251, 88, 226, 158, 74, 61, 185, 196, 181, 224, 70, 135, 113, 253, 192, 246, 177, 252, 143, 135, 220, 221, 242, 141, 43, 170, 217, 141, 239, 57, 225])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/proofs/accepted_axiom_cited_exit rejected 7694ms check-target:macos_arm64
+	machine `uses_axiom` ensures contract proof fact `mul(a, b) == mul(b, a)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+pass/proofs/axiom_citation rejected 1336ms
+	machine `uses_axiom` ensures contract proof fact `mul(a, b) == mul(b, a)` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+pass/proofs/case_call_premises rejected 767ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation -- declare `TreeEquality satisfies Equatable<Tree> { }` to synthesize structural equality, or use `core::Identity<Tree>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/cauchy_predicates_compile rejected 801ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/citation_requires_discharged rejected 6030ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/defined_proposition_premises rejected 814ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Point` values with `==`: structural equality is synthesized only through a named implementation -- declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality, or use `core::Identity<Point>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/exhaustive_nonreturn_contract checked 8734ms check-target:macos_arm64
+pass/proofs/family_carrier_relation_laws rejected 881ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "proposition `chained` expects 2 proof-static binder argument(s), received 0", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/kernel_integer_subtract_order rejected 2465ms check-target:macos_arm64
+	terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view
+	terminating machine walk_saved: cannot prove rank range `0..limits.limit % limits.divisor + 6` for the rank produced by the selected view
+	machine call cycle: `walk_saved` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/proofs/lemma_requires_citation rejected 849ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/proofs/nat_metric_triangle_compile rejected 816ms
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+pass/providers/authored_same_stack_demand rejected 678ms
+	tests/omega/pass/providers/authored_same_stack_demand/main.omg:15:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
+pass/providers/authored_same_stack_import rejected 669ms check-target:linux_x86_64
+	tests/omega/pass/providers/authored_same_stack_import/main.omg:29:125: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
+pass/slices/let_matched_mutable_window rejected 2341ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+	cannot establish assignment invariants: partial write enclosure has no declared type
+pass/slices/narrowed_view_window rejected 1404ms
+	cannot establish assignment invariants: source parent type is unavailable
+	cannot establish assignment invariants: source parent type is unavailable
+pass/terminal_psi/integer_control_contract rejected 1626ms
+	shift count in machine `prove_range` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `disprove_range` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `retain_range_compare` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_less_false` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_less_overlap` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_range_less_equal_true` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_range_less_equal_overlap` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_less_equal_true` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_less_equal_false` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_less_equal_overlap` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_range_equal_false` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_equal_range_false` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_range_equal_overlap` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `compare_constant_equal_range_overlap` state `entry` local `shifted` is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `prove_value` state `entry` return value is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `prove_bounded_count_value` state `entry` return value is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
+	shift count in machine `prove_u64_bounded_count_value` state `entry` return value is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/termination/measure_computed_endpoint rejected 1310ms
+	terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
+	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/text/bounded_ascii_write rejected 1309ms
+	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `entry`
+	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii
+	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii
+	cannot prove requires contract for call replace from Main::main: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `main`
+	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii
+	cannot prove requires contract for call replace from Main::main: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `main`
+pass/text/utf8_boundary_established rejected 1347ms
+	state `consume` receives `main.text` without an exact retained backing for its loan: the stored descriptor has no current value source
+fail/build/build_effects_undeclared rejected 4ms unexpected
+	failed to resolve tests/omega/fail/build/build_effects_undeclared/omega_language_std/console.omg: captured entry is absent: omega_language_std
+fail/build/build_machine_wrong_arity rejected 666ms unexpected
+	Terminal Build `build` failed: Build activation has unexpected scalar parameters
+fail/build/component_assumption_malformed checked 1613ms
+fail/build/component_assumption_short checked 1512ms
+fail/build/helper_contract_context rejected 670ms unexpected
+	machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/build/native_table_non_address_field rejected 3044ms unexpected
+	no provider is selected for boundary requirement `Query::run`, which the program entry reaches on target `windows_x86_64`
+fail/build/unjoined_executed_dependency rejected 752ms unexpected
+	source adapter failed for product dependency row 0 of package `unjoined_executed_dependency`: cannot establish canonical external source path `tests/omega/fail/build/unjoined_executed_dependency/missing-source`: No such file or directory (os error 2)
+fail/domains/nonboolean_member_predicate rejected 1266ms unexpected
+	domain `Player::Odd` proof fact `self.health` must have type `bool`
+	domain `Holder::Invalid` proof fact `self.slot.value` must have type `bool`
+fail/expressions/cast_result_range rejected 1315ms unexpected
+	machine `main` ensures contract proof fact `result <= 10` is disproved by constant arithmetic on the transition arm guarded by `<always>`
+fail/expressions/nested_i32_mul_overflow rejected 7112ms unexpected
+	machine `not_three` state `entry` uses `r`, which is not a declared local, parameter, field, or type in this state (check the spelling)
+fail/float/finite_store_invalidated rejected 1334ms unexpected
+	cannot prove call argument `sample.value` satisfies `finite` for bounded parameter `value` for `consume` in `inspect.entry`
+fail/float/mixed_float_comparison_formats rejected 1178ms unexpected
+	builtin `<` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/generics/extraction_foreign_case rejected 1277ms unexpected
+	case-membership operation lost its exact subject, carrier or case identity
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `unpack` state `entry` reads a nested member `value`, but data `Extraction` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `unpack::entry`: selected Some(("Foreign::Moved", Handle { arena_index: 1233, generation: 1 })), subject Handle { arena_index: 13380, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 5513, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 5483, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 4273, generation: 1 }, symbol: Handle { arena_index: 4273, generation: 1 }, reserved_result_of: Handle { arena_index: 0, generation: 0 } }), type Some(Generic { base_symbol: Handle { arena_index: 1227, generation: 1 }, base_name: "Extraction", lifetime_arguments: [], arguments: HandleSpan { start: Handle { arena_index: 218, generation: 1 }, count: 1 } }); parameters [("result", Handle { arena_index: 4273, generation: 1 }, Handle { arena_index: 3011, generation: 1 })]; locals [("__transition_subject#1", Handle { arena_index: 4632, generation: 1 }, Handle { arena_index: 4975, generation: 1 }, Handle { arena_index: 13396, generation: 1 })]
+	machine `unpack$specialized$969b19dd495faa28$0$4633` state `entry` reads a nested member `value`, but data `Extraction<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `unpack$specialized$969b19dd495faa28$0$4633::entry`: selected Some(("Foreign::Moved", Handle { arena_index: 1233, generation: 1 })), subject Handle { arena_index: 13404, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 5529, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 5499, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 4635, generation: 1 }, symbol: Handle { arena_index: 4635, generation: 1 }, reserved_result_of: Handle { arena_index: 0, generation: 0 } }), type Some(Generic { base_symbol: Handle { arena_index: 1227, generation: 1 }, base_name: "Extraction", lifetime_arguments: [], arguments: HandleSpan { start: Handle { arena_index: 287, generation: 1 }, count: 1 } }); parameters [("result", Handle { arena_index: 4635, generation: 1 }, Handle { arena_index: 4986, generation: 1 })]; locals [("__transition_subject#1", Handle { arena_index: 4636, generation: 1 }, Handle { arena_index: 4984, generation: 1 }, Handle { arena_index: 13398, generation: 1 })]
+fail/generics/open_const_selected_impure rejected 1013ms expected
+	constant initializer: machine `construct$specialized$843219018123ab00$0$4353` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/modules/array_extent_local_shadow rejected 1106ms unexpected
+	machine `main` state `entry` local `bytes` uses runtime value `Count` for an inline fixed-array extent; a value index cannot determine a static inline layout; use a const extent, an authored sum or explicit storage/descriptor
+fail/proofs/accepted_axiom_engine_veto rejected 6003ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare against payload-bearing case `Nat::Succ` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/proofs/nat_metric_false_gap_zero rejected 861ms unexpected
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot compare `Nat` values with `==`: structural equality is synthesized only through a named implementation -- declare `NatEquality satisfies Equatable<Nat> { }` to synthesize structural equality, or use `core::Identity<Nat>(left, right)` for mathematical identity", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/proofs/result_index_lexical_operator rejected 1614ms unexpected
+	cannot form specification operator `==` in machine `issue` ensures contract: no exact selected meaning for operand types [<unavailable>, <unavailable>]
+fail/recast/recast_mut_record_fact_fenced rejected 1223ms unexpected
+	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants
+fail/slices/matched_open_window_end rejected 1278ms unexpected
+	exact arithmetic in machine `open_end` state `entry` return value may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `i64`.
+	cannot prove ensures contract for exit from open_end at statement 0: result.len == 2
+	cannot prove subslice range end bound `0..which + 2` is within slice length 4
+fail/slices/namespace_range_keeps_bounds rejected 1310ms unexpected
+	cannot prove requires contract for call middle from Main::main: 1 <= 5 && 5 <= main.bytes.len (needs fact `start <= end && end <= bytes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/termination/retired_block_form rejected 670ms expected
+	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): attach the ranking witness to the guarantee as `terminates by <subjects> [-> View] [in <range>]`
+fail/traits/public_guarantee_wrong_formal rejected 2172ms unexpected
+	machine `Wrong::set` proves no guarantee for the selected comparison law `Setting::set`
+run/calls/anonymous_shared_borrow_operands incomplete 2707ms check-target:macos_arm64
+	`main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `main::entry`, statement 0
+run/domains/issued_record_integer_bounds rejected 2480ms check-target:macos_arm64
+	construction value is not proven in domain `Handle::Open` in issue state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from issue at statement 0: Handle requires Handle::Open
+run/domains/predicate_interval_premises rejected 2309ms check-target:macos_arm64
+	cannot prove requires contract for call use_small from relay: x in u64::Small in state `entry`
+	cannot prove requires contract for call use_small from relay_field: b.size in u64::Small in state `entry`
+	cannot prove requires contract for call use_centered from relay_signed: x in i32::Centered in state `entry`
+	cannot prove requires contract for call use_small from small: y in u64::Small in state `entry`
+run/layouts/placed_ram_capture_forwarding checked 15510ms check-target:macos_arm64
+run/layouts/placed_ram_capture_helper checked 15314ms check-target:macos_arm64
+run/layouts/placed_ram_capture_retirement checked 15181ms check-target:macos_arm64
+run/layouts/placed_ram_capture_return checked 15541ms check-target:macos_arm64
+run/layouts/placed_ram_original_backing checked 15358ms check-target:macos_arm64
+run/layouts/placed_ram_stored_field_return checked 15166ms check-target:macos_arm64
+run/ownership/sequence_owned_local_cleanup rejected 2313ms check-target:macos_arm64
+	cannot prove published termination for machine `CleanupConsole::write_byte`: its checked body reaches an operation without a usable termination guarantee; state `CleanupConsole::write_byte::write_byte` statement 0 call 0 targets `ConsoleNativeProvider::write_byte::write_byte` through `ConsoleNativeProvider`, summary Some(NoGuarantee); source target `ConsoleNativeProvider::write_byte::write_byte`, selected contract `<none>`: selected public declaration has no requirement signature
+run/ranges/borrowed_case_payload_alias rejected 2348ms check-target:macos_arm64
+	cannot prove every subslice range endpoint of `0..alias.length` is non-negative
+run/ranges/borrowed_case_payload_bound rejected 2444ms check-target:macos_arm64
+	cannot prove every subslice range endpoint of `0..text.length` is non-negative
+run/ranges/guarded_case_payload_identity rejected 2738ms check-target:macos_arm64
+	cannot prove every subslice range endpoint of `0..text.length` is non-negative
+	cannot prove every subslice range endpoint of `0..text.length` is non-negative

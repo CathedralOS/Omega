@@ -177,10 +177,23 @@ These come from the specification, not from this record:
   with its own algebra.
 
 Three rules bound it. Facts never feed type identity, operator selection or
-specialization keys. Information derived from a body crosses only edges inside
-"the same fingerprinted verification unit"; every other edge uses the authored
-contract. Attached domains are part of the declared type and change only at a
-[named cast](named_domain_casts.md).
+specialization keys. Additional semantic facts derived from a body cross only
+exact checked call edges inside the same fixed, fingerprinted verification unit;
+every other edge uses the published contract, including its existing inferred
+operational, ownership and footprint information. Abstract requirements remain
+abstract even within the unit. Unit membership and body-summary dependencies
+follow [local call summaries](../../spec/language/state_contracts.md#local-call-summaries),
+not optimizer inlining or incidental source availability. Attached domains are
+part of the declared type and change only at a [named cast](named_domain_casts.md).
+
+The 2026-11-11 decisions `callee-result-body-summary` and
+`nested-helper-caller-facts` also restrict input discovery: only private checked
+helpers with omitted `requires` may infer additional entry conditions, and all
+arrivals and callable conversions check them. Written preconditions are complete;
+public and required input contracts never narrow to excuse the implementation.
+The [delivery plan](local_inference_and_contracts.md) pins routine local inference
+and separately verified traversal reuse, without requiring arbitrary contract
+discovery or changing kernel-checked acceptance.
 
 Two more rules come from the full read, and are how this checker must differ
 from the code it replaces:
@@ -296,6 +309,22 @@ that cannot fail cannot hold work back, and work went ahead
      a subject. Which check judges them when the route governs is undecided,
      and until it is the route's verdict does not cover a whole compilation.
      `Build::validate` rows are not handled either; nothing implements them.
+     The `fail/` sweep of 2026-11-12 shows what that costs: four programs
+     the current checker rejects for their entry are accepted whole by the
+     route, because nothing it roots states what the target asks of an
+     entry. They are `fail/build/program_entry_returns_value` and
+     `fail/build/unrequested_target_entry_returns_value` ("`ProgramEntry`
+     has no result"), `fail/build/hosted_program_entry_visible_parameter`
+     ("hosted `ProgramEntry` exposes no arrival parameters") and
+     `fail/build/uefi_program_entry_missing_storage_roots` ("exposes exactly
+     image and initial-storage roots"). A rule in the route that an entry
+     takes and returns nothing would close three and wrongly accept the
+     fourth, so none is added: the repair is to root the entry-contract
+     source, which is this open item. A fifth program of that sweep,
+     `fail/build/executed_dependency_private_call`, was accepted for another
+     reason, a call into a dependency's private machine, and is now handed
+     back (`lowered_route_subjects`,
+     `a_call_into_another_packages_private_machine_is_never_accepted`).
    - *The current pipeline is too wide*, and this record must not copy it:
      see [the library correction](#the-library-is-a-dependency-not-a-subject).
 
@@ -382,8 +411,34 @@ that cannot fail cannot hold work back, and work went ahead
    a body that reads the parameter as an operand is not carried; a member's
    refinement of a requirement with value parameters is proved per argument
    in use, not for every value; a value parameter in a type waits for
-   arrays. A type parameter is still not served, and the route is still not
-   the compile path.
+   arrays. The route is still not the compile path.
+
+   <a id="condition-3-type-parameters"></a>
+   **Third result, 2026-11-12: an opaque type parameter.** A machine over
+   `T` is lowered once with each value of type `T` rigid: it has an
+   identity, a call passes it, and no proposition may name it. The machine
+   stage 04 generates for a type then has each certificate decided again by
+   `proof/admission`, unchanged, once the carrier has checked that every
+   `T` value is a value of one concrete type there. The pair written for
+   it is `run/generics/type_parameter_contract`, where `relay<T>` is proved
+   against the contract of `forward<T>`, which it calls at its own `T`, and
+   both are carried into the machines for `u8` and for `bool`; it passes
+   `omega run --both` on the current pipeline (native exit 0, Psi exit 0,
+   Linux x86_64, `omega` built at `b741666a1`). Its fail twin,
+   `fail/generics/type_parameter_contract_exceeds_callee`, differs only in
+   the bound `relay` promises and is refused once, as a generic body. The
+   current checker reports it three times, for `relay` and for each of the
+   two generated machines. The
+   design's own witness, `pass/facts/generic_comparison_body_through_match_join_exit`,
+   lowers and corresponds, and proves nothing: its two generic machines own
+   no contract clause, its `main` uses a scalar `match` the route does not
+   lower, and what tells it from its fail twin is what a caller learns from
+   a callee's body, which is owner question Q4. Limits, in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
+   only where `T` is a scalar type; no operation has a result of type `T`;
+   a `T` value is used at most once unless `T` is `[copy]`, because the
+   route has no judgment of moves. A type parameter the body branches on
+   (a finite family) is still not served.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
@@ -399,6 +454,48 @@ that cannot fail cannot hold work back, and work went ahead
    advance: the old rule's "clearly smaller" failed because it named no
    number. Both numbers are reported side by side, and if the route's lines
    exceed the lines retired, the record says so beside the result.
+
+   **Measured 2026-11-12: the covered subset makes almost none of the old
+   checker unreachable, so nothing is retired.** The 12 programs of the
+   [places gate](places_foundation_lane.md#gate-re-run-2026-11-12) that both
+   checkers accept run 233,226 of the 596,993 instrumented lines of the
+   three stages. A sample of 36 programs the route does not serve (every
+   fourteenth of the gate's 502 "outside" programs) runs 325,931. Together
+   they run 326,596, so 665 lines are run by the accepted programs and by
+   none of the sample: 200 in Psi 05, 305 in validation, 160 in Psi 06.
+   The other 232,561 lines the accepted programs run are also run by
+   programs the route cannot check.
+
+   | Lines | Psi 05 | validation | Psi 06 | All three |
+   | --- | ---: | ---: | ---: | ---: |
+   | Instrumented | 247,292 | 254,856 | 94,845 | 596,993 |
+   | Run by the 12 accepted programs | 97,946 | 98,866 | 36,414 | 233,226 |
+   | Run by the 36 unserved programs | 133,953 | 140,192 | 51,786 | 325,931 |
+   | Run by either | 134,153 | 140,497 | 51,946 | 326,596 |
+   | Run only by the accepted programs | 200 | 305 | 160 | 665 |
+
+   What this shows is that the old stages are not divided by construct in
+   the way the route's subset is: a scalar call with a contract goes through
+   the same declaration, custody, planning and lowering code as a program
+   with borrows or services, so serving the scalar subset frees no code.
+   Retirement by scope will come from serving whole programs of a kind the
+   old stages treat separately, not from the subset growing by construct.
+   The 665 lines are an upper bound from a sample of 36, not a list of dead
+   code; a wider sample can only lower it. Nothing was deleted: the default
+   compile has no router, so the route governs no program, and every one of
+   these lines is still needed by a compile that does govern.
+
+   Limits. Lines are those `cargo xtask stage-coverage` instruments in
+   `05_typed-trees-to-checked-trees/`, `validation/src/` and
+   `06_checked-trees-to-lowered-psi/`, run by `omega --check` on Linux
+   x86_64 with the compiler built from the worktree at `1726ca7b560d` plus
+   uncommitted route changes, which touch none of the three stages. 14 of
+   the 36 sampled programs exited 1 under `omega --check`; the one inspected
+   (`pass/constants/runtime_scoped_const_exit`) stopped on a program-entry
+   binding that `omega update` has not accepted, which the corpus runner
+   supplies and the bare command does not. The lines they ran before
+   stopping are counted. The 12 accepted programs include none with a
+   generic body.
 
 The conditions are deliberately small: one scope, one generic body, three
 kinds of wrong list. Passing them does not show the replacement will finish.
