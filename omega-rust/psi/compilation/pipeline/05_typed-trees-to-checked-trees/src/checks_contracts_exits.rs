@@ -7755,9 +7755,9 @@ mod scalars {
         use validation::field_domains::readable_type_reference;
         use validation::{
             CanonicalPlace, closed_collection_length, closed_collection_length_under_matches,
-            collection_length_receiver, find_state_on_machine,
-            has_builtin_bound_expression_meaning, project_type_reference_from_segments,
-            reserved_result_owner, reserved_result_place,
+            collection_length_equals_under_matches, collection_length_receiver,
+            find_state_on_machine, has_builtin_bound_expression_meaning,
+            project_type_reference_from_segments, reserved_result_owner, reserved_result_place,
         };
 
         mod descriptor_lengths {
@@ -8208,7 +8208,11 @@ mod scalars {
                 let comparison = self.program.expression_table.binary_node(expression)?;
                 let state =
                     find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-                let (receiver, expected, operator) = self.length_comparison(state, comparison)?;
+                let Some((receiver, expected, operator)) =
+                    self.length_comparison(state, comparison)
+                else {
+                    return self.symbolic_length_equality(state, comparison);
+                };
                 let lengths = self.result_collection_lengths(state, receiver)?;
                 if lengths.is_empty() {
                     return None;
@@ -8261,6 +8265,54 @@ mod scalars {
                         | BinaryOperator::GreaterOrEqual
                 )
                 .then_some((receiver, expected, operator))
+            }
+
+            /*
+                `result.len == Count` where the other side is not a literal: every
+                selected arm's length must equal that expression, with const
+                parameters as rigid values. A generic body is proved once under its
+                own contract, so its extents may only be named, not evaluated.
+            */
+            fn symbolic_length_equality(
+                &self,
+                state: &State,
+                comparison: &TableBinaryExpression,
+            ) -> Option<bool> {
+                if comparison.operator != BinaryOperator::Equal {
+                    return None;
+                }
+                let receiver = |expression| {
+                    collection_length_receiver(self.program, self.machine, Some(state), expression)
+                };
+                let (receiver, expected) =
+                    match (receiver(comparison.left), receiver(comparison.right)) {
+                        (Some(receiver), None) => (receiver, comparison.right),
+                        (None, Some(receiver)) => (receiver, comparison.left),
+                        _ => return None,
+                    };
+                let segments = self.result_receiver_segments(receiver)?;
+                if !stable_segments(&segments) {
+                    return None;
+                }
+                let returned = exit_return_expression(self.program, self.exit);
+                let entry = self.program.machine_states(self.machine).first()?;
+                let verdicts = self.collection_lengths_through(
+                    returned,
+                    entry.return_type,
+                    &segments,
+                    &[],
+                    &|collection, matched| {
+                        Some(collection_length_equals_under_matches(
+                            self.program,
+                            self.machine,
+                            state,
+                            collection,
+                            matched,
+                            expected,
+                        ))
+                    },
+                )?;
+                (!verdicts.is_empty()).then(|| verdicts.iter().all(|equal| *equal))
             }
 
             fn integer_literal(&self, expression: ExpressionHandle) -> Option<BigInt> {
@@ -8328,7 +8380,21 @@ mod scalars {
                 }
                 let returned = exit_return_expression(self.program, self.exit);
                 let entry = self.program.machine_states(self.machine).first()?;
-                self.collection_lengths_through(state, returned, entry.return_type, &segments, &[])
+                self.collection_lengths_through(
+                    returned,
+                    entry.return_type,
+                    &segments,
+                    &[],
+                    &|collection, matched| {
+                        closed_collection_length_under_matches(
+                            self.program,
+                            self.machine,
+                            state,
+                            collection,
+                            matched,
+                        )
+                    },
+                )
             }
 
             /*
@@ -8423,14 +8489,20 @@ mod scalars {
                     })
             }
 
-            fn collection_lengths_through(
+            /*
+                Walk the arms and record fields that select the returned slice and
+                judge each selected collection with `leaf`, under the integer each
+                enclosing arm matched. Every arm contributes; one unjudged arm
+                fails the walk.
+            */
+            fn collection_lengths_through<Length>(
                 &self,
-                state: &State,
                 expression: ExpressionHandle,
                 reference: TypeReferenceHandle,
                 segments: &[PlaceSegment],
                 matched: &[MatchedReturnInteger],
-            ) -> Option<Vec<u64>> {
+                leaf: &dyn Fn(ExpressionHandle, &[(ExpressionHandle, BigInt)]) -> Option<Length>,
+            ) -> Option<Vec<Length>> {
                 if let ExpressionNode::Match(dispatch) =
                     self.program.expression_table.expression(expression)
                 {
@@ -8455,11 +8527,11 @@ mod scalars {
                             });
                         }
                         lengths.extend(self.collection_lengths_through(
-                            state,
                             arm.value,
                             reference,
                             segments,
                             &arm_matched,
+                            leaf,
                         )?);
                     }
                     return (!lengths.is_empty()).then_some(lengths);
@@ -8480,14 +8552,7 @@ mod scalars {
                         })
                         .map(|binding| (binding.subject, binding.value.clone()))
                         .collect();
-                    return closed_collection_length_under_matches(
-                        self.program,
-                        self.machine,
-                        state,
-                        expression,
-                        &current_matches,
-                    )
-                    .map(|length| vec![length]);
+                    return leaf(expression, &current_matches).map(|length| vec![length]);
                 }
                 let projections = flow::literal_expression_projections(
                     self.program,
@@ -8505,11 +8570,11 @@ mod scalars {
                         return None;
                     }
                     lengths.extend(self.collection_lengths_through(
-                        state,
                         projection.expression,
                         reference,
                         &[],
                         matched,
+                        leaf,
                     )?);
                 }
                 (!lengths.is_empty()).then_some(lengths)
