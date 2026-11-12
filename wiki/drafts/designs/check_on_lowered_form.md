@@ -319,6 +319,16 @@ that cannot fail cannot hold work back, and work went ahead
      current checker accepts the Build program and entry-contract source and
      the route accepts everything else; a rejection by either rejects the
      compilation. The split ends when the route can lower Build programs.
+     The router implements this in the default compile
+     (`compiler/src/checked/checking/lowered_route.rs`): when the current
+     checker finds nothing wrong in the Build program or an entry-contract
+     source, a route rejection fails the compilation with the route's
+     diagnostics (the current checker's follow when it rejects too), and a
+     route acceptance of a program the current checker rejects elsewhere
+     fails with "no product route yet", because nothing builds a product
+     from the route's own module. A fallback, an `Incomplete` verdict or a
+     defect of the route leaves the current verdict. The four entry-contract
+     programs below therefore stay rejected by the current checker.
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 shows what that costs: four programs
      the current checker rejects for their entry are accepted whole by the
@@ -505,9 +515,9 @@ that cannot fail cannot hold work back, and work went ahead
    Retirement by scope will come from serving whole programs of a kind the
    old stages treat separately, not from the subset growing by construct.
    The 665 lines are an upper bound from a sample of 36, not a list of dead
-   code; a wider sample can only lower it. Nothing was deleted: the default
-   compile has no router, so the route governs no program, and every one of
-   these lines is still needed by a compile that does govern.
+   code; a wider sample can only lower it. Nothing was deleted: when this
+   was measured the default compile had no router, and every one of these
+   lines is still needed by a compile the route does not govern.
 
    Limits. Lines are those `cargo xtask stage-coverage` instruments in
    `05_typed-trees-to-checked-trees/`, `validation/src/` and
@@ -604,9 +614,8 @@ passed. Two started before any gate was evaluated. This is the state on
 
 Also open from route one itself: `#2317` (join predicates and crash
 coverage, draft) and `#2309` (re-verifying a saved proof, tests only).
-`#2321` landed the verdict a router would take from the route. By its own
-description no router exists in the default compile, so the route governs no
-program.
+`#2321` landed the verdict a router would take from the route; the router
+that takes it is described under [condition 1](#the-gate).
 
 The three route crates were 9,463 lines of Rust at `82d2ea5d5`, where route
 one measures counted them, and are 21,576 at `c7371d3dc`, tests included

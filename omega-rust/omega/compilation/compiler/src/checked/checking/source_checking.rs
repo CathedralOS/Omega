@@ -193,9 +193,20 @@ pub(crate) fn check_product_source(
         .iter()
         .chain(reuse.prior.sibling_product_checks.iter())
         .collect();
+    let subject = package_inputs.map(PackageCompilationInputs::root);
+    let route_scope = super::lowered_route::RouteScope {
+        entries: &external_roots,
+        subject,
+        selected: &selected,
+    };
     let mut judged = None;
+    let mut route = None;
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
+        // The checker on the lowered form judges the same trees Psi 05 is
+        // given, by reference, before Psi 05 takes them; its verdict may
+        // govern this compilation (`lowered_route`).
+        let keep = frontier.is_some();
         let result = psi_compiler::CheckRequest {
             program: typed,
             admission: source_admission,
@@ -205,36 +216,32 @@ pub(crate) fn check_product_source(
             // A product check judges the consumer's own package.
             checked_slices: None,
         }
-        // The trees are kept for every Product check: when Psi 05 rejects,
-        // the checker on the lowered form may govern the verdict
-        // (`lowered_route`), and they are gone once Psi 05 has them.
-        .check_keeping_typed_frontier(Some(&mut judged));
+        .check_inspecting_typed_frontier(&mut |trees| {
+            route = Some(route_scope.judge(trees));
+            if keep {
+                judged = Some(trees.clone());
+            }
+        });
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
             artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
         }
         result
     });
-    let subject = package_inputs.map(PackageCompilationInputs::root);
     let outcome = outcome.map_err(|mut diagnostics| {
         if let Some(sources) = symbol_sources.as_deref() {
             super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
         }
-        let governed = judged.as_ref().and_then(|typed| {
-            super::lowered_route::governed_rejection(
-                &super::lowered_route::RejectedCompilation {
-                    typed,
-                    sources: symbol_sources.as_deref(),
-                    entries: &external_roots,
-                    subject,
-                    selected: &selected,
-                    build_program,
-                    entry_contracts: &entry_contracts,
-                },
-                &diagnostics,
-            )
-        });
-        governed.unwrap_or(diagnostics)
+        diagnostics
     });
+    let outcome = super::lowered_route::govern(
+        outcome,
+        route,
+        &super::lowered_route::CurrentScope {
+            sources: symbol_sources.as_deref(),
+            build_program,
+            entry_contracts: &entry_contracts,
+        },
+    );
     // The entries are this request's, so they are paired with the trees here,
     // before a rejection below returns and drops the Build configuration.
     if let (Some(frontier), Some(typed)) = (frontier, judged) {

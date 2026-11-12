@@ -1093,7 +1093,7 @@ fn an_unproved_operation_is_a_compile_error_naming_its_kind_and_cause() {
     assert!(
         diagnostic.message.starts_with(
             "exact arithmetic in this machine may overflow `u32`: the operands are not provably \
-             in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found \
+             in range (decision 17 -- exact arithmetic is a proof obligation). (no proof found \
              from the facts available here: "
         ),
         "{}",
@@ -1112,7 +1112,7 @@ fn an_unproved_call_requirement_names_the_callee_clause() {
         unproved[0]
             .reject_diagnostic()
             .message
-            .starts_with("cannot prove requires clause 1 of the called machine ("),
+            .starts_with("cannot prove requires clause 1 of the called machine. ("),
         "{}",
         unproved[0].reject_diagnostic().message
     );
@@ -1143,7 +1143,7 @@ fn an_unestablished_ensures_is_reported_once_at_the_return_that_misses_it() {
         unproved[0]
             .reject_diagnostic()
             .message
-            .starts_with("cannot prove ensures clause 1 ("),
+            .starts_with("cannot prove ensures clause 1. ("),
         "{}",
         unproved[0].reject_diagnostic().message
     );
@@ -1220,7 +1220,7 @@ fn a_goal_form_without_a_rule_is_incomplete_not_rejected() {
     assert_eq!(unproved[0].cause, UnprovedCause::NoRuleForGoalForm);
     assert!(
         unproved[0].message().starts_with(
-            "cannot prove requires clause 1 of the called machine \
+            "cannot prove requires clause 1 of the called machine. \
              (the prover has no rule for this form of goal: "
         ),
         "{}",

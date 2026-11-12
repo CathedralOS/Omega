@@ -119,6 +119,15 @@ pub struct UnprovedObligation {
     pub consumed: Option<ConsumptionSite>,
 }
 
+/// `statement` ending with a period.
+fn closed_sentence(statement: &str) -> std::borrow::Cow<'_, str> {
+    if statement.ends_with('.') {
+        std::borrow::Cow::Borrowed(statement)
+    } else {
+        std::borrow::Cow::Owned(format!("{statement}."))
+    }
+}
+
 /// Where an open invariant window is consumed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConsumptionSite {
@@ -135,9 +144,12 @@ impl UnprovedObligation {
     /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
+            // The statement is a sentence in the current checker's words and
+            // closes with its period, as that checker's message does, so a
+            // pinned fragment that ends the sentence matches either.
             None => format!(
                 "{} ({}: {})",
-                self.statement,
+                closed_sentence(&self.statement),
                 self.cause.describe(),
                 self.detail
             ),

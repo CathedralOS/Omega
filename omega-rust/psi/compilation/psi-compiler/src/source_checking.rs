@@ -1022,7 +1022,45 @@ impl CheckRequest<'_> {
     */
     pub fn check_keeping_typed_frontier(
         self,
-        mut frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+        frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        match frontier {
+            Some(frontier) => self.check_showing_typed_frontier(
+                Some(&mut |typed| {
+                    *frontier = Some(typed.clone());
+                }),
+                true,
+            ),
+            None => self.check_showing_typed_frontier(None, false),
+        }
+    }
+
+    /*
+        The same check, showing `inspect` the frozen typed trees Psi 05 judges
+        before Psi 05 takes them, under the same rule as the copy
+        `check_keeping_typed_frontier` makes: exactly once when Psi 04
+        completed or a retained judgment or stored slice supplied its trees,
+        whatever this function then returns, and not at all when the request
+        was refused earlier. A second checker judges the trees here by
+        reference (the checker on the lowered form, which may govern the
+        verdict), so nothing is cloned for it. One difference: when the
+        lifecycle-plan step between Psi 04 and Psi 05 refuses, `inspect` is not
+        called, because the compilation fails on that step's own diagnostic
+        and keeping Psi 04's output for the case would clone it every time.
+    */
+    pub fn check_inspecting_typed_frontier(
+        self,
+        inspect: &mut dyn FnMut(&typed_trees::FrozenTypedTrees),
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        self.check_showing_typed_frontier(Some(inspect), false)
+    }
+
+    /// `keep_prepared`: also show Psi 04's output when the lifecycle-plan step
+    /// refuses, which costs a copy of the trees on every check.
+    fn check_showing_typed_frontier(
+        self,
+        mut inspect: Option<&mut dyn FnMut(&typed_trees::FrozenTypedTrees)>,
+        keep_prepared: bool,
     ) -> Result<CheckedSource, Vec<Diagnostic>> {
         let stored_slice = self
             .checked_slices
@@ -1036,8 +1074,8 @@ impl CheckRequest<'_> {
                 &checked.typed,
                 self.admission.declarations,
             )?;
-            if let Some(frontier) = frontier.as_deref_mut() {
-                *frontier = Some(checked.typed.clone());
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(&checked.typed);
             }
             return Ok(CheckedSource {
                 program: Arc::new(checked),
@@ -1125,8 +1163,8 @@ impl CheckRequest<'_> {
                 RETAINED_LAYOUT_MATCH_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             record_whole_program_reuse();
-            if let Some(frontier) = frontier.as_deref_mut() {
-                *frontier = Some(prior.judgment.judged_typed_trees().clone());
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(prior.judgment.judged_typed_trees());
             }
             let outcome = typed_trees_to_checked_trees::reuse_retained_check(
                 &prior.judgment,
@@ -1148,17 +1186,18 @@ impl CheckRequest<'_> {
             let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            let prepared = frontier.is_some().then(|| program.clone());
+            let prepared = (inspect.is_some() && keep_prepared).then(|| program.clone());
             let program = build_time_evaluation::retain_access_lifecycle_plans(
                 program,
                 self.admission.declarations,
                 self.admission.layout_scopes,
             );
-            if let Some(frontier) = frontier {
-                *frontier = match &program {
-                    Ok(program) => Some(program.clone()),
-                    Err(_) => prepared,
-                };
+            if let Some(inspect) = inspect {
+                match (&program, &prepared) {
+                    (Ok(program), _) => inspect(program),
+                    (Err(_), Some(prepared)) => inspect(prepared),
+                    (Err(_), None) => {}
+                }
             }
             let program = program?;
             let prior_dependency_bodies: Vec<_> = self

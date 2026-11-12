@@ -8,12 +8,10 @@
 //! product check itself, so they pin what the default compile reports, not
 //! what a harness computes beside it.
 //!
-//! A governed compilation still fails: no product exists yet for a program
-//! the current checker rejects. So each case is told apart by whether the
-//! failure opens with the governing statement. Both cases here keep the
-//! current verdict. While the two checkers agree no program is governed; the
-//! one known exception, `fail/machines/duplicate_local_in_one_body`, is a
-//! disagreement the route has yet to close (a local declared twice).
+//! A program the route accepts and the current checker rejects outside the
+//! Build program and the entry contract fails with an error that opens with
+//! `NO_PRODUCT_ROUTE`: no product exists yet for it. The unit tests of
+//! `lowered_route::govern` pin the decision itself.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -23,10 +21,11 @@ use fixture_package_inputs::{
 use lowered_discharge::{RouteVerdict, judge};
 use structure_elaboration::{Compilation, elaborate};
 
+/// Kept in step with `compiler`'s `lowered_route::NO_PRODUCT_ROUTE`.
+const NO_PRODUCT_ROUTE: &str = "no product route yet";
+
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-const GOVERNS: &str = "the checker on the lowered form accepts this program";
 
 /// The current checker's rejection of `fixture` as the product check reports
 /// it, and the route's own verdict on what that check claims.
@@ -47,7 +46,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
         diagnostics,
     } = checked
     else {
-        panic!("{fixture}: the current checker must reject this program after Psi 04");
+        panic!("{fixture}: the compilation must be rejected after Psi 04");
     };
     let verdict = judge(elaborate(
         &frontier.typed,
@@ -67,18 +66,51 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     )
 }
 
-/// Both checkers reject, so the current verdict stands unchanged.
+/// The current checker rejects a body that declares `x` twice, in the
+/// program's own source, and the route accepts it: the route's acceptance
+/// governs, and since nothing builds a product from the route's module the
+/// compilation fails with `NO_PRODUCT_ROUTE`, the current checker's
+/// diagnostic after it. (The owner has ruled such a body invalid; when name
+/// resolution rejects it, before typing, no trees reach either checker and
+/// this program needs replacing.)
 #[test]
-fn a_rejection_both_checkers_make_is_reported_as_the_current_checker_reports_it() {
+fn a_program_only_the_route_accepts_fails_for_want_of_a_product_route() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let (messages, verdict) = rejected("tests/omega/fail/machines/duplicate_local_in_one_body");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    assert!(messages[0].starts_with(NO_PRODUCT_ROUTE), "{messages:#?}");
+    assert!(
+        messages[1..]
+            .iter()
+            .any(|message| message.contains("duplicate local data `x`")),
+        "{messages:#?}"
+    );
+}
+
+/// Both checkers reject a loop whose arrival invariant is unproved: the
+/// route judges it, so the route's diagnostics are reported.
+#[test]
+fn a_rejection_both_checkers_make_is_reported_as_the_route_reports_it() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/omega/fail/termination/productive_scalar_loop_arrival_unproved");
+    let RouteVerdict::Rejected { unproved, .. } = &verdict else {
+        panic!("{verdict:?}");
+    };
+    let route: Vec<String> = unproved
+        .iter()
+        .filter(|entry| !entry.cause.is_incomplete())
+        .map(|entry| entry.message())
+        .collect();
+    assert!(!route.is_empty(), "{verdict:?}");
     assert!(
-        matches!(verdict, RouteVerdict::Rejected { .. }),
-        "{verdict:?}"
+        route.iter().all(|message| messages.contains(message)),
+        "{messages:#?}"
     );
     assert!(
-        messages.iter().all(|message| !message.contains(GOVERNS)),
+        messages
+            .iter()
+            .all(|message| !message.starts_with(NO_PRODUCT_ROUTE)),
         "{messages:#?}"
     );
 }
@@ -93,7 +125,9 @@ fn a_rejection_the_build_program_owns_keeps_the_current_verdict_even_when_the_ro
         rejected("tests/omega/fail/build/unrequested_target_entry_returns_value");
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
     assert!(
-        messages.iter().all(|message| !message.contains(GOVERNS)),
+        messages
+            .iter()
+            .all(|message| !message.starts_with(NO_PRODUCT_ROUTE)),
         "{messages:#?}"
     );
 }
