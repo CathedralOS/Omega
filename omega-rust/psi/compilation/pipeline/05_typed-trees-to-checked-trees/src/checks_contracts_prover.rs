@@ -454,7 +454,13 @@ mod assigned_values {
                 return true;
             }
             if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
-                return false;
+                // An applied domain such as `Coord<7>` has no predicate
+                // judgment here: its facts are not instantiated for the
+                // subject. One with neither predicates nor establishment
+                // routes owes nothing whatever its arguments are, exactly as
+                // the unparameterized case below. Which instance the value
+                // carries is settled separately by index compatibility.
+                return domain_is_vacuous(self.program, symbol, &mut Vec::new());
             }
             if self
                 .program
