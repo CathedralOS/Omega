@@ -14,7 +14,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 7 | pass/run rejected | cannot prove default-domain field requirement for return from write at statement 2: storage requ | `pass/facts/non_owning_reference_erasure_through_other_machine_exit` | `` |  |  | pending |
+| 7 | pass/run rejected | cannot prove default-domain field requirement for return from write at statement 2: storage requ | `pass/facts/non_owning_reference_erasure_through_other_machine_exit` | `03397d546df477a8e4cc97db8896e20bae51a8cd` | 1227 | psi: elaborate bounded proofs through scoped continuations (#1227) (omega-rust/psi/compilation/proof | bisected |
 Members:
 - `pass/facts/non_owning_reference_erasure_through_call_result_exit` — still broken: cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued
 - `pass/facts/non_owning_reference_erasure_through_const_name_exit` — still broken: cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued

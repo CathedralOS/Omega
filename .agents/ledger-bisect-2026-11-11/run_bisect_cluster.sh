@@ -177,15 +177,35 @@ set -e
 echo "walk_confirm $BREAK exit=$confirm $(git log -1 --oneline "$BREAK" 2>/dev/null)" >>"$FINDLOG"
 RC=$confirm
 if [[ "$confirm" -ne 1 ]]; then
-  alt=$(awk -v b="$BREAK" '$2==b && $3=="exit=1" {print $2; exit}' "$FINDLOG")
-  if [[ -n "$alt" ]]; then
-  BREAK="$alt"
-    RC=1
-  else
+  mapfile -t CHAIN_JOINED < <(printf '%s\n' "${PROBE_CHAIN[@]}")
+  BREAK=$(python3 - "$FINDLOG" "${CHAIN_JOINED[@]}" <<'PY'
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+chain = sys.argv[2:]
+bad: set[str] = set()
+for line in log_path.read_text().splitlines():
+    if not line.startswith("walk "):
+        continue
+    parts = line.split()
+    if len(parts) >= 3 and parts[2] == "exit=1":
+        bad.add(parts[1])
+best = ""
+best_i = len(chain)
+for i, rev in enumerate(chain):
+    if rev in bad and i < best_i:
+        best_i = i
+        best = rev
+print(best)
+PY
+)
+  if [[ -z "$BREAK" ]]; then
     echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=break_not_bad_${confirm}"
     git checkout -f -q "$PIN"
     exit 0
   fi
+  RC=1
 fi
 PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 git checkout -f -q "$PIN"
