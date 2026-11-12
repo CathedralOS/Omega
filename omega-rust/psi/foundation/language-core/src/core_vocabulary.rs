@@ -46,6 +46,27 @@ pub enum CoreVocabulary {
     ExtentDomain(ExtentDomain),
     /// The `ProgramStorageEntry` arrival trait in `extent.omg`.
     ProgramStorageEntry,
+    /// Core `fixed_vec.omg`'s `FixedVec<T, N>` data.
+    FixedVec,
+    /// A primitive instruction-effect proposition in core `assembly_model.omg`.
+    AssemblyEffect(AssemblyEffect),
+    /// A native-binding vocabulary type in core `external_binding.omg`.
+    ExternalBinding(ExternalBindingVocabulary),
+}
+
+/// The primitive propositions `assembly_model.omg` declares for instruction effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AssemblyEffect {
+    PortWritten,
+    ModelSpecificWritten,
+    AtomicReleaseWritten,
+}
+
+/// The native-binding vocabulary types in `external_binding.omg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExternalBindingVocabulary {
+    ForeignBinding,
+    DllImport,
 }
 
 /// The domains `extent.omg` declares over `Extent`.
@@ -158,6 +179,9 @@ const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
 const REFLECT: &[u8] = core_source!("reflect.omg");
 const EXTENT: &[u8] = core_source!("extent.omg");
+const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
+const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
+const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 
 const fn row(
     file: &'static str,
@@ -370,6 +394,42 @@ const ROWS: &[CoreVocabularyRow] = &[
         "ProgramStorageEntry",
         EXTENT,
         CoreVocabulary::ProgramStorageEntry,
+    ),
+    row(
+        "fixed_vec.omg",
+        "FixedVec",
+        FIXED_VEC,
+        CoreVocabulary::FixedVec,
+    ),
+    row(
+        "assembly_model.omg",
+        "port_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::PortWritten),
+    ),
+    row(
+        "assembly_model.omg",
+        "model_specific_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::ModelSpecificWritten),
+    ),
+    row(
+        "assembly_model.omg",
+        "atomic_release_written",
+        ASSEMBLY_MODEL,
+        CoreVocabulary::AssemblyEffect(AssemblyEffect::AtomicReleaseWritten),
+    ),
+    row(
+        "external_binding.omg",
+        "ForeignBinding",
+        EXTERNAL_BINDING,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::ForeignBinding),
+    ),
+    row(
+        "external_binding.omg",
+        "DllImport",
+        EXTERNAL_BINDING,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::DllImport),
     ),
 ];
 
