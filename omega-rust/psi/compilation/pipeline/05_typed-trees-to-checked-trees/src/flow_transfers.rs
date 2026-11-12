@@ -2117,6 +2117,9 @@ mod scalar_values {
                     self.visiting.push(state.symbol);
                     let result = self.statements(state, &mut symbols, &mut values);
                     self.visiting.pop();
+                    if std::env::var("OMEGA_DBG_RET").is_ok() {
+                        eprintln!("RETDBG state {}::{} some={}", self.machine.name, state.name, result.is_some());
+                    }
                     result
                 }
 
@@ -2254,7 +2257,11 @@ mod scalar_values {
                             source,
                             destination,
                             symbols,
-                        )?;
+                        );
+                        if std::env::var("OMEGA_DBG_RET").is_ok() {
+                            eprintln!("RETDBG stmt {}::{}#{} role={:?} selected={}", self.machine.name, state.name, statement_index, role, expression.is_some());
+                        }
+                        let expression = expression?;
                         let value = Value::evaluate_local(expression, values);
                         match role {
                             ExpressionRole::Return => {
