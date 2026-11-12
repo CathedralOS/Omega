@@ -1,0 +1,26 @@
+// An erasing cast drops only issued meanings its target omits. A predicate
+// still holds on the unchanged value, and a target that names the issued
+// domain keeps it, through a call argument and a record field alike.
+// Expected exit: 0.
+data Ticket [copy] { number: u64; }
+domain Ticket::Held established by issue;
+domain u64::Positive requires self > 0;
+machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
+machine consume(t: Ticket in Ticket::Held) -> u64 { t.number }
+machine halve(x: u64 in Positive) -> u64 { 100 / x }
+data Holder [copy] { count: u64; ticket: Ticket in Ticket::Held; tail: u64; }
+
+machine main() crashes Trap {
+    let issued: Ticket in Ticket::Held = issue();
+    let count: u64 in Positive = 5;
+    let direct: u64 = consume(issued as Ticket in Ticket::Held);
+    let divided: u64 = halve(count as u64);
+    let holder: Holder = Holder { count: count as u64, ticket: issued as Ticket in Ticket::Held, tail: 9 };
+    let held: u64 = consume(holder.ticket);
+    transition direct == 17 &&mut divided == 20 && held == 17 && holder.count == 5 && holder.tail == 9 {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}
