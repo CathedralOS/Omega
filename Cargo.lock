@@ -1577,6 +1577,7 @@ name = "orchestration"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "bounded-process",
  "build-declarations",
  "build-settings",
  "compilation-products",

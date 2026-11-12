@@ -42,6 +42,12 @@ pub enum TerminalFilesystemDelegation {
     /// execution its own scratch directory. Kernel calls resolve against an
     /// open descriptor for it, and the native sponsor starts in it.
     HostDirectory(std::path::PathBuf),
+    /// A private in-memory namespace created empty for this execution, which
+    /// a test runner supplies in place of the host's
+    /// (wiki/spec/build/testing.md#group-configuration-and-authority). The
+    /// guest's kernel filesystem calls reach only this state; nothing falls
+    /// back to the host.
+    Private,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]

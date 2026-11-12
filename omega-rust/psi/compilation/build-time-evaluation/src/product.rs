@@ -22,6 +22,24 @@ pub mod test_groups {
         pub requirement: SymbolHandle,
         pub selecting_machine: SymbolHandle,
         pub source_span: source::SourceSpan,
+        /// Service slots this group's runner backs with private per-test state,
+        /// in selection order; empty runs the group without services.
+        pub services: Vec<TestGroupService>,
+    }
+
+    /*
+        A service slot one group asks its test runner to back
+        (wiki/spec/build/testing.md#group-configuration-and-authority).
+        `builder.tests.service<Group, Slot>()` names the exact boundary slot;
+        the runner, not a library provider, holds that service's state, as an
+        operating system holds a real filesystem's. Admission checks the slot
+        is a boundary trait; test-root selection, which knows each package's
+        name, decides whether this runner backs it.
+    */
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestGroupService {
+        pub slot: SymbolHandle,
+        pub source_span: source::SourceSpan,
     }
 }
 pub mod assumed_bindings {
@@ -398,6 +416,7 @@ pub mod product_declarations {
                 | BuildOperation::AssumedBindingContract
                 | BuildOperation::WireCompatibilityRequest
                 | BuildOperation::TestGroupRegistration
+                | BuildOperation::TestGroupService
         )
     }
 
@@ -521,7 +540,40 @@ pub mod product_declarations {
                         requirement: subject,
                         selecting_machine: author,
                         source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+                        services: Vec::new(),
                     });
+                }
+                BuildOperation::TestGroupService => {
+                    // The selection configures a group this activation already
+                    // registered; it never registers one implicitly.
+                    let group = test_groups
+                        .iter_mut()
+                        .find(|group| group.requirement == subject)
+                        .ok_or_else(|| {
+                            refuse("test group service names a group this Build has not registered; register it with `builder.tests.group<…>()` first")
+                        })?;
+                    let slot = operand(typed, request, 1).map_err(|error| vec![error])?;
+                    if !typed
+                        .trait_definition_by_symbol(slot)
+                        .is_some_and(|declaration| declaration.is_boundary)
+                    {
+                        return Err(refuse(
+                            "test group service operand must name an exact visible boundary trait",
+                        ));
+                    }
+                    if group.services.iter().any(|service| service.slot == slot) {
+                        return Err(refuse(
+                            "test group service repeats the same slot for one group",
+                        ));
+                    }
+                    group
+                        .services
+                        .push(crate::product::test_groups::TestGroupService {
+                            slot,
+                            source_span: typed
+                                .symbols
+                                .rejoin_product_occurrence(request.source_span),
+                        });
                 }
                 BuildOperation::WireCompatibilityRequest => {
                     let path = |position| {

@@ -200,8 +200,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Requirement-based tests
 
-- **BUILD-TEST-GROUPS.** Add [virtual-filesystem test groups](wiki/spec/build/testing.md#group-configuration-and-authority): a group-scoped `service<>` selection and the in-memory filesystem it selects, once owner question `test-group-filesystem-state` says where that provider keeps its per-test state.
-  Acceptance: a virtual-filesystem test group executes on both engines with fresh per-test state, and a child cannot widen it to the real filesystem.
+- **TEST-GROUP-FILESYSTEM-TARGETS.** Supply the [test runner's private filesystem](wiki/spec/build/testing.md#group-configuration-and-authority) beyond the Linux kernel calls: the interpreter answers only `linux_x86_64`/`linux_arm64` kernel filesystem calls and refuses `canonicalize` (libc `realpath` and its `errno` copy), and the native runner needs Linux user namespaces, so macOS and Windows targets and hosts report the engine unavailable.
+  Acceptance: `run/testing/private_filesystem_group_runs_on_both_engines` binds all four targets and passes on both engines on every host, including a test that calls `canonicalize`.
 
 ## Checked boundary topology
 

@@ -25,14 +25,20 @@ Why separate `preparation`, `process_child`, and `bounded_process`?
   observation rosters separate from guest stdout/stderr.
 
 These controls bound concrete host resources and descendant cleanup; they do not
-claim filesystem, executable, credential, or network sandboxing.
+claim filesystem, executable, credential, or network sandboxing. The one
+filesystem exception is `private_root`, which runs a test executable over an
+empty private tmpfs root its runner supplies, so that execution cannot reach the
+host's filesystem at all.
 */
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod bounded_process;
 mod preparation;
+mod private_root;
 mod process_child;
+
+pub use private_root::{PrivateRootUnavailable, run_in_private_root};
 
 pub use bounded_process::{
     BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput,

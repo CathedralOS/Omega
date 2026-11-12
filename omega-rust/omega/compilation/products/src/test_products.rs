@@ -19,6 +19,21 @@ pub struct TestRootIdentity {
     pub group: String, // Registered requirement's canonical path, e.g. `Tests::arithmetic`.
     pub test: String,  // Satisfying machine's canonical path.
     pub target: target::TargetProfile,
+    pub filesystem: TestFilesystem,
+}
+
+/*
+The filesystem a test invocation's runner supplies
+(wiki/spec/build/testing.md#group-configuration-and-authority). A group that
+names std's `FilesystemService` slot runs each invocation over private state the
+runner creates empty; ordinary filesystem calls reach it the way they reach a
+host's. A group that names none delegates no filesystem at all.
+*/
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TestFilesystem {
+    #[default]
+    Unprovided,
+    Private,
 }
 
 impl std::fmt::Display for TestRootIdentity {

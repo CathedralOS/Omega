@@ -4757,6 +4757,7 @@ pub mod machine_parameters {
                         | BuildOperation::ServiceAudit
                         | BuildOperation::AssumedBindingContract
                         | BuildOperation::TestGroupRegistration
+                        | BuildOperation::TestGroupService
                 )
             )
         {
