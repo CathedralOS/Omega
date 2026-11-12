@@ -13213,23 +13213,23 @@ fail/facts/skipped_short_circuit_call_through_parameter_rejected rejected 7614ms
 	cannot prove requires contract for call untouched from probe: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_target_body_rejected rejected 5075ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 8813ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 5810ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `view` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_const_name_rejected rejected 9946ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_const_name_rejected rejected 5849ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `view` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_field_rejected rejected 8434ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_field_rejected rejected 5752ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `holder.view` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_local_rejected rejected 10342ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_local_rejected rejected 5743ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_match_join_rejected rejected 11055ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_match_join_rejected rejected 4694ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_other_machine_rejected rejected 10921ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_other_machine_rejected rejected 6306ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `view` in target_reader::entry
-fail/facts/slice_view_element_read_bound_through_other_state_rejected rejected 8470ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_other_state_rejected rejected 6255ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `v` in check_view::entry
-fail/facts/slice_view_element_read_bound_through_parameter_rejected rejected 10774ms expected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_parameter_rejected rejected 6113ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry
-fail/facts/slice_view_element_read_bound_through_target_body_rejected rejected 9614ms unexpected @f632a980b2a0
+fail/facts/slice_view_element_read_bound_through_target_body_rejected rejected 3597ms expected @9ba694ce4cb9
 	cannot prove index `3` is within unknown slice length of `view` in X86ReadGuarded::read_guarded::read_guarded
 	cannot prove index `3` is within unknown slice length of `view` in ArmReadGuarded::read_guarded::read_guarded
 fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 4664ms expected @2e05cd243a72
