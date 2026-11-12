@@ -1,0 +1,13 @@
+// Expected exit: 0. A constant array whose extent names another constant and
+// whose element is a call result replays that call under the named extent.
+const SIZE: u64 = 1;
+machine one() -> u64 { 3u64 }
+const CALLED: [u64; SIZE] = [one()];
+machine main() crashes Trap {
+    transition CALLED[0] == 3 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
