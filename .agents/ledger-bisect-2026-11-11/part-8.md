@@ -28,24 +28,42 @@ Report cluster 8’s prior “breaking” `f3612364ffbb9489d7be1409397df6867fcbe
 
 ## Opaque qualified-result cluster (orig_index 48)
 
-### Verdict
+### Verdict (tie-break vs part 30, fresh target per commit)
 
-**never-good since `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2`** (#295, first commit adding `tests/omega/pass/facts/opaque_independent_qualified_result_*_exit`).
+**Not never-good.** Outcomes are **non-monotonic** on the first-parent line (e.g. `rejected` at fixture add, **`checked` later**, then broken again). Earlier “never-good” used a **shared** `$ROOT/target` and falsely missed good commits (same failure mode as part 9).
 
-`find_good_commit.sh` and fixed-PIN reruns on the first-parent chain from the PIN through that introduction commit never returned exit **0** (`checked` / `built` per PIN snapshot). Outcomes were exit **1** (PIN-broken incomplete) or exit **125** (rejected, build failure, ledger/md skip, or other ≠ expected).
+| role | commit (40 hex) | PR | `bisect_test` (all 3 members) |
+| --- | --- | ---: | --- |
+| **good** (bisect) | `4d6278c81b8360d8100cef23e2100be18ddf32a7` | #1759 | exit **0**, status `checked` (3 fixtures × 3 reruns) |
+| **first-bad** | `60cb5e1f79dd05465f77775990e46bcc2e789470` | #1721 | exit **1**, status `incomplete` (AddressBridge class; 3×3) |
+| diagnostic-class edge | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` | #2238 | parent `rejected` (125) → child `incomplete` (1); not a bisect “good” |
 
-There is **no** `git bisect` good commit; **#2238 is not a breaking commit** (parent is also not good: exit 125).
+**Parent check:** `60cb5e1f79dd05465f77775990e46bcc2e789470^1` = `4d6278c81b8360d8100cef23e2100be18ddf32a7` (matches part 30).
 
-### Evidence — fixture introduction and walk samples
+At **#1721** the trio stops matching PIN-expected `checked` (exit **1** incomplete, not exit **0**). Tie-break does **not** show exit **125** `rejected` at `60cb5e1f79dd05465f77775990e46bcc2e789470` with a fresh target (reconciles part 30’s good parent; first-failure **class** here is incomplete).
 
-Witness: `pass/facts/opaque_independent_qualified_result_import_alias_exit`.  
-`bisect_witness.sh` + `bisect_test.py` with fixed PIN observation (same command path as bisect).
+**#2238 is not the bisect first-bad**; it is the first commit on the `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` → `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` edge where corpus status flips **`rejected` → `incomplete`** (NativeFloats rejection → AddressBridge incomplete).
 
-| commit (40 hex) | `bisect_test` exit | corpus status |
+### Tie-break runs (log: `/opt/cursor/artifacts/part8-tiebreak.log`)
+
+Method: fixed PIN ledger in `/tmp/pin_corpus_outcomes_51e8c45.txt`; `BISECT_CARGO_TARGET_DIR=/tmp/bisect-target-<full-sha>` **new per commit**; one build/corpus at a time.
+
+**`4d6278c81b8360d8100cef23e2100be18ddf32a7`** — all lines `exit=0 status=checked`:
+
+- `opaque_independent_qualified_result_import_alias_exit` reps 1–3
+- `opaque_independent_qualified_result_renumbered_catalog_exit` reps 1–3
+- `opaque_independent_qualified_result_through_local_exit` reps 1–3
+
+**`60cb5e1f79dd05465f77775990e46bcc2e789470`** — all lines `exit=1 status=incomplete` (AddressBridge `classified_make` … authored result domains).
+
+**`60ee163d4f0f5f8b9349ecf253660a917917a7c7`** (ledger stamp; one run per member, fresh target) — all `exit=0 status=checked`. The prior report’s **`exit=125`** at this SHA used the **shared** target dir, not a commit-scoped build tree.
+
+### Earlier walk samples (shared target — superseded for good/bad)
+
+| commit (40 hex) | exit | status (import_alias) |
 | --- | ---: | --- |
 | `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2` (fixture add) | **125** | `rejected` |
-| `a6dfe40c6b59efe1d1af1e453ff9e9e2e2203218` (sample, ~304 on chain) | **125** | `rejected` |
-| `643ff5441c15ea62815109514a8047194d7397a0` (sample, nearer PIN) | **1** | `incomplete` (PIN-broken class) |
+| `643ff5441c15ea62815109514a8047194d7397a0` | **1** | `incomplete` |
 | `51e8c45c793007f211d0d9baee7de16767172444` (PIN) | **1** | `incomplete` |
 
 ### First commit showing current diagnostic class (rejected → incomplete), not “breaking”
@@ -74,7 +92,7 @@ First-parent parent → child where all three members flip from **`rejected`** (
 
 Typical parent diagnostic: `NativeFloats::float_add_f32_f32` requires a checked body. Child: `AddressBridgeProvider::classified_make` has no executable body (authored result domains).
 
-**Mechanism:** not established — the edge correlates with #2238 but parent is not good and `find_good` never succeeds; no causal link proved.
+**Mechanism (#2238):** not established.
 
 **Diff note (#2238):** adds `omega-rust/omega/compilation/backend/target/src/float_realization.rs` (new file), opening:
 
@@ -92,19 +110,27 @@ Typical parent diagnostic: `NativeFloats::float_add_f32_f32` requires a checked 
 +pub const CANONICAL_FLOAT_OPERATIONS: [&str; 104] = [
 ```
 
-### Ledger “checked” vs never-good
+### Mechanism notes (named commits)
 
-Fixed-PIN ledger copy at PIN lists all three rows as **`checked`** stamped `@60ee163d4f0f5f8b9349ecf253660a917917a7c7` (not on the first-parent chain to PIN).
+**`4d6278c81b8360d8100cef23e2100be18ddf32a7` (#1759):** mechanism **not established** for why opaque qualified-result fixtures pass here (commit is mostly sample `block` transition syntax, e.g. `samples/cli/algorithms/insertion_sort/main.omg`).
 
-| source | ledger says | fixed-PIN rerun @ that commit (import_alias witness) |
-| --- | --- | --- |
-| PIN ledger rows | `checked` @ `60ee163d4f0f5f8b9349ecf253660a917917a7c7` | @ `60ee163d4f0f5f8b9349ecf253660a917917a7c7`: exit **125**, `rejected` |
-| `c64728d90e83036051d52fb69961b786423230c6` (#889 recorder) | rows `checked` @ `ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd` | @ `c64728d90e83036051d52fb69961b786423230c6`: exit **125**, `rejected` |
-| Part 17 opaque cluster (#1721) | first-bad `60cb5e1f79dd05465f77775990e46bcc2e789470` | @ `60cb5e1f79dd05465f77775990e46bcc2e789470`: exit **125**, `rejected` |
+**`60cb5e1f79dd05465f77775990e46bcc2e789470` (#1721):**
 
-`c64728d90e83036051d52fb69961b786423230c6` is the commit that **first recorded** `checked` for these three in ledger history (`git log -S`); `ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd` is the integration stamp named in that ledger file’s context header, not re-run as exit **0** here.
+```diff
++    if let Some(boundary) = requirements.missing_providers.first() {
++        ...
++        return Err(format!(
++            "calling policy calls `{}` without a selected provider for target `{}`",
++            ...
++        ));
++    }
+```
 
-**Resolution:** ledger **`checked`** entries are historical stamps / integration records; they do **not** contradict **never-good since `7399f90b98d974e4ee7f8d5c823fae5dd28fc8b2`** under fixed-PIN `bisect_test` on this host. Part 17’s #1721 first-bad is a separate bisect slice on the same diagnostic family, not a good commit for this cluster.
+(`calling_policy_execution.rs`; `provider_supply.rs` delegates display to `callable_display_path`.)
+
+### Ledger stamps vs measured good
+
+PIN ledger rows: **`checked`** @ `60ee163d4f0f5f8b9349ecf253660a917917a7c7`. With **fresh** `CARGO_TARGET_DIR`, reruns at `60ee163d4f0f5f8b9349ecf253660a917917a7c7` return exit **0** for all three members (aligns with ledger). **`c64728d90e83036051d52fb69961b786423230c6`** (#889) first **recorded** `checked` in ledger history (`ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd` integration context in file header).
 
 ## Propagated / fixed-on-PIN clusters
 
