@@ -34,7 +34,7 @@ only when `tools/xtask` changes) runs:
 Squash merge only. No merge queue: with a one-minute check there is nothing
 to queue for.
 
-### 2. After merge: `main-keeper`, continuous, one run at a time
+### 2. After merge: `post-merge-check`, continuous, one run at a time
 
 Triggered by pushes to main; a new push while one is running waits and the
 newest pending run replaces older ones, so a burst of merges is verified as
@@ -46,19 +46,19 @@ one batch.
 2. **Verify the batch**: shards download the binaries and run the corpus rows
    and samples the batch's changed paths can reach (the selection logic from
    the old `corpus-gate plan` is kept), with a fixed smoke set.
-3. **Record**: the keeper, not the pull request, writes the ledger. It commits
+3. **Record**: the post-merge check, not the pull request, writes the ledger. It commits
    moved rows to `corpus_outcomes.txt` directly, so authors stop recording and
    stop conflicting on that file.
 4. **Attribute and repair**: when a batch makes rows worse or breaks the
-   build, the keeper bisects the batch with the already-shared build cache,
+   build, the post-merge check bisects the batch with the already-shared build cache,
    names the pull request, and opens a revert PR that `admission` passes in a
    minute. Fix-forward is the author's choice; the default is that main is
-   green again within one keeper cycle.
+   green again within one post-merge run.
 
 ### 3. Nightly: `full-sweep`
 
 The whole corpus, all samples, and native runs on the four hosted targets,
-build-once, off-peak. Its ledger commit is the baseline the keeper compares
+build-once, off-peak. Its ledger commit is the baseline the post-merge check compares
 with.
 
 ### 4. On demand: `qualify`
@@ -75,7 +75,7 @@ one run per dispatching account, newest pending replaces older.
    workflow work.
 2. **Self-hosted runners on the machines we already own** (`omega-linux`,
    the Windows and macOS test hosts). Persistent `target/` and warm caches
-   make the keeper's build incremental (about a minute, not 8.5), and they do
+   make the post-merge check's build incremental (about a minute, not 8.5), and they do
    not share GitHub's hosted-runner limit. Hosted runners stay for
    `admission` only.
 3. **Build once per run**, shared as an artifact with a receipt (revision,
@@ -92,8 +92,8 @@ one run per dispatching account, newest pending replaces older.
 ## Changes to agent rules
 
 - Authors do not run `corpus --record` or edit `corpus_outcomes.txt`; the
-  keeper records. The `Gate: ... | red rows:` line states the expected change
-  and the keeper checks it after merge.
+  post-merge check records. The `Gate: ... | red rows:` line states the expected change
+  and the post-merge check checks it after merge.
 - `AGENTS.md`, "Spec first, land first" already covers the rest.
 
 ## Targets
@@ -101,17 +101,17 @@ one run per dispatching account, newest pending replaces older.
 | Measure | Target |
 | --- | --- |
 | Pull request ready to merged | under 2 minutes |
-| Merge to keeper verdict | under 20 minutes |
-| Main red to revert PR open | one keeper cycle |
+| Merge to post-merge verdict | under 20 minutes |
+| Main red to revert PR open | one post-merge run |
 | Full corpus sweep | under 2 hours |
 | Hosted-runner minutes per pull request | under 2 |
 
 ## Order of work
 
 1. `admission` workflow and the ruleset that requires it.
-2. `main-keeper` with build-once, verification and attribution; hosted
+2. `post-merge-check` with build-once, verification and attribution; hosted
    runners first, self-hosted when registered.
-3. Keeper-owned ledger; remove author recording from `AGENTS.md`, the
+3. Ledger written by the post-merge check; remove author recording from `AGENTS.md`, the
    `advance` skill and `check-rules`.
 4. Std-once in the corpus runner.
 5. `full-sweep` and `qualify`.
