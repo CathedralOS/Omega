@@ -1,0 +1,107 @@
+{
+  "clusters": [
+    {
+      "cluster_id": "as_slice_ensures_len",
+      "witness": "pass/facts/as_slice_views_generic_offset_selector_exit",
+      "first_bad": "2174c0d10bb146aea6a86f55262bc536feb86ea3",
+      "first_parent": "bebbe455e7517a069862d87aead2f1ca911588c3",
+      "witness_stability": {
+        "first_bad_3x": [
+          1,
+          1,
+          1
+        ],
+        "first_parent_3x": [
+          0,
+          0,
+          0
+        ]
+      },
+      "membership_at_first_bad": {
+        "pass/facts/as_slice_views_generic_offset_selector_exit": 1,
+        "pass/facts/as_slice_views_generic_root_exit": 1,
+        "pass/facts/as_slice_views_generic_shadowed_extent_exit": 1,
+        "pass/facts/as_slice_views_generic_stored_reference_selectors_exit": 1,
+        "pass/facts/as_slice_views_generic_through_call_result_exit": 1,
+        "pass/facts/as_slice_views_generic_through_const_name_exit": 1,
+        "pass/facts/as_slice_views_generic_through_field_exit": 1,
+        "pass/facts/as_slice_views_generic_through_local_exit": 1,
+        "pass/facts/as_slice_views_generic_through_match_join_exit": 1,
+        "pass/facts/as_slice_views_generic_through_other_machine_exit": 1,
+        "pass/facts/as_slice_views_generic_through_other_state_exit": 1,
+        "pass/facts/as_slice_views_generic_through_parameter_exit": 1,
+        "pass/facts/as_slice_views_generic_through_target_body_exit": 1
+      },
+      "membership_at_first_parent": {
+        "pass/facts/as_slice_views_generic_offset_selector_exit": 0,
+        "pass/facts/as_slice_views_generic_root_exit": 0,
+        "pass/facts/as_slice_views_generic_shadowed_extent_exit": 0,
+        "pass/facts/as_slice_views_generic_stored_reference_selectors_exit": 0,
+        "pass/facts/as_slice_views_generic_through_call_result_exit": 0,
+        "pass/facts/as_slice_views_generic_through_const_name_exit": 0,
+        "pass/facts/as_slice_views_generic_through_field_exit": 0,
+        "pass/facts/as_slice_views_generic_through_local_exit": 0,
+        "pass/facts/as_slice_views_generic_through_match_join_exit": 0,
+        "pass/facts/as_slice_views_generic_through_other_machine_exit": 0,
+        "pass/facts/as_slice_views_generic_through_other_state_exit": 0,
+        "pass/facts/as_slice_views_generic_through_parameter_exit": 0,
+        "pass/facts/as_slice_views_generic_through_target_body_exit": 0
+      },
+      "split_candidates": []
+    },
+    {
+      "cluster_id": "crash_routes_boundary",
+      "witness": "pass/operators/crash_routes",
+      "first_bad": "60cb5e1f79dd05465f77775990e46bcc2e789470",
+      "first_parent": "4d6278c81b8360d8100cef23e2100be18ddf32a7",
+      "witness_stability": {
+        "first_bad_3x": [
+          1,
+          1,
+          1
+        ],
+        "first_parent_3x": [
+          0,
+          0,
+          0
+        ]
+      },
+      "membership_at_first_bad": {
+        "pass/operators/crash_routes": 1,
+        "pass/providers/checked_fixed_operator_dispatch_exit": 1,
+        "pass/providers/checked_fixed_operator_physical_custody": 1
+      },
+      "membership_at_first_parent": {
+        "pass/operators/crash_routes": 0,
+        "pass/providers/checked_fixed_operator_dispatch_exit": 0,
+        "pass/providers/checked_fixed_operator_physical_custody": 0
+      },
+      "split_candidates": []
+    },
+    {
+      "cluster_id": "match_binding_subject",
+      "witness": "pass/ownership/runtime_match_projected_subject_cleanup_exit",
+      "first_bad": "7198f568763c6dae7d02668838a1616c631c70aa",
+      "first_parent": "5c85123a85d4e9d43bf771ff9db4f09a053995ee",
+      "witness_stability": {
+        "first_bad_3x": [
+          1,
+          1,
+          1
+        ],
+        "first_parent_3x": [
+          0,
+          0,
+          0
+        ]
+      },
+      "membership_at_first_bad": {
+        "pass/ownership/runtime_match_projected_subject_cleanup_exit": 1
+      },
+      "membership_at_first_parent": {
+        "pass/ownership/runtime_match_projected_subject_cleanup_exit": 0
+      },
+      "split_candidates": []
+    }
+  ]
+}
