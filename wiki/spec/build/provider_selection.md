@@ -249,6 +249,13 @@ are unambiguous because the caller names one. An already-installed different
 backing does not satisfy this request or get silently replaced; distinct static
 roles require distinct exact requirement applications.
 
+Named decision `build-declared-requirement-provider`, settled 2026-11-12: a
+Build program has no form that selects a provider for a requirement declared in
+its own `build.omg`. Such a file wrote the requirement, every implementation
+and every caller, so an ordinary checked helper or a branch expresses the same
+computation. A concrete need for replaceable Build-time services may propose a
+form later.
+
 After installation, calls use the exact static `R::operation(arguments)` slot.
 Readiness returns no routing value and resumes the same Terminal continuation
 without replay. Ordinary product `Build::select_provider` rows do not select or

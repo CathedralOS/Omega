@@ -4,6 +4,7 @@ use psi::checking::evaluation;
 use psi::syntax::syntax;
 use psi::resolution::resolution;
 use psi::types::types;
+use psi::checking::obligations;
 
 // A complete positional roster. Missing capacity is not an unbound formal:
 // no fact is admitted from an incomplete substitution.
