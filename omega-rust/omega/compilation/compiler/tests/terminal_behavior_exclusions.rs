@@ -97,8 +97,8 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     );
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers,
-        1,
-        "both targets share one provider-default supplier activation"
+        0,
+        "target realization needs no core provider-default activation"
     );
     assert_eq!(reports.len(), 2);
     let first = reports[0]
@@ -142,8 +142,8 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     );
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers,
-        1,
-        "a refused sibling target must not replay the provider-default supplier"
+        0,
+        "a refused sibling target cannot introduce a core provider-default activation"
     );
     let (profile, failed) = mixed.next().expect("first target outcome");
     assert_eq!(profile, refused);

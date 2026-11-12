@@ -52,7 +52,6 @@ use typed_trees::TypedTrees;
 
 pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
-    pub toolchain_defaults: Option<&'request package_compilation::CompletedProviderDefaults>, // Completed core selections for this Build's own admitted execution scope.
     pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
     pub typed: &'request mut TypedTrees,
@@ -213,7 +212,6 @@ pub fn prepare_build_evaluation(
     let BuildEvaluationRequest {
         execution_purpose,
         pure_build_compilation,
-        toolchain_defaults,
         root_path,
         typed,
         pre_checks,
@@ -290,7 +288,6 @@ pub fn prepare_build_evaluation(
             selected_machine,
             package_inputs,
             dependency_activation,
-            toolchain_defaults,
             execution_profile,
             timings,
             &prior_checks,

@@ -76,6 +76,8 @@ impl SourceStorage {
         self.reselect_current_sources(catalogue).map(Some)
     }
 
+    // Package sources and core have separate suppliers. Mount the captured
+    // core before typing, and reject parsed bytes from any other snapshot.
     pub(crate) fn admit_toolchain_capture(
         &mut self,
         capture: &crate::CapturedLocalSource,
@@ -83,7 +85,7 @@ impl SourceStorage {
         let root = super::bundled_core_root()?;
         if capture.canonical_live_root() != root {
             return Err(vec![Diagnostic::error(
-                "default supplier is not the admitted core capture",
+                "toolchain capture is not the admitted core root",
             )]);
         }
         if self
@@ -92,7 +94,7 @@ impl SourceStorage {
             .is_some_and(|(original_root, tree)| original_root != &root || tree != capture.tree())
         {
             return Err(vec![Diagnostic::error(
-                "default supplier differs from the receiving captured core",
+                "toolchain capture differs from the receiving captured core",
             )]);
         }
         for file in self
@@ -110,7 +112,7 @@ impl SourceStorage {
                     != Some(file.source.as_ref())
             {
                 return Err(vec![Diagnostic::error(
-                    "already parsed core source differs from the completed default supplier",
+                    "already parsed core source differs from its admitted toolchain capture",
                 )]);
             }
         }
@@ -119,14 +121,14 @@ impl SourceStorage {
             .add_capture(root.clone(), capture.tree().clone())
             .map_err(|error| {
                 vec![Diagnostic::error(format!(
-                    "cannot retain default supplier capture: {error}"
+                    "cannot retain toolchain source capture: {error}"
                 ))]
             })?;
         self.filesystem
             .join_captures(&supplier_filesystem)
             .map_err(|error| {
                 vec![Diagnostic::error(format!(
-                    "default supplier conflicts with the receiving source capture: {error}"
+                    "toolchain capture conflicts with the receiving source capture: {error}"
                 ))]
             })?;
         self.anonymous_core_capture = Some((root, capture.tree().clone()));
@@ -748,6 +750,62 @@ mod tests {
         drop(storage);
         drop(catalogue);
         assert!(retained.upgrade().is_none());
+    }
+
+    #[test]
+    fn core_capture_admits_matching_parsed_bytes_and_rejects_substitution() {
+        let core = crate::source_imports::bundled_core_root().unwrap();
+        let capture = crate::capture_anonymous_compilation_source(&core).unwrap();
+        let original = capture
+            .tree()
+            .read_to_string(std::path::Path::new("float.omg"))
+            .unwrap();
+        for substituted in [false, true] {
+            let mut storage = SourceStorage::for_package_compilation(
+                core.parent().unwrap().join("capture-admission-consumer"),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([31; 32]).unwrap(),
+                core.clone(),
+                source::SourceFileSystem::new(),
+            );
+            let mut catalogue = source::SourceCatalogue::default();
+            storage.sources = catalogue.begin_selection();
+            let text = if substituted {
+                format!("{original}\n// different parsed source bytes\n")
+            } else {
+                original.clone()
+            };
+            storage
+                .admit_source(
+                    source::SourceContents {
+                        path: core.join("float.omg"),
+                        source: text.into(),
+                        scope: DependencyScope::Build,
+                    },
+                    Some(SourceOrigin::Toolchain),
+                    SourceResolutionStratum::Base,
+                    &mut catalogue,
+                )
+                .unwrap();
+            let admitted = storage.admit_toolchain_capture(&capture);
+            if substituted {
+                let diagnostics =
+                    admitted.expect_err("parsed source cannot replace captured core bytes");
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains(
+                            "already parsed core source differs from its admitted toolchain capture"
+                        )),
+                    "{diagnostics:?}"
+                );
+            } else {
+                admitted.expect("matching parsed source keeps its exact immutable capture");
+                assert_eq!(
+                    &storage.anonymous_core_capture.as_ref().unwrap().1,
+                    capture.tree()
+                );
+            }
+        }
     }
 
     #[test]

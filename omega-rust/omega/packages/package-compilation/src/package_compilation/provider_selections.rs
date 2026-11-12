@@ -5,10 +5,8 @@
 // receiving compilation's immutable `SourceFileSystem` or supplying
 // `PackageBuildHandoff` before rejoining declaration handles.
 
-use super::{
-    CompletedProviderDefaults, PackageBuildHandoff, PackageCompilationInputs,
-    ProviderDefaultsAdmission,
-};
+use super::provider_defaults::CompletedProviderDefaults;
+use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
 use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
@@ -51,10 +49,7 @@ impl PackageCompilationInputs {
             if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                paths.extend(defaults.reached_source_seeds(
-                    ProviderDefaultsAdmission::Package(self),
-                    loaded_sources,
-                )?);
+                paths.extend(defaults.reached_source_seeds(self, loaded_sources)?);
             }
         }
         paths.sort();
@@ -74,8 +69,7 @@ impl PackageCompilationInputs {
             if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                selections
-                    .extend(defaults.rejoin(source, ProviderDefaultsAdmission::Package(self))?);
+                selections.extend(defaults.rejoin(source, self)?);
             }
         }
         Ok(selections)

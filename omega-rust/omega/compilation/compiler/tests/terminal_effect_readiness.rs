@@ -3,9 +3,6 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-#[path = "support/build_sequence.rs"]
-mod build_sequence;
-
 use psi_work::WorkMeter;
 use std::sync::{
     Arc, Mutex,
@@ -159,7 +156,6 @@ public Wide satisfies Operations<u64> {
         let mut invocation = compiler::CompilationSession::default()
             .begin_package_build(request)
             .unwrap_or_else(|error| panic!("receiver: {:?}", error.into_diagnostics()));
-        build_sequence::prepare_package_root(&mut invocation);
         let host = invocation.execution().unwrap().host().unwrap();
         let mut activation = host.start().unwrap();
         let mut pauses = 0;

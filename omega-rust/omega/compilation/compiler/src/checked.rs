@@ -37,7 +37,7 @@ pub use checking::typed_frontier::{
     CurrentCheckerVerdict, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
 };
 pub use checking::{
-    BuildAdvance, CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
+    CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse, SourceCompilation,
 };
