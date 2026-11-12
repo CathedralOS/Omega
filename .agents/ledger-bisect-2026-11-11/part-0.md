@@ -6,19 +6,19 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run rejected | cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the retur | `pass/memory/runtime_linear_native_allocation_call_result_exit` | `` |  |  | propagated |
+| 2 | pass/run rejected | cannot prove ensures contract for exit from HeapProvider::allocate at statement 0: result in Allocation::Held; the retur | `pass/memory/runtime_linear_native_allocation_call_result_exit` | `` |  |  | pending |
 Members: `pass/memory/runtime_linear_native_allocation_call_result_exit` `pass/memory/runtime_linear_native_allocation_exit`
 
 | 2 | pass/run rejected | cannot prove ensures contract for exit from selected at statement 2: result >= Minimum | `pass/facts/open_const_implementation_statement_const_result_exit` | `` |  |  | propagated |
 Members: `pass/facts/open_const_implementation_statement_const_result_exit` `pass/facts/open_const_implementation_statement_saved_output_exit`
 
-| 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | propagated |
+| 1 | pass/run rejected | cannot establish assignment invariants: source parent type is unavailable | `pass/borrows/runtime_reassigned_view_capture_exit` | `` |  |  | pending |
 Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 
-| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | propagated |
+| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | pending |
 Members: `pass/facts/open_const_implementation_private_record_package_exit`
 
-| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | propagated |
+| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | pending |
 Members: `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit`
 
 ## Prior-slice rows fixed on main
