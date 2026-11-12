@@ -11022,13 +11022,13 @@ fail/facts/non_owning_reference_erasure_through_parameter_rejected rejected 401m
 	implicit domain weakening in argument `view` for state `entry` drops `Storage::Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/facts/non_owning_reference_erasure_through_target_body_rejected rejected 403ms expected @1f01fe627c9b
 	machine `ErasedWriteCode::write` state `write`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 1587ms expected @60ee163d4f0f
+fail/facts/opaque_independent_inherited_result_through_local_unissued rejected 5218ms expected @88f6f19cdca5
 	`as ... in InternetAddress::Classified::Ready` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified::Ready
-fail/facts/opaque_independent_qualified_input_bare_sibling_unissued rejected 3692ms expected @60ee163d4f0f
+	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified::Ready
+fail/facts/opaque_independent_qualified_input_bare_sibling_unissued rejected 5637ms expected @88f6f19cdca5
 	cannot prove requires contract for call consume from observe: moved in InternetAddress::Classified in state `entry`
-fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 1554ms expected @60ee163d4f0f
-	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make, state classified_make, at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified
+fail/facts/opaque_independent_qualified_result_through_local_unissued rejected 5669ms expected @88f6f19cdca5
+	cannot prove default-domain field requirement for return from AddressBridgeProvider::classified_make at statement 0: AddressParts.make(network, host) requires InternetAddress::Classified
 fail/facts/open_array_const_implementation_through_call_result_rejected rejected 2507ms expected @8c54a442521e
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
