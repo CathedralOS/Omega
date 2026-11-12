@@ -42,7 +42,6 @@ Bisect notes: fixed `/tmp/pin_corpus_outcomes.txt` + PIN observations; `git bise
 - `fail/layouts/declaration_only_array_formation`
 - `pass/contracts/runtime_mutable_owned_call_poststate_exit`
 - `pass/facts/core_float_representation_through_call_result_exit`
-- `pass/facts/core_float_representation_through_const_name_exit` *(fixed: no — listed in cluster 2; correct list below)*
 - `pass/facts/core_float_representation_through_field_exit`
 - `pass/facts/core_float_representation_through_local_exit`
 - `pass/facts/core_float_representation_through_match_join_exit`
@@ -50,8 +49,6 @@ Bisect notes: fixed `/tmp/pin_corpus_outcomes.txt` + PIN observations; `git bise
 - `pass/facts/core_float_representation_through_other_state_exit`
 - `pass/facts/core_float_representation_through_parameter_exit`
 - `pass/facts/core_float_representation_through_target_body_exit`
-
-(Corrected: 11 fixed rows are exactly those in `/tmp/part14_fixed.txt` on branch commits.)
 
 ## Commands
 
