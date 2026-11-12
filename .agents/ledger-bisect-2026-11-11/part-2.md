@@ -8,14 +8,14 @@ PIN `51e8c45c793007f211d0d9baee7de16767172444`. PIN-fixed ledger + observation; 
 
 - **Diagnostic:** cannot prove published termination for machine `FamilyConsole::write_byte`: its checked body reaches an operation withou
 - **Witness:** `run/ownership/sequence_owned_local_cleanup`
-- **Status:** no_good_on_first_parent
+- **Status:** endpoint_check_failed
 - **Members:** `pass/traits/inline_member_seals_target_family_provider`, `run/ownership/sequence_owned_local_cleanup`
 
 ## Cluster 1 (2 rows)
 
 - **Diagnostic:** data `Locator` literal cannot prove the default domain: a `requires` fact is not established by the values observed at t
 - **Witness:** `pass/facts/static_callback_reach_through_field`
-- **Status:** no_good_on_first_parent
+- **Status:** pending
 - **Members:** `pass/domains/private_case_payload_construction`, `pass/facts/static_callback_reach_through_field`
 
 ## Cluster 2 (1 rows)
