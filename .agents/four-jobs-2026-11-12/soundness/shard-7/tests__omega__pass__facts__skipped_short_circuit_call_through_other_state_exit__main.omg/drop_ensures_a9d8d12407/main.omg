@@ -1,0 +1,40 @@
+// A left operand proved false skips the right-hand bump call: the conjunction is false and the counter stays 0.
+// Place: other_state. The left operand arrives as a nested machine's parameter.
+// Expected exit: 0
+
+machine bump(counter: &mut u64) -> bool
+requires counter <= 1000u64
+{
+    counter = counter + 1u64;
+    true
+}
+
+machine untouched(counter: u64) -> u64
+requires counter == 0u64
+{
+    counter
+}
+
+machine main() crashes Trap {
+    let ready: bool = false;
+    transition { _ -> arrive(ready) }
+    machine arrive(ready: bool) crashes Trap
+    requires ready == false
+    {
+        let mut counter: u64 = 0u64;
+        let first: bool = ready && bump(&mut counter);
+        let kept: u64 = untouched(counter);
+        transition first {
+            true -> bad()
+            false -> check(kept, counter)
+        }
+    }
+    machine check(kept: u64, counter: u64) crashes Trap {
+        transition kept == 0u64 && counter == 0u64 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

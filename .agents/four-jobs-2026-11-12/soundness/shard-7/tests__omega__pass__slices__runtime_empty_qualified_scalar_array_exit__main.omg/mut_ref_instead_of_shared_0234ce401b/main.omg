@@ -1,0 +1,7 @@
+domain i32::Positive requires 0 < self && self <= 100;
+machine main() crashes Trap {
+ let items: [i32 in Positive; 0];
+ let view: &[i32 in Positive] = &mut items[..];
+ transition view.len == 0 { true -> done() _ -> bad() }
+ machine done() {} machine bad() { crash Trap; }
+}

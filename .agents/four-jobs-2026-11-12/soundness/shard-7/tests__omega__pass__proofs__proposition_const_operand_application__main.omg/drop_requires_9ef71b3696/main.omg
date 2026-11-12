@@ -1,0 +1,6 @@
+proposition valid<const Length: u64>(value: &[u8; Length]);
+
+machine inspect(value: &[u8; 3])
+{}
+
+machine main() {}

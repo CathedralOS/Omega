@@ -1,0 +1,41 @@
+use omega::language::core::layout;
+// Expected exit: 0. Forward a provider-owned encoded scalar reference.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+boundary trait Version { machine locate() -> &RawView reaches; }
+boundary trait WideVersion { machine locate() -> &i64 reaches Version; }
+WideProvider satisfies WideVersion {
+ machine locate() -> &i64 reaches Version {
+  let version: &RawView = Version::locate();
+  &version.value.value
+ }
+}
+machine main() reaches Version, WideVersion crashes Trap {
+ let version: &RawView = Version::locate();
+ let widened: &i64 = WideVersion::locate();
+ transition widened == version.value.value { true -> done() false -> bad() }
+ machine done() {} machine bad() { crash Trap; }
+}

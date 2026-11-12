@@ -1,0 +1,38 @@
+// A record returned by a call keeps one loan per borrowed field. Overwriting
+// one of those fields through `&mut` ends that field's loan at the overwriting
+// call, while the sibling field's loan stays live until the record's own last
+// use. `held` is read again after its tag is replaced; `spare` is not.
+//
+// Expected exit: 0
+data Name<'text> {
+    case Short(text: &'text [u8]);
+    case Missing;
+}
+data Label<'text> {
+    name: Name<'text>;
+    tag: &'text [u8];
+}
+machine label<'text>(name: Name<'text>) -> Label<'text> {
+    Label { name: name, tag: "" }
+}
+machine retag<'text>(label: &mut Label<'text>, tag: &'text [u8]) {
+    label.tag = tag;
+}
+machine tag_length(label: &mut Label) -> u64 {
+    label.tag.len
+}
+machine main() crashes Trap {
+    let mut held: Label = label(Name::Short { text: "xy" });
+    retag(&mut held, "abc");
+    let length: u64 = tag_length(&held);
+    let mut spare: Label = label(Name::Missing {});
+    retag(&mut spare, "z");
+    transition length == 3 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() {
+        crash Trap;
+    }
+}

@@ -112,15 +112,15 @@ def classify_drop_requires(original: str, mutant: str, omg: str, cur: str, route
         return Outcome("discarded-valid", "", True, trans_q, None, None, None, note)
 
     if machine:
-        in_body, obl_line = body_reestablishes_clause(mutant, machine, clause)
+        in_body, req_q, rest_q = body_reestablishes_clause(mutant, machine, clause)
         if in_body:
             note = (
                 f"valid: in-machine body/guard restates removed requires | "
-                f"requires: `{clause}` | line: `{obl_line}`"
+                f"requires: `{req_q}` | restate: `{rest_q}`"
             )
             if ab:
-                return Outcome("discarded-valid", ab, True, obl_line, None, None, None, note)
-            return Outcome("discarded-valid", "", True, obl_line, None, None, None, note)
+                return Outcome("discarded-valid", ab, True, rest_q, None, None, None, note)
+            return Outcome("discarded-valid", "", True, rest_q, None, None, None, note)
 
     # fix5: caller-established facts outside the machine do not heal modular entry.
     obl = f"removed requires `{clause}`"

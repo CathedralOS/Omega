@@ -1,0 +1,91 @@
+// Expected exit: 0.
+// Zero File storage is absent; a real POSIX descriptor 0 is handle 1. Closing
+// child stdin makes the next acquisition exercise that distinction on the OS.
+// Zero OpenOptions must reopen read-only without truncation or write access.
+use omega_language_std::filesystem;
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::console;
+
+data Main {
+    filesystem: Filesystem;
+    opened: OpenResult;
+    result: UnitResult;
+    transferred: IoResult;
+    file: File;
+    buffer: [u8; 4];
+}
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let outcome: IoResult = block Filesystem::read(&mut main.filesystem, File { handle: 0 }, &mut main.buffer, 1);
+    transition outcome { IoResult::Error { kind } -> block absent_read(main, kind) _ -> bad(10) }
+    machine absent_read(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> block close_absent(main) _ -> bad(11) }
+    }
+    machine close_absent(main: &mut Main) {
+        let outcome: UnitResult = block Filesystem::close(&mut main.filesystem, File { handle: 0 });
+        transition outcome { UnitResult::Error { kind } -> block absent_close(main, kind) _ -> bad(12) }
+    }
+    machine absent_close(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> block free_zero(main) _ -> bad(13) }
+    }
+    machine free_zero(main: &mut Main) {
+        let result: i32 = PosixFilesystemHost::close(0);
+        transition result == 0 { true -> block create(main) false -> bad(14) }
+    }
+    machine create(main: &mut Main) {
+        main.opened = block Filesystem::create(&mut main.filesystem, "omega_zero_descriptor.txt");
+        transition main.opened { OpenResult::Ok { file } -> block created(main, file) _ -> bad(15) }
+    }
+    machine created(main: &mut Main, file: File) {
+        main.file = file;
+        transition file.handle == 1 { true -> block write(main) false -> bad(16) }
+    }
+    machine write(main: &mut Main) {
+        main.transferred = block Filesystem::write(&mut main.filesystem, main.file, "zero");
+        transition main.transferred { IoResult::Ok { count } -> block written(main, count) _ -> bad(17) }
+    }
+    machine written(main: &mut Main, count: u64) {
+        transition count == 4 { true -> block close_written(main) false -> bad(18) }
+    }
+    machine close_written(main: &mut Main) {
+        main.result = block Filesystem::close(&mut main.filesystem, main.file);
+        transition main.result { UnitResult::Ok -> block reopen(main) _ -> bad(19) }
+    }
+    machine reopen(main: &mut Main) {
+        main.opened = block Filesystem::open_with(&mut main.filesystem, "omega_zero_descriptor.txt", OpenOptions { });
+        transition main.opened { OpenResult::Ok { file } -> block readonly(main, file) _ -> bad(20) }
+    }
+    machine readonly(main: &mut Main, file: File) {
+        main.file = file;
+        let outcome: IoResult = block Filesystem::write(&mut main.filesystem, file, "x");
+        transition outcome { IoResult::Error { kind } -> block rejected_write(main, kind) _ -> bad(21) }
+    }
+    machine rejected_write(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> block read(main) _ -> bad(22) }
+    }
+    machine read(main: &mut Main) {
+        main.transferred = block Filesystem::read(&mut main.filesystem, main.file, &mut main.buffer, 4);
+        transition main.transferred { IoResult::Ok { count } -> block read_count(main, count) _ -> bad(23) }
+    }
+    machine read_count(main: &mut Main, count: u64) {
+        transition count == 4 && main.buffer[0] == 122 && main.buffer[1] == 101 && main.buffer[2] == 114 && main.buffer[3] == 111 {
+            true -> block close_read(main)
+            false -> bad(24)
+        }
+    }
+    machine close_read(main: &mut Main) {
+        main.result = block Filesystem::close(&mut main.filesystem, main.file);
+        transition main.result { UnitResult::Ok -> block remove(main) _ -> bad(25) }
+    }
+    machine remove(main: &mut Main) {
+        main.result = block Filesystem::remove(&mut main.filesystem, "omega_zero_descriptor.txt");
+        transition main.result { UnitResult::Ok -> good() _ -> bad(26) }
+    }
+    machine good() { Console::exit_process(0); }
+    machine bad(code: i32) { Console::exit_process(code); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

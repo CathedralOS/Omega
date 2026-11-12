@@ -1,0 +1,67 @@
+// Bonus.value == 2 survives each place into an affine case common field with omitted zero storage and normal shared-call cleanup.
+// Expected exit: 0
+data Bonus [copy] { value: u64; }
+data Event requires omitted == 0, { omitted: u64; details: Bonus; case Treasure(gold: u64); }
+machine observe(event: &Event) -> bool { event.omitted == 0 && event.details.value == 2 }
+machine consume(value: Bonus) -> bool
+requires value.value != 2 {
+    observe(Event::Treasure { gold: 1, details: value })
+}
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProduced {
+    machine produced() -> Bonus
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.value == 2;
+}
+
+X86Produced satisfies SelectedProduced {
+    machine produced() -> Bonus
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.value == 2
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     Bonus { value: 2 } 
+    }
+}
+
+ArmProduced satisfies SelectedProduced {
+    machine produced() -> Bonus
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result.value == 2
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     Bonus { value: 2 } 
+    }
+}
+
+
+machine main() crashes Trap {
+    let accepted: bool = consume(SelectedProduced::produced());
+    transition accepted { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

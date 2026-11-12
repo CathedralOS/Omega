@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_checked_completion_forwarding_exit");
+    let provider_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "provider" }));
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+}

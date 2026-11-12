@@ -1,0 +1,98 @@
+// Expected exit: 70 (Windows only). Truncation preserves the shared cursor;
+// handle/path read-only updates preserve unrelated observed attributes.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::filesystem_authority;
+
+data Main {}
+
+machine Main::main(main: &mut Main)
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let code: i32 = block file_control_probe();
+    Console::exit_process(code);
+}
+
+machine file_control_probe() -> i32
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let reset: i32 = block WindowsFilesystemHost::set_path_readonly("omega_raw_file_control.bin", false);
+    let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_file_control.bin");
+    let handle: u64 = block WindowsFilesystemHost::create_file("omega_raw_file_control.bin", 3221225472, 7, 2, 128);
+    transition handle != 0 { true -> block write(handle) false -> 71 }
+    machine write(handle: u64) -> i32 {
+        let count: i64 = block WindowsFilesystemHost::write_file(handle, "01234567890123456789");
+        transition count == 20 { true -> block seek(handle) false -> block finish(handle, 72) }
+    }
+    machine seek(handle: u64) -> i32 {
+        let position: i64 = block WindowsFilesystemHost::set_file_pointer(handle, 5, 0);
+        transition position == 5 { true -> block truncate(handle) false -> block finish(handle, 73) }
+    }
+    machine truncate(handle: u64) -> i32 {
+        let status: i32 = block WindowsFilesystemHost::set_file_length(handle, 3);
+        transition status == 0 { true -> block cursor(handle) false -> block finish(handle, 74) }
+    }
+    machine cursor(handle: u64) -> i32 {
+        let position: i64 = block WindowsFilesystemHost::set_file_pointer(handle, 0, 1);
+        transition position == 5 { true -> block query(handle) false -> block finish(handle, 75) }
+    }
+    machine query(handle: u64) -> i32 {
+        let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(handle);
+        transition outcome {
+            WindowsMetadataResult::Value { metadata } -> block length(handle, metadata)
+            _ -> block finish(handle, 76)
+        }
+    }
+    machine length(handle: u64, metadata: WindowsFileMetadata) -> i32 {
+        transition metadata.length == 3 { true -> block readonly(handle, metadata.attributes) false -> block finish(handle, 76) }
+    }
+    machine readonly(handle: u64, attributes: u32) -> i32 {
+        let status: i32 = block WindowsFilesystemHost::set_handle_readonly(handle, true);
+        transition status == 0 { true -> block read_attributes(handle, attributes) false -> block finish(handle, 77) }
+    }
+    machine read_attributes(handle: u64, attributes: u32) -> i32 {
+        let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(handle);
+        transition outcome {
+            WindowsMetadataResult::Value { metadata } -> block changed(handle, attributes, metadata.attributes)
+            _ -> block finish(handle, 78)
+        }
+    }
+    machine changed(handle: u64, before: u32, after: u32) -> i32 {
+        // NORMAL is the absence of other attributes, not an independent bit.
+        transition (after &mut  1) != 0 && (before & 4294967166) == (after & 4294967166) {
+            true -> block writable(handle, before)
+            false -> block finish(handle, 78)
+        }
+    }
+    machine writable(handle: u64, attributes: u32) -> i32 {
+        let status: i32 = block WindowsFilesystemHost::set_path_readonly("omega_raw_file_control.bin", false);
+        transition status == 0 { true -> block verify(handle, attributes) false -> block finish(handle, 79) }
+    }
+    machine verify(handle: u64, attributes: u32) -> i32 {
+        let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(handle);
+        transition outcome {
+            WindowsMetadataResult::Value { metadata } -> block restored(handle, attributes, metadata.attributes)
+            _ -> block finish(handle, 80)
+        }
+    }
+    machine restored(handle: u64, before: u32, after: u32) -> i32 {
+        transition (after & 1) == 0 && (before & 4294967166) == (after & 4294967166) {
+            true -> block finish(handle, 70)
+            false -> block finish(handle, 80)
+        }
+    }
+    machine finish(handle: u64, code: i32) -> i32 {
+        let released: i32 = block WindowsFilesystemHost::close_handle(handle);
+        let reset: i32 = block WindowsFilesystemHost::set_path_readonly("omega_raw_file_control.bin", false);
+        let removed: i32 = block WindowsFilesystemHost::delete_file("omega_raw_file_control.bin");
+        transition code != 70 { true -> (code) false -> cleanup(released, reset, removed) }
+    }
+    machine cleanup(released: i32, reset: i32, removed: i32) -> i32 {
+        transition released == 0 && reset == 0 && removed == 0 { true -> 70 false -> 81 }
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

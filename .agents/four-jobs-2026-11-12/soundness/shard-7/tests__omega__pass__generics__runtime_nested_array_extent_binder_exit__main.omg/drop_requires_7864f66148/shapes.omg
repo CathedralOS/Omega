@@ -1,0 +1,2 @@
+module shapes;
+data Count [copy] { value: u64; }

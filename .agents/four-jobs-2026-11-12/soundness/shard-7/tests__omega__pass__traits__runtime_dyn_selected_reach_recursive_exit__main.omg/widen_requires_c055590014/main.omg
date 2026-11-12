@@ -1,0 +1,65 @@
+// Expected exit: 0
+// A ranked recursive helper forwards a quiet selection three times before dispatching; the dispatch reaches nothing.
+
+public boundary trait Journal {
+    machine note(value: u64) -> u64
+    ensures result == value
+    reaches Journal;
+}
+
+InlineJournal satisfies Journal {
+    machine note(value: u64) -> u64 ensures result == value { value }
+}
+
+public trait Source {
+    machine get(value: u64) -> u64
+    requires value != 100u64
+    ensures result >= 100u64
+    reaches Journal;
+}
+
+JournaledSource satisfies Source {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result >= 100u64
+    reaches Journal
+    {
+        let noted: u64 = Journal::note(value);
+        noted + 1u64
+    }
+}
+
+QuietSource satisfies Source {
+    machine get(value: u64) -> u64
+    requires value == 100u64
+    ensures result >= 100u64
+    { value }
+}
+
+machine relay(selected: dyn Source, value: u64, remaining: u64) -> u64
+requires value == 100u64
+ensures result >= 100u64
+terminates by remaining
+{
+    transition remaining > 0u64 {
+        true -> relay(selected, value, remaining - 1u64)
+        false -> Source::get(selected, value)
+    }
+}
+
+public machine observe(value: u64) -> u64
+requires value == 100u64
+ensures result >= 100u64
+reaches
+{ relay(QuietSource as dyn Source, value, 3u64) }
+
+machine main() crashes Trap {
+    let observed: u64 = observe(100u64);
+    let difference: u64 = observed - 100u64;
+    transition difference == 0u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,147 @@
+// Expected exit: 0
+// Expected output contains: MD
+// A live run retains the actual established cells and their obligations through checked custody transfers.
+use omega::language::core::extent;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+use omega::language::core::drop;
+use omega::language::core::run;
+use omega::language::core::content;
+use omega::language::core::nat;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+public boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+}
+
+boundary trait PosixConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
+    reaches Console
+    terminates;
+}
+
+// All bound targets are little-endian: the low byte is the first byte.
+boundary trait WindowsConsoleIo {
+    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    reaches Console
+    terminates;
+}
+
+PosixConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
+}
+}
+
+WindowsConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
+}
+
+data TestMemory {}
+public data Token dropped by drop_token {}
+machine drop_token(token: &mut Token) reaches Console {
+    Console::write_byte(68);
+    Console::write_byte(10);
+}
+machine issue() -> Token { Token {} }
+
+public data TokenPlacement {}
+
+machine TokenPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 1 };
+    AccessPlan::inaccessible(layout)
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let regions: [ResourceRegion; 32];
+        ResourceProfile { regions: regions, region_count: 0 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&storage)),
+                Granted::content(&result)
+            )
+    { storage }
+}
+
+// A zero-byte value still owes cleanup. Initialization and extraction must
+// transfer it without dropping it; only the final explicit drop prints D.
+// The empty run alongside it has the same byte geometry but owes no cleanup.
+machine main() crashes Trap {
+    let address: addr = NativeAllocation::allocate(1, 24);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let grant: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 0 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(grant);
+        let parts: VacantExtentParts = split_vacant_extent(vacant, 0);
+        let empty: Run<TokenPlacement, Token> in Live<TokenPlacement, Token> =
+            Run::empty<TokenPlacement, Token>(parts.taken);
+        let backing_base: addr = parts.rest.base;
+        let backing_length: u64 = parts.rest.length;
+        transition Run::initialize_cell<TokenPlacement, Token, TestMemory>(
+            parts.rest, issue()) {
+            AccessOutcome::Ready { view } -> extract(view as Run<TokenPlacement, Token> in Live<TokenPlacement, Token>, empty, backing_base, backing_length)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine extract(run: Run<TokenPlacement, Token> in Live<TokenPlacement, Token>, empty: Run<TokenPlacement, Token> in Live<TokenPlacement, Token>, backing_base: addr, backing_length: u64)
+        requires run.count == 1, run.storage.base == backing_base, run.storage.length == backing_length,
+            empty.count == 0, empty.storage.length == 0, empty.storage.base == backing_base
+    {
+        transition Run::extract_cell<TokenPlacement, Token, TestMemory>(run) {
+            AccessExtraction::Moved { storage, value } -> inspect(storage, value, empty, backing_base, backing_length)
+        }
+    }
+    machine inspect(storage: Extent in Granted & Vacant, value: Token, empty: Run<TokenPlacement, Token> in Live<TokenPlacement, Token>, backing_base: addr, backing_length: u64)
+        requires storage.base == backing_base, storage.length == backing_length,
+            empty.count == 0, empty.storage.length == 0, empty.storage.base == backing_base
+    {
+        transition storage.base == backing_base && storage.length == 0
+            && empty.count == 0 && empty.storage.length == 0 && empty.storage.base == backing_base {
+            true -> finish(storage, value, empty)
+            false -> bad()
+        }
+    }
+    // Empty release returns the same backing descriptor. Process exit still
+    // abandons the returned extents; this is not allocator-return evidence.
+    machine finish(storage: Extent in Granted & Vacant, value: Token, empty: Run<TokenPlacement, Token> in Live<TokenPlacement, Token>)
+        requires empty.count == 0, empty.storage.length == 0
+    {
+        let original_base: addr = empty.storage.base;
+        let reclaimed: Extent in Granted & Vacant = Run::release_empty<TokenPlacement, Token>(empty);
+        transition reclaimed.length == 0 && reclaimed.base == original_base {
+            true -> released(storage, value, reclaimed)
+            false -> bad()
+        }
+    }
+    machine released(storage: Extent in Granted & Vacant, value: Token, reclaimed: Extent in Granted & Vacant) {
+        Console::write_byte(77);
+        drop(value);
+        ProcessExit::exit_process(0);
+    }
+    machine bad() { crash Trap; }
+}

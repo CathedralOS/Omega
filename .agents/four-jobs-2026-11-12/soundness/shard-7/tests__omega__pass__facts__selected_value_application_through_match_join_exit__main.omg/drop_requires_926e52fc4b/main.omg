@@ -1,0 +1,50 @@
+// A selected member preserves runtime index 9 below bound 10, so exact 10 - right yields 1, while returning the second Cell and closed left 7.
+// Expected exit: 0
+data Cell { value: u32; }
+data JoinedIndex { index: u32; route: u32; }
+data Selection<Value> { item: Value; left: u32; right: u32; }
+trait Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    ensures result.right == Right;
+}
+Second<Value> satisfies Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    requires Right <= 10
+    ensures result.right == Right
+    { Selection { item: second, left: Left, right: Right } }
+}
+boundary trait SelectedValue {
+    machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
+        first: Cell, second: Cell
+    ) -> Selection<Cell>
+    reaches
+    requires Index <= 10
+    ensures result.right == Index;
+}
+SelectionAdapter satisfies SelectedValue {
+    machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
+        first: Cell, second: Cell
+    ) -> Selection<Cell>
+    requires Index <= 10
+    ensures result.right == Index
+    { Implementation::choose<7u32, Index>(first, second) }
+}
+machine exercise(choice: bool) reaches SelectedValue crashes Trap {
+    let incoming: u32 = 9;
+    let copy: u32 = incoming;
+    let joined: JoinedIndex = match choice {
+        true -> JoinedIndex { index: incoming, route: 17 },
+        false -> JoinedIndex { index: copy, route: 23 }
+    };
+    let index: u32 = joined.index;
+    let answer: Selection<Cell> = SelectedValue::selected<index, Second<Cell>>(
+        Cell { value: 73 }, Cell { value: 41 }
+    );
+    let difference: u32 = 10u32 - answer.right;
+    transition difference == 1 && answer.item.value == 41 && answer.left == 7 && ((choice && joined.route == 17) || (!choice && joined.route == 23)) {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() reaches SelectedValue crashes Trap { exercise(true); exercise(false); }

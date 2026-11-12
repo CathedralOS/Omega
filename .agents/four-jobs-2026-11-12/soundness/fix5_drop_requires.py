@@ -54,22 +54,79 @@ def _machine_body(mutant: str, machine: str) -> str:
     return mutant[start : i - 1]
 
 
-def body_reestablishes_clause(mutant: str, machine: str, clause: str) -> tuple[bool, str]:
-    """Body line (not transition) contains the same fact — not caller re-establishment."""
+INDEXED_ACCESS_RE = re.compile(r"\[[^\]]+\]")
+
+
+def _clause_in_text(clause: str, text: str) -> bool:
+    norm = re.sub(r"\s+", " ", clause.strip())
+    tnorm = re.sub(r"\s+", " ", text.strip())
+    if norm in tnorm or tnorm in norm:
+        return True
+    parts = [p.strip() for p in re.split(r"&&|\|\|", norm) if p.strip()]
+    return bool(parts) and all(p in tnorm for p in parts)
+
+
+def _if_true_blocks(body: str) -> list[tuple[str, str, str]]:
+    """(full if opener line, condition text, true-branch body text)."""
+    out: list[tuple[str, str, str]] = []
+    i = 0
+    lines = body.splitlines(keepends=True)
+    offset = 0
+    for raw in lines:
+        stripped = raw.strip()
+        if not stripped.startswith("if "):
+            offset += len(raw)
+            continue
+        m = re.match(r"if\s+(.+?)\s*\{", stripped)
+        if not m:
+            offset += len(raw)
+            continue
+        cond = m.group(1)
+        brace = offset + raw.find("{")
+        depth = 0
+        j = brace
+        while j < len(body):
+            if body[j] == "{":
+                depth += 1
+            elif body[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    block = body[brace + 1 : j]
+                    opener = stripped.split("{", 1)[0].strip() + " {"
+                    out.append((opener, cond, block))
+                    break
+            j += 1
+        offset += len(raw)
+    return out
+
+
+def body_reestablishes_clause(mutant: str, machine: str, clause: str) -> tuple[bool, str, str]:
+    """
+    In-machine restatement (not callers).
+    Guards count only when the removed fact is in the condition and an indexed
+    access sits in the guard's true branch. Returns (ok, requires_quote, restate_quote).
+    """
     body = _machine_body(mutant, machine)
     if not body:
-        return False, ""
-    norm = re.sub(r"\s+", " ", clause.strip())
+        return False, clause, ""
+    for opener, cond, branch in _if_true_blocks(body):
+        if not _clause_in_text(clause, cond):
+            continue
+        access_ln = ""
+        for bln in branch.splitlines():
+            if INDEXED_ACCESS_RE.search(bln):
+                access_ln = bln.strip()
+                break
+        if access_ln:
+            restate = f"{opener} ... | access: `{access_ln}`"
+            return True, clause, restate
     for ln in body.splitlines():
         s = ln.strip()
-        if not s or s.startswith("//") or s.startswith("transition"):
+        if not s or s.startswith("//") or s.startswith("transition") or s.startswith("if "):
             continue
-        if norm in re.sub(r"\s+", " ", s):
-            return True, s
-        parts = [p.strip() for p in re.split(r"&&|\|\|", norm) if p.strip()]
-        if parts and all(p in s for p in parts):
-            return True, s
-    return False, ""
+        if _clause_in_text(clause, s):
+            return True, clause, s
+    return False, clause, ""
 
 
 def violating_arg_for_clause(clause: str) -> str | None:
@@ -90,7 +147,7 @@ def probe_violating_caller(
     violate_arg: str,
     omega_bin: Path,
 ) -> tuple[str, str]:
-    """Return (subtype, detail): inferred-entry | violating-call-accepted | probe-not-built."""
+    """Return (subtype, detail): unchecked | inferred-entry | probe-not-built."""
     if not mutant_dir.is_dir() or not omega_bin.is_file():
         return "probe-not-built", "missing probe deps"
     main = mutant_dir / "main.omg"
@@ -130,5 +187,5 @@ def probe_violating_caller(
         if m0.returncode != 0:
             return "probe-not-built", "base mutant no longer accepts"
         if m1.returncode == 0:
-            return "violating-call-accepted", f"probe {short}({violate_arg}) accepted"
+            return "unchecked", f"probe {short}({violate_arg}) accepted"
         return "inferred-entry", f"probe {short}({violate_arg}) rejected (exit {m1.returncode})"

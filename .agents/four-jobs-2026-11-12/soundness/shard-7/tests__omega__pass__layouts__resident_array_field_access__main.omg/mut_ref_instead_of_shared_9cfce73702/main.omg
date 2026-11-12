@@ -1,0 +1,101 @@
+// Embedding entry: indexed resident access across an adjacent supply boundary.
+// Whole extraction observes both original backing elements after the helper.
+// This is an embedding fixture, not a hosted native ProgramEntry.
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+data TestMemory {}
+
+public data Word { value: [u64; 2]; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+            FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }),
+        BoundaryReach { services: services, service_count: 0 }
+    )
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &mut Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        let mut transfers: [TransferRule; 16];
+        transfers[0] = TransferRule { width_bits: 8, alignment_bytes: 1 };
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: 12 },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::Access {
+                read: ExternalReadBehavior::Repeatable,
+                write: false,
+                transfers: TransferRules { entries: transfers, rule_count: 1 },
+            },
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        regions[1] = ResourceRegion {
+            range: RelativeRange { offset: 12, length: 4 },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 2 }
+    }
+}
+
+machine carry(storage: Extent in Granted & Resident<WordPlacement, Word>)
+    -> Extent in Granted & Resident<WordPlacement, Word> { storage }
+
+machine attempt(storage: Extent in Granted & Vacant, expected_reason: u64)
+    -> AccessReturn<Extent in Granted & Vacant, Word>
+reaches ResourceProfileSupply crashes Trap
+{
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(storage, Word { value: [17, 41] }) {
+        AccessOutcome::Ready { view } -> extract(view)
+        AccessOutcome::Rejected { returned, reason } -> unexpected(returned)
+    }
+    machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        let mut retained: Extent in Granted & Resident<WordPlacement, Word> = carry(storage);
+        overwrite(Access::view_resident_mut<WordPlacement, Word>(&mut retained), 1);
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
+            AccessExtraction::Moved { storage, value } -> check_value(storage, value)
+        }
+    }
+    machine check_value(storage: Extent in Granted & Vacant, value: Word)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        transition value.value[0] == 17 && value.value[1] == 73 {
+            true -> done(storage, value)
+            false -> unexpected(AccessReturn { source: storage, custody: value })
+        }
+    }
+    machine done(storage: Extent in Granted & Vacant, value: Word)
+        -> AccessReturn<Extent in Granted & Vacant, Word> {
+        AccessReturn { source: storage, custody: value }
+    }
+    machine unexpected(returned: AccessReturn<Extent in Granted & Vacant, Word>)
+        -> AccessReturn<Extent in Granted & Vacant, Word> { crash Trap; }
+}
+
+
+machine overwrite(view: &mut Access<WordPlacement, Word>, index: u64) crashes Trap
+requires index < 2
+{
+    let initial: u64 = read(&view.value[index]);
+    write(&mut view.value[index], 73u64);
+    let updated: u64 = read(&view.value[index]);
+    transition initial == 41 && updated == 73 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

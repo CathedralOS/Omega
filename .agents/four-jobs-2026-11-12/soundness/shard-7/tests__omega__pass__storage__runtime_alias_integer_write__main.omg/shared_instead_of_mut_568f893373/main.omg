@@ -1,0 +1,8 @@
+data Main {
+}
+
+machine Main::main(
+    health: & i32
+) {
+    health = 1;
+}

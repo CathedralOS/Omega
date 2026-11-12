@@ -1,0 +1,3 @@
+module selected;
+
+machine limit() -> u64 { 2 }

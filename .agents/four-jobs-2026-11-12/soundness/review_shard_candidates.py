@@ -130,6 +130,7 @@ def main() -> None:
     buckets: Counter[str] = Counter()
     accepted_by: Counter[str] = Counter()
     by_kind: Counter[str] = Counter()
+    by_subtype: Counter[str] = Counter()
     cache: dict[str, str] = {}
 
     out = [
@@ -249,6 +250,9 @@ def main() -> None:
             else:
                 subtype = "probe-not-built"
 
+        if oc.bucket == "confirmed-hole" and row.kind == "drop_requires" and subtype:
+            by_subtype[subtype] += 1
+
         classified.append((row, oc, subtype))
 
         out.append(
@@ -297,7 +301,7 @@ def main() -> None:
         "",
         "Rules: `soundness_fix` → `fix2` → **`fix3`** → **`fix4`** → **`fix5`** (latest wins).",
         "fix5: only **external** caller re-establishment is ignored; in-machine transition/guard restatement → discarded-valid (both sides quoted).",
-        "Confirmed `drop_requires` holes: `hole_subtype` is `inferred-entry`, `violating-call-accepted`, or `probe-not-built` (never `unchecked`).",
+        "Confirmed `drop_requires` holes: `hole_subtype` is exactly `unchecked`, `inferred-entry`, or `probe-not-built`.",
         "Validity from reading mutants; route reasons are hints only.",
         "",
         "## Coverage reconciliation (fix4)",
@@ -344,6 +348,12 @@ def main() -> None:
     md.append("### Confirmed holes by accepted_by")
     for k, n in accepted_by.most_common():
         md.append(f"- `{k}`: {n}")
+    md.append("")
+    md.append("### Confirmed drop_requires holes by hole_subtype")
+    for k, n in by_subtype.most_common():
+        md.append(f"- `{k}`: {n}")
+    if not by_subtype:
+        md.append("- (none)")
     md.append("")
 
     md.append("## Confirmed holes (hand basis: obligation + spec quote)")

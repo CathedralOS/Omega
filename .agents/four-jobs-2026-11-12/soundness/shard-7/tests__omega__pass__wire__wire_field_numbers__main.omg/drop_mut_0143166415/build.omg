@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+    Build::application(builder, "wire_field_numbers");
+    builder.freestanding = true;
+}

@@ -276,6 +276,22 @@ def main() -> int:
         text = main.read_text()
         muts = mutations_for(text)
         counts["generated"] += len(muts)
+        if not muts:
+            append_tsv(
+                [
+                    rel,
+                    "no-mutation",
+                    "",
+                    "skipped",
+                    "skipped",
+                    "skipped",
+                    "",
+                    "0.00",
+                    "no",
+                ]
+            )
+            append_progress(rel)
+            continue
         for mut in muts:
             mpath = materialize_mutant(main, mut)
             try:

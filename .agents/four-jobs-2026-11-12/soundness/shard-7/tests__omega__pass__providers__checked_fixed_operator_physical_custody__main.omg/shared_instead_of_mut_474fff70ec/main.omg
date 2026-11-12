@@ -1,0 +1,37 @@
+// A selected fixed-token boundary operator retains one exact physical child
+// beside the independent nonreturning Console settlement. The result is not
+// passed into that first immediate-only settlement lane.
+use omega_language_std::console;
+
+data CheckedMath {}
+
+// The operator's declared home: bare primitive operands would join the
+// core's primitive operator family, which only the core may publish.
+domain i32::Picked;
+
+boundary machine - CheckedMath::select_left(left: i32 in Picked, right: i32 in Picked) -> i32;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::select_left_impl(left: i32 in Picked, right: i32 in Picked) -> i32
+satisfies CheckedMath::select_left
+{
+    transition { _ -> (left as i32) }
+}
+
+data Main { }
+
+machine Main::main(main: & Main)
+reaches Console
+{
+    let result: i32 = (70 as i32 in Picked) - (0 as i32 in Picked);
+    Console::exit_process(70);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

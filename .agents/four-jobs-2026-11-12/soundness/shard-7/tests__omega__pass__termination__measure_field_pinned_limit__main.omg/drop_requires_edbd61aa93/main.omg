@@ -1,0 +1,18 @@
+data Countdown requires 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
+    remaining: u64;
+    limit: u64;
+}
+
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.remaining }
+
+machine walk(countdown: Countdown) -> u64
+terminates by countdown -> Countdown::Remaining in 0..=countdown.limit {
+    transition countdown.remaining > 0 {
+        true -> walk(Countdown {
+            remaining: countdown.remaining - 1,
+            limit: countdown.limit
+        })
+        false -> countdown.remaining
+    }
+}

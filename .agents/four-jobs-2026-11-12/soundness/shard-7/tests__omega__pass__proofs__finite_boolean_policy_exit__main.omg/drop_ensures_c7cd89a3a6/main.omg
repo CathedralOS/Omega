@@ -1,0 +1,168 @@
+// Expected exit: 0
+// Preserve every table-field check through a returned Boolean policy.
+public data InterruptGate { selector: u16; ist: u8; attributes: u8; reserved: u32; }
+public data BootstrapIdt {
+    vector00: InterruptGate;
+    vector01: InterruptGate;
+    vector02: InterruptGate;
+    vector03: InterruptGate;
+    vector04: InterruptGate;
+    vector05: InterruptGate;
+    vector06: InterruptGate;
+    vector07: InterruptGate;
+    vector08: InterruptGate;
+    vector09: InterruptGate;
+    vector10: InterruptGate;
+    vector11: InterruptGate;
+    vector12: InterruptGate;
+    vector13: InterruptGate;
+    vector14: InterruptGate;
+    vector15: InterruptGate;
+    vector16: InterruptGate;
+    vector17: InterruptGate;
+    vector18: InterruptGate;
+    vector19: InterruptGate;
+    vector20: InterruptGate;
+    vector21: InterruptGate;
+    vector22: InterruptGate;
+    vector23: InterruptGate;
+    vector24: InterruptGate;
+    vector25: InterruptGate;
+    vector26: InterruptGate;
+    vector27: InterruptGate;
+    vector28: InterruptGate;
+    vector29: InterruptGate;
+    vector30: InterruptGate;
+    vector31: InterruptGate;
+    vector32: InterruptGate;
+}
+public machine table_policy(accepted: bool, table: &BootstrapIdt) -> bool reaches terminates {
+    !accepted || (
+        table.vector00.selector == 8u16 && table.vector00.ist == 0u8
+        && table.vector00.attributes == 142u8 && table.vector00.reserved == 0u32 &&
+        table.vector01.selector == 8u16 && table.vector01.ist == 0u8
+        && table.vector01.attributes == 142u8 && table.vector01.reserved == 0u32 &&
+        table.vector02.selector == 8u16 && table.vector02.ist == 2u8
+        && table.vector02.attributes == 142u8 && table.vector02.reserved == 0u32 &&
+        table.vector03.selector == 8u16 && table.vector03.ist == 0u8
+        && table.vector03.attributes == 142u8 && table.vector03.reserved == 0u32 &&
+        table.vector04.selector == 8u16 && table.vector04.ist == 0u8
+        && table.vector04.attributes == 142u8 && table.vector04.reserved == 0u32 &&
+        table.vector05.selector == 8u16 && table.vector05.ist == 0u8
+        && table.vector05.attributes == 142u8 && table.vector05.reserved == 0u32 &&
+        table.vector06.selector == 8u16 && table.vector06.ist == 0u8
+        && table.vector06.attributes == 142u8 && table.vector06.reserved == 0u32 &&
+        table.vector07.selector == 8u16 && table.vector07.ist == 0u8
+        && table.vector07.attributes == 142u8 && table.vector07.reserved == 0u32 &&
+        table.vector08.selector == 8u16 && table.vector08.ist == 1u8
+        && table.vector08.attributes == 142u8 && table.vector08.reserved == 0u32 &&
+        table.vector09.selector == 8u16 && table.vector09.ist == 0u8
+        && table.vector09.attributes == 142u8 && table.vector09.reserved == 0u32 &&
+        table.vector10.selector == 8u16 && table.vector10.ist == 0u8
+        && table.vector10.attributes == 142u8 && table.vector10.reserved == 0u32 &&
+        table.vector11.selector == 8u16 && table.vector11.ist == 0u8
+        && table.vector11.attributes == 142u8 && table.vector11.reserved == 0u32 &&
+        table.vector12.selector == 8u16 && table.vector12.ist == 0u8
+        && table.vector12.attributes == 142u8 && table.vector12.reserved == 0u32 &&
+        table.vector13.selector == 8u16 && table.vector13.ist == 0u8
+        && table.vector13.attributes == 142u8 && table.vector13.reserved == 0u32 &&
+        table.vector14.selector == 8u16 && table.vector14.ist == 0u8
+        && table.vector14.attributes == 142u8 && table.vector14.reserved == 0u32 &&
+        table.vector15.selector == 8u16 && table.vector15.ist == 0u8
+        && table.vector15.attributes == 142u8 && table.vector15.reserved == 0u32 &&
+        table.vector16.selector == 8u16 && table.vector16.ist == 0u8
+        && table.vector16.attributes == 142u8 && table.vector16.reserved == 0u32 &&
+        table.vector17.selector == 8u16 && table.vector17.ist == 0u8
+        && table.vector17.attributes == 142u8 && table.vector17.reserved == 0u32 &&
+        table.vector18.selector == 8u16 && table.vector18.ist == 3u8
+        && table.vector18.attributes == 142u8 && table.vector18.reserved == 0u32 &&
+        table.vector19.selector == 8u16 && table.vector19.ist == 0u8
+        && table.vector19.attributes == 142u8 && table.vector19.reserved == 0u32 &&
+        table.vector20.selector == 8u16 && table.vector20.ist == 0u8
+        && table.vector20.attributes == 142u8 && table.vector20.reserved == 0u32 &&
+        table.vector21.selector == 8u16 && table.vector21.ist == 0u8
+        && table.vector21.attributes == 142u8 && table.vector21.reserved == 0u32 &&
+        table.vector22.selector == 8u16 && table.vector22.ist == 0u8
+        && table.vector22.attributes == 142u8 && table.vector22.reserved == 0u32 &&
+        table.vector23.selector == 8u16 && table.vector23.ist == 0u8
+        && table.vector23.attributes == 142u8 && table.vector23.reserved == 0u32 &&
+        table.vector24.selector == 8u16 && table.vector24.ist == 0u8
+        && table.vector24.attributes == 142u8 && table.vector24.reserved == 0u32 &&
+        table.vector25.selector == 8u16 && table.vector25.ist == 0u8
+        && table.vector25.attributes == 142u8 && table.vector25.reserved == 0u32 &&
+        table.vector26.selector == 8u16 && table.vector26.ist == 0u8
+        && table.vector26.attributes == 142u8 && table.vector26.reserved == 0u32 &&
+        table.vector27.selector == 8u16 && table.vector27.ist == 0u8
+        && table.vector27.attributes == 142u8 && table.vector27.reserved == 0u32 &&
+        table.vector28.selector == 8u16 && table.vector28.ist == 0u8
+        && table.vector28.attributes == 142u8 && table.vector28.reserved == 0u32 &&
+        table.vector29.selector == 8u16 && table.vector29.ist == 0u8
+        && table.vector29.attributes == 142u8 && table.vector29.reserved == 0u32 &&
+        table.vector30.selector == 8u16 && table.vector30.ist == 0u8
+        && table.vector30.attributes == 142u8 && table.vector30.reserved == 0u32 &&
+        table.vector31.selector == 8u16 && table.vector31.ist == 0u8
+        && table.vector31.attributes == 142u8 && table.vector31.reserved == 0u32 &&
+        table.vector32.selector == 8u16 && table.vector32.ist == 4u8
+        && table.vector32.attributes == 142u8 && table.vector32.reserved == 0u32
+    )
+}
+machine validate(table: &BootstrapIdt) -> bool
+machine initialize(table: &mut BootstrapIdt) {
+    table.vector00 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector01 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector02 = InterruptGate { selector: 8u16, ist: 2u8, attributes: 142u8, reserved: 0u32 };
+    table.vector03 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector04 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector05 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector06 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector07 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector08 = InterruptGate { selector: 8u16, ist: 1u8, attributes: 142u8, reserved: 0u32 };
+    table.vector09 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector10 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector11 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector12 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector13 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector14 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector15 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector16 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector17 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector18 = InterruptGate { selector: 8u16, ist: 3u8, attributes: 142u8, reserved: 0u32 };
+    table.vector19 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector20 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector21 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector22 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector23 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector24 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector25 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector26 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector27 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector28 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector29 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector30 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector31 = InterruptGate { selector: 8u16, ist: 0u8, attributes: 142u8, reserved: 0u32 };
+    table.vector32 = InterruptGate { selector: 8u16, ist: 4u8, attributes: 142u8, reserved: 0u32 };
+}
+public data RetainedTable { before: u64; table: BootstrapIdt; after: u64; }
+machine main() crashes Trap {
+    let mut owner: RetainedTable;
+    owner.before = 0x13579BDF2468ACE0u64;
+    owner.after = 0xFEDCBA9876543210u64;
+    initialize(&mut owner.table);
+    let matching: bool = validate(&owner.table);
+    owner.table.vector00.selector = 9u16;
+    let first_wrong: bool = validate(&owner.table);
+    owner.table.vector00.selector = 8u16;
+    owner.table.vector16.attributes = 0u8;
+    let middle_wrong: bool = validate(&owner.table);
+    owner.table.vector16.attributes = 142u8;
+    owner.table.vector32.reserved = 1u32;
+    let last_wrong: bool = validate(&owner.table);
+    transition matching && !first_wrong && !middle_wrong && !last_wrong
+        && owner.before == 0x13579BDF2468ACE0u64
+        && owner.after == 0xFEDCBA9876543210u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

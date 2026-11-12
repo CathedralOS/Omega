@@ -1,0 +1,27 @@
+// A precondition may index through a borrowed selector once a preceding
+// conjunct bounds it: `position < 2` justifies forming `values[position]`
+// although `position` is `&mut u64` or `&u64`, exactly as for a `u64`.
+// The calls read element 1 (0.2) and element 0 (0.1); any other value traps.
+use omega::language::core::float_operations;
+machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5 { value }
+machine probe(values: &[f64; 2], position: &mut u64) -> f64
+requires position < 2 && values[position] < 0.0 && values[position] <= 0.25
+{
+    let observed: f64 = values[position];
+    admit(observed)
+}
+machine peek(values: &[f64; 2], position: &u64) -> f64
+requires position < 2 && values[position] >= 0.0 && values[position] <= 0.25
+{
+    values[position]
+}
+machine main() crashes Trap {
+    let values: [f64; 2] = [0.1, 0.2];
+    let mut position: u64 = 1;
+    let read: f64 = probe(&values, &mut position);
+    let first: u64 = 0;
+    let shared: f64 = peek(&values, &first);
+    transition read == 0.2 && shared == 0.1 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
