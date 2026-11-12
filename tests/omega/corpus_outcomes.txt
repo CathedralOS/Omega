@@ -4294,9 +4294,6 @@ fail/core/scoped_integer_call_guarantee_requires_formation rejected 684ms expect
 	cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/core/scoped_integer_call_guarantee_retains_actual rejected 2021ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result
-fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 1797ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result
-	cannot prove ensures contract for exit from second at statement 0: first(value) as i16  == result
 fail/core/scoped_integer_call_inherited_trait_operator_requires_formation rejected 18994ms expected @ccdb99ca2214
 	cannot form specification operator `==` in trait `InheritedArithmetic` state `restricted` requires contract: no exact selected meaning
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
@@ -21749,6 +21746,7 @@ pass/core/runtime_inherited_content_formal_identity_exit checked 14221ms check-t
 pass/core/runtime_natural_termination_exit checked 2973ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/scoped_integer_call_exact_actual_requires_formation checked 10878ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/scoped_integer_call_guarantees_composed_exit checked 10178ms check-target:macos_arm64 @ccdb99ca2214
+pass/core/scoped_integer_call_mutual_guarantees_unfold_bodies checked 2358ms @118429fb78d4
 pass/core/scoped_integer_call_unfolds_checked_body checked 13063ms @7a2c1562808d
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 15156ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/self_read_only_receiver_compile checked 2360ms @ccdb99ca2214
