@@ -1,0 +1,6 @@
+{
+  "cluster_id": "c1",
+  "witness": "run/borrows/returned_descriptor_entry_snapshot",
+  "status": "propagated",
+  "reason": "no_good_on_first_parent"
+}
