@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 SHARD = int(os.environ.get("SHARD", "3"))
 SHARD_MOD = int(os.environ.get("SHARD_MOD", "8"))
