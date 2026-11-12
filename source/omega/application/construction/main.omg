@@ -67,33 +67,33 @@ reaches Console crashes Trap blocks
         && input.entry_name_start < input.entry_name_end
         && input.entry_name_end <= input.buffer_length
         && input.entry_name_end - input.entry_name_start <= 256 {
-        true -> rows(input, 0, input.package_count as u64 * 3
+        true -> block rows(input, 0, input.package_count as u64 * 3
             + input.edge_count as u64 * 4 + input.unit_count as u64 * 3)
         _ -> malformed()
     }
     machine rows(input: &mut ConstructionInput, index: u64, count: u64) {
         transition index < count && index < 2752 {
-            true -> row(input, index, count)
-            _ -> bytes(input, 0)
+            true -> block row(input, index, count)
+            _ -> block bytes(input, 0)
         }
     }
     machine row(input: &mut ConstructionInput, index: u64, count: u64)
     requires index < 2752
     {
         input.rows[index] = block read_word();
-        transition { _ -> rows(input, index + 1, count) }
+        transition { _ -> block rows(input, index + 1, count) }
     }
     machine bytes(input: &mut ConstructionInput, index: u64) {
         transition index < input.buffer_length as u64 && index < 4194304 {
-            true -> byte(input, index)
-            _ -> end()
+            true -> block byte(input, index)
+            _ -> block end()
         }
     }
     machine byte(input: &mut ConstructionInput, index: u64)
     requires index < 4194304
     {
         input.bytes[index] = block read_byte();
-        transition { _ -> bytes(input, index + 1) }
+        transition { _ -> block bytes(input, index + 1) }
     }
     machine end() {
         let trailing: ByteRead = block Console::read_byte();
