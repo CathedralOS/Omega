@@ -6,7 +6,7 @@ machine Atomic::fence(trace: &mut Trace, ordering: FenceOrdering) {
     trace.calls = trace.calls + 1;
 }
 machine main() crashes Trap {
-    let trace: Trace = Trace { calls: 0 };
+    let mut trace: Trace = Trace { calls: 0 };
     Atomic::fence(&mut trace, FenceOrdering::Publish);
     transition trace.calls == 1 {
         true -> done()

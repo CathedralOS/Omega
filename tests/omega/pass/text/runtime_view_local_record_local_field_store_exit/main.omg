@@ -18,7 +18,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> observe(main) }
 
     machine observe(main: &mut Main) {
-        let room: Room;
+        let mut room: Room;
         let mut out_line: &[u8] in Utf8;
         room.label = main.source.label;
         out_line = room.label;

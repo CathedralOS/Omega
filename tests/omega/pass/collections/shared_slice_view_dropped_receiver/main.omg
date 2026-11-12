@@ -18,7 +18,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let bag: Bag;
+    let mut bag: Bag;
     bag.nodes[2].value = 7;
     Probe::scan(&main.probe, &mut bag);
     transition true {

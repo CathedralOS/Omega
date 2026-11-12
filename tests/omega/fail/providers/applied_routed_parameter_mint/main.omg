@@ -10,6 +10,6 @@ ensures value in Issued<Value>
     Supply<Value>::confirm(value);
 }
 machine wrong() reaches Supply {
-    let output: Token = Token { value: 17 };
+    let mut output: Token = Token { value: 17 };
     refresh<Word>(&mut output);
 }

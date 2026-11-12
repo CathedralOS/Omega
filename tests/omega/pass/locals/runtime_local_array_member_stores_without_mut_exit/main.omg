@@ -10,7 +10,7 @@
 use omega_language_std::console;
 
 machine pad(title: [u8; 3]) -> u8 {
-    let padded: [u8; 4];
+    let mut padded: [u8; 4];
     padded[0] = title[0];
     padded[1] = title[1];
     padded[2] = title[2];
@@ -19,13 +19,13 @@ machine pad(title: [u8; 3]) -> u8 {
 }
 
 machine patch_literal(seed: u8) -> u8 {
-    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let mut bytes: [u8; 4] = [1, 2, 3, 4];
     bytes[1] = seed;
     (bytes[1])
 }
 
 machine patch_text(seed: u8) -> u8 {
-    let text: [u8; 3] = "ABC";
+    let mut text: [u8; 3] = "ABC";
     text[1] = seed;
     (text[1])
 }

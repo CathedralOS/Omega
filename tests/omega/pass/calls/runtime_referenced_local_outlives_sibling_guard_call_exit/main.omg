@@ -75,7 +75,7 @@ machine MazeBuilder::build(
     seed: u64,
     level: &mut Level
 ) {
-    let random: RandomState;
+    let mut random: RandomState;
 
     level.room_count = 2;
 

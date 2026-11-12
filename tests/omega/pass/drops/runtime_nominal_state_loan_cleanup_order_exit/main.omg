@@ -45,7 +45,7 @@ data Marker dropped by drop_marker { byte: i32; }
 machine drop_marker(marker: &mut Marker) reaches Console { Console::write_byte(marker.byte); }
 machine scope() reaches Console crashes Trap {
  let older: Marker = Marker { byte: 65 };
- let room: Room = Room { count: 10 };
+ let mut room: Room = Room { count: 10 };
  let younger: Marker = Marker { byte: 66 };
  // Capturing a stored alias introduces private descriptor completion scopes;
  // they must not bring the retained Room's nominal cleanup forward.

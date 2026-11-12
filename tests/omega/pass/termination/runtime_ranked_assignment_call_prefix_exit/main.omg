@@ -37,7 +37,7 @@ terminates by remaining in 0..=9
 
 machine main() crashes Trap {
     let selected: dyn RankReader = ReadOnly as dyn RankReader;
-    let scratch: Scratch = Scratch { observed: 99, values: [99, 99] };
+    let mut scratch: Scratch = Scratch { observed: 99, values: [99, 99] };
     let result: u32 = countdown(selected, &mut scratch, 4);
     transition result == 0 && scratch.observed == 0 && scratch.values[0] == 0 && scratch.values[1] == 99 {
         true -> done()
