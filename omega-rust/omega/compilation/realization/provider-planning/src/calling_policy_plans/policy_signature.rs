@@ -8,7 +8,7 @@ use super::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
     VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case,
 };
-use build_time_evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use calling_conventions::{
     BoundaryCallbackBinding, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, BoundaryPlanResult, BoundarySignatureGeometry,
