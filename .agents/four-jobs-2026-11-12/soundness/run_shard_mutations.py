@@ -29,38 +29,57 @@ ENV = {
     "OMEGA_CORPUS_ROOT": str(REPO),
 }
 
+COMPILE_TIME_SUFFIX = (
+    " Checked compilation must establish this obligation before execution; "
+    "a runtime trap or crash arm does not discharge it at check time."
+)
+
 SPEC_RULES: dict[str, tuple[str, str, str]] = {
     "remove_mut": (
         "wiki/spec/language/expressions.md",
         "Assignment and explicit `&mut` / `&write` loans",
         "Such a loan requires existing writable authority at the selected place; "
-        "owned-local mutability requires a `mut` binding when that place is the local's owned storage.",
+        "owned-local mutability requires a `mut` binding when that place is the local's owned storage."
+        + COMPILE_TIME_SUFFIX,
     ),
     "weaken_requires": (
         "wiki/spec/language/machines.md",
         "Call preconditions",
         "Every machine application establishes the selected contract's `requires` under "
-        "the exact argument substitution.",
+        "the exact argument substitution." + COMPILE_TIME_SUFFIX,
     ),
     "drop_requires": (
         "wiki/spec/language/machines.md",
         "Call preconditions",
         "Every machine application establishes the selected contract's `requires` under "
-        "the exact argument substitution.",
+        "the exact argument substitution." + COMPILE_TIME_SUFFIX,
     ),
     "remove_guard": (
         "wiki/spec/language/state_contracts.md",
         "Requirement clauses",
         "Entry obligations established at every invocation under exact actual-argument "
-        "substitution must be dischargeable at every reachable call.",
+        "substitution must be dischargeable at every reachable call." + COMPILE_TIME_SUFFIX,
     ),
     "amp_to_ampmut": (
         "wiki/spec/language/expressions.md",
         "Assignment and explicit `&mut` / `&write` loans",
         "Such a loan requires existing writable authority at the selected place; "
-        "forming `&mut` without writable authority violates exclusivity and mutability rules.",
+        "forming `&mut` without writable authority violates exclusivity and mutability rules."
+        + COMPILE_TIME_SUFFIX,
     ),
 }
+
+ROUTE_OUTSIDE = frozenset(
+    {
+        "no-entry",
+        "unreached",
+        "outside",
+        "incomplete",
+        "defect",
+        "error",
+        "fallback",
+    }
+)
 
 
 @dataclass
@@ -111,6 +130,7 @@ BUCKETS = (
     "confirmed-hole",
     "known-gap-q7-mut",
     "disagreement-valid",
+    "valid-route-outside",
     "discarded-valid",
     "rejected-both",
     "timeout",
@@ -349,8 +369,17 @@ def accepts(verdict: str) -> bool:
     return verdict == "accepted"
 
 
+def route_is_outside(route: str) -> bool:
+    return route in ROUTE_OUTSIDE or route not in ("accepted", "rejected")
+
+
+def route_rejects(route: str) -> bool:
+    return route == "rejected"
+
+
 def checker_accepted_by(current: str, route: str) -> str:
-    ac, ar = accepts(current), accepts(route)
+    ac = accepts(current)
+    ar = route == "accepted"
     if ac and ar:
         return "both"
     if ac:
@@ -358,6 +387,32 @@ def checker_accepted_by(current: str, route: str) -> str:
     if ar:
         return "route"
     return "neither"
+
+
+def either_checker_accepts(current: str, route: str) -> bool:
+    return accepts(current) or route == "accepted"
+
+
+def spec_allows_runtime_trap(kind: str, mutant: str) -> bool:
+    """True when the mutant still routes violations to an explicit crash arm."""
+    if not re.search(r"\bcrash\s+[A-Za-z_]", mutant):
+        return False
+    return kind in ("remove_guard", "drop_requires", "weaken_requires")
+
+
+def minimal_diff_lines(original: str, mutant: str) -> list[str]:
+    out: list[str] = []
+    for a, b in zip(original.splitlines(), mutant.splitlines()):
+        if a != b:
+            out.append(f"- {a}")
+            out.append(f"+ {b}")
+    o_extra = original.splitlines()[len(mutant.splitlines()) :]
+    m_extra = mutant.splitlines()[len(original.splitlines()) :]
+    for a in o_extra:
+        out.append(f"- {a}")
+    for b in m_extra:
+        out.append(f"+ {b}")
+    return out
 
 
 def read_spec_verdict(
@@ -439,11 +494,11 @@ def assign_bucket(
     if current == "timeout" or route == "timeout":
         return "timeout", "", "", "", "", "neither", "checker timeout"
     accepted = checker_accepted_by(current, route)
-    either_accepts = accepted in ("current", "route", "both")
+    either_accepts = either_checker_accepts(current, route)
     name = mutation.meta.get("binding", "")
 
     if not spec.invalid:
-        if accepted == "both":
+        if accepts(current) and route == "accepted":
             return (
                 "discarded-valid",
                 spec.obligation,
@@ -453,7 +508,19 @@ def assign_bucket(
                 accepted,
                 spec.valid_reason,
             )
-        if either_accepts:
+        if accepts(current) and route_is_outside(route):
+            return (
+                "valid-route-outside",
+                spec.obligation,
+                "",
+                "",
+                "",
+                "current",
+                f"valid mutant; route did not judge ({route})",
+            )
+        if (accepts(current) and route_rejects(route)) or (
+            route == "accepted" and not accepts(current)
+        ):
             return (
                 "disagreement-valid",
                 spec.obligation,
@@ -461,7 +528,7 @@ def assign_bucket(
                 "",
                 "",
                 accepted,
-                spec.valid_reason or "valid under spec read; checkers disagree",
+                spec.valid_reason or "valid under spec read; one checker rejects",
             )
         return (
             "rejected-both",
@@ -559,13 +626,8 @@ def hand_verify_row(row: Row) -> list[str]:
         "**Mutant diff (excerpt)**",
         "```diff",
     ]
-    o_lines, m_lines = orig.splitlines(), mut.splitlines()
-    for i, (a, b) in enumerate(zip(o_lines, m_lines)):
-        if a != b:
-            lines.append(f"- {a}")
-            lines.append(f"+ {b}")
-    if len(m_lines) != len(o_lines):
-        lines.append(f"({'+' if len(m_lines) > len(o_lines) else ''}lines differ)")
+    for line in minimal_diff_lines(orig, mut):
+        lines.append(line)
     lines.extend(
         [
             "```",
@@ -628,13 +690,16 @@ def write_md(
         f"| Metric | Count |",
         f"| --- | ---: |",
         f"| Fixtures in shard | {fixtures_total} |",
-        f"| Originals skipped (current checker does not accept) | {originals_skipped} |",
-        f"| Fixtures checked with zero mutation patterns | {fixtures_zero_mutations} |",
-        f"| Mutants attempted (generated × checked) | {mutants_attempted} |",
-        f"| Mutant rows recorded | {n_run} |",
+        f"| Originals skipped | {originals_skipped} |",
+        f"| Fixtures checked (original accepted) | {fixtures_total - originals_skipped} |",
+        f"| Fixtures with zero generated mutants (no-mutation) | {fixtures_zero_mutations} |",
+        f"| Fixtures with ≥1 mutant row | {len({r.fixture for r in rows})} |",
+        f"| Mutant rows | {n_run} |",
+        f"| Mean mutants per mutated fixture | "
+        f"{(n_run / max(1, len({r.fixture for r in rows}))):.2f} |",
         "",
-        "Mutant total stability: `mutants_attempted` equals the sum of bucket counts below "
-        "(one row per attempted mutant). Fixtures with no applicable patterns do not add rows.",
+        "Reconcile: `fixtures in shard` = skipped + checked; "
+        "`checked` = no-mutation + mutated fixtures; mutant row buckets sum to `mutant rows`.",
         "",
         "## Mutant buckets (sum = mutants attempted)",
         "",
@@ -656,6 +721,20 @@ def write_md(
         lines.append(
             f"\n**Bucket mismatch:** total {total} vs attempted {mutants_attempted} (investigate)."
         )
+
+    multi: dict[str, int] = {}
+    for r in rows:
+        multi[r.fixture] = multi.get(r.fixture, 0) + 1
+    multi_list = sorted((f, c) for f, c in multi.items() if c > 1)
+    lines.extend(["", "## Fixtures with more than one mutant row", ""])
+    if not multi_list:
+        lines.append("(none)")
+    else:
+        lines.append(f"Count: {len(multi_list)} fixtures.")
+        for f, c in multi_list[:40]:
+            lines.append(f"- `{f}`: {c} rows")
+        if len(multi_list) > 40:
+            lines.append(f"- … and {len(multi_list) - 40} more (see TSV)")
 
     lines.extend(
         [
@@ -697,9 +776,12 @@ def write_md(
                 f"- Current: `{r.current}`; route: `{r.route}`; accepted_by: `{r.accepted_by}`",
                 f"- Route detail (hint only): {r.route_detail[:300] if r.route_detail else '(n/a)'}",
                 f"- Broken obligation: `{r.obligation}`",
-                f"- Spec (`{r.rule_file}` § {r.rule_heading}):",
+                f"- (a) Compile-time spec (`{r.rule_file}` § {r.rule_heading}):",
                 "",
                 f"> {r.rule_quote}",
+                f"- (b) Check-time vs runtime: accepting checker verdict `{r.current}` "
+                f"(route `{r.route}`); obligation must be proved at check, not deferred to crash.",
+                f"- (c) Minimal diff: see hand-verification section below.",
                 "",
             ]
         )
@@ -823,6 +905,14 @@ def main() -> int:
             bucket, obligation, rfile, rhead, rquote, accepted, discard_reason = assign_bucket(
                 spec, m.kind, rel, m, current_v, route_v, q7
             )
+            if bucket == "confirmed-hole" and spec_allows_runtime_trap(m.kind, m.text):
+                bucket = "discarded-valid"
+                discard_reason = (
+                    "invalid under read but explicit crash arm may trap at runtime; "
+                    "not a compile-time hole"
+                )
+                obligation = spec.obligation
+                rfile = rhead = rquote = ""
             keep = bucket in ("confirmed-hole", "known-gap-q7-mut")
             rel_mutant = mutant_main.relative_to(REPO).as_posix()
             if not keep:
