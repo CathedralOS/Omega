@@ -2,7 +2,7 @@
   "witness": "fail/generics/const_data_argument_out_of_range",
   "breaking_commit": "",
   "pr": null,
-  "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 120 parents of 759c80404428)",
+  "mechanism": "no first-parent good commit found (witness regressed at 759c80404428 and full good-depth walk on first-parent)",
   "status": "propagated",
   "bisect_exit": 2,
   "stability": "unknown"
