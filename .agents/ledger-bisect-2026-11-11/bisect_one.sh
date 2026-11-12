@@ -31,7 +31,7 @@ is_ledger_only_commit() {
   return 0
 }
 
-git checkout -q work/ledger-bisect-part-7
+git checkout -qf work/ledger-bisect-part-7
 python3 "$TMP_TOOLS/prepare_pin_snapshot.py" "$WITNESS"
 export BISECT_PIN_LEDGER=/tmp/ledger-bisect-pin/corpus_outcomes.txt
 export BISECT_PIN_STATE=/tmp/ledger-bisect-pin/witness_state.json
@@ -46,13 +46,13 @@ run_witness_test() {
 
 find_good_commit() {
   local low=759c80404428e6d9922a8b67cce32daf7e41a02e
-  git checkout -q "$PIN"
+  git checkout -qf "$PIN"
   if run_witness_test; then
     echo "PIN tests good but expected bad" >&2
     echo ""
     return 1
   fi
-  git checkout -q "$low"
+  git checkout -qf "$low"
   if ! run_witness_test; then
     local cur="$low"
     local parent rc
@@ -61,7 +61,7 @@ find_good_commit() {
         cur="$parent"
         continue
       fi
-      git checkout -q "$parent"
+      git checkout -qf "$parent"
       run_witness_test
       rc=$?
       if [[ "$rc" -eq 0 ]]; then
@@ -88,7 +88,7 @@ find_good_commit() {
       fi
       continue
     fi
-    git checkout -q "$c"
+    git checkout -qf "$c"
     run_witness_test
     rc=$?
     if [[ "$rc" -eq 0 ]]; then
@@ -111,7 +111,7 @@ if [[ -z "${BISECT_GOOD:-}" ]]; then
 else
   GOOD="$BISECT_GOOD"
 fi
-git checkout -q work/ledger-bisect-part-7
+git checkout -qf work/ledger-bisect-part-7
 [[ -n "$GOOD" ]] || { echo "no good commit for $WITNESS (walk exhausted)" >&2; exit 2; }
 echo "GOOD=$GOOD for $WITNESS" >&2
 
@@ -128,7 +128,7 @@ set -e
 BREAK=$(git rev-parse HEAD^{commit} 2>/dev/null || true)
 git bisect log >"${OUT_JSON%.json}.log" 2>/dev/null || true
 git bisect reset 2>/dev/null || true
-git checkout -q work/ledger-bisect-part-7 2>/dev/null || true
+git checkout -qf work/ledger-bisect-part-7 2>/dev/null || true
 
 ledger_only_break=0
 if [[ -n "$BREAK" ]] && is_ledger_only_commit "$BREAK"; then
