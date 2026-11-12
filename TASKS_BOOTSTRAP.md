@@ -167,9 +167,12 @@ schedule it as a prerequisite for a runnable bootstrap chain.
   with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
   [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
   [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
-  equation batch: the subject is the entire selected Gamma evaluator's raw Beta
-  source and persisted Alpha tape, with independently reconstructed proposition
+  equation batch: the subject is the entire historical Gamma evaluator's raw
+  Beta source and persisted Alpha tape at
+  `d19361fe4deae73e1b488a940a872fec1ed885cb`, with independently reconstructed proposition
   `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
+  This remaining research does not certify the current evaluator or gate
+  ordinary bootstrap construction.
 
   Current frontier: the complete untrusted derivation and source-owned theory
   exist, but full checking and mutation acceptance remain owed. The

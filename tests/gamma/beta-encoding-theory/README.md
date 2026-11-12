@@ -46,7 +46,8 @@ strategy; it is not another compulsory component gate or production producer.
 
 `sh tests/gamma/beta-encoding-theory/run.sh --full-subject` selects the
 [full-subject production gate](full_subject.py) and, unlike the other modes,
-runs on any host with python3 — no evaluator seed is materialized. The
+runs on hosts with python3 and the historical Git objects — no evaluator seed
+is materialized. The
 checked-in stepper replays the complete untrusted derivation for the pinned
 subjects over the sha256-pinned theory reconstruction and requires the
 recorded table, per-rule row, depth, and request figures exactly. The mode
@@ -55,7 +56,10 @@ and constructors the certificate actually uses — and still states diagnostic
 production only: the certificate has to be produced through the selected
 chain and checked under the exact profile. See
 [PROFILE.md](../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
-measured figures.
+measured figures. The source and tape are fixed to `d19361fe4deae73e1b488a940a872fec1ed885cb`
+and independently hash-checked. These measurements are historical research,
+not admission of the current evaluator. Missing Git/history fails explicitly;
+there is no current-source fallback or implicit fetch.
 
 `sh tests/gamma/beta-encoding-theory/run.sh --produce-request PATH`
 materializes the certificate artifact itself: the same host-side

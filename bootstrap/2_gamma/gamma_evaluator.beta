@@ -284,15 +284,22 @@
         mov r0 r90
         ret
 
+; next_token isolates parentheses; character literals start with an apostrophe.
+; A byte comparison is therefore the exact punctuation-token test. Both helpers
+; retain their 30-byte slots and preserve the token registers r86/r87.
 0x576: ; is_open:
-        imm r0 0x28
-        imm r1 0x1
-        call 0x4a6 ; -> token_equals:
+        loadb r0 r86
+        imm r1 0x28
+        sub r0 r1
+        jz r0 0x4fd ; -> token_equals_true:
+        mov r0 r90
         ret
 0x594: ; is_close:
-        imm r0 0x29
-        imm r1 0x1
-        call 0x4a6 ; -> token_equals:
+        loadb r0 r86
+        imm r1 0x29
+        sub r0 r1
+        jz r0 0x4fd ; -> token_equals_true:
+        mov r0 r90
         ret
 0x5b2: ; expect_open:
         call 0x492 ; -> need_token:

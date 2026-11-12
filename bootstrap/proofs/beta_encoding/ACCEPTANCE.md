@@ -1,5 +1,9 @@
 # Complete Beta encoding acceptance
 
+This is an optional research acceptance, outside the bootstrap construction
+MVP. Existing full-subject measurements concern the source and tape at
+`d19361fe4deae73e1b488a940a872fec1ed885cb`; they do not certify a later evaluator.
+
 The first complete certificate establishes the independently reconstructed root:
 
 ```text
