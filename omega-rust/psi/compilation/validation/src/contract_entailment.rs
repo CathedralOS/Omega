@@ -64448,7 +64448,13 @@ pub(crate) mod structural_judgment {
                     0,
                     self.captured_result_equations
                         .iter()
-                        .filter(|equation| !equation.is_data_identity())
+                        // Data Id rows are substituted by Id elimination. A completed
+                        // call's identity row names its executed occurrence; rewriting
+                        // that result into its application would detach the result's
+                        // own guarantees from the value a later case match observes.
+                        .filter(|equation| {
+                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                        })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it
                         // copied. Later operands must retain that identity even when
