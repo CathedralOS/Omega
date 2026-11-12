@@ -17,7 +17,7 @@ fi
 echo "cluster=$CLUSTER_ID good=$GOOD witness=$WITNESS"
 git bisect reset 2>/dev/null || true
 git checkout -q work/ledger-bisect-part-31
-LOG="$ROOT/.agents/ledger-bisect-2026-11-11/bisect-c${CLUSTER_ID}.log"
+LOG="/tmp/ledger-bisect-c${CLUSTER_ID}.log"
 export BISECT_WITNESS="$WITNESS"
 git bisect start --first-parent "$PIN" "$GOOD"
 git bisect run bash /tmp/ledger-bisect-pin/tools/bisect_witness.sh 2>&1 | tee "$LOG"
