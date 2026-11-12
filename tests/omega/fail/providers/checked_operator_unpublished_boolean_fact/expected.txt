@@ -1,0 +1,1 @@
+checked operator provider `supply_truth` proves no ensures matching operator requirement

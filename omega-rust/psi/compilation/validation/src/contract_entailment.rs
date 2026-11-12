@@ -17625,9 +17625,11 @@ pub(crate) mod law_conformance {
                 ) {
                     return false;
                 }
-                if let (Some(required), Some(provided)) = (required_key, provided_key) {
-                    return required == provided;
-                }
+                let source_keys_disagree = match (required_key, provided_key) {
+                    (Some(required), Some(provided)) if required == provided => return true,
+                    (Some(_), Some(_)) => true,
+                    _ => false,
+                };
                 let term = |statement: (SymbolHandle, &[StateParameter]), expression| {
                     super::super::structural_term(
                         program,
@@ -17671,12 +17673,34 @@ pub(crate) mod law_conformance {
                     .iter()
                     .map(|parameter| parameter.name.as_str().to_owned())
                     .collect::<Vec<_>>();
-                super::slot_bindings::diagnostic_shape_match(
+                if !source_keys_disagree
+                    && super::slot_bindings::diagnostic_shape_match(
+                        program,
+                        &required_term,
+                        &provided_term,
+                        &variables,
+                        &mut bindings,
+                    )
+                {
+                    return true;
+                }
+                // Different declaration spellings may denote the same value through
+                // an authored public Id guarantee. Exact operation payloads and
+                // positional roles were checked above. This query has no premises
+                // and does not unfold bodies: the desired correspondence cannot
+                // establish itself or borrow a private implementation equation.
+                let required_term =
+                    super::super::StructuralJudge::substitute_term(&required_term, &bindings);
+                let judge = super::super::StructuralJudge::from_declaration_requires(
                     program,
-                    &required_term,
-                    &provided_term,
-                    &variables,
-                    &mut bindings,
+                    provided.0,
+                    provided.1,
+                    &[],
+                    false,
+                );
+                matches!(
+                    judge.judge_explicit_identity(required_term, provided_term, 0),
+                    super::super::StructuralJudgment::Proven,
                 )
             }
             /// The shared index key intentionally omits some operation payloads. Check
@@ -50448,6 +50472,22 @@ pub(crate) mod structural_judgment {
                     {
                         follow((**value).clone());
                     }
+                    // An application publishes the same explicit Id guarantees as
+                    // a completed runtime call. Preserve their distinction from
+                    // executable equality and consume only admitted public clauses.
+                    if matches!(value, StructuralTerm::Application { .. })
+                        && let Some(guarantees) =
+                            self.specification_application_guarantees(&value, depth + 1)
+                    {
+                        for (left, right) in &guarantees.data_identities {
+                            if left.same_resolution_payload(&value) {
+                                follow(right.clone());
+                            }
+                            if right.same_resolution_payload(&value) {
+                                follow(left.clone());
+                            }
+                        }
+                    }
                     if let StructuralTerm::Variable(name) = &value
                         && let Some((_, actual)) = self
                             .substitutions
@@ -67471,14 +67511,14 @@ pub(crate) mod structural_judgment {
             Resolution,
             IntegerProjection,
             Predicate,
-            ApplicationEquations,
+            ApplicationGuarantees,
         }
 
         #[derive(Clone)]
         pub(crate) enum StructuralQueryAnswer {
             Resolution(StructuralTerm),
             Predicate(StructuralJudgment),
-            Equations(Option<Arc<[(StructuralTerm, StructuralTerm)]>>),
+            Guarantees(Option<Arc<super::selected_contracts::SelectedGuarantees>>),
         }
 
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -67662,7 +67702,7 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Resolution(value) => value,
-                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Equations(_) => {
+                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Guarantees(_) => {
                         unreachable!("resolution query kind changed")
                     }
                 }
@@ -67681,7 +67721,7 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Resolution(value) => value,
-                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Equations(_) => {
+                    StructuralQueryAnswer::Predicate(_) | StructuralQueryAnswer::Guarantees(_) => {
                         unreachable!("projection query kind changed")
                     }
                 }
@@ -67700,38 +67740,39 @@ pub(crate) mod structural_judgment {
                     |judge, term| StructuralQueryAnswer::Predicate(compute(judge, term)),
                 ) {
                     StructuralQueryAnswer::Predicate(value) => value,
-                    StructuralQueryAnswer::Resolution(_) | StructuralQueryAnswer::Equations(_) => {
+                    StructuralQueryAnswer::Resolution(_) | StructuralQueryAnswer::Guarantees(_) => {
                         unreachable!("predicate query kind changed")
                     }
                 }
             }
 
-            /// The equations a call's contract publishes about its result, answered once
-            /// per judge state. Every resolution of a term that mentions the call asks
-            /// for them, and deriving them judges the operands of the `ensures` clause,
-            /// so an unmemoized derivation repeats for each such term.
-            pub(crate) fn completed_application_equations(
+            /// Retain the complete guarantees a call publishes, including explicit
+            /// value identities separately from scalar equations. Both readers share
+            /// the same admitted actuals and completed query. The Identity reader
+            /// consumes authored clauses without importing private-body summaries.
+            pub(crate) fn completed_application_guarantees(
                 &self,
                 application: &StructuralTerm,
                 depth: usize,
                 compute: impl FnOnce(
                     &Self,
                     &StructuralTerm,
-                ) -> Option<Vec<(StructuralTerm, StructuralTerm)>>,
-            ) -> Option<Arc<[(StructuralTerm, StructuralTerm)]>> {
+                )
+                    -> Option<super::selected_contracts::SelectedGuarantees>,
+            ) -> Option<Arc<super::selected_contracts::SelectedGuarantees>> {
                 match self.completed_query(
-                    StructuralQueryKind::ApplicationEquations,
+                    StructuralQueryKind::ApplicationGuarantees,
                     application.clone(),
                     depth,
                     |judge, application| {
-                        StructuralQueryAnswer::Equations(
+                        StructuralQueryAnswer::Guarantees(
                             compute(judge, &application).map(Arc::from),
                         )
                     },
                 ) {
-                    StructuralQueryAnswer::Equations(equations) => equations,
+                    StructuralQueryAnswer::Guarantees(guarantees) => guarantees,
                     StructuralQueryAnswer::Resolution(_) | StructuralQueryAnswer::Predicate(_) => {
-                        unreachable!("application equations query kind changed")
+                        unreachable!("application guarantees query kind changed")
                     }
                 }
             }
@@ -71613,12 +71654,12 @@ pub(crate) mod structural_judgment {
                 let mut applications = Vec::new();
                 collect_applications(value, &mut applications);
                 for application in applications {
-                    let Some(equations) =
-                        self.specification_application_equations(application, depth + 1)
+                    let Some(guarantees) =
+                        self.specification_application_guarantees(application, depth + 1)
                     else {
                         continue;
                     };
-                    for (left, right) in equations.iter() {
+                    for (left, right) in &guarantees.equations {
                         for (pattern, replacement) in [(left, right), (right, left)] {
                             if pattern == value
                                 && replacement != value
@@ -71797,12 +71838,12 @@ pub(crate) mod structural_judgment {
                 })
             }
 
-            fn specification_application_equations(
+            pub(crate) fn specification_application_guarantees(
                 &self,
                 application: &StructuralTerm,
                 depth: usize,
-            ) -> Option<std::sync::Arc<[(StructuralTerm, StructuralTerm)]>> {
-                self.completed_application_equations(application, depth, |judge, application| {
+            ) -> Option<std::sync::Arc<SelectedGuarantees>> {
+                self.completed_application_guarantees(application, depth, |judge, application| {
                 let resolving = judge.resolving_application(application, depth)?;
                 let SelectedApplicationCarrier {
                     owner, parameters, ..
@@ -71831,7 +71872,6 @@ pub(crate) mod structural_judgment {
                         Some(application),
                         depth,
                     )
-                    .map(|guarantees| guarantees.equations)
                 })
             }
 

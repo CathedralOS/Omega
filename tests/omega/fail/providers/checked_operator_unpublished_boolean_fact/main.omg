@@ -1,0 +1,16 @@
+// Correspondence consumes published guarantees, not a helper's incidental body.
+data CheckedBoolean {}
+
+boundary operator CheckedBoolean::truth() -> bool
+ensures core::Identity<bool>(result, true);
+
+machine undocumented_truth() -> bool { true }
+
+machine supply_truth() -> bool
+satisfies CheckedBoolean::truth
+ensures core::Identity<bool>(result, undocumented_truth())
+{
+    undocumented_truth()
+}
+
+machine main() {}
