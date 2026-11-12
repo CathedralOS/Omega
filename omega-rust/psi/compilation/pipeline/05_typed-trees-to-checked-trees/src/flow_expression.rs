@@ -11198,6 +11198,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .capture;
                 *backing = self.context.control.operands.insert(collection_operand);
                 let selector_writes_start = self.operand_writes.len();
+                let is_range_view = indexed.index.is_valid()
+                    && matches!(
+                        self.program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    );
                 if indexed.index.is_valid()
                     && let ExpressionNode::Range(range) =
                         self.program.expression_table.expression(indexed.index)
@@ -11261,13 +11266,22 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         *constraints,
                         referents.unwrap_or_default(),
                     );
-                    self.retain_value_observation(
-                        expression,
-                        *backing,
-                        referents.unwrap_or_default(),
-                        *contexts,
-                        *constraints,
-                    );
+                    /*
+                        A built-in range forms a shared view, the same address
+                        formation as `&items[a..b]` (`bare-range-reference-access`);
+                        it reads no element value. A value observation would give
+                        the bare spelling an observed-result predecessor the explicit
+                        borrow lacks, hiding the argument's invocation access.
+                    */
+                    if !is_range_view {
+                        self.retain_value_observation(
+                            expression,
+                            *backing,
+                            referents.unwrap_or_default(),
+                            *contexts,
+                            *constraints,
+                        );
+                    }
                 }
             }
             ExpressionNode::Atomic(_) => {

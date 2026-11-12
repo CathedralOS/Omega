@@ -8515,30 +8515,45 @@ pub mod reference_access {
                 interpretation: Some(formation.interpretation),
             });
         }
-        match expression_table(program).expression(value) {
-            ExpressionNode::Indexed(indexed)
-                if program.expression_table.range_node(indexed.index).is_some()
-                    && crate::value_custody::places::place_has_builtin_coordinates(
-                        program, machine, state, value,
-                    ) =>
-            {
-                let reference = crate::value_custody::places::declared_place_type_raw(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                )?;
-                if !crate::collection_operations::type_reference_is_collection(program, reference) {
-                    return None;
-                }
-                Some(CompletedBorrow {
-                    source: indexed.collection,
-                    access: ReferenceAccess::Shared,
-                    interpretation: None,
-                })
-            }
-            _ => None,
+        bare_range_view_source(program, machine, state, value).map(|source| CompletedBorrow {
+            source,
+            access: ReferenceAccess::Shared,
+            interpretation: None,
+        })
+    }
+
+    /*
+        `bare-range-reference-access`: a built-in range over a core collection,
+        spelled without `&`, forms the same shared view as `&items[a..b]`.
+        Returns the collection it views. This is the one recognizer for that
+        spelling; whether the range is built-in depends on the operator
+        selection at this site, so it needs the machine and state, unlike the
+        context-free `reference_formation_source`.
+    */
+    pub fn bare_range_view_source(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&State>,
+        value: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        let ExpressionNode::Indexed(indexed) = expression_table(program).expression(value) else {
+            return None;
+        };
+        if program.expression_table.range_node(indexed.index).is_none()
+            || !crate::value_custody::places::place_has_builtin_coordinates(
+                program, machine, state, value,
+            )
+        {
+            return None;
         }
+        let reference = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            state,
+            indexed.collection,
+        )?;
+        crate::collection_operations::type_reference_is_collection(program, reference)
+            .then_some(indexed.collection)
     }
 
     fn declared_call_reference_access(
