@@ -1,0 +1,17 @@
+// A call on a branch the entry requirement rules out still owes its callee's
+// requirement; the contradiction between `count >= 10` and `count < 5`
+// discharges `value >= 100` there. The callee's own body is checked under its
+// own contract, not the caller's dead branch.
+machine pick(count: u64) -> u64
+{
+    transition count < 5 {
+        true -> helper(count)
+        false -> (count - 10u64)
+    }
+    machine helper(value: u64) -> u64 requires value >= 100u64 { value - 100u64 }
+}
+machine main() crashes Trap {
+    transition pick(12) == 2 && pick(40) == 30 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

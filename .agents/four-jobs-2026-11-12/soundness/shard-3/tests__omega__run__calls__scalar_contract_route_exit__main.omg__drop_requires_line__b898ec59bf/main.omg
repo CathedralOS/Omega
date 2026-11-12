@@ -1,0 +1,29 @@
+// Expected exit: 0. Every construct here is inside route one's scalar subset,
+// so structure-only elaboration lowers this program and the Terminal
+// interpreter runs the unsealed module: scalar locals and assignment, exact
+// arithmetic, comparisons, `&&` and `||` guards, guarded transition arms and
+// direct calls whose `requires` and `ensures` name only their formals.
+machine scaled(value: u32, factor: u32) -> u32 {
+    value * factor + 1
+}
+machine within(low: u32, high: u32, value: u32) -> bool requires low <= high ensures low <= high {
+    low <= value && value <= high
+}
+machine settle(total: u32) {
+    transition total > 9000 || total < 3 {
+        true -> report_large()
+        false -> report_small(total)
+    }
+}
+machine report_large() { }
+machine report_small(total: u32) requires total <= 9000 { }
+machine main() {
+    let mut total: u32 = 20;
+    total = total + 11;
+    let product: u32 = scaled(total, 3);
+    let accepted: bool = within(1, 100, product) && total != 0;
+    transition accepted {
+        true -> settle(product)
+        false -> settle(0)
+    }
+}

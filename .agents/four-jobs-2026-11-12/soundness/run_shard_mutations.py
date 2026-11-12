@@ -19,9 +19,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from mutant_classify import (  # noqa: E402
     BUCKETS,
+    LEDGER_DISPOSITIONS,
     SPEC_RULES,
+    canonical_kind,
     classify_mutant,
     drop_requires_removed_line,
+    likely_runtime_trapped,
     minimal_mutant_diff,
 )
 
@@ -53,6 +56,7 @@ class MutantRecord:
     route_verdict: str
     hand_check: str
     disposition: str
+    kind: str = ""
     spec_path: str = ""
     spec_quote: str = ""
     spec_heading: str = ""
@@ -61,6 +65,8 @@ class MutantRecord:
     accepted_by: str = ""
     validity_note: str = ""
     hole_subtype: str = ""
+    minimal_diff: str = ""
+    no_runtime_trap_evidence: str = ""
     seconds: float = 0.0
 
 
@@ -117,18 +123,101 @@ def mutant_id(fixture: str, kind: str, suffix: str) -> str:
     return f"{safe}__{kind}__{digest}"
 
 
-def generate_mutations(source: str) -> list[tuple[str, str]]:
-    """Return (kind, new_source) pairs. Skip if pattern absent."""
-    out: list[tuple[str, str]] = []
-
-    requires_lines = list(
-        re.finditer(r"(?m)^(\s*)requires\b[^\n]*\n", source)
-    )
+def drop_requires_variants(source: str) -> list[str]:
+    """Drop one body requires line and/or machine-header `requires` clauses."""
+    variants: list[str] = []
+    requires_lines = list(re.finditer(r"(?m)^(\s*)requires\b[^\n]*\n", source))
     if requires_lines:
         first = requires_lines[0]
         stripped = source[: first.start()] + source[first.end() :]
         if stripped != source:
-            out.append(("drop_requires_line", stripped))
+            variants.append(stripped)
+    header_pat = re.compile(
+        r"(?m)^(\s*(?:\w+(?:_\w+)*\s+)*)machine\s+([^\n{]+?)\s+requires\s+"
+        r"([^;{]+?)(\s*\{[^\n]*)"
+    )
+    for match in header_pat.finditer(source):
+        prefix = match.group(1) or ""
+        signature = match.group(2).strip()
+        brace_tail = match.group(4)
+        new_line = f"{prefix}machine {signature}{brace_tail}"
+        mutant = source[: match.start()] + new_line + source[match.end() :]
+        if mutant != source and mutant not in variants:
+            variants.append(mutant)
+    return variants
+
+
+def drops_machine_header_requires(source: str, variant: str) -> bool:
+    variant_lines = {line.strip() for line in variant.splitlines()}
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not re.search(r"\bmachine\b", stripped) or " requires " not in stripped:
+            continue
+        if stripped in variant_lines:
+            continue
+        without = re.sub(r"\s+requires\s+[^;{]+", "", stripped).strip()
+        for candidate in variant_lines:
+            if candidate.startswith("machine") and without in candidate:
+                return True
+    return False
+
+
+def drop_requires_backfill_pending(
+    fixture: str, source: str, existing_paths: set[str]
+) -> list[tuple[str, str]]:
+    variants = drop_requires_variants(source)
+    if not variants:
+        return []
+    fixture_prefix = fixture.replace("/", "__")
+    has_drop = any(
+        fixture_prefix in path and "drop_requires_line" in path for path in existing_paths
+    )
+    pending: list[tuple[str, str]] = []
+    for variant in variants:
+        mid = mutant_id(fixture, "drop_requires_line", variant[:80])
+        main_path = str(MUTANT_ROOT / mid / "main.omg")
+        if main_path in existing_paths or Path(main_path).is_file():
+            continue
+        if not has_drop and variant == variants[0]:
+            pending.append(("drop_requires_line", variant))
+            continue
+        if has_drop and drops_machine_header_requires(source, variant):
+            pending.append(("drop_requires_line", variant))
+    return pending
+
+
+def describe_no_mutation_reason(source: str) -> str:
+    notes: list[str] = []
+    if not drop_requires_variants(source):
+        notes.append("no requires clause to drop (body or machine header)")
+    if not re.search(r"(?m)^\s*let mut ", source):
+        notes.append("no let mut binding with downstream write")
+    if "&mut " not in source:
+        notes.append("no &mut reference to demote")
+    if not re.search(r"(?<![&=])&(?![&=])(?=[A-Za-z_])", source):
+        notes.append("no shared & reference to promote")
+    if not re.search(r"(?m)^\s*requires\b[^\n]*==\s*\d+", source):
+        notes.append("no numeric requires to tighten")
+    if not re.search(r"(?m)^\s*\w+\(\d+\)", source):
+        notes.append("no literal call argument to corrupt")
+    return "; ".join(notes) if notes else "generate_mutations produced no applicable edit"
+
+
+def no_runtime_trap_evidence(mutant: str, disposition: str) -> str:
+    if disposition != "confirmed-hole":
+        return ""
+    if likely_runtime_trapped(mutant):
+        return "FAIL: explicit bad()/crash route present in mutant"
+    return "no bad()/crash route; violation is compile-time proof obligation"
+
+
+def generate_mutations(source: str) -> list[tuple[str, str]]:
+    """Return (kind, new_source) pairs. Skip if pattern absent."""
+    out: list[tuple[str, str]] = []
+
+    drops = drop_requires_variants(source)
+    if drops:
+        out.append(("drop_requires_line", drops[0]))
 
     def tighten_requires(match: re.Match[str]) -> str:
         lhs = match.group(0)
@@ -315,9 +404,10 @@ def save_progress(done: set[str], counts: dict[str, int]) -> None:
 
 
 TSV_HEADER = (
-    "original_fixture\tmutation_kind\tmutant_path\tcurrent_verdict\t"
+    "original_fixture\tmutation_kind\tkind\tmutant_path\tcurrent_verdict\t"
     "route_verdict\thand_check\tdisposition\taccepted_by\tspec_heading\tspec_path\t"
-    "obligation_line\troute_reason\tvalidity_note\thole_subtype\tseconds\n"
+    "obligation_line\troute_reason\tvalidity_note\thole_subtype\tspec_quote\t"
+    "minimal_diff\tno_runtime_trap_evidence\tseconds\n"
 )
 
 
@@ -326,13 +416,20 @@ def append_tsv(rows: list[MutantRecord]) -> None:
         TSV_PATH.write_text(TSV_HEADER)
     with TSV_PATH.open("a", encoding="utf-8") as handle:
         for row in rows:
+            kind = row.kind or canonical_kind(row.mutation_kind)
             handle.write(
-                f"{row.original_fixture}\t{row.mutation_kind}\t{row.mutant_path}\t"
+                f"{row.original_fixture}\t{row.mutation_kind}\t{kind}\t{row.mutant_path}\t"
                 f"{row.current_verdict}\t{row.route_verdict}\t{row.hand_check}\t"
                 f"{row.disposition}\t{row.accepted_by}\t{row.spec_heading}\t{row.spec_path}\t"
                 f"{row.obligation_line}\t{row.route_reason}\t{row.validity_note}\t"
-                f"{row.hole_subtype}\t{row.seconds:.3f}\n"
+                f"{row.hole_subtype}\t{_tsv_cell(row.spec_quote)}\t"
+                f"{_tsv_cell(row.minimal_diff)}\t{_tsv_cell(row.no_runtime_trap_evidence)}\t"
+                f"{row.seconds:.3f}\n"
             )
+
+
+def _tsv_cell(text: str) -> str:
+    return text.replace("\t", " ").replace("\r", "").replace("\n", "\\n")
 
 
 def spec_quote_for_kind(kind: str) -> str:
@@ -377,20 +474,168 @@ def probe_drop_requires_subtype(mutant_path: Path, mutant: str, removed: str) ->
     return "probe-not-built"
 
 
+def is_mutant_row(row: MutantRecord) -> bool:
+    return row.disposition not in LEDGER_DISPOSITIONS and row.mutation_kind != "(none)"
+
+
 def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:
     counts = {bucket: 0 for bucket in BUCKETS}
     for row in rows:
+        if not is_mutant_row(row):
+            continue
         counts[row.disposition] = counts.get(row.disposition, 0) + 1
     return counts
+
+
+def fixture_ledger_counts(
+    rows: list[MutantRecord], shard_fixtures: int
+) -> dict[str, int]:
+    fixtures_with_mutants = {
+        row.original_fixture for row in rows if is_mutant_row(row)
+    }
+    ledger = {
+        row.original_fixture: row.disposition
+        for row in rows
+        if row.disposition in LEDGER_DISPOSITIONS
+    }
+    no_mutation = sum(1 for value in ledger.values() if value == "no-mutation")
+    failed_run = sum(1 for value in ledger.values() if value == "failed-run")
+    mutated = len(fixtures_with_mutants)
+    return {
+        "shard_fixtures": shard_fixtures,
+        "mutated": mutated,
+        "no_mutation": no_mutation,
+        "failed_run": failed_run,
+        "ledger_rows": no_mutation + failed_run,
+    }
+
+
+def build_record(
+    *,
+    fixture: str,
+    kind: str,
+    mutant_path: str,
+    current: str,
+    route: str,
+    result,
+    source: str,
+    mutant: str,
+    route_reason: str,
+    hole_subtype: str,
+    seconds: float,
+) -> MutantRecord:
+    spec_path = spec_quote = spec_heading = ""
+    if result.spec:
+        spec_path = result.spec.path
+        spec_quote = result.spec.quote
+        spec_heading = result.spec.heading
+    disposition = result.disposition
+    diff = minimal_mutant_diff(source, mutant) if mutant_path and mutant else ""
+    return MutantRecord(
+        original_fixture=fixture,
+        mutation_kind=kind,
+        kind=canonical_kind(kind),
+        mutant_path=mutant_path,
+        current_verdict=current,
+        route_verdict=route,
+        hand_check=result.hand_check,
+        disposition=disposition,
+        spec_path=spec_path,
+        spec_quote=spec_quote if disposition == "confirmed-hole" else "",
+        spec_heading=spec_heading,
+        obligation_line=result.obligation_line,
+        route_reason=result.route_reason or route_reason,
+        accepted_by=result.accepted_by,
+        validity_note=result.validity_note,
+        hole_subtype=hole_subtype,
+        minimal_diff=diff if disposition == "confirmed-hole" else "",
+        no_runtime_trap_evidence=no_runtime_trap_evidence(mutant, disposition)
+        if mutant
+        else "",
+        seconds=seconds,
+    )
+
+
+def ensure_fixture_ledger(
+    rows: list[MutantRecord], fixtures: list[str]
+) -> list[MutantRecord]:
+    mutant_rows = [row for row in rows if is_mutant_row(row)]
+    ledger_rows = [row for row in rows if row.disposition in LEDGER_DISPOSITIONS]
+    fixtures_with_mutants = {row.original_fixture for row in mutant_rows}
+    ledger_by_fixture = {row.original_fixture: row for row in ledger_rows}
+    for fixture in fixtures:
+        if fixture in fixtures_with_mutants or fixture in ledger_by_fixture:
+            continue
+        main_path = REPO / fixture
+        current, seconds = run_omega_check(main_path)
+        if current != "accepted":
+            ledger_by_fixture[fixture] = MutantRecord(
+                original_fixture=fixture,
+                mutation_kind="(none)",
+                kind="(none)",
+                mutant_path=str(main_path),
+                current_verdict=current,
+                route_verdict="n/a",
+                hand_check="fixture-ledger",
+                disposition="failed-run",
+                validity_note=f"original fixture --check {current} at PIN harness",
+                seconds=seconds,
+            )
+            continue
+        source = read_text(main_path)
+        ledger_by_fixture[fixture] = MutantRecord(
+            original_fixture=fixture,
+            mutation_kind="(none)",
+            kind="(none)",
+            mutant_path=str(main_path),
+            current_verdict="accepted",
+            route_verdict="n/a",
+            hand_check="fixture-ledger",
+            disposition="no-mutation",
+            validity_note=describe_no_mutation_reason(source),
+            seconds=seconds,
+        )
+    return mutant_rows + sorted(
+        ledger_by_fixture.values(), key=lambda row: row.original_fixture
+    )
+
+
+def _unescape_tsv_cell(text: str) -> str:
+    return (text or "").replace("\\n", "\n")
 
 
 def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
     if len(cols) < 7:
         return None
+    legacy_path_second = cols[2].startswith("/") or cols[2].startswith("tests/")
+    if len(cols) >= 16 and not legacy_path_second:
+        return MutantRecord(
+            original_fixture=cols[0],
+            mutation_kind=cols[1],
+            kind=cols[2] or canonical_kind(cols[1]),
+            mutant_path=cols[3],
+            current_verdict=cols[4],
+            route_verdict=cols[5],
+            hand_check=cols[6],
+            disposition=cols[7],
+            accepted_by=cols[8],
+            spec_heading=cols[9],
+            spec_path=cols[10],
+            obligation_line=cols[11],
+            route_reason=cols[12],
+            validity_note=cols[13] if len(cols) > 13 else "",
+            hole_subtype=cols[14] if len(cols) > 14 else "",
+            spec_quote=_unescape_tsv_cell(cols[15] if len(cols) > 15 else "")
+            or spec_quote_for_kind(cols[1]),
+            minimal_diff=_unescape_tsv_cell(cols[16] if len(cols) > 16 else ""),
+            no_runtime_trap_evidence=cols[17] if len(cols) > 17 else "",
+            seconds=float(cols[18]) if len(cols) > 18 and cols[18] else 0.0,
+        )
     if len(cols) >= 14:
         return MutantRecord(
             original_fixture=cols[0],
             mutation_kind=cols[1],
+            kind=canonical_kind(cols[1]),
             mutant_path=cols[2],
             current_verdict=cols[3],
             route_verdict=cols[4],
@@ -403,69 +648,25 @@ def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
             route_reason=cols[11],
             validity_note=cols[12] if len(cols) > 12 else "",
             hole_subtype=cols[13] if len(cols) > 13 else "",
+            spec_quote=spec_quote_for_kind(cols[1]),
             seconds=float(cols[14]) if len(cols) > 14 and cols[14] else 0.0,
-            spec_quote=spec_quote_for_kind(cols[1]),
         )
-    if len(cols) >= 13:
-        return MutantRecord(
-            original_fixture=cols[0],
-            mutation_kind=cols[1],
-            mutant_path=cols[2],
-            current_verdict=cols[3],
-            route_verdict=cols[4],
-            hand_check=cols[5],
-            disposition=cols[6],
-            accepted_by=cols[7],
-            spec_heading=cols[8],
-            spec_path=cols[9],
-            obligation_line=cols[10],
-            route_reason=cols[11],
-            validity_note=cols[12] if len(cols) > 12 else "",
-            seconds=float(cols[13]) if len(cols) > 13 and cols[13] else 0.0,
-            spec_quote=spec_quote_for_kind(cols[1]),
-        )
-    if len(cols) >= 12:
-        return MutantRecord(
-            original_fixture=cols[0],
-            mutation_kind=cols[1],
-            mutant_path=cols[2],
-            current_verdict=cols[3],
-            route_verdict=cols[4],
-            hand_check=cols[5],
-            disposition=cols[6],
-            spec_heading=cols[7],
-            spec_path=cols[8],
-            obligation_line=cols[9],
-            route_reason=cols[10],
-            seconds=float(cols[11]) if cols[11] else 0.0,
-            spec_quote=spec_quote_for_kind(cols[1]),
-        )
-    return MutantRecord(
-        original_fixture=cols[0],
-        mutation_kind=cols[1],
-        mutant_path=cols[2],
-        current_verdict=cols[3],
-        route_verdict=cols[4],
-        hand_check=cols[5],
-        disposition=cols[6],
-        spec_path=cols[7] if len(cols) > 7 else "",
-        seconds=float(cols[8]) if len(cols) > 8 and cols[8] else 0.0,
-    )
+    return None
 
 
 def revalidate_tsv_rows() -> list[MutantRecord]:
     if not TSV_PATH.exists():
-        return []
-    rows: list[MutantRecord] = []
+        return ensure_fixture_ledger([], list_shard_fixtures())
+    mutant_rows: list[MutantRecord] = []
     for line in TSV_PATH.read_text(encoding="utf-8").splitlines()[1:]:
         cols = line.split("\t")
         old = parse_tsv_line(cols)
-        if not old:
+        if not old or not is_mutant_row(old):
             continue
         original_path = REPO / old.original_fixture
         mutant_path = Path(old.mutant_path)
         if not original_path.is_file() or not mutant_path.is_file():
-            rows.append(old)
+            mutant_rows.append(old)
             continue
         original = read_text(original_path)
         mutant = read_text(mutant_path)
@@ -482,11 +683,6 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
             mutant,
             route_reason=route_reason,
         )
-        spec_path = spec_quote = spec_heading = ""
-        if result.spec:
-            spec_path = result.spec.path
-            spec_quote = result.spec.quote
-            spec_heading = result.spec.heading
         hole_subtype = result.hole_subtype
         if (
             old.mutation_kind == "drop_requires_line"
@@ -495,29 +691,26 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
         ):
             removed = drop_requires_removed_line(original, mutant)
             hole_subtype = probe_drop_requires_subtype(mutant_path, mutant, removed)
-        rows.append(
-            MutantRecord(
-                original_fixture=old.original_fixture,
-                mutation_kind=old.mutation_kind,
+        mutant_rows.append(
+            build_record(
+                fixture=old.original_fixture,
+                kind=old.mutation_kind,
                 mutant_path=old.mutant_path,
-                current_verdict=old.current_verdict,
-                route_verdict=old.route_verdict,
-                hand_check=result.hand_check,
-                disposition=result.disposition,
-                spec_path=spec_path,
-                spec_quote=spec_quote,
-                spec_heading=spec_heading,
-                obligation_line=result.obligation_line,
-                route_reason=result.route_reason or route_reason,
-                accepted_by=result.accepted_by,
-                validity_note=result.validity_note,
+                current=old.current_verdict,
+                route=old.route_verdict,
+                result=result,
+                source=original,
+                mutant=mutant,
+                route_reason=route_reason,
                 hole_subtype=hole_subtype,
                 seconds=old.seconds,
             )
         )
+    fixtures = list_shard_fixtures()
+    all_rows = ensure_fixture_ledger(mutant_rows, fixtures)
     TSV_PATH.write_text(TSV_HEADER)
-    append_tsv(rows)
-    return rows
+    append_tsv(all_rows)
+    return all_rows
 
 
 def capture_check_output(main_path: Path) -> tuple[int, str, str]:
@@ -545,27 +738,35 @@ def capture_route_output(main_path: Path) -> str:
 
 
 def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
+    mutant_rows = [row for row in rows if is_mutant_row(row)]
     buckets = bucket_counts_from_rows(rows)
-    mutants_run = len(rows)
+    mutants_run = len(mutant_rows)
     bucket_sum = sum(buckets.get(b, 0) for b in BUCKETS)
+    shard_fixtures = meta.get("fixtures", len(list_shard_fixtures()))
+    ledger = fixture_ledger_counts(rows, shard_fixtures)
     rows_by_fixture: dict[str, list[MutantRecord]] = {}
-    for row in rows:
+    for row in mutant_rows:
         rows_by_fixture.setdefault(row.original_fixture, []).append(row)
     mutated_fixtures = len(rows_by_fixture)
-    shard_fixtures = meta.get("fixtures", mutated_fixtures)
-    no_mutation = max(shard_fixtures - mutated_fixtures, 0)
+    no_mutation = ledger["no_mutation"]
     multi_row = [
         (fixture, len(items))
         for fixture, items in sorted(rows_by_fixture.items())
         if len(items) > 1
     ]
-    confirmed = [row for row in rows if row.disposition == "confirmed-hole"]
+    confirmed = [row for row in mutant_rows if row.disposition == "confirmed-hole"]
     by_kind: dict[str, int] = {}
+    by_canonical: dict[str, int] = {}
     by_accepted: dict[str, int] = {}
+    by_subtype: dict[str, int] = {}
     for row in confirmed:
         by_kind[row.mutation_kind] = by_kind.get(row.mutation_kind, 0) + 1
+        canon = row.kind or canonical_kind(row.mutation_kind)
+        by_canonical[canon] = by_canonical.get(canon, 0) + 1
         if row.accepted_by:
             by_accepted[row.accepted_by] = by_accepted.get(row.accepted_by, 0) + 1
+        label = row.hole_subtype or "(empty)"
+        by_subtype[label] = by_subtype.get(label, 0) + 1
 
     lines = [
         f"# Soundness mutations shard {SHARD}",
@@ -587,15 +788,30 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
             "",
             f"Bucket sum check: {bucket_sum} == {mutants_run} ({ 'OK' if bucket_sum == mutants_run else 'MISMATCH'}).",
             "",
-            f"- Fixtures in shard: {meta.get('fixtures', 0)}",
-            f"- Fixtures processed: {meta.get('fixtures_processed', 0)}",
-            f"- Mutants generated: {meta.get('mutants_generated', mutants_run)}",
+            f"- Fixtures in shard: {meta.get('fixtures', shard_fixtures)}",
+            f"- Fixtures processed: {meta.get('fixtures_processed', shard_fixtures)}",
+            f"- Mutant rows: {mutants_run}",
+            f"- TSV rows total (mutants + fixture ledger): {len(rows)}",
+            "",
+            "## Fixture ledger (1130 fixtures)",
+            "",
+            f"- Fixtures in shard: **{ledger['shard_fixtures']}**",
+            f"- Mutated fixtures (≥1 mutant row): **{ledger['mutated']}**",
+            f"- `no-mutation` ledger rows: **{ledger['no_mutation']}**",
+            f"- `failed-run` ledger rows: **{ledger['failed_run']}**",
+            (
+                f"- Check: {ledger['shard_fixtures']} == "
+                f"{ledger['mutated']} + {ledger['no_mutation']} + {ledger['failed_run']} "
+                f"({'OK' if ledger['shard_fixtures'] == ledger['mutated'] + ledger['no_mutation'] + ledger['failed_run'] else 'MISMATCH'})"
+            ),
+            "",
+            f"- `drop_requires` mutant rows: **{sum(1 for row in mutant_rows if row.mutation_kind == 'drop_requires_line')}**",
             "",
             "## Fixture reconcile",
             "",
             f"- Fixtures in shard: {shard_fixtures}",
             f"- Fixtures with ≥1 mutant row: {mutated_fixtures}",
-            f"- Fixtures with no mutant rows (yet): {no_mutation}",
+            f"- Fixtures with no mutant rows: {no_mutation}",
             f"- Mutant rows total: {mutants_run}",
             (
                 f"- Avg mutants / mutated fixture: {mutants_run / mutated_fixtures:.2f}"
@@ -635,10 +851,22 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
             lines.append(f"- `{kind}`: {count}")
     else:
         lines.append("_None._")
+    lines.extend(["", "### Confirmed-hole by canonical `kind`", ""])
+    if by_canonical:
+        for kind, count in sorted(by_canonical.items(), key=lambda item: (-item[1], item[0])):
+            lines.append(f"- `{kind}`: {count}")
+    else:
+        lines.append("_None._")
     lines.extend(["", "### Confirmed-hole by accepted_by", ""])
     if by_accepted:
         for who, count in sorted(by_accepted.items()):
             lines.append(f"- `{who}`: {count}")
+    else:
+        lines.append("_None._")
+    lines.extend(["", "### Confirmed-hole by hole_subtype", ""])
+    if by_subtype:
+        for label, count in sorted(by_subtype.items()):
+            lines.append(f"- `{label}`: {count}")
     else:
         lines.append("_None._")
     lines.extend(
@@ -805,21 +1033,16 @@ def process_fixture_mutations(
             removed = drop_requires_removed_line(source, mutant)
             hole_subtype = probe_drop_requires_subtype(main_path, mutant, removed)
         fixture_rows.append(
-            MutantRecord(
-                original_fixture=fixture,
-                mutation_kind=kind,
+            build_record(
+                fixture=fixture,
+                kind=kind,
                 mutant_path=key,
-                current_verdict=current,
-                route_verdict=route,
-                hand_check=result.hand_check,
-                disposition=result.disposition,
-                spec_path=spec_path,
-                spec_quote=spec_quote,
-                spec_heading=spec_heading,
-                obligation_line=result.obligation_line,
-                route_reason=result.route_reason or route_reason,
-                accepted_by=result.accepted_by,
-                validity_note=result.validity_note,
+                current=current,
+                route=route,
+                result=result,
+                source=source,
+                mutant=mutant,
+                route_reason=route_reason,
                 hole_subtype=hole_subtype,
                 seconds=rsec,
             )
@@ -829,38 +1052,50 @@ def process_fixture_mutations(
 
 def backfill_drop_requires() -> int:
     done = load_progress()
-    existing = set()
+    existing_paths: set[str] = set()
     if TSV_PATH.exists():
         for line in TSV_PATH.read_text().splitlines()[1:]:
-            cols = line.split("\t")
-            if len(cols) >= 2:
-                existing.add((cols[0], cols[1]))
+            old = parse_tsv_line(line.split("\t"))
+            if (
+                old
+                and is_mutant_row(old)
+                and old.mutation_kind == "drop_requires_line"
+            ):
+                existing_paths.add(old.mutant_path)
     added = 0
+    variants_added = 0
     for fixture in sorted(done):
-        if (fixture, "drop_requires_line") in existing:
-            continue
         source = read_text(REPO / fixture)
-        drop_only = [
-            item
-            for item in generate_mutations(source)
-            if item[0] == "drop_requires_line"
-        ]
-        if not drop_only:
+        pending = drop_requires_backfill_pending(fixture, source, existing_paths)
+        if not pending:
             continue
-        rows = process_fixture_mutations(fixture, drop_only, source)
+        rows = process_fixture_mutations(fixture, pending, source)
         append_tsv(rows)
         added += len(rows)
+        variants_added += len(pending)
     all_rows = revalidate_tsv_rows()
     meta = json.loads(PROGRESS_PATH.read_text()) if PROGRESS_PATH.exists() else {}
     counts = meta.get("counts", {})
     counts["mutants_generated"] = len(all_rows)
+    drop_rows = sum(
+        1 for row in all_rows if is_mutant_row(row) and row.mutation_kind == "drop_requires_line"
+    )
     counts["total_note"] = (
-        f"Baseline primary pass: 840 mutants; backfill added {added} "
-        "`drop_requires_line` rows (no deletions)."
+        f"Backfill added {added} `drop_requires_line` row(s) "
+        f"({variants_added} new variant(s)); total drop_requires rows: {drop_rows}."
     )
     host = subprocess.check_output(["hostname"], text=True).strip()
     write_md(all_rows, counts, host)
-    print(json.dumps({"backfill_added": added, "total": len(all_rows)}, indent=2))
+    print(
+        json.dumps(
+            {
+                "backfill_added": added,
+                "drop_requires_rows": drop_rows,
+                "tsv_rows": len(all_rows),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

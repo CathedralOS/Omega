@@ -1,0 +1,29 @@
+// Counter.cell.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+public data Cell [copy] { left: i32; value: i32; right: i32; }
+public data Counter [copy] requires self.cell.value <= 60 && self.peer <= 60 { before: i32; cell: Cell; peer: i32; after: i32; }
+public machine fill(counter: &write Counter, replacement: i32)
+{
+    counter.cell.value = 61;
+    counter.cell.value = replacement;
+}
+machine produce(replacement: i32) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
+    let selected: &write Counter = &write counter;
+    fill(&write selected, replacement);
+    counter
+}
+
+machine compute(left: Counter, right: Counter, flag: bool) -> i32 {
+    let value: i32 = match flag { true -> left.cell.value, false -> right.cell.value };
+    70 + value
+}
+machine main() crashes Trap {
+    let counter: Counter = produce(60);
+    let low: Counter = produce(-2147483648);
+    transition compute(counter, low, true) == 130 && compute(counter, low, false) == -2147483578 && counter.cell.left == 17 && counter.cell.right == 53 && counter.before == 31 && counter.peer == 13 && counter.after == 47 && low.cell.left == 17 && low.cell.right == 53 && low.before == 31 && low.peer == 13 && low.after == 47 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,34 @@
+// A domain predicate that tests case membership, `self in Interval::Range`,
+// lowers to a Terminal predicate closed over its subject: the tag observation
+// names the domain subject's own sum value. Both cases cross a call that
+// requires the domain; 4 and 77 distinguish the Range and Empty arms, and any
+// other width traps.
+data Interval [copy] {
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+domain<const Bound: u64> Interval::Ordered<Bound>
+        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound);
+machine width(span: Interval in Ordered<32>) -> u64 {
+    match span {
+        Interval::Empty -> 77
+        Interval::Range { lo, hi } -> width_range(lo, hi)
+    }
+}
+machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+    hi - lo
+}
+machine range() -> Interval in Ordered<32> {
+    (Interval::Range { lo: 17, hi: 21 }) as Interval in Ordered<32>
+}
+machine empty() -> Interval in Ordered<32> {
+    Interval::Empty as Interval in Ordered<32>
+}
+machine main() crashes Trap {
+    transition width(range()) == 4 && width(empty()) == 77 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

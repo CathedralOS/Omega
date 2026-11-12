@@ -1,0 +1,34 @@
+// A guard belongs to its observed scalar, not to an unrelated mutable
+// context argument. Construction also observes the latest local assignment.
+use omega_language_std::console;
+
+data Bounded requires value <= 5 { value: u64; }
+data Main { value: Bounded; }
+
+machine Main::main(context: &mut Main) reaches Console {
+    transition { _ -> prepare(context, 6) }
+    machine prepare(context: &mut Main, remaining: u64)
+    {
+        transition remaining > 0 {
+            true -> finish(context, Bounded { value: remaining - 1 })
+            false -> failed(context)
+        }
+    }
+    machine finish(context: &mut Main, supplied: Bounded) {
+        let mut current: u64 = 9;
+        current = 5;
+        context.value = Bounded { value: current };
+        transition supplied.value == 5 && context.value.value == 5 {
+            true -> passed(context)
+            false -> failed(context)
+        }
+    }
+    machine passed(context: &mut Main) { Console::exit_process(70); }
+    machine failed(context: &mut Main) { Console::exit_process(1); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

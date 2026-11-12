@@ -7,30 +7,42 @@ Shard selection: `(i % 8) == 3` over sorted `tests/omega/pass/**/main.omg` and `
 
 | Bucket | Count |
 | --- | ---: |
-| `confirmed-hole` | 16 |
+| `confirmed-hole` | 4 |
 | `known-gap-q7-mut` | 261 |
-| `disagreement-valid` | 70 |
-| `valid-route-outside` | 304 |
-| `discarded-valid` | 183 |
-| `rejected-both` | 1287 |
+| `disagreement-valid` | 83 |
+| `valid-route-outside` | 635 |
+| `discarded-valid` | 246 |
+| `rejected-both` | 1101 |
 | `timeout` | 0 |
 | `failed-run` | 0 |
 | `discarded-no-rule` | 0 |
-| **Total (mutants run)** | **2121** |
+| `no-mutation` | 0 |
+| **Total (mutants run)** | **2330** |
 
-Bucket sum check: 2121 == 2121 (OK).
+Bucket sum check: 2330 == 2330 (OK).
 
 - Fixtures in shard: 1130
 - Fixtures processed: 1130
-- Mutants generated: 2121
+- Mutant rows: 2330
+- TSV rows total (mutants + fixture ledger): 2488
+
+## Fixture ledger (1130 fixtures)
+
+- Fixtures in shard: **1130**
+- Mutated fixtures (≥1 mutant row): **972**
+- `no-mutation` ledger rows: **148**
+- `failed-run` ledger rows: **10**
+- Check: 1130 == 972 + 148 + 10 (OK)
+
+- `drop_requires` mutant rows: **556**
 
 ## Fixture reconcile
 
 - Fixtures in shard: 1130
-- Fixtures with ≥1 mutant row: 921
-- Fixtures with no mutant rows (yet): 209
-- Mutant rows total: 2121
-- Avg mutants / mutated fixture: 2.30
+- Fixtures with ≥1 mutant row: 972
+- Fixtures with no mutant rows: 148
+- Mutant rows total: 2330
+- Avg mutants / mutated fixture: 2.40
 
 ### Fixtures with more than one mutant row
 
@@ -81,10 +93,10 @@ Bucket sum check: 2121 == 2121 (OK).
 - `tests/omega/pass/borrows/returned_slice_record_reference_custody_exit/main.omg`: 4 rows
 - `tests/omega/pass/borrows/runtime_assignment_rhs_carrier_replacement_exit/main.omg`: 3 rows
 - `tests/omega/pass/borrows/runtime_captured_record_nested_field_snapshot_exit/main.omg`: 3 rows
-- `tests/omega/pass/borrows/runtime_case_reference_reordered_state_returns_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/runtime_case_reference_reordered_state_returns_exit/main.omg`: 4 rows
 - `tests/omega/pass/borrows/runtime_computed_window_operand_order_exit/main.omg`: 5 rows
 - `tests/omega/pass/borrows/runtime_copyable_carrier_retirement_exit/main.omg`: 3 rows
-- … and 650 more
+- … and 669 more
 
 ## Mutant total accounting
 
@@ -92,15 +104,23 @@ Primary pass recorded 840 mutants before `drop_requires_line` was re-enabled; ba
 
 ### Confirmed-hole by mutation kind
 
-- `promote_shared_ref_to_mut`: 8
-- `demote_mut_ref_to_shared`: 5
-- `drop_requires_line`: 2
+- `drop_requires_line`: 3
+- `corrupt_literal_callee_argument`: 1
+
+### Confirmed-hole by canonical `kind`
+
+- `drop_requires`: 3
 - `corrupt_literal_callee_argument`: 1
 
 ### Confirmed-hole by accepted_by
 
-- `both`: 8
-- `route`: 8
+- `both`: 2
+- `route`: 2
+
+### Confirmed-hole by hole_subtype
+
+- `(empty)`: 1
+- `probe-not-built`: 3
 
 ## Commands
 
@@ -116,141 +136,114 @@ Omega: `/agent/repos/omega/target/debug/omega`. Route: `/agent/repos/omega/targe
 
 ## Hand verification (5 confirmed-hole)
 
-### ## Hand verification (5 confirmed-hole) 1: `tests/omega/pass/arithmetic/match_operand_versions/main.omg` / `promote_shared_ref_to_mut`
+### ## Hand verification (5 confirmed-hole) 1: `tests/omega/pass/calls/runtime_mutable_call_empty_input_exit/main.omg` / `drop_requires_line`
 
-- Obligation / note: `machine change(cell: &mut Cell) -> bool { cell.value = 2; true }`
-- Route reason (hint only): ``
-- Validity note: `write through `cell` after promoting & to &mut`
-- Accepted by: `both`
-- Disposition: `confirmed-hole` (confirmed-hole)
-- Current verdict: **accepted** (exit 0)
-- Route verdict: **accepted**
-
-**Spec** — `wiki/spec/language/ownership.md` (Borrows and aliases):
-
-> `&T` | Shared observation under its loan contract.
-
-**omega --check** (stdout/stderr head):
-
-```text
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__match_operand_versions__main.omg__promote_shared_ref_to_mut__ccb75225c6/main.omg; wrote_output=false
-
-```
-
-**route_one_comparison** (first lines):
-
-```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__match_operand_versions__main.omg__promote_shared_ref_to_mut__ccb75225c6/main.omg	current=accepted	current_us=1546146	root=compilation	route=no-entry
-```
-
-### ## Hand verification (5 confirmed-hole) 2: `tests/omega/pass/borrows/borrowed_array_loop/main.omg` / `promote_shared_ref_to_mut`
-
-- Obligation / note: `out[position] = value;`
-- Route reason (hint only): ``
-- Validity note: `write through parameter `out` after demoting &mut to &`
-- Accepted by: `both`
-- Disposition: `confirmed-hole` (confirmed-hole)
-- Current verdict: **accepted** (exit 0)
-- Route verdict: **accepted**
-
-**Spec** — `wiki/spec/language/ownership.md` (Borrows and aliases):
-
-> `&T` | Shared observation under its loan contract.
-
-**omega --check** (stdout/stderr head):
-
-```text
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__borrowed_array_loop__main.omg__promote_shared_ref_to_mut__f4cc0f530c/main.omg; wrote_output=false
-
-```
-
-**route_one_comparison** (first lines):
-
-```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__borrowed_array_loop__main.omg__promote_shared_ref_to_mut__f4cc0f530c/main.omg	current=accepted	current_us=1651293	root=compilation	route=no-entry
-```
-
-### ## Hand verification (5 confirmed-hole) 3: `tests/omega/pass/borrows/runtime_state_boolean_reference_exit/main.omg` / `promote_shared_ref_to_mut`
-
-- Obligation / note: `main.ready = true;`
-- Route reason (hint only): ``
-- Validity note: `write through `main` after promoting & to &mut`
+- Obligation / note: `loader.tag = loader.tags[index] as u8;`
+- Route reason (hint only): `route=unknown`
+- Validity note: `body uses facts from removed `requires index <= 16383``
 - Accepted by: `route`
 - Disposition: `confirmed-hole` (confirmed-hole)
 - Current verdict: **rejected** (exit 1)
 - Route verdict: **accepted**
 
-**Spec** — `wiki/spec/language/ownership.md` (Borrows and aliases):
+**Spec** — `wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` (Nested machines and identity; Private entry inference):
 
-> `&T` | Shared observation under its loan contract.
+> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
 
 **omega --check** (stdout/stderr head):
 
 ```text
 (empty)
-cannot compile admitted project: checked compilation failed for package `runtime_state_boolean_reference_exit` with 1 diagnostic(s)
+cannot compile admitted project: checked compilation failed for package `runtime_mutable_call_empty_input_exit` with 1 diagnostic(s)
   error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it
 ```
 
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__runtime_state_boolean_reference_exit__main.omg__promote_shared_ref_to_mut__312788ebc8/main.omg	current=accepted	current_us=11138492	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_mutable_call_empty_input_exit__main.omg__drop_requires_line__6757e042ea/main.omg	current=accepted	current_us=11460451	root=compilation	route=outside	Unsupported: machine attached data
 ```
 
-### ## Hand verification (5 confirmed-hole) 4: `tests/omega/pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit/main.omg` / `demote_mut_ref_to_shared`
+### ## Hand verification (5 confirmed-hole) 2: `tests/omega/pass/wire/library_reflection_delegated_exit/owner/main.omg` / `drop_requires_line`
 
-- Obligation / note: `source.right = 19;`
-- Route reason (hint only): ``
-- Validity note: `write through parameter `source` after demoting &mut to &`
+- Obligation / note: `context.total = ((context.total as u64 in Wrapping) + (value as u64 in Wrapping)) as u64;`
+- Route reason (hint only): `route=unknown`
+- Validity note: `body uses facts from removed `requires T == u64``
 - Accepted by: `both`
 - Disposition: `confirmed-hole` (confirmed-hole)
 - Current verdict: **accepted** (exit 0)
 - Route verdict: **accepted**
 
-**Spec** — `wiki/spec/language/ownership.md` (Borrows and aliases):
+**Spec** — `wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` (Nested machines and identity; Private entry inference):
 
-> `&mut T` | Exclusive observation and mutation.
+> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
 
 **omega --check** (stdout/stderr head):
 
 ```text
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__suspension_projected_call_view_shared_cohort_restore_exit__main.omg__demote_mut_ref_to_shared__15b1f74b6d/main.omg; wrote_output=false
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__wire__library_reflection_delegated_exit__owner__main.omg__drop_requires_line__eb94552a87/main.omg; wrote_output=false
 
 ```
 
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__suspension_projected_call_view_shared_cohort_restore_exit__main.omg__demote_mut_ref_to_shared__15b1f74b6d/main.omg	current=accepted	current_us=3104364	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__wire__library_reflection_delegated_exit__owner__main.omg__drop_requires_line__eb94552a87/main.omg	current=accepted	current_us=1635781	root=compilation	route=no-entry
 ```
 
-### ## Hand verification (5 confirmed-hole) 5: `tests/omega/pass/calls/runtime_dispatch_result_enum_case_exit/main.omg` / `demote_mut_ref_to_shared`
+### ## Hand verification (5 confirmed-hole) 3: `tests/omega/run/arithmetic/pinned_dividend_across_console_calls/main.omg` / `corrupt_literal_callee_argument`
 
-- Obligation / note: `main.result = count(main, 3, 0, 0);`
-- Route reason (hint only): ``
-- Validity note: `write through parameter `main` after demoting &mut to &`
+- Obligation / note: `digits(0);`
+- Route reason (hint only): `route=unknown`
+- Validity note: `literal argument disagrees with callee requires`
 - Accepted by: `route`
 - Disposition: `confirmed-hole` (confirmed-hole)
 - Current verdict: **rejected** (exit 1)
 - Route verdict: **accepted**
 
-**Spec** — `wiki/spec/language/ownership.md` (Borrows and aliases):
+**Spec** — `wiki/spec/language/state_contracts.md` (Machine requirements at invocation):
 
-> `&mut T` | Exclusive observation and mutation.
+> Machine `requires` applies at every invocation, including terminal and recursive calls; every arrival establishes the target's requirements under actual argument substitution.
 
 **omega --check** (stdout/stderr head):
 
 ```text
 (empty)
-cannot compile admitted project: checked compilation failed for package `runtime_dispatch_result_enum_case_exit` with 1 diagnostic(s)
+cannot compile admitted project: checked compilation failed for package `pinned_dividend_across_console_calls` with 1 diagnostic(s)
   error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it
 ```
 
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_dispatch_result_enum_case_exit__main.omg__demote_mut_ref_to_shared__67855d45da/main.omg	current=accepted	current_us=11366058	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__run__arithmetic__pinned_dividend_across_console_calls__main.omg__corrupt_literal_callee_argument__9642cd94d0/main.omg	current=accepted	current_us=11203995	root=compilation	route=outside	Unsupported: machine service reach
+```
+
+### ## Hand verification (5 confirmed-hole) 4: `tests/omega/pass/drops/runtime_indexed_nominal_cleanup_exit/main.omg` / `drop_requires_line`
+
+- Obligation / note: `Console::write_byte(token.byte);`
+- Route reason (hint only): `route=unknown`
+- Validity note: `body uses facts from removed `requires token.ready``
+- Accepted by: `both`
+- Disposition: `confirmed-hole` (confirmed-hole)
+- Current verdict: **accepted** (exit 0)
+- Route verdict: **accepted**
+
+**Spec** — `wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` (Nested machines and identity; Private entry inference):
+
+> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+**omega --check** (stdout/stderr head):
+
+```text
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__drops__runtime_indexed_nominal_cleanup_exit__main.omg__drop_requires_line__91588d3666/main.omg; wrote_output=false
+
+```
+
+**route_one_comparison** (first lines):
+
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__drops__runtime_indexed_nominal_cleanup_exit__main.omg__drop_requires_line__91588d3666/main.omg	current=accepted	current_us=3433151	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ## Hand verification (disagreement-valid sample)
@@ -259,7 +252,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 - Obligation / note: ``
 - Route reason (hint only): ``
-- Validity note: `no write through affected reference parameter`
+- Validity note: `no shared caller to &mut param and no write through demoted &mut param`
 - Accepted by: ``
 - Disposition: `disagreement-valid` (disagreement-valid)
 - Current verdict: **rejected** (exit 1)
@@ -280,14 +273,14 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_dispatch_cast_decisions_exit__main.omg__demote_mut_ref_to_shared__a93dc59de0/main.omg	current=accepted	current_us=10967987	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_dispatch_cast_decisions_exit__main.omg__demote_mut_ref_to_shared__a93dc59de0/main.omg	current=accepted	current_us=11248027	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ### ## Hand verification (disagreement-valid sample) 2: `tests/omega/pass/arithmetic/runtime_trapping_mutable_local_traps/main.omg` / `demote_mut_ref_to_shared`
 
 - Obligation / note: ``
 - Route reason (hint only): ``
-- Validity note: `no write through affected reference parameter`
+- Validity note: `no shared caller to &mut param and no write through demoted &mut param`
 - Accepted by: ``
 - Disposition: `disagreement-valid` (disagreement-valid)
 - Current verdict: **rejected** (exit 1)
@@ -309,14 +302,14 @@ cannot compile admitted project: checked compilation failed for package `runtime
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_trapping_mutable_local_traps__main.omg__demote_mut_ref_to_shared__39ceac4305/main.omg	current=accepted	current_us=11359238	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_trapping_mutable_local_traps__main.omg__demote_mut_ref_to_shared__39ceac4305/main.omg	current=accepted	current_us=11365331	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
-### ## Hand verification (disagreement-valid sample) 3: `tests/omega/pass/build/segment_selector_reload/main.omg` / `remove_mut_binding`
+### ## Hand verification (disagreement-valid sample) 3: `tests/omega/pass/borrows/runtime_state_boolean_reference_exit/main.omg` / `promote_shared_ref_to_mut`
 
 - Obligation / note: ``
 - Route reason (hint only): ``
-- Validity note: `no write on demoted binding`
+- Validity note: `no shared caller to &mut param and no write through demoted &mut param`
 - Accepted by: ``
 - Disposition: `disagreement-valid` (disagreement-valid)
 - Current verdict: **rejected** (exit 1)
@@ -330,14 +323,14 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 ```text
 (empty)
-cannot compile admitted project: checked compilation failed for package `segment_selector_probe` with 1 diagnostic(s)
+cannot compile admitted project: checked compilation failed for package `runtime_state_boolean_reference_exit` with 1 diagnostic(s)
   error: target root slot `linux_x86_64::ProgramEntry` takes boundary schema `LinuxX86_64Application` from a dependency's `targets/linux_x86_64/entry.omg`, which needs an accepted program-entry binding; run `omega update` to review and accept it
 ```
 
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__build__segment_selector_reload__main.omg__remove_mut_binding__72027e613e/main.omg	current=accepted	current_us=10447743	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__runtime_state_boolean_reference_exit__main.omg__promote_shared_ref_to_mut__312788ebc8/main.omg	current=accepted	current_us=11282217	root=compilation	route=outside	Unsupported: machine service reach
 ```
 
 ## Hand verification (5 discarded drop_requires)
@@ -366,7 +359,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__anonymous_rational_arguments__main.omg__drop_requires_line__69e0e6d4ab/main.omg	current=accepted	current_us=1411064	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__anonymous_rational_arguments__main.omg__drop_requires_line__69e0e6d4ab/main.omg	current=accepted	current_us=1415422	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 2: `tests/omega/pass/borrows/state_element_clone/main.omg` / `drop_requires_line`
@@ -393,7 +386,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__state_element_clone__main.omg__drop_requires_line__8b28b3a947/main.omg	current=accepted	current_us=1579359	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__state_element_clone__main.omg__drop_requires_line__8b28b3a947/main.omg	current=accepted	current_us=1559617	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 3: `tests/omega/pass/calls/native_code_layout_uncalled_boundary_exit/main.omg` / `drop_requires_line`
@@ -420,7 +413,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__native_code_layout_uncalled_boundary_exit__main.omg__drop_requires_line__bab23fb377/main.omg	current=accepted	current_us=3076612	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__native_code_layout_uncalled_boundary_exit__main.omg__drop_requires_line__bab23fb377/main.omg	current=accepted	current_us=3060892	root=compilation	route=outside	Unsupported: declaration Build selection that is not a machine or a data type
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 4: `tests/omega/pass/calls/runtime_constructor_projected_membership_snapshot_exit/main.omg` / `drop_requires_line`
@@ -447,7 +440,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_constructor_projected_membership_snapshot_exit__main.omg__drop_requires_line__71b2f598e3/main.omg	current=accepted	current_us=2982396	root=compilation	route=outside	Unsupported: machine attached data
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_constructor_projected_membership_snapshot_exit__main.omg__drop_requires_line__71b2f598e3/main.omg	current=accepted	current_us=2992723	root=compilation	route=outside	Unsupported: machine attached data
 ```
 
 ### ## Hand verification (5 discarded drop_requires) 5: `tests/omega/pass/facts/float_range_delivery_through_other_machine_exit/main.omg` / `drop_requires_line`
@@ -474,7 +467,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__float_range_delivery_through_other_machine_exit__main.omg__drop_requires_line__08afd9167e/main.omg	current=accepted	current_us=3099011	root=compilation	route=outside	Unsupported: type float
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__float_range_delivery_through_other_machine_exit__main.omg__drop_requires_line__08afd9167e/main.omg	current=accepted	current_us=3151042	root=compilation	route=outside	Unsupported: type float
 ```
 
 ## Hand verification (5 known-gap-q7-mut)
@@ -491,7 +484,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `wiki/spec/language/ownership.md` (Owned local mutability):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> 
 
 **omega --check** (stdout/stderr head):
 
@@ -503,7 +496,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__offset_integer_at__main.omg__remove_mut_binding__bf6499144d/main.omg	current=accepted	current_us=2331035	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__offset_integer_at__main.omg__remove_mut_binding__bf6499144d/main.omg	current=accepted	current_us=2332011	root=compilation	route=no-entry
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 2: `tests/omega/pass/arithmetic/runtime_explicit_call_result_policy_exit/main.omg` / `remove_mut_binding`
@@ -518,7 +511,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `wiki/spec/language/ownership.md` (Owned local mutability):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> 
 
 **omega --check** (stdout/stderr head):
 
@@ -530,7 +523,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_explicit_call_result_policy_exit__main.omg__remove_mut_binding__3ec05424e1/main.omg	current=accepted	current_us=3096234	root=compilation	route=outside	Unsupported: type constrained
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__runtime_explicit_call_result_policy_exit__main.omg__remove_mut_binding__3ec05424e1/main.omg	current=accepted	current_us=3025528	root=compilation	route=outside	Unsupported: type constrained
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 3: `tests/omega/pass/asm/checked_countdown_literal_exit/main.omg` / `remove_mut_binding`
@@ -545,7 +538,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `wiki/spec/language/ownership.md` (Owned local mutability):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> 
 
 **omega --check** (stdout/stderr head):
 
@@ -557,7 +550,7 @@ warning: unreachable branch: the `true` arm of a transition in machine `main` st
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__asm__checked_countdown_literal_exit__main.omg__remove_mut_binding__8a61b2d28e/main.omg	current=accepted	current_us=2973125	root=compilation	route=outside	Unsupported: machine assembly target
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__asm__checked_countdown_literal_exit__main.omg__remove_mut_binding__8a61b2d28e/main.omg	current=accepted	current_us=2831091	root=compilation	route=outside	Unsupported: machine assembly target
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 4: `tests/omega/pass/atomics/runtime_atomic_operand_order_exit/main.omg` / `remove_mut_binding`
@@ -572,7 +565,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `wiki/spec/language/ownership.md` (Owned local mutability):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> 
 
 **omega --check** (stdout/stderr head):
 
@@ -584,7 +577,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__atomics__runtime_atomic_operand_order_exit__main.omg__remove_mut_binding__8536509326/main.omg	current=accepted	current_us=3238071	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__atomics__runtime_atomic_operand_order_exit__main.omg__remove_mut_binding__8536509326/main.omg	current=accepted	current_us=3058011	root=compilation	route=outside	Unsupported: parameter mutable parameter
 ```
 
 ### ## Hand verification (5 known-gap-q7-mut) 5: `tests/omega/pass/borrow/mutable_selector_rhs_snapshot_exit/main.omg` / `remove_mut_binding`
@@ -599,7 +592,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 
 **Spec** — `wiki/spec/language/ownership.md` (Owned local mutability):
 
-> Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established ordinary local's owned storage requires a `mut` binding. This covers direct assignment, writes to owned fields or array elements, and formation of `&mut` or `&write` loans to those places.
+> 
 
 **omega --check** (stdout/stderr head):
 
@@ -611,201 +604,12 @@ warning: unreachable branch: the `true` arm of a transition in machine `main` st
 **route_one_comparison** (first lines):
 
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrow__mutable_selector_rhs_snapshot_exit__main.omg__remove_mut_binding__1e4d43208f/main.omg	current=accepted	current_us=3080558	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrow__mutable_selector_rhs_snapshot_exit__main.omg__remove_mut_binding__1e4d43208f/main.omg	current=accepted	current_us=2966969	root=compilation	route=outside	Unsupported: machine generic parameters
 ```
 
 ## Confirmed-hole entries
 
-### 1. `tests/omega/pass/arithmetic/match_operand_versions/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__arithmetic__match_operand_versions__main.omg__promote_shared_ref_to_mut__ccb75225c6/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `machine change(cell: &mut Cell) -> bool { cell.value = 2; true }`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through `cell` after promoting & to &mut`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- machine stable(cell: &Cell, flag: bool) -> u32 {
-+ machine stable(cell: &mut Cell, flag: bool) -> u32 {
-```
-
-### 2. `tests/omega/pass/borrows/borrowed_array_loop/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__borrowed_array_loop__main.omg__promote_shared_ref_to_mut__f4cc0f530c/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `out[position] = value;`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `out` after demoting &mut to &`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- // `out: &mut [u8; 17]` forwards through the fill/write_digit loop and
-+ // `out: &mut mut [u8; 17]` forwards through the fill/write_digit loop and
-```
-
-### 3. `tests/omega/pass/borrows/runtime_state_boolean_reference_exit/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__runtime_state_boolean_reference_exit__main.omg__promote_shared_ref_to_mut__312788ebc8/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `main.ready = true;`
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through `main` after promoting & to &mut`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- machine Main::selected(main: &Main) -> &bool {
-+ machine Main::selected(main: &mut Main) -> &bool {
-```
-
-### 4. `tests/omega/pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit/main.omg` — `demote_mut_ref_to_shared`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__borrows__suspension_projected_call_view_shared_cohort_restore_exit__main.omg__demote_mut_ref_to_shared__15b1f74b6d/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `source.right = 19;`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `source` after demoting &mut to &`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&mut T` | Exclusive observation and mutation.
-
-**Minimal mutant diff:**
-
-```diff
-- machine project(source: &mut Backing) -> &[i32; 1] { &source.values }
-+ machine project(source: &Backing) -> &[i32; 1] { &source.values }
-```
-
-### 5. `tests/omega/pass/calls/runtime_dispatch_result_enum_case_exit/main.omg` — `demote_mut_ref_to_shared`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_dispatch_result_enum_case_exit__main.omg__demote_mut_ref_to_shared__67855d45da/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `main.result = count(main, 3, 0, 0);`
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `main` after demoting &mut to &`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&mut T` | Exclusive observation and mutation.
-
-**Minimal mutant diff:**
-
-```diff
-- machine count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping) -> Verdict
-+ machine count(main: &Main, i: u64, j: u64, acc: i32 in Wrapping) -> Verdict
-```
-
-### 6. `tests/omega/pass/collections/mutable_slice_view_establishment/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__collections__mutable_slice_view_establishment__main.omg__promote_shared_ref_to_mut__aeaf8f6fe5/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `transition main.bag.cells[2] == 7 {`
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `cells` after demoting &mut to &`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- // Mutable element-view establishment: `let cells: &mut [i32] =
-+ // Mutable element-view establishment: `let cells: &mut mut [i32] =
-```
-
-### 7. `tests/omega/pass/domains/domain_subslice_carry/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__domains__domain_subslice_carry__main.omg__promote_shared_ref_to_mut__f35ddb9404/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `main.end = 4;`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through `main` after promoting & to &mut`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- machine Main::relay(main: &Main, bytes: &[u8] in Ascii) {
-+ machine Main::relay(main: &mut Main, bytes: &[u8] in Ascii) {
-```
-
-### 8. `tests/omega/pass/facts/darwin_stat_abi_through_parameter_exit/main.omg` — `demote_mut_ref_to_shared`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__darwin_stat_abi_through_parameter_exit__main.omg__demote_mut_ref_to_shared__f34fac3343/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `value.dev == -2147483647i32 && value.mode == 33188u16 && value.nlink == 3u16 && value.ino == 4294967298u64 && value.uid == 123u32 && value.gid == 456u32 && value.rdev == -123456789i32 && value.atime.seconds == -17i64 && value.atime.nanoseconds == 123456789i64 && value.mtime.seconds == 42i64 && value.mtime.nanoseconds == 987654321i64 && value.ctime.seconds == -9i64 && value.ctime.nanoseconds == 111111111i64 && value.btime.seconds == 77i64 && value.btime.nanoseconds == 222222222i64 && value.size == 8589934593i64 && value.blocks == 123456i64 && value.blksize == 4096i32 && value.flags == 2147483649u32 && value.generation == 2882400001u32 && value.reserved == -314159i32 && value.spare[0] == -4294967297i64 && value.spare[1] == 68719476737i64 && StatExchange::check(&value) == 0u64 && StatExchange::extent() == size_of<DarwinStat>() && StatExchange::alignment() == align_of<DarwinStat>() && size_of<DarwinStat>() == 144u64 && align_of<DarwinStat>() == 8u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.dev)) == 2147483649u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.rdev)) == 4171510507u64`
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `value` after demoting &mut to &`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&mut T` | Exclusive observation and mutation.
-
-**Minimal mutant diff:**
-
-```diff
--     machine fill(value: &mut DarwinStat) reaches;
-+     machine fill(value: &DarwinStat) reaches;
-```
-
-### 9. `tests/omega/pass/facts/field_where_index_through_match_join_exit/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__facts__field_where_index_through_match_join_exit__main.omg__promote_shared_ref_to_mut__8cfa8adca8/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `main.arr = [10, 20, 30, 40, 50];`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through `main` after promoting & to &mut`
-- Route reason (hint only): ``
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- machine joined(main: &Main, flag: bool) -> i32 in Wrapping {
-+ machine joined(main: &mut Main, flag: bool) -> i32 in Wrapping {
-```
-
-### 10. `tests/omega/pass/calls/runtime_mutable_call_empty_input_exit/main.omg` — `drop_requires_line`
+### 1. `tests/omega/pass/calls/runtime_mutable_call_empty_input_exit/main.omg` — `drop_requires_line`
 
 - Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__calls__runtime_mutable_call_empty_input_exit__main.omg__drop_requires_line__6757e042ea/main.omg`
 - Current: **rejected** | Route: **accepted**
@@ -864,70 +668,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 + 
 ```
 
-### 11. `tests/omega/pass/host/runtime_descriptor_case_replacement_exit/main.omg` — `demote_mut_ref_to_shared`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__host__runtime_descriptor_case_replacement_exit__main.omg__demote_mut_ref_to_shared__795c7edd79/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `main.holder.choice = Choice::Full { packet: Packet { value: 2625, neighbor: 77 } };`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `choice` after demoting &mut to &`
-- Route reason (hint only): `route=unknown`
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&mut T` | Exclusive observation and mutation.
-
-**Minimal mutant diff:**
-
-```diff
--     machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 reaches blocks;
-+     machine read(descriptor: i32, choice: &Choice, count: u64) -> i64 reaches blocks;
-```
-
-### 12. `tests/omega/pass/host/runtime_descriptor_nested_case_array_exit/main.omg` — `demote_mut_ref_to_shared`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__host__runtime_descriptor_nested_case_array_exit__main.omg__demote_mut_ref_to_shared__40c94faacb/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `variant.revision == 7 && value == 9 && bytes.values[0] == 65`
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `variant` after demoting &mut to &`
-- Route reason (hint only): `route=unknown`
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&mut T` | Exclusive observation and mutation.
-
-**Minimal mutant diff:**
-
-```diff
--     machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 reaches blocks;
-+     machine read(descriptor: i32, variant: &Variant, count: u64) -> i64 reaches blocks;
-```
-
-### 13. `tests/omega/pass/references/runtime_shared_ref_param_guard_exit/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__references__runtime_shared_ref_param_guard_exit__main.omg__promote_shared_ref_to_mut__872e3c489e/main.omg`
-- Current: **rejected** | Route: **accepted**
-- Obligation: `// The NON-boundary flavor of task #37's guard face: `transition r.c == 9``
-- Accepted by: **route**
-- Hole subtype: **n/a**
-- Validity note: `write through `r` after promoting & to &mut`
-- Route reason (hint only): `route=unknown`
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- // with `r: &Pt` in a non-boundary machine. Non-boundary &Struct params are
-+ // with `r: &mut Pt` in a non-boundary machine. Non-boundary &Struct params are
-```
-
-### 14. `tests/omega/pass/wire/library_reflection_delegated_exit/owner/main.omg` — `drop_requires_line`
+### 2. `tests/omega/pass/wire/library_reflection_delegated_exit/owner/main.omg` — `drop_requires_line`
 
 - Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__wire__library_reflection_delegated_exit__owner__main.omg__drop_requires_line__eb94552a87/main.omg`
 - Current: **accepted** | Route: **accepted**
@@ -955,28 +696,7 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 - }
 ```
 
-### 15. `tests/omega/pass/wire/library_reflection_delegated_exit/owner/main.omg` — `promote_shared_ref_to_mut`
-
-- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__wire__library_reflection_delegated_exit__owner__main.omg__promote_shared_ref_to_mut__c5e7edcad9/main.omg`
-- Current: **accepted** | Route: **accepted**
-- Obligation: `context.total = ((context.total as u64 in Wrapping) + (value as u64 in Wrapping)) as u64;`
-- Accepted by: **both**
-- Hole subtype: **n/a**
-- Validity note: `write through parameter `context` after demoting &mut to &`
-- Route reason (hint only): `route=unknown`
-
-**wiki/spec/language/ownership.md** — *Borrows and aliases* (check-time proof obligation):
-
-> `&T` | Shared observation under its loan contract.
-
-**Minimal mutant diff:**
-
-```diff
-- public machine visit(value: &Subject, context: &mut Totals) {
-+ public machine visit(value: &mut Subject, context: &mut Totals) {
-```
-
-### 16. `tests/omega/run/arithmetic/pinned_dividend_across_console_calls/main.omg` — `corrupt_literal_callee_argument`
+### 3. `tests/omega/run/arithmetic/pinned_dividend_across_console_calls/main.omg` — `corrupt_literal_callee_argument`
 
 - Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__run__arithmetic__pinned_dividend_across_console_calls__main.omg__corrupt_literal_callee_argument__9642cd94d0/main.omg`
 - Current: **rejected** | Route: **accepted**
@@ -995,6 +715,65 @@ program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests_
 ```diff
 -     digits(53);
 +     digits(0);
+```
+
+### 4. `tests/omega/pass/drops/runtime_indexed_nominal_cleanup_exit/main.omg` — `drop_requires_line`
+
+- Mutant: `/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-3/tests__omega__pass__drops__runtime_indexed_nominal_cleanup_exit__main.omg__drop_requires_line__91588d3666/main.omg`
+- Current: **accepted** | Route: **accepted**
+- Obligation: `Console::write_byte(token.byte);`
+- Accepted by: **both**
+- Hole subtype: **probe-not-built**
+- Validity note: `body uses facts from removed `requires token.ready``
+- Route reason (hint only): `route=unknown`
+
+**wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md** — *Nested machines and identity; Private entry inference* (check-time proof obligation):
+
+> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+**Minimal mutant diff:**
+
+```diff
+- requires token.ready
++ reaches Console
+- reaches Console
++ {
+- {
++     Console::write_byte(token.byte);
+-     Console::write_byte(token.byte);
++     token.ready = false;
+-     token.ready = false;
++ }
+- }
++ 
+- 
++ machine outgoing() -> i32 reaches Console {
+- machine outgoing() -> i32 reaches Console {
++     Console::write_byte(88);
+-     Console::write_byte(88);
++     69
+-     69
++ }
+- }
++ 
+- 
++ // Capture X before disposing local G, then parameter F.
+- // Capture X before disposing local G, then parameter F.
++ // Reverse index-major cleanup visits pair[1].right D, pair[1].left C,
+- // Reverse index-major cleanup visits pair[1].right D, pair[1].left C,
++ // then pair[0].right B. Grouping by field would wrongly produce DBC.
+- // then pair[0].right B. Grouping by field would wrongly produce DBC.
++ // The successor prints E and only then disposes the transferred child A.
+- // The successor prints E and only then disposes the transferred child A.
++ machine select(input: Bundle, marker: Token)
+- machine select(input: Bundle, marker: Token)
++ requires input.pairs[0].left.ready, input.pairs[0].right.ready,
+- requires input.pairs[0].left.ready, input.pairs[0].right.ready,
++     input.pairs[1].left.ready, input.pairs[1].right.ready, marker.ready
+-     input.pairs[1].left.ready, input.pairs[1].right.ready, marker.ready
++ reaches Console
+- reaches Console
++ {
 ```
 
 ## Known gap: Q7 mut

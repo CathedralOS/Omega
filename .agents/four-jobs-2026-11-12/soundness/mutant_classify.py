@@ -83,15 +83,40 @@ BUCKETS = (
     "timeout",
     "failed-run",
     "discarded-no-rule",
+    "no-mutation",
+)
+
+LEDGER_DISPOSITIONS = frozenset({"no-mutation", "failed-run"})
+
+BORROW_MUTATION_KINDS = frozenset(
+    {
+        "demote_mut_ref_to_shared",
+        "promote_shared_ref_to_mut",
+        "mut_ref_instead_of_shared",
+        "shared_instead_of_mut",
+        "remove_mut_binding",
+    }
 )
 
 
+def canonical_kind(kind: str) -> str:
+    """Shared merge names alongside internal mutation_kind labels."""
+    mapping = {
+        "drop_requires_line": "drop_requires",
+        "remove_mut_binding": "remove_mut",
+        "tighten_requires_equality": "widen_requires",
+        "demote_mut_ref_to_shared": "mut_ref_instead_of_shared",
+        "promote_shared_ref_to_mut": "shared_instead_of_mut",
+        "corrupt_literal_callee_argument": "corrupt_literal_callee_argument",
+        "delete_transition_guard": "delete_transition_guard",
+        "corrupt_ensures_constant": "corrupt_ensures_constant",
+        "(none)": "(none)",
+    }
+    return mapping.get(kind, kind)
+
+
 def map_kind(kind: str) -> str:
-    if kind == "demote_mut_ref_to_shared":
-        return "mut_ref_instead_of_shared"
-    if kind == "promote_shared_ref_to_mut":
-        return "shared_instead_of_mut"
-    return kind
+    return canonical_kind(kind)
 
 
 @dataclass
@@ -123,11 +148,28 @@ def _line_evidence(text: str, pattern: str) -> str:
 
 
 def drop_requires_removed_line(original: str, mutant: str) -> str:
-    orig_reqs = [line.strip() for line in original.splitlines() if line.strip().startswith("requires")]
-    mut_set = {line.strip() for line in mutant.splitlines()}
-    for req in orig_reqs:
-        if req not in mut_set:
-            return req
+    for line in original.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("requires"):
+            if stripped not in {ln.strip() for ln in mutant.splitlines()}:
+                return stripped
+    header = re.compile(
+        r"^\s*(?:\w+(?:_\w+)*\s+)*machine\s+.+?\s+requires\s+(.+?)\s*\{"
+    )
+    for line in original.splitlines():
+        match = header.match(line)
+        if not match:
+            continue
+        removed_clause = match.group(1).strip()
+        if f" requires {removed_clause}" in line and line not in mutant.splitlines():
+            return f"requires {removed_clause}"
+        simplified = re.sub(
+            r"\s+requires\s+" + re.escape(removed_clause), "", line, count=1
+        )
+        if simplified not in mutant and " requires " not in line.replace(
+            f" requires {removed_clause}", ""
+        ):
+            return f"requires {removed_clause}"
     return ""
 
 
@@ -231,48 +273,192 @@ def remove_mut_obligation(original: str, mutant: str) -> tuple[bool, str]:
     return False, ""
 
 
-def _param_ref_swaps(original: str, mutant: str) -> list[tuple[str, str, str]]:
-    """Return (name, from_mode, to_mode) for parameter reference-mode edits."""
-    swaps: list[tuple[str, str, str]] = []
-    for line_o, line_m in zip(original.splitlines(), mutant.splitlines()):
-        if line_o == line_m:
+def _machine_header(line: str) -> tuple[str, str] | None:
+    match = re.match(
+        r"^\s*(?:\w+(?:_\w+)*\s+)*machine\s+([A-Za-z_:][\w:]*)\s*\(([^)]*)\)",
+        line,
+    )
+    if not match:
+        return None
+    return match.group(1), match.group(2)
+
+
+def _parse_params(signature: str) -> list[tuple[str, str]]:
+    params: list[tuple[str, str]] = []
+    for chunk in signature.split(","):
+        chunk = chunk.strip()
+        if not chunk:
             continue
-        for match in re.finditer(r"([A-Za-z_][\w]*)\s*:\s*&mut\b", line_o):
-            name = match.group(1)
-            if re.search(rf"{re.escape(name)}\s*:\s*&\b", line_m):
-                swaps.append((name, "mut", "shared"))
-        for match in re.finditer(r"([A-Za-z_][\w]*)\s*:\s*&\b", line_o):
-            name = match.group(1)
-            if re.search(rf"{re.escape(name)}\s*:\s*&mut\b", line_m):
-                swaps.append((name, "shared", "mut"))
+        name_match = re.match(r"([A-Za-z_][\w]*)", chunk)
+        if not name_match:
+            continue
+        name = name_match.group(1)
+        if "&mut" in chunk:
+            params.append((name, "mut"))
+        elif "&" in chunk:
+            params.append((name, "shared"))
+        else:
+            params.append((name, "value"))
+    return params
+
+
+def _signature_ref_swaps(
+    original: str, mutant: str
+) -> list[tuple[str, str, str, str]]:
+    """(machine, param, from_mode, to_mode) for signature reference edits."""
+    swaps: list[tuple[str, str, str, str]] = []
+    orig_lines = original.splitlines()
+    mut_lines = mutant.splitlines()
+    for left, right in zip(orig_lines, mut_lines):
+        if left == right:
+            continue
+        left_hdr = _machine_header(left)
+        right_hdr = _machine_header(right)
+        if not left_hdr or not right_hdr or left_hdr[0] != right_hdr[0]:
+            continue
+        left_params = _parse_params(left_hdr[1])
+        right_params = _parse_params(right_hdr[1])
+        if len(left_params) != len(right_params):
+            continue
+        for (ln, lm), (rn, rm) in zip(left_params, right_params):
+            if ln != rn or lm == rm or lm not in ("mut", "shared") or rm not in (
+                "mut",
+                "shared",
+            ):
+                continue
+            swaps.append((left_hdr[0], ln, lm, rm))
     return swaps
+
+
+def _split_call_args(call: str) -> list[str]:
+    start = call.find("(")
+    end = call.rfind(")")
+    if start < 0 or end <= start:
+        return []
+    body = call[start + 1 : end]
+    args: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for char in body:
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        if char == "," and depth == 0:
+            args.append("".join(current).strip())
+            current = []
+            continue
+        current.append(char)
+    if current:
+        args.append("".join(current).strip())
+    return args
+
+
+def _caller_shared_violation(
+    mutant: str, machine: str, param_name: str
+) -> str:
+    """Return call-site line passing shared `&` where callee param is now &mut."""
+    hdr_params: list[tuple[str, str]] = []
+    for line in mutant.splitlines():
+        parsed = _machine_header(line)
+        if parsed and parsed[0] == machine:
+            hdr_params = _parse_params(parsed[1])
+            break
+    if not hdr_params:
+        return ""
+    index = next(
+        (i for i, (name, mode) in enumerate(hdr_params) if name == param_name),
+        -1,
+    )
+    if index < 0:
+        return ""
+    call_pattern = re.compile(rf"(?m)^\s*.*\b{re.escape(machine)}\s*\([^)]*\)")
+    for line in mutant.splitlines():
+        if not call_pattern.search(line) or line.strip().startswith("machine "):
+            continue
+        args = _split_call_args(line)
+        if index >= len(args):
+            continue
+        arg = args[index].strip()
+        if re.match(r"&\s*[A-Za-z_]", arg) and not arg.startswith("&mut"):
+            return line.strip()
+    return ""
+
+
+def _machine_body_lines(mutant: str, machine: str) -> list[str]:
+    lines = mutant.splitlines()
+    start = -1
+    depth = 0
+    for index, line in enumerate(lines):
+        parsed = _machine_header(line)
+        if parsed and parsed[0] == machine and "{" in line:
+            start = index
+            depth = line.count("{") - line.count("}")
+            if depth <= 0:
+                return []
+            break
+    if start < 0:
+        return []
+    body: list[str] = []
+    for line in lines[start + 1 :]:
+        depth += line.count("{") - line.count("}")
+        if depth <= 0:
+            break
+        body.append(line)
+    return body
+
+
+def _write_through_param(body_lines: list[str], param: str) -> str:
+    for line in body_lines:
+        stripped = line.strip()
+        if stripped.startswith("//"):
+            continue
+        if re.search(
+            rf"\b{re.escape(param)}\s*\.[A-Za-z_0-9]+\s*=|"
+            rf"\b{re.escape(param)}\s*\[[^\]]*\]\s*=|"
+            rf"(?<![&=])\b{re.escape(param)}\s*=",
+            line,
+        ):
+            return stripped
+    return ""
 
 
 def ref_mutation_validity(kind: str, original: str, mutant: str) -> Validity:
     rule_key = map_kind(kind)
     rule = SPEC_RULES.get(rule_key) or SPEC_RULES.get(kind)
-    for name, _from, to_mode in _param_ref_swaps(original, mutant):
-        for line in mutant.splitlines():
-            if re.search(
-                rf"\b{name}\s*\.[A-Za-z_0-9]+\s*=|\b{name}\s*\[[^\]]*\]\s*=|\b{name}\s*=",
-                line,
-            ):
-                if to_mode == "shared":
-                    return Validity(
-                        True,
-                        line.strip(),
-                        f"write through parameter `{name}` after demoting &mut to &",
-                        rule,
-                        False,
-                    )
+    swaps = _signature_ref_swaps(original, mutant)
+    for machine, param, from_mode, to_mode in swaps:
+        if from_mode == "shared" and to_mode == "mut":
+            caller = _caller_shared_violation(mutant, machine, param)
+            if caller:
                 return Validity(
                     True,
-                    line.strip(),
-                    f"write through `{name}` after promoting & to &mut",
+                    caller,
+                    (
+                        f"caller passes shared `&` into `{machine}` parameter "
+                        f"`{param}` now requiring `&mut` (writable access "
+                        f"caller place may lack)"
+                    ),
                     rule,
                     False,
                 )
-    return Validity(False, "", "no write through affected reference parameter", rule, False)
+        if from_mode == "mut" and to_mode == "shared":
+            write = _write_through_param(_machine_body_lines(mutant, machine), param)
+            if write:
+                return Validity(
+                    True,
+                    write,
+                    f"write through parameter `{param}` after demoting &mut to &",
+                    rule,
+                    False,
+                )
+    return Validity(
+        False,
+        "",
+        "no shared caller to &mut param and no write through demoted &mut param",
+        rule,
+        False,
+    )
 
 
 def tighten_requires_validity(original: str, mutant: str) -> Validity:
@@ -305,7 +491,6 @@ def corrupt_call_validity(_original: str, mutant: str) -> Validity:
 
 
 def assess_validity(kind: str, original: str, mutant: str) -> Validity:
-    kind = map_kind(kind)
     if kind == "drop_requires_line":
         return drop_requires_validity(original, mutant)
     if kind == "remove_mut_binding":
@@ -319,7 +504,15 @@ def assess_validity(kind: str, original: str, mutant: str) -> Validity:
             SPEC_RULES["remove_mut_binding"],
             True,
         )
-    if kind in ("demote_mut_ref_to_shared", "promote_shared_ref_to_mut", "mut_ref_instead_of_shared", "shared_instead_of_mut"):
+    if kind in (
+        "demote_mut_ref_to_shared",
+        "promote_shared_ref_to_mut",
+        "mut_ref_instead_of_shared",
+        "shared_instead_of_mut",
+    ) or canonical_kind(kind) in (
+        "mut_ref_instead_of_shared",
+        "shared_instead_of_mut",
+    ):
         return ref_mutation_validity(kind, original, mutant)
     if kind == "tighten_requires_equality":
         return tighten_requires_validity(original, mutant)
@@ -467,19 +660,6 @@ def classify_mutant(
             note,
         )
 
-    # Invalid under spec (from mutant reading).
-    if validity.q7_only and (cur_ok or route_ok):
-        accepted_by = "both" if cur_ok and route_ok else ("current" if cur_ok else "route")
-        return ClassifyResult(
-            "known-gap-q7-mut",
-            "known-gap-q7-mut",
-            validity.spec,
-            validity.obligation_line,
-            route_reason,
-            accepted_by,
-            validity.validity_note,
-        )
-
     accepted_by = ""
     if cur_ok and route_ok:
         accepted_by = "both"
@@ -487,6 +667,34 @@ def classify_mutant(
         accepted_by = "current"
     elif route_ok:
         accepted_by = "route"
+
+    # Invalid under spec (from mutant reading).
+    borrow_kind = kind in BORROW_MUTATION_KINDS or map_kind(kind) in BORROW_MUTATION_KINDS
+    if validity.invalid and accepted_by:
+        if validity.q7_only or (
+            borrow_kind and accepted_by == "both" and not validity.spec
+        ):
+            return ClassifyResult(
+                "known-gap-q7-mut",
+                "known-gap-q7-mut",
+                validity.spec,
+                validity.obligation_line,
+                route_reason,
+                accepted_by,
+                validity.validity_note,
+            )
+        if borrow_kind and accepted_by == "both" and validity.spec and not validity.q7_only:
+            pass  # separate borrow rule → confirmed-hole below when quoted
+        elif borrow_kind and accepted_by == "both":
+            return ClassifyResult(
+                "known-gap-q7-mut",
+                "known-gap-q7-mut",
+                validity.spec,
+                validity.obligation_line,
+                route_reason,
+                accepted_by,
+                validity.validity_note,
+            )
 
     if accepted_by and validity.spec and validity.obligation_line:
         if not compile_time_obligation(kind, validity):
