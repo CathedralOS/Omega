@@ -2444,19 +2444,33 @@ mod scalar_values {
                 destination: SymbolHandle,
                 symbols: &[SymbolHandle],
             ) -> Option<&'plans CheckedScalarExpression> {
-                let (binding, expression) = context
+                let found = context
                     .selected_scalar_at(state, ordinal, |binding| {
                         binding.role == role
                             && binding.expression == source
                             && binding.destination == destination
                     })
-                    .flatten()?;
+                    .flatten();
+                if std::env::var("OMEGA_DBG_RET").is_ok() {
+                    eprintln!(
+                        "RETDBG selected role={role:?} ordinal={ordinal} found={} any_role={}",
+                        found.is_some(),
+                        context
+                            .selected_scalar_at(state, ordinal, |binding| binding.role == role)
+                            .flatten()
+                            .is_some()
+                    );
+                }
+                let (binding, expression) = found?;
                 if context
                     .scalar_expressions
                     .binding_symbols
                     .span_or_empty(binding.symbols)
                     != symbols
                 {
+                    if std::env::var("OMEGA_DBG_RET").is_ok() {
+                        eprintln!("RETDBG selected role={role:?} symbols differ");
+                    }
                     return None;
                 }
                 Some(expression)
