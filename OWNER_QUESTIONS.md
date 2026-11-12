@@ -1,10 +1,9 @@
 # Owner Questions
 
-Only the owner answers, closes, removes or rewrites an entry here, including
-one that an agent believes the specification already answers. Agents add
-questions and may research existing ones, but they report their findings and
-citations to the user and leave the entry, the specification and the boards
-unchanged; they never edit the specification or a task to settle a question.
+Only the owner answers an entry. The owner's word in a session is the
+ruling: write it into the specification, remove the entry, and build it; that
+is what the owner asked for. Otherwise agents add questions and may research
+existing ones, but do not settle a question themselves.
 
 Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the specification and language guide; implementation
