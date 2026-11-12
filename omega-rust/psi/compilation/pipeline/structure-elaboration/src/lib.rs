@@ -204,6 +204,14 @@ pub struct Elaboration {
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
+    /// The subject's generic machines. Each is a declaration the compilation
+    /// must judge, and none is a machine of this module: a generic body is
+    /// checked once as written, with its parameters rigid, or once per
+    /// alternative of a finite family it lists (`elaborate_generic_forms`).
+    /// The machines stage 04 generated from them for the program's own
+    /// applications are closed machines of this module. Empty outside
+    /// `elaborate`.
+    pub generic_templates: Vec<SymbolHandle>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -377,6 +385,28 @@ pub fn elaborate_alternatives(
         .collect()
 }
 
+/// The check forms of the generic machines `templates`, in order: for each,
+/// the machine checked once as written with its parameters rigid
+/// (`elaborate_generic`), or, when it lists a finite type family, once per
+/// alternative (`elaborate_alternatives`). Refused when either form refuses
+/// one of them; a refusal names the template's own form.
+pub fn elaborate_generic_forms(
+    typed: &TypedTrees,
+    templates: &[SymbolHandle],
+) -> Checked<Vec<Elaboration>> {
+    let mut forms = Vec::new();
+    for template in templates {
+        match elaborate_generic(typed, *template) {
+            Ok(form) => forms.push(form),
+            Err(rigid) => match elaborate_alternatives(typed, *template) {
+                Ok(alternatives) => forms.extend(alternatives),
+                Err(_) => return Err(rigid),
+            },
+        }
+    }
+    Ok(forms)
+}
+
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
@@ -503,6 +533,7 @@ fn finish_reading(
     elaboration.applications = program.applications;
     elaboration.value_parameters = program.value_parameters;
     elaboration.value_arguments = program.value_arguments;
+    elaboration.generic_templates = program.generic_templates;
     Ok(elaboration)
 }
 
@@ -609,6 +640,7 @@ pub fn lower_generic(
         applications: Vec::new(),
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
+        generic_templates: Vec::new(),
     })
 }
 

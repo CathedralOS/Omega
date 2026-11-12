@@ -178,7 +178,7 @@ historical passing observation is not correctness evidence for them. The current
 compiler refuses those forms, and its corrected customer passed in 139.663
 seconds through source-built Epsilon with the same exact reset artifact and
 exit 42. That observation used bootstrap compiler SHA-256
-`f765c26d704c41552739e32fc592232edcf814f5d57ee3990e92660aacb6152f`. The default Omega watchdog
+`f765c26d704c41552739e32fc592232edcf814f5d57ee3990e92660aacb6152f`. The default smaller-customer Omega watchdog
 is now 1,800 seconds; `--omega-timeout` retains an explicit experimental override.
 
 ## Source compiler implementation and evidence
@@ -280,3 +280,103 @@ publication, then reset and emitted an actual executable returning 43. That
 `20ffacd689a6712f78070ccde506f14a4abe5f9edaaa3f4f9189893b05a620ed`,
 passed in 76.013 seconds. The older observations above retain their own input
 identities; the entire matrix was not rerun after this diagnostic-only repair.
+
+
+## Compiler-source lexer customer
+
+`--omega-control` constructs and executes the real lexer identifier predicates,
+with their bodies and signatures unchanged, through the source-built Epsilon
+tape above. The wrapper uses explicit `as +Trapping` casts and tests both
+predicates across ASCII boundaries and the upper half of `u32`.
+
+The runtime-control observation defaults to 7,200 seconds; `--seconds` on the
+source-built route and `--omega-timeout` on the development route retain explicit
+overrides. Timeout is an observation failure, not an Omega result. Additional
+source-owned cases check staged parallel transfers, skipped looping Boolean
+operands, nested calls/comparisons, domain casts, refusals and compiler reuse.
+This extends the bootstrap compiler toward an actual successor source unit;
+it does not construct the complete Omega compiler.
+
+A canonical explicit-domain smoke completed in 478.167 seconds and emitted a
+2,153-byte Alpha program that exited 42 without output. Its Epsilon source was
+644,808 bytes, SHA-256
+`449d795abd68930a95fc0f08ee190caa3bfb2519465851e96b693370f8a09b7a`,
+including bootstrap compiler
+`7f0540c05d1c31033f3164dc1fb0c552d41ae2e57764451387c2618e47de46e3`.
+The exact 1,341-byte Omega customer had SHA-256
+`d26ea6de810d23de785af5b4cfc9a7490b865431ddedf181b878343879268117`;
+its tape had SHA-256
+`58a5d2ff0e45242e9382c7f940fdfede2089742152d8bb747a61b633e7ccf0b7`.
+This observation predates the final public crash-ceiling and visibility checks.
+
+An earlier grouped run failed at its short-circuit call-expression customer
+(Epsilon exit 12 after 1,114.986 seconds). Its two preceding tapes executed,
+but the earlier lexer wrapper also omitted required explicit domain casts;
+that acceptance is not conformance evidence. The repaired parser preserves
+expression context around nested calls instead of weakening the looping-RHS
+witness. Historical observations remain bound to their own source bytes.
+
+
+The later boundary/control invocation used a 653,357-byte Epsilon source,
+SHA-256 `6863d967b67ff9311dd6f121348cb9e725e287bcfd325ce54c0d4e46b923c621`,
+including compiler `6459924a185619f637f16166b10b1f29e274692c3c4f7580fd7bc1e2032d22bf`.
+All 25 source-owned refusal checks completed, including public crash-ceiling
+propagation in both declaration orders and empty/unfinalized output. Its first
+six emitted tapes were separately executed with exits `42, 42, 43, 44, 45, 46`
+and empty output. These cover the real lexer boundaries, parallel transfers,
+skipped infinite Boolean operands, upper-u32 comparisons, nested calls and
+explicit domain casts. The 4,352-byte real lexer customer has SHA-256
+`169002a5c460e9af180c4f3954fc28fd601132b131164483d459fe3cbda38c33`;
+its 6,095-byte tape has SHA-256
+`925bed6ed031e0d3ed5ddbb0c4f21fa2771cb7912e002c73755076784a924f59`.
+
+That invocation is still a **failed complete matrix**: its final public/plain
+positive exposed a missing call-primary path for a transition subject and
+returned Epsilon exit 90. The whole 9,063-byte observation has SHA-256
+`4253b9bb07f6debeb0f1db968f55ce7fe699667aafc222be23b21708139f4bbe`.
+Elapsed time was 2,644.870 seconds, including roughly 208 seconds paused to
+avoid exceeding the shared 32 GiB memory budget; it is not a benchmark.
+The exact positive was retained while the shared parser path was repaired.
+
+Separately, the 35-invocation parser customer reached its complete `A` marker
+before the legacy batch stopped at an unchanged leading-`!1` refusal witness.
+That 677,942-byte Epsilon source has SHA-256
+`7b0c364de404419b64eedc5f5b502635ede0a00af78ba62347756fa084e060cd`;
+the failed batch took 623.514 seconds and returned Epsilon exit 2 plus `A`.
+The repaired parser routes statement-leading unary prefixes through the shared
+expression machinery. Neither failed batch is promoted to evidence for later
+source bytes; the following focused observations establish the final repairs.
+
+
+The repaired parser and legacy acceptance batch passed in 2,011.789 seconds:
+37 parser invocations and 65 bootstrap compiler invocations completed with
+native and Epsilon exit 0 and empty stderr. It used the 644,910-byte compiler
+`5609861565dfbc77b8fb5586189f8dee2d490b267627b1bb9d35520ecbd682f7`
+and a 686,637-byte complete Epsilon source,
+`887c48bba803aeb7f08670a56c2eaf3b193b5b075d15864e57b497ac615fb5fd`.
+The original parser, runtime prefix/public checks and baseline/legacy fixture
+bodies were bound to Git `6710c426bccfff359e4f283d42d2e739c2547c6e`.
+Its 728-byte observation has SHA-256
+`b58537980b677917b92bbac2ca570ffc2c6aef1823086b955543c46d6880c44b`.
+All nine emitted programs executed without output: the terminal-prefix and
+skipped-loop program exited 43, the public/plain transition-call program exited
+47, and all seven baseline/legacy reset tapes exited 42. The public checks also
+covered transitive Trap ceilings, refusal coordinates, retired visibility syntax
+and reuse after refusal. This was focused validation of the repaired paths,
+not a rerun of the earlier complete boundary matrix.
+
+A final refusal-classification repair distinguishes an unsupported visible
+global terminal target from a genuinely missing target. The current 645,486-byte
+compiler has SHA-256
+`ec5caf34674af271f408e03bdbe77608b445c306956a0dc1064a41792141f377`.
+Its three-invocation focused customer passed in 166.294 seconds: the visible
+global target returned Incomplete, the missing target returned Reject, both
+retained exact target coordinates and empty/unfinalized tape, then the reused
+compiler emitted a 22-byte program that actually exited 49 without output.
+The 647,792-byte complete Epsilon source has SHA-256
+`cd0bad694b6a6c4622c2dc8578b1faa2ae930ec0b647ed640038bf1523b7a299`;
+the tape has SHA-256
+`5d6986842b024c50356357ef47eb431838ba94157e40091d2b998e7046db3373`.
+The retained runtime fixture now includes that refusal as its 26th case. Earlier
+full and focused observations retain their own compiler identities; they are
+not reported as reruns on these final bytes.

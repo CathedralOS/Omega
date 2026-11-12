@@ -286,7 +286,7 @@ machine OmegaLexScan::classify_keyword(
     }
 
     state pub_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "pub") {
+        transition self.span_equals(source, self.token_start, self.token_end, "public") {
             1 -> self.set_keyword(OmegaKeywordKind::Pub)
             _ -> return_word()
         }
@@ -309,13 +309,6 @@ machine OmegaLexScan::classify_keyword(
     state self_value() {
         transition self.span_equals(source, self.token_start, self.token_end, "self") {
             1 -> self.set_keyword(OmegaKeywordKind::SelfValue)
-            _ -> state_word()
-        }
-    }
-
-    state state_word() {
-        transition self.span_equals(source, self.token_start, self.token_end, "state") {
-            1 -> self.set_keyword(OmegaKeywordKind::State)
             _ -> struct_word()
         }
     }

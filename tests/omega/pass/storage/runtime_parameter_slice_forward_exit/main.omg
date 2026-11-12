@@ -21,7 +21,7 @@ machine mutate(room: &mut Room) {
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
-    let room: Room = Room {
+    let mut room: Room = Room {
         exits: [Counter { n: 10, tag: 31 }, Counter { n: 20, tag: 42 }]
     };
     mutate(&mut room);

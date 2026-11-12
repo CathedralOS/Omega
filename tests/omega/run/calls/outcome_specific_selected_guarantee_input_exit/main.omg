@@ -5,6 +5,9 @@
 // argument substitution to the call's scalar argument (and, for `both`, the
 // result substitution too). Exit 0 means the selected arm ran in the entry
 // machine and in a scalar-result helper.
+// Only the declaring machine assigns an evidence output: the nested
+// `succeed` declares the same guarantee and assigns its own output, and
+// `pick`'s terminal call to it discharges `pick`'s guarantee.
 use omega_language_std::console;
 
 data Outcome [copy] {
@@ -28,11 +31,13 @@ machine pick(threshold: u32) -> Outcome
 ensures Outcome::Success -> { selected: above(threshold); mixed: both(threshold, result); }
 {
     transition threshold > 3 {
-        true -> succeed()
+        true -> succeed(threshold)
         false -> fail()
     }
 
-    machine succeed() -> Outcome {
+    machine succeed(threshold: u32) -> Outcome
+    ensures Outcome::Success -> { selected: above(threshold); mixed: both(threshold, result); }
+    {
         selected = Fresh;
         mixed = Fresh;
         Outcome::Success

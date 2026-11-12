@@ -417,14 +417,14 @@ mod library_slice {
     The host owns where records live and who produced them, so this module
     only frames bytes; `CheckedSliceStore` performs the reads and writes.
 */
-mod checked_slice {
+pub(crate) mod checked_slice {
     use super::library_slice::{LibrarySliceRequest, SliceSource};
     use semantic_vocabulary::PackageKeyIdentity;
 
-    const RECORD_MAGIC: &[u8; 8] = b"OMGCSLC\x01";
-    const KEY_DOMAIN: &[u8] = b"omega-checked-slice-key-v1\0";
+    const RECORD_MAGIC: &[u8; 8] = b"OMGCSLC\x02";
+    const KEY_DOMAIN: &[u8] = b"omega-checked-slice-key-v2\0";
     const PAYLOAD_DOMAIN: &[u8] = b"omega-checked-slice-payload-v1\0";
-    const LIMITS: compiler_storage::RecordLimits = compiler_storage::RecordLimits {
+    pub(crate) const LIMITS: compiler_storage::RecordLimits = compiler_storage::RecordLimits {
         bytes: 256 * 1024 * 1024,
         allocation: 1024 * 1024 * 1024,
         elements: 64 * 1024 * 1024,
@@ -462,7 +462,81 @@ mod checked_slice {
         Consumer(Option<PackageKeyIdentity>),
     }
 
-    pub(super) struct SliceKey([u8; 32]);
+    pub(crate) struct SliceKey {
+        pub(super) digest: [u8; 32],
+        pub(crate) sources: std::sync::Arc<source::SourceMap>,
+    }
+
+    /*
+        The key every stored slice shares. `domain` separates kinds of result;
+        `parts` are the kind's own encoded inputs, written beside `sources`.
+
+        The invocation's source map is left out of those encodings: it holds
+        every file the invocation has read, including the consumer's own Build
+        that a dependency's Build carries without judging. The key covers the
+        map's selection view instead: every selected file's identity, path and
+        text, the selection, rejoins and dependency routing. Only unselected
+        files' paths and text are left out. Checking judges selected
+        declarations and reads no unselected text, so those cannot change the
+        result; a loaded record is joined to the loading compile's own map.
+    */
+    pub(crate) fn slice_key(
+        domain: &[u8],
+        reuse: &CheckedSliceReuse<'_>,
+        sources: std::sync::Arc<source::SourceMap>,
+        declarations: Option<&dyn validation::DeclarationSelectionAuthority>,
+        parts: &[&[u8]],
+    ) -> Option<SliceKey> {
+        let mut files = Vec::new();
+        for file in sources.selected_files() {
+            if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
+                && !(LibrarySliceRequest { root_package }).in_slice(file)
+            {
+                return None;
+            }
+            files.push((file.source_id.0, SliceSource::of(file)));
+        }
+        if files.is_empty() {
+            return None;
+        }
+        files.sort();
+        let authority = validation::RecordedDeclarationAuthority::capture(declarations).ok()?;
+        let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(domain);
+        digest.raw(&reuse.store.producer_identity());
+        digest.bytes(reuse.target.as_bytes());
+        digest.bytes(&compiler_storage::encode(&authority, LIMITS).ok()?);
+        if let (validation::RecordedDeclarationAuthority::Packages(scope), Some(labels)) =
+            (&authority, declarations)
+        {
+            let mut packages: Vec<PackageKeyIdentity> = scope
+                .iter()
+                .flat_map(|(requester, owners)| {
+                    std::iter::once(*requester).chain(owners.iter().copied())
+                })
+                .collect();
+            packages.sort_unstable();
+            packages.dedup();
+            digest.len(packages.len());
+            for package in packages {
+                digest.raw(&package.digest());
+                digest.bytes(labels.package_label(package).as_bytes());
+            }
+        }
+        digest.len(files.len());
+        for (source_id, file) in &files {
+            digest.u64(*source_id as u64);
+            file.encode(&mut digest);
+        }
+        digest.bytes(&compiler_storage::encode(&sources.selection_view(), LIMITS).ok()?);
+        digest.len(parts.len());
+        for part in parts {
+            digest.bytes(part);
+        }
+        Some(SliceKey {
+            digest: digest.finish(),
+            sources,
+        })
+    }
 
     /*
         Only a check whose admission is the Build check's (a declaration
@@ -493,58 +567,22 @@ mod checked_slice {
             return None;
         }
         let sources = program.symbols.source_map()?;
-        let mut files = Vec::new();
-        for file in sources.selected_files() {
-            if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
-                && !(LibrarySliceRequest { root_package }).in_slice(file)
-            {
-                return None;
-            }
-            files.push(SliceSource::of(file));
-        }
-        if files.is_empty() {
-            return None;
-        }
-        files.sort();
-        let authority =
-            validation::RecordedDeclarationAuthority::capture(admission.declarations).ok()?;
-        let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(KEY_DOMAIN);
-        digest.raw(&reuse.store.producer_identity());
-        digest.bytes(reuse.target.as_bytes());
-        digest.bytes(&compiler_storage::encode(&authority, LIMITS).ok()?);
-        if let (validation::RecordedDeclarationAuthority::Packages(scope), Some(labels)) =
-            (&authority, admission.declarations)
-        {
-            let mut packages: Vec<PackageKeyIdentity> = scope
-                .iter()
-                .flat_map(|(requester, owners)| {
-                    std::iter::once(*requester).chain(owners.iter().copied())
-                })
-                .collect();
-            packages.sort_unstable();
-            packages.dedup();
-            digest.len(packages.len());
-            for package in packages {
-                digest.raw(&package.digest());
-                digest.bytes(labels.package_label(package).as_bytes());
-            }
-        }
-        digest.len(files.len());
-        for file in &files {
-            file.encode(&mut digest);
-        }
-        digest.bytes(&compiler_storage::encode(program, LIMITS).ok()?);
-        Some(SliceKey(digest.finish()))
+        let encoded = compiler_storage::encode_beside(program, &sources, LIMITS).ok()?;
+        slice_key(
+            KEY_DOMAIN,
+            reuse,
+            sources,
+            admission.declarations,
+            &[&encoded],
+        )
     }
 
-    pub(super) fn load(
-        reuse: &CheckedSliceReuse<'_>,
-        key: &SliceKey,
-    ) -> Option<checked_trees::CheckedTrees> {
-        let record = reuse.store.load(&key.0)?;
+    /// The verified payload stored under `key`, if any.
+    pub(crate) fn load_payload(reuse: &CheckedSliceReuse<'_>, key: &SliceKey) -> Option<Vec<u8>> {
+        let record = reuse.store.load(&key.digest)?;
         let rest = record.strip_prefix(RECORD_MAGIC.as_slice())?;
         let (stored_key, rest) = rest.split_first_chunk::<32>()?;
-        if *stored_key != key.0 {
+        if *stored_key != key.digest {
             return None;
         }
         let (length, rest) = rest.split_first_chunk::<8>()?;
@@ -553,27 +591,39 @@ mod checked_slice {
             return None;
         }
         let (payload, payload_digest) = rest.split_at(length);
-        if payload_digest != payload_identity(&key.0, payload) {
-            return None;
-        }
-        compiler_storage::decode(payload, LIMITS).ok()
+        (payload_digest == payload_identity(&key.digest, payload)).then(|| payload.to_vec())
     }
 
+    pub(crate) fn save_payload(reuse: &CheckedSliceReuse<'_>, key: &SliceKey, payload: &[u8]) {
+        let mut record = Vec::with_capacity(RECORD_MAGIC.len() + 32 + 8 + payload.len() + 32);
+        record.extend_from_slice(RECORD_MAGIC);
+        record.extend_from_slice(&key.digest);
+        record.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        record.extend_from_slice(payload);
+        record.extend_from_slice(&payload_identity(&key.digest, payload));
+        reuse.store.save(&key.digest, &record);
+    }
+
+    pub(super) fn load(
+        reuse: &CheckedSliceReuse<'_>,
+        key: &SliceKey,
+    ) -> Option<checked_trees::CheckedTrees> {
+        let payload = load_payload(reuse, key)?;
+        compiler_storage::decode_beside(&payload, std::sync::Arc::clone(&key.sources), LIMITS).ok()
+    }
+
+    /*
+        A result that holds a second source map is not saved: another compile
+        could not join it to its own map.
+    */
     pub(super) fn save(
         reuse: &CheckedSliceReuse<'_>,
         key: &SliceKey,
         checked: &checked_trees::CheckedTrees,
     ) {
-        let Ok(payload) = compiler_storage::encode(checked, LIMITS) else {
-            return;
-        };
-        let mut record = Vec::with_capacity(RECORD_MAGIC.len() + 32 + 8 + payload.len() + 32);
-        record.extend_from_slice(RECORD_MAGIC);
-        record.extend_from_slice(&key.0);
-        record.extend_from_slice(&(payload.len() as u64).to_le_bytes());
-        record.extend_from_slice(&payload);
-        record.extend_from_slice(&payload_identity(&key.0, &payload));
-        reuse.store.save(&key.0, &record);
+        if let Ok(payload) = compiler_storage::encode_beside(checked, &key.sources, LIMITS) {
+            save_payload(reuse, key, &payload);
+        }
     }
 
     fn payload_identity(key: &[u8; 32], payload: &[u8]) -> [u8; 32] {
@@ -586,6 +636,7 @@ mod checked_slice {
     #[cfg(test)]
     mod tests {
         use super::{CheckedSliceReuse, CheckedSliceStore, SliceKey};
+        use std::sync::Arc;
         use std::sync::Mutex;
 
         #[derive(Default)]
@@ -607,6 +658,13 @@ mod checked_slice {
             }
         }
 
+        fn key(marker: u8) -> SliceKey {
+            SliceKey {
+                digest: [marker; 32],
+                sources: Arc::new(source::SourceMap::default()),
+            }
+        }
+
         fn reuse(store: &Memory) -> CheckedSliceReuse<'_> {
             CheckedSliceReuse {
                 store,
@@ -619,12 +677,9 @@ mod checked_slice {
         fn a_saved_slice_loads_under_its_own_key_only() {
             let store = Memory::default();
             let checked = checked_trees::CheckedTrees::default();
-            super::save(&reuse(&store), &SliceKey([1; 32]), &checked);
-            assert_eq!(
-                super::load(&reuse(&store), &SliceKey([1; 32])),
-                Some(checked)
-            );
-            assert_eq!(super::load(&reuse(&store), &SliceKey([2; 32])), None);
+            super::save(&reuse(&store), &key(1), &checked);
+            assert_eq!(super::load(&reuse(&store), &key(1)), Some(checked));
+            assert_eq!(super::load(&reuse(&store), &key(2)), None);
         }
 
         #[test]
@@ -632,7 +687,7 @@ mod checked_slice {
             let store = Memory::default();
             super::save(
                 &reuse(&store),
-                &SliceKey([1; 32]),
+                &key(1),
                 &checked_trees::CheckedTrees::default(),
             );
             let record = store.0.lock().unwrap()[0].1.clone();
@@ -643,11 +698,11 @@ mod checked_slice {
             for bytes in [damaged, truncated, Vec::new()] {
                 let other = Memory::default();
                 other.save(&[1; 32], &bytes);
-                assert_eq!(super::load(&reuse(&other), &SliceKey([1; 32])), None);
+                assert_eq!(super::load(&reuse(&other), &key(1)), None);
             }
             let misfiled = Memory::default();
             misfiled.save(&[3; 32], &record);
-            assert_eq!(super::load(&reuse(&misfiled), &SliceKey([3; 32])), None);
+            assert_eq!(super::load(&reuse(&misfiled), &key(3)), None);
         }
     }
 }
@@ -967,7 +1022,45 @@ impl CheckRequest<'_> {
     */
     pub fn check_keeping_typed_frontier(
         self,
-        mut frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+        frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        match frontier {
+            Some(frontier) => self.check_showing_typed_frontier(
+                Some(&mut |typed| {
+                    *frontier = Some(typed.clone());
+                }),
+                true,
+            ),
+            None => self.check_showing_typed_frontier(None, false),
+        }
+    }
+
+    /*
+        The same check, showing `inspect` the frozen typed trees Psi 05 judges
+        before Psi 05 takes them, under the same rule as the copy
+        `check_keeping_typed_frontier` makes: exactly once when Psi 04
+        completed or a retained judgment or stored slice supplied its trees,
+        whatever this function then returns, and not at all when the request
+        was refused earlier. A second checker judges the trees here by
+        reference (the checker on the lowered form, which may govern the
+        verdict), so nothing is cloned for it. One difference: when the
+        lifecycle-plan step between Psi 04 and Psi 05 refuses, `inspect` is not
+        called, because the compilation fails on that step's own diagnostic
+        and keeping Psi 04's output for the case would clone it every time.
+    */
+    pub fn check_inspecting_typed_frontier(
+        self,
+        inspect: &mut dyn FnMut(&typed_trees::FrozenTypedTrees),
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        self.check_showing_typed_frontier(Some(inspect), false)
+    }
+
+    /// `keep_prepared`: also show Psi 04's output when the lifecycle-plan step
+    /// refuses, which costs a copy of the trees on every check.
+    fn check_showing_typed_frontier(
+        self,
+        mut inspect: Option<&mut dyn FnMut(&typed_trees::FrozenTypedTrees)>,
+        keep_prepared: bool,
     ) -> Result<CheckedSource, Vec<Diagnostic>> {
         let stored_slice = self
             .checked_slices
@@ -981,8 +1074,8 @@ impl CheckRequest<'_> {
                 &checked.typed,
                 self.admission.declarations,
             )?;
-            if let Some(frontier) = frontier.as_deref_mut() {
-                *frontier = Some(checked.typed.clone());
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(&checked.typed);
             }
             return Ok(CheckedSource {
                 program: Arc::new(checked),
@@ -1070,8 +1163,8 @@ impl CheckRequest<'_> {
                 RETAINED_LAYOUT_MATCH_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             record_whole_program_reuse();
-            if let Some(frontier) = frontier.as_deref_mut() {
-                *frontier = Some(prior.judgment.judged_typed_trees().clone());
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(prior.judgment.judged_typed_trees());
             }
             let outcome = typed_trees_to_checked_trees::reuse_retained_check(
                 &prior.judgment,
@@ -1093,17 +1186,18 @@ impl CheckRequest<'_> {
             let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            let prepared = frontier.is_some().then(|| program.clone());
+            let prepared = (inspect.is_some() && keep_prepared).then(|| program.clone());
             let program = build_time_evaluation::retain_access_lifecycle_plans(
                 program,
                 self.admission.declarations,
                 self.admission.layout_scopes,
             );
-            if let Some(frontier) = frontier {
-                *frontier = match &program {
-                    Ok(program) => Some(program.clone()),
-                    Err(_) => prepared,
-                };
+            if let Some(inspect) = inspect {
+                match (&program, &prepared) {
+                    (Ok(program), _) => inspect(program),
+                    (Err(_), Some(prepared)) => inspect(prepared),
+                    (Err(_), None) => {}
+                }
             }
             let program = program?;
             let prior_dependency_bodies: Vec<_> = self

@@ -4,6 +4,9 @@
 // input, so the selection needs no substitution. The input arrives through a
 // local and through a state parameter. Exit 0 means the call with a high
 // threshold selected the term and the low-threshold call did not.
+// Only the declaring machine assigns an evidence output: the nested
+// `succeed` declares the same guarantee and assigns its own output, and
+// `pick`'s terminal call to it discharges `pick`'s guarantee.
 use omega_language_std::console;
 
 data Outcome [copy] {
@@ -30,7 +33,9 @@ ensures Outcome::Success -> { selected: selected_ready(); }
         false -> fail()
     }
 
-    machine succeed() -> Outcome {
+    machine succeed() -> Outcome
+    ensures Outcome::Success -> { selected: selected_ready(); }
+    {
         selected = Fresh;
         Outcome::Success
     }

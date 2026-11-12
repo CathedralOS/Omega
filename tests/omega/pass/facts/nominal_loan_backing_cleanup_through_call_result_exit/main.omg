@@ -35,7 +35,7 @@ machine make() -> Room
 ensures result.count == 10
 { Room { count: 10 } }
 machine scope() reaches Console crashes Trap {
- let room: Room = make();
+ let mut room: Room = make();
  transition { _ -> observe(&mut room) }
  machine observe(room: &mut Room) {
   Console::write_byte(79);

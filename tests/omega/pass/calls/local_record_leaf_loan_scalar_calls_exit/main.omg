@@ -16,7 +16,7 @@ machine is_seventy(leaf: &u8) -> bool {
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let pair: Pair = Pair { low: 3, high: 70 };
-    let words: Words = Words { count: 4, bytes: [1, 70, 3, 4] };
+    let mut words: Words = Words { count: 4, bytes: [1, 70, 3, 4] };
     let field: bool = is_seventy(&pair.high);
     let sibling: bool = is_seventy(&pair.low);
     let element: bool = is_seventy(&words.bytes[1]);

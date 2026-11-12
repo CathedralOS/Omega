@@ -14,8 +14,22 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
 
-    self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as u32 in Trapping; transition 1 { 1 -> done() } state done() {} }");
+    self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as +Trapping; transition 1 { 1 -> done() } machine done() {} }");
     self.check_machine_rows();
+
+    self.parser.parse_view("machine p(scalar: u32 in Trapping) -> bool { transition scalar == 95 { true -> true _ -> other(scalar) } machine other(value: u32 in Trapping) -> bool { transition value < 128 { true -> false _ -> true } } }");
+    self.check_transition_results();
+
+    // The retired declaration is not an alias; the word remains an identifier.
+    self.parser.parse_view("machine p() { state old() {} }");
+    self.check_refused();
+    self.parser.parse_view("machine state() -> bool { true }");
+    self.check_complete();
+
+    // A prior Result arm must not classify a later invocation's machine call.
+    self.parser.parse_view("machine p() { transition { _ -> done(7) } machine done(value: u32) {} }");
+    self.check_complete();
+    self.check_machine_target(0, 1);
 
     self.parser.parse_view("machine ext() satisfies Service::f via Binding::CompilerIntrinsic;");
     self.check_external_rows();
@@ -48,7 +62,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data R { a: u32 [0..=0x9]; }");
     self.check_suffix_refused(16, 17);
 
-    self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } state done() {} }");
+    self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } machine done() {} }");
     self.check_incomplete(29, 32);
 
     self.parser.parse_view("machine p() { x = self { tag: 1 }; }");
@@ -67,9 +81,65 @@ machine Main::main(&mut self) {
     self.parser.parse_view("data Missing requires value <=");
     self.check_requirement_refused(30, 30);
 
+    // Calls retain their surrounding operators, prefixes and groups while
+    // argument parsing temporarily reuses the active expression stacks.
+    self.parser.parse_view("machine p() { let x: bool = !(f(1) < g(2)) && h(); }");
+    self.check_complete();
+    assert self.parser.call_expression_count == 3;
+    assert self.parser.binary_expression_count == 2;
+    assert self.parser.unary_expression_count == 1;
+    self.check_call_stacks_empty();
+    self.parser.parse_view("machine p() { let x: u8 = f(g(1) + h(2), i(3)); }");
+    self.check_nested_call_rows();
+    self.parser.parse_view("machine p() { let x: u8 = pick<Type>(1); }");
+    self.check_complete();
+    assert self.parser.call_expression_count == 1;
+    assert self.parser.call_expressions[0].machine_argument_count == 1;
+    assert self.parser.call_expressions[0].argument_count == 1;
+    self.check_call_stacks_empty();
+
+    self.parser.parse_view("machine p() { let x: u32 in Trapping = 65 as +Trapping; let y: u32 = x as -Trapping; let z: u32 = (7 as u32); }");
+    self.check_complete();
+    assert self.parser.cast_expression_count == 3;
+    assert self.parser.type_reference_count == 5;
+    self.check_cast_kind(0, 1);
+    self.check_cast_kind(1, 2);
+    self.check_cast_kind(2, 0);
+    self.parser.parse_view("machine p() { let x: u32 = value as +Policy::Trapping; }");
+    self.check_complete();
+    self.check_cast_kind(0, 1);
+    assert self.parser.cast_expressions[0].domain.end -
+        self.parser.cast_expressions[0].domain.start == 16;
+
+    // Retired whole-type domain casts and unsupported multi-entry casts must
+    // not become successful casts or accidental arithmetic expressions.
+    self.parser.parse_view("machine p() { x = value as u32 in Trapping; }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { x = value as +Trapping -Other; }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { x = value as u32 +Trapping; }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { x = value as =Trapping; }");
+    self.check_incomplete(27, 28);
+    self.parser.parse_view("machine p() { x = value as +");
+    self.check_refused();
+    self.parser.parse_view("machine p() { let x: bool = scalar < @; }");
+    self.check_lexical_failure();
+
     // Reusing the same receiver after failures must rebuild the same live rows.
     self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
     self.check_data_rows();
+    self.parser.parse_view("machine logical() -> bool { !false } machine negative() -> u8 { -1 } machine inverted() -> u8 { ~1 }");
+    self.check_complete();
+    assert self.parser.machine_count == 3;
+    assert self.parser.unary_expression_count == 3;
+    assert self.parser.expression_prefix_count == 0;
+    assert self.parser.expression_group_count == 0;
+    self.check_call_stacks_empty();
+
+    self.parser.parse_view("machine p() -> bool { transition !f(1) && g(h(2)) { true -> true _ -> false } } machine q() -> bool { transition compare(47) { true -> true _ -> false } }");
+    self.check_subject_call_rows();
+
     self.console.write_byte(65);
 }
 
@@ -247,9 +317,61 @@ machine Main::check_machine_rows(&mut self) {
     assert self.parser.struct_literal_count == 1;
     assert self.parser.struct_literal_field_count == 1;
     assert self.parser.cast_expression_count == 1;
-    assert self.parser.type_reference_count == 1;
+    assert self.parser.type_reference_count == 0;
     assert self.parser.type_constraint_count == 0;
-    assert self.parser.cast_expressions[0].has_domain == 1;
+    self.check_cast_kind(0, 1);
+}
+
+machine Main::check_transition_results(&mut self) {
+    self.check_complete();
+    assert self.parser.machine_state_count == 2;
+    assert self.parser.machine_parameter_count == 2;
+    assert self.parser.machine_states[0].parameter_count == 1;
+    assert self.parser.machine_states[1].parameter_count == 1;
+    assert self.parser.transition_statement_count == 4;
+    self.check_result_target(0, 1);
+    self.check_machine_target(1, 1);
+    self.check_result_target(2, 0);
+    self.check_result_target(3, 1);
+}
+
+machine Main::check_result_target(&mut self, index: i32, value: i32) {
+    transition self.parser.transition_statements[index].target_kind {
+        OmegaTransitionTargetKind::Result -> result()
+        _ -> self.console.exit_process(1)
+    }
+    state result() {
+        assert self.parser.transition_statements[index].argument_count == 0;
+        assert self.parser.transition_statements[index].target.start == 0;
+        assert self.parser.transition_statements[index].target.end == 0;
+        let expression: i32 = self.parser.transition_statements[index].result_expression;
+        assert self.parser.expressions[expression].payload0 == value;
+        transition self.parser.expressions[expression].kind {
+            OmegaExpressionKind::Boolean -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_machine_target(&mut self, index: i32, arguments: i32) {
+    transition self.parser.transition_statements[index].target_kind {
+        OmegaTransitionTargetKind::Machine -> machine_target()
+        _ -> self.console.exit_process(1)
+    }
+    state machine_target() {
+        assert self.parser.transition_statements[index].result_expression == 0;
+        assert self.parser.transition_statements[index].argument_count == arguments;
+        assert self.parser.transition_statements[index].target.end >
+            self.parser.transition_statements[index].target.start;
+    }
+}
+
+machine Main::check_refused(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::Incomplete -> return
+        OmegaParserStatus::SyntaxFailure -> return
+        _ -> self.console.exit_process(1)
+    }
 }
 
 machine Main::check_external_rows(&mut self) {
@@ -297,6 +419,82 @@ machine Main::check_header_rows(&mut self, termination: i32, reached: i32, termi
     state service(service_index: i32) {
         transition self.parser.machine_clauses[service_index].kind {
             OmegaMachineClauseKind::Reaches -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_call_stacks_empty(&mut self) {
+    assert self.parser.call_parse_frame_count == 0;
+    assert self.parser.suspended_expression_frame_count == 0;
+    assert self.parser.suspended_expression_slot_count == 0;
+}
+
+machine Main::check_nested_call_rows(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.call_expression_count == 4;
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.call_expressions[3].first_argument == 3;
+    assert self.parser.call_expressions[3].argument_count == 2;
+    assert self.parser.call_arguments[3] == 4;
+    assert self.parser.call_arguments[4] == 6;
+    transition self.parser.expressions[4].kind {
+        OmegaExpressionKind::Binary -> right()
+        _ -> self.console.exit_process(1)
+    }
+    state right() {
+        transition self.parser.expressions[6].kind {
+            OmegaExpressionKind::Call -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_cast_kind(&mut self, index: i32, expected: i32) {
+    transition self.parser.cast_expressions[index].kind {
+        OmegaCastKind::Carrier -> carrier()
+        OmegaCastKind::AddDomain -> add()
+        OmegaCastKind::RemoveDomain -> remove()
+    }
+    state carrier() {
+        assert expected == 0;
+        assert self.parser.cast_expressions[index].target_type < self.parser.type_reference_count;
+        assert self.parser.cast_expressions[index].domain.start == 0;
+        assert self.parser.cast_expressions[index].domain.end == 0;
+    }
+    state add() { assert expected == 1; transition true { true -> domain() } }
+    state remove() { assert expected == 2; transition true { true -> domain() } }
+    state domain() {
+        assert self.parser.cast_expressions[index].target_type == 0;
+        assert self.parser.cast_expressions[index].domain.end >
+            self.parser.cast_expressions[index].domain.start;
+    }
+}
+
+machine Main::check_lexical_failure(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::LexicalFailure -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+
+machine Main::check_subject_call_rows(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.call_expression_count == 4;
+    assert self.parser.binary_expression_count == 1;
+    assert self.parser.unary_expression_count == 1;
+    assert self.parser.transition_statement_count == 4;
+    assert self.parser.transition_statements[0].subject == self.parser.transition_statements[1].subject;
+    assert self.parser.transition_statements[2].subject == self.parser.transition_statements[3].subject;
+    transition self.parser.expressions[self.parser.transition_statements[0].subject].kind {
+        OmegaExpressionKind::Binary -> direct()
+        _ -> self.console.exit_process(1)
+    }
+    state direct() {
+        transition self.parser.expressions[self.parser.transition_statements[2].subject].kind {
+            OmegaExpressionKind::Call -> return
             _ -> self.console.exit_process(1)
         }
     }

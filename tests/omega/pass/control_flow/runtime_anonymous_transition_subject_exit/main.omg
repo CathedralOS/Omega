@@ -16,7 +16,7 @@ machine CapturedLocal::main(main: &mut CapturedLocal) {
     }
 
     machine measure(main: &mut CapturedLocal, captured: u64) {
-        let held: u64 = captured;
+        let mut held: u64 = captured;
         CapturedLocal::fill(&mut held);
         main.answer = held;
     }

@@ -3753,10 +3753,86 @@ fn build_machine_call_graph(
     }
 }
 
+/// Contracts may not form a cycle (`wiki/spec/language/state_contracts.md`):
+/// a `requires` or `ensures` that calls a machine whose own contract, directly
+/// or through other contracts, calls back to the first is rejected even when
+/// every body is non-recursive. Each edge runs from a machine to a machine its
+/// contracts (machine and state contracts, including calls reached through the
+/// propositions, definitions and requirements a contract names) call; bodies
+/// add no edges, so only contract-to-contract cycles are reported. A contract
+/// that calls its own machine is the one-machine cycle.
+fn validate_contract_call_cycles(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let machines = program.machines();
+    let mut edges = vec![Vec::new(); machines.len()];
+    for (caller, machine) in machines.iter().enumerate() {
+        let mut pending = Vec::new();
+        collect_contract_dependency_symbols(
+            program,
+            program.machine_contracts(machine),
+            &mut pending,
+        );
+        for state in program.machine_states(machine) {
+            collect_contract_dependency_symbols(
+                program,
+                program.state_contracts(state),
+                &mut pending,
+            );
+        }
+        let entry_state = program
+            .machine_states(machine)
+            .first()
+            .map_or(SymbolHandle::invalid(), |state| state.symbol);
+        let mut expanded = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if expanded.contains(&symbol) {
+                continue;
+            }
+            expanded.push(symbol);
+            if let Some(callee) = runtime_ranking::target_machine(program, symbol) {
+                // A call of the machine itself (its symbol or its entry state)
+                // is the shortest cycle. A later state of the same machine (a
+                // contract naming a sibling state) resolves to the caller too,
+                // but is not a self-call.
+                if callee != caller || symbol == machine.symbol || symbol == entry_state {
+                    edges[caller].push(callee);
+                }
+            } else if let Some((_, dependencies)) = declaration_call_dependencies(program, symbol) {
+                pending.extend(dependencies);
+            }
+        }
+        edges[caller].sort_unstable();
+        edges[caller].dedup();
+    }
+    for mut members in strongly_connected_components(&edges) {
+        if members.len() == 1 && !edges[members[0]].contains(&members[0]) {
+            continue;
+        }
+        members.sort_unstable();
+        let names = members
+            .iter()
+            .map(|member| machines[*member].name.as_str())
+            .collect::<Vec<_>>()
+            .join("`, `");
+        let relation = if members.len() == 1 {
+            format!("contract of `{names}` calls `{names}` itself")
+        } else {
+            format!("contracts of `{names}` call each other")
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "contract call cycle: the `requires`/`ensures` {relation}; contracts may not form \
+             a cycle even when the bodies are not recursive; state the fact directly instead"
+        )));
+    }
+}
+
 pub(crate) fn validate_machine_call_cycles(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedProofCallComponent> {
+    validate_contract_call_cycles(program, diagnostics);
     let proof_only = crate::proof_only_classification(program);
     let machines = program.machines();
     let MachineCallGraph {

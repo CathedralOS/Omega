@@ -11,7 +11,7 @@ machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
     let mut held: Held = Held { target: &left, stamp: 17 };
-    let carrier: Carrier = Carrier { slot: &write held };
+    let mut carrier: Carrier = Carrier { slot: &write held };
     carrier.slot.target = carrier.slot.target;
     transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
         true -> done()

@@ -1131,7 +1131,7 @@ pub(crate) fn contract_returned_value(
         ::validation::expression_traversal::visit_post_order(
             program,
             expression,
-            &mut Vec::new(),
+            &mut ::validation::expression_traversal::EnteredExpressions::default(),
             |handle, _| found |= names_result(handle),
         );
         found

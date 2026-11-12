@@ -2099,6 +2099,12 @@ pub(crate) mod authored_selections {
             occurrence. Origins keep the fact order the repeated walks produced, and
             a fact naming an origin already recorded for that expression adds
             nothing, exactly as the receiving roster's own membership test did.
+
+            Only a fact whose origin names a machine with conformance bounds can
+            select a declared generic owner, so only those facts are walked. Every
+            nested subexpression carries its own fact, so walking all of them
+            visited each node once per enclosing expression: quadratic in an
+            operator chain's length.
         */
         pub(crate) struct GenericOperatorValueOrigins {
             by_expression: HashMap<ExpressionHandle, Vec<CheckedValueOrigin>>,
@@ -2111,6 +2117,12 @@ pub(crate) mod authored_selections {
             ) -> Self {
                 let mut by_expression: HashMap<_, Vec<CheckedValueOrigin>> = HashMap::default();
                 for (_, value) in facts.values.values.iter() {
+                    if !origin_machine_symbol(value.origin)
+                        .and_then(|machine_symbol| program.machine_by_symbol(machine_symbol))
+                        .is_some_and(|machine| !machine.conformance_bounds.is_empty())
+                    {
+                        continue;
+                    }
                     for reached in reachable_expressions(program, value.expression) {
                         let origins = by_expression.entry(reached).or_default();
                         crate::shared::collections::push_unique(&mut *origins, value.origin);
@@ -2123,6 +2135,15 @@ pub(crate) mod authored_selections {
                 self.by_expression
                     .get(&expression)
                     .map_or(&[][..], Vec::as_slice)
+            }
+        }
+
+        fn origin_machine_symbol(origin: CheckedValueOrigin) -> Option<SymbolHandle> {
+            match origin {
+                CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
+                | CheckedValueOrigin::MachineOwnedDataInitializer { machine_symbol, .. }
+                | CheckedValueOrigin::StateStatement { machine_symbol, .. } => Some(machine_symbol),
+                CheckedValueOrigin::NestedExpression { .. } => None,
             }
         }
 
@@ -2153,11 +2174,8 @@ pub(crate) mod authored_selections {
                 }
             }
             for (spelling, origin) in uses {
-                let machine_symbol = match origin {
-                    CheckedValueOrigin::MachineDecrease { machine_symbol, .. }
-                    | CheckedValueOrigin::MachineOwnedDataInitializer { machine_symbol, .. }
-                    | CheckedValueOrigin::StateStatement { machine_symbol, .. } => machine_symbol,
-                    CheckedValueOrigin::NestedExpression { .. } => continue,
+                let Some(machine_symbol) = origin_machine_symbol(origin) else {
+                    continue;
                 };
                 let Some(machine) = program.machine_by_symbol(machine_symbol) else {
                     continue;

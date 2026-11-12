@@ -29,7 +29,7 @@ machine retain<'storage>(value: &'storage mut Value) -> &'storage mut Value { va
 data Holder<'storage> { value: &'storage mut Value; }
 
 machine update(value: &mut Value, choose: bool) {
-    let holder: Holder = Holder { value: retain(value) };
+    let mut holder: Holder = Holder { value: retain(value) };
     let selected: &mut Value = match choose {
         true -> &mut holder.value,
         false -> &mut holder.value,

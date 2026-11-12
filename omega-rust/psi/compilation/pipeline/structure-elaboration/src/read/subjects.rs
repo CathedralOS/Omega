@@ -6,8 +6,10 @@ therefore means exactly: every declaration of the subject packages is valid,
 and every declaration they depend on is valid", and the closure "starts from
 every declaration of every subject, including unused ones".
 
-So every subject declaration is a root here, used or not. A machine becomes a
-`MachineId` and is read, lowered and judged like a called one; its callees
+So every subject declaration is a root here, used or not. A generic machine
+is set aside for its own check form (`Elaboration::generic_templates`). Any
+other machine becomes a `MachineId` and is read, lowered and judged like a
+called one; its callees
 follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. Every other kind of declaration is
 refused as `Unsupported`, because this route judges none of them yet and a
@@ -110,8 +112,15 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         for machine in typed.machines() {
-            if self.owner(entry, machine.symbol, subject)? == Owner::Subject {
+            if self.owner(entry, machine.symbol, subject)? != Owner::Subject {
+                continue;
+            }
+            // A generic machine is checked once as written, as its own check
+            // form, not as a closed body (`Elaboration::generic_templates`).
+            if machine.type_parameters.is_empty() {
                 self.machine(machine.symbol)?;
+            } else {
+                self.generic_templates.push(machine.symbol);
             }
         }
         for data in typed.data_definitions() {

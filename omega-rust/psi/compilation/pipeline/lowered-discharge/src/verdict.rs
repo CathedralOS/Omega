@@ -94,6 +94,58 @@ pub struct AcceptedClosure {
     pub seals: Vec<ObligationEvidenceSeal>,
 }
 
+/// An accepted closure published as Terminal Psi: the canonical artifact of
+/// the module the route checked, and the evidence seals bound to that
+/// module's identity, which travel beside it in memory to Omega 00.
+#[derive(Debug)]
+pub struct RoutePublication {
+    pub artifact: terminal_codec::CanonicalTerminalArtifact,
+    pub seals: terminal_codec::EvidenceSeals,
+}
+
+/// Why an accepted closure could not be published.
+#[derive(Debug)]
+pub enum PublicationError {
+    /// The module names a requirement that stands in for a body: a generic
+    /// check form, which is never encoded (generics.md, "Generic bodies use
+    /// the abstract requirement envelope").
+    GenericCheckForm,
+    /// The module fails a structural check of Terminal semantics.
+    Semantic(String),
+    Artifact(terminal_codec::CanonicalTerminalArtifactError),
+    Seals(terminal_codec::CodecError),
+}
+
+impl AcceptedClosure {
+    /// Publishes the module the route checked, with no Psi optimization: the
+    /// artifact's execution record names the identity stage, so the module
+    /// the kernel judged is byte for byte the module that is encoded, and the
+    /// seals, bound to its identity, still name it. This is the same
+    /// publication Psi 08 performs (`finalize_terminal_program`), from the
+    /// route's module instead of Psi 06's.
+    pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
+        if !self.elaboration.requirements.is_empty() {
+            return Err(PublicationError::GenericCheckForm);
+        }
+        let module = self.elaboration.module.clone();
+        terminal_semantics::activation_storage::validate_module(&module)
+            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
+        let identity =
+            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+            optimization::PsiOptimizationSelections::default(),
+            identity,
+            identity,
+        )
+        .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
+        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+            .map_err(PublicationError::Seals)?;
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+            .map_err(PublicationError::Artifact)?;
+        Ok(RoutePublication { artifact, seals })
+    }
+}
+
 /// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {
@@ -119,6 +171,15 @@ pub struct UnprovedObligation {
     pub consumed: Option<ConsumptionSite>,
 }
 
+/// `statement` ending with a period.
+fn closed_sentence(statement: &str) -> std::borrow::Cow<'_, str> {
+    if statement.ends_with('.') {
+        std::borrow::Cow::Borrowed(statement)
+    } else {
+        std::borrow::Cow::Owned(format!("{statement}."))
+    }
+}
+
 /// Where an open invariant window is consumed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConsumptionSite {
@@ -135,9 +196,12 @@ impl UnprovedObligation {
     /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
+            // The statement is a sentence in the current checker's words and
+            // closes with its period, as that checker's message does, so a
+            // pinned fragment that ends the sentence matches either.
             None => format!(
                 "{} ({}: {})",
-                self.statement,
+                closed_sentence(&self.statement),
                 self.cause.describe(),
                 self.detail
             ),
@@ -260,6 +324,18 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         Ok(elaboration) => elaboration,
         Err(refused) => return fall_back_or_defect(refused),
     };
+    // A compilation's generic machines are judged as their own check forms
+    // (`judge_compilation`). A closure that still lists them was judged
+    // without them, so it decides nothing.
+    if !elaboration.generic_templates.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "machine generic parameters",
+        )));
+    }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
@@ -423,6 +499,37 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         discharge: discharged,
         seals,
     })))
+}
+
+/// The route's verdicts on everything `compilation` claims: the closure of
+/// its roots first, then the check form of each generic machine its subject
+/// declares, in declaration order, one per alternative for a finite family.
+/// generics.md, "Static type equality": "An unspecialized body checks every
+/// admitted alternative; one consumer cannot authorize an otherwise invalid
+/// generic body." So each generic body is judged as written whether or not
+/// the program applies it; the machines stage 04 generated for the
+/// program's own applications are closed machines of the closure. The
+/// compilation is decided only when every part is.
+pub fn judge_compilation(
+    typed: &typed_trees::TypedTrees,
+    compilation: structure_elaboration::Compilation<'_>,
+) -> Vec<Checked<RouteVerdict>> {
+    let elaborated = structure_elaboration::elaborate(typed, compilation);
+    let (closure, templates) = match elaborated {
+        Ok(mut elaboration) => {
+            let templates = std::mem::take(&mut elaboration.generic_templates);
+            (Ok(elaboration), templates)
+        }
+        Err(refused) => (Err(refused), Vec::new()),
+    };
+    let mut verdicts = vec![judge(closure)];
+    if !templates.is_empty() {
+        match structure_elaboration::elaborate_generic_forms(typed, &templates) {
+            Ok(forms) => verdicts.extend(forms.into_iter().map(|form| judge(Ok(form)))),
+            Err(refused) => verdicts.push(judge(Err(refused))),
+        }
+    }
+    verdicts
 }
 
 /// Where an operation, edge or block arises in the source, from

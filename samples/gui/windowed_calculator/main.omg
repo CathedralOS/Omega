@@ -316,7 +316,7 @@ machine Main::main(main: &mut Main) reaches
     main.frame = 0;
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
-    let window: Window = Gui::window_create(main.cls, main.title, 0x10cf0000, 160, 120, 528, 551);
+    let mut window: Window = Gui::window_create(main.cls, main.title, 0x10cf0000, 160, 120, 528, 551);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 

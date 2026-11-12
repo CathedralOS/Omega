@@ -27036,7 +27036,7 @@ pub(crate) fn visit_binary_operators(
     crate::queries::expression_traversal::visit_post_order(
         program,
         expression,
-        &mut Vec::new(),
+        &mut crate::queries::expression_traversal::EnteredExpressions::default(),
         &mut visit,
     );
 }

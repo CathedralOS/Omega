@@ -784,7 +784,21 @@ mod persistent {
                                 .and_then(|target| program.machine_holding_state(target.symbol))
                                 .is_some_and(|callee| obligated.contains(&callee.symbol)))
                     });
-                    if !requires_relation {
+                    // The borrow walk deferred this statement's missing relation
+                    // here, so it is refused even when no relation is required.
+                    let deferred = frames.is_some_and(|frames| {
+                        calls
+                            .iter()
+                            .any(|call| call.statement_index == statement_index)
+                            && matches!(
+                                frames.stored_reference_fallthrough_effects(machine, statement),
+                                Err(::validation::StoredReferenceRelationRefusal::Unavailable(_))
+                            )
+                            && crate::borrow::deferred_to_stored_output_check(
+                                frames, machine, statement,
+                            )
+                    });
+                    if !requires_relation && !deferred {
                         continue;
                     }
                     let failures = frames.and_then(|frames| {
@@ -799,7 +813,7 @@ mod persistent {
                         }),
                         None => requires_relation,
                     };
-                    if incomplete {
+                    if incomplete || deferred {
                         diagnostics.push(Diagnostic::error(format!(
                             "machine `{}` state `{}` statement {statement_index}: call stores a borrowed value without a complete destination/backing relation",
                             machine.name, state.name,

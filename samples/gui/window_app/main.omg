@@ -246,7 +246,7 @@ machine Main::main(main: &mut Main) reaches
     main.info[2] = 0 - 64;
     main.info[3] = 2097153;
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so client is roughly 256x256.
-    let window: Window = Gui::window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
+    let mut window: Window = Gui::window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     machine dc(main: &mut Main, window: Window) {

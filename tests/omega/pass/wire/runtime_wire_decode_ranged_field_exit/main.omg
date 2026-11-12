@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[3] = 1;
     main.buffer[4] = 1;
     main.buffer[5] = 39;
-    let bad: Val = Val { v: 42, delta: 7 };
+    let mut bad: Val = Val { v: 42, delta: 7 };
     MsgCodec::decode(
         &mut bad,
         &main.buffer,
@@ -44,7 +44,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[2] = 50;
     main.buffer[3] = 1;
     main.buffer[4] = 9;
-    let good: Val = Val { v: 42, delta: 7 };
+    let mut good: Val = Val { v: 42, delta: 7 };
     MsgCodec::decode(
         &mut good,
         &main.buffer,

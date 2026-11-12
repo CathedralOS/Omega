@@ -2274,7 +2274,7 @@ pub(in crate::checks) mod call_guarantees {
             validation::expression_traversal::visit_post_order(
                 program,
                 term.expression,
-                &mut Vec::new(),
+                &mut validation::expression_traversal::EnteredExpressions::default(),
                 |expression, _| {
                     if admitted_unsigned_remainder(program, callable, expression)
                         && super::super::has_builtin_operators(program, facts.operators, expression)
@@ -2405,7 +2405,7 @@ pub(in crate::checks) mod call_guarantees {
             validation::expression_traversal::visit_post_order(
                 program,
                 expression,
-                &mut Vec::new(),
+                &mut validation::expression_traversal::EnteredExpressions::default(),
                 |_, node| {
                     if let ExpressionNode::Call(call) = node {
                         for argument in program.expression_table.expression_handles(call.arguments)

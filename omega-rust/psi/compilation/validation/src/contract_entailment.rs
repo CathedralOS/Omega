@@ -16535,7 +16535,7 @@ pub(crate) mod inductive_judgment {
                     eprintln!(
                         "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                         machine.name,
-                        arm.guard_display,
+                        arm.guard_display.as_deref().unwrap_or("<always>"),
                         program.expression_table.display_name(*fact),
                         arm.fully_visible,
                     );
@@ -16556,28 +16556,28 @@ pub(crate) mod inductive_judgment {
             }
             if let Some(guard) = constant_false_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(guard) = refuted_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                "machine `{}` ensures contract proof fact `{}` is disproved{}: the arm's facts entail its negation",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(ref guard) = unknown_arm
                 && goal_always_in_language
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
-                machine.name,
-                program.expression_table.display_name(*fact),
-                guard
-            )));
+                    "machine `{}` cannot prove ensures contract proof fact `{}`{}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    arm_clause(guard)
+                )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
             }
@@ -16630,7 +16630,20 @@ pub(crate) mod inductive_judgment {
         engine: Engine<'program>,
         vacuous: bool,
         fully_visible: bool,
-        guard_display: String,
+        // `None` for a body with one unguarded arm: there is no guard to name.
+        guard_display: Option<String>,
+    }
+
+    /*
+        The clause that says which transition arm a refused guarantee sits on.
+        A body that is a single unguarded arm has no guard, so the message
+        names the machine and the fact and stops there.
+    */
+    fn arm_clause(guard: &Option<String>) -> String {
+        guard
+            .as_ref()
+            .map(|guard| format!(" on the transition arm guarded by `{guard}`"))
+            .unwrap_or_default()
     }
 
     fn prepare_arm<'program>(
@@ -16642,18 +16655,20 @@ pub(crate) mod inductive_judgment {
         arm: &TransitionArm,
         preceding: &[TransitionArm],
     ) -> Option<JudgedArm<'program>> {
-        let guard_display = match arm.guard {
-            Some(guard) => program.expression_table.display_name(guard),
-            None if preceding.is_empty() => "<always>".to_owned(),
-            None => preceding
-                .iter()
-                .filter_map(|arm| arm.guard)
-                .map(|guard| failed_guard_display(program, guard))
-                .collect::<Vec<_>>()
-                .join(" && "),
-        };
-
         let mut engine = Engine::with_result_atom(program, machine, root);
+        let guard_display = match arm.guard {
+            Some(guard) => Some(guard_arm_display(&engine, guard, true)),
+            None if preceding.is_empty() => None,
+            None => Some(
+                preceding
+                    .iter()
+                    .filter_map(|arm| arm.guard)
+                    .map(|guard| guard_arm_display(&engine, guard, false))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            )
+            .filter(|guards| !guards.is_empty()),
+        };
         if preceding.iter().any(|arm| arm.guard.is_none()) {
             return Some(JudgedArm {
                 engine,
@@ -16761,19 +16776,40 @@ pub(crate) mod inductive_judgment {
         ))
     }
 
-    fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
-        if let Some(binary) = program.expression_table.binary_node(guard)
-            && binary.operator == BinaryOperator::Equal
-            && let ExpressionNode::Boolean(polarity) =
-                program.expression_table.expression(binary.right)
-        {
-            return format!(
-                "{} == {}",
-                program.expression_table.display_name(binary.left),
-                !polarity
-            );
+    /// Names an arm by the condition the author wrote. An arm `true -> ...` of
+    /// `transition n > 0 { ... }` tests `subject == true`; the parser may also
+    /// capture the subject in a generated immutable local and test
+    /// `__transition_subject#N == true`. Either way the diagnostic shows `n > 0`
+    /// (or `!(n > 0)`), never the internal name. `holds` is false for a
+    /// preceding arm whose guard failed on the way to this one.
+    fn guard_arm_display(engine: &Engine<'_>, guard: ExpressionHandle, holds: bool) -> String {
+        let table = &engine.program.expression_table;
+        let (condition, holds) = match table.binary_node(guard) {
+            Some(binary) if binary.operator == BinaryOperator::Equal => {
+                match table.expression(binary.right) {
+                    ExpressionNode::Boolean(polarity) => (binary.left, holds == *polarity),
+                    _ => (guard, holds),
+                }
+            }
+            _ => (guard, holds),
+        };
+        let condition = match table.expression(condition) {
+            ExpressionNode::Name(name)
+                if table
+                    .display_name(condition)
+                    .starts_with("__transition_subject#") =>
+            {
+                engine
+                    .immutable_local_initializer(name.symbol)
+                    .unwrap_or(condition)
+            }
+            _ => condition,
+        };
+        if holds {
+            table.display_name(condition)
+        } else {
+            format!("!({})", table.display_name(condition))
         }
-        format!("!({})", program.expression_table.display_name(guard))
     }
 
     fn self_call_arguments(
@@ -66415,14 +66451,27 @@ pub(crate) mod structural_judgment {
                             {
                                 continue;
                             }
+                            // The arm's descriptor is the value this walk binds to the
+                            // parameter, not its spelling: walked from the helper's lexical
+                            // root, `chosen` holds the root's capture of `&chosen`. A
+                            // shadowed or repeated binding selects nothing.
+                            let mut bound = environment
+                                .iter()
+                                .filter(|(binding, _)| binding == parameter.name.as_str());
+                            let entry = match (bound.next(), bound.next()) {
+                                (Some((_, value)), None) => value.clone(),
+                                (None, _) => StructuralTerm::Variable(parameter.name.to_string()),
+                                (Some(_), Some(_)) => continue,
+                            };
                             let expected =
                                 super::super::observed_projections::project_observed_value_in_scope(
                                     program,
                                     self,
                                     parameter.type_reference,
-                                    StructuralTerm::Variable(parameter.name.to_string()),
+                                    entry,
                                     &source.segments,
-                                );
+                                )
+                                .map(StructuralTerm::into_collection_descriptor);
                             if expected.as_ref() != Some(descriptor.as_ref()) {
                                 continue;
                             }
@@ -85197,6 +85246,7 @@ pub(crate) mod structural_prefix {
             use symbols::SymbolKeyMap;
             use typed_trees::expression::ExpressionNode;
             use typed_trees::references::TypedReferences;
+            use typed_trees::signature::SignatureContractKind;
             use typed_trees::types::TypeReferenceHandle;
 
             fn authored_machine(
@@ -85242,6 +85292,22 @@ pub(crate) mod structural_prefix {
                     )
             }
 
+            fn has_authored_entry_requires(program: &dyn CheckingInput, machine: &Machine) -> bool {
+                // A written precondition states every input the body must handle.
+                // Even `requires true` cannot borrow a stronger condition from callers.
+                // The keyword span separates authored clauses from derived requirements.
+                let authored = |contracts: &[typed_trees::signature::SignatureContract]| {
+                    contracts.iter().any(|contract| {
+                        contract.kind == SignatureContractKind::Requires
+                            && contract.keyword_source_span.is_some()
+                    })
+                };
+                authored(program.machine_contracts(machine))
+                    || crate::activation_target_state_index(program, machine, machine.symbol)
+                        .and_then(|index| program.machine_states(machine).get(index))
+                        .is_some_and(|entry| authored(program.state_contracts(entry)))
+            }
+
             pub fn private_invocation_entry_is_closed(
                 program: &dyn CheckingInput,
                 machine: &Machine,
@@ -85255,6 +85321,9 @@ pub(crate) mod structural_prefix {
                 machine: &Machine,
                 consume: impl FnOnce(&[StaticMachineContractObligation]) -> T,
             ) -> Option<T> {
+                if has_authored_entry_requires(program, machine) {
+                    return None;
+                }
                 let index = private_invocation_index(program);
                 if !index.has_complete_private_uses(program, machine) {
                     return None;
@@ -85631,6 +85700,9 @@ pub(crate) mod structural_prefix {
                     .get(&callee.symbol)
                     .copied()
                     .ok_or("the callable is not a private member of the enclosing declaration")?;
+                if has_authored_entry_requires(program, callee) {
+                    return Err("the private helper has a complete written entry contract");
+                }
                 if callee.is_public
                     || callee.target_family_interface
                     || externally_invocable(program, callee)
@@ -85724,10 +85796,11 @@ pub(crate) mod structural_prefix {
                     .iter()
                     .enumerate()
                     .filter_map(|(member_index, member)| {
-                        let exposed = member.is_public
+                        let independent_entry = member.is_public
                             || member.target_family_interface
                             || externally_invocable(program, member)
-                            || !program.machine_trait_conformances(member).is_empty();
+                            || !program.machine_trait_conformances(member).is_empty()
+                            || has_authored_entry_requires(program, member);
                         let open_use = std::iter::once(member.symbol)
                             .chain(
                                 program
@@ -85749,7 +85822,7 @@ pub(crate) mod structural_prefix {
                                     )
                             });
                         (needed[member_index]
-                            && (exposed
+                            && (independent_entry
                                 || open_use
                                 || outside.contains(&member_index)
                                 || incoming_owners[member_indices[member_index]].is_empty()))

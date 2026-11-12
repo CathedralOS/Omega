@@ -1557,14 +1557,17 @@ pub(crate) mod value_location_alignment {
             .iter_expressions()
             .map(|(root, _)| root)
             .collect();
-        let mut unsettled = Vec::new();
-        for root in roots {
-            let mut handles = Vec::new();
-            validation::expression_traversal::collect_expression_tree(program, root, &mut handles);
-            unsettled.extend(handles.into_iter().filter(|query| {
+        // One walk with one seen set: every expression is itself a root, so
+        // walking each root's tree separately revisited each subtree once per
+        // enclosing expression.
+        let mut handles = Vec::new();
+        validation::expression_traversal::collect_expression_trees(program, roots, &mut handles);
+        let mut unsettled: Vec<_> = handles
+            .into_iter()
+            .filter(|query| {
                 !rejected.contains(query) && value_query_operand(program, *query).is_some()
-            }));
-        }
+            })
+            .collect();
         unsettled.sort_by_key(|query| (query.arena_index(), query.generation()));
         unsettled.dedup();
         let mut ensures_handles = Vec::new();

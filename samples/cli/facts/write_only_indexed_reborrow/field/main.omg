@@ -24,7 +24,7 @@ machine main() crashes Trap {
     storage.cells[1].value = 29;
     storage.position = 1;
     let parent: &write [Cell; 2] = &write storage.cells;
-    let held: Held = Held { cells: &write parent };
+    let mut held: Held = Held { cells: &write parent };
     replace(&write held.cells[storage.position], 7);
     replace(&write held.cells[storage.position], 9);
     storage.position = 0;

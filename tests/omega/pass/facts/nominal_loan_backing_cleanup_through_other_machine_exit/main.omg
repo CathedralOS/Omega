@@ -37,7 +37,7 @@ machine report(room: &mut Room) reaches Console crashes Trap {
  machine bad() { crash Trap; }
 }
 machine scope() reaches Console crashes Trap {
- let room: Room = Room { count: 10 };
+ let mut room: Room = Room { count: 10 };
  transition { _ -> observe(&mut room) }
  machine observe(room: &mut Room) {
   report(room);

@@ -18,7 +18,7 @@ data WireVerdict {
 data Main { read: u64; verdict: WireVerdict; }
 machine Main::main(main: &mut Main) {
     let buffer: [u8; 8] = [5, 0, 0, 0, 0, 0, 0, 0];
-    let decoded: CounterSample = CounterSample {
+    let mut decoded: CounterSample = CounterSample {
         counter: 0,
         delta: 0,
         flag: false

@@ -107,7 +107,6 @@ data OmegaKeywordKind {
     case Return;
     case SelfType;
     case SelfValue;
-    case State;
     case Struct;
     case Target;
     case Transition;
@@ -295,7 +294,7 @@ data OmegaTypeArrayKind {
 
 // Compact tagged type node. Payload interpretation is owned by kind:
 // Named uses payload0/payload1 as its name span; Constrained uses payload0 as
-// its base node and payload1/payload2 as its constraint span; FixedArray uses
+// its base node and payload1/payload2 as first type_constraints row/count; FixedArray uses
 // payload0 for its element and payload1/payload2 for the exact length span;
 // Slice uses payload0 for its element.
 // Reference uses payload0 for its referee, payload1 for access (0 shared,
@@ -460,10 +459,18 @@ data OmegaCallExpressionSyntax {
     end: i32;
 }
 
+data OmegaCastKind {
+    case Carrier;
+    case AddDomain;
+    case RemoveDomain;
+}
+
+// Carrier owns target_type; domain additions/removals own the domain span.
+// A scalar cast entry never implicitly adds a destination's domain.
 data OmegaCastExpressionSyntax {
+    kind: OmegaCastKind;
     value: i32;
     target_type: i32;
-    has_domain: i32;
     domain: OmegaRelativeSpan;
     start: i32;
     end: i32;
@@ -522,6 +529,11 @@ data OmegaTransitionPatternFieldSyntax {
     end: i32;
 }
 
+data OmegaTransitionTargetKind {
+    case Machine;
+    case Result;
+}
+
 // The first transition slice retains zero or one subject and expands every arm
 // into one ordinary statement, matching the canonical syntax tree. Guard
 // spelling stays source-shaped. Qualified case paths and their optional braces
@@ -540,6 +552,9 @@ data OmegaTransitionStatementSyntax {
     guard_first_pattern_field: i32;
     guard_pattern_field_count: i32;
     guard_has_rest: i32;
+    // Machine owns target/arguments; Result owns an ordinary expression row.
+    target_kind: OmegaTransitionTargetKind;
+    result_expression: i32;
     target: OmegaRelativeSpan;
     first_argument: i32;
     argument_count: i32;
@@ -850,9 +865,36 @@ data OmegaCallParseFrame {
     starts_at_self: i32;
     name_member_count: i32;
     start: i32;
-    outer_group_count: i32;
     pending_head: i32;
     pending_tail: i32;
+}
+
+// A call suspends the surrounding expression while its arguments reuse the
+// active stacks. Slots are shared across suspended frames, bounded in total;
+// each category reads only the prefix owned by its saved count.
+data OmegaSuspendedExpressionFrame {
+    base: i32;
+    values: i32;
+    operators: i32;
+    groups: i32;
+    prefixes: i32;
+}
+
+data OmegaSuspendedExpressionSlot {
+    value: i32;
+    value_start: i32;
+    value_end: i32;
+    operator: OmegaBinaryOperatorKind;
+    precedence: i32;
+    operator_start: i32;
+    operator_end: i32;
+    group_value_base: i32;
+    group_operator_base: i32;
+    group_prefix_base: i32;
+    group_start: i32;
+    prefix: OmegaUnaryOperatorKind;
+    prefix_start: i32;
+    prefix_end: i32;
 }
 
 data OmegaParser {
@@ -898,6 +940,10 @@ data OmegaParser {
     type_references: [OmegaTypeReferenceSyntax; 16384];
     type_constraints: [OmegaTypeConstraintSyntax; 16384];
     type_array_frames: [OmegaTypeArrayFrame; 128];
+    suspended_expression_frames: [OmegaSuspendedExpressionFrame; 128];
+    suspended_expression_slots: [OmegaSuspendedExpressionSlot; 128];
+    suspended_expression_frame_count: i32;
+    suspended_expression_slot_count: i32;
     expression_frame_values: [i32; 128];
     expression_frame_value_starts: [i32; 128];
     expression_frame_value_ends: [i32; 128];
@@ -1032,7 +1078,6 @@ data OmegaParser {
     call_start: i32;
     call_has_receiver: i32;
     call_receiver_expression: i32;
-    call_outer_group_count: i32;
     call_parse_frames: [OmegaCallParseFrame; 128];
     call_parse_frame_count: i32;
     // Argument records are retained in source order per call, then copied
@@ -1085,7 +1130,7 @@ data OmegaParser {
     cast_result_consumer: OmegaExpressionConsumer;
     cast_start: i32;
     cast_type_reference: i32;
-    cast_has_domain: i32;
+    cast_kind: OmegaCastKind;
     cast_domain_start: i32;
     cast_domain_end: i32;
     cast_end: i32;
@@ -1115,6 +1160,8 @@ data OmegaParser {
     transition_pattern_value_expression: i32;
     transition_arrow_start: i32;
     transition_arrow_end: i32;
+    transition_target_kind: OmegaTransitionTargetKind;
+    transition_result_expression: i32;
     transition_target_start: i32;
     transition_target_end: i32;
     transition_first_argument: i32;

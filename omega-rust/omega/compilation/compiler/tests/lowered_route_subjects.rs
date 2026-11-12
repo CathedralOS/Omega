@@ -655,6 +655,20 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
 /// The Build binds `main` for the four hosted targets, as the corpus
 /// fixtures' Builds do.
 fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
+    let frontier = staged_unused(name, declaration);
+    match route_verdict(&frontier).1 {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    }
+}
+
+/// `declaration` and an empty entry, staged as `verdict_on_unused` stages
+/// them and checked through Psi 04.
+fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> {
     let root = repo_root()
         .join("build")
         .join("lowered_route_subjects")
@@ -689,22 +703,64 @@ fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
     let _ = std::fs::remove_dir_all(&root);
-    let frontier = match checked {
+    match checked {
         FixtureFrontierCheck::Accepted { frontier, .. }
         | FixtureFrontierCheck::Rejected { frontier, .. }
         | FixtureFrontierCheck::ReviewRefused { frontier, .. } => frontier,
         FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
             panic!("{name}: the staged program must reach Psi 04: {diagnostics:?}")
         }
-    };
-    match route_verdict(&frontier).1 {
-        Ok(RouteVerdict::Accepted(accepted)) => {
-            Verdict::Accepted(accepted.elaboration.machines.len())
-        }
-        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
-        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
-        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
     }
+}
+
+/// A generic machine nothing applies is still in the check, as its own
+/// check form: judged once as written, with the closure judged beside it
+/// (`judge_compilation`). generics.md: "An unspecialized body checks every
+/// admitted alternative". A closure judged without it decides nothing, so
+/// `judge` alone hands the compilation back (the table above), and
+/// `judge_compilation` judges it: a valid body is accepted, and one that
+/// can overflow for a type it admits is rejected though no caller uses that
+/// type or any other.
+#[test]
+fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let parts = |name: &str, declaration: &str| -> Vec<Verdict> {
+        let frontier = staged_unused(name, declaration);
+        lowered_discharge::judge_compilation(
+            &frontier.typed,
+            Compilation {
+                entries: &frontier.entries,
+                subject: frontier.subject,
+                selected: &frontier.selected,
+            },
+        )
+        .into_iter()
+        .map(|verdict| match verdict {
+            Ok(RouteVerdict::Accepted(accepted)) => {
+                Verdict::Accepted(accepted.elaboration.machines.len())
+            }
+            Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+            Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+            other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+        })
+        .collect()
+    };
+    // The closure (the empty entry) and the generic form, both accepted.
+    assert_eq!(
+        parts(
+            "generic_machine",
+            "machine keep<T>(value: u64) -> u64 { value }"
+        ),
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
+    );
+    // One check per listed alternative; the body can overflow in each.
+    assert_eq!(
+        parts(
+            "generic_family_overflow",
+            "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
+        ),
+        [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
+    );
 }
 
 /// Every kind of unused subject declaration is in the check. What the route
