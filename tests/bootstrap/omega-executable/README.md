@@ -85,8 +85,12 @@ The peer's `--omega-storage` customer similarly extracts exact SourceId,
 SourceUnit and `source_unit_clear` declarations from the actual source package,
 then appends [storage_controls.omg](storage_controls.omg).
 [controls_storage.epsilon](controls_storage.epsilon) checks that program plus
-seven generic storage programs, sixteen explicit refusals and a reset program;
-the harness executes all nine published artifacts. These are internal
+eight generic storage programs, twenty-seven explicit refusals and a reset program;
+the harness executes all ten published artifacts. The actual source clear routine
+preserves a nonzero byte canary, and an indexed-write control captures its selector
+before a disjoint RHS mutation. Shared/mutable authority, bounds, shell-domain
+views and overlapping RHS loans are checked before emission. Local-backed tail
+reference transfer remains an explicit unsupported case. These are internal
 single-source compilation customers; they do not claim full package admission.
 
 The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`

@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 19,534 lines / 706,044 bytes with SHA-256
-`9f6abccac3ceab338541d78a77e912388146a51e3d60f0ebd326013cec670baa`.
+manifest materializes 19,657 lines / 714,400 bytes with SHA-256
+`30e6ea13e8ccab73633af4887dfb3d5ef00d1c25a114f01496aa2290cd6c9511`.
 The manifest itself is 1,339 bytes, SHA-256
-`e2e86c7f779b4b0eb30e373c183f6aec53281ec338b5756df1421cb24d473238`;
+`1156c4ec588609191a85e5a4a58d3629a0af4d085d74d5585830b37b6dd87ee7`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -157,9 +157,23 @@ storage, parameter/result transport and captured-place assignment. Literals
 evaluate their fields in authored order; arguments evaluate left to right and
 copy values into distinct staging storage before the next call can overwrite
 its result. No affine record moves or partial initialization are admitted yet.
-Fixed arrays may be retained, zero-established and copied inside these records;
-indexing, structural equivalence of separately spelled array types, and mutable
-domain-removal views remain unsupported.
+Fixed arrays may be retained, zero-established and copied inside these records.
+Fixed `u8` arrays also support indexed copy reads and writes through a checked
+core operation plan. The plan retains the concrete element/extent, collection,
+selector, access mode, parent backing and bounds evidence. Explicit shared or
+mutable removal of the array shell's `Trapping` domain preserves element types
+and closes its empty restoration debt. Reads use shared views and writes use
+mutable views; other reference attenuation remains unsupported. Other domains,
+range views and structural
+equivalence of separately spelled array value types remain unsupported.
+
+Index bounds currently come from literals, immutable snapshots of such values,
+or declared scalar-field upper bounds preserved by every admitted write. A
+guard alone is not yet sufficient evidence. The collection is captured before
+the selector and the resulting destination before the RHS; selector mutation
+cannot redirect a pending store. A scoped collection loan remains live during
+selector evaluation and, for assignment, through the RHS. Whole-array overlap
+is conservative: this slice does not yet prove separate element loans disjoint.
 
 Shared and mutable record-reference parameters carry the original referent
 address. Calls support one reference parameter, explicit borrows of owned
@@ -176,8 +190,13 @@ The `--omega-storage` customer takes exact SourceId, SourceUnit and
 `storage_controls.omg`, and executes the emitted result. Companion controls
 exercise copy independence, nested record results, projected borrowing,
 qualification, bounds, refusal and reuse. Clear updates only its three authored
-fields; array-element preservation is not yet an executed canary test because
-indexed access is outside this slice.
+fields; the customer first stores a nonzero byte and checks that clear preserves
+it. A companion program changes a disjoint selector field in the RHS and checks
+that the write still reaches the previously captured element. Negative controls
+cover invalid bounds/access, qualified shells without a removal view, overlapping
+RHS loans, and local-backed tail transfers. Nested reference parameters remain
+unsupported until transfer lifetime and activation-storage preservation are
+implemented; a local loan must not outlive the cell that a later transfer reuses.
 
 ```sh
 python3 bootstrap/compiled_vm/source_test.py --omega-storage
