@@ -29,8 +29,8 @@ rc=$?
 set -e
 [[ "$rc" -eq 1 ]] || { echo "ERROR: PIN witness exit $rc (want 1)" >&2; exit 2; }
 
-CUR="$PIN"
-for i in $(seq 1 100); do
+CUR="${START_FROM:-$PIN}"
+for i in $(seq 1 200); do
   PARENT=$(git rev-parse "${CUR}^1" 2>/dev/null || true)
   [[ -z "$PARENT" ]] && break
   set +e
@@ -45,6 +45,6 @@ for i in $(seq 1 100); do
   fi
   CUR="$PARENT"
 done
-echo "ERROR: no good within 100 first-parent steps" >&2
+echo "ERROR: no good within 200 first-parent steps from start" >&2
 git checkout -qf work/ledger-bisect-part-30
 exit 2
