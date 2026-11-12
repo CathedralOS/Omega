@@ -201,7 +201,7 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md). Emit code 36.
-  Acceptance: [kernel, admission and performance controls](wiki/drafts/designs/psi_claim_admission.md#acceptance), including existing proof samples through `--both`.
+  Acceptance: [kernel/admission/performance](wiki/drafts/designs/psi_claim_admission.md#acceptance), [borrowed reads](wiki/drafts/designs/borrowed_proof_inputs.md#acceptance) and existing proof samples through `--both`.
 
 ## Build-level behavior exclusions
 
