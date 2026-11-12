@@ -41,6 +41,7 @@ mod obligation_evidence;
 mod sections;
 mod semantic_module;
 mod structural_wire;
+mod term_table;
 mod term_wire;
 pub(crate) use semantic_module::*;
 
@@ -69,10 +70,11 @@ pub(crate) mod codec_error {
         NonCanonicalEncoding,
         NestedConjunction,
         NestedDisjunction,
-        PropositionNestingTooDeep,
-        ScalarTermNestingTooDeep,
-        ContentTermNestingTooDeep,
-        CertificateNestingTooDeep,
+        /// A term-table row names its own or a later entry.
+        TermTableForwardReference(&'static str),
+        /// A term-table row names entries other than the unconsumed ones
+        /// immediately before it, or a single-term table has other than one root.
+        NonCanonicalTermTable(&'static str),
         StringTooLong(&'static str),
         InvalidUtf8(&'static str),
         MalformedStructuralFoundation(&'static str),
