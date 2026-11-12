@@ -4651,9 +4651,12 @@ pub(crate) mod operators {
                         .any(|row| row.instance == machine.symbol)
             }) {
                 let conformances = typed.machine_trait_conformances(machine);
+                let provider_declaration =
+                    typed_trees::provider_declarations::satisfaction_provider_declaration(
+                        typed, machine,
+                    );
                 let is_product = in_product(machine.symbol)
-                    && (!machine.attached_data_symbol.is_valid()
-                        || in_product(machine.attached_data_symbol))
+                    && provider_declaration.is_none_or(in_product)
                     && conformances
                         .iter()
                         .all(|edge| in_product(edge.symbol) && in_product(edge.requirement_symbol));
@@ -4674,11 +4677,11 @@ pub(crate) mod operators {
                     let callable = typed
                         .machine_callable_identity_text(machine)
                         .ok_or("checked operator declaration lost its callable identity")?;
-                    let provider = typed.attached_data_path(machine).unwrap_or_default();
-                    let provider_package = typed
-                        .data_definition_by_symbol(machine.attached_data_symbol)
-                        .filter(|owner| machine.attached_data.as_ref() == Some(&owner.name))
-                        .and_then(|owner| typed.symbols.symbol_package_identity(owner.symbol));
+                    let provider = provider_declaration
+                        .map(|symbol| typed.symbols.display_path(symbol, "::"))
+                        .unwrap_or_default();
+                    let provider_package = provider_declaration
+                        .and_then(|symbol| typed.symbols.symbol_package_identity(symbol));
                     declarations.append(CheckedBoundaryOperatorDeclaration {
                         requirement: operator.symbol,
                         machine: machine.symbol,
