@@ -20651,8 +20651,7 @@ pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 term
 pass/build/uefi_context_cleanup_entry checked 9300ms check-target:uefi_x86_64 @2b6a974e0879
 pass/build/uefi_entry_schema_same_leaf rejected 14435ms expected check-target:uefi_x86_64 native-rejection:match @ccdb99ca2214
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
-pass/build/uefi_image_residence_observation rejected 18361ms check-target:uefi_x86_64 regressed-from:checked+check-target:uefi_x86_64 @234ea171ee6e
-	machine `firmware_entry` state `entry` statement 2: stored call has no complete statement-successor effects: an invocation relation is unavailable
+pass/build/uefi_image_residence_observation checked 18769ms check-target:uefi_x86_64 @111da0c8f06a
 pass/build/uefi_os_handoff_invocation rejected 23582ms check-target:uefi_x86_64 @ccdb99ca2214
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
@@ -20755,14 +20754,13 @@ pass/calls/mutual_cycle_tail_admitted_exit checked 15249ms check-target:macos_ar
 pass/calls/named_target_payload_dispatch checked 15121ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/native_code_layout_discarded_exit checked 7581ms check-target:linux_x86_64 @b0fa0866008e
 pass/calls/native_code_layout_forward_machine_exit checked 7623ms check-target:linux_x86_64 @b0fa0866008e
-pass/calls/native_code_layout_frame_exit checked 10482ms check-target:macos_arm64 @b0fa0866008e
+pass/calls/native_code_layout_frame_exit checked 5667ms check-target:macos_arm64 @111da0c8f06a
 pass/calls/native_code_layout_lifetime_exit checked 8687ms check-target:linux_x86_64 @b0fa0866008e
 pass/calls/native_code_layout_nested_type_const_exit checked 8393ms check-target:linux_x86_64 @b0fa0866008e
-pass/calls/native_code_layout_region_snapshot_exit checked 8081ms check-target:macos_arm64 @b0fa0866008e
+pass/calls/native_code_layout_region_snapshot_exit checked 5964ms check-target:macos_arm64 @111da0c8f06a
 pass/calls/native_code_layout_shadowing_exit checked 7529ms check-target:linux_x86_64 @b0fa0866008e
-pass/calls/native_code_layout_uncalled_boundary_exit rejected 2248ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @d25b32be7ef5
-	machine `witness` state `entry` statement 0: stored call has no complete statement-successor effects: an invocation relation is unavailable
-pass/calls/native_code_layout_uncalled_cycle_exit checked 7646ms check-target:macos_arm64 @b0fa0866008e
+pass/calls/native_code_layout_uncalled_boundary_exit checked 5498ms check-target:linux_x86_64 @111da0c8f06a
+pass/calls/native_code_layout_uncalled_cycle_exit checked 5203ms check-target:macos_arm64 @111da0c8f06a
 pass/calls/negated_edge_guard_requires_exit checked 16439ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nested_binding_call checked 3552ms @ccdb99ca2214
 pass/calls/nested_call_footprints_follow_occurrences checked 3767ms check-target:macos_arm64 @ccdb99ca2214
