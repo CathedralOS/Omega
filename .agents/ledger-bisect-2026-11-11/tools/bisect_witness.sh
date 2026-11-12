@@ -3,7 +3,7 @@ set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
-TOOLS="$(dirname "$0")"
+TOOLS="${LEDGER_BISECT_TOOLS:-$(dirname "$0")}"
 # Skip ledger-only commits on first-parent edge.
 if parent=$(git rev-parse --verify HEAD^1 2>/dev/null); then
   mapfile -t touched < <(git diff --name-only "$parent" HEAD || true)

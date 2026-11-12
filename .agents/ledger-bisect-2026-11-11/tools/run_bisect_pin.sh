@@ -3,11 +3,14 @@ set -euo pipefail
 WITNESS="${1:?witness}"
 OUT_JSON="${2:?output json}"
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
+SRC_TOOLS="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
+bash "$SRC_TOOLS/bootstrap_tools.sh" >/dev/null
+TOOLS=/tmp/ledger-bisect-tools
+export LEDGER_BISECT_TOOLS="$TOOLS"
 PIN="51e8c45c793007f211d0d9baee7de16767172444"
 cd "$ROOT"
 git checkout -q "$PIN"
-chmod +x "$TOOLS/bisect_witness.sh" "$TOOLS/find_good_walk.sh"
+chmod +x "$TOOLS"/*.sh "$TOOLS"/*.py 2>/dev/null || true
 # Fixed PIN context
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target-pin}"
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$CARGO_TARGET_DIR" mbx build -p omega < /dev/null >/dev/null 2>&1 || true
