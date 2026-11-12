@@ -1,0 +1,10 @@
+fail/facts/slice_view_element_read_bound_through_call_result_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `view` in read_guarded::entry	
+fail/facts/slice_view_element_read_bound_through_const_name_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `view` in read_guarded::entry	
+fail/facts/slice_view_element_read_bound_through_field_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `holder.view` in read_guarded::entry	
+fail/facts/slice_view_element_read_bound_through_local_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry	
+fail/facts/slice_view_element_read_bound_through_match_join_rejected	fixed_on_main	cannot prove index `3` is within unknown slice length of `v` in read_guarded::entry	
+pass/facts/target_family_callback_guarantee/other_machine	fixed_on_main		
+pass/facts/target_family_callback_guarantee/other_state	fixed_on_main		
+pass/facts/target_family_callback_guarantee/call_result	fixed_on_main		
+pass/borrow/owned_capture_replaced_reference	fixed_on_main	cannot prove requires contract for call observe from main: first[0] in Cell::Issued in state `entry`	
+fail/arithmetic/zii_range_excludes_zero_rejected	fixed_on_main	partial exact remainder in machine `main` state `entry` local `remainder`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts	
