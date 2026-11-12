@@ -504,7 +504,8 @@ pub fn observe(
         .env_remove("OMEGA_CORPUS_SHARD")
         .env_remove("OMEGA_CORPUS_NATIVE")
         .env_remove("OMEGA_CORPUS_INTERPRET")
-        .env_remove("OMEGA_CORPUS_NATIVE_TARGET");
+        .env_remove("OMEGA_CORPUS_NATIVE_TARGET")
+        .env_remove("OMEGA_COMPILER_CHECK_SITES");
     if matches!(selection, FixtureSelection::Exact(_)) {
         command.env("OMEGA_CORPUS_FIXTURE_PATHS", &filter_text);
     }

@@ -134,6 +134,11 @@ Ordinary `xtask corpus --filter` remains a substring search. Qualification passe
 the exact list through `OMEGA_CORPUS_FIXTURE_PATHS`; its bounded substring filter
 also remains present for older retained runners, whose extra matches still fail
 the observed-roster check.
+Qualification leaves verbose compiler check-site tracing disabled and clears an
+inherited `OMEGA_COMPILER_CHECK_SITES`. Ordinary compiler diagnostics remain in
+the captured runner output; use `xtask corpus --check-sites` for an explicit
+diagnostic replay. The trace switch prints successful internal queries too and
+can otherwise dominate the bounded observation.
 An existing numeric `Expected exit` header is the fallback when no explicit exit
 file exists; target-specific and portable files keep their precedence.
 
