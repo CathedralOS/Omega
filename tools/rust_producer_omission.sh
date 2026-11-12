@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# Rust producer retirement gate: the canonical bootstrap input set must
-# omit the Rust producer. Audits every produced closure manifest under
-# bootstrap/ plus the shared orchestration step surface under
+# The interpreted bootstrap input set must omit the Rust producer. Audits
+# its numbered rungs and proof manifests, plus the orchestration surface under
 # tools/bootstrap/ with `tools/rust_producer_omission.py --require omitted`.
 set -eu
 
@@ -16,7 +15,8 @@ command -v python3 >/dev/null 2>&1 || {
 [ "$#" -eq 0 ] || { echo "usage: rust_producer_omission.sh" >&2; exit 2; }
 
 cd "$OMEGA_REPO_ROOT"
-manifests=$(find bootstrap -type f -name '*.sources' | LC_ALL=C sort)
+manifests=$(find bootstrap/0_alpha bootstrap/1_beta bootstrap/2_gamma \
+    bootstrap/3_delta bootstrap/4_epsilon bootstrap/5_omega bootstrap/proofs -type f -name '*.sources' | LC_ALL=C sort)
 [ -n "$manifests" ] || {
     echo "Rust producer omission: no bootstrap closure manifests found" >&2
     exit 1

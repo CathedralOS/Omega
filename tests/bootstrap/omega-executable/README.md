@@ -28,8 +28,11 @@ sh tests/bootstrap/omega-executable/run.sh
 ```
 
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
-shell tools; macOS also requires `codesign`. It reconstructs the Epsilon
-execution receipt through the selected Gamma-written Delta compiler, checks
+shell tools; macOS also requires `codesign`. Starting from the admitted Beta
+tape in that seed, it rebuilds Beta from source, uses the rebuilt compiler to
+construct the Gamma evaluator from source, and compares both tapes exactly
+with their bound artifacts. It executes those constructed bytes to reconstruct
+the Epsilon execution receipt through the Gamma-written Delta compiler, checks
 the complete Epsilon-written Omega compiler plus its request-route entry,
 seals the source into the canonical request, and stamps and executes only the
 actual successful output.
@@ -43,7 +46,7 @@ packed implementation files remain there for inspection. A failed compilation
 does not replace the last successful tape; prior files are not evidence of a
 new successful run. The command's successful final result is the acceptance gate.
 
-The evaluator reconstruction has a 300-second watchdog, compiler execution has
+The evaluator reconstruction has a 1,800-second watchdog, compiler execution has
 14,400 seconds by default, and the emitted program has 30 seconds. Expiration
 kills the invoked process tree and is not an Omega result. Set
 `OMEGA_EXECUTABLE_RECEIPT_SECONDS` to a positive number for another
@@ -171,24 +174,26 @@ Every entry the harness may select is bound: `main_ocreq.epsilon`,
 `main.epsilon`, and the ten controls files are gate-local inputs packed on
 top of the bound member closure, never part of the manifested members.
 
-| Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
-| --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 573,623 | `faa3447737e103451f5d9197c38aa8386f15f48bc37360446ad3d53721732cea` |
-| `main_ocreq.epsilon` | 19,249 | `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943` | 591,115 | `74d562ec471da3e1d3d10da61e2e732d0304cf367978a5e60b9fd4c7f824ace8` |
-| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 575,497 | `1ca2637874b9b535bb55d42bd3b7ed5973a010c907f5b1af0956f7aedfabc707` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 574,950 | `e5cf1393b2ddb69cd52d116d3537921dd57e642378473265d43e8bd98e6a1a07` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 574,690 | `91dbc9d01ffdfe7176030b32a5d68e236a120fe3139846f1bc21c6c23e2fb0dc` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 574,716 | `721b48fa87a43a1bffdd87e6583ed13e6e909262ec2a130be29dc100b8f61180` |
-| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 574,663 | `be74d9c52da0b852a782ad21bea86b9f3e6866a412ba1f9054f37b146327a6a8` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 576,291 | `76074ef7631e4ea2fc4bbedbcf6483490c999b06ca22c9f88717990357269fad` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 574,993 | `335521ee764e77e3e4bb473e979ec7d917f494ce5ede41469be8578dbb787920` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 575,059 | `c9436b5fb4234454fa3c9dfe25a3b955a0345f6f071ef831b7b059c12fc5926b` |
-| `controls_i.epsilon` | 3,863 | `8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0` | 575,729 | `a556840d2eedbf27041b229232409c7efea73020c5622e73b398b5ce96376f26` |
-| `controls_j.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` | 576,327 | `c8d90e675a538c8f44e16f0be0c39597bec9a9268379e1147db5868013485ad1` |
+| Entry | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` |
+| `main_ocreq.epsilon` | 19,249 | `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943` |
+| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` |
+| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` |
+| `controls_i.epsilon` | 3,863 | `8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0` |
+| `controls_j.epsilon` | 4,461 | `406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
-each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and
-verifies each packed customer, compiler bytes plus entry, against this table.
+each packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The
+customer is the bound compiler closure followed by the selected entry. Each
+execution reports its concatenated size and digest; those observations do not
+introduce a second table of source identities.
 
 ## Execution boundary
 

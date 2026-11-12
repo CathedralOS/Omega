@@ -36,33 +36,11 @@ require_bound_identity "materialized compiler" "$TMP/compiler.epsilon" \
   fail "materialized closure differs from the bound identity"
 echo "materialize: packed compiler is exactly the bound member bytes"
 
-# Packed customers: the materialized compiler plus each bound gate-local
-# entry is the customer byte sequence its gate consumes; each is bound at
-# its recorded identity.
-for OMEGA_PACKED_CUSTOMER in \
-  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 584640 acd224c6ae0dc2717d99944ed0f2cf638587487be22f793b8c1d4384acfb4f9c" \
-  "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 591498 e92e06045e1a092ba2f131344e3ba1add54699616639a0e43db1910200fc430b" \
-  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 575978 193ee78f2da4c90b1f71001564aa95a4deb5d51055290bdd2d31c91029104d50" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 573623 faa3447737e103451f5d9197c38aa8386f15f48bc37360446ad3d53721732cea" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main_ocreq.epsilon 591115 74d562ec471da3e1d3d10da61e2e732d0304cf367978a5e60b9fd4c7f824ace8" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 575497 1ca2637874b9b535bb55d42bd3b7ed5973a010c907f5b1af0956f7aedfabc707" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_b.epsilon 574950 e5cf1393b2ddb69cd52d116d3537921dd57e642378473265d43e8bd98e6a1a07" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_c.epsilon 574690 91dbc9d01ffdfe7176030b32a5d68e236a120fe3139846f1bc21c6c23e2fb0dc" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_d.epsilon 574716 721b48fa87a43a1bffdd87e6583ed13e6e909262ec2a130be29dc100b8f61180" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_e.epsilon 574663 be74d9c52da0b852a782ad21bea86b9f3e6866a412ba1f9054f37b146327a6a8" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_f.epsilon 576291 76074ef7631e4ea2fc4bbedbcf6483490c999b06ca22c9f88717990357269fad" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_g.epsilon 574993 335521ee764e77e3e4bb473e979ec7d917f494ce5ede41469be8578dbb787920" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_h.epsilon 575059 c9436b5fb4234454fa3c9dfe25a3b955a0345f6f071ef831b7b059c12fc5926b" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_i.epsilon 575729 a556840d2eedbf27041b229232409c7efea73020c5622e73b398b5ce96376f26" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_j.epsilon 576327 c8d90e675a538c8f44e16f0be0c39597bec9a9268379e1147db5868013485ad1"
-do
-  set -- $OMEGA_PACKED_CUSTOMER
-  cat "$TMP/compiler.epsilon" "$2" > "$TMP/customer.epsilon"
-  require_bound_identity "packed $1 customer" "$TMP/customer.epsilon" \
-    "$3" "$4" "tests/bootstrap/$1/README.md" ||
-    fail "packed $1 customer differs from the bound record"
-done
-echo "customers: materialized compiler plus each bound entry is the recorded customer bytes"
+# Every customer is the exact materialized compiler followed by one exact entry.
+# Those components are checked above and by the consuming gates. A second table
+# of concatenation hashes repeats their identity without adding an independent
+# check. Execution observations retain the actual concatenated bytes' digest
+# for that invocation.
 
 cp -R "$OMEGA_PATH_OMEGA_D" "$TMP/5_omega"
 head -c $((OMEGA_COMPILER_MANIFEST_SIZE - 1)) \

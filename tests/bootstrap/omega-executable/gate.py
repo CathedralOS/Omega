@@ -185,7 +185,7 @@ def main():
               f"{len(customer)}-byte customer, {len(sealed_input)}-byte sealed "
               f"input)", flush=True)
         return
-    receipt_limit = env_seconds("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "300")
+    receipt_limit = env_seconds("OMEGA_EXECUTABLE_RECEIPT_SECONDS", "1800")
     # The receipt depends only on the pinned delta compiler and request, so the
     # controls matrix may share one reconstruction through an optional cache;
     # the pinned identity check below still applies to cached bytes.
