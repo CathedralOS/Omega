@@ -28794,6 +28794,23 @@ pub(crate) mod ranking_range {
             ) {
                 return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
             }
+            // An extent spelled by a const parameter is that parameter's value
+            // when the engine holds it as a rigid atom (a generic body proved
+            // once). Without that binding the extent stays unknown.
+            if let Some(typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }) =
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .and_then(|declared| {
+                    crate::value_custody::places::fixed_array_type_extent(program, declared)
+                })
+                && let Some(extent) = engine.strict_symbol_value(*symbol)
+            {
+                return Some(extent);
+            }
             let length = match expression_table(program).expression(expression) {
                 ExpressionNode::Name(_) => {
                     let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
@@ -32665,6 +32682,60 @@ pub(crate) mod ranking_range {
         lengths::actual(program, machine, state, collection, &[], &mut engine)?
             .constant_value()?
             .to_u64()
+    }
+
+    /*
+        Whether the slice `collection` selects has exactly the length `expected`
+        names, where either side may be one of `machine`'s const integer
+        parameters. A generic body is proved under its own entry contract, so a
+        full view of `[Element; Count]` has length `Count` without a caller
+        supplying `Count`. Each const parameter is one rigid atom, shared by its
+        name and by every array extent that spells it; nothing else is assumed.
+    */
+    pub fn collection_length_equals_under_matches(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+        matched: &[(ExpressionHandle, BigInt)],
+        expected: ExpressionHandle,
+    ) -> bool {
+        let bindings = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    return None;
+                };
+                let primitive = program
+                    .primitive_type_reference(type_reference)
+                    .filter(|primitive| primitive.is_fixed_integer())?;
+                Some(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                    parameter.symbol,
+                    format!(
+                        "\0const-parameter:{:?}:{:?}",
+                        machine.symbol, parameter.symbol
+                    ),
+                    primitive,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let mut engine = Engine::strict(program, machine, &bindings);
+        if !engine.strict_symbol_bindings_are_valid() {
+            return false;
+        }
+        saved_arguments::install(program, machine, state, &[], &mut engine);
+        for (subject, value) in matched {
+            engine.bind_matched_integer_subject(*subject, value.clone());
+        }
+        let Some(length) = lengths::actual(program, machine, state, collection, &[], &mut engine)
+        else {
+            return false;
+        };
+        engine
+            .normalize(expected)
+            .is_some_and(|expected| expected == length)
     }
 
     pub fn captured_collection_length(
