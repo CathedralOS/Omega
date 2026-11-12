@@ -109,8 +109,13 @@
         "pass/facts/open_const_implementation_statement_saved_output_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "bisect produced no first_bad"
+        "status": "bisected",
+        "good": "c2bf4573a2ba029214ebea6f9ba3cb6657fbcb29",
+        "first_bad": "0b8c31c25928c19bcb1602b9348d0840247fa186",
+        "pr": "2413",
+        "mechanism": "psi: retire a copied read's facts once a write reaches its storage (#2413) ({ omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs })",
+        "flaky_good": false,
+        "flaky_bad": false
       }
     },
     {

@@ -103,7 +103,8 @@ set +e
 git bisect run "$TOOL/bisect_witness.sh" 2>&1 | tee /tmp/bisect_run.log
 bisect_rc=$?
 set -e
-first_bad=$(git bisect log | sed -n 's/^first bad commit: \[\([0-9a-f]*\)\].*/\1/p' | head -1)
+first_bad=$(grep -oE '^[0-9a-f]{7,40} is the first bad commit' /tmp/bisect_run.log 2>/dev/null | head -1 | awk '{print $1}')
+[[ -z "$first_bad" ]] && first_bad=$(git bisect log 2>/dev/null | sed -n 's/^first bad commit: \[\([0-9a-f]*\)\].*/\1/p' | head -1)
 if [[ -n "$first_bad" ]] && is_ledger_only_commit "$first_bad"; then
   walk="$first_bad"
   for _ in $(seq 1 80); do
