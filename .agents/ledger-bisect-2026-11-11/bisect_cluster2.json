@@ -1,13 +1,14 @@
 {
   "witness": "pass/expressions/match_operand_anonymous_operation_exit",
-  "breaking_commit": "2174c0d10bb146aea6a86f55262bc536feb86ea3",
-  "pr": "1313",
-  "mechanism": "compiler: choose product providers over terminal demand (#1313) \u2014 omega-rust/omega/compilation/driver/src/execution_settlement.rs, omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs, omega-rust/omega/compilation/driver/tests/support/provider_choice_controls.rs",
+  "breaking_commit": "c33344e50059e6a1295e76610801b726fdb11ee5",
+  "pr": "1022",
+  "mechanism": "psi: preserve generic native contracts through checking and execution (#1022) \u2014 omega-rust/omega/compilation/driver/src/checked/checking/product_selections.rs, omega-rust/omega/compilation/products/src/checked_compilation.rs, omega-rust/omega/compilation/products/src/package_build.rs",
   "status": "bisected",
   "bisect_exit": 0,
   "good_commit": "c64728d90e83036051d52fb69961b786423230c6",
+  "bad_range_end": "51e8c45c793",
   "good_end_rc": 0,
-  "bad_pin_rc": 125,
-  "stability": "sanity(g=0,b=125)",
-  "method": "pin_frozen_ledger_v2"
+  "bad_pin_rc": 1,
+  "stability": "deterministic",
+  "method": "pin_frozen_narrow_v2"
 }

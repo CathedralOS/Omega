@@ -12,7 +12,8 @@ git stash push -q -m ledger-bisect-part-6 -- .agents/ledger-bisect-2026-11-11 2>
 trap 'git stash list | grep -q ledger-bisect-part-6 && git stash pop -q 2>/dev/null || true' EXIT
 INSTALL=/tmp/ledger-bisect-p6
 REF=/tmp/ledger-bisect-p6-ref
-export BISECT_PIN="$PIN" BISECT_PIN_REF="$REF" OMEGA_REPO_ROOT="$ROOT"
+export BISECT_PIN="$PIN" BISECT_PIN_REF="$REF" OMEGA_REPO_ROOT="$ROOT" CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/ledger-bisect-p6-target}"
+mkdir -p "$CARGO_TARGET_DIR"
 python3 "$TOOLS/prepare_pin_ref.py" "$WITNESS" >/dev/null
 cp "$TOOLS/bisect_witness.sh" "$TOOLS/bisect_test.py" "$INSTALL/"
 chmod +x "$INSTALL/bisect_witness.sh"
@@ -34,7 +35,7 @@ export GIT_PAGER=cat
 git bisect reset >/dev/null 2>&1 || true
 git bisect start "$PIN" "$GOOD" --first-parent
 set +e
-git bisect run "$INSTALL/bisect_witness.sh"
+git bisect run bash -c 'BISECT_WITNESS="'"$WITNESS"'" BISECT_TEST_PY="'"$INSTALL/bisect_test.py"'" BISECT_PIN_REF="'"$REF"'" OMEGA_REPO_ROOT="'"$ROOT"'" CARGO_TARGET_DIR="'"$CARGO_TARGET_DIR"'" '"$INSTALL/bisect_witness.sh"
 RC=$?
 set -e
 BREAK=$(git rev-parse HEAD^{commit})
