@@ -535,6 +535,10 @@ pub(crate) mod checked_slice {
         for part in parts {
             digest.bytes(part);
         }
+        if let Some(dir) = std::env::var_os("TMPKEYDUMP") && files.len() > 5 {
+            static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let _ = std::fs::write(std::path::Path::new(&dir).join(format!("syntax.{}.bin", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed))), parts[0]);
+        }
         if std::env::var_os("TMPKEY").is_some() {
             let short = |bytes: &[u8]| {
                 let mut d = optimization::digest_encoder::DomainDigestEncoder::new(b"tmp");
