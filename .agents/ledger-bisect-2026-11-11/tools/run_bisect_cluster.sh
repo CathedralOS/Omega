@@ -5,15 +5,11 @@ PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
 TOOL="$(cd "$(dirname "$0")" && pwd)"
 ROOT="${BISECT_ROOT:-$(git -C "$TOOL" rev-parse --show-toplevel)}"
 cd "$ROOT"
-export BISECT_WITNESS="$WITNESS"
+export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS"
 export LEDGER_PIN_FILE=/tmp/ledger-bisect-pin/corpus_outcomes.txt
 
 witness_rc() {
-  set +e
-  "$TOOL/bisect_witness.sh" >/dev/null
-  local rc=$?
-  set -e
-  return "$rc"
+  ( set +e; "$TOOL/bisect_witness.sh" >/dev/null; echo $? )
 }
 
 is_ledger_only_commit() {
@@ -41,10 +37,7 @@ mechanism_for() {
 }
 
 git checkout -q "$PIN"
-set +e
-witness_rc
-pin_rc=$?
-set -e
+pin_rc=$(witness_rc)
 [[ "$pin_rc" -eq 1 ]] || {
   printf '{"witness":"%s","error":"PIN not bad under frozen baseline","rc":%s}\n' "$WITNESS" "$pin_rc"
   exit 2
@@ -55,10 +48,7 @@ dist=1
 while [[ "$dist" -le 20000 ]]; do
   cand=$(git rev-parse --verify "${PIN}~${dist}" 2>/dev/null) || break
   git checkout -q "$cand"
-  set +e
-  witness_rc
-  rc=$?
-  set -e
+  rc=$(witness_rc)
   if [[ "$rc" -eq 0 ]]; then
     good="$cand"
     break
@@ -70,10 +60,7 @@ if [[ -z "$good" ]]; then
   for _ in $(seq 1 1200); do
     cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
     git checkout -q "$cur"
-    set +e
-    witness_rc
-    rc=$?
-    set -e
+    rc=$(witness_rc)
     [[ "$rc" -eq 0 ]] && good="$cur" && break
   done
 fi
@@ -87,18 +74,12 @@ flaky_good=0
 flaky_bad=0
 for _ in 1 2 3; do
   git checkout -q "$good"
-  set +e
-  witness_rc
-  r=$?
-  set -e
+  r=$(witness_rc)
   [[ "$r" -ne 0 ]] && flaky_good=1
 done
 for _ in 1 2 3; do
   git checkout -q "$PIN"
-  set +e
-  witness_rc
-  r=$?
-  set -e
+  r=$(witness_rc)
   [[ "$r" -ne 1 ]] && flaky_bad=1
 done
 git checkout -q "$PIN"
@@ -118,11 +99,8 @@ if [[ -n "$first_bad" ]] && is_ledger_only_commit "$first_bad"; then
     walk=$(git rev-parse --verify "${walk}^@" 2>/dev/null) || break
     if ! is_ledger_only_commit "$walk"; then
       git checkout -q "$walk"
-      set +e
-      witness_rc
-      rc=$?
+      rc=$(witness_rc)
       git checkout -q "$PIN"
-      set -e
       [[ "$rc" -eq 1 ]] && first_bad="$walk" && break
     fi
   done
