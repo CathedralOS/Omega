@@ -632,6 +632,15 @@ pub(crate) mod external_provider_declarations {
             }
         }
 
+        fn envelope(
+            envelope: checked_trees::CheckedMachineContractEnvelopeIdentity,
+        ) -> CallbackContractEnvelope {
+            CallbackContractEnvelope {
+                report_fingerprint: envelope.contract_report_fingerprint,
+                commitment: envelope.contract_commitment.as_bytes(),
+            }
+        }
+
         #[cfg(test)]
         mod correspondence_tests {
             use super::*;
@@ -898,15 +907,6 @@ pub(crate) mod external_provider_declarations {
                         .unwrap_err();
                     assert!(error.contains("disagree"));
                 }
-            }
-        }
-
-        fn envelope(
-            envelope: checked_trees::CheckedMachineContractEnvelopeIdentity,
-        ) -> CallbackContractEnvelope {
-            CallbackContractEnvelope {
-                report_fingerprint: envelope.contract_report_fingerprint,
-                commitment: envelope.contract_commitment.as_bytes(),
             }
         }
     }
