@@ -1,0 +1,16 @@
+fixture	class	first_diagnostic	cluster_id
+fail/borrows/runtime_slice_result_retains_backing	fixed		fixed
+fail/facts/temporary_case_cleanup_through_other_machine_rejected	fixed		fixed
+pass/facts/non_owning_reference_erasure_through_call_result_exit	still broken	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_const_name_exit	still broken	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_field_exit	still broken	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_local_exit	still broken	cannot prove default-domain field requirement for return from write at statement 2: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_other_machine_exit	still broken	cannot prove default-domain field requirement for return from write at statement 1: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_other_state_exit	still broken	cannot prove default-domain field requirement for return from write at statement 0: storage requires Storage::Issued	c0
+pass/facts/non_owning_reference_erasure_through_parameter_exit	still broken	cannot prove default-domain field requirement for return from write at statement 1: storage requires Storage::Issued	c0
+pass/borrows/dynamic_window_return_custody_exit	still broken	returned projection does not match this invocation and result path	c1
+pass/borrows/runtime_slice_reference_result_exit	still broken	returned projection does not match this invocation and result path	c1
+pass/facts/recoverable_replacement_window_through_target_body_exit	still broken	`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, state	c2
+pass/facts/non_owning_reference_erasure_through_target_body_exit	still broken	cannot prove default-domain field requirement for return from ErasedWriteCode::write at statement 2: storage requires Storage::Issued	c3
+pass/terminal_psi/debug_identity_complete_module	still broken	inspection constant omitted its expected debug companion	c4
+pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit	still broken	terminating machine drain reaches recursive component `step`, which has no `terminates by` ranking -- spell one on that component	c5
