@@ -7068,6 +7068,13 @@ pub(crate) use types::{is_reference, strips_erased_parameter};
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarCalleeClosure;
 
+/*
+    How many bodies each checking thread may plan ahead of the merge in
+    `build_checked_unit_effect_plans`: enough to keep every thread busy across
+    uneven bodies, few enough that pending attempts stay small.
+*/
+const FORKED_BODIES_PER_THREAD: usize = 4;
+
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -7147,6 +7154,30 @@ pub(crate) fn build_checked_unit_effect_plans(
             )
         };
         shapes.prepare_forks();
+        /*
+            Plan at most `window` bodies ahead of the merged collector.
+
+            Every fork starts from the merged collector as it stands, so a fork
+            records again each shape its siblings also need and the collector
+            does not hold yet. A fan-out over the whole roster from an empty
+            collector made every body keep its own copy of the shared record
+            shapes until its turn to merge: for the `tests/psi/checking` gate
+            package, whose bodies share the psi parser's record shapes, that
+            was more than 3.5 GB on top of 9.6 GB. Nearly all of those attempts were stale
+            anyway, because the first merged body writes the shapes they
+            consulted, so they were planned again. A window keeps the pool busy
+            while holding only `window` attempts, and each later window forks
+            from a collector that already holds what the earlier ones wrote.
+            The merge below admits a fork only when it equals the sequential
+            run, so the window changes cost, never the result. With one thread
+            nothing is forked: each body plans on the merged collector itself.
+        */
+        let threads = ::validation::checking_thread_pool().current_num_threads();
+        let window = if threads < 2 {
+            1
+        } else {
+            threads * FORKED_BODIES_PER_THREAD
+        };
         let fork_from = |shapes: &ShapeCollector<'_>, base: usize, roster: &[usize]| {
             let snapshot = shapes.fork();
             ::validation::checking_thread_pool().install(|| {
@@ -7167,8 +7198,11 @@ pub(crate) fn build_checked_unit_effect_plans(
         };
         let mut attempts = Vec::new();
         attempts.resize_with(bodies.len(), || None);
-        for (index, attempt) in fork_from(&shapes, 0, &(0..bodies.len()).collect::<Vec<_>>()) {
-            attempts[index] = attempt;
+        if window > 1 {
+            let roster = (0..bodies.len().min(window)).collect::<Vec<_>>();
+            for (index, attempt) in fork_from(&shapes, 0, &roster) {
+                attempts[index] = attempt;
+            }
         }
         let mut log = ChangeLog::default();
         let mut position = 0;
@@ -7188,6 +7222,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                                     .as_ref()
                                     .is_none_or(|(base, _, edits)| !log.admits(edits, *base))
                         })
+                        .take(window)
                         .collect::<Vec<_>>();
                     if roster.len() > 1 {
                         for (index, attempt) in fork_from(&shapes, position, &roster) {
