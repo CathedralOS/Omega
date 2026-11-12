@@ -298,6 +298,10 @@ fn report_text(
         contents.push_str(&assumption_text(row));
         contents.push('\n');
     }
+    for realization in outcome.report.float_realizations() {
+        contents.push_str(realization);
+        contents.push('\n');
+    }
     contents.push_str(&outcome.report.summary());
     contents.push('\n');
     contents.push_str(&format_publication_lines(outcome));

@@ -1,0 +1,57 @@
+// Expected exit: 0
+// The selected multiply-then-add body rounds multiplication before addition,
+// including underflow, overflow, signed zero and payload-erased NaN meaning.
+use omega::language::core::float;
+use omega::language::core::float_operations;
+
+machine check32() -> bool {
+    let smallest: f32 = float::from_bits(1u32);
+    let normal: f32 = float::from_bits(0x00800000u32);
+    let largest: f32 = float::from_bits(0x7f7fffffu32);
+    let infinity: f32 = float::from_bits(0x7f800000u32);
+    let negative_zero: f32 = float::from_bits(0x80000000u32);
+    let signaling_nan: f32 = float::from_bits(0x7f800001u32);
+    let underflow_tie: f32 = F32::multiply_then_add(smallest, 0.5f32, smallest);
+    let subnormal: f32 = F32::multiply_then_add(normal, 0.5f32, 0.0f32);
+    let overflow: f32 = F32::multiply_then_add(largest, 2.0f32, F32::negate(largest));
+    let zero: f32 = F32::multiply_then_add(negative_zero, 1.0f32, negative_zero);
+    let invalid_product: f32 = F32::multiply_then_add(infinity, 0.0f32, 1.0f32);
+    let invalid_sum: f32 = F32::multiply_then_add(infinity, 1.0f32, F32::negate(infinity));
+    let propagated: f32 = F32::multiply_then_add(signaling_nan, 1.0f32, 0.0f32);
+    float::to_bits(underflow_tie) == 1u32
+        && float::to_bits(subnormal) == 0x00400000u32
+        && F32::is_infinite(overflow)
+        && float::to_bits(zero) == 0x80000000u32
+        && F32::is_nan(invalid_product)
+        && F32::is_nan(invalid_sum)
+        && F32::is_nan(propagated)
+}
+
+machine check64() -> bool {
+    let smallest: f64 = float::from_bits(1u64);
+    let normal: f64 = float::from_bits(0x0010000000000000u64);
+    let largest: f64 = float::from_bits(0x7fefffffffffffffu64);
+    let infinity: f64 = float::from_bits(0x7ff0000000000000u64);
+    let negative_zero: f64 = float::from_bits(0x8000000000000000u64);
+    let signaling_nan: f64 = float::from_bits(0x7ff0000000000001u64);
+    let underflow_tie: f64 = F64::multiply_then_add(smallest, 0.5f64, smallest);
+    let subnormal: f64 = F64::multiply_then_add(normal, 0.5f64, 0.0f64);
+    let overflow: f64 = F64::multiply_then_add(largest, 2.0f64, F64::negate(largest));
+    let zero: f64 = F64::multiply_then_add(negative_zero, 1.0f64, negative_zero);
+    let invalid_product: f64 = F64::multiply_then_add(infinity, 0.0f64, 1.0f64);
+    let invalid_sum: f64 = F64::multiply_then_add(infinity, 1.0f64, F64::negate(infinity));
+    let propagated: f64 = F64::multiply_then_add(signaling_nan, 1.0f64, 0.0f64);
+    float::to_bits(underflow_tie) == 1u64
+        && float::to_bits(subnormal) == 0x0008000000000000u64
+        && F64::is_infinite(overflow)
+        && float::to_bits(zero) == 0x8000000000000000u64
+        && F64::is_nan(invalid_product)
+        && F64::is_nan(invalid_sum)
+        && F64::is_nan(propagated)
+}
+
+machine main() crashes Trap {
+    transition check32() && check64() { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -5,9 +5,10 @@ provider for 104 operator slots on every compile. The table is the target's
 declaration under decision `target-realized-float-arithmetic`
 (wiki/spec/language/numeric_values.md#target-realization-and-control-state).
 
-An entry is either a catalog intrinsic, which names the ISA feature it needs
-and the floating-control obligation it carries, or unsupported, which names
-the target constraint a rejecting program reports. Contracts never vary: the
+An entry selects a catalog intrinsic or checked machine under its ISA-feature
+and floating-control obligations, or names an unsupported target constraint.
+Checked entries retain their actual callable and costs through ordinary
+provider plans. Contracts never vary: the
 operation keeps its `FloatSemantics` contract on every target, and a target
 that cannot meet it declares the operation unsupported rather than
 substituting another algorithm.
@@ -61,6 +62,12 @@ impl FloatControlObligation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CanonicalFloatRealization {
     CatalogIntrinsic {
+        isa: FloatIsaAdmission,
+        controls: FloatControlObligation,
+    },
+    /// The authenticated catalog member is an ordinary checked Omega body.
+    /// Its exact callable and costs remain in the selected adapter plan.
+    CheckedMachine {
         isa: FloatIsaAdmission,
         controls: FloatControlObligation,
     },
@@ -232,6 +239,11 @@ impl TargetProfile {
             // unsupported rejects at checking instead of at native emission.
             CanonicalFloatRealization::Unsupported {
                 constraint: "the AArch64 instruction catalog has no directed-rounding fused multiply-add realization",
+            }
+        } else if name == "multiply_then_add" {
+            CanonicalFloatRealization::CheckedMachine {
+                isa: FloatIsaAdmission::Baseline,
+                controls,
             }
         } else {
             CanonicalFloatRealization::CatalogIntrinsic {

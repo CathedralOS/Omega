@@ -19,5 +19,5 @@ the [numeric contract](../../../../../wiki/spec/language/numeric_values.md#float
 and `source/library/core/float_operations.omg`; the separate
 `float_saturating_arithmetic_exit` fixture retains policy-adapter coverage.
 
-The checked interpreter currently declines the selected bodyless float provider;
-`--both` must report that limitation rather than claim interpreter agreement.
+Both native execution and Terminal Psi must return 70. The target table selects
+the checked multiply-then-add body under the same two-rounding contract.

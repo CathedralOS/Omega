@@ -1573,7 +1573,6 @@ pub mod float_providers {
     use crate::machine::Machine;
     use crate::signature::{SignatureContract, SignatureContractKind, StateParameter};
     use crate::trait_definition::ConformanceRowSource;
-    use language_semantics::numeric_intrinsics::NumericIntrinsic;
     use language_semantics::{
         ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode,
     };
@@ -1633,7 +1632,7 @@ pub mod float_providers {
             .iter()
             .filter(|(_, machine)| is_catalog_declaration(typed, machine))
             .filter_map(|(_, machine)| {
-                let (requirement, _) = authenticate_intrinsic_member(typed, machine).ok()?;
+                let requirement = authenticate_realization_member(typed, machine).ok()?;
                 let map = typed
                     .owned_conformance_realization(machine.symbol)
                     .map(|(implementation, _)| implementation.symbol);
@@ -1642,10 +1641,10 @@ pub mod float_providers {
             .collect()
     }
 
-    pub fn authenticate_intrinsic_member(
+    pub fn authenticate_realization_member(
         typed: &TypedTrees,
         machine: &Machine,
-    ) -> Result<(SymbolHandle, NumericIntrinsic), &'static str> {
+    ) -> Result<SymbolHandle, &'static str> {
         let (implementation, row) = typed
             .owned_conformance_realization(machine.symbol)
             .ok_or("the member has no unambiguous owned map row")?;
@@ -1667,7 +1666,6 @@ pub mod float_providers {
             || !implementation.lifetime_parameters.is_empty()
             || !implementation.arguments.is_empty()
             || !implementation.trait_lifetime_arguments.is_empty()
-            || machine.body_is_present
             || machine.attached_data.is_some()
             || !typed.machine_type_parameters(machine).is_empty()
             || !machine.lifetime_parameters.is_empty()
@@ -1675,38 +1673,43 @@ pub mod float_providers {
             || machine.blocks
             || !machine.invokes.is_empty()
             || !machine.owned_data.is_empty()
-            || typed.machine_contracts(machine).iter().any(|contract| {
-                matches!(
-                    contract.kind,
-                    SignatureContractKind::Ensures
-                        | SignatureContractKind::EnsuresForResultCase { .. }
-                )
-            })
         {
-            return Err(
-                "the sealed map or member has incompatible captures, effects, body or guarantees",
-            );
+            return Err("the sealed map or member has incompatible captures or effects");
         }
-        let MachineSupplyMode::ExternalRealization {
-            binding: Some(binding),
-            mechanism: Some(ExternalBindingMechanism::CompilerIntrinsic),
-        } = machine.supply_mode
-        else {
-            return Err("the member has no exact inferred intrinsic realization");
+        // Authentication establishes the exact catalog member and public slot.
+        // Checked bodies keep their ordinary contract/body proof and adapter plans;
+        // this branch grants no intrinsic execution merely from a catalog name.
+        let binding = match machine.supply_mode {
+            MachineSupplyMode::CheckedBody if machine.body_is_present => None,
+            MachineSupplyMode::ExternalRealization {
+                binding: Some(binding),
+                mechanism: Some(ExternalBindingMechanism::CompilerIntrinsic),
+            } if !machine.body_is_present
+                && !typed.machine_contracts(machine).iter().any(|contract| {
+                    matches!(
+                        contract.kind,
+                        SignatureContractKind::Ensures
+                            | SignatureContractKind::EnsuresForResultCase { .. }
+                    )
+                }) =>
+            {
+                if typed.external_bindings.identity(binding)
+                    != Some(&ExternalBindingIdentity::CompilerIntrinsic)
+                {
+                    return Err("the member binding is not the fixed compiler intrinsic");
+                }
+                Some(binding)
+            }
+            _ => return Err("the member has neither a checked body nor exact intrinsic supply"),
         };
-        if typed.external_bindings.identity(binding)
-            != Some(&ExternalBindingIdentity::CompilerIntrinsic)
-        {
-            return Err("the member binding is not the fixed compiler intrinsic");
-        }
         let [edge] = typed.machine_trait_conformances(machine) else {
             return Err("the member does not retain exactly one public satisfaction");
         };
-        if edge.external_binding != Some(binding)
+        if edge.external_binding != binding
             || edge.via_expression.is_valid()
             || edge.external_binding_source_span.is_some()
         {
-            return Err("the intrinsic satisfaction has an authored or different binding");
+            return Err("the catalog satisfaction has an authored or different binding");
         }
         let (requirement_symbol, _) =
             crate::provider_declarations::boundary_satisfaction_identity(typed, machine, edge)
@@ -1715,7 +1718,7 @@ pub mod float_providers {
             typed,
             requirement_symbol,
         )
-        .ok_or("the public requirement has no complete intrinsic signature")?;
+        .ok_or("the public requirement has no complete canonical signature")?;
         if typed
             .symbols
             .sealed_declaration(requirement_symbol, &requirement.display())
@@ -1723,9 +1726,13 @@ pub mod float_providers {
         {
             return Err("the public requirement is outside the sealed float catalog");
         }
-        let meaning = typed
-            .numeric_intrinsic_execution(requirement_symbol)
-            .ok_or("the public requirement has no fixed numeric meaning")?;
+        if binding.is_some()
+            && typed
+                .numeric_intrinsic_execution(requirement_symbol)
+                .is_none()
+        {
+            return Err("the intrinsic public requirement has no fixed numeric meaning");
+        }
         let [entry] = typed.machine_states(machine) else {
             return Err("the member does not have exactly one entry");
         };
@@ -1763,7 +1770,7 @@ pub mod float_providers {
         if actual_formation != expected_formation || !typed.state_contracts(entry).is_empty() {
             return Err("the formation or crash contract differs from the public requirement");
         }
-        Ok((requirement_symbol, meaning))
+        Ok(requirement_symbol)
     }
 
     fn formation_clauses(

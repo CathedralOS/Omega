@@ -125,12 +125,23 @@ impl language_semantics::declaration_selection::provider_choices::Candidate
         self.native_build
     }
     fn target_realization(&self) -> Option<bool> {
-        self.float_realization.map(|realization| {
-            matches!(
-                realization,
-                target::CanonicalFloatRealization::CatalogIntrinsic { .. }
-            )
-        })
+        self.float_realization.map(
+            |realization| match (realization, self.plan.rows.as_slice()) {
+                (target::CanonicalFloatRealization::CatalogIntrinsic { .. }, [row]) => {
+                    matches!(
+                        row.binding,
+                        effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                    )
+                }
+                (target::CanonicalFloatRealization::CheckedMachine { .. }, [row]) => {
+                    matches!(
+                        row.binding,
+                        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                    )
+                }
+                _ => false,
+            },
+        )
     }
     fn has_requirements(&self) -> bool {
         !self.plan.schema.declaration.methods.is_empty()

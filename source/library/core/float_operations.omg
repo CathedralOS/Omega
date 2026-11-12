@@ -3,8 +3,8 @@
 // Primitive spellings resolve to the Float operators below. Each target's
 // declared realization table binds them to the sealed NativeFloats catalog
 // members; no Build program selects or overrides them. Public signatures and
-// contracts stay at these boundaries; the fixed compiler catalog supplies
-// their primitive IEEE execution.
+// contracts stay at these boundaries. The target table selects exact compiler
+// primitives or checked machine bodies under those unchanged contracts.
 //
 // Named operations use format-qualified F32/F64 names. For example,
 // F32::fused_multiply_add and F64::fused_multiply_add are distinct requirements;
@@ -47,8 +47,9 @@ ensures core::Identity<FloatMeaning>(result, Float::meaning64(value))
     Float::meaning64(value)
 }
 
-// The executable, representation-free semantic definitions. These are exact
-// compiler primitives from the closed float-semantics catalog: bare bodyless
+// The executable, representation-free semantic definitions. Except for the
+// explicit multiply-then-add composition below, these are exact compiler
+// primitives from the closed float-semantics catalog: bare bodyless
 // machine signatures supplied because this sealed toolchain source declares
 // them with exactly this path and complete signature (the `from_integer`
 // carriers are distinct catalog rows). The compiler's core implementation is
@@ -125,12 +126,20 @@ public machine FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
 public machine FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
 public machine FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
 
+// Each operation rounds to the same format. The intermediate product is
+// retained, so overflow, underflow and signed zeros follow two roundings;
+// NaNs keep the payload-erased FloatMeaning policy of multiply and add.
 public machine FloatSemantics::multiply_then_add(
     format: FloatFormat,
     left: FloatMeaning,
     right: FloatMeaning,
     addend: FloatMeaning
-) -> FloatMeaning;
+) -> FloatMeaning
+ensures core::Identity<FloatMeaning>(result,
+    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend))
+{
+    FloatSemantics::add(format, FloatSemantics::multiply(format, left, right), addend)
+}
 
 public machine FloatSemantics::fused_multiply_add(
     format: FloatFormat,

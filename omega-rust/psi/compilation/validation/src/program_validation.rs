@@ -334,7 +334,7 @@ pub(crate) mod declaration_prologue {
                         program.typed_program(),
                         machine,
                     ) && let Err(reason) =
-                        typed_trees::float_providers::authenticate_intrinsic_member(
+                        typed_trees::float_providers::authenticate_realization_member(
                             program.typed_program(),
                             machine,
                         )

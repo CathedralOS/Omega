@@ -350,7 +350,8 @@ fn selected_plan<'plans>(
                     target::CanonicalFloatRealization::Unsupported { constraint } => {
                         Some((profile, constraint))
                     }
-                    target::CanonicalFloatRealization::CatalogIntrinsic { .. } => None,
+                    target::CanonicalFloatRealization::CatalogIntrinsic { .. }
+                    | target::CanonicalFloatRealization::CheckedMachine { .. } => None,
                 });
             if let Some((profile, constraint)) = unsupported {
                 return Err(Diagnostic::error(format!(

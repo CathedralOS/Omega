@@ -1,7 +1,8 @@
 // The ordinary map owns these machine members. Each member also records its
 // exact public arithmetic requirement; the selected target's realization
 // table binds that recorded relation, and Build never selects it. The
-// compiler catalog supplies intrinsic execution only for this sealed map.
+// compiler catalog supplies intrinsic execution only for this sealed map;
+// members with checked bodies retain their ordinary contract and call plans.
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
 
@@ -285,12 +286,26 @@ NativeFloats satisfies FloatNativeOperations {
     boundary machine f64_negate_f64(value: f64) -> f64
     satisfies F64::negate
     ;
-    boundary machine f32_multiply_then_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    machine f32_multiply_then_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
     satisfies F32::multiply_then_add
-    ;
-    boundary machine f64_multiply_then_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    ensures core::Identity<FloatMeaning>(
+        F32::meaning(result),
+        FloatSemantics::multiply_then_add(FloatFormat::BINARY32,
+            F32::meaning(left), F32::meaning(right), F32::meaning(addend)))
+    {
+        let product: f32 = left * right;
+        product + addend
+    }
+    machine f64_multiply_then_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
     satisfies F64::multiply_then_add
-    ;
+    ensures core::Identity<FloatMeaning>(
+        F64::meaning(result),
+        FloatSemantics::multiply_then_add(FloatFormat::BINARY64,
+            F64::meaning(left), F64::meaning(right), F64::meaning(addend)))
+    {
+        let product: f64 = left * right;
+        product + addend
+    }
     boundary machine f32_fused_multiply_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
     satisfies F32::fused_multiply_add
     ;

@@ -186,9 +186,19 @@ pub struct CompileReport {
     wrote_output: bool,
     timings: Vec<PhaseTiming>,
     test_roster: Vec<crate::TestRosterEntry>, // Registered tests run before this report succeeded.
+    float_realizations: Vec<String>, // Observations from the selected plans required by this product.
 }
 
 impl CompileReport {
+    pub(crate) fn with_float_realizations(mut self, rows: Vec<String>) -> Self {
+        self.float_realizations = rows;
+        self
+    }
+
+    pub fn float_realizations(&self) -> &[String] {
+        &self.float_realizations
+    }
+
     #[must_use]
     pub fn with_test_roster(mut self, roster: Vec<crate::TestRosterEntry>) -> Self {
         self.test_roster = roster;
@@ -209,6 +219,7 @@ impl CompileReport {
             source_file_count,
             wrote_output: false,
             test_roster: Vec::new(),
+            float_realizations: Vec::new(),
             timings: Vec::new(),
         }
     }
