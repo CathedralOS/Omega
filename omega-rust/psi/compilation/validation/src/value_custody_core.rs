@@ -5757,44 +5757,29 @@ pub mod locals {
         )
     }
 
+    /*
+        A local may not take a name the machine already gives a member. A
+        repeated local name, and a local that takes a parameter's name, are
+        refused earlier, in name resolution, where each binder's identity is
+        formed (`repeated_locals` in Psi 02).
+    */
     pub(crate) fn validate_local_data_names(
         statements: &[StatementNode],
         machine_symbols: &MachineSymbols<'_>,
-        parameters: &[StateParameter],
         machine_name: &str,
         state_name: &str,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        for (statement_index, statement) in statements.iter().enumerate() {
+        for statement in statements {
             let Some(local_data) = statement.as_local_data() else {
                 continue;
             };
             if !local_data.role.is_runtime_binding() {
                 continue;
             }
-
-            if machine_symbols.has_member(local_data.name.as_str())
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.name == local_data.name)
-            {
+            if machine_symbols.has_member(local_data.name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine_name}` state `{state_name}` local data `{}` conflicts with an existing name",
-                local_data.name
-            )));
-                continue;
-            }
-
-            if statements[..statement_index].iter().any(|previous| {
-                matches!(
-                    previous,
-                    StatementNode::LocalData(previous)
-                        if previous.role.is_runtime_binding()
-                            && previous.name == local_data.name
-                )
-            }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine_name}` state `{state_name}` has duplicate local data `{}`",
+                    "machine `{machine_name}` state `{state_name}` local data `{}` conflicts with an existing name",
                     local_data.name
                 )));
             }

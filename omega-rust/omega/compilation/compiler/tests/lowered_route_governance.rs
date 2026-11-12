@@ -10,8 +10,10 @@
 //!
 //! A program the route accepts and the current checker rejects outside the
 //! Build program and the entry contract fails with an error that opens with
-//! `NO_PRODUCT_ROUTE`: no product exists yet for it. The unit tests of
-//! `lowered_route::govern` pin the decision itself.
+//! `NO_PRODUCT_ROUTE`: no product exists yet for it. No corpus program is
+//! known to reach that case now that name resolution refuses a repeated
+//! local, so the unit tests of `lowered_route::govern` pin it, with the rest
+//! of the decision.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -64,27 +66,6 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
             .collect(),
         verdict,
     )
-}
-
-/// The current checker rejects a body that declares `x` twice, in the
-/// program's own source, and the route accepts it: the route's acceptance
-/// governs, and since nothing builds a product from the route's module the
-/// compilation fails with `NO_PRODUCT_ROUTE`, the current checker's
-/// diagnostic after it. (The owner has ruled such a body invalid; when name
-/// resolution rejects it, before typing, no trees reach either checker and
-/// this program needs replacing.)
-#[test]
-fn a_program_only_the_route_accepts_fails_for_want_of_a_product_route() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (messages, verdict) = rejected("tests/omega/fail/machines/duplicate_local_in_one_body");
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-    assert!(messages[0].starts_with(NO_PRODUCT_ROUTE), "{messages:#?}");
-    assert!(
-        messages[1..]
-            .iter()
-            .any(|message| message.contains("duplicate local data `x`")),
-        "{messages:#?}"
-    );
 }
 
 /// Both checkers reject a loop whose arrival invariant is unproved: the
