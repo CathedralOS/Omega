@@ -474,6 +474,14 @@ def main() -> int:
         "call_graph": graph,
     }
     audit_dir = REPO / "wiki/drafts/audits"
+    parser_path = audit_dir / "recursive_walkers_2026-11-12_parser_depths.json"
+    if parser_path.is_file():
+        parser = json.loads(parser_path.read_text(encoding="utf-8"))
+        out["depths"]["parser"] = parser
+        out["depths"]["parser_note"] = (
+            "Psi-01 syntax parse via wiki/drafts/audits/measure_depths "
+            "(run with `ulimit -s unlimited` on default Linux stack)."
+        )
     (audit_dir / "recursive_walkers_2026-11-12_depth.json").write_text(
         json.dumps(out, indent=2), encoding="utf-8"
     )

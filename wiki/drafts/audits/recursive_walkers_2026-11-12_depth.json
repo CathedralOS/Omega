@@ -39,7 +39,53 @@
       "unary_tilde_repeat": 4096,
       "binary_seven_op_groups": 1024,
       "note": "Rust integration tests in stage-01 crate, not .omg corpus"
-    }
+    },
+    "parser": {
+      "engine": "tokens-to-syntax-trees (Psi 01)",
+      "parsed_files": 49755,
+      "parse_failures": 356,
+      "deep_paren_nesting_comment": "Deep parenthesis nesting within the compile path's recursion budget.",
+      "fixture_paths": [
+        "fail/parser/nesting_exceeds_max_depth",
+        "pass/parser/deep_nesting_within_limit",
+        "pass/expressions/deep_paren_nesting"
+      ],
+      "all": {
+        "expression_tree_depth": {
+          "depth": 135,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1
+        },
+        "type_reference_nesting": {
+          "depth": 6,
+          "file": "tests/omega/fail/facts/open_index_distributivity_commutative_semiring_rejected/main.omg",
+          "line": 1
+        },
+        "binary_operator_chain": {
+          "depth": 132,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1585
+        }
+      },
+      "excluding_depth_fixtures": {
+        "expression_tree_depth": {
+          "depth": 135,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1
+        },
+        "type_reference_nesting": {
+          "depth": 6,
+          "file": "tests/omega/fail/facts/open_index_distributivity_commutative_semiring_rejected/main.omg",
+          "line": 1
+        },
+        "binary_operator_chain": {
+          "depth": 132,
+          "file": "tests/omega/fail/build/installed_arrival_wrong_controller/main.omg",
+          "line": 1585
+        }
+      }
+    },
+    "parser_note": "Psi-01 syntax parse via wiki/drafts/audits/measure_depths (run with `ulimit -s unlimited` on default Linux stack)."
   },
   "call_graph": {
     "01": {

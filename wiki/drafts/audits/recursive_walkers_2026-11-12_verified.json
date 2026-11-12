@@ -595,7 +595,7 @@
   "limitations": [
     "W05-EXT lives in `representations/typed-trees`; stage-05 crates call it but it is outside the stage `src/` tree — include when retiring typed expression walks.",
     "Automated call graph (`analyze.py`) links callees by identifier across stage crates; it does not resolve traits, `mod` paths, or `use` renames perfectly. Curated table is authoritative.",
-    "Binary operator chain measurement is parse-lexical (binary punctuators inside each `(...)` region), not a full Omega expression parse; treat as a lower bound. Exact chain depth is pinned in stage-01 Rust tests (1024 seven-operator groups).",
+    "Binary operator chain maxima come from the stage-01 syntax-tree parse (longest left-spine `Binary` chain per expression, any site). Stage-01 Rust tests still pin 1024 seven-operator groups for the parser grammar.",
     "Could not mechanically prove absence of further stage-06 expression walkers hidden behind iterative queues without a rustc call graph; manual scan found no additional Rust-recursive expression walkers beyond W06-1/W06-2."
   ]
 }
