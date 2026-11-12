@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Triage shard-1.tsv per lead soundness_fix3 (wins over fix + fix2)."""
+"""Triage shard-1.tsv per lead soundness_fix3 + soundness_fix4."""
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import subprocess
@@ -30,11 +31,50 @@ BUCKETS = (
     "known-gap-q7-mut",
     "disagreement-valid",
     "discarded-valid",
+    "valid-route-outside",
     "rejected-both",
     "timeout",
     "failed-run",
     "no-mutation",
 )
+
+SPEC_CHECK_TIME = (
+    "wiki/spec/language/state_contracts.md",
+    "`ensures` remains the distinct normal-completion guarantee and proof obligation.",
+)
+
+ROUTE_NON_VERDICT = frozenset({"outside", "no-entry", "unreached"})
+
+
+def route_outside(route: str) -> bool:
+    return route in ROUTE_NON_VERDICT
+
+
+def route_rejects(route: str) -> bool:
+    return route in ("rejected", "incomplete", "defect", "error")
+
+
+def minimal_diff(original: str, mutant: str) -> str:
+    diff = difflib.unified_diff(
+        original.splitlines(keepends=True),
+        mutant.splitlines(keepends=True),
+        fromfile="original",
+        tofile="mutant",
+        n=2,
+    )
+    return "".join(diff)[:4000]
+
+
+def runtime_trap_only(mutant: str, kind: str) -> bool:
+    """fix4(b): obligation may be enforced only via crash/transition at run time."""
+    if kind not in ("drop_requires", "remove_guard_transition", "widen_requires"):
+        return False
+    if re.search(r"\bcrash\b", mutant):
+        return True
+    # Runtime transition guards still present after dropping machine requires
+    if kind == "drop_requires" and re.search(r"transition\s+(?!true\b)[^\n{]+", mutant):
+        return bool(re.search(r"machine\s+bad\s*\(", mutant) or re.search(r"->\s*bad\s*\(", mutant))
+    return False
 
 
 def q7_fixtures() -> set[str]:
@@ -127,8 +167,8 @@ def read_mutant_validity(
                 return (
                     True,
                     s,
-                    "wiki/spec/language/state_contracts.md",
-                    "Every invocation retains both sides of its own contract.",
+                    SPEC_CHECK_TIME[0],
+                    SPEC_CHECK_TIME[1],
                     f"ensures remains after dropping requires `{dropped}`",
                 )
             if s and s not in ("{", "}"):
@@ -249,6 +289,7 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
     original = (REPO / fixture).read_text(encoding="utf-8")
     mutant_path = row.get("mutant_path", "")
     mutant = (REPO / mutant_path / "main.omg").read_text(encoding="utf-8") if mutant_path else original
+    out["mutant_diff"] = minimal_diff(original, mutant) if mutant != original else ""
 
     invalid, ob, sf, sq, vnote = read_mutant_validity(kind, original, mutant)
     out["validity_note"] = vnote
@@ -270,6 +311,10 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
             )
             return out
         if acc:
+            if runtime_trap_only(mutant, kind):
+                out["hand_verdict"] = "discarded-valid"
+                out["verdict_reason"] = "runtime trap/crash route may enforce; not compile-time proof hole"
+                return out
             out["hand_verdict"] = "confirmed-hole"
             out["accepted_by"] = acc
             out["verdict_reason"] = vnote or ob
@@ -278,12 +323,16 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
         out["verdict_reason"] = vnote or "invalid; both checkers reject"
         return out
 
-    # spec-valid mutant
+    # spec-valid mutant (fix4: route outside is not a verdict)
+    if route_outside(rt):
+        out["hand_verdict"] = "valid-route-outside"
+        out["verdict_reason"] = f"valid; route non-verdict `{rt}`"
+        return out
     if c_acc and r_acc:
         out["hand_verdict"] = "discarded-valid"
         out["verdict_reason"] = vnote
         return out
-    if cur != rt:
+    if (c_acc and route_rejects(rt)) or (r_acc and cur == "rejected"):
         out["hand_verdict"] = "disagreement-valid"
         out["verdict_reason"] = vnote
         return out
@@ -341,7 +390,7 @@ def main() -> None:
         print("no rows")
         return
 
-    extra = ["accepted_by", "validity_note", "verdict_reason", "q7_listed"]
+    extra = ["accepted_by", "validity_note", "verdict_reason", "q7_listed", "mutant_diff"]
     for col in extra:
         if col not in hdr:
             hdr.append(col)
@@ -370,13 +419,20 @@ def main() -> None:
     bucket_lines = [
         f"# Soundness mutations — shard {SHARD}/8",
         "",
-        f"PIN: `{PIN}`. Triage follows **soundness_fix3** (either-checker holes; validity from reading mutant).",
+        f"PIN: `{PIN}`. Triage follows **soundness_fix3** + **soundness_fix4**.",
         "",
-        "## Coverage",
+        "## Coverage reconciliation (fix4)",
         "",
         f"- Fixtures in shard: **{FIXTURE_TOTAL}**",
-        f"- TSV rows (mutant attempts): **{total}**",
+        f"- Mutant rows in TSV: **{total}**",
+        f"- `no-mutation` fixtures: **{buckets.get('no-mutation', 0)}**",
+        f"- Fixtures with a mutation run: **{total - buckets.get('no-mutation', 0)}**",
         f"- Mutants per fixture: **1** prioritized kind (or `none` row)",
+        "",
+    ]
+    multi = [fx for fx, cnt in Counter(r["fixture"] for r in out_rows).items() if cnt > 1]
+    bucket_lines.append(f"- Fixtures with >1 row: **{len(multi)}**" + (f" — {multi[:20]}" if multi else ""))
+    bucket_lines += [
         "",
         "## Bucket totals (sum = mutant rows)",
         "",
@@ -432,7 +488,11 @@ def main() -> None:
             f"- Validity: {row['validity_note']}",
             f"- Route hint: {row.get('route_reason', '')[:200]}",
             f"- Obligation: `{row['obligation_line']}`",
-            f"- Spec: > {row['spec_quote']}",
+            f"- Spec ({row['spec_file']}): > {row['spec_quote']}",
+            f"- Minimal diff:",
+            "```diff",
+            (row.get("mutant_diff") or "")[:2500],
+            "```",
             "",
         ]
 
