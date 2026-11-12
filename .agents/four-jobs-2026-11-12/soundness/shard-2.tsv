@@ -1,0 +1,12 @@
+fixture	tier	mutation_kind	mutant_path	current_verdict	route_verdict	disposition	rule_hint	seconds
+tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg	pass	drop_machine_ensures		accepted	unknown	inconclusive	wiki/spec/language/state_contracts.md	1.85
+tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg	pass	mut_ref_to_ref		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	1.80
+tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg	pass	drop_machine_requires		accepted	unknown	inconclusive	wiki/spec/language/state_contracts.md	2.88
+tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg	pass	ref_to_mut_ref		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	2.01
+tests/omega/pass/arithmetic/compound_assign/main.omg	pass	remove_mut		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	1.42
+tests/omega/pass/arithmetic/compound_assign/main.omg	pass	mut_ref_to_ref		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	1.66
+tests/omega/pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit/main.omg	pass	remove_mut		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	11.41
+tests/omega/pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit/main.omg	pass	mut_ref_to_ref		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	8.27
+tests/omega/pass/arithmetic/runtime_bounded_dividend_remainder_exit/main.omg	pass	drop_machine_requires		accepted	unknown	inconclusive	wiki/spec/language/state_contracts.md	1.88
+tests/omega/pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit/main.omg	pass	remove_mut		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	13.93
+tests/omega/pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit/main.omg	pass	mut_ref_to_ref		accepted	unknown	inconclusive	wiki/spec/language/ownership.md	10.54

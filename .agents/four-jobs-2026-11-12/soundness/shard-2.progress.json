@@ -1,0 +1,17 @@
+{
+  "fixtures_done": [
+    "tests/omega/pass/arithmetic/compound_assign/main.omg",
+    "tests/omega/pass/arithmetic/observed_byte_cast_case_domain_policy_exit/main.omg",
+    "tests/omega/pass/arithmetic/explicit_integer_landing_exit/main.omg",
+    "tests/omega/pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit/main.omg",
+    "tests/omega/pass/arithmetic/chained_const_binder_scale_exit/main.omg",
+    "tests/omega/pass/arithmetic/anonymous_integer_arith/main.omg",
+    "tests/omega/pass/arithmetic/integer_multiple_remainder_exit/main.omg",
+    "tests/omega/pass/arithmetic/runtime_bounded_dividend_remainder_exit/main.omg",
+    "tests/omega/pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit/main.omg"
+  ],
+  "stats": {
+    "mutants_generated": 11,
+    "mutants_run": 11
+  }
+}
