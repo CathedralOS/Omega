@@ -49,10 +49,12 @@ SPEC_RULES: dict[str, tuple[str, str, str]] = {
         "the exact argument substitution." + COMPILE_TIME_SUFFIX,
     ),
     "drop_requires": (
-        "wiki/spec/language/machines.md",
-        "Call preconditions",
-        "Every machine application establishes the selected contract's `requires` under "
-        "the exact argument substitution." + COMPILE_TIME_SUFFIX,
+        "wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md",
+        "Nested machines and identity; Private entry inference",
+        "A written entry contract remains complete even when all currently visible callers "
+        "happen to establish stronger facts. An authored `requires` is complete, including "
+        "on a private helper. Inference cannot silently conjoin further entry conditions to "
+        "make the body check." + COMPILE_TIME_SUFFIX,
     ),
     "remove_guard": (
         "wiki/spec/language/state_contracts.md",
@@ -121,6 +123,7 @@ class Row:
     rule_heading: str
     rule_quote: str
     accepted_by: str
+    hole_subtype: str
     mutant_path: str
     current_s: float
     route_s: float
@@ -170,14 +173,62 @@ def count_let_bindings(text: str, name: str) -> int:
     return len(re.findall(rf"\blet\s+(?:mut\s+)?{re.escape(name)}\b", text))
 
 
-def transition_restates_requires(original: str, removed: str) -> str | None:
-    removed_compact = re.sub(r"\s+", "", removed)
-    for m in re.finditer(r"transition\s+([^{;\n]+)", original):
-        arm = m.group(1).strip()
-        arm_compact = re.sub(r"\s+", "", arm)
-        if len(removed_compact) > 12 and removed_compact in arm_compact:
-            return f"transition arm `{arm}` restates `{removed}`"
-    return None
+def synthesize_violating_call(mutant: str, removed: str) -> str | None:
+    m = re.search(r"machine\s+(\w+)\s*\(", mutant)
+    if not m:
+        return None
+    name = m.group(1)
+    if name == "main":
+        m = re.search(r"machine\s+(\w+)\s*\(", mutant[m.end() :])
+        if not m:
+            return None
+        name = m.group(1)
+    sig = re.search(rf"machine\s+{re.escape(name)}\s*\(([^)]*)\)", mutant)
+    if not sig:
+        return None
+    params: list[str] = []
+    for part in sig.group(1).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        params.append(part.split(":")[0].strip())
+    args: list[str] = []
+    for param in params:
+        ge = re.search(rf"\b{re.escape(param)}\s*>=\s*(-?\d+)", removed)
+        if ge:
+            args.append(str(int(ge.group(1)) - 1))
+            continue
+        le = re.search(rf"\b{re.escape(param)}\s*<=\s*(-?\d+)", removed)
+        if le:
+            args.append(str(int(le.group(1)) + 1))
+            continue
+        args.append("-1" if "i32" in sig.group(1) or "i64" in sig.group(1) else "0")
+    if not args:
+        return None
+    return f"{name}({', '.join(args)})"
+
+
+def inject_violating_probe(mutant: str, call: str) -> str:
+    probe = f"\n    // soundness-probe violating entry\n    let _probe = {call};\n"
+    main = re.search(r"(machine\s+main\s*\(\)\s*\{)", mutant)
+    if main:
+        insert_at = main.end()
+        return mutant[:insert_at] + probe + mutant[insert_at:]
+    return mutant + f"\nmachine __soundness_probe() {{ {call}; }}\n"
+
+
+def probe_drop_requires_subtype(mutant_text: str, removed: str, mutant_main: Path) -> str:
+    call = synthesize_violating_call(mutant_text, removed)
+    if not call:
+        return "unchecked"
+    probed = inject_violating_probe(mutant_text, call)
+    saved = mutant_main.read_text(encoding="utf-8")
+    try:
+        mutant_main.write_text(probed, encoding="utf-8")
+        verdict, _, _, _ = run_omega(mutant_main)
+    finally:
+        mutant_main.write_text(saved, encoding="utf-8")
+    return "unchecked" if accepts(verdict) else "inferred-entry"
 
 
 def find_remove_mut_target(source: str) -> tuple[str, str] | None:
@@ -453,13 +504,11 @@ def read_spec_verdict(
         obligation = drop_requires_dependent_obligation(original, mutant, removed) or ""
         if obligation:
             return SpecRead(True, obligation, "", False, SPEC_RULES["drop_requires"])
-        restated = transition_restates_requires(original, removed)
-        if restated:
-            return SpecRead(False, restated, "same fact restated on a transition arm", False, None)
         return SpecRead(
             False,
             "",
-            "no body or ensures line needs the removed requires fact",
+            "no body or ensures line needs the removed requires fact (modular entry: "
+            "caller restatement does not heal missing requires)",
             False,
             None,
         )
@@ -779,6 +828,7 @@ def write_md(
                 f"- (a) Compile-time spec (`{r.rule_file}` § {r.rule_heading}):",
                 "",
                 f"> {r.rule_quote}",
+                f"- Subtype: `{r.hole_subtype or '(n/a)'}`",
                 f"- (b) Check-time vs runtime: accepting checker verdict `{r.current}` "
                 f"(route `{r.route}`); obligation must be proved at check, not deferred to crash.",
                 f"- (c) Minimal diff: see hand-verification section below.",
@@ -851,7 +901,7 @@ def main() -> int:
         tsv_path.write_text(
             "fixture\ttier\tmutation_kind\tdetail\tbucket\tcurrent_verdict\troute_verdict\t"
             "route_detail\tdiscard_reason\tobligation\trule_file\trule_heading\t"
-            "accepted_by\tmutant_path\tcurrent_seconds\troute_seconds\n",
+            "accepted_by\thole_subtype\tmutant_path\tcurrent_seconds\troute_seconds\n",
             encoding="utf-8",
         )
 
@@ -892,6 +942,7 @@ def main() -> int:
                     rule_heading="",
                     rule_quote="",
                     accepted_by="neither",
+                    hole_subtype="",
                     mutant_path="",
                     current_s=0,
                     route_s=0,
@@ -914,6 +965,13 @@ def main() -> int:
                 obligation = spec.obligation
                 rfile = rhead = rquote = ""
             keep = bucket in ("confirmed-hole", "known-gap-q7-mut")
+            hole_subtype = ""
+            if bucket == "confirmed-hole" and m.kind == "drop_requires" and keep:
+                hole_subtype = probe_drop_requires_subtype(
+                    m.text, m.meta.get("removed", ""), mutant_main
+                )
+            elif bucket == "confirmed-hole":
+                hole_subtype = "unchecked"
             rel_mutant = mutant_main.relative_to(REPO).as_posix()
             if not keep:
                 shutil.rmtree(mutant_main.parent, ignore_errors=True)
@@ -933,6 +991,7 @@ def main() -> int:
                 rule_heading=rhead,
                 rule_quote=rquote,
                 accepted_by=accepted,
+                hole_subtype=hole_subtype,
                 mutant_path=rel_mutant if keep else "",
                 current_s=current_s,
                 route_s=route_s,
@@ -942,7 +1001,7 @@ def main() -> int:
                 f.write(
                     f"{rel}\t{tier}\t{m.kind}\t{m.detail}\t{bucket}\t{current_v}\t{route_v}\t"
                     f"{row.route_detail}\t{row.discard_reason}\t{row.obligation}\t{rfile}\t{rhead}\t"
-                    f"{accepted}\t{rel_mutant}\t{current_s:.3f}\t{route_s:.3f}\n"
+                    f"{accepted}\t{hole_subtype}\t{rel_mutant}\t{current_s:.3f}\t{route_s:.3f}\n"
                 )
         progress_path.write_text(str(idx + 1), encoding="utf-8")
         if (idx + 1) % 25 == 0:
