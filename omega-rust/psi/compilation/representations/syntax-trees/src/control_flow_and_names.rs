@@ -871,7 +871,8 @@ pub mod names {
                 &self,
                 output: &mut compiler_storage::RecordWriter,
             ) -> Result<(), compiler_storage::RecordError> {
-                compiler_storage::Record::write(&self.generation, output)?;
+                let generation = output.appearance_number::<Self>(self.generation);
+                compiler_storage::Record::write(&generation, output)?;
                 compiler_storage::Record::write(&self.text, output)
             }
             fn read<Context>(
@@ -885,6 +886,13 @@ pub mod names {
                 &self,
                 output: &mut compiler_storage::RecordWriter,
             ) -> Result<(), compiler_storage::RecordError> {
+                /*
+                    Generations come from a process-wide counter and a reader
+                    remaps them from here on (`read`), so they are written by
+                    first appearance: equal syntax then writes equal bytes in
+                    every compile, which keys over it need.
+                */
+                output.number_by_appearance::<RetainedSource>();
                 compiler_storage::Record::write(&self.sources, output)
             }
             fn read<Context>(

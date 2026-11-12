@@ -127,7 +127,13 @@ impl<T: 'static> compiler_storage::Record for Handle<T> {
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
         self.arena_index.write(output)?;
-        self.generation.write(output)
+        // Mirrors `read`: an invalid handle's generation is not remapped.
+        let generation = if self.arena_index == 0 {
+            self.generation
+        } else {
+            output.appearance_number::<T>(self.generation)
+        };
+        generation.write(output)
     }
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,

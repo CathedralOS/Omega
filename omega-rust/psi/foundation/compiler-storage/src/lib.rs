@@ -160,6 +160,23 @@ pub struct RecordWriter {
     shared_values: HashMap<(TypeId, usize, usize), u64>,
     external: Option<(TypeId, usize)>, // The one value of its type the reader supplies instead of the bytes.
     renumberings: Vec<Renumbering>,
+    appearance_numberings: Vec<AppearanceNumbering>,
+}
+
+/*
+    The writer's side of `RecordReader::remap_generations`. Some domains
+    number their values from a process-wide counter, so the same value
+    carries another number in every compile, and a key over its bytes never
+    matched again. A reader already replaces those numbers with fresh ones, so
+    their only meaning in the bytes is which values are the same. Once the
+    owner of such a domain starts one (`number_by_appearance`), each number
+    is written as its order of first appearance in the record, which depends
+    only on what is written.
+*/
+#[derive(Clone)]
+struct AppearanceNumbering {
+    value_type: TypeId,
+    numbers: HashMap<u32, u32>,
 }
 
 /*
@@ -193,8 +210,45 @@ impl RecordWriter {
             shared_values: HashMap::new(),
             external: None,
             renumberings: Vec::new(),
+            appearance_numberings: Vec::new(),
             limits,
         }
+    }
+
+    /*
+        Starts numbering `T` by first appearance from here on; see
+        `AppearanceNumbering`. A domain already started keeps its numbers.
+    */
+    pub fn number_by_appearance<T: ?Sized + 'static>(&mut self) {
+        let value_type = TypeId::of::<T>();
+        if !self
+            .appearance_numberings
+            .iter()
+            .any(|numbering| numbering.value_type == value_type)
+        {
+            self.appearance_numberings.push(AppearanceNumbering {
+                value_type,
+                numbers: HashMap::new(),
+            });
+        }
+    }
+
+    /*
+        The number to write for `original` of `T`: its order of first
+        appearance once `number_by_appearance::<T>` has started, else itself.
+        Numbers start at 1.
+    */
+    pub fn appearance_number<T: ?Sized + 'static>(&mut self, original: u32) -> u32 {
+        let value_type = TypeId::of::<T>();
+        let Some(numbering) = self
+            .appearance_numberings
+            .iter_mut()
+            .find(|numbering| numbering.value_type == value_type)
+        else {
+            return original;
+        };
+        let next = numbering.numbers.len() as u32 + 1;
+        *numbering.numbers.entry(original).or_insert(next)
     }
 
     /*
@@ -205,6 +259,7 @@ impl RecordWriter {
     pub fn scratch(&self) -> Self {
         let mut scratch = Self::new(self.limits);
         scratch.renumberings = self.renumberings.clone();
+        scratch.appearance_numberings = self.appearance_numberings.clone();
         scratch
     }
 
