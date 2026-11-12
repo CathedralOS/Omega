@@ -23,18 +23,34 @@ Only **4** fixtures contribute the **13** extra rows (not 13 separate fixtures).
 
 | Bucket | Count |
 | --- | ---: |
+| `confirmed-hole` | 5 |
 | `known-gap-q7-mut` | 69 |
 | `disagreement-valid` | 3 |
-| `valid-route-outside` | 123 |
+| `valid-route-outside` | 118 |
 | `discarded-valid` | 2 |
 | `rejected-both` | 868 |
 | `failed-run` | 2 |
 | **Total mutant rows** | **1067** |
 | Meta: `no-mutation` fixtures | 76 |
 
+## Entry contracts are modular
+
+- **`wiki/spec/language/machines.md`** → **Nested machines and identity**: A written entry contract remains complete even when all currently visible callers happen to establish stronger facts.
+- **`wiki/spec/language/state_contracts.md`** → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+
+**Checker probe (Probe: `double_indexed_rmw_through_field` mutant + second call `rmw(&mut holder, 99, 2, 2, 1)` → `omega --check` **accepted** (exit 0). Original fixture with `requires i <= 2` + same call → **rejected** (`i <= 2` structurally false for 99).)**
+
+Visible callers may discharge facts at a **call**, but omitting an authored `requires` does not become sound merely because today's call sites are guarded. `drop_requires` rows with body obligations are **invalid**; `confirmed-hole` when `omega --check` accepts.
+
 Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` is recorded for `drop_requires` but does not select buckets. `valid-route-outside` holds **valid** mutants where the route comparison never entered the program (`outside`, `no-entry`, `unreached`); that is not a checker disagreement.
 
-**Confirmed holes:** 0
+**Confirmed holes:** 5
+| kind | count |
+| --- | ---: |
+| `drop_requires` | 5 |
+| accepted_by | count |
+| --- | ---: |
+| `current` | 5 |
 
 ## `drop_requires` — current accepts: route hints (not validity)
 
@@ -42,8 +58,8 @@ Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` i
 | --- | --- | --- | --- |
 | `tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg` | rejected | `disagreement-valid` | cannot prove requires contract for call consume_high from unsigned_bits: xor_result == 18446744073709551600 (needs fact `value == 18446744073709551600` here; establish it before the call via a prior c |
 | `tests/omega/pass/borrows/runtime_bounded_and_shared_field_loans_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
-| `tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
-| `tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
+| `tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg` | outside | `confirmed-hole` | route=outside (hint only; not used for validity) |
+| `tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg` | outside | `confirmed-hole` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/collections/runtime_stored_reference_array_owned_record_contract_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/constants/owned_record_argument_snapshot_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/constraints/guarded_parameter_result_contract/main.omg` | no-entry | `valid-route-outside` | route=no-entry (hint only; not used for validity) |
@@ -73,12 +89,12 @@ Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` i
 | `tests/omega/pass/facts/dependency_type_qualified_call_through_parameter_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/descriptor_payload_exclusive_loan_through_match_join_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/descriptor_range_exclusive_loan_through_local_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
-| `tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
+| `tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg` | outside | `confirmed-hole` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/erased_reference_contract_through_local_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/exclusive_match_arm_through_call_result_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/exclusive_match_arm_through_target_body_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/exclusive_observation_exposure_through_parameter_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
-| `tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
+| `tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg` | outside | `confirmed-hole` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/float_range_delivery_through_parameter_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/generic_comparison_body_through_call_result_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/generic_comparison_body_through_target_body_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
@@ -94,7 +110,7 @@ Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` i
 | `tests/omega/pass/facts/match_runtime_view_extent_through_const_name_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/may_write_codec_argument_through_other_state_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/nested_machine_joint_rank_bounded_computed_length_local_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
-| `tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
+| `tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg` | outside | `confirmed-hole` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/nominal_loan_backing_cleanup_through_parameter_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/open_index_distributivity_through_field_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
 | `tests/omega/pass/facts/positional_implementation_binder_through_other_state_exit/main.omg` | outside | `valid-route-outside` | route=outside (hint only; not used for validity) |
@@ -150,6 +166,81 @@ python3 .agents/four-jobs-2026-11-12/soundness/reconcile_fix_shard5.py
 
 ## Hand verification: 5 confirmed-hole
 
+### `drop_requires` — `tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg`
+- Bucket: `confirmed-hole`; accepted_by: **current**
+- Validity (read mutant): invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires cursor.index >= 0 && cursor.index < cells.len` (call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`); does not excuse removed entry `requires` under modular checking
+- Obligation / quote: cells[cursor.index].value = sample(cursor); (needs `requires cursor.index >= 0 && cursor.index < cells.len`)
+- Route hint (not used for validity): route=outside (hint only; not used for validity)
+- `omega --check` exit 0
+```text
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_collections_runtime_finite_element_view_call_write_exit_main_omg_9b8d41b651__drop_requires/main.omg; wrote_output=false
+```
+- route: **outside**
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_collections_runtime_finite_element_view_call_write_exit_main_omg_9b8d41b651__drop_requires/main.omg	current=accepted	current_us=3033846	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+### `drop_requires` — `tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg`
+- Bucket: `confirmed-hole`; accepted_by: **current**
+- Validity (read mutant): invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires cursor.index >= 0 && cursor.index < cells.len` (call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`); does not excuse removed entry `requires` under modular checking
+- Obligation / quote: cells[cursor.index].value = value(cursor); (needs `requires cursor.index >= 0 && cursor.index < cells.len`)
+- Route hint (not used for validity): route=outside (hint only; not used for validity)
+- `omega --check` exit 0
+```text
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/sts_omega_pass_collections_runtime_refined_element_view_call_write_exit_main_omg_31dae98b08__drop_requires/main.omg; wrote_output=false
+```
+- route: **outside**
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/sts_omega_pass_collections_runtime_refined_element_view_call_write_exit_main_omg_31dae98b08__drop_requires/main.omg	current=accepted	current_us=2961408	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+### `drop_requires` — `tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg`
+- Bucket: `confirmed-hole`; accepted_by: **current**
+- Validity (read mutant): invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires i <= 2` (literal arguments in `-> rmw(&mut holder, 1, 2, 2, 1)` satisfy `requires i <= 2`); does not excuse removed entry `requires` under modular checking
+- Obligation / quote: holder.grid[i][j] = holder.grid[i][j] + 1; (needs `requires i <= 2`)
+- Route hint (not used for validity): route=outside (hint only; not used for validity)
+- `omega --check` exit 0
+```text
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_double_indexed_rmw_through_field_exit_main_omg_04e24d9734__drop_requires/main.omg; wrote_output=false
+```
+- route: **outside**
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_double_indexed_rmw_through_field_exit_main_omg_04e24d9734__drop_requires/main.omg	current=accepted	current_us=2950063	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+### `drop_requires` — `tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg`
+- Bucket: `confirmed-hole`; accepted_by: **current**
+- Validity (read mutant): invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires 0 <= index && index <= 3` (`-> pick(main, main.k)` passes `main.k` under `data Main requires …`); does not excuse removed entry `requires` under modular checking
+- Obligation / quote: main.arr[index + 1] (needs `requires 0 <= index && index <= 3`)
+- Route hint (not used for validity): route=outside (hint only; not used for validity)
+- `omega --check` exit 0
+```text
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_field_where_index_through_other_state_exit_main_omg_d9aa784ee5__drop_requires/main.omg; wrote_output=false
+```
+- route: **outside**
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_field_where_index_through_other_state_exit_main_omg_d9aa784ee5__drop_requires/main.omg	current=accepted	current_us=2997153	root=compilation	route=outside	Unsupported: type reference
+
+```
+
+### `drop_requires` — `tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg`
+- Bucket: `confirmed-hole`; accepted_by: **current**
+- Validity (read mutant): invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires end <= buffer.len` (caller binds `capacity` with `minimum(..., buffer.len)` before `-> consume(buffer, capacity)`); does not excuse removed entry `requires` under modular checking
+- Obligation / quote: let prefix: &mut [u8] = &mut buffer[0..end]; (needs `requires end <= buffer.len`)
+- Route hint (not used for validity): route=outside (hint only; not used for validity)
+- `omega --check` exit 0
+```text
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_nested_result_extent_through_other_state_exit_main_omg_59252ddd66__drop_requires/main.omg; wrote_output=false
+```
+- route: **outside**
+```text
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_nested_result_extent_through_other_state_exit_main_omg_59252ddd66__drop_requires/main.omg	current=accepted	current_us=8057266	root=compilation	route=outside	Unsupported: contract disjunction
+
+```
+
 ## Hand verification: 5 discarded-valid
 
 ### `drop_requires` — `tests/omega/pass/facts/range_fact_delivery_through_other_state_exit/main.omg`
@@ -163,7 +254,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **accepted**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_range_fact_delivery_through_other_state_exit_main_omg_e762ef210e__drop_requires/main.omg	current=accepted	current_us=2931722	root=compilation	route=accepted	route_us=2283	discharge_us=1648	reverify_us=762	reverified=7	obligations=7	judged=7	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	close
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_range_fact_delivery_through_other_state_exit_main_omg_e762ef210e__drop_requires/main.omg	current=accepted	current_us=3064241	root=compilation	route=accepted	route_us=2533	discharge_us=1768	reverify_us=786	reverified=7	obligations=7	judged=7	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	close
 ```
 
 ### `drop_requires` — `tests/omega/pass/facts/signed_exact_addition_bound_through_local_exit/main.omg`
@@ -177,7 +268,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **accepted**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_signed_exact_addition_bound_through_local_exit_main_omg_c639dcd803__drop_requires/main.omg	current=accepted	current_us=3099843	root=compilation	route=accepted	route_us=25237	discharge_us=24801	reverify_us=22993	reverified=5	obligations=5	judged=5	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_facts_signed_exact_addition_bound_through_local_exit_main_omg_c639dcd803__drop_requires/main.omg	current=accepted	current_us=3074888	root=compilation	route=accepted	route_us=26043	discharge_us=25558	reverify_us=22500	reverified=5	obligations=5	judged=5	core_refused=0	unproved=0	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0
 ```
 
 ## Hand verification: 5 known-gap-q7-mut
@@ -193,7 +284,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **no-entry**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_atomics_placed_atomic_load_main_omg_5ebfd24054__remove_mut/main.omg	current=accepted	current_us=3750452	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_atomics_placed_atomic_load_main_omg_5ebfd24054__remove_mut/main.omg	current=accepted	current_us=3769014	root=compilation	route=no-entry
 
 ```
 
@@ -208,7 +299,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **no-entry**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_borrow_named_operator_disjoint_argument_preserves_bound_main_omg_a92dc43876__remove_mut/main.omg	current=accepted	current_us=1402208	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/ests_omega_pass_borrow_named_operator_disjoint_argument_preserves_bound_main_omg_a92dc43876__remove_mut/main.omg	current=accepted	current_us=1386244	root=compilation	route=no-entry
 
 ```
 
@@ -223,7 +314,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **no-entry**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrow_write_only_whole_scalar_replace_main_omg_111bcb0f21__remove_mut/main.omg	current=accepted	current_us=1427295	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrow_write_only_whole_scalar_replace_main_omg_111bcb0f21__remove_mut/main.omg	current=accepted	current_us=1422791	root=compilation	route=no-entry
 
 ```
 
@@ -238,7 +329,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **outside**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_copied_image_descriptor_unrelated_write_main_omg_11ec3a7a8d__remove_mut/main.omg	current=accepted	current_us=2935910	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_copied_image_descriptor_unrelated_write_main_omg_11ec3a7a8d__remove_mut/main.omg	current=accepted	current_us=2905201	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ```
 
@@ -253,20 +344,19 @@ compiled 30 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 - route: **outside**
 ```text
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_pending_registration_write_after_completion_main_omg_55e4dda937__remove_mut/main.omg	current=accepted	current_us=3852175	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-5/tests_omega_pass_borrows_pending_registration_write_after_completion_main_omg_55e4dda937__remove_mut/main.omg	current=accepted	current_us=3749305	root=compilation	route=outside	Unsupported: machine service reach
 
 ```
 
-## Reviewed index/`drop_requires` candidates (formerly flagged)
-
-Five `drop_requires` rows were initially `confirmed-hole` because the mutant body still indexes without the removed machine `requires`. After caller/call-site review they are **valid** (facts re-established before invocation), not soundness holes.
+## Confirmed-hole entries
 
 ### `drop_requires` — `tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg`
-- Final bucket: **`valid-route-outside`** (accepted_by: **current**)
-- Validity: valid: call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`
-- (a) Prove-at-check spec — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
-- (a) Also `wiki/spec/language/numeric_values.md` → **Collection bounds**: The core indexing contract requires ordinary call-contract discharge for every selected requirement.
-- (b) Runtime / check evidence: `omega run --both` on minimal mutant: native exit 0 / interp exit 0. Unguarded probe (`store` calls `at` unconditionally, `cursor.index = 5`): `omega --check` **rejects** with `cannot prove index cursor.index is within unknown slice length` — no silent runtime trap; bounds must be proved before the indexed write.
+- accepted_by: **current**
+- invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires cursor.index >= 0 && cursor.index < cells.len` (call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`); does not excuse removed entry `requires` under modular checking
+- Obligation: cells[cursor.index].value = sample(cursor); (needs `requires cursor.index >= 0 && cursor.index < cells.len`)
+- (a) Modular entry — `wiki/spec/language/state_contracts.md` → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+- (a) Index discharge — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
+- (b) Checker probe: Minimal mutant `omega --check` accepts; unguarded `at` probe rejects index proof.
 - (c) Minimal mutant diff:
 ```diff
 --- original
@@ -280,11 +370,12 @@ Five `drop_requires` rows were initially `confirmed-hole` because the mutant bod
 ```
 
 ### `drop_requires` — `tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg`
-- Final bucket: **`valid-route-outside`** (accepted_by: **current**)
-- Validity: valid: call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`
-- (a) Prove-at-check spec — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
-- (a) Also `wiki/spec/language/numeric_values.md` → **Collection bounds**: The core indexing contract requires ordinary call-contract discharge for every selected requirement.
-- (b) Runtime / check evidence: Same guarded-call pattern as finite; `omega run --both` on minimal mutant exits 0.
+- accepted_by: **current**
+- invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires cursor.index >= 0 && cursor.index < cells.len` (call `-> at(cells, cursor)` guarded by `transition cursor.index >= 0 && cursor.index < cells.len {`); does not excuse removed entry `requires` under modular checking
+- Obligation: cells[cursor.index].value = value(cursor); (needs `requires cursor.index >= 0 && cursor.index < cells.len`)
+- (a) Modular entry — `wiki/spec/language/state_contracts.md` → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+- (a) Index discharge — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
+- (b) Checker probe: Minimal mutant `omega --check` accepts (guarded `store`→`at` only).
 - (c) Minimal mutant diff:
 ```diff
 --- original
@@ -298,11 +389,12 @@ Five `drop_requires` rows were initially `confirmed-hole` because the mutant bod
 ```
 
 ### `drop_requires` — `tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg`
-- Final bucket: **`valid-route-outside`** (accepted_by: **current**)
-- Validity: valid: literal arguments in `-> rmw(&mut holder, 1, 2, 2, 1)` satisfy `requires i <= 2`
-- (a) Prove-at-check spec — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
-- (a) Also `wiki/spec/language/numeric_values.md` → **Collection bounds**: The core indexing contract requires ordinary call-contract discharge for every selected requirement.
-- (b) Runtime / check evidence: Single call site `rmw(&mut holder, 1, 2, 2, 1)`; `omega run --both` on minimal mutant exits 0. Removed `requires i <= 2` only; remaining requires and literal `i=1` bound the exercised path.
+- accepted_by: **current**
+- invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires i <= 2` (literal arguments in `-> rmw(&mut holder, 1, 2, 2, 1)` satisfy `requires i <= 2`); does not excuse removed entry `requires` under modular checking
+- Obligation: holder.grid[i][j] = holder.grid[i][j] + 1; (needs `requires i <= 2`)
+- (a) Modular entry — `wiki/spec/language/state_contracts.md` → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+- (a) Index discharge — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
+- (b) Checker probe: Second caller `rmw(..., 99, …)` on mutant: **`omega --check` accepts**. Original + `requires i <= 2` rejects that call.
 - (c) Minimal mutant diff:
 ```diff
 --- original
@@ -316,11 +408,12 @@ Five `drop_requires` rows were initially `confirmed-hole` because the mutant bod
 ```
 
 ### `drop_requires` — `tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg`
-- Final bucket: **`valid-route-outside`** (accepted_by: **current**)
-- Validity: valid: `-> pick(main, main.k)` passes `main.k` under `data Main requires …`
-- (a) Prove-at-check spec — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
-- (a) Also `wiki/spec/language/numeric_values.md` → **Collection bounds**: The core indexing contract requires ordinary call-contract discharge for every selected requirement.
-- (b) Runtime / check evidence: `omega run --both` on minimal mutant exits 0. Index actual is `main.k`; `data Main requires 0 <= k, k <= 3` discharges the index bound at the call.
+- accepted_by: **current**
+- invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires 0 <= index && index <= 3` (`-> pick(main, main.k)` passes `main.k` under `data Main requires …`); does not excuse removed entry `requires` under modular checking
+- Obligation: main.arr[index + 1] (needs `requires 0 <= index && index <= 3`)
+- (a) Modular entry — `wiki/spec/language/state_contracts.md` → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+- (a) Index discharge — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
+- (b) Checker probe: Mutant accepts; `pick(main, 4u64)` probe **rejects** (`index+1` within length 5).
 - (c) Minimal mutant diff:
 ```diff
 --- original
@@ -334,11 +427,12 @@ Five `drop_requires` rows were initially `confirmed-hole` because the mutant bod
 ```
 
 ### `drop_requires` — `tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg`
-- Final bucket: **`valid-route-outside`** (accepted_by: **current**)
-- Validity: valid: caller binds `capacity` with `minimum(..., buffer.len)` before `-> consume(buffer, capacity)`
-- (a) Prove-at-check spec — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
-- (a) Also `wiki/spec/language/numeric_values.md` → **Collection bounds**: The core indexing contract requires ordinary call-contract discharge for every selected requirement.
-- (b) Runtime / check evidence: `omega run --both` on minimal mutant exits 0. `capacity = minimum(minimum(count, buffer.len), …)` before `consume(buffer, capacity)`.
+- accepted_by: **current**
+- invalid: removed entry `requires`; body still uses bound (modular entry contract) — visible call sites establish `requires end <= buffer.len` (caller binds `capacity` with `minimum(..., buffer.len)` before `-> consume(buffer, capacity)`); does not excuse removed entry `requires` under modular checking
+- Obligation: let prefix: &mut [u8] = &mut buffer[0..end]; (needs `requires end <= buffer.len`)
+- (a) Modular entry — `wiki/spec/language/state_contracts.md` → **Private entry inference**: An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check.
+- (a) Index discharge — `wiki/spec/language/expressions.md` → **Contract-gated core operations**: An additional well-formed requirement is proved at the call site or the call rejects; it is not rejected merely for falling outside a fixed bounds-clause grammar.
+- (b) Checker probe: Minimal mutant `omega --check` accepts; slice uses `end` without entry `requires`.
 - (c) Minimal mutant diff:
 ```diff
 --- original

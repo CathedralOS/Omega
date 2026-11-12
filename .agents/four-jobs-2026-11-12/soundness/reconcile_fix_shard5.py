@@ -36,6 +36,27 @@ SPEC_DROP_REQUIRES = (
     "under actual argument substitution.",
 )
 
+SPEC_MODULAR_ENTRY = (
+    "wiki/spec/language/machines.md",
+    "Nested machines and identity",
+    "A written entry contract remains complete even when all currently visible callers "
+    "happen to establish stronger facts.",
+)
+
+SPEC_WRITTEN_REQUIRES_COMPLETE = (
+    "wiki/spec/language/state_contracts.md",
+    "Private entry inference",
+    "An authored `requires` is complete, including on a private helper. Inference "
+    "cannot silently conjoin further entry conditions to make the body check.",
+)
+
+MODULAR_PROBE = (
+    "Probe: `double_indexed_rmw_through_field` mutant + second call "
+    "`rmw(&mut holder, 99, 2, 2, 1)` → `omega --check` **accepted** (exit 0). "
+    "Original fixture with `requires i <= 2` + same call → **rejected** "
+    "(`i <= 2` structurally false for 99)."
+)
+
 SPEC_WIDEN = (
     "wiki/spec/language/domains.md",
     "## Literals and expected types",
@@ -342,15 +363,22 @@ def validity_drop_requires(orig: str, mut: str) -> tuple[bool, str, str, str, st
     restated, pair = requires_restatement(req, body)
     if restated:
         return True, f"valid: {pair}", "", "", "", pair
+    caller_note = ""
     c_ok, c_note = caller_establishes(mut, machine, req)
     if c_ok:
-        return True, f"valid: {c_note}", "", "", "", c_note
+        caller_note = (
+            f"visible call sites establish `{req}` ({c_note}); "
+            "does not excuse removed entry `requires` under modular checking"
+        )
     obs = drop_obligation_lines(req, body)
     if obs:
-        sf, hd, qt = SPEC_DROP_REQUIRES
+        sf, hd, qt = SPEC_WRITTEN_REQUIRES_COMPLETE
+        vnote = "invalid: removed entry `requires`; body still uses bound (modular entry contract)"
+        if caller_note:
+            vnote += f" — {caller_note}"
         return (
             False,
-            "invalid: body uses fact not re-established at entry",
+            vnote,
             sf,
             hd,
             qt,
@@ -735,6 +763,23 @@ def main() -> None:
     md.append(f"| **Total mutant rows** | **{total}** |")
     md.append(f"| Meta: `no-mutation` fixtures | {no_mutation} |")
     md.append("")
+    sf_mod, sh_mod, sq_mod = SPEC_MODULAR_ENTRY
+    sf_w, sh_w, sq_w = SPEC_WRITTEN_REQUIRES_COMPLETE
+    md.extend(
+        [
+            "## Entry contracts are modular",
+            "",
+            f"- **`{sf_mod}`** → **{sh_mod}**: {sq_mod}",
+            f"- **`{sf_w}`** → **{sh_w}**: {sq_w}",
+            "",
+            f"**Checker probe ({MODULAR_PROBE})**",
+            "",
+            "Visible callers may discharge facts at a **call**, but omitting an authored `requires` "
+            "does not become sound merely because today's call sites are guarded. `drop_requires` "
+            "rows with body obligations are **invalid**; `confirmed-hole` when `omega --check` accepts.",
+            "",
+        ]
+    )
     md.append(
         "Validity is decided by **reading the mutant** (fix3-B). `route_rejection_hint` is recorded "
         "for `drop_requires` but does not select buckets. `valid-route-outside` holds **valid** "
@@ -780,80 +825,43 @@ def main() -> None:
     write_hand_section(md, "## Hand verification: 5 discarded-valid", h_disc)
     write_hand_section(md, "## Hand verification: 5 known-gap-q7-mut", h_q7)
 
-    OOB_EVIDENCE = {
+    CHECK_EVIDENCE = {
         "tests/omega/pass/collections/runtime_finite_element_view_call_write_exit/main.omg": (
-            "`omega run --both` on minimal mutant: native exit 0 / interp exit 0. "
-            "Unguarded probe (`store` calls `at` unconditionally, `cursor.index = 5`): "
-            "`omega --check` **rejects** with `cannot prove index cursor.index is within unknown slice length` — "
-            "no silent runtime trap; bounds must be proved before the indexed write."
+            "Minimal mutant `omega --check` accepts; unguarded `at` probe rejects index proof."
         ),
         "tests/omega/pass/collections/runtime_refined_element_view_call_write_exit/main.omg": (
-            "Same guarded-call pattern as finite; `omega run --both` on minimal mutant exits 0."
+            "Minimal mutant `omega --check` accepts (guarded `store`→`at` only)."
         ),
         "tests/omega/pass/facts/double_indexed_rmw_through_field_exit/main.omg": (
-            "Single call site `rmw(&mut holder, 1, 2, 2, 1)`; `omega run --both` on minimal mutant exits 0. "
-            "Removed `requires i <= 2` only; remaining requires and literal `i=1` bound the exercised path."
+            "Second caller `rmw(..., 99, …)` on mutant: **`omega --check` accepts**. "
+            "Original + `requires i <= 2` rejects that call."
         ),
         "tests/omega/pass/facts/field_where_index_through_other_state_exit/main.omg": (
-            "`omega run --both` on minimal mutant exits 0. Index actual is `main.k`; "
-            "`data Main requires 0 <= k, k <= 3` discharges the index bound at the call."
+            "Mutant accepts; `pick(main, 4u64)` probe **rejects** (`index+1` within length 5)."
         ),
         "tests/omega/pass/facts/nested_result_extent_through_other_state_exit/main.omg": (
-            "`omega run --both` on minimal mutant exits 0. "
-            "`capacity = minimum(minimum(count, buffer.len), …)` before `consume(buffer, capacity)`."
+            "Minimal mutant `omega --check` accepts; slice uses `end` without entry `requires`."
         ),
     }
 
-    if reviewed_former_holes:
-        sf, sh, sq = SPEC_INDEX_BOUNDS
-        md.append("## Reviewed index/`drop_requires` candidates (formerly flagged)")
-        md.append("")
-        md.append(
-            "Five `drop_requires` rows were initially `confirmed-hole` because the mutant body "
-            "still indexes without the removed machine `requires`. After caller/call-site review "
-            "they are **valid** (facts re-established before invocation), not soundness holes."
-        )
-        md.append("")
-        for r in reviewed_former_holes:
-            orig, mut = read_pair(r["fixture"], r["mutant_path"], r["mutation_kind"])
-            diff = minimal_diff(orig, mut).strip() or "(no diff — mutant dir missing; synthetic apply)"
-            sf2, sh2, sq2 = (
-                "wiki/spec/language/numeric_values.md",
-                "Collection bounds",
-                "The core indexing contract requires ordinary call-contract discharge for every "
-                "selected requirement.",
-            )
-            md.extend(
-                [
-                    f"### `{r['mutation_kind']}` — `{r['fixture']}`",
-                    f"- Final bucket: **`{r['hand_bucket']}`** (accepted_by: **{r['accepted_by']}**)",
-                    f"- Validity: {r['validity_note']}",
-                    f"- (a) Prove-at-check spec — `{sf}` → **{sh}**: {sq}",
-                    f"- (a) Also `{sf2}` → **{sh2}**: {sq2}",
-                    f"- (b) Runtime / check evidence: {OOB_EVIDENCE.get(r['fixture'], 'see hand section')}",
-                    "- (c) Minimal mutant diff:",
-                    "```diff",
-                    diff[:4000],
-                    "```",
-                    "",
-                ]
-            )
-
-    if confirmed:
-        sf, sh, sq = SPEC_INDEX_BOUNDS
+    dossier_rows = confirmed or [r for r in reviewed_former_holes if r["hand_bucket"] == "confirmed-hole"]
+    if dossier_rows:
+        sf, sh, sq = SPEC_WRITTEN_REQUIRES_COMPLETE
+        sf2, sh2, sq2 = SPEC_INDEX_BOUNDS
         md.append("## Confirmed-hole entries")
         md.append("")
-        for r in confirmed:
+        for r in dossier_rows:
             orig, mut = read_pair(r["fixture"], r["mutant_path"], r["mutation_kind"])
-            diff = minimal_diff(orig, mut).strip()
+            diff = minimal_diff(orig, mut).strip() or "(no diff)"
             md.extend(
                 [
                     f"### `{r['mutation_kind']}` — `{r['fixture']}`",
                     f"- accepted_by: **{r['accepted_by']}**",
                     f"- {r['validity_note']}",
                     f"- Obligation: {r['obligation_line']}",
-                    f"- (a) Spec `{sf}` → **{sh}**: {sq}",
-                    f"- (b) Evidence: (run recorded at reconcile time)",
+                    f"- (a) Modular entry — `{sf}` → **{sh}**: {sq}",
+                    f"- (a) Index discharge — `{sf2}` → **{sh2}**: {sq2}",
+                    f"- (b) Checker probe: {CHECK_EVIDENCE.get(r['fixture'], 'minimal mutant accepted')}",
                     "- (c) Minimal mutant diff:",
                     "```diff",
                     diff[:4000],
