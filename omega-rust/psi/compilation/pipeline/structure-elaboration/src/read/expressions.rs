@@ -312,6 +312,9 @@ impl<'t> Program<'t> {
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type)) => scalar_type,
                 Some(ValueType::Record(_)) => return Err(unserved("match with a data result")),
+                Some(ValueType::Rigid(_)) => {
+                    return Err(unserved("match with a result of a rigid type"));
+                }
                 None => return Err(unserved("match with a Unit arm")),
             };
             if result.is_some_and(|result| result != value_type) {

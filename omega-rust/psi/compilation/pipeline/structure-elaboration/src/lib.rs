@@ -176,6 +176,14 @@ pub struct Elaboration {
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
+    /// The requirements that are another generic machine's own contract, at
+    /// the type arguments one call in this generic check form's entry
+    /// applies it at (`same<T>(left, right)` inside `compare<T>`). A
+    /// specialization of the entry calls the machine stage 04 generated
+    /// from that machine for the same arguments, whose contract is this one
+    /// at them, so no refinement proof stands between the two. Each is
+    /// also in `requirements`. Empty for every concrete module.
+    pub applications: Vec<MachineId>,
     /// How many of each machine's scalar formals are value parameters
     /// (`const Units: u64`) left rigid by a generic check form: they are the
     /// machine's last scalar formals, in declaration order, and no caller
@@ -458,6 +466,7 @@ fn finish_reading(
     elaboration.machines = program.symbols;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
+    elaboration.applications = program.applications;
     elaboration.value_parameters = program.value_parameters;
     elaboration.value_arguments = program.value_arguments;
     Ok(elaboration)
@@ -559,6 +568,7 @@ pub fn lower_generic(
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),
+        applications: Vec::new(),
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
     })

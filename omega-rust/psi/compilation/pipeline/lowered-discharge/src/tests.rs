@@ -23,6 +23,7 @@ use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, d
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod ranges;
+mod type_parameters;
 mod value_parameters;
 
 fn integer_type(sign: IntegerSign) -> IntegerType {

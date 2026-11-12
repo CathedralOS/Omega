@@ -127,12 +127,13 @@ entry, since neither is inside the lowered subset.
 
 ### Generic machines
 
-Two kinds of generic parameter are read, as an experiment for
+Three kinds of generic parameter are read, as an experiment for
 [the checker's generic bodies](../lowered-discharge/README.md#generic-bodies-experiment):
 an implementation parameter (`Selected satisfies Step`), through which the
-body calls members (`Selected::apply(x)`), and a value parameter (`const
-Units: u64`), which the body and its contract name like a formal. A machine
-whose generic parameters are all of these two kinds is read in two forms.
+body calls members (`Selected::apply(x)`), a value parameter (`const
+Units: u64`), which the body and its contract name like a formal, and an
+opaque type parameter (`T`), whose values the body can pass on. A machine
+whose generic parameters are all of these kinds is read in two forms.
 
 - **Its specializations**, by `elaborate`. Stage 04 closes each static
   application `advance<Double>` by generating a machine for it, so the
@@ -176,13 +177,29 @@ signature at those arguments beside the dispatch
 contract itself and does not read the record, which only Psi 05's helpers
 can resolve.
 
+**A type parameter** of the generic check form's entry is rigid: a formal
+or result of type `T` has `ValueType::Rigid`, which is neither a scalar nor a
+record, so every operator, comparison, field and literal rule refuses it.
+What each type parameter in scope stands for is kept beside the machine
+being read (`Program::scope`), found by the binder's symbol. A call of
+another generic machine at the entry's own type parameters,
+`forward<T>(item, limit)`, is read from the bindings of the call's static
+application: the callee becomes one machine per tuple of type arguments,
+with its signature and contract at those types and no body
+(`Program::application`, `Elaboration::applications`). A value of `T` may be
+named once in a body unless `T` is declared `[copy]`; a `[linear]`
+parameter, a local of type `T` and a call that returns a `T` are refused. A
+machine stage 04 generated for a type argument is a closed machine and
+reads as one, as far as its clauses and body are in the subset.
+
 `elaborate_witness` builds the statement that an implementation refines a
 requirement: the requirement's contract, at the given value arguments, on a
 body that is one call of the implementation. `template_of` gives the
-declaration a generated machine came from. A type or callable parameter, a
-runtime-capable value binder (`Count: u32` without `const`) and a value
-parameter of a carrier other than an integer are still refused as `machine
-generic parameters` or by the parameter's own refusal (findings 29 to 32).
+declaration a generated machine came from. A callable parameter, a
+runtime-capable value binder (`Count: u32` without `const`), a value
+parameter of a carrier other than an integer, and a type parameter with a
+declared type equation are still refused as `machine generic parameters`
+or by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.

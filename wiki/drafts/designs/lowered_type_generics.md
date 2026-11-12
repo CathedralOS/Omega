@@ -40,8 +40,22 @@ record a generated machine's argument only as its spelling. A requirement
 with value parameters is read at the literals of each call, so the fail
 twin is refused at `Units == 7`, where the member's refinement proof is
 missing, not "for every `Units`, before any specialization". And a body that
-reads the parameter as an operand is not carried yet. Steps 2 and 3 are not
-built.
+reads the parameter as an operand is not carried yet.
+
+Step 2, an opaque type parameter, is built and recorded as
+[condition 3's third result](check_on_lowered_form.md#condition-3-type-parameters).
+It differs from the text below in four ways. The sort is on the check
+tables' value row, not beside `ScalarType`, which is matched at 263 places
+across the compiler; the lowered form declares a rigid value with a stand-in
+type that nothing may read. No kernel rule has an "any sort" premise yet:
+no proposition may name a rigid value at all, which the checker enforces,
+and the premise arrives with the first rule that needs it. There is no
+rigid place type, so a `T` instantiated at a data type takes no proof, and
+no abstract cleanup step. And a `T` value may be used once unless `T` is
+`[copy]`, a restriction the text does not have, because the route has no
+judgment of moves. Step 3 is not built: a generated machine of a finite
+family keeps its type-equation `requires` clause, which the reader does not
+read.
 
 ## What the specification asks
 

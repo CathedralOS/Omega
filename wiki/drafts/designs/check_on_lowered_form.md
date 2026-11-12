@@ -395,8 +395,34 @@ that cannot fail cannot hold work back, and work went ahead
    a body that reads the parameter as an operand is not carried; a member's
    refinement of a requirement with value parameters is proved per argument
    in use, not for every value; a value parameter in a type waits for
-   arrays. A type parameter is still not served, and the route is still not
-   the compile path.
+   arrays. The route is still not the compile path.
+
+   <a id="condition-3-type-parameters"></a>
+   **Third result, 2026-11-12: an opaque type parameter.** A machine over
+   `T` is lowered once with each value of type `T` rigid: it has an
+   identity, a call passes it, and no proposition may name it. The machine
+   stage 04 generates for a type then has each certificate decided again by
+   `proof/admission`, unchanged, once the carrier has checked that every
+   `T` value is a value of one concrete type there. The pair written for
+   it is `run/generics/type_parameter_contract`, where `relay<T>` is proved
+   against the contract of `forward<T>`, which it calls at its own `T`, and
+   both are carried into the machines for `u8` and for `bool`; it passes
+   `omega run --both` on the current pipeline (native exit 0, Psi exit 0,
+   Linux x86_64, `omega` built at `b741666a1`). Its fail twin,
+   `fail/generics/type_parameter_contract_exceeds_callee`, differs only in
+   the bound `relay` promises and is refused once, as a generic body. The
+   current checker reports that twin once per generated machine and never
+   for `relay` as declared, which is the gap a generic check closes. The
+   design's own witness, `pass/facts/generic_comparison_body_through_match_join_exit`,
+   lowers and corresponds, and proves nothing: its two generic machines own
+   no contract clause, its `main` uses a scalar `match` the route does not
+   lower, and what tells it from its fail twin is what a caller learns from
+   a callee's body, which is owner question Q4. Limits, in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#type-parameters):
+   only where `T` is a scalar type; no operation has a result of type `T`;
+   a `T` value is used at most once unless `T` is `[copy]`, because the
+   route has no judgment of moves. A type parameter the body branches on
+   (a finite family) is still not served.
 
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed

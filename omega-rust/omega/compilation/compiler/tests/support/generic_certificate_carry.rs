@@ -98,23 +98,51 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
     let Some(entry) = frontier.entries.first().copied() else {
         return format!("{head}\troute=no-entry");
     };
-    let mut consumer = match structure_elaboration::elaborate_closure(typed, entry) {
-        Ok(elaboration) => elaboration,
-        Err(refusal) => return format!("{head}\troute=outside\t{}", one_line(&refusal.detail)),
-    };
-    // Every machine of the closure that stage 04 generated for a static
-    // application: one that selects an implementation, binds a value
-    // parameter, or both.
-    let callers: Vec<MachineId> = consumer
-        .machines
-        .iter()
-        .filter(|(_, symbol)| structure_elaboration::template_of(typed, **symbol).is_some())
-        .map(|(machine, _)| machine)
-        .collect();
-    if callers.is_empty() {
+    let entry_machine = MachineId::new(1).expect("1 is nonzero");
+    // Every machine stage 04 generated for a static application, each with
+    // the closure it is carried into: one that selects an implementation,
+    // binds a value parameter, applies a type, or several of these. They
+    // are the generated machines of the entry's closure when the route
+    // lowers that; when it does not (the entry uses a construct outside the
+    // subset), each machine generated from a declaration of the entry's own
+    // source file is the root of a closure of its own.
+    let mut roots: Vec<(Elaboration, MachineId)> = Vec::new();
+    match structure_elaboration::elaborate_closure(typed, entry) {
+        Ok(closure) => {
+            for (machine, symbol) in closure.machines.iter() {
+                if structure_elaboration::template_of(typed, *symbol).is_some() {
+                    roots.push((closure.clone(), machine));
+                }
+            }
+        }
+        Err(entry_refusal) => {
+            let file = |symbol| {
+                typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .map(|span| span.source_id)
+            };
+            for specialization in &typed.machine_specializations {
+                if file(specialization.template).is_none()
+                    || file(specialization.template) != file(entry)
+                {
+                    continue;
+                }
+                match structure_elaboration::elaborate_closure(typed, specialization.instance) {
+                    Ok(closure) => roots.push((closure, entry_machine)),
+                    Err(refusal) => {
+                        return format!("{head}\troute=outside\t{}", one_line(&refusal.detail));
+                    }
+                }
+            }
+            if roots.is_empty() {
+                return format!("{head}\troute=outside\t{}", one_line(&entry_refusal.detail));
+            }
+        }
+    }
+    if roots.is_empty() {
         return format!("{head}\troute=no-specialization");
     }
-    let entry_machine = MachineId::new(1).expect("1 is nonzero");
     // Each generic machine is elaborated and discharged once, however many
     // applications of it the program makes.
     let mut generics: Vec<(
@@ -123,7 +151,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         lowered_discharge::Discharge,
     )> = Vec::new();
     let mut carried_all = true;
-    for specialization in callers {
+    for (mut consumer, specialization) in roots {
         let Some(template) = consumer
             .machines
             .get(specialization)

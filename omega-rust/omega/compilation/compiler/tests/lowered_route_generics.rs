@@ -122,3 +122,57 @@ fn a_member_that_asks_more_than_its_requirement_is_refused() {
         [("witness", "requirement"), ("carried", "requirement")]
     );
 }
+
+/// An opaque type parameter: `relay<T>` and `forward<T>` are each proved
+/// once with their `T` values rigid, `relay` against `forward`'s contract,
+/// and carried into the machines generated for `u8` and for `bool`.
+#[test]
+fn a_type_parameter_body_is_checked_once_and_carried() {
+    let (outcome, rows) = carried("tests/omega/run/generics/type_parameter_contract");
+    assert_eq!(outcome, "current=accepted\troute=carried-accepted");
+    // `relay`: the call's requirement, the add and the guarantee.
+    // `forward`: its guarantee.
+    assert_eq!(count(&rows, "generic", "proved"), 4);
+    assert_eq!(count(&rows, "generic", "refused"), 0);
+    // Two types, each with both machines.
+    assert_eq!(count(&rows, "carried", "accepted"), 8);
+    assert_eq!(count(&rows, "carried", "refused"), 0);
+}
+
+/// Its twin differs only in the bound `relay` promises, `result <= 10`,
+/// which `forward`'s contract does not give after the add: refused once, as
+/// a generic body, and then in each generated machine with nothing to
+/// carry.
+#[test]
+fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
+    let (outcome, rows) =
+        carried("tests/omega/fail/generics/type_parameter_contract_exceeds_callee");
+    assert_eq!(outcome, "current=rejected\troute=carried-refused");
+    let refused: Vec<_> = rows
+        .iter()
+        .filter(|row| row[4] == "refused" && row[0] != "concrete")
+        .map(|row| (row[0].as_str(), row[3].as_str()))
+        .collect();
+    assert_eq!(
+        refused,
+        [
+            ("generic", "guarantee"),
+            ("carried", "guarantee"),
+            ("carried", "guarantee")
+        ]
+    );
+}
+
+/// The design's witness for an opaque `T`: `same<T>` and `compare<T>` own no
+/// contract clause, so nothing is proved or carried, and what is shown is
+/// that both generic forms lower with their `T` values rigid and that each
+/// generated machine is that body at `u64`. Its `main` is outside the
+/// subset, so each generated machine is the root of its own closure.
+#[test]
+fn the_comparison_witness_lowers_and_corresponds() {
+    let (outcome, rows) =
+        carried("tests/omega/pass/facts/generic_comparison_body_through_match_join_exit");
+    assert_eq!(outcome, "current=accepted\troute=carried-accepted");
+    assert_eq!(count(&rows, "generic", "refused"), 0);
+    assert_eq!(count(&rows, "carried", "refused"), 0);
+}

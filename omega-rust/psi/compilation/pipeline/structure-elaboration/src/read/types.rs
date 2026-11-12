@@ -136,6 +136,16 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        // A type parameter in scope is what the scope says it stands for,
+        // found by the binder's symbol.
+        if handle.is_valid()
+            && let TypeReferenceNode::Named { symbol, .. } =
+                self.typed.type_reference_table.type_reference(handle)
+            && symbol.is_valid()
+            && let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
+        {
+            return Ok(*bound);
+        }
         if handle.is_valid()
             && let TypeReferenceNode::Named { symbol, .. } =
                 self.typed.type_reference_table.type_reference(handle)
