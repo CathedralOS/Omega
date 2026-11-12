@@ -2937,6 +2937,7 @@ pub(crate) mod stored_calls {
                 rows.into_iter()
                     .map(|row| {
                         let parameter = function.structural_parameters.get(row.parameter)?;
+                        let destination_type = parameter.structural_type;
                         let path =
                             descriptor_path(types, parameter.structural_type, &row.exact_path()?)?;
                         let destination = StructuralArgument {
@@ -2948,11 +2949,47 @@ pub(crate) mod stored_calls {
                         for origin in row.origins {
                             if let Some((position, path)) = origin.captured_entry_slot() {
                                 let parameter = function.structural_parameters.get(position)?;
-                                sources.push(Source::IncomingSlot(StructuralArgument {
+                                let mut source = StructuralArgument {
                                     place: parameter.place,
                                     path: descriptor_path(types, parameter.structural_type, &path)?,
                                     access: parameter.access,
-                                }));
+                                };
+                                let supplying =
+                                    leaf_type(types, parameter.structural_type, &source.path)
+                                        .and_then(|ty| find_structural_type(types, ty));
+                                let receiving =
+                                    leaf_type(types, destination_type, &destination.path)
+                                        .and_then(|ty| find_structural_type(types, ty));
+                                if access_covers(parameter.access, StructuralAccess::SharedBorrow)
+                                    && supplying.zip(receiving).is_some_and(
+                                        |(source, destination)| {
+                                            matches!(
+                                                (&source.shape, &destination.shape),
+                                                (
+                                                    StructuralTypeShape::Reference {
+                                                        referent: source,
+                                                        access: StructuralAccess::MutableBorrow,
+                                                    },
+                                                    StructuralTypeShape::Reference {
+                                                        referent: destination,
+                                                        access: StructuralAccess::SharedBorrow,
+                                                    },
+                                                ) if source == destination
+                                            )
+                                        },
+                                    )
+                                {
+                                    /*
+                                        Making a read-only view must leave the stored mutable
+                                        reference in place. Reuse the reborrow path to retain
+                                        its original backing and immediate parent custody.
+                                    */
+                                    source.path.push(StructuralPathSegment::Referent);
+                                    source.access = StructuralAccess::SharedBorrow;
+                                    sources.push(Source::BorrowedStorage(source));
+                                } else {
+                                    sources.push(Source::IncomingSlot(source));
+                                }
                                 continue;
                             }
                             match origin {
