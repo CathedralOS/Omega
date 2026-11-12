@@ -22,12 +22,16 @@ fi
 
 export PATH="/home/ubuntu/.local/share/mbx/bin:$PATH"
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$ROOT/target" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
-RUNNER=$(ls -t "$ROOT"/target/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
-if [[ ! -x "${RUNNER:-}" ]]; then
-  nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
-  RUNNER=$(ls -t "$ROOT"/target/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
+BISECT_TARGET="${CARGO_TARGET_DIR:-/tmp/ledger-bisect-part-30-target}"
+mkdir -p "$BISECT_TARGET"
+HEAD_SHA=$(git rev-parse HEAD)
+STAMP="$BISECT_TARGET/.bisect_head"
+if [[ ! -f "$STAMP" ]] || [[ "$(cat "$STAMP")" != "$HEAD_SHA" ]]; then
+  CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || exit 125
+  CARGO_TARGET_DIR="$BISECT_TARGET" nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || exit 125
+  echo "$HEAD_SHA" >"$STAMP"
 fi
+RUNNER=$(ls -t "$BISECT_TARGET"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
 [[ -x "${RUNNER:-}" ]] || exit 125
 export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt

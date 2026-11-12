@@ -6,12 +6,17 @@ BAD_ANCHOR="${3:-8e7394363d14aca7dae993adeb86fc348c0d2c7e}"
 PIN="${4:-51e8c45c793007f211d0d9baee7de16767172444}"
 REPO="/agent/repos/omega"
 ART="/opt/cursor/artifacts/ledger-bisect-part-30"
-TOOLS="/tmp/ledger-bisect-part-30-tools"
+TOOLS="/opt/cursor/artifacts/ledger-bisect-part-30-tools"
 cd "$REPO"
 git checkout -qf work/ledger-bisect-part-30
 mkdir -p "$ART" "$TOOLS"
+mkdir -p "$TOOLS"
 cp -a "$REPO/.agents/ledger-bisect-2026-11-11/tools/"* "$TOOLS/"
-cp "$REPO/.agents/ledger-bisect-2026-11-11/"{exp_walk_good.sh,run_one_bisect.sh,setup_pin_refs.sh} "$TOOLS/"
+cp "$REPO/.agents/ledger-bisect-2026-11-11/"{exp_walk_good.sh,setup_pin_refs.sh} "$TOOLS/"
+if [[ -x /opt/cursor/artifacts/ledger-bisect-part-30-tools/run_one_bisect.sh ]]; then
+  cp /opt/cursor/artifacts/ledger-bisect-part-30-tools/run_one_bisect.sh "$TOOLS/"
+  cp /opt/cursor/artifacts/ledger-bisect-part-30-tools/bisect_witness.sh "$TOOLS/"
+fi
 chmod +x "$TOOLS"/*.sh
 
 bash "$TOOLS/setup_pin_refs.sh" "$PIN" "$WITNESS" >/dev/null
