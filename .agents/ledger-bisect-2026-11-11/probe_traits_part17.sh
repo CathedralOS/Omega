@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="pass/traits/runtime_qualified_owned_requirement_calls_exit"
+REPO="/agent/repos/omega"
 PIN="${1:-51e8c45c793007f211d0d9baee7de16767172444}"
 BREAK=$(git -C "$REPO" rev-parse 29f25c7d)
 GOOD_PARENT="${BREAK}^1"
-REPO="/agent/repos/omega"
 cd "$REPO"
 TOOLS="/tmp/ledger-bisect-part-30-tools"
 RUNTIME="/tmp/ledger-bisect-part-30"
