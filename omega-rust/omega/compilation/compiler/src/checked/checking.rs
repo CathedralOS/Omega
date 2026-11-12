@@ -386,7 +386,9 @@ impl SourceCompilation {
         &mut self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<BuildAdvance, CompileFailure> {
-        self.source.advance(returned)
+        // Advancing past provider defaults checks the root Build program, which
+        // needs the compiler's large stack like every other session entry.
+        compile_thread::run_on_compile_thread(|| self.source.advance(returned))
     }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
