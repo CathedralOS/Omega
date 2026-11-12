@@ -32,44 +32,22 @@ fi
 
 FINDLOG="/tmp/find-good-${CLUSTER_ID}.log"
 : >"$FINDLOG"
-mapfile -t CHAIN < <(python3 - "$PIN" <<'PY'
-import subprocess, sys
-pin = sys.argv[1]
-revs = []
-cur = pin
-for _ in range(600):
-    revs.append(cur)
-    try:
-        cur = subprocess.check_output(["git", "rev-parse", f"{cur}^1"], text=True).strip()
-    except subprocess.CalledProcessError:
-        break
-revs.reverse()
-print("\n".join(revs))
-PY
-)
 GOOD=""
-lo=0
-hi=$((${#CHAIN[@]} - 1))
-last_good=""
-while [[ "$lo" -le "$hi" ]]; do
-  mid=$(( (lo + hi) / 2 ))
-  rev="${CHAIN[$mid]}"
+rev="$PIN"
+for _ in $(seq 1 500); do
+  parent=$(git rev-parse -q "${rev}^1" 2>/dev/null) || break
+  rev="$parent"
   git checkout -f -q "$rev"
   set +e
   nice -n 19 "$SCRIPT"
   ec=$?
   set -e
-  echo "probe $rev exit=$ec $(git log -1 --oneline $rev 2>/dev/null)" >>"$FINDLOG"
+  echo "walk $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
   if [[ "$ec" -eq 0 ]]; then
-    last_good="$rev"
-    lo=$((mid + 1))
-  else
-    hi=$((mid - 1))
+    GOOD="$rev"
+    break
   fi
 done
-GOOD="$last_good"
-cp "$FINDLOG" "$ROOT/.agents/ledger-bisect-2026-11-11/find-good-${CLUSTER_ID}.log" 2>/dev/null || cp "$FINDLOG" "/tmp/find-good-${CLUSTER_ID}-copy.log"
-git checkout -f -q work/ledger-bisect-part-21
 git checkout -f -q "$PIN"
 if [[ -z "$GOOD" ]]; then
   echo "cluster=$CLUSTER_ID witness=$WITNESS status=propagated reason=no_good_on_first_parent"

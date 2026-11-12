@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 ROOT=/agent/repos/omega
-cd "$ROOT"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
+cd "$ROOT"
+git checkout -f -q work/ledger-bisect-part-21
 clusters=(
 "c0:pass/facts/non_owning_reference_erasure_through_other_machine_exit"
 "c1:pass/borrows/dynamic_window_return_custody_exit"
@@ -16,11 +17,12 @@ for item in "${clusters[@]}"; do
   w="${item#*:}"
   git checkout -f -q work/ledger-bisect-part-21
   rm -f ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
-  rm -f ".agents/ledger-bisect-2026-11-11/find-good-${id}.log"
   nice -n 19 .agents/ledger-bisect-2026-11-11/run_bisect_cluster.sh "$w" "$id" 2>&1 | tee ".agents/ledger-bisect-2026-11-11/bisect-${id}.log"
+  cp "/tmp/find-good-${id}.log" ".agents/ledger-bisect-2026-11-11/find-good-${id}.log" 2>/dev/null || true
   python3 .agents/ledger-bisect-2026-11-11/generate_part21.py
+  git checkout -f -q work/ledger-bisect-part-21
   git add .agents/ledger-bisect-2026-11-11/
   git commit -m "repo: ledger bisect part 21 cluster ${id}" || true
   git push -u origin work/ledger-bisect-part-21 || true
 done
-git checkout -f -q "$PIN"
+git checkout -f -q work/ledger-bisect-part-21
