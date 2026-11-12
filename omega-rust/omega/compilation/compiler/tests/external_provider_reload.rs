@@ -381,6 +381,155 @@ fn checked_native_scope_binds_completed_direct_and_family_choices() {
             .is_err(),
         "the preliminary choice must not masquerade as the completed native selection"
     );
+    // This source has a real foreign satisfying machine, so it exercises the
+    // retained direct contract rather than inventing a leaf for a Build row.
+    let retained = reload("tests/omega/pass/boundary/named_target_foreign_provider_exit/main.omg");
+    let module = retained.artifact().semantic_module();
+    let foreign = retained
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .direct_boundary_leaves
+        .iter()
+        .filter(|leaf| {
+            matches!(
+                leaf.execution,
+                backend_plan::DirectBoundaryExecution::Foreign(Ok(_))
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !foreign.is_empty(),
+        "the authored foreign machine must retain a real direct leaf"
+    );
+    for leaf in foreign {
+        leaf.validate_bound_calling_custody(module)
+            .expect("original foreign contract rejoins its module");
+        let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &leaf.execution else {
+            unreachable!()
+        };
+        assert!(!binding.calling_applications.is_empty());
+        for (calling_index, calling) in binding.calling_applications.iter().enumerate() {
+            let original = leaf
+                .satisfied_schema
+                .calling_application(&calling.abi)
+                .expect("actual foreign ABI retains its original checked boundary contract");
+            assert_eq!(calling.commitment, original.commitment.as_bytes());
+            assert_eq!(calling.report_fingerprint, original.report_fingerprint);
+            let wrong = module
+                .calling_abi_signatures
+                .iter()
+                .find(|declaration| {
+                    declaration.id != calling.abi.id()
+                        && module.identities.text(declaration.requirement_identity)
+                            != Some(leaf.satisfied_requirement_identity.as_str())
+                })
+                .expect("another real declaration ABI supplies the substitution control")
+                .identity(&module.identities)
+                .unwrap();
+            let mut changed = leaf.clone();
+            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) =
+                &mut changed.execution
+            else {
+                unreachable!()
+            };
+            binding.calling_applications[calling_index].requirement_identity =
+                wrong.requirement_identity.clone();
+            binding.calling_applications[calling_index].abi = wrong;
+            binding.calling_applications[calling_index].commitment = binding.calling_applications
+                [calling_index]
+                .recomputed_commitment()
+                .unwrap();
+            assert_eq!(
+                changed.validate_bound_calling_custody(module).unwrap_err(),
+                "direct foreign execution changed its public declaration ABI"
+            );
+        }
+    }
+}
+
+#[test]
+fn native_target_catalogs_reload_without_losing_later_native_choices() {
+    use effects::provider_plan::ProviderBinding;
+    let retained =
+        reload("tests/omega/pass/build/native_row_outranks_scoped_implementations_exit/main.omg");
+    let proposal = retained.native_realization_proposal().unwrap();
+    assert_eq!(proposal.target_profile(), target::TargetProfile::MacosArm64);
+    let mut requirement = None;
+    for target in [
+        target::TargetProfile::MacosArm64,
+        target::TargetProfile::LinuxArm64,
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::WindowsX64,
+    ] {
+        let publication = proposal
+            .target_provider_proposals()
+            .iter()
+            .find(|row| row.target == target.target_name())
+            .expect("each authored target keeps its catalog");
+        assert_eq!(
+            publication.terminal_psi,
+            retained.artifact().view().identity()
+        );
+        let selected = publication
+            .selection
+            .as_ref()
+            .unwrap_or_else(|errors| panic!("{}: {}", target.target_name(), errors.join("; ")));
+        let distance = selected
+            .plans
+            .iter()
+            .filter(|row| {
+                row.plan
+                    .schema
+                    .identity_text(row.plan.schema.declaration.trait_name)
+                    == "Distance"
+            })
+            .collect::<Vec<_>>();
+        let [distance] = distance.as_slice() else {
+            panic!("each target must select exactly one Distance plan");
+        };
+        assert_eq!(distance.plan.target, target.target_name());
+        let [row] = distance.plan.rows.as_slice() else {
+            panic!("the original one-method boundary stays whole");
+        };
+        let identity = distance.plan.identities.text(row.requirement_identity);
+        if let Some(original) = &requirement {
+            assert_eq!(original, identity);
+        } else {
+            requirement = Some(identity.to_owned());
+        }
+        match target {
+            target::TargetProfile::MacosArm64 | target::TargetProfile::LinuxArm64 => {
+                assert!(matches!(
+                    row.binding,
+                    ProviderBinding::CheckedAdapter { .. }
+                ));
+            }
+            target::TargetProfile::LinuxX64 | target::TargetProfile::WindowsX64 => {
+                let ProviderBinding::Import { evaluated } = &row.binding else {
+                    panic!(
+                        "a later target must retain its executed native binding, not another target's adapter"
+                    );
+                };
+                assert_eq!(evaluated.locator().target(), target);
+                let expected = match target {
+                    target::TargetProfile::LinuxX64 => {
+                        target::ForeignLocatorCandidate::ElfVersioned {
+                            object: b"libc.so.6".to_vec(),
+                            symbol: b"abs".to_vec(),
+                            version: b"GLIBC_2.2.5".to_vec(),
+                        }
+                    }
+                    _ => target::ForeignLocatorCandidate::PeByName {
+                        library: b"msvcrt.dll".to_vec(),
+                        export: b"abs".to_vec(),
+                    },
+                };
+                assert_eq!(evaluated.locator().locator(), &expected);
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {

@@ -138,11 +138,13 @@ impl SourceProposal {
         request: &TargetProviderPreparationRequest<'_>,
         target: &str,
         inventory: &AuthoredTargetProviders,
+        native: &[DerivedProviderPlan],
     ) -> Result<Self, Vec<Diagnostic>> {
-        let choices = request.prepare_target(target, inventory, &[]);
+        let choices = request.prepare_target(target, inventory, native);
         let candidates = inventory
             .candidates()
             .iter()
+            .chain(native)
             .cloned()
             .map(|derived| CallingCandidate::capture(services, derived))
             .collect::<Result<Vec<_>, _>>()?;
@@ -361,7 +363,6 @@ impl ProductProviderPreparation<'_> {
             self.target_machines,
             &native,
         )?;
-        bindings.retain_extended_identities(identities.build())?;
         let request = TargetProviderPreparationRequest {
             context: self.services.context(),
             checked: self.checked,
@@ -423,19 +424,38 @@ impl ProductProviderPreparation<'_> {
                     ))]
                 })?;
                 if authored.target() == Some(target_profile) {
-                    return SourceProposal::capture(self.services, &request, &target, &authored);
+                    return SourceProposal::capture(
+                        self.services,
+                        &request,
+                        &target,
+                        &authored,
+                        &native,
+                    );
                 }
                 let declarations =
                     super::settle_provider_defaults(self.origins, self.defaults, target_profile);
+                // A later target needs its own executed Build bindings even
+                // when the first target reused its already selected plans.
+                let target_native = self.native_bindings.form(
+                    self.native_supplies,
+                    Some(target_profile),
+                    &mut identities,
+                )?;
                 let inventory = AuthoredTargetProviders::derive(
                     self.services,
                     self.body_declarations,
                     &bindings,
                     Some(target_profile),
                     declarations,
-                    &native,
+                    &target_native,
                 )?;
-                SourceProposal::capture(self.services, &request, &target, &inventory)
+                SourceProposal::capture(
+                    self.services,
+                    &request,
+                    &target,
+                    &inventory,
+                    &target_native,
+                )
             })();
             rows.push(SourcePublicationRow {
                 target,
@@ -443,6 +463,7 @@ impl ProductProviderPreparation<'_> {
                 proposal,
             });
         }
+        bindings.retain_extended_identities(identities.build())?;
         let native_start = authored.candidates().len();
         let inventory = authored
             .into_candidates()
