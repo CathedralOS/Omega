@@ -17,7 +17,7 @@ if ! GOOD="$(nice -n 19 "$FIND_GOOD" "$WITNESS")"; then
 import json, sys
 open(sys.argv[1], "w").write(json.dumps({
     "witness": sys.argv[2], "breaking_commit": "", "pr": None,
-    "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 200 parents of 759c80404428)",
+    "mechanism": "no first-parent good commit found (witness regressed at 759c80404428 and full good-depth walk on first-parent)",
     "status": "propagated", "bisect_exit": 2, "stability": "unknown",
 }, indent=2))
 print("propagated no-good", sys.argv[2])

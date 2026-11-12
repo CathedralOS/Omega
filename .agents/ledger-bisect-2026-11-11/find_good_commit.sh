@@ -1,4 +1,5 @@
 #!/bin/bash
+# First-parent binary search for newest commit where witness still matches ledger (bisect_test exit 0).
 set -euo pipefail
 WITNESS="${1:?witness}"
 MAIN_REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -6,50 +7,49 @@ ROOT="${BISECT_REPO_ROOT:-$MAIN_REPO}"
 SCRIPT="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
 cd "$ROOT"
 START="$(git rev-parse HEAD)"
+DEPTH="${BISECT_GOOD_DEPTH:-400}"
 
 test_commit() {
   local commit="$1"
-  git checkout -f "$commit" >/dev/null 2>&1 || return 1
+  git checkout -f "$commit" >/dev/null 2>&1 || return 2
   export BISECT_WITNESS="$WITNESS"
-  if BISECT_FRESH=0 nice -n 19 "$SCRIPT" >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
+  export BISECT_REPO_ROOT="$ROOT"
+  local rc=0
+  BISECT_FRESH=0 nice -n 19 "$SCRIPT" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]]
 }
 
-ledger_sha=""
-while IFS= read -r line; do
-  [[ "$line" == "$WITNESS "* ]] || continue
-  for tok in $line; do
-    [[ "$tok" == @* ]] && ledger_sha="${tok#@}" && ledger_sha="${ledger_sha%%+*}"
-  done
-  break
-done <"$ROOT/tests/omega/corpus_outcomes.txt"
+mapfile -t COMMITS < <(git rev-list --first-parent -n "$DEPTH" 759c80404428)
+n=${#COMMITS[@]}
+[[ "$n" -ge 2 ]] || { git checkout -f "$START" >/dev/null 2>&1; exit 1; }
 
-candidates=()
-[[ -n "$ledger_sha" ]] && candidates+=("$ledger_sha")
-candidates+=(759c80404428 741270df60f7eab218e879eb6771d2bc75e64c00^)
+# COMMITS[0] is newest (759c804…); COMMITS[n-1] is oldest.
+is_good() {
+  local idx="$1"
+  test_commit "${COMMITS[$idx]}"
+}
 
-declare -A seen
-for c in "${candidates[@]}"; do
-  [[ -z "$c" || -n "${seen[$c]:-}" ]] && continue
-  seen[$c]=1
-  if git cat-file -e "${c}^{commit}" 2>/dev/null && test_commit "$c"; then
-    git checkout -f "$START" >/dev/null 2>&1 || true
-    echo "$c"
-    exit 0
+if is_good 0; then
+  git checkout -f "$START" >/dev/null 2>&1
+  echo "${COMMITS[0]}"
+  exit 0
+fi
+
+if ! is_good $((n - 1)); then
+  git checkout -f "$START" >/dev/null 2>&1
+  exit 1
+fi
+
+lo=$((n - 1))
+hi=0
+while ((lo > hi + 1)); do
+  mid=$(( (lo + hi) / 2 ))
+  if is_good "$mid"; then
+    lo=$mid
+  else
+    hi=$mid
   fi
 done
 
-for c in $(git rev-list --first-parent -n 200 759c80404428); do
-  [[ -n "${seen[$c]:-}" ]] && continue
-  seen[$c]=1
-  if test_commit "$c"; then
-    git checkout -f "$START" >/dev/null 2>&1 || true
-    echo "$c"
-    exit 0
-  fi
-done
-
-git checkout -f "$START" >/dev/null 2>&1 || true
-exit 1
+git checkout -f "$START" >/dev/null 2>&1
+echo "${COMMITS[$lo]}"

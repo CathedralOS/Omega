@@ -4,7 +4,7 @@ ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$ROOT"
 git fetch origin work/ledger-bisect-part-4
 git checkout work/ledger-bisect-part-4
-git reset --hard origin/work/ledger-bisect-part-4
+git pull --ff-only origin work/ledger-bisect-part-4 2>/dev/null || git reset --hard origin/work/ledger-bisect-part-4
 export BISECT_REPO_ROOT="$ROOT/.agents/ledger-bisect-wt"
 if [[ ! -f "$BISECT_REPO_ROOT/.git" ]]; then
   git worktree add -f "$BISECT_REPO_ROOT" 51e8c45c793007f211d0d9baee7de16767172444
@@ -25,6 +25,11 @@ for c in sorted(clusters, key=lambda x: (-x["rows"], x["cluster_id"])):
     cid = c["cluster_id"]
     w = c["witness"]
     out = root / f".agents/ledger-bisect-2026-11-11/bisects/cluster_{cid}.json"
+    if out.exists():
+        prev = json.loads(out.read_text())
+        if prev.get("status") == "bisected" and prev.get("breaking_commit") and prev["breaking_commit"][:12] != "51e8c45c7930":
+            print(f"=== cluster {cid} skip (already bisected {prev['breaking_commit'][:12]})", flush=True)
+            continue
     print(f"=== cluster {cid} rows={c['rows']} witness={w}", flush=True)
     env = {**dict(**os.environ), "BISECT_REPO_ROOT": str(root / ".agents/ledger-bisect-wt")}
     subprocess.run(
