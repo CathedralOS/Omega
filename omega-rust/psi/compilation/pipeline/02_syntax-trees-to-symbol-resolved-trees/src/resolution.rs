@@ -55,6 +55,9 @@ mod body_completion {
         lowerer: &mut Lowerer,
         syntax: &SyntaxTrees,
     ) -> Result<(), Vec<Diagnostic>> {
+        if lowerer.pending_callable_types.is_empty() {
+            return Ok(());
+        }
         let program = &lowerer.symbol_resolved_trees;
         let mut demanded = Vec::with_capacity(program.machines.len());
         // Lowering stores lexical parents before their nested declarations.
@@ -1261,6 +1264,8 @@ pub(crate) mod lowerer {
     pub(crate) struct Lowerer {
         pub(crate) defer_machine_bodies: bool,
         pub(crate) pending_machine_bodies: Vec<crate::lowering::machine::PendingMachineBody>,
+        pub(crate) pending_callable_types:
+            Vec<arena::Handle<symbol_resolved_trees::data::TypeParameter>>,
         pub(crate) pending_type_inputs: Vec<super::type_inputs::LoweredTypeInputs>,
         pub(crate) supplied_operand_owners:
             Vec<(syntax_trees::item::ItemHandle, OperandLifetimeOwnerHandle)>,
@@ -1460,6 +1465,7 @@ pub(crate) mod lowerer {
             Self {
                 defer_machine_bodies: false,
                 pending_machine_bodies: Vec::new(),
+                pending_callable_types: Vec::new(),
                 pending_type_inputs: Vec::new(),
                 supplied_operand_owners: Vec::new(),
                 declaration_inputs: Vec::new(),
@@ -2649,7 +2655,12 @@ fn finish_resolution(
         None => lowerer.symbol_resolved_trees.rebuild_tables(),
     }
     finish_resolved_tables(lowerer, inputs, &machines)?;
-    selection::callable_inference::infer(&mut lowerer.symbol_resolved_trees)
+    selection::callable_inference::infer(
+        &mut lowerer.symbol_resolved_trees,
+        &lowerer.pending_callable_types,
+    )?;
+    lowerer.pending_callable_types.clear();
+    Ok(())
 }
 
 /*

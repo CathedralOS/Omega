@@ -437,6 +437,19 @@ declares_no_crash_route: contract.declares_no_crash_route,
             .declarations
             .data_type_parameters
             .insert_many(parameters);
+        for ordinal in 0..span.count() {
+            let handle = span.handle_at(ordinal);
+            if crate::selection::callable_inference::pending(
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .get(handle),
+            ) {
+                lowerer.pending_callable_types.push(handle);
+            }
+        }
         if !span.is_empty() {
             for (index, authored) in pending_service_reaches.into_iter().enumerate() {
                 let Some((keyword_source_spans, authored)) = authored else {

@@ -75,14 +75,17 @@ impl Parameters {
     }
 }
 
-pub(crate) fn infer(program: &mut SymbolResolvedTrees) -> Result<(), Vec<Diagnostic>> {
-    if !program
-        .tables
-        .declarations
-        .data_type_parameters
-        .iter()
-        .any(|(_, parameter)| pending(parameter))
-    {
+pub(crate) fn infer(
+    program: &mut SymbolResolvedTrees,
+    pending_parameters: &[Handle<TypeParameter>],
+) -> Result<(), Vec<Diagnostic>> {
+    // This lowering-owned inventory gates work, not the declaration catalog.
+    // Synthesis before lowering goes through the same parameter allocator;
+    // resolution-local copies occur while its source entry is still pending.
+    // Enumerate all current rows below so copied pending contracts cannot escape
+    // the unresolved-contract refusal. Published/retained bases have completed
+    // this phase before becoming another resolution's declaration inputs.
+    if pending_parameters.is_empty() {
         return Ok(());
     }
     let parameters = Parameters::new(program);
