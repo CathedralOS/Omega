@@ -455,6 +455,48 @@ that cannot fail cannot hold work back, and work went ahead
    number. Both numbers are reported side by side, and if the route's lines
    exceed the lines retired, the record says so beside the result.
 
+   **Measured 2026-11-12: the covered subset makes almost none of the old
+   checker unreachable, so nothing is retired.** The 12 programs of the
+   [places gate](places_foundation_lane.md#gate-re-run-2026-11-12) that both
+   checkers accept run 233,226 of the 596,993 instrumented lines of the
+   three stages. A sample of 36 programs the route does not serve (every
+   fourteenth of the gate's 502 "outside" programs) runs 325,931. Together
+   they run 326,596, so 665 lines are run by the accepted programs and by
+   none of the sample: 200 in Psi 05, 305 in validation, 160 in Psi 06.
+   The other 232,561 lines the accepted programs run are also run by
+   programs the route cannot check.
+
+   | Lines | Psi 05 | validation | Psi 06 | All three |
+   | --- | ---: | ---: | ---: | ---: |
+   | Instrumented | 247,292 | 254,856 | 94,845 | 596,993 |
+   | Run by the 12 accepted programs | 97,946 | 98,866 | 36,414 | 233,226 |
+   | Run by the 36 unserved programs | 133,953 | 140,192 | 51,786 | 325,931 |
+   | Run by either | 134,153 | 140,497 | 51,946 | 326,596 |
+   | Run only by the accepted programs | 200 | 305 | 160 | 665 |
+
+   What this shows is that the old stages are not divided by construct in
+   the way the route's subset is: a scalar call with a contract goes through
+   the same declaration, custody, planning and lowering code as a program
+   with borrows or services, so serving the scalar subset frees no code.
+   Retirement by scope will come from serving whole programs of a kind the
+   old stages treat separately, not from the subset growing by construct.
+   The 665 lines are an upper bound from a sample of 36, not a list of dead
+   code; a wider sample can only lower it. Nothing was deleted: the default
+   compile has no router, so the route governs no program, and every one of
+   these lines is still needed by a compile that does govern.
+
+   Limits. Lines are those `cargo xtask stage-coverage` instruments in
+   `05_typed-trees-to-checked-trees/`, `validation/src/` and
+   `06_checked-trees-to-lowered-psi/`, run by `omega --check` on Linux
+   x86_64 with the compiler built from the worktree at `1726ca7b560d` plus
+   uncommitted route changes, which touch none of the three stages. 14 of
+   the 36 sampled programs exited 1 under `omega --check`; the one inspected
+   (`pass/constants/runtime_scoped_const_exit`) stopped on a program-entry
+   binding that `omega update` has not accepted, which the corpus runner
+   supplies and the bare command does not. The lines they ran before
+   stopping are counted. The 12 accepted programs include none with a
+   generic body.
+
 The conditions are deliberately small: one scope, one generic body, three
 kinds of wrong list. Passing them does not show the replacement will finish.
 It shows the four things that had been assumed. Agreement between the two
