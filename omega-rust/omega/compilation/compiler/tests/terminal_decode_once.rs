@@ -180,6 +180,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
                     application_roots: None,
+                    import_realizations: None,
                     layout_target: profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,

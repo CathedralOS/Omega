@@ -22215,9 +22215,11 @@ pub(crate) mod operand_fits {
         },
         AnonymousInteger,
         AnonymousValue,
-        CompletedIntegerExclusion {
+        /// Each listed operand is compared with a constant; the request is
+        /// proven on a path when at least one listed comparison holds there.
+        CompletedIntegerComparison {
             references: [TypeReferenceHandle; 2],
-            excluded: [Option<i64>; 2],
+            compared: [Option<(BinaryOperator, i64)>; 2],
         },
         CompletedOperation {
             operator: BinaryOperator,
@@ -22758,18 +22760,25 @@ pub(crate) mod operand_fits {
         )
     }
 
-    pub(crate) fn integer_operands_exclude_at_occurrence(
+    /// Asks whether a binary operation's operands satisfy a definedness
+    /// condition on every path reaching it, including the arrivals of a
+    /// private nested machine: a nonzero divisor, an excluded `MIN / -1`
+    /// pair, or a shift count on the admitted side of a bound. `compared`
+    /// names, per operand, the comparison with a constant that operand of
+    /// carrier `primitive` must satisfy; when both operands are listed, one
+    /// holding comparison is enough. Anything short of a proof answers false.
+    pub(crate) fn integer_operands_compare_at_occurrence(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
         primitive: PrimitiveType,
-        excluded: [Option<i64>; 2],
+        compared: [Option<(BinaryOperator, i64)>; 2],
     ) -> bool {
         let Some(binary) = program.expression_table.binary_node(expression) else {
             return false;
         };
-        let Some(position) = excluded.iter().position(Option::is_some) else {
+        let Some(position) = compared.iter().position(Option::is_some) else {
             return false;
         };
         let references = [binary.left, binary.right].map(|operand| {
@@ -22777,7 +22786,7 @@ pub(crate) mod operand_fits {
                 .unwrap_or_default()
         });
         if !primitive.is_fixed_integer()
-            || references.iter().zip(excluded).any(|(reference, value)| {
+            || references.iter().zip(compared).any(|(reference, value)| {
                 value.is_some() && program.primitive_type_reference(*reference) != Some(primitive)
             })
         {
@@ -22794,9 +22803,9 @@ pub(crate) mod operand_fits {
                 OperandFitRequest {
                     expression,
                     position,
-                    source: OperandSource::CompletedIntegerExclusion {
+                    source: OperandSource::CompletedIntegerComparison {
                         references,
-                        excluded
+                        compared
                     },
                     target: primitive,
                     context_reference,
@@ -23257,24 +23266,24 @@ pub(crate) mod operand_fits {
                     OperandSource::AnonymousInteger | OperandSource::AnonymousValue => entry
                         .judge
                         .integer_term_fit_judgment(value.clone(), self.request.target),
-                    OperandSource::CompletedIntegerExclusion {
+                    OperandSource::CompletedIntegerComparison {
                         references,
-                        excluded,
+                        compared,
                     } => {
-                        let predicates = excluded
+                        let predicates = compared
                             .into_iter()
                             .enumerate()
-                            .filter_map(|(position, excluded)| {
-                                excluded.map(|excluded| {
+                            .filter_map(|(position, compared)| {
+                                compared.map(|(operator, constant)| {
                                     let value = entry.arguments.get(position)?.as_ref()?.clone();
                                     Some(StructuralTerm::ScalarBinary {
                                         references: [references[position]; 2],
-                                        operator: BinaryOperator::NotEqual,
+                                        operator,
                                         meaning: [(self.request.target, ArithmeticDomain::Exact);
                                             2],
                                         left: Box::new(value),
                                         right: Box::new(StructuralTerm::Integer(BigInt::from_i64(
-                                            excluded,
+                                            constant,
                                         ))),
                                     })
                                 })
@@ -40338,6 +40347,106 @@ pub(crate) mod specification_calls {
                         bindings: std::borrow::Cow::Borrowed(bindings),
                     });
                 }
+                /*
+                    Typing may write the observed result over another compiler-made
+                    copy of this requirement's formals: a state generated from the
+                    same signature whose formals are generated from its formals. Such
+                    a formal stands for the requirement position it was generated
+                    from. When the observed result agrees under that correspondence,
+                    present the requirement's own result, which names the formals the
+                    call's bindings are keyed by. Any other symbol stays unrenamed and
+                    the call is refused as before; slot formals keep the path below.
+                */
+                /*
+                    The names a type's value indices read, through member chains and
+                    arithmetic (`(source.bytes.len)` names `source`, `(end - start)`
+                    names both). Other index shapes name nothing here, so nothing in
+                    them is renamed.
+                */
+                fn value_index_names(
+                    program: &dyn crate::CheckingInput,
+                    reference: TypeReferenceHandle,
+                ) -> Vec<SymbolHandle> {
+                    use typed_trees::expression::ExpressionNode;
+                    use typed_trees::types::TypeReferenceNode;
+                    let mut names = Vec::new();
+                    let mut pending = vec![reference];
+                    let mut visited = Vec::new();
+                    while let Some(reference) = pending.pop() {
+                        if visited.contains(&reference) {
+                            continue;
+                        }
+                        visited.push(reference);
+                        match program.type_reference_table.type_reference(reference) {
+                            TypeReferenceNode::Constrained { base_type, .. } => {
+                                pending.push(*base_type);
+                            }
+                            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+                            TypeReferenceNode::Generic { arguments, .. } => pending
+                                .extend_from_slice(
+                                    program
+                                        .type_reference_table
+                                        .type_reference_handles(*arguments),
+                                ),
+                            TypeReferenceNode::ConstExpression(expression) => {
+                                let mut expressions = vec![*expression];
+                                while let Some(expression) = expressions.pop() {
+                                    match expression_table(program).expression(expression) {
+                                        ExpressionNode::Name(path) => {
+                                            if path.symbol.is_valid()
+                                                && !names.contains(&path.symbol)
+                                            {
+                                                names.push(path.symbol);
+                                            }
+                                        }
+                                        ExpressionNode::Member(member) => {
+                                            expressions.push(member.receiver);
+                                        }
+                                        ExpressionNode::Binary(binary) => {
+                                            expressions.push(binary.left);
+                                            expressions.push(binary.right);
+                                        }
+                                        ExpressionNode::Unary(unary) => {
+                                            expressions.push(unary.operand);
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    names
+                }
+                let mut copied_binders = public_binders.clone();
+                for symbol in value_index_names(program, observed) {
+                    let entry = program.symbols.get(symbol);
+                    if entry.kind != symbols::SymbolKind::Parameter
+                        || entry.parent == slot.symbol
+                        || program.symbols.get(entry.parent).generated_from != signature.symbol
+                        || copied_binders.iter().any(|(bound, _)| *bound == symbol)
+                    {
+                        continue;
+                    }
+                    let Some(position) = declared
+                        .iter()
+                        .position(|parameter| parameter.symbol == entry.generated_from)
+                    else {
+                        continue;
+                    };
+                    copied_binders.push((symbol, format!("\0public-result-formal:{position}")));
+                }
+                if copied_binders.len() > public_binders.len()
+                    && identity(observed, &copied_binders).as_ref() == Some(&result)
+                    && identity(signature.return_type, &public_binders).as_ref() == Some(&result)
+                {
+                    return Some(AppliedResultPresentation {
+                        type_reference: signature.return_type,
+                        parameter_owner,
+                        parameters,
+                        bindings: std::borrow::Cow::Borrowed(bindings),
+                    });
+                }
                 if identity(observed, &slot_binders)? != result {
                     return None;
                 }
@@ -42458,6 +42567,32 @@ pub(crate) mod specification_calls {
             })
             .collect();
         Some(std::borrow::Cow::Owned(parameters))
+    }
+
+    /*
+        The formals a call's result type is written over, which its value indices
+        (`-> Counted<(source.bytes.len)>`) are instantiated from. A call that names
+        an implementation member relies on that member's own declaration, so its
+        result names the member's formals, exactly the scope `call_parameter_scope`
+        binds; the requirement signature's formals never occur in it. Every other
+        call keeps the formals its site resolves.
+    */
+    pub(crate) fn call_result_parameters<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        owner: &SelectedCallContract<'program>,
+        site: crate::CallSite<'program>,
+    ) -> Option<&'program [StateParameter]> {
+        if let Some(member) = direct_named_member_contract(program, caller, site) {
+            let SelectedCallContract::Concrete(machine, state) = owner else {
+                return None;
+            };
+            if machine.symbol != member.machine.symbol || state.symbol != member.state.symbol {
+                return None;
+            }
+            return Some(program.state_parameters(state));
+        }
+        site.parameters(program, caller)
     }
 
     pub(crate) fn call_parameter_scope<'program>(
@@ -59869,8 +60004,12 @@ pub(crate) mod structural_judgment {
                             call,
                             expression,
                             reserved.receiving_type,
-                            crate::CallSite::Expression { expression, call }
-                                .parameters(program, scope.0.symbol),
+                            super::super::super::specification_calls::call_result_parameters(
+                                program,
+                                scope.0.symbol,
+                                &owner,
+                                crate::CallSite::Expression { expression, call },
+                            ),
                             callable,
                             parameters,
                             bindings,
@@ -60288,7 +60427,13 @@ pub(crate) mod structural_judgment {
                         SelectedCallContract::Concrete(machine, _) => machine.symbol,
                         _ => owner_symbol(&owner),
                     };
-                    let applied_result_parameters = site.parameters(program, scope.0.symbol);
+                    let applied_result_parameters =
+                        super::super::super::specification_calls::call_result_parameters(
+                            program,
+                            scope.0.symbol,
+                            &owner,
+                            site,
+                        );
                     let result_presentation = if matches!(
                         program
                             .type_reference_table
@@ -87214,7 +87359,7 @@ pub(crate) use operand_fits::{
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
     exact_binary_formation_in_specification, exact_cast_fits_at_occurrence,
     exact_float_integer_cast_fits_at_occurrence, exact_integer_float_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
+    float_integer_conversion_fits_at_occurrence, integer_operands_compare_at_occurrence,
 };
 pub(crate) use type_consequences::{predicate_case_type_contexts, predicate_type_contexts};
 pub(crate) mod structural_terms {

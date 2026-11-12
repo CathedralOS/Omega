@@ -3042,16 +3042,11 @@ pub(crate) mod expression_scanning {
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         // A checked mathematical application in an erased initializer has no
-        // machine entry or executable call obligations. Its complete dependent
-        // application was checked by the mathematical producer; relevance still
-        // visits every operand and rejects runtime effects or escaped evidence.
-        if crate::mathematical_applications::is_mathematical_call(program, call)
-            && program
-                .prepared_mathematics()
-                .is_some_and(|view| view.application(expression).is_some())
-            && crate::mathematical_applications::erased_initializer_nodes(program)
-                .contains(&expression)
-        {
+        // machine entry or executable call obligations. Relevance still visits
+        // every operand and rejects runtime effects or escaped evidence.
+        if crate::mathematical_applications::is_erased_checked_application(
+            program, expression, call,
+        ) {
             return;
         }
         if call.quotient_operation.is_some() {
@@ -32937,8 +32932,15 @@ pub(crate) mod write_frames {
                     }
                     if let ExpressionNode::Call(call) = node {
                         capture_completed(expression, prefix, effects, capture);
+                        // Neither a metadata query nor an erased mathematical
+                        // application installs a caller reference slot: the
+                        // first only observes, the second never executes.
                         if crate::compiler_operations::expression_call_only_observes_operands(
                             self.program,
+                            call,
+                        ) || crate::mathematical_applications::is_erased_checked_application(
+                            self.program,
+                            expression,
                             call,
                         ) {
                             if let Some(output) = observed {

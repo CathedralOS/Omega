@@ -5157,11 +5157,46 @@ pub(crate) mod captured_returns {
             if !source_identity.is_valid() {
                 return None;
             }
-            if source_identity == result_identity {
+            if source_identity == result_identity
+                || self.qualification_presents_result(source, result, result_path)
+            {
                 return Some(extent);
             }
             self.collection_region_presents_result(source, result, result_path)
                 .then_some(ReferenceOriginExtent::WithinRegion)
+        }
+
+        /*
+            A returned qualification view (`ticket as &Ticket in Ticket::Observed`
+            over `Ticket in Ticket::Labelled` storage) presents the same storage
+            under different declared constraints. The cast's own judgment
+            proved that qualification; the returned origin names the storage,
+            so it is the same origin when both types agree once their declared
+            constraints are removed. A representation change still differs here
+            and keeps refusing (recasts carry their own presentation).
+        */
+        fn qualification_presents_result(
+            &self,
+            source: TypeReferenceHandle,
+            result: TypeReferenceHandle,
+            result_path: &[facts::PlaceSegment],
+        ) -> bool {
+            let Some(result) =
+                crate::project_type_reference_from_segments(self.program, result, result_path)
+            else {
+                return false;
+            };
+            let storage = |reference: TypeReferenceHandle| {
+                let referee = crate::reference_shell(self.program, reference)
+                    .map_or(reference, |shell| shell.referee);
+                self.program
+                    .normalized_type_identity(crate::peel_declared_constraints(
+                        self.program,
+                        referee,
+                    ))
+            };
+            let (source, result) = (storage(source), storage(result));
+            source.is_valid() && source == result
         }
 
         fn collection_region_presents_result(

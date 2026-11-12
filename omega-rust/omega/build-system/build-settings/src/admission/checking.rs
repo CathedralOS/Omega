@@ -179,11 +179,8 @@ pub(crate) fn settle_build_slice(
         &defaults,
         execution_profile.unwrap_or_else(TargetProfile::host),
     );
-    let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
-        context,
-        execution_profile,
-        packages,
-    )?;
+    let bindings =
+        crate::via_binding_evaluation::evaluate_via_bindings(context, execution_profile, packages)?;
     let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
     let service_catalog = std::sync::Arc::new(
         typed_trees::service_declarations::PreparedServiceCatalog::prepare(context, &[]),

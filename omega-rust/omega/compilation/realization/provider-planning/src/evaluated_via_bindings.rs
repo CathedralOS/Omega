@@ -1,26 +1,27 @@
 /*
-We evaluate and retain ordinary source `via` bindings as the bridge between
-typed source expressions and provider derivation. We retain arena coordinates
-only for exact replay inside the same compilation; our installed import owns
-stable locator and receipt identity without arena handles.
+We retain evaluated ordinary source `via` bindings as the bridge between typed
+source expressions and provider derivation. We retain arena coordinates only
+for exact replay inside the same compilation; our installed import owns stable
+locator and receipt identity without arena handles.
 
-We evaluate every ordinary `via` leaf once and retain its atomic normalized
-import alongside its durable evaluation receipt (`binding_evaluation.rs` and
-`binding_digests.rs`). Evaluation discloses all authored members under their
-own targets, leaving execution narrowing to selected provider derivation.
+Running a `via` producer is build-time evaluation and belongs to Build
+evaluation (`build_settings::via_binding_evaluation`). That driver asks
+`ViaProducer::resolve` which machine a leaf names, runs it once, and hands the
+result back as a `ViaBindingEvaluation`: the value, its measured usage, the
+admitted producer closure, the Binding coordinate widths and the evaluator's
+semantics marker. `EvaluatedViaBindingRows` decodes each value into its atomic
+normalized import alongside its durable evaluation receipt
+(`binding_retention.rs` and `binding_digests.rs`) and closes the table. All
+authored members are disclosed under their own targets, leaving execution
+narrowing to selected provider derivation.
 */
 
 mod binding_digests;
-mod binding_evaluation;
+mod binding_retention;
 
-use crate::ProviderPlanningContext;
-use crate::evaluated_via_bindings::binding_evaluation::{evaluate_one, exact_binding_vocabulary};
-use build_time_evaluation::BuildTimeAdmissionPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::EvaluatedBindingUsage;
-use package_compilation::PackageCompilationInputs;
 use source::SourceSpan;
-use std::sync::Arc;
 use symbols::SymbolHandle;
 use target::TargetProfile;
 
@@ -127,6 +128,16 @@ impl EvaluatedViaBindingTable {
         &self.rows
     }
 
+    /// The table of a program that authors no ordinary `via` leaf.
+    pub fn without_bindings(scope: source::DependencyScope, target: Option<TargetProfile>) -> Self {
+        Self {
+            scope,
+            target,
+            identities: terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
+            rows: Vec::new(),
+        }
+    }
+
     pub fn exact(
         &self,
         realization_machine: SymbolHandle,
@@ -141,141 +152,127 @@ impl EvaluatedViaBindingTable {
     }
 }
 
-struct BindingVocabulary {
+/// The native `Binding` vocabulary every `via` producer returns, with the
+/// digest of the toolchain source that declares it.
+pub struct BindingVocabulary {
     binding: SymbolHandle,
     source_digest: [u8; 32],
 }
 
-pub fn evaluate_via_bindings(
-    context: ProviderPlanningContext<'_>,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    evaluate_program_via_bindings(
-        build_time_evaluation::BuildTimeProgram::Typed(context.typed),
-        context.scope,
-        selected_target,
-        package_inputs,
-    )
+/// The one machine a `via` leaf names, resolved to the body that runs for the
+/// selected target, with the conformance row the result will satisfy.
+#[derive(Clone, Copy)]
+pub struct ViaProducer<'program> {
+    producer: &'program checked_trees::typed_trees::machine::Machine,
+    entry: &'program checked_trees::state::State,
+    satisfied_owner: SymbolHandle,
+    requirement: SymbolHandle,
+    via_expression: checked_trees::typed_trees::expression::ExpressionHandle,
+    via_source_span: SourceSpan,
 }
 
-pub fn evaluate_checked_via_bindings(
-    checked: &checked_trees::CheckedTrees,
-    scope: source::DependencyScope,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    evaluate_program_via_bindings(
-        build_time_evaluation::BuildTimeProgram::Checked(checked),
-        scope,
-        selected_target,
-        package_inputs,
-    )
-}
-
-fn evaluate_program_via_bindings(
-    program: build_time_evaluation::BuildTimeProgram<'_>,
-    scope: source::DependencyScope,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    let typed = match program {
-        build_time_evaluation::BuildTimeProgram::Typed(typed) => typed,
-        build_time_evaluation::BuildTimeProgram::Checked(checked) => &checked.typed,
-    };
-    let context = ProviderPlanningContext::new(typed, scope);
-    let pending = typed
-        .machines()
-        .iter()
-        .filter(|machine| context.contains(machine.symbol))
-        .flat_map(|machine| {
-            typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .filter(|conformance| conformance.via_expression.is_valid())
-                .map(move |conformance| (machine, conformance))
-        })
-        .collect::<Vec<_>>();
-    if pending.is_empty() {
-        return Ok(EvaluatedViaBindingTable {
-            scope: context.scope,
-            target: selected_target,
-            identities: terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
-            rows: Vec::new(),
-        });
+impl ViaProducer<'_> {
+    /// The machine the caller evaluates.
+    pub const fn machine(&self) -> SymbolHandle {
+        self.producer.symbol
     }
-    let vocabulary = exact_binding_vocabulary(context)?;
-    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let selection_authority = package_inputs.cloned().map(|inputs| {
-        Arc::new(inputs) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-    });
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
-    let mut rows = Vec::with_capacity(pending.len());
-    let mut diagnostics = Vec::new();
+    pub const fn return_type(&self) -> checked_trees::typed_trees::types::TypeReferenceHandle {
+        self.entry.return_type
+    }
+    pub const fn via_source_span(&self) -> SourceSpan {
+        self.via_source_span
+    }
+}
 
-    for (machine, conformance) in pending {
-        let target = match typed.authored_machine_target(machine.symbol) {
-            Ok(Some(authored)) => TargetProfile::from_canonical_target_name(authored),
-            Ok(None) => selected_target.ok_or_else(|| {
-                Diagnostic::error(
-                    "ordinary external `via` evaluation requires one selected target profile",
-                )
-            }),
-            Err(reason) => Err(Diagnostic::error(reason)),
-        };
-        let target = match target {
-            Ok(target) => target,
-            Err(diagnostic) => {
-                diagnostics.push(
-                    diagnostic.with_source_span(
-                        typed
-                            .expression_table
-                            .source_span(conformance.via_expression),
-                    ),
-                );
-                continue;
-            }
-        };
-        match evaluate_one(
-            program,
-            &admission,
-            &vocabulary,
+/// What running one `via` producer yielded. Provider planning never runs the
+/// producer, so everything the receipt commits to arrives here as data.
+pub struct ViaBindingEvaluation<'evaluation> {
+    pub value: &'evaluation build_time_values::BuildTimeValue,
+    pub usage: evaluation_accounting::BuildEvaluationUsage,
+    pub closure: &'evaluation [SymbolHandle], // Machines admitted into the producer's evaluation.
+    pub widths: [u64; 3],                     // Binding coordinate widths of the producer's result.
+    pub evaluation_semantics_marker: u32,     // Identity of the evaluator semantics that ran it.
+}
+
+/// The rows of one program's `via` evaluations while its driver is still
+/// running producers. Receipts intern their identities into one shared table.
+pub struct EvaluatedViaBindingRows {
+    identities: terminal_psi::TerminalIdentityTableBuilder,
+    rows: Vec<EvaluatedViaBindingRow>,
+}
+
+impl EvaluatedViaBindingRows {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            identities: terminal_psi::TerminalIdentityTableBuilder::default(),
+            rows: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn retain(
+        &mut self,
+        typed: &checked_trees::typed_trees::TypedTrees,
+        vocabulary: &BindingVocabulary,
+        target: TargetProfile,
+        realization_machine: SymbolHandle,
+        producer: ViaProducer<'_>,
+        evaluation: ViaBindingEvaluation<'_>,
+    ) -> Result<(), Diagnostic> {
+        let row = binding_retention::retain_one(
+            typed,
+            vocabulary,
             target,
-            machine,
-            conformance,
-            &mut identities,
-        ) {
-            Ok(row) => rows.push(row),
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
+            realization_machine,
+            producer,
+            evaluation,
+            &mut self.identities,
+        )?;
+        self.rows.push(row);
+        Ok(())
     }
-    rows.sort_by_key(|row| {
-        (
-            row.realization_machine.arena_index(),
-            row.satisfied_owner.arena_index(),
-            row.requirement.arena_index(),
-            row.producer_entry_state.arena_index(),
-        )
-    });
-    for pair in rows.windows(2) {
-        if pair[0].realization_machine == pair[1].realization_machine
-            && pair[0].satisfied_owner == pair[1].satisfied_owner
-            && pair[0].requirement == pair[1].requirement
-        {
-            diagnostics.push(
-                Diagnostic::error("ordinary external `via` has duplicate evaluated binding rows")
+
+    /// Closes the table. `diagnostics` are the driver's own refusals; a
+    /// duplicate row adds to them, and any diagnostic refuses the whole table.
+    pub fn finish(
+        self,
+        scope: source::DependencyScope,
+        target: Option<TargetProfile>,
+        mut diagnostics: Vec<Diagnostic>,
+    ) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
+        let Self {
+            identities,
+            mut rows,
+        } = self;
+        rows.sort_by_key(|row| {
+            (
+                row.realization_machine.arena_index(),
+                row.satisfied_owner.arena_index(),
+                row.requirement.arena_index(),
+                row.producer_entry_state.arena_index(),
+            )
+        });
+        for pair in rows.windows(2) {
+            if pair[0].realization_machine == pair[1].realization_machine
+                && pair[0].satisfied_owner == pair[1].satisfied_owner
+                && pair[0].requirement == pair[1].requirement
+            {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "ordinary external `via` has duplicate evaluated binding rows",
+                    )
                     .with_source_span(pair[1].via_source_span),
-            );
+                );
+            }
         }
-    }
-    if diagnostics.is_empty() {
-        Ok(EvaluatedViaBindingTable {
-            scope: context.scope,
-            target: selected_target,
-            identities: identities.build(),
-            rows,
-        })
-    } else {
-        Err(diagnostics)
+        if diagnostics.is_empty() {
+            Ok(EvaluatedViaBindingTable {
+                scope,
+                target,
+                identities: identities.build(),
+                rows,
+            })
+        } else {
+            Err(diagnostics)
+        }
     }
 }

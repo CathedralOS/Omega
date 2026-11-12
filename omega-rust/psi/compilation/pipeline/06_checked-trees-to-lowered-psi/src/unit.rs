@@ -200,7 +200,12 @@ pub(crate) mod crash_interface {
         match expression {
             CheckedScalarExpression::StorageRead { .. }
             | CheckedScalarExpression::Local { .. }
-            | CheckedScalarExpression::StructuralLocalField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            }
             | CheckedScalarExpression::ImplementationSelection { .. } => false,
             CheckedScalarExpression::RepresentationView {
                 primitive_type,
@@ -216,7 +221,10 @@ pub(crate) mod crash_interface {
             CheckedScalarExpression::ConstantApplication { .. }
             | CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::ErasedParameter { .. }
-            | CheckedScalarExpression::StructuralParameterField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                ..
+            }
             | CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
             CheckedScalarExpression::StructuralSequenceLength { root, path } => {
@@ -1326,7 +1334,10 @@ pub(crate) mod runtime_requirements {
                     Ok(ScalarTerm::IeeeFloatLiteral(*value))
                 }
                 CheckedScalarExpression::StructuralParameterField {
-                    parameter_position,
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_position,
+                        },
                     path,
                     primitive_type,
                     ..

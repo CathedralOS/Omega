@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "vector_growth_probe");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/alloc" });
+    let alloc_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/alloc" }));
     Build::accept_boundary<ResourceProfileSupply<TestMemory>>(builder);
     Build::accept_boundary<ExtentRootProvider>(builder);
     Build::accept_boundary<VacantContentTransfer>(builder);

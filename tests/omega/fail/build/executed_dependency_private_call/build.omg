@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "executed_dependency_private_call");
-    Build::depend_as(builder, "selected", Source::Path { location: "../../../pass/build/executed_dependency_source_library" });
+    let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../pass/build/executed_dependency_source_library" });
+    dependency::with_alias(&mut selected_dependency, "selected");
+    let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

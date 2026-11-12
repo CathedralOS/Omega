@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "packaged_structured_const_carrier_control");
-    Build::depend(builder, Source::Path { location: "dependency" });
+    let dependency_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dependency" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

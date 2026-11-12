@@ -3,9 +3,9 @@ use omega::language::core::external_binding;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_out_parameter_write_observed_exit");
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../../source/library/std"
-    });
+    }));
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind<ForeignOutParameter::clock_gettime>(builder, macos_arm64, ForeignBinding::DllImport {

@@ -183,11 +183,16 @@ Build::dependency(builder, core, locator);
 Build::validate(builder, core);
 ```
 
-The shipped Build vocabulary has no `Build::dependency` and names no
-dependency by identifier. A dependency is registered with
-`Build::depend(builder, Source::Path { location: "vendor" })` or
-`Build::depend_as(builder, "vendor", source)`, and is known afterwards by its
-alias bytes. The bundled `core`, `std` and `alloc` are never registered by a
+Premise update (#2530 and the corpus migration that retires `depend*`): the
+shipped vocabulary now registers a dependency as a configured description,
+`Build::dependency(builder, description) -> DependencyRegistration` (and
+`Build::build_dependency` for Build scope), where
+`dependency::from_source(source)` builds the description and
+`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
+names no dependency by identifier; the registration carries no fields, and the
+coordinator knows the dependency by its alias bytes. The returned
+`DependencyRegistration` is one candidate argument for `Build::validate`; this
+note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
 product at all; the toolchain supplies them. Today
 `omega --check source/library/core/main.omg` is refused with
 `source root ... overlaps toolchain root`, so no command can check a bundled
@@ -196,7 +201,8 @@ library as a subject.
 The question:
 
 - **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, or a new identifier form?
+  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
+  or a new identifier form?
 - **(b)** How is a bundled library named as a subject: by
   `Build::validate(builder, "core")` without registration, by checking the
   library's own directory as a root (lifting the overlap refusal for the
@@ -841,3 +847,54 @@ result case, not the result of a terminal call.
   and the spec needs the rule for which nested machines qualify.
 
 Until answered the three rows are left as recorded and the checker is unchanged.
+
+### Q21 - Does a long operator chain count against the parser's expression depth, and what limit does the Rust compiler publish?
+
+Decision name: `expression-tree-depth-provision`.
+
+**Customer.** Generated Omega source, such as a table of several thousand
+terms summed or concatenated in one expression, must end in a named compiler
+outcome, never a host stack overflow. Today that guarantee is bought with
+256 MiB thread stacks: several hundred walkers in Psi 02 to 06 recurse once
+per level of the expression tree, and the stacks are sized so the walkers
+finish before the stack ends. `PIPELINE-ARCHITECTURE-ENFORCEMENT` on
+[TASKS.md](TASKS.md) asks to drop those stacks. Measured on a development
+build, the whole standard library and 1,000 nested parentheses both check with
+every such stack at 8 MiB, so the size is driven by how deep a tree may be,
+not by ordinary programs.
+
+**Gap.** The parser refuses nesting beyond 1,024 levels
+(`MAX_NESTING_DEPTH`; `tests/omega/fail/parser/nesting_exceeds_max_depth`),
+but only parentheses, calls and types count. An operator chain such as
+`a + b + c + ...` is parsed by a loop and builds a tree as deep as the chain
+is long; prefix runs (`~~~x`) and suffix chains (`a.b.c`) do the same. The
+parser's unit tests parse 4,096 prefixes and a 7,167-operator chain on
+purpose. No fixture or sample chains more than 264 operators, and a
+2,000-term sum does not finish checking in ten minutes, but nothing bounds
+the tree those chains build.
+
+[Compiler requests](wiki/spec/build/compiler_request.md#outcomes) defines
+`Incomplete` as "Named private provision exceeded; no verdict on unexamined
+source" and its scalar-resource table already names `parser_expression_depth`
+and `parser_type_depth`, each with limit 128. The same section says "The
+parser capacities are private D budgets over its fixed tables, not Omega
+source limits". It does not say whether the Rust reference compiler publishes
+under those codes, with which limit, or what an expression's depth is for a
+chain.
+
+**Question.**
+
+- **(a)** Is an expression's depth the depth of its tree, so that every
+  operator of a chain, every prefix and every suffix counts one level, the
+  same as a parenthesis?
+- **(b)** When the Rust compiler exceeds its own bound, does it publish
+  `Incomplete` under `parser_expression_depth` with its own selected limit
+  (today's 1,024), or `Reject` as the existing nesting fixture pins?
+- **(c)** Is 128, the table's limit, a ceiling the Rust compiler must also
+  meet? Two corpus fixtures nest 200 and 300 parentheses deep and four chain
+  264 operators.
+
+Until answered the stacks keep their size. A parser change that charges
+chains against the existing 1,024 levels and refuses beyond it is prepared on
+`work/psi-parser-chain-depth` and meets answer (a) with either answer to (b);
+it is held because it changes which programs parse.

@@ -10,11 +10,15 @@ machine build(builder: &mut Build) {
 machine project_name() -> &[u8] { "computed_project" }
 
 machine selected_dependency(builder: &mut Build) {
-    Build::depend_as(builder, "selected", Source::Path { location: "selected_source" });
+    let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "selected_source" });
+    dependency::with_alias(&mut selected_dependency, "selected");
+    let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }
 
 machine unselected_dependency(builder: &mut Build) {
-    Build::depend_as(builder, "unselected", Source::Path { location: "unselected_source" });
+    let mut unselected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "unselected_source" });
+    dependency::with_alias(&mut unselected_dependency, "unselected");
+    let unselected_registration: DependencyRegistration = Build::dependency(builder, unselected_dependency);
 }
 
 machine requests(builder: &mut Build) {

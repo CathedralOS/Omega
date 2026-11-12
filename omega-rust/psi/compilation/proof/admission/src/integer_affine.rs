@@ -415,6 +415,7 @@ mod bound_mapping {
     #[derive(Clone, Copy)]
     enum BoundRoute {
         Remainder,
+        RemainderWithinDividend,
         CorrelatedAdd,
         CorrelatedSubtract,
         CorrelatedMultiply,
@@ -428,6 +429,9 @@ mod bound_mapping {
     fn bound_route(form: &CheckedIntegerAffineForm) -> BoundRoute {
         match form.endpoint_steps.as_slice() {
             [CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder] => BoundRoute::Remainder,
+            [CheckedIntegerEndpointStep::RemainderWithinDividend { .. }] => {
+                BoundRoute::RemainderWithinDividend
+            }
             [CheckedIntegerEndpointStep::CorrelatedAddLower]
             | [CheckedIntegerEndpointStep::CorrelatedAddUpper] => BoundRoute::CorrelatedAdd,
             [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
@@ -591,6 +595,7 @@ mod bound_mapping {
                 | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
+                | CheckedIntegerEndpointStep::RemainderWithinDividend { .. }
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                     return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
@@ -612,6 +617,9 @@ mod bound_mapping {
     ) -> Result<Proposition, IntegerAffineBoundConversionError> {
         match bound_route(form) {
             BoundRoute::Remainder => return super::remainder::map_bound(form, root_bound),
+            BoundRoute::RemainderWithinDividend => {
+                return super::remainder::map_dividend_bound(form, root_bound);
+            }
             BoundRoute::CorrelatedAdd => return map_correlated_add_bound(form, root_bound),
             BoundRoute::CorrelatedSubtract => {
                 return map_correlated_subtract_bound(form, root_bound);
@@ -1575,6 +1583,7 @@ mod remainder {
     use super::{
         CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitnessError,
     };
+    use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, fixed_integer_term};
     use semantic_vocabulary::{
         IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
         ScalarTerm, ScalarType,
@@ -1676,6 +1685,140 @@ mod remainder {
             form.target().clone(),
             form.root().clone(),
         ))
+    }
+
+    /// The remainder-within-dividend form: `result = dividend % divisor`, an
+    /// exact remainder whose divisor is a value, rooted at the dividend.
+    ///
+    /// A truncating remainder is zero or has its dividend's sign, and is no
+    /// larger in magnitude, so it lies between zero and the dividend:
+    /// `min(dividend, 0) <= result <= max(dividend, 0)`. That holds for every
+    /// fixed carrier, signed or unsigned, at any width, wherever the
+    /// remainder is defined, and its endpoints are endpoints of the dividend
+    /// or zero, so no arithmetic here can overflow. `map_dividend_bound`
+    /// requires the divisor proved positive or proved below minus one, which
+    /// excludes a zero divisor and, by excluding every `-1`, the signed
+    /// `MIN % -1`.
+    ///
+    /// Provisional (`AcceptedProofRule::IntegerRemainderWithinDividend`): the
+    /// kernel trusts this statement; the mathematical core does not derive
+    /// it. A divisor that is a literal, or that a cited landing fixes to one,
+    /// is the endpoint chain's `Remainder` step and is not matched here.
+    pub(super) fn check_dividend_witness(
+        context: &PropositionContext,
+        semantic_axioms: &[Proposition],
+        witness: &IntegerAffineWitness,
+    ) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
+        let ([position], [None]) = (
+            witness.definition_axioms.as_slice(),
+            witness.literal_axioms.as_slice(),
+        ) else {
+            return Ok(None);
+        };
+        let Some(Proposition::Equal(
+            result,
+            ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            },
+        )) = semantic_axioms.get(*position)
+        else {
+            return Ok(None);
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let is_value = |term: &ScalarTerm| matches!(term, ScalarTerm::Value { .. });
+        if result != &witness.target
+            || dividend != &witness.root
+            || !is_value(result)
+            || !is_value(dividend)
+            || !is_value(divisor)
+            || scalar_type.carrier() != IntegerCarrier::Fixed
+        {
+            return Ok(None);
+        }
+        if result == dividend || result == divisor || dividend == divisor {
+            return Err(IntegerAffineWitnessError::DefinitionShapeMismatch(
+                *position,
+            ));
+        }
+        let carrier = ScalarType::Integer(*scalar_type);
+        if [result, dividend, divisor]
+            .iter()
+            .any(|term| term.scalar_type() != carrier)
+        {
+            return Err(IntegerAffineWitnessError::TargetTypeMismatch);
+        }
+        context
+            .validate(&semantic_axioms[*position])
+            .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+        Ok(Some(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *scalar_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: vec![CheckedIntegerEndpointStep::RemainderWithinDividend {
+                divisor: divisor.clone(),
+            }],
+        }))
+    }
+
+    /// The image of one bound on the dividend. The child is the conjunction
+    /// of that bound, `dividend <= U` or `L <= dividend` against a literal of
+    /// the carrier, and the divisor's premise, `0 < divisor` or
+    /// `divisor < -1`, in that order. The image is `result <= max(U, 0)` or
+    /// `min(L, 0) <= result`. A strict bound, a missing or weaker divisor
+    /// premise (`0 <= divisor`, `divisor < 0`), or a premise about another
+    /// value rejects.
+    pub(super) fn map_dividend_bound(
+        form: &CheckedIntegerAffineForm,
+        root_bound: &Proposition,
+    ) -> Result<Proposition, IntegerAffineBoundConversionError> {
+        let mismatch = IntegerAffineBoundConversionError::RootBoundMismatch;
+        let [CheckedIntegerEndpointStep::RemainderWithinDividend { divisor }] =
+            form.endpoint_steps.as_slice()
+        else {
+            return Err(mismatch);
+        };
+        let Proposition::Conjunction(parts) = root_bound else {
+            return Err(mismatch);
+        };
+        let [dividend_bound, Proposition::LessThan(below, above)] = parts.as_slice() else {
+            return Err(mismatch);
+        };
+        let integer_type = form.integer_type();
+        let literal = |term: &ScalarTerm| fixed_integer_as_i128(term, integer_type);
+        let positive = literal(below) == Some(0) && above == divisor;
+        let below_minus_one = below == divisor && literal(above) == Some(-1);
+        if !positive && !below_minus_one {
+            return Err(mismatch);
+        }
+        let Proposition::LessOrEqual(left, right) = dividend_bound else {
+            return Err(IntegerAffineBoundConversionError::RootBoundNotLessOrEqual);
+        };
+        let term = |endpoint: i128| {
+            fixed_integer_term(integer_type, endpoint)
+                .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
+        };
+        let endpoint = |term: &ScalarTerm| {
+            literal(term).ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)
+        };
+        if left == form.root() {
+            let upper = endpoint(right)?;
+            Ok(Proposition::LessOrEqual(
+                form.target().clone(),
+                term(upper.max(0))?,
+            ))
+        } else if right == form.root() {
+            let lower = endpoint(left)?;
+            Ok(Proposition::LessOrEqual(
+                term(lower.min(0))?,
+                form.target().clone(),
+            ))
+        } else {
+            Err(mismatch)
+        }
     }
 
     fn operands(expression: &ScalarTerm) -> Option<(IntegerType, &ScalarTerm, &ScalarTerm)> {
@@ -2088,6 +2231,7 @@ mod truth_bounds {
                 | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder
+                | CheckedIntegerEndpointStep::RemainderWithinDividend { .. }
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum
                 | CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum => {
                     return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
@@ -2769,18 +2913,35 @@ mod witness_checking {
         ShiftLeft(u32),
         ShiftRight(u32),
         SaturatingAdd(i128),
-        WrappingAdd { operand: ScalarTerm, literal: i128 },
-        WrappingAddBackward { operand: ScalarTerm, literal: i128 },
+        WrappingAdd {
+            operand: ScalarTerm,
+            literal: i128,
+        },
+        WrappingAddBackward {
+            operand: ScalarTerm,
+            literal: i128,
+        },
         BitwiseAndMask(i128),
-        BitwiseAndBoundedMask { mask: ScalarTerm, upper: i128 },
+        BitwiseAndBoundedMask {
+            mask: ScalarTerm,
+            upper: i128,
+        },
         BitwiseOrLiteralImage(i128),
-        BitwiseOrBoundedImage { operand: ScalarTerm, upper: i128 },
+        BitwiseOrBoundedImage {
+            operand: ScalarTerm,
+            upper: i128,
+        },
         CorrelatedAddLower,
         CorrelatedAddUpper,
         CorrelatedSubtractLower,
         CorrelatedSubtractUpper,
         CorrelatedUnsignedSubtract,
         CorrelatedUnsignedRemainder,
+        /// An exact remainder by `divisor`, a value no literal fixes, rooted
+        /// at its dividend (`remainder::check_dividend_witness`).
+        RemainderWithinDividend {
+            divisor: ScalarTerm,
+        },
         CorrelatedMultiplyMinimum,
         CorrelatedMultiplyMaximum,
     }
@@ -2823,6 +2984,15 @@ mod witness_checking {
 
         pub const fn target(&self) -> &ScalarTerm {
             &self.target
+        }
+
+        /// Whether this is the provisional remainder-within-dividend form,
+        /// which an acceptance records under its own rule row.
+        pub(crate) fn is_remainder_within_dividend(&self) -> bool {
+            matches!(
+                self.endpoint_steps.as_slice(),
+                [CheckedIntegerEndpointStep::RemainderWithinDividend { .. }]
+            )
         }
     }
 
@@ -2876,6 +3046,11 @@ mod witness_checking {
         witness: &IntegerAffineWitness,
     ) -> Result<CheckedIntegerAffineForm, IntegerAffineWitnessError> {
         if let Some(form) = super::remainder::check_witness(context, semantic_axioms, witness)? {
+            return Ok(form);
+        }
+        if let Some(form) =
+            super::remainder::check_dividend_witness(context, semantic_axioms, witness)?
+        {
             return Ok(form);
         }
         if let Some(form) = check_correlated_add_witness(context, semantic_axioms, witness)? {

@@ -1,6 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "generated_declaration_continuation");
-    Build::depend_as(builder, "kit", Source::Path { location: "kit" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "kit" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
     let source: BuildPath = BuildSource::resolve(&builder.source, "kit/generated.txt");
     let reader: i32 = BuildSource::open(&builder.source, source, 0);
     let mut bytes: [u8; 522];

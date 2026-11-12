@@ -101,6 +101,83 @@ fn an_unsigned_remainder_is_below_a_positive_divisor() {
     }
 }
 
+/// `local = a % b; return local <second> literal` over two i32 formals with
+/// `-7 <= a <= 7` and `divisor`, a clause about `b`.
+fn signed_remainder(divisor: Proposition, second: Strict, operand: i128) -> Machine {
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    after(
+        i32_type(),
+        vec![
+            Proposition::LessOrEqual(signed(-7), formal(1, i32_type())),
+            Proposition::LessOrEqual(formal(1, i32_type()), signed(7)),
+            divisor,
+        ],
+        Strict::Remainder,
+        slot(1, i32_type()),
+        second,
+        IntegerValue::Signed(operand),
+    )
+}
+
+#[test]
+fn a_remainder_by_a_value_lies_between_zero_and_its_dividend() {
+    // a <= 7 and 1 <= b give a % b <= 7; nothing bounds b from above, so
+    // `a % b < b` gives no literal.
+    assert_upper(
+        vec![at_most(1, 7), at_least(2, 1)],
+        Strict::Remainder,
+        slot(1, u32_type()),
+        7,
+    );
+    // -7 <= a <= 7 gives -7 <= a % b <= 7 for a divisor of either sign.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let divisor = formal(2, i32_type());
+    let maximum = i128::from(i32::MAX);
+    for clause in [
+        Proposition::LessOrEqual(signed(2), divisor.clone()),
+        Proposition::LessOrEqual(divisor.clone(), signed(-2)),
+    ] {
+        for (second, fits) in [(Strict::Add, maximum - 7), (Strict::Subtract, maximum - 6)] {
+            let (elaboration, result) = run(vec![signed_remainder(clause.clone(), second, fits)]);
+            for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+                assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+            }
+            let (elaboration, result) =
+                run(vec![signed_remainder(clause.clone(), second, fits + 1)]);
+            assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+        }
+    }
+}
+
+#[test]
+fn a_remainder_by_a_value_that_may_be_zero_or_minus_one_gets_no_bound() {
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let divisor = formal(2, i32_type());
+    let fits = i128::from(i32::MAX) - 7;
+    for clause in [
+        // Admits zero.
+        Proposition::LessOrEqual(signed(0), divisor.clone()),
+        // Admits minus one.
+        Proposition::LessOrEqual(divisor.clone(), signed(-1)),
+        // Says nothing about the divisor.
+        Proposition::Truth,
+    ] {
+        let (elaboration, result) = run(vec![signed_remainder(clause, Strict::Add, fits)]);
+        assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+    }
+    // Unsigned, with no `1 <= b`.
+    let program = after(
+        u32_type(),
+        vec![at_most(1, 7)],
+        Strict::Remainder,
+        slot(1, u32_type()),
+        Strict::Add,
+        IntegerValue::Unsigned(MAX - 7),
+    );
+    let (elaboration, result) = run(vec![program]);
+    assert_unproved(verdicts(&elaboration, &result, 1, safety).last().unwrap().1);
+}
+
 #[test]
 fn a_mask_bounds_its_result_and_an_or_is_bounded_by_both_operands() {
     assert_upper(Vec::new(), Strict::BitwiseAnd, unsigned(15), 15);
