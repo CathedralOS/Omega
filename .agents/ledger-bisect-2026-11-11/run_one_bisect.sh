@@ -21,7 +21,7 @@ git bisect reset >/dev/null 2>&1 || true
 
 verify() {
   local label="$1" c="$2" n="$3"
-  git checkout -q "$c"
+  git checkout -qf "$c"
   local ok=0 bad=0 skip=0 i
   for i in $(seq 1 "$n"); do
     set +e

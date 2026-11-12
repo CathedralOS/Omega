@@ -13,7 +13,7 @@ SCRIPT="$OMEGA_BISECT_TOOLS/bisect_witness.sh"
 
 test_commit() {
   local c="$1"
-  git checkout -q "$c"
+  git checkout -qf "$c"
   "$SCRIPT"
 }
 

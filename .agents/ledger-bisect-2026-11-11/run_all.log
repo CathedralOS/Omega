@@ -1,0 +1,5 @@
+error: Your local changes to the following files would be overwritten by checkout:
+	.agents/ledger-bisect-2026-11-11/run_all_bisects.sh
+Please commit your changes or stash them before you switch branches.
+Aborting
+ERROR: BAD 51e8c45c793007f211d0d9baee7de16767172444 passes witness
