@@ -1,0 +1,121 @@
+// Expected exit: 0.
+// Read a descriptor at a runtime offset; reject sizes whose end address would overflow.
+data EfiMemoryDescriptor {
+    kind: u32;
+    physical_start: u64;
+    virtual_start: u64;
+    number_of_pages: u64;
+    attribute: u64;
+}
+
+public machine walk(bytes: &[u8; 65536], offset: u64) -> u64
+requires addr::Bound == 18446744073709551616 && offset <= 65496
+{
+    let descriptor: &EfiMemoryDescriptor = &bytes[offset] as &EfiMemoryDescriptor;
+    transition descriptor.number_of_pages <= 4503599627370495 &&
+        descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096 {
+        true -> compare(bytes, offset, descriptor)
+        _ -> 0
+    }
+    machine compare(bytes: &[u8; 65536], offset: u64, descriptor: &EfiMemoryDescriptor) -> u64
+    requires addr::Bound == 18446744073709551616 && offset <= 65496 &&
+        descriptor.number_of_pages <= 4503599627370495 &&
+        descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096
+    {
+        let end: u64 = descriptor.physical_start + descriptor.number_of_pages * 4096;
+        end
+    }
+}
+
+
+// Mutable access uses the same bounds before the helper reads the descriptor.
+public machine walk_mut(bytes: &mut [u8; 65536], offset: u64) -> u64
+requires addr::Bound == 18446744073709551616 && offset <= 65496
+{
+    let descriptor: &mut EfiMemoryDescriptor = &mut bytes[offset] as &mut EfiMemoryDescriptor;
+    transition descriptor.number_of_pages <= 4503599627370495 &&
+        descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096 {
+        true -> compare_mut(descriptor)
+        _ -> 0
+    }
+    machine compare_mut(descriptor: &mut EfiMemoryDescriptor) -> u64
+    requires descriptor.number_of_pages <= 4503599627370495 &&
+        descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096
+    {
+        let end: u64 = descriptor.physical_start + descriptor.number_of_pages * 4096;
+        end
+    }
+}
+
+machine require(value: bool) crashes Trap {
+    transition value { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+
+machine word(bytes: &mut [u8; 65536], offset: u64, value: u64)
+requires offset <= 65528
+{
+    transition { _ -> copy(bytes, offset, value, 0) }
+    machine copy(bytes: &mut [u8; 65536], offset: u64, value: u64, next: u64)
+    requires offset <= 65528 && next <= 8
+    {
+        transition next < 8 { true -> write(bytes, offset, value, next) _ -> done() }
+    }
+    machine write(bytes: &mut [u8; 65536], offset: u64, value: u64, next: u64)
+    requires offset <= 65528 && next < 8
+    {
+        bytes[offset + next] = ((value >> (next * 8)) & 255) as u8;
+        transition { _ -> copy(bytes, offset, value, next + 1) }
+    }
+    machine done() {}
+}
+
+// Every byte beside the changed fields keeps its original nonzero value.
+machine repeated_byte(bytes: &[u8; 65536], offset: u64, expected: u8) -> bool
+requires offset <= 65528
+{
+    bytes[offset] == expected && bytes[offset + 1] == expected &&
+    bytes[offset + 2] == expected && bytes[offset + 3] == expected &&
+    bytes[offset + 4] == expected && bytes[offset + 5] == expected &&
+    bytes[offset + 6] == expected && bytes[offset + 7] == expected
+}
+
+machine neighbors(bytes: &[u8; 65536]) -> bool {
+    repeated_byte(bytes, 40, 60) && repeated_byte(bytes, 64, 90) &&
+    repeated_byte(bytes, 80, 165) && repeated_byte(bytes, 88, 195)
+}
+
+machine main() crashes Trap
+requires addr::Bound == 18446744073709551616
+{
+    let mut bytes: [u8; 65536];
+    // Descriptor at offset 48; the word before it and the word after it are canaries.
+    word(&mut bytes, 40, 0x3C3C3C3C3C3C3C3C);
+    word(&mut bytes, 48, 7);
+    word(&mut bytes, 56, 4194304);
+    word(&mut bytes, 64, 0x5A5A5A5A5A5A5A5A);
+    word(&mut bytes, 72, 3);
+    word(&mut bytes, 80, 0xA5A5A5A5A5A5A5A5);
+    word(&mut bytes, 88, 0xC3C3C3C3C3C3C3C3);
+    require(walk(&bytes, 48) == 4206592);
+    require(walk_mut(&mut bytes, 48) == 4206592);
+    require(neighbors(&bytes));
+    // Too many pages would overflow the multiplication before an end address exists.
+    word(&mut bytes, 72, 4503599627370496);
+    require(walk(&bytes, 48) == 0);
+    require(walk_mut(&mut bytes, 48) == 0);
+    require(neighbors(&bytes));
+    // A small page count can still overflow when added to a high start address.
+    word(&mut bytes, 72, 3);
+    word(&mut bytes, 56, 18446744073709547520);
+    require(walk(&bytes, 48) == 0);
+    require(walk_mut(&mut bytes, 48) == 0);
+    require(neighbors(&bytes));
+    // The largest admitted page count remains valid when its start is zero.
+    word(&mut bytes, 56, 0);
+    word(&mut bytes, 72, 4503599627370495);
+    require(walk(&bytes, 48) == 18446744073709547520);
+    require(walk_mut(&mut bytes, 48) == 18446744073709547520);
+    require(neighbors(&bytes));
+}
