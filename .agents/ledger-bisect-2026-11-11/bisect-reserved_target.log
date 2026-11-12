@@ -1,0 +1,66 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2347 revisions left to test after this (roughly 11 steps)
+[2f9809003bfa1ed551a4a7b103e763a3f39f39b0] backend+psi: reconcile codec-family folds with landed conventions after rebase
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2346 revisions left to test after this (roughly 11 steps)
+[38fc8ad829ffa32409a1f489fa4443957eb4a5b4] backend: drop function_linkage mod declaration deleted on main
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1172 revisions left to test after this (roughly 10 steps)
+[cdb786cbd6841445756f6d285973382244b85298] psi: carry complete origin groups through record restoration
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 586 revisions left to test after this (roughly 9 steps)
+[3a9adff532f935d7b24932b930bcb4cef07bb291] psi: name the unrestricted primitive local establishment minting
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 586 revisions left to test after this (roughly 9 steps)
+[9ec758a80bcd315d2ba12fe8102abf051de1ca41] psi: dedupe the capability-test imports and drop the dead boundary binding
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 328 revisions left to test after this (roughly 8 steps)
+[4a590b2378f91f5ee485997eb11c55ff0d6a4962] tests: start each product gate from a fresh package review
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 164 revisions left to test after this (roughly 7 steps)
+[1ae42ed8e70269c139667e76d6afdc788b7dd460] compiler: checkpoint encoded reference transport integration
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 82 revisions left to test after this (roughly 6 steps)
+[18c4e942096308a03590afc51e49681fd985aa8c] psi: retain every generic parameter kind the parser gate specifies
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[9ff07ea685ea0dfdb5d132d385e81e3bc1048b54] tests: share fresh layout fixtures across writer consumers
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 19 revisions left to test after this (roughly 4 steps)
+[4cc414e93a487c25c2ba1cdaefdd89eea1d7244c] backend: elf dynamic leaves share their byte codecs
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[17d0365a82c28f96e1e7e8154df21808fbc1af1b] psi: derive equivalent typed representation defaults
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[445c6ba198af83a432733b7f069a16e3b7f74393] Share bootstrap packed closure identity checks
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[73662454738ca94128591ba30d815a3150ade824] omega: share optimizer rule preparation
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[97f86261016dd0307a515daccc3c18fc173f7e8d] library: share exact hosted entry shape and placement helpers
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[9e8669a8cc611d02ee6bfcdb6c67f91ec823feed] samples: convert floats to integers through named saturating calls
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+97f86261016dd0307a515daccc3c18fc173f7e8d is the first bad commit
+commit 97f86261016dd0307a515daccc3c18fc173f7e8d
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Wed Oct 7 09:47:42 2026 +0000
+
+    library: share exact hosted entry shape and placement helpers
+    
+    Five hosted entry policies repeated pure shape validation and placement construction. Share only byte-identical helper bodies, retaining each target plan and its physical/semantic transitions, registers, clobbers and diagnostics. Keep the distinct macOS x86-64 extent transition and Linux ARM64 named-word constructor. Including shared module and imports, remove 221 physical lines, 211 nonblank lines and 8300 bytes.
+    
+    Rebuild program-entry-plan and the compiler because exact target entry source digests are embedded with include_bytes. Baseline and candidate pass six checked positive/negative controls; all eleven checked and five-target native records match apart from timing. Linux x86-64 process_exit_i32_status_mapped executes with authored exit 212; Linux ARM64 and both macOS products build. Windows retains its attributed baseline SourceCustodyMismatch rejection. No expectation or admission changes.
+
+ source/library/std/entry_shapes.omg                | 108 +++++++++++++++++++++
+ source/library/std/targets/linux_arm64/entry.omg   |  84 ++--------------
+ source/library/std/targets/linux_x86_64/entry.omg  | 101 ++-----------------
+ source/library/std/targets/macos_arm64/entry.omg   |  88 ++---------------
+ source/library/std/targets/macos_x86_64/entry.omg  |  70 +++----------
+ .../library/std/targets/windows_x86_64/entry.omg   |  74 +-------------
+ 6 files changed, 152 insertions(+), 373 deletions(-)
+ create mode 100644 source/library/std/entry_shapes.omg
+bisect found first bad commit

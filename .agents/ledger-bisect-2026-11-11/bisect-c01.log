@@ -1,0 +1,109 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 236 revisions left to test after this (roughly 8 steps)
+[6c67603323c32ba31ae1495e5482a440c7eadd15] compiler: stop saving checked source to disk between compiles (#1780)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 118 revisions left to test after this (roughly 7 steps)
+[5209eac451caf43591135c2b453033e60b4df917] psi: let helpers borrow initialized memory (#1630)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[054312101fd0764aab3f62618723a2c5972aa729] docs: settle engine selection and known call and value facts (#1632)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[3c0d56aac3b40b5a286400532941d504a297d8cc] repo: build explanations from purpose to implementation (#1552)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[4be1bfca81d35ff925c8515d86ac23c8ba131169] samples: rename abstract signature call target place to other_target (#1580)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[d245efd552b801449bd05219a19b0efdc85f02f9] backend: expect qualified foreign formals to keep the two-pointer signature (#1684)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 95 revisions left to test after this (roughly 7 steps)
+[19bb5263600591af90c0a53cd25f8eb43800f3d9] psi: let the Omega-written parser pass its product gate again (#1618)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 95 revisions left to test after this (roughly 7 steps)
+[e283856d96276d4c262d9b6c3f687584942da6c3] samples: keep empty service reach for selected dynamic calls (#1613)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 95 revisions left to test after this (roughly 7 steps)
+[4f3360c7e2e3869002c325fc1157780209e9a599] psi: forward dynamic selectors through selected calls (#1550)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 69 revisions left to test after this (roughly 6 steps)
+[3b7a781997afdb260a676915a14f3b140f607b34] omega: review implementations that delegate memory access (#1635)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 69 revisions left to test after this (roughly 6 steps)
+[cff6908382d5f7ac6b9f1902001f75214a9ad5df] samples: select suspension-capable dyn calls through Build rows (#1578)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 69 revisions left to test after this (roughly 6 steps)
+[dd84ccca332b7a608edf430de84b56056158aea4] psi: avoid recalculating variable values for each kind of call argument (#1587)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 60 revisions left to test after this (roughly 6 steps)
+[c2cc04fb0247c898ebfa39697f452f554f22a9f1] bootstrap: record the landed checker extents in the beta-encoding profile (#1644)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 60 revisions left to test after this (roughly 6 steps)
+[966a523cdaa5ba171c63f204e39afb40e8a70ae8] psi: strip every recorded root crossing of a borrowed local's path (#1683)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[576c5c9433a95c1f4dcb4f18197f408afbfe92cd] psi: let checking workers find type identities without taking a lock (#1603)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[0f45b8417240215a006889662e37d9763bfd5b80] repo: start Claude cloud sessions from main's published compiler build (#1605)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[cbdd8380d796f4f7486772b729231297c067db76] psi: reject crash-capable constant helpers at admission (#1585)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[de9648a198205c6262400dab06c2eefc477d1acf] cli: run programs on the Terminal engine without building a native image (#1649)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[5d473f3d55efca5a6e33b533f9dcdf7d17c9f054] repo: explain the practical change before compiler details (#1627)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[098f3b8ac9da49281b35f55ce025117b3ed6ab3d] psi: find a paged arena's page with one array index (#1602)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[084ef3ca16bbb4228f7834b2ada1360bfdf62786] psi: let the checking crate's tests compile and run on main again (#1626)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[3e22616789c7cc145cf64a33f2500208bbe66aa5] delta: defer the cumulative pair bound to the open storage audit (#1645)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[949870613361a9929e251318a63593e23e8b7351] psi: infer assembly service use when reaches is omitted (#1588)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[05e31a9ece93b8266520a4fd83ebf81ec09e2062] psi: reuse flow facts when a fixed-point pass reads unchanged inputs (#1614)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[e3c4ae4fb406f0a40e8988e2b79100ceeeaff5b3] omega: look up blocks, registers and functions by position or checked order (#1574)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 42 revisions left to test after this (roughly 5 steps)
+[2977bfb92a918ff4c3f83b36cb092c52484f0f84] samples: select nested-machine write probes through Build (#1669)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[3ba944676de4644c64f17ca469177b1a4a935ce0] psi: avoid repeated field comparisons when checking returns (#1641)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[c6a756120d233cb8f80c02332c0d8e3c69881c86] psi: ask whether layouts used only in unselected library code bind Psi (#1663)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[861f796911e001eb14d80e2bf1ccbe05d6d0fdad] psi: document every decoded Terminal operation tag and current markers (#1639)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 40 revisions left to test after this (roughly 5 steps)
+[3fe1de77d473fc01e9cca3b1c9e2e2c40d93feb4] psi: keep a forwarded indexed value's captured index through specialization (#1661)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[1246f7e841f51c2ee88e5b8eae6e11e4dd1dacfc] epsilon: ask how a bare return arm is delimited from the next arm's pattern (#1624)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[158939541b1751b42363df743ee9ce25285af82d] psi: pin ambiguous whole-trait provider supply for raw boundary traits (#1590)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[e4617438fb66df39eeb1fa6605b8fcacba19df62] psi: keep copied references usable across calls that may pause (#1651)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[fa535298375c877c14fd0292943676e69998b2fa] psi: record each state's numeric observations once, empty rows included (#1621)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[b13b1ad24e2ca60240d19d3396f623655ae549d6] psi: reject circular proof in constant calculations (#1568)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 37 revisions left to test after this (roughly 5 steps)
+[8ec7e4b2a9871713b8ff5cad26b5078c3d5df940] psi: retain checked memory bounds across helper calls (#1628)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

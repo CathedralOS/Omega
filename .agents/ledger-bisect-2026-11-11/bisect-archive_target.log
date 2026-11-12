@@ -1,0 +1,37 @@
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4846 revisions left to test after this (roughly 12 steps)
+[84af448a320b3be35cdf34e42fe05d4399f6e884] psi: pin borrowed field restores repeated through identity relations
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 2423 revisions left to test after this (roughly 11 steps)
+[c4b4ecd851db3656ddb9ff2973b7ce71fe7fb547] psi: retain total invocation gates for specification equations
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1211 revisions left to test after this (roughly 10 steps)
+[0bffb682d1dda6bbdd861d4c76ebfd554ef06593] psi: accumulate parameter spans through one builder
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 605 revisions left to test after this (roughly 9 steps)
+[a15393686264c74fbab034323eb5b899a3f74eea] psi: keep only semantic tokens and size product tables for its own source
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 302 revisions left to test after this (roughly 8 steps)
+[61d06c7c61f91f9c198190227ae73983c3ffb8ea] packages: allow complete detailed review of the bundled graph
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 151 revisions left to test after this (roughly 7 steps)
+[4f945fe9d228e6d834c6c7868acf688143d76e7d] psi: let the external-machine unresolved report fall to the shared tail
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 75 revisions left to test after this (roughly 6 steps)
+[f80b7b512f8e19c6e70f756e91b412c22ad8b15e] psi: share the ring and semiring candidates' algebraic law inventory
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[36322889b9332c9c66364e6465d529b302edec26] psi: split borrow loans into reference_borrows/aggregate_loans/call_views
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 18 revisions left to test after this (roughly 4 steps)
+[87b86b8f956406c2e26cdeba2d97276c77ce2bd7] psi: name the destructured chain root bound
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 9 revisions left to test after this (roughly 3 steps)
+[0d6baa69eebf90ec814f8fdcf49d2c6b16cab96f] psi: move certificate coverage tests into their own file
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[aa7c49c74e84aa1aeb64292e7940f08cddc533d4] psi: split the bounded-denotation elaboration engine out of the owner
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[56c121a013de979a4c2ca60fb91f3f9038f779bf] psi: move the bounded-denotation tests beside the operation suites
+running 'bash' '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

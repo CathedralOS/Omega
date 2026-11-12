@@ -1,0 +1,9 @@
+{
+  "witness": "run/borrows/terminal_case_completed_observation",
+  "tier": "run",
+  "expected_status": "checked",
+  "ledger_status": "checked",
+  "pin_status": "rejected",
+  "pin_first_diagnostic": "state `finish` receives `pool` while local borrow `field` is still active (borrowed at statement 0; its last use is at statement 2)",
+  "pin_diag_norm": "state `_` receives `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)"
+}

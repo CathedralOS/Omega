@@ -1,0 +1,9 @@
+{
+  "witness": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+  "tier": "pass",
+  "expected_status": "checked",
+  "ledger_status": "checked",
+  "pin_status": "rejected",
+  "pin_first_diagnostic": "state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 9)",
+  "pin_diag_norm": "state `_` receives `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)"
+}

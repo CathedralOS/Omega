@@ -1,0 +1,41 @@
+pass/borrows/runtime_stored_reference_case_residual_retirement_exit rejected 10745ms check-target:macos_arm64
+	state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 9)
+pass/facts/case_payload_exclusive_loan_through_other_machine_exit rejected 2104ms check-target:macos_arm64
+	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `match choose(visits) { true => &mut chosen.value, false => &mut other.value }`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case
+	machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case
+	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit rejected 2339ms check-target:macos_arm64
+	cannot prove requires contract for call agree from read_kept: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from read_kept at statement 2: result == holder.items[0] && result == 7
+pass/targets/private_target_supplies_remain_disclosed rejected 7220ms check-target:macos_arm64
+	unknown canonical target profile `reserved_target`
+pass/targets/retained_target_family_bodies rejected 1047ms check-target:macos_arm64
+	unknown canonical target profile `archive_target`
+pass/targets/retained_target_provider_family_exit rejected 6412ms check-target:macos_arm64
+	unknown canonical target profile `reserved_target`
+pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 2557ms check-target:macos_arm64
+	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `main::entry`
+fail/borrows/aliased_forwarded_placed_views rejected 5323ms unexpected
+	state `view_mut` receives `value` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4)
+	state `view_mut` receives `value` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `entry` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `entry` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `view` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 creates local borrow `view` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 borrows `value` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 3
+	statement 3 borrows `value` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 3
+fail/contracts/target_family_recursive_guarantee rejected 931ms unexpected
+	unknown canonical target profile `reserved_target`
+fail/contracts/target_family_unshared_result rejected 917ms unexpected
+	unknown canonical target profile `reserved_target`
+fail/targets/sibling_body_type_error_rejected rejected 9213ms unexpected
+	unknown canonical target profile `demo_target`
+fail/targets/unrealized_conformance_rejected rejected 985ms unexpected
+	unknown canonical target profile `reserved_target`
+run/borrows/terminal_case_completed_observation rejected 2203ms check-target:macos_arm64
+	state `finish` receives `pool` while local borrow `field` is still active (borrowed at statement 0; its last use is at statement 2)

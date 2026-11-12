@@ -1,0 +1,22 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 236 revisions left to test after this (roughly 8 steps)
+[6c67603323c32ba31ae1495e5482a440c7eadd15] compiler: stop saving checked source to disk between compiles (#1780)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 118 revisions left to test after this (roughly 7 steps)
+[5209eac451caf43591135c2b453033e60b4df917] psi: let helpers borrow initialized memory (#1630)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[054312101fd0764aab3f62618723a2c5972aa729] docs: settle engine selection and known call and value facts (#1632)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[3c0d56aac3b40b5a286400532941d504a297d8cc] repo: build explanations from purpose to implementation (#1552)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[4be1bfca81d35ff925c8515d86ac23c8ba131169] samples: rename abstract signature call target place to other_target (#1580)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[d245efd552b801449bd05219a19b0efdc85f02f9] backend: expect qualified foreign formals to keep the two-pointer signature (#1684)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 95 revisions left to test after this (roughly 7 steps)
+[19bb5263600591af90c0a53cd25f8eb43800f3d9] psi: let the Omega-written parser pass its product gate again (#1618)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
