@@ -1062,10 +1062,10 @@ impl Field<semantic_vocabulary::Proposition> for Proposition {
         writer: &mut Writer,
         value: &semantic_vocabulary::Proposition,
     ) -> Result<(), CodecError> {
-        super::proposition_wire::encode_proposition(writer, value, 0)
+        super::proposition_wire::encode_proposition(writer, value)
     }
     fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::Proposition, CodecError> {
-        super::proposition_wire::decode_proposition(reader, 0)
+        super::proposition_wire::decode_proposition(reader)
     }
 }
 
@@ -1080,7 +1080,7 @@ impl Field<semantic_vocabulary::ContentProjectionExpression> for ContentExpressi
     fn read(
         reader: &mut Reader<'_>,
     ) -> Result<semantic_vocabulary::ContentProjectionExpression, CodecError> {
-        super::structural_signature_wire::decode_content_projection_expression(reader, 0)
+        super::structural_signature_wire::decode_content_projection_expression(reader)
     }
 }
 

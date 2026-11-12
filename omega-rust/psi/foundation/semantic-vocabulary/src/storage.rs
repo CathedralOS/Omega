@@ -342,8 +342,8 @@ pub(crate) mod content {
             if self.left > self.right {
                 return Err(PropositionError::NonCanonicalContentEquationOrder);
             }
-            validate_term(&self.left, 0)?;
-            validate_term(&self.right, 0)
+            validate_term(&self.left)?;
+            validate_term(&self.right)
         }
     }
 
@@ -449,14 +449,9 @@ pub(crate) mod content {
         output.extend_from_slice(value.as_bytes());
     }
 
-    const MAX_CONTENT_TERM_DEPTH: usize = 256;
-
-    fn validate_term(term: &ContentTerm, depth: usize) -> Result<(), PropositionError> {
-        let mut pending = vec![(term, depth)];
-        while let Some((term, depth)) = pending.pop() {
-            if depth > MAX_CONTENT_TERM_DEPTH {
-                return Err(PropositionError::ContentTermNestingTooDeep);
-            }
+    fn validate_term(term: &ContentTerm) -> Result<(), PropositionError> {
+        let mut pending = vec![term];
+        while let Some(term) = pending.pop() {
             match term {
                 ContentTerm::Projection {
                     projection,
@@ -491,9 +486,7 @@ pub(crate) mod content {
                     if terms.windows(2).any(|pair| pair[0] >= pair[1]) {
                         return Err(PropositionError::NonCanonicalContentSeparationOrder);
                     }
-                    for term in terms.iter().rev() {
-                        pending.push((term, depth + 1));
-                    }
+                    pending.extend(terms.iter().rev());
                 }
             }
         }

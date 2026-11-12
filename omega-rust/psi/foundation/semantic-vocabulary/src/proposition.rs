@@ -1385,91 +1385,88 @@ mod proof_terms {
         }
 
         pub fn validate(&self) -> Result<(), PropositionError> {
-            enum Step<'a> {
-                Term(&'a ProofTerm),
-                Field(&'a ProofTermField),
+            let mut pending = vec![self];
+            while let Some(term) = pending.pop() {
+                term.validate_node()?;
+                match term {
+                    ProofTerm::Construction { fields, .. } => {
+                        pending.extend(fields.iter().rev().map(|field| &field.term));
+                    }
+                    ProofTerm::Array { elements, .. } => pending.extend(elements.iter().rev()),
+                    _ => {}
+                }
             }
-            let mut pending = vec![Step::Term(self)];
-            while let Some(step) = pending.pop() {
-                match step {
-                    Step::Term(ProofTerm::Construction {
-                        type_identity,
-                        case_identity,
-                        fields,
-                    }) => {
-                        if type_identity.is_empty() {
-                            return Err(PropositionError::EmptyProofTermTypeIdentity);
-                        }
-                        if case_identity.as_deref().is_some_and(str::is_empty) {
-                            return Err(PropositionError::EmptyProofTermCaseIdentity);
-                        }
-                        for field in fields.iter().rev() {
-                            pending.push(Step::Field(field));
-                        }
+            Ok(())
+        }
+
+        /// Checks this term's own fields; nested proof terms are checked by
+        /// their own `validate_node` call.
+        pub fn validate_node(&self) -> Result<(), PropositionError> {
+            match self {
+                ProofTerm::Construction {
+                    type_identity,
+                    case_identity,
+                    fields,
+                } => {
+                    if type_identity.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
                     }
-                    Step::Term(ProofTerm::Array {
-                        type_identity,
-                        elements,
-                    }) => {
-                        if type_identity.is_empty() {
-                            return Err(PropositionError::EmptyProofTermTypeIdentity);
-                        }
-                        pending.extend(elements.iter().rev().map(Step::Term));
+                    if case_identity.as_deref().is_some_and(str::is_empty) {
+                        return Err(PropositionError::EmptyProofTermCaseIdentity);
                     }
-                    Step::Term(ProofTerm::Mathematical {
-                        type_identity,
-                        certificate,
-                    }) => {
-                        if type_identity.is_empty() || certificate.is_empty() {
-                            return Err(PropositionError::EmptyProofTermTypeIdentity);
-                        }
-                    }
-                    Step::Term(ProofTerm::MathematicalApplication {
-                        type_identity,
-                        certificate,
-                        arguments,
-                        ..
-                    }) => {
-                        if type_identity.is_empty()
-                            || certificate.is_empty()
-                            || arguments.is_empty()
-                        {
-                            return Err(PropositionError::EmptyProofTermTypeIdentity);
-                        }
-                        for argument in arguments {
-                            if let MathematicalArgument::Scalar {
-                                type_identity,
-                                term,
-                            } = argument
-                            {
-                                if type_identity.is_empty() {
-                                    return Err(PropositionError::EmptyProofTermTypeIdentity);
-                                }
-                                term.validate()?;
-                            }
-                        }
-                    }
-                    Step::Term(ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. }) => {}
-                    Step::Term(ProofTerm::Projection {
-                        type_identity,
-                        fields,
-                        ..
-                    }) => {
-                        if type_identity.is_empty()
-                            || fields.is_empty()
-                            || fields.iter().any(String::is_empty)
-                        {
-                            return Err(PropositionError::EmptyProofTermTypeIdentity);
-                        }
-                    }
-                    Step::Term(ProofTerm::Scalar(term)) => term.validate()?,
-                    Step::Field(field) => {
-                        if field.field_identity.is_empty() {
-                            return Err(PropositionError::EmptyProofTermFieldIdentity);
-                        }
-                        pending.push(Step::Term(&field.term));
+                    if fields.iter().any(|field| field.field_identity.is_empty()) {
+                        return Err(PropositionError::EmptyProofTermFieldIdentity);
                     }
                 }
+                ProofTerm::Array { type_identity, .. } => {
+                    if type_identity.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                }
+                ProofTerm::Mathematical {
+                    type_identity,
+                    certificate,
+                } => {
+                    if type_identity.is_empty() || certificate.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                }
+                ProofTerm::MathematicalApplication {
+                    type_identity,
+                    certificate,
+                    arguments,
+                    ..
+                } => {
+                    if type_identity.is_empty() || certificate.is_empty() || arguments.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                    for argument in arguments {
+                        if let MathematicalArgument::Scalar {
+                            type_identity,
+                            term,
+                        } = argument
+                        {
+                            if type_identity.is_empty() {
+                                return Err(PropositionError::EmptyProofTermTypeIdentity);
+                            }
+                            term.validate()?;
+                        }
+                    }
+                }
+                ProofTerm::Formal { .. } | ProofTerm::InvocationFormal { .. } => {}
+                ProofTerm::Projection {
+                    type_identity,
+                    fields,
+                    ..
+                } => {
+                    if type_identity.is_empty()
+                        || fields.is_empty()
+                        || fields.iter().any(String::is_empty)
+                    {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                }
+                ProofTerm::Scalar(term) => term.validate()?,
             }
             Ok(())
         }
@@ -2350,7 +2347,6 @@ mod propositions {
         NonCanonicalContentSeparationArity(usize),
         NonCanonicalContentSeparationOrder,
         NestedContentSeparation,
-        ContentTermNestingTooDeep,
         UnknownValue(ValueId),
         UnknownStructuralPlace(PlaceId),
         EntryResultStructuralPlace(PlaceId),
