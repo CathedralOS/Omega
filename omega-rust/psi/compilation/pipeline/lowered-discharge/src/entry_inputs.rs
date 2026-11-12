@@ -105,6 +105,43 @@ fn describe_calls(
         &mut tables,
         knowledge,
     )?;
+    let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        &mut tables,
+        &prepared.graph,
+        &prepared.context,
+        &elaboration.module.scalar_block_invariants,
+        knowledge == Knowledge::All,
+    )?;
+    let storage = crate::places::Storage::new(
+        id,
+        lowered,
+        &elaboration.module.structural_types,
+        &elaboration.domains,
+        &prepared.graph,
+        &tables,
+        &prepared.types,
+    )?;
+    let mut decided = (0..tables.obligations.len())
+        .map(|_| None)
+        .collect::<Vec<_>>();
+    joins::check(
+        &joins::Machine {
+            machines: &elaboration.module.machines,
+            lowered,
+            storage: &storage,
+            id,
+            types: &prepared.types,
+            graph: &prepared.graph,
+            context: &prepared.context,
+            relations: knowledge != Knowledge::LiteralIntervals,
+            declared: &declared,
+        },
+        &mut tables,
+        &mut decided,
+    )?;
     for &index in outgoing {
         let site = &sites.arrivals[index];
         let callee = site.callee;
@@ -310,20 +347,26 @@ fn describe(
                 id,
                 Construct::Machine,
             )?;
-            available.push((row.justification, proposition));
+            flatten(row.justification, proposition, &mut available);
         }
     }
-    // Use the same literal/Boolean definitions as join inference. Numeric
+    // Entry clauses can relate a Boolean formal to its scalar inputs too.
+    // Unfold those definitions and known Boolean results before projecting
+    // the facts into the actual inputs. Numeric
     // operation results keep their own identities, rather than becoming
     // invented equations about the callee's inputs.
     let equations: Vec<&Proposition> = available
         .iter()
-        .filter_map(|(why, proposition)| {
-            (matches!(why, Justification::OperationSemantics(_)) && matches!(proposition,
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                if subject.scalar_type() == ScalarType::Boolean
-                    || matches!(definition, ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_))
-        )).then_some(*proposition)
+        .filter_map(|(_, proposition)| {
+            matches!(proposition,
+                Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
+                    if match definition {
+                        ScalarTerm::Boolean(_) => true,
+                        ScalarTerm::Integer { .. } => true,
+                        _ => subject.scalar_type() == ScalarType::Boolean,
+                    }
+            )
+            .then_some(*proposition)
         })
         .collect();
     let definitions: Vec<_> = equations
@@ -359,11 +402,25 @@ fn describe(
         let denotation =
             check_value_equality_denotation(context, proposition, equations.iter().copied())
                 .unwrap_or_else(|_| proposition.clone());
-        if let Ok(stated) = substitute(&denotation, &mut bindings) {
-            parts.push(stated);
-        }
+        parts.push(joins::project(&denotation, &mut |atom| {
+            substitute(atom, &mut bindings).ok()
+        }));
     }
     Ok(joins::connective(parts, true))
+}
+
+fn flatten<'a>(
+    why: Justification,
+    proposition: &'a Proposition,
+    available: &mut Vec<(Justification, &'a Proposition)>,
+) {
+    if let Proposition::Conjunction(parts) = proposition {
+        for part in parts {
+            flatten(why, part, available);
+        }
+    } else {
+        available.push((why, proposition));
+    }
 }
 
 struct InputBindings<'a> {

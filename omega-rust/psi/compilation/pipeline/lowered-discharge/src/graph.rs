@@ -157,6 +157,45 @@ impl Graph {
             .ok_or_else(|| self.refuse(Construct::Block(block)))
     }
 
+    /// Predecessors before successors outside cycles. Block identity order
+    /// is allocation order: lowering allocates a join before its right-hand
+    /// expression, which may itself contain joins.
+    pub(crate) fn reverse_postorder(&self) -> Checked<Vec<BlockId>> {
+        let mut successors = vec![Vec::new(); self.block_count()];
+        for (source, destination) in &self.tables_edges {
+            if let Destination::Block(target) = destination {
+                successors
+                    .get_mut(index(source.get()))
+                    .ok_or_else(|| self.refuse(Construct::Block(*source)))?
+                    .push(*target);
+            }
+        }
+        let mut visited = vec![false; successors.len()];
+        let mut postorder = Vec::with_capacity(successors.len());
+        for root in std::iter::once(self.entry).chain(
+            (1..=successors.len())
+                .map(|raw| BlockId::new(raw as u64).expect("dense block identity")),
+        ) {
+            if std::mem::replace(&mut visited[index(root.get())], true) {
+                continue;
+            }
+            let mut stack = vec![(root, 0)];
+            while let Some((block, next)) = stack.last_mut() {
+                if let Some(&successor) = successors[index(block.get())].get(*next) {
+                    *next += 1;
+                    if !std::mem::replace(&mut visited[index(successor.get())], true) {
+                        stack.push((successor, 0));
+                    }
+                } else {
+                    postorder.push(*block);
+                    stack.pop();
+                }
+            }
+        }
+        postorder.reverse();
+        Ok(postorder)
+    }
+
     /// Block and position of a point: the entry is before every operation,
     /// an operation's normal successor is after it, an edge after them all.
     pub(crate) fn locate(&self, point: ProgramPoint) -> Checked<(BlockId, usize)> {

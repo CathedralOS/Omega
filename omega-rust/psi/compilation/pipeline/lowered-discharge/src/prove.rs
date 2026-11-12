@@ -56,6 +56,10 @@ mod ranges;
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
 
+/// One obligation's case work, shared by all of its recursive searches.
+/// Running out supplies no premise or partial certificate.
+const CASE_BRANCH_BUDGET: usize = 64;
+
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
@@ -171,9 +175,14 @@ pub(crate) struct Prover<'a> {
     /// Whether relations between values are searched (off only to measure
     /// what they buy).
     relations: bool,
-    /// Whether a failed goal may be split over a disjunctive fact; off inside
-    /// a branch, so splits do not nest.
+    /// Whether a failed goal may split over a disjunctive fact. Guard
+    /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
+    /// Shared with each branch/implication and returned after its search.
+    remaining_case_branches: usize,
+    /// A branch already assumes one alternative of each cut on this path.
+    /// Splitting that exact predicate again supplies no new information.
+    active_cuts: Vec<Proposition>,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -367,11 +376,34 @@ impl<'a> Prover<'a> {
         // it through the definitions of Boolean values and constants, so
         // integer values stay values and their bounds stay findable; the
         // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let equations = definitions(&facts);
+        let mut equations = definitions(&facts);
+        // A taken Boolean result with no defining equation (notably a join
+        // parameter) can specialize the predicates that describe it. Keep
+        // operation/entry definitions first so ordinary comparison guards
+        // still unfold to their scalar relations.
+        let mut defined = values.map(|_, _| false);
+        for (equation, _) in &equations {
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation
+                && let Some(defined) = defined.get_mut(*id)
+            {
+                *defined = true;
+            }
+        }
+        for fact in facts
+            .iter()
+            .filter(|fact| is_branch_fact(&fact.proposition))
+        {
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition
+                && let Some(defined) = defined.get_mut(*id)
+                && !std::mem::replace(defined, true)
+            {
+                equations.push((fact.proposition.clone(), fact.proof.clone()));
+            }
+        }
         if !equations.is_empty() {
             let premises: Vec<(Proposition, ProofNode)> = facts
                 .iter()
-                .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
+                .filter(|fact| fact.axiom.is_none())
                 .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
                 .collect();
             for (premise, proof) in premises {
@@ -407,6 +439,8 @@ impl<'a> Prover<'a> {
                 .collect(),
             relations,
             case_split: true,
+            remaining_case_branches: CASE_BRANCH_BUDGET,
+            active_cuts: Vec::new(),
         }
     }
 
@@ -487,7 +521,11 @@ impl<'a> Prover<'a> {
             return Ok(split);
         }
         self.unreachable(goal)
-            .ok_or(direct.err().unwrap_or("no proof"))
+            .ok_or(if self.remaining_case_branches == 0 {
+                "the bounded disjunction search was exhausted"
+            } else {
+                direct.err().unwrap_or("no proof")
+            })
     }
 
     /// `goal` at a point no execution reaches: what is known there is
@@ -593,13 +631,21 @@ impl<'a> Prover<'a> {
                 _ => None,
             })
             .collect();
-        'disjunctions: for (parts, proof) in disjunctions {
+        for (parts, proof) in disjunctions {
+            if self.active_cuts.contains(&proof.conclusion) {
+                continue;
+            }
+            self.active_cuts.push(proof.conclusion.clone());
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
-                    continue 'disjunctions;
+                    break;
                 };
                 branches.push(branch);
+            }
+            self.active_cuts.pop();
+            if branches.len() != parts.len() {
+                continue;
             }
             return Some(node(
                 goal.clone(),
@@ -614,6 +660,7 @@ impl<'a> Prover<'a> {
 
     /// One alternative: the kernel adds it as the next assumption.
     fn branch(&mut self, part: &Proposition, goal: &Proposition) -> Option<ProofNode> {
+        self.remaining_case_branches = self.remaining_case_branches.checked_sub(1)?;
         let local = node(
             part.clone(),
             ProofRule::Assumption {
@@ -632,8 +679,12 @@ impl<'a> Prover<'a> {
             self.values,
             self.relations,
         );
-        branch.case_split = false;
-        branch.prove(goal).ok()
+        branch.case_split = self.case_split;
+        branch.remaining_case_branches = self.remaining_case_branches;
+        branch.active_cuts.clone_from(&self.active_cuts);
+        let proof = branch.prove(goal);
+        self.remaining_case_branches = branch.remaining_case_branches;
+        proof.ok()
     }
 
     /// `goal` from an alternative that contradicts what is known: chained
@@ -677,7 +728,11 @@ impl<'a> Prover<'a> {
             self.relations,
         );
         under.case_split = self.case_split;
-        let body = under.prove(conclusion)?;
+        under.remaining_case_branches = self.remaining_case_branches;
+        under.active_cuts.clone_from(&self.active_cuts);
+        let body = under.prove(conclusion);
+        self.remaining_case_branches = under.remaining_case_branches;
+        let body = body?;
         Ok(node(
             goal.clone(),
             ProofRule::ImplicationIntroduction {
@@ -698,6 +753,13 @@ impl<'a> Prover<'a> {
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
             return Ok(fact.proof.clone());
+        }
+        if let Some(absurd) = self
+            .facts
+            .iter()
+            .find(|fact| fact.proposition == Proposition::Falsehood)
+        {
+            return Ok(ex_falso(absurd.proof.clone(), goal));
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),

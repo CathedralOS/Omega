@@ -463,22 +463,15 @@ fn machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let mut declared = Vec::new();
-    for invariant in invariants.iter().filter(|row| row.machine == id) {
-        arrivals::admit(id, lowered, tables, invariant)?;
-        push_knowledge(
-            tables,
-            invariant.predicate.clone(),
-            ProgramPoint::BlockEntry(invariant.header),
-            Justification::BlockInvariant {
-                block: invariant.header,
-            },
-        );
-        declared.push(invariant.header);
-    }
-    if knowledge == Knowledge::All {
-        joins::infer(lowered, id, tables, &graph, &context, &declared)?;
-    }
+    let declared = joins::prepare(
+        lowered,
+        id,
+        tables,
+        &graph,
+        &context,
+        invariants,
+        knowledge == Knowledge::All,
+    )?;
     let weakened_joins = joins::check(
         &joins::Machine {
             machines,
