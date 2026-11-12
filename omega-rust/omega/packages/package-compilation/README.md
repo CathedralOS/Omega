@@ -62,8 +62,12 @@ their separate custody.
 
 [Entry-contract seeds](src/source_imports/entry_contract_seed.rs) select every
 target profile's contract source from exact package suppliers or the bundled
-fallback. Source assembly schedules loading and parsing; package provenance and
-accepted supplier selection stay here.
+fallback. Ordinary suppliers keep their package identity. The bundled fallback
+retains a distinct closed-contract source role and acquires its logical Product
+siblings; it does not grant ambient core visibility to std declarations. Source
+identities and persisted review/provider records retain this role. Source assembly
+schedules loading and parsing; package provenance and accepted supplier selection
+stay here.
 
 [Build prelude preparation](src/source_imports/build_prelude.rs) selects the
 toolchain Build source and its scoped aliases. An authored Build in the selected

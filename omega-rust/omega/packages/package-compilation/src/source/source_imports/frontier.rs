@@ -154,7 +154,7 @@ impl SourceStorage {
 
     /// Ordinary Product units share declarations with their authored module's
     /// siblings. Build roots stay on their staged import continuation; compiler-
-    /// issued toolchain contract files remain exact direct inputs.
+    /// issued contract roots share only their own logical module cohort.
     pub(crate) fn logical_siblings(
         &mut self,
         path: &Path,
@@ -164,7 +164,7 @@ impl SourceStorage {
             return Ok(Vec::new());
         }
         let (root, _, origin) = self.source_metadata(path, None);
-        if origin != source::SourceOrigin::User {
+        if origin == source::SourceOrigin::Toolchain {
             return Ok(Vec::new());
         }
         let excluded = self
@@ -583,7 +583,11 @@ impl SourceStorage {
         origin_override: Option<SourceOrigin>,
     ) -> (PathBuf, Option<PackageKeyIdentity>, SourceOrigin) {
         if let Some(contract_root) = self.toolchain_contract_custody.root_for(path) {
-            return (contract_root.to_path_buf(), None, SourceOrigin::Toolchain);
+            return (
+                contract_root.to_path_buf(),
+                None,
+                SourceOrigin::ToolchainContract,
+            );
         }
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
@@ -842,6 +846,65 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn issued_contract_roots_keep_their_role_and_only_expand_product_siblings() {
+        use source::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
+        let entry = root.join("entry.omg");
+        let mut entries = std::collections::BTreeMap::new();
+        for (name, body) in [
+            ("entry.omg", "public data Entry {}"),
+            ("sibling.omg", "data PrivateSibling {}"),
+            ("other.omg", "module other; public data Other {}"),
+            ("build.omg", "machine build() {}"),
+        ] {
+            entries.insert(
+                PathBuf::from(name),
+                CapturedSourceNode::File {
+                    bytes: Arc::from(body.as_bytes()),
+                    executable: false,
+                },
+            );
+        }
+        let mut filesystem = SourceFileSystem::new();
+        filesystem
+            .add_capture(
+                root.clone(),
+                Arc::new(CapturedSourceTree::new(entries).unwrap()),
+            )
+            .unwrap();
+        let mut storage = SourceStorage {
+            filesystem,
+            ..SourceStorage::default()
+        };
+        storage.register_toolchain_contract_dir(root.clone());
+        assert_eq!(
+            storage.source_metadata(&entry, None),
+            (root.clone(), None, SourceOrigin::ToolchainContract)
+        );
+        assert_eq!(
+            storage
+                .source_metadata(&entry, Some(SourceOrigin::Toolchain))
+                .2,
+            SourceOrigin::ToolchainContract
+        );
+        assert!(
+            storage
+                .logical_siblings(&entry, DependencyScope::Build)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            storage
+                .logical_siblings(&entry, DependencyScope::Product)
+                .unwrap(),
+            vec![
+                (entry, DependencyScope::Product),
+                (root.join("sibling.omg"), DependencyScope::Product),
+            ]
+        );
     }
 
     #[test]
