@@ -1223,3 +1223,953 @@ tests/omega/pass/collections/runtime_three_indexed_record_float_read_exit/main.o
 tests/omega/pass/collections/typed_run_sum_array_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	9.483
 tests/omega/pass/components/independent_same_spelling_packages/other/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	2.181
 tests/omega/pass/comptime/runtime_const_array_identity_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	3.731
+tests/omega/pass/comptime/runtime_const_measured_recursion_exit/main.omg	pass	outside	accepted	n-a	machine service reach	12.892
+tests/omega/pass/concurrency/ref_array_suspend/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.399
+tests/omega/pass/concurrency/suspend_explicit_parameter_after_last_use/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.267
+tests/omega/pass/constants/constant_bound_distance/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.344
+tests/omega/pass/constants/qualified_variant_constant/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.350
+tests/omega/pass/constants/target_layout_derived_helper_generic_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.643
+tests/omega/pass/constraints/scalar_requires_satisfied_by_literal/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.197
+tests/omega/pass/contracts/borrowed_descriptor_guarded_end_exit/main.omg	pass	outside	accepted	n-a	expression projected name path	2.662
+tests/omega/pass/contracts/completed_unit_call_post_case/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.605
+tests/omega/pass/contracts/contradictory_relational_branch_exit/main.omg	pass	accepted	accepted	agree		2.593
+tests/omega/pass/contracts/ensures_named_parameter_arithmetic_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.577
+tests/omega/pass/contracts/generic_branch_contract_contradiction_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.770
+tests/omega/pass/contracts/header_terminates_before_body/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.193
+tests/omega/pass/contracts/named_tail_return_contract/main.omg	pass	outside	accepted	n-a	machine service reach	10.866
+tests/omega/pass/contracts/private_arrival_cases_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.737
+tests/omega/pass/contracts/returned_case_geometry_domain_exit/main.omg	pass	outside	accepted	n-a	machine attached data	3.602
+tests/omega/pass/contracts/runtime_float_field_crash_guard_exit/main.omg	pass	outside	accepted	n-a	type reference	2.570
+tests/omega/pass/contracts/runtime_literal_view_extent_calls_exit/main.omg	pass	outside	accepted	n-a	type reference	2.553
+tests/omega/pass/contracts/runtime_specialized_normal_call_contract_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.724
+tests/omega/pass/contracts/strict_clause_terminated_headers/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.205
+tests/omega/pass/control_flow/arm_literal_argument_forward_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.195
+tests/omega/pass/control_flow/borrowed_case_dispatch_payload_arguments_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.943
+tests/omega/pass/control_flow/case_dispatch_unread_structural_payload_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.955
+tests/omega/pass/control_flow/copy_enum_cycle_edge_write_frame/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.216
+tests/omega/pass/control_flow/field_equality_subject_dispatch_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.179
+tests/omega/pass/control_flow/guarded_mid_arm_return/main.omg	pass	outside	accepted	n-a	machine service reach	10.934
+tests/omega/pass/control_flow/indexed_subject_dispatch_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.197
+tests/omega/pass/control_flow/mut_local_subject_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.206
+tests/omega/pass/control_flow/nested_structural_call_operand_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.087
+tests/omega/pass/control_flow/pattern_arm_guarded_index_argument_exit/main.omg	pass	outside	accepted	n-a	type reference	2.606
+tests/omega/pass/control_flow/record_result_dispatch_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.221
+tests/omega/pass/control_flow/runtime_branch_transfer_owned_record_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.070
+tests/omega/pass/control_flow/runtime_computed_case_subject_call_operand_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.908
+tests/omega/pass/control_flow/runtime_diamond_join_owned_record_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.115
+tests/omega/pass/control_flow/runtime_guard_terminal_unit_cleanup_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.728
+tests/omega/pass/control_flow/runtime_indexed_edge_regions_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.754
+tests/omega/pass/control_flow/runtime_nested_case_pattern_guard_meet_exit/main.omg	pass	outside	accepted	n-a	transition pattern field tested against a value	2.658
+tests/omega/pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.017
+tests/omega/pass/control_flow/runtime_projected_index_single_case_payload_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.164
+tests/omega/pass/control_flow/runtime_scalar_case_arm_evaluation_exit/main.omg	pass	outside	accepted	n-a	type reference	3.249
+tests/omega/pass/control_flow/runtime_string_literal_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.006
+tests/omega/pass/control_flow/saved_case_predicate_receiver_writes_before_read_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.573
+tests/omega/pass/control_flow/single_case_parameter_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.932
+tests/omega/pass/control_flow/termination_index_distance_compile/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.653
+tests/omega/pass/core/address_interval_partition_unrelated_store_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.874
+tests/omega/pass/core/content_conservation_interval_split_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.337
+tests/omega/pass/core/content_conservation_selected_parameter_transport/main.omg	pass	outside	accepted	n-a	machine service reach	11.495
+tests/omega/pass/core/content_conservation_wrapper_match_independent_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.399
+tests/omega/pass/core/content_projection_readable_reference_observation/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.255
+tests/omega/pass/core/extent_core_surface/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.179
+tests/omega/pass/core/independent_content_indexed_requirement/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.430
+tests/omega/pass/core/named_extent_root_provider_adapter/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.218
+tests/omega/pass/core/numeric_trapping_negative_to_unsigned/main.omg	pass	outside	accepted	n-a	type reference	2.651
+tests/omega/pass/core/numeric_widening_published_ranges/main.omg	pass	outside	accepted	n-a	type reference	2.827
+tests/omega/pass/core/runtime_natural_termination_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.525
+tests/omega/pass/core/zii_default_composite_exit/main.omg	pass	outside	accepted	n-a	machine attached data	10.980
+tests/omega/pass/data/opaque_nested_field_selected/main.omg	pass	outside	accepted	n-a	type data without a checked shape	2.656
+tests/omega/pass/data/record_snapshot_finish/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.358
+tests/omega/pass/data/runtime_mixed_case_payload_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.998
+tests/omega/pass/dependent/call_requires_saved_local_arithmetic_bound_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.256
+tests/omega/pass/dependent/collection_predicate_element_store_restored/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	4.684
+tests/omega/pass/dependent/data_where_antisymmetric_fields_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.243
+tests/omega/pass/dependent/data_where_difference_bound_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.267
+tests/omega/pass/dependent/data_where_i32_equality_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.310
+tests/omega/pass/dependent/data_where_per_field_bounds_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.232
+tests/omega/pass/dependent/data_where_signed_interval_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.214
+tests/omega/pass/dependent/data_where_two_bounds_one_field_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.236
+tests/omega/pass/dependent/generic_data_where_field_bound_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.265
+tests/omega/pass/dependent/runtime_computed_slice_index_relation_exit/main.omg	pass	outside	accepted	n-a	type reference	2.753
+tests/omega/pass/dependent/runtime_state_dependent_index_forward_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.250
+tests/omega/pass/dependent/where_field_shadows_module_const_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.097
+tests/omega/pass/domains/bodyless_owner_establishment/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.221
+tests/omega/pass/domains/carried_runtime_index_payload_qualification/main.omg	pass	outside	accepted	n-a	type constrained	2.680
+tests/omega/pass/domains/case_payload_widened_call_result_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.818
+tests/omega/pass/domains/domain_intersection/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.358
+tests/omega/pass/domains/domain_pattern_match_bound_generic_equation_same_carrier_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.749
+tests/omega/pass/domains/domain_pattern_match_bound_predicate_helper_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	2.582
+tests/omega/pass/domains/established_by_domain/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.344
+tests/omega/pass/domains/indexed_domain_fact/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.525
+tests/omega/pass/domains/linear_routed_erasure_keeps_storage_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.815
+tests/omega/pass/domains/mutable_domain_parameter_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.605
+tests/omega/pass/domains/progress_domain_provider/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.338
+tests/omega/pass/domains/qualified_record_capture_before_mutation/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.217
+tests/omega/pass/domains/record_interval_domain_member_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.329
+tests/omega/pass/domains/routed_selected_copy_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.751
+tests/omega/pass/domains/runtime_case_constructor_child_memberships_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.638
+tests/omega/pass/domains/runtime_qualified_borrowed_gated_input_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.676
+tests/omega/pass/domains/runtime_scalar_domain_mixed_return_origins_exit/main.omg	pass	outside	rejected	n-a	type constrained	1.982
+tests/omega/pass/domains/scalar_boundary_explicit_requires_forwarding/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.684
+tests/omega/pass/domains/target_generic_issuer_forwarding_exit/main.omg	pass	outside	accepted	n-a	machine target selection	2.628
+tests/omega/pass/domains/utf8_field_write_from_param/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.593
+tests/omega/pass/drops/borrowed_projection_moved_aggregate_capture_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.620
+tests/omega/pass/drops/contextual_cleanup_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.793
+tests/omega/pass/drops/core_drop_owner_hook_body/main.omg	pass	outside	accepted	n-a	machine attached data	2.630
+tests/omega/pass/drops/ordered_teardown_body/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.191
+tests/omega/pass/drops/result_cleanup_original_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.544
+tests/omega/pass/drops/runtime_borrowed_temporary_projection_cleanup_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.593
+tests/omega/pass/drops/runtime_cleanup_helper_normal_guarantee_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.585
+tests/omega/pass/drops/runtime_generic_cleanup_owner_telescope_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.838
+tests/omega/pass/drops/runtime_mixed_temporary_effects_continuation_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.549
+tests/omega/pass/drops/runtime_nested_nominal_producer_loans_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.553
+tests/omega/pass/drops/runtime_nominal_state_loan_nonlending_branch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.826
+tests/omega/pass/drops/runtime_parent_hook_preserves_linear_descendants_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.579
+tests/omega/pass/drops/runtime_replaced_record_scalar_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.611
+tests/omega/pass/drops/runtime_selected_partial_owner_cleanup_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.858
+tests/omega/pass/drops/runtime_sibling_exit_source_frontier_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.565
+tests/omega/pass/drops/skipped_claim_temporary/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.323
+tests/omega/pass/drops/transfer_cleanup_state/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.319
+tests/omega/pass/effects/exact_synchronous_callback_rows/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.197
+tests/omega/pass/effects/opaque_leaf_inherits_requirement_contract/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.182
+tests/omega/pass/effects/reach_through_machine_param/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.367
+tests/omega/pass/effects/top_level_callback_provider_ceiling/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.200
+tests/omega/pass/errors/reconstructed_case_payload_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.027
+tests/omega/pass/expressions/arithmetic_domain_cast_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.198
+tests/omega/pass/expressions/borrowed_field_store_direct_value/main.omg	pass	outside	accepted	n-a	machine service reach	11.145
+tests/omega/pass/expressions/comparison_result_integer_conversion_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.992
+tests/omega/pass/expressions/derives_helper_return/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.369
+tests/omega/pass/expressions/match_float_patterns/main.omg	pass	outside	accepted	n-a	machine service reach	10.931
+tests/omega/pass/expressions/match_owned_call_return_values/main.omg	pass	outside	accepted	n-a	machine service reach	10.943
+tests/omega/pass/expressions/match_owned_projected_local_roots/main.omg	pass	outside	accepted	n-a	machine service reach	10.960
+tests/omega/pass/expressions/mixed_integer_guard_comparison/main.omg	pass	outside	accepted	n-a	machine service reach	10.947
+tests/omega/pass/expressions/owned_match_record_values/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.210
+tests/omega/pass/expressions/runtime_indexed_float_record_fields_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.913
+tests/omega/pass/expressions/runtime_match_structural_result_subject_once_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.589
+tests/omega/pass/expressions/runtime_owned_match_parameter_claim_replacement_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.690
+tests/omega/pass/expressions/sequential_fresh_linear_selection/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.701
+tests/omega/pass/facts/abi_multi_arg_spill_through_other_state_exit/main.omg	pass	rejected	accepted	disagree		2.980
+tests/omega/pass/facts/abstract_signature_call_applied_callback_opposite_instances_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.379
+tests/omega/pass/facts/abstract_signature_call_applied_callback_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.248
+tests/omega/pass/facts/abstract_signature_call_constant_initializer_forwarded_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	3.126
+tests/omega/pass/facts/abstract_signature_call_constant_initializer_through_local_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	3.100
+tests/omega/pass/facts/abstract_signature_call_generic_actual_through_const_name_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	1.583
+tests/omega/pass/facts/abstract_signature_call_through_call_result_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	2.803
+tests/omega/pass/facts/abstract_signature_call_through_parameter_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	2.821
+tests/omega/pass/facts/additional_input_domain_mutation_through_parameter_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.599
+tests/omega/pass/facts/address_count_partition_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.790
+tests/omega/pass/facts/affine_discard_root_cleanup_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.572
+tests/omega/pass/facts/aggregate_storage_address_identity_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type reference	2.545
+tests/omega/pass/facts/aggregate_struct_return_abi_through_local_exit/main.omg	pass	accepted	accepted	agree		2.786
+tests/omega/pass/facts/alias_fact_transfer_through_field_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.600
+tests/omega/pass/facts/applied_requirement_indices_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.756
+tests/omega/pass/facts/applied_zero_establishment_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.849
+tests/omega/pass/facts/applied_zero_establishment_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.833
+tests/omega/pass/facts/array_element_default_domain/parameter/main.omg	pass	outside	accepted	n-a	type reference	2.669
+tests/omega/pass/facts/as_slice_views_generic_through_field_exit/main.omg	pass	outside	rejected	n-a	type reference	2.174
+tests/omega/pass/facts/as_slice_views_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type reference	2.614
+tests/omega/pass/facts/assumed_binding_input_authority_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.723
+tests/omega/pass/facts/assumed_binding_input_authority_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.711
+tests/omega/pass/facts/assumed_binding_result_bound_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.651
+tests/omega/pass/facts/atomic_boolean_store/other_state/main.omg	pass	outside	accepted	n-a	type reference	2.624
+tests/omega/pass/facts/atomic_bounded_fetch/other_machine/main.omg	pass	outside	accepted	n-a	type reference	2.597
+tests/omega/pass/facts/atomic_bounded_resident/match_join/main.omg	pass	outside	accepted	n-a	type reference	2.580
+tests/omega/pass/facts/atomic_compare_exchange_once_operand_effect_exit/main.omg	pass	outside	accepted	n-a	type reference	2.603
+tests/omega/pass/facts/atomic_compare_exchange_once_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type reference	2.596
+tests/omega/pass/facts/atomic_try_exchange_once/field/main.omg	pass	outside	accepted	n-a	type reference	2.676
+tests/omega/pass/facts/body_bearing_comparison_default_fields_exit/main.omg	pass	outside	accepted	n-a	machine operator spelling	2.797
+tests/omega/pass/facts/body_bearing_comparison_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine operator spelling	2.655
+tests/omega/pass/facts/borrowed_case_result_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.582
+tests/omega/pass/facts/borrowed_content_partition_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.628
+tests/omega/pass/facts/borrowed_projection_cleanup_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.648
+tests/omega/pass/facts/borrowed_restoration_window_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.633
+tests/omega/pass/facts/borrowed_restoration_window_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.690
+tests/omega/pass/facts/borrowed_store_call_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.871
+tests/omega/pass/facts/boundary_provider_call_through_other_state_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.634
+tests/omega/pass/facts/boundary_zero_origin_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.647
+tests/omega/pass/facts/bounded_activation_claim_split_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.742
+tests/omega/pass/facts/bounded_activation_extent_composition_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.769
+tests/omega/pass/facts/bounded_activation_named_bound_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.716
+tests/omega/pass/facts/bounded_activation_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.749
+tests/omega/pass/facts/bounded_products_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.667
+tests/omega/pass/facts/bounded_scalar_sums_through_call_result_exit/main.omg	pass	accepted	accepted	agree		2.748
+tests/omega/pass/facts/bounded_scalar_sums_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine target selection	2.781
+tests/omega/pass/facts/build_activation_borrow/parameter/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.715
+tests/omega/pass/facts/build_target_provider_through_field_exit/reading_provider/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	2.202
+tests/omega/pass/facts/build_target_provider_through_other_state_exit/reading_provider/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	2.120
+tests/omega/pass/facts/c_layout_nested_representation_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type data with custody	7.426
+tests/omega/pass/facts/c_layout_scalar_record_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type data with custody	7.136
+tests/omega/pass/facts/call_result_bound_discharge_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.657
+tests/omega/pass/facts/callee_saved_across_nested_calls_through_local_exit/main.omg	pass	accepted	accepted	agree		3.162
+tests/omega/pass/facts/captured_storage_bounds_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.631
+tests/omega/pass/facts/captured_window_slot_retirement_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.595
+tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	7.644
+tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	7.948
+tests/omega/pass/facts/case_match_payload_loan_through_parameter_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	1.998
+tests/omega/pass/facts/case_payload_exclusive_loan_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.651
+tests/omega/pass/facts/case_payload_layout_geometry_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.679
+tests/omega/pass/facts/case_payload_stored_loan_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.618
+tests/omega/pass/facts/case_payload_transport_through_local_exit/main.omg	pass	accepted	accepted	agree		2.692
+tests/omega/pass/facts/case_tag_discriminant_layout_through_field_exit/main.omg	pass	outside	accepted	n-a	call compiler operation call	2.650
+tests/omega/pass/facts/case_type_equation_recovery_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.021
+tests/omega/pass/facts/case_where_equality_data_predicate_direct_exit/main.omg	pass	outside	accepted	n-a	expression match arm on a value pattern	2.676
+tests/omega/pass/facts/case_where_equality_data_predicate_through_match_join_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	2.735
+tests/omega/pass/facts/case_where_equality_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine attached data	3.052
+tests/omega/pass/facts/checked_asm_add_carry_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine assembly target	2.679
+tests/omega/pass/facts/checked_asm_add_carry_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine assembly target	3.063
+tests/omega/pass/facts/checked_asm_arm_load_through_parameter_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.766
+tests/omega/pass/facts/checked_asm_compare_preserves_through_other_state_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.857
+tests/omega/pass/facts/checked_asm_countdown_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.763
+tests/omega/pass/facts/checked_asm_fence_contracts_through_match_join_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.651
+tests/omega/pass/facts/checked_asm_flag_restore_through_field_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.883
+tests/omega/pass/facts/checked_asm_flag_snapshot_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine assembly target	2.643
+tests/omega/pass/facts/checked_asm_nominal_predicate_through_call_result_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	2.697
+tests/omega/pass/facts/checked_asm_nominal_predicate_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.622
+tests/omega/pass/facts/checked_asm_rank_decrease_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine assembly target	2.581
+tests/omega/pass/facts/checked_asm_register_contract_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.614
+tests/omega/pass/facts/checked_asm_view_move_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine assembly target	2.596
+tests/omega/pass/facts/checked_predicate_disjoint_loans_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.660
+tests/omega/pass/facts/closed_integer_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	declaration domain	2.706
+tests/omega/pass/facts/completed_integer_carrier_bounds_through_field_exit/main.omg	pass	outside	accepted	n-a	type reference	2.676
+tests/omega/pass/facts/component_scalar_lending_through_call_result_exit/producer/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.694
+tests/omega/pass/facts/component_scalar_lending_through_match_join_exit/producer/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.643
+tests/omega/pass/facts/component_scalar_lending_through_target_body_exit/producer/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.657
+tests/omega/pass/facts/compound_index_guard_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.609
+tests/omega/pass/facts/computed_constant_array_extent_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.871
+tests/omega/pass/facts/computed_nested_state_loan_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.568
+tests/omega/pass/facts/computed_record_window_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.668
+tests/omega/pass/facts/computed_subslice_extent_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type reference	2.628
+tests/omega/pass/facts/content_interval_adjacency_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.802
+tests/omega/pass/facts/content_interval_adjacency_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.769
+tests/omega/pass/facts/content_reunion_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.903
+tests/omega/pass/facts/contract_excluded_case_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.796
+tests/omega/pass/facts/copied_call_argument_snapshot_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.628
+tests/omega/pass/facts/copied_case_before_later_argument_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.719
+tests/omega/pass/facts/core_float_representation_through_local_exit/main.omg	pass	outside	accepted	n-a	type float	2.916
+tests/omega/pass/facts/core_integer_endpoint_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.841
+tests/omega/pass/facts/correlated_invariant_store_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.724
+tests/omega/pass/facts/crash_entry_ieee_view_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type float	2.642
+tests/omega/pass/facts/crash_entry_ieee_view_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.634
+tests/omega/pass/facts/crash_entry_nan_equality_through_parameter_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	2.635
+tests/omega/pass/facts/crash_entry_nonempty_path_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type reference	2.633
+tests/omega/pass/facts/crash_entry_representation_view_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type reference	2.786
+tests/omega/pass/facts/crash_entry_signed_zero_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type float	2.647
+tests/omega/pass/facts/darwin_stat_abi_through_local_exit/main.omg	pass	outside	accepted	n-a	machine service reach	17.904
+tests/omega/pass/facts/data_where_standing_borrowed_field_array_field/main.omg	pass	outside	rejected	n-a	type reference	1.998
+tests/omega/pass/facts/data_where_standing_borrowed_field_disjoint_local_write_exit/main.omg	pass	outside	accepted	n-a	type reference	2.562
+tests/omega/pass/facts/data_where_standing_borrowed_field_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type reference	2.547
+tests/omega/pass/facts/data_where_standing_mutable_recast_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.552
+tests/omega/pass/facts/data_where_standing_nested_borrowed_field_call_result/main.omg	pass	outside	rejected	n-a	type reference	2.043
+tests/omega/pass/facts/data_where_standing_nested_borrowed_field_match_join/main.omg	pass	outside	rejected	n-a	type reference	1.994
+tests/omega/pass/facts/data_where_standing_predicate_helper_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	4.191
+tests/omega/pass/facts/data_where_standing_predicate_helper_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	4.308
+tests/omega/pass/facts/data_where_standing_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.672
+tests/omega/pass/facts/data_where_standing_write_only_const_name/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	4.080
+tests/omega/pass/facts/data_where_standing_write_only_predicate_helper/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.803
+tests/omega/pass/facts/default_domain_field_write_through_field_exit/main.omg	pass	outside	accepted	n-a	statement store into a case payload	2.785
+tests/omega/pass/facts/dependency_type_qualified_call_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	3.633
+tests/omega/pass/facts/dependent_subtract_through_call_result_compile/main.omg	pass	outside	accepted	n-a	type reference	2.768
+tests/omega/pass/facts/dependent_subtract_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.819
+tests/omega/pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.765
+tests/omega/pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.702
+tests/omega/pass/facts/descriptor_replacement_order_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.721
+tests/omega/pass/facts/disjoint_field_borrow_windows_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.662
+tests/omega/pass/facts/disjoint_windows_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.775
+tests/omega/pass/facts/domain_carrier_identity_through_const_name_exit/main.omg	pass	outside	accepted	n-a	contract domain membership	2.711
+tests/omega/pass/facts/domain_geometry_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type addr	2.907
+tests/omega/pass/facts/domain_geometry_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.737
+tests/omega/pass/facts/domain_pattern_match_bound_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type reference	2.612
+tests/omega/pass/facts/domain_predicate_call_through_other_state_exit/main.omg	pass	outside	accepted	n-a	declaration domain	2.738
+tests/omega/pass/facts/domain_selected_cleanup_computed_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.007
+tests/omega/pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.799
+tests/omega/pass/facts/domain_selected_cleanup_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.675
+tests/omega/pass/facts/double_indexed_rmw_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.718
+tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	declaration trait	2.709
+tests/omega/pass/facts/dyn_returned_view_membership_through_field_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.717
+tests/omega/pass/facts/dynamic_float_refinement_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type float	2.729
+tests/omega/pass/facts/dynamic_selected_reach_through_call_result_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.750
+tests/omega/pass/facts/dynamic_selected_reach_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.706
+tests/omega/pass/facts/dynamic_suspension_through_parameter_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.815
+tests/omega/pass/facts/dynamic_trait_dispatch_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.594
+tests/omega/pass/facts/erased_reference_contract_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type reference	2.613
+tests/omega/pass/facts/exact_integer_narrowing_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.710
+tests/omega/pass/facts/exact_sub_guard_through_local_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.628
+tests/omega/pass/facts/exclusive_match_arm_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.796
+tests/omega/pass/facts/exclusive_observation_exposure_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.684
+tests/omega/pass/facts/field_where_index_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.722
+tests/omega/pass/facts/field_where_index_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.843
+tests/omega/pass/facts/finite_family_const_roster/parameter/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.942
+tests/omega/pass/facts/finite_family_exclusive_result/other_state/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.971
+tests/omega/pass/facts/finite_family_input_index/other_machine/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.930
+tests/omega/pass/facts/finite_family_owned_field/match_join/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.132
+tests/omega/pass/facts/finite_family_returned_descriptor/local/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.128
+tests/omega/pass/facts/finite_family_static_inline_result/field/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.064
+tests/omega/pass/facts/five_variant_enum_payload_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	3.879
+tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type fixed array	3.079
+tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine target selection	2.765
+tests/omega/pass/facts/fixed_array_layout_geometry_through_parameter_exit/main.omg	pass	outside	accepted	n-a	call compiler operation call	3.031
+tests/omega/pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type fixed array	3.235
+tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.847
+tests/omega/pass/facts/fixed_array_value_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.774
+tests/omega/pass/facts/fixed_layout_bit_observation_through_local_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.869
+tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	4.030
+tests/omega/pass/facts/fixed_layout_reference_readback_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type data with custody	5.658
+tests/omega/pass/facts/fixed_layout_reference_readback_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	6.183
+tests/omega/pass/facts/fixed_layout_storage_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.699
+tests/omega/pass/facts/fixed_region_byte_roundtrip_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type reference	2.833
+tests/omega/pass/facts/float_comparison_route_through_local_exit/main.omg	pass	outside	accepted	n-a	type float	2.783
+tests/omega/pass/facts/float_meaning_result_through_field_exit/main.omg	pass	outside	accepted	n-a	type float	2.776
+tests/omega/pass/facts/float_range_delivery_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type float	2.933
+tests/omega/pass/facts/float_result_equality_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	3.030
+tests/omega/pass/facts/float_result_equality_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	4.287
+tests/omega/pass/facts/foreign_byte_array_element_backing_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.962
+tests/omega/pass/facts/foreign_indirect_float_record_result_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.775
+tests/omega/pass/facts/foreign_nested_record_backing_other_machine/main.omg	pass	outside	accepted	n-a	machine service reach	3.842
+tests/omega/pass/facts/foreign_package_service_reach_through_local_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.123
+tests/omega/pass/facts/foreign_reference_result_through_field_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.221
+tests/omega/pass/facts/foreign_retained_mutable_borrow_const_name/main.omg	pass	outside	accepted	n-a	machine service reach	3.569
+tests/omega/pass/facts/foreign_retained_mutable_borrow_reverse_completion/main.omg	pass	outside	accepted	n-a	machine service reach	3.799
+tests/omega/pass/facts/foreign_retained_shared_borrow_match_join/main.omg	pass	outside	accepted	n-a	machine service reach	3.325
+tests/omega/pass/facts/foreign_retained_shared_borrow_resident_whole_move/main.omg	pass	outside	accepted	n-a	machine service reach	3.483
+tests/omega/pass/facts/foreign_scalar_backing_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.956
+tests/omega/pass/facts/foreign_scalar_record_result_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.872
+tests/omega/pass/facts/four_variant_enum_payload_bound_through_local_exit/main.omg	pass	rejected	accepted	disagree		3.422
+tests/omega/pass/facts/free_entry_local_state_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.773
+tests/omega/pass/facts/generic_calling_policy/ordinary_parent_fused_exit/main.omg	pass	outside	rejected	n-a	machine service reach	10.249
+tests/omega/pass/facts/generic_calling_policy_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine service reach	9.942
+tests/omega/pass/facts/generic_case_subject_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.803
+tests/omega/pass/facts/generic_comparison_body_through_field_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.866
+tests/omega/pass/facts/generic_content_transfer_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.891
+tests/omega/pass/facts/generic_requirement_statement_call_through_call_result_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.915
+tests/omega/pass/facts/generic_requirement_statement_call_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.865
+tests/omega/pass/facts/generic_terminated_array_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.846
+tests/omega/pass/facts/guarded_call_entry_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.855
+tests/omega/pass/facts/guarded_line_loan_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.709
+tests/omega/pass/facts/guarded_record_line_loan_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.706
+tests/omega/pass/facts/ieee_float_32bit_ordered_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	type float	2.696
+tests/omega/pass/facts/ieee_float_ordered_comparison_through_field_exit/main.omg	pass	outside	accepted	n-a	type float	2.699
+tests/omega/pass/facts/implementation_region_forwarding_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.897
+tests/omega/pass/facts/in_place_view_argument_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.750
+tests/omega/pass/facts/in_place_view_argument_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.693
+tests/omega/pass/facts/independent_call_result_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.781
+tests/omega/pass/facts/independent_content_partition_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.838
+tests/omega/pass/facts/index_every_width_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.712
+tests/omega/pass/facts/indexed_crash_guard_through_local_exit/main.omg	pass	outside	accepted	n-a	type reference	2.697
+tests/omega/pass/facts/indexed_element_mut_loan_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.792
+tests/omega/pass/facts/indexed_recoverable_replacement_window_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.884
+tests/omega/pass/facts/indexed_storage_address_identity_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.672
+tests/omega/pass/facts/indexed_storage_address_identity_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.727
+tests/omega/pass/facts/induction_call_guarantee_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.777
+tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type reference	2.976
+tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.869
+tests/omega/pass/facts/inferred_record_equation_call/local/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.825
+tests/omega/pass/facts/inline_member_helper_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine suspends or blocks	2.742
+tests/omega/pass/facts/installed_entry_storage_through_call_result_exit/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	0.948
+tests/omega/pass/facts/installed_entry_storage_through_target_body_exit/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	0.965
+tests/omega/pass/facts/integer_multiple_remainder_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.632
+tests/omega/pass/facts/integer_width_truncation_mask_bound_through_other_state_exit/main.omg	pass	accepted	accepted	agree		2.754
+tests/omega/pass/facts/invariant_window_snapshot_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.805
+tests/omega/pass/facts/length_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type reference	2.950
+tests/omega/pass/facts/lexical_generic_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.087
+tests/omega/pass/facts/linear_claim_retirement_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.688
+tests/omega/pass/facts/linear_owner_borrowed_projection_const_name/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.834
+tests/omega/pass/facts/linear_routed_label_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.702
+tests/omega/pass/facts/linear_routed_label_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.782
+tests/omega/pass/facts/live_across_call_spill_through_parameter_exit/main.omg	pass	accepted	accepted	agree		3.078
+tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_other_state_exit/main.omg	pass	accepted	accepted	agree		2.644
+tests/omega/pass/facts/loop_branch_relaxation_ranking_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	contract ranking witness	3.019
+tests/omega/pass/facts/machine_tuple_dispatch_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.771
+tests/omega/pass/facts/match_computed_root_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.588
+tests/omega/pass/facts/match_effectful_subject_custody_through_field_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.782
+tests/omega/pass/facts/match_join_multi_variant_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.999
+tests/omega/pass/facts/match_join_place_read_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.737
+tests/omega/pass/facts/match_join_place_read_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.696
+tests/omega/pass/facts/match_loan_last_use_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.764
+tests/omega/pass/facts/match_primitive_local_origin_through_other_state_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.793
+tests/omega/pass/facts/match_projected_product_custody_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.749
+tests/omega/pass/facts/match_reference_referent_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type reference	2.744
+tests/omega/pass/facts/match_runtime_view_extent_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.700
+tests/omega/pass/facts/matched_field_windows_through_field_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.567
+tests/omega/pass/facts/may_write_choice_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.619
+tests/omega/pass/facts/may_write_codec_argument_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.647
+tests/omega/pass/facts/may_write_codec_argument_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.676
+tests/omega/pass/facts/may_write_codec_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	6.456
+tests/omega/pass/facts/may_write_computed_receiver_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine attached data	5.978
+tests/omega/pass/facts/may_write_named_state_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.622
+tests/omega/pass/facts/may_write_nested_helper_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.647
+tests/omega/pass/facts/may_write_stored_rebind_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.650
+tests/omega/pass/facts/method_array_operand_inference_through_field_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.821
+tests/omega/pass/facts/mixed_width_record_padding_geometry_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.668
+tests/omega/pass/facts/multi_exit_callee_saved_restoration_through_call_result_exit/main.omg	pass	rejected	accepted	disagree		3.901
+tests/omega/pass/facts/multi_exit_callee_saved_restoration_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine target selection	2.667
+tests/omega/pass/facts/mutable_borrow_field_writeback_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.583
+tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.632
+tests/omega/pass/facts/named_conformance_dispatch_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine suspends or blocks	2.791
+tests/omega/pass/facts/named_const_callable_family_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.896
+tests/omega/pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_local_exit/main.omg	pass	accepted	accepted	agree		2.655
+tests/omega/pass/facts/narrow_to_wide_sign_extension_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.644
+tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.645
+tests/omega/pass/facts/narrow_to_wide_signed_8to64_extension_through_call_result_exit/main.omg	pass	accepted	accepted	agree		2.899
+tests/omega/pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.735
+tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_exit/main.omg	pass	accepted	accepted	agree		2.629
+tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_state_exit/main.omg	pass	accepted	accepted	agree		2.687
+tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_exit/main.omg	pass	accepted	accepted	agree		2.759
+tests/omega/pass/facts/narrow_to_wide_zero_extension_through_match_join_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.745
+tests/omega/pass/facts/narrowed_integer_write_through_local_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.474
+tests/omega/pass/facts/negated_mathematical_order_through_field_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.712
+tests/omega/pass/facts/nested_array_element_projection_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.683
+tests/omega/pass/facts/nested_borrow_qualification_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.699
+tests/omega/pass/facts/nested_borrow_qualification_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.854
+tests/omega/pass/facts/nested_machine_invocation/other_state/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.726
+tests/omega/pass/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.615
+tests/omega/pass/facts/nested_nine_level_record_field_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	contract clause that projects a formal or result	2.655
+tests/omega/pass/facts/nested_record_field_borrow_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.647
+tests/omega/pass/facts/nested_record_layout_geometry_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.681
+tests/omega/pass/facts/nested_record_value_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.626
+tests/omega/pass/facts/nested_result_extent_through_call_result_exit/main.omg	pass	outside	accepted	n-a	contract disjunction	6.667
+tests/omega/pass/facts/nested_result_extent_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	8.407
+tests/omega/pass/facts/nested_three_level_record_field_bound_through_parameter_exit/main.omg	pass	accepted	accepted	agree		2.623
+tests/omega/pass/facts/nested_zero_leaf_array_storage_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.969
+tests/omega/pass/facts/nine_arg_stack_calling_plan_through_match_join_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.849
+tests/omega/pass/facts/nominal_callback_reach_through_local_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.849
+tests/omega/pass/facts/nominal_declaration_owner_through_field/main.omg	pass	outside	accepted	n-a	type data with custody	3.600
+tests/omega/pass/facts/nominal_loan_backing_cleanup_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.859
+tests/omega/pass/facts/nominal_record_representation_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.860
+tests/omega/pass/facts/nominal_record_representation_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.852
+tests/omega/pass/facts/nominal_reference_cleanup_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.642
+tests/omega/pass/facts/non_owning_reference_erasure_through_other_state_exit/main.omg	pass	outside	rejected	n-a	type constrained	2.012
+tests/omega/pass/facts/opaque_independent_qualified_input_import_alias_exit/main.omg	pass	outside	accepted	n-a	machine service reach	6.448
+tests/omega/pass/facts/opaque_independent_qualified_result_through_local_exit/main.omg	pass	outside	accepted	n-a	machine service reach	6.324
+tests/omega/pass/facts/open_array_const_implementation_through_local_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	3.731
+tests/omega/pass/facts/open_const_implementation_statement_const_result_exit/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	0.896
+tests/omega/pass/facts/open_const_implementation_through_other_state_exit/main.omg	pass	outside	accepted	n-a	expression type parameter	3.175
+tests/omega/pass/facts/open_index_distributivity_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.978
+tests/omega/pass/facts/open_record_const_implementation_through_local_exit/main.omg	pass	outside	accepted	n-a	contract clause that projects a formal or result	2.886
+tests/omega/pass/facts/outcome_structural_evidence_through_field_exit/main.omg	pass	outside	accepted	n-a	contract result binding	2.726
+tests/omega/pass/facts/placed_stable_write_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine attached data	5.898
+tests/omega/pass/facts/positional_implementation_binder_through_call_result_exit/main.omg	pass	outside	accepted	n-a	declaration trait	2.730
+tests/omega/pass/facts/positional_implementation_binder_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.704
+tests/omega/pass/facts/predicate_array_copy_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.629
+tests/omega/pass/facts/predicate_type_formation_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.629
+tests/omega/pass/facts/progress_selector_nested_arrival_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.733
+tests/omega/pass/facts/progress_selector_owned_arrival_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.855
+tests/omega/pass/facts/progress_selector_through_local_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.711
+tests/omega/pass/facts/projection_call_premise_through_field_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	2.852
+tests/omega/pass/facts/projection_receiver_call_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.715
+tests/omega/pass/facts/provider_contract_endpoint_closed_owner_through_call_result_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.784
+tests/omega/pass/facts/provider_contract_endpoint_closed_owner_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.836
+tests/omega/pass/facts/provider_contract_endpoint_control_indirect_helper/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.642
+tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine invokes	3.565
+tests/omega/pass/facts/provider_contract_endpoint_pending_call_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine invokes	3.779
+tests/omega/pass/facts/provider_contract_endpoint_through_local_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.573
+tests/omega/pass/facts/qualified_field_capacity_through_field_exit/main.omg	pass	outside	accepted	n-a	type reference	2.712
+tests/omega/pass/facts/quotient_closed_literal_through_const_name_exit/main.omg	pass	outside	accepted	n-a	contract clause that is not a comparison or conjunction	2.646
+tests/omega/pass/facts/range_fact_delivery_through_call_result_exit/main.omg	pass	accepted	accepted	agree		2.642
+tests/omega/pass/facts/range_fact_delivery_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.645
+tests/omega/pass/facts/readonly_byte_literal_subslice_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type reference	2.605
+tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type reference	2.748
+tests/omega/pass/facts/recast_parent_restoration_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.648
+tests/omega/pass/facts/record_layout_geometry_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.685
+tests/omega/pass/facts/recorded_build_role/local/main.omg	pass	accepted	accepted	agree		3.479
+tests/omega/pass/facts/recoverable_replacement_window_through_field_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	2.396
+tests/omega/pass/facts/reference_arrival_handoff_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.589
+tests/omega/pass/facts/reference_recast_backing_footprint_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.630
+tests/omega/pass/facts/reference_recast_backing_footprint_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.647
+tests/omega/pass/facts/reflection_capacity_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	13.948
+tests/omega/pass/facts/reflection_declaration_inspection_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.905
+tests/omega/pass/facts/register_stack_arg_calling_plan_through_other_machine_exit/main.omg	pass	rejected	accepted	disagree		2.903
+tests/omega/pass/facts/remainder_width_index_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type reference	2.754
+tests/omega/pass/facts/replaced_field_loan_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.636
+tests/omega/pass/facts/representation_agreement_through_field_exit/main.omg	pass	outside	accepted	n-a	type generic data	7.980
+tests/omega/pass/facts/representation_conversion_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type generic data	3.083
+tests/omega/pass/facts/required_output_path/call_result/main.omg	pass	accepted	accepted	agree		2.820
+tests/omega/pass/facts/required_output_path/target_body/main.omg	pass	outside	accepted	n-a	declaration trait	2.710
+tests/omega/pass/facts/resident_backing_match_join_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	8.512
+tests/omega/pass/facts/resident_backing_runtime_loop_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	13.163
+tests/omega/pass/facts/result_cleanup_guarantees_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.648
+tests/omega/pass/facts/returned_indexed_linear_residual_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.627
+tests/omega/pass/facts/returned_linear_residual_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.634
+tests/omega/pass/facts/returned_write_destination_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.654
+tests/omega/pass/facts/runtime_count_index_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.753
+tests/omega/pass/facts/runtime_index_application_call_index_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.885
+tests/omega/pass/facts/runtime_index_application_call_index_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.919
+tests/omega/pass/facts/runtime_index_application_computed_result_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type generic application	2.697
+tests/omega/pass/facts/runtime_index_application_computed_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.852
+tests/omega/pass/facts/runtime_index_application_contract_index_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.952
+tests/omega/pass/facts/runtime_index_application_equivalent_subject_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.851
+tests/omega/pass/facts/runtime_index_application_forwarded_through_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.916
+tests/omega/pass/facts/runtime_index_application_mutating_operator_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.834
+tests/omega/pass/facts/runtime_index_application_nested_forwarded_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.971
+tests/omega/pass/facts/runtime_index_application_ordinary_call_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.800
+tests/omega/pass/facts/runtime_index_application_ordinary_call_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.740
+tests/omega/pass/facts/runtime_index_application_qualified_computed_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.748
+tests/omega/pass/facts/runtime_index_application_selected_operator_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.986
+tests/omega/pass/facts/runtime_index_application_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.721
+tests/omega/pass/facts/saturating_integer_arithmetic_through_match_join_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.747
+tests/omega/pass/facts/saved_case_predicate_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.769
+tests/omega/pass/facts/saved_observation_snapshot_after_call_saved_after_write_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.621
+tests/omega/pass/facts/saved_observation_snapshot_after_call_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.779
+tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_state_exit/main.omg	pass	outside	accepted	n-a	type reference	2.697
+tests/omega/pass/facts/saved_observation_snapshot_predicate_handback_local_exit/main.omg	pass	outside	accepted	n-a	type reference	2.715
+tests/omega/pass/facts/saved_observation_snapshot_stored_reference_handback_field_exit/main.omg	pass	outside	accepted	n-a	type reference	2.675
+tests/omega/pass/facts/saved_observation_snapshot_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.790
+tests/omega/pass/facts/scalar_array_row_construction_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.590
+tests/omega/pass/facts/scalar_array_row_construction_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.630
+tests/omega/pass/facts/scalar_boundary_parameter_through_parameter_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.745
+tests/omega/pass/facts/scalar_domain_call_guarantee_through_other_state_exit/main.omg	pass	outside	rejected	n-a	declaration Build selection that is not a machine or a data type	2.041
+tests/omega/pass/facts/scalar_sign_zero_extension_through_other_machine_exit/main.omg	pass	accepted	accepted	agree		2.810
+tests/omega/pass/facts/scalar_tag_field_loan_through_match_join_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.821
+tests/omega/pass/facts/scalar_width_shifts_through_local_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.615
+tests/omega/pass/facts/scoped_scalar_initializer_through_field_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.807
+tests/omega/pass/facts/sealed_requirement_member_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine suspends or blocks	2.785
+tests/omega/pass/facts/selected_crash_formal_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.813
+tests/omega/pass/facts/selected_crash_formal_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.064
+tests/omega/pass/facts/selected_native_code_layout_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.819
+tests/omega/pass/facts/selected_provider_issuance_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.056
+tests/omega/pass/facts/selected_scalar_initializer_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.819
+tests/omega/pass/facts/selected_value_application_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.059
+tests/omega/pass/facts/shared_borrow_field_projection_through_local_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.740
+tests/omega/pass/facts/shared_byte_view_rebinding_through_field_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.706
+tests/omega/pass/facts/shared_qualification_erasure_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.963
+tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_call_result_exit/main.omg	pass	rejected	accepted	disagree		2.791
+tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.626
+tests/omega/pass/facts/signed_64bit_bitwise_or_bound_through_parameter_exit/main.omg	pass	rejected	accepted	disagree		2.883
+tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit/main.omg	pass	rejected	accepted	disagree		2.862
+tests/omega/pass/facts/signed_64bit_saturating_multiplication_bound_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.655
+tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.583
+tests/omega/pass/facts/signed_64bit_wrapping_multiplication_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.620
+tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.636
+tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.614
+tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_call_result_exit/main.omg	pass	rejected	accepted	disagree		2.597
+tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.744
+tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_parameter_exit/main.omg	pass	accepted	accepted	agree		2.655
+tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_other_state_exit/main.omg	pass	rejected	accepted	disagree		2.767
+tests/omega/pass/facts/signed_8bit_exact_subtraction_bound_through_other_machine_exit/main.omg	pass	rejected	accepted	disagree		2.709
+tests/omega/pass/facts/signed_8bit_saturating_arithmetic_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.583
+tests/omega/pass/facts/signed_8bit_shift_left_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	typing literal landed type	2.643
+tests/omega/pass/facts/signed_8bit_shift_right_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.697
+tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.660
+tests/omega/pass/facts/signed_arithmetic_shift_right_through_call_result_exit/main.omg	pass	rejected	accepted	disagree		2.791
+tests/omega/pass/facts/signed_arithmetic_shift_right_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.834
+tests/omega/pass/facts/signed_division_quotient_through_parameter_exit/main.omg	pass	accepted	accepted	agree		2.640
+tests/omega/pass/facts/signed_division_remainder_through_other_state_exit/main.omg	pass	outside	accepted	n-a	type fixed array	2.680
+tests/omega/pass/facts/signed_exact_addition_bound_through_other_machine_exit/main.omg	pass	accepted	accepted	agree		2.759
+tests/omega/pass/facts/signed_exact_multiplication_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.587
+tests/omega/pass/facts/signed_exact_subtraction_bound_through_local_exit/main.omg	pass	accepted	accepted	agree		2.737
+tests/omega/pass/facts/signed_shift_left_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.694
+tests/omega/pass/facts/size_align_layout_geometry_terminal_returns_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.653
+tests/omega/pass/facts/size_align_layout_geometry_through_parameter_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.676
+tests/omega/pass/facts/skipped_short_circuit_call_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.636
+tests/omega/pass/facts/slice_view_element_read_bound_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	type reference	2.595
+tests/omega/pass/facts/slice_view_layout_geometry_through_match_join_exit/main.omg	pass	outside	accepted	n-a	call compiler operation call	2.702
+tests/omega/pass/facts/source_indexed_binary_tree_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	4.452
+tests/omega/pass/facts/source_indexed_binary_tree_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	4.734
+tests/omega/pass/facts/source_indexed_family_through_const_name_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.684
+tests/omega/pass/facts/source_indexed_type_parameter_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	4.347
+tests/omega/pass/facts/source_indexed_type_parameter_through_parameter_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	4.587
+tests/omega/pass/facts/sret_aggregate_return_bound_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	contract clause that projects a formal or result	2.708
+tests/omega/pass/facts/stack_frame_slot_isolation_through_match_join_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.626
+tests/omega/pass/facts/state_transition_ranking_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	contract ranking witness	2.639
+tests/omega/pass/facts/static_callable_type_requirements_through_field_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.880
+tests/omega/pass/facts/static_callback_reach_captured_schema/main.omg	pass	outside	accepted	n-a	machine service reach	2.840
+tests/omega/pass/facts/static_callback_reach_recursive_terminal/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.755
+tests/omega/pass/facts/static_callback_reach_through_match_join/main.omg	pass	outside	accepted	n-a	machine service reach	2.783
+tests/omega/pass/facts/static_evidence_premise_through_local_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.683
+tests/omega/pass/facts/stored_exclusive_byte_view_through_field_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.694
+tests/omega/pass/facts/stored_shared_byte_view_element_lend_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type reference	2.630
+tests/omega/pass/facts/suspension_transported_loan_through_call_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.611
+tests/omega/pass/facts/suspension_transported_loan_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.642
+tests/omega/pass/facts/target_family_callback_guarantee/parameter/main.omg	pass	outside	accepted	n-a	machine service reach	2.806
+tests/omega/pass/facts/target_family_contract_operand/other_state/main.omg	pass	outside	accepted	n-a	machine service reach	2.871
+tests/omega/pass/facts/target_family_invocation_lifetime/other_machine/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.910
+tests/omega/pass/facts/target_family_open_const/match_join/main.omg	pass	outside	accepted	n-a	machine service reach	2.932
+tests/omega/pass/facts/target_layout_derived_constant_through_local_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.445
+tests/omega/pass/facts/target_recursive_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.712
+tests/omega/pass/facts/target_scoped_constant_realization_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	3.405
+tests/omega/pass/facts/temporary_case_cleanup_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type reference	2.631
+tests/omega/pass/facts/temporary_case_cleanup_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.692
+tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit/main.omg	pass	rejected	accepted	disagree		6.064
+tests/omega/pass/facts/typed_reflection_mutation_through_other_state_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.898
+tests/omega/pass/facts/typed_reflection_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	23.377
+tests/omega/pass/facts/unannotated_direct_boundary_call_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.695
+tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_call_result_exit/main.omg	pass	accepted	accepted	agree		2.661
+tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.668
+tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit/main.omg	pass	rejected	accepted	disagree		2.696
+tests/omega/pass/facts/unsigned_64bit_bitwise_or_bound_through_other_state_exit/main.omg	pass	rejected	accepted	disagree		2.735
+tests/omega/pass/facts/unsigned_64bit_bitwise_xor_bound_through_other_machine_exit/main.omg	pass	rejected	accepted	disagree		2.745
+tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.628
+tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.625
+tests/omega/pass/facts/unsigned_64bit_shift_left_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.616
+tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.592
+tests/omega/pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_call_result_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.614
+tests/omega/pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_target_body_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.641
+tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_parameter_exit/main.omg	pass	rejected	accepted	disagree		2.632
+tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_other_state_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.573
+tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_other_machine_exit/main.omg	pass	accepted	accepted	agree		2.674
+tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_match_join_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.602
+tests/omega/pass/facts/unsigned_8bit_saturating_arithmetic_bound_through_local_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.662
+tests/omega/pass/facts/unsigned_8bit_shift_right_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.674
+tests/omega/pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.694
+tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_call_result_exit/main.omg	pass	accepted	accepted	agree		2.615
+tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.689
+tests/omega/pass/facts/unsigned_division_quotient_through_parameter_exit/main.omg	pass	accepted	accepted	agree		2.760
+tests/omega/pass/facts/unsigned_division_remainder_through_other_state_exit/main.omg	pass	rejected	accepted	disagree		2.793
+tests/omega/pass/facts/unsigned_exact_addition_bound_through_other_machine_exit/main.omg	pass	accepted	accepted	agree		2.634
+tests/omega/pass/facts/unsigned_exact_multiplication_bound_through_match_join_exit/main.omg	pass	accepted	accepted	agree		2.822
+tests/omega/pass/facts/unsigned_exact_subtraction_interval_through_local_exit/main.omg	pass	accepted	accepted	agree		2.742
+tests/omega/pass/facts/unsigned_shift_left_bound_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.716
+tests/omega/pass/facts/unsigned_shift_right_bound_through_const_name_exit/main.omg	pass	outside	accepted	n-a	declaration const	2.640
+tests/omega/pass/facts/value_location_alignment_contract_exit/main.omg	pass	outside	accepted	n-a	type reference	2.740
+tests/omega/pass/facts/value_location_alignment_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	call compiler operation call	2.704
+tests/omega/pass/facts/view_extent_after_write_through_match_join_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	1.761
+tests/omega/pass/facts/wildcard_structural_return_through_local_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.614
+tests/omega/pass/facts/wrapping_integer_arithmetic_through_field_exit/main.omg	pass	accepted	accepted	agree		2.577
+tests/omega/pass/facts/write_only_borrow_initialization_through_const_name_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.702
+tests/omega/pass/facts/write_only_borrow_struct_destination_through_call_result_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.668
+tests/omega/pass/facts/write_only_borrow_struct_destination_through_target_body_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.694
+tests/omega/pass/facts/write_only_ieee_store_readback_through_parameter_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.667
+tests/omega/pass/facts/write_only_indexed_reborrow_through_other_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.603
+tests/omega/pass/facts/write_only_match_join_through_other_machine_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.657
+tests/omega/pass/facts/write_only_recast_through_match_join_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.630
+tests/omega/pass/facts/write_only_reference_store_through_local_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.591
+tests/omega/pass/facts/zero_byte_erased_carrier_through_field_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.648
+tests/omega/pass/filesystem/create_dir_all_symlink_kind_exit/main.omg	pass	outside	accepted	n-a	machine service reach	117.868
+tests/omega/pass/filesystem/native_fs_workflow/main.omg	pass	outside	accepted	n-a	machine service reach	24.864
+tests/omega/pass/filesystem/runtime_local_host_result_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	40.000
+tests/omega/pass/filesystem/runtime_portable_zero_descriptor_exit/main.omg	pass	outside	accepted	n-a	machine service reach	115.756
+tests/omega/pass/filesystem/windows_namespace_rename_exit/main.omg	pass	outside	accepted	n-a	machine service reach	39.185
+tests/omega/pass/filesystem/windows_raw_file_control_exit/main.omg	pass	outside	accepted	n-a	machine service reach	38.577
+tests/omega/pass/filesystem/wrapper_lock_metadata_exit/main.omg	pass	outside	accepted	n-a	machine service reach	112.360
+tests/omega/pass/float/build_runtime_semantics_twins_windows_x64/main.omg	pass	outside	accepted	n-a	machine service reach	12.495
+tests/omega/pass/float/constructed_ieee_asymmetric_join/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.255
+tests/omega/pass/float/constructor_requirement_result_policy_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.655
+tests/omega/pass/float/finite_signature_transport_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.047
+tests/omega/pass/float/float_range_field_storage_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.091
+tests/omega/pass/float/fused_multiply_add_single_rounding_exit/main.omg	pass	outside	accepted	n-a	type float	2.582
+tests/omega/pass/float/local_after_float_call_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.884
+tests/omega/pass/float/named_ieee_truncations_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.318
+tests/omega/pass/float/named_provider_multiply_then_add_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.092
+tests/omega/pass/float/owned_local_computed_float_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.238
+tests/omega/pass/float/public_integer_input_contract_guarded_import_exit/main.omg	pass	outside	rejected	n-a	type float	1.904
+tests/omega/pass/float/runtime_absolute_shared_call_operands_exit/main.omg	pass	outside	accepted	n-a	machine service reach	14.977
+tests/omega/pass/float/runtime_exact_integer_to_float_coercion_exit/main.omg	pass	outside	accepted	n-a	type float	2.620
+tests/omega/pass/float/runtime_guarded_float_capture_exit/main.omg	pass	outside	accepted	n-a	type reference	2.658
+tests/omega/pass/float/runtime_named_format_conversion_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.025
+tests/omega/pass/float/runtime_resultless_law_equality_custody_exit/main.omg	pass	outside	rejected	n-a	machine service reach	8.843
+tests/omega/pass/float/specification_index_reference_selector_exit/main.omg	pass	outside	accepted	n-a	type float	2.668
+tests/omega/pass/float/value_refinement_conjunction_survives_scalar_transport_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.644
+tests/omega/pass/generics/closed_generic_local_field_observation_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.676
+tests/omega/pass/generics/const_index_gated_default_domain_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.750
+tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.863
+tests/omega/pass/generics/core_slice_for_each/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.897
+tests/omega/pass/generics/dependent_const_carrier_arguments/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.308
+tests/omega/pass/generics/generic_case_subject_sibling_bounds_exit/main.omg	pass	outside	accepted	n-a	type generic data	2.980
+tests/omega/pass/generics/inferred_equation_inferred_array_result_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.878
+tests/omega/pass/generics/inferred_equation_typed_const_local_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.245
+tests/omega/pass/generics/inferred_machine_array_equation_named_extent_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.996
+tests/omega/pass/generics/inferred_record_equation_qualified_record_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.865
+tests/omega/pass/generics/mixed_value_nullary_case_checked/main.omg	pass	outside	accepted	n-a	type generic data	2.724
+tests/omega/pass/generics/open_const_bare_binder_forwarding/main.omg	pass	outside	accepted	n-a	expression type parameter	2.994
+tests/omega/pass/generics/open_const_selected_unused_impure_member/main.omg	pass	outside	accepted	n-a	machine service reach	4.004
+tests/omega/pass/generics/owned_member_static_type_operand/main.omg	pass	outside	accepted	n-a	machine generic parameters	3.172
+tests/omega/pass/generics/runtime_captured_map_const_body/main.omg	pass	outside	accepted	n-a	machine suspends or blocks	2.867
+tests/omega/pass/generics/runtime_captured_map_nominal_machine/main.omg	pass	outside	accepted	n-a	machine suspends or blocks	2.900
+tests/omega/pass/generics/runtime_case_qualified_reference_storage_exit/main.omg	pass	outside	accepted	n-a	type reference	3.367
+tests/omega/pass/generics/runtime_computed_closed_identity_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.811
+tests/omega/pass/generics/runtime_computed_ordered_indices_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.740
+tests/omega/pass/generics/runtime_const_data_machine_call_exit/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	7.562
+tests/omega/pass/generics/runtime_container_setter_matrix_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.510
+tests/omega/pass/generics/runtime_forwarded_value_contract_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.849
+tests/omega/pass/generics/runtime_generic_selected_extent_fields_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.751
+tests/omega/pass/generics/runtime_index_carrier_call_result/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.272
+tests/omega/pass/generics/runtime_index_carrier_local/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.274
+tests/omega/pass/generics/runtime_index_carrier_runtime/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.235
+tests/omega/pass/generics/runtime_inherited_composite_requirement_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	1.723
+tests/omega/pass/generics/runtime_nested_array_extent_binder_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.791
+tests/omega/pass/generics/runtime_symbolic_receiver_extent_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.917
+tests/omega/pass/generics/selected_open_capture_carriers_exit/main.omg	pass	outside	accepted	n-a	type nominal type	2.995
+tests/omega/pass/generics/swapped_type_parameter_result/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.312
+tests/omega/pass/host/foreign_multiregister/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.398
+tests/omega/pass/host/process_exit_preserves_scalar_contract/main.omg	pass	outside	accepted	n-a	machine service reach	11.614
+tests/omega/pass/host/runtime_console_bounded_line_lf_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.329
+tests/omega/pass/host/runtime_descriptor_binding_record_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.700
+tests/omega/pass/host/runtime_descriptor_immutable_primitive_loans_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.765
+tests/omega/pass/host/runtime_descriptor_record_array_input_exit/main.omg	pass	outside	accepted	n-a	machine service reach	9.804
+tests/omega/pass/host/runtime_gui_foreground_window_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.285
+tests/omega/pass/host/runtime_windows_bitmap_client_cleanup_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.552
+tests/omega/pass/host/wincheck_probe/main.omg	pass	outside	accepted	n-a	machine service reach	11.107
+tests/omega/pass/inline_asm/asm_memory_transfer_compile/main.omg	pass	outside	accepted	n-a	machine assembly target	2.652
+tests/omega/pass/inline_asm/asm_runtime_port_msr_final_validation/main.omg	pass	outside	accepted	n-a	machine service reach	2.431
+tests/omega/pass/inline_asm/asm_where_contract/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.360
+tests/omega/pass/layouts/array_align_queries_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.275
+tests/omega/pass/layouts/byte_then_double_layout_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.246
+tests/omega/pass/layouts/direct_encoded_assignment_preserves_descriptor_exit/main.omg	pass	outside	accepted	n-a	type data with custody	3.406
+tests/omega/pass/layouts/fixed_layout_computed_alias_policy_exit/main.omg	pass	outside	accepted	n-a	machine service reach	4.542
+tests/omega/pass/layouts/fixed_layout_overridden_valid_policy_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.686
+tests/omega/pass/layouts/generic_constant_layout_contract_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.899
+tests/omega/pass/layouts/nested_reference_carrier_geometry_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	2.832
+tests/omega/pass/layouts/placed_primitive_authored_name/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.830
+tests/omega/pass/layouts/placed_reference_results/forwarded/main.omg	pass	outside	accepted	n-a	machine attached data	6.055
+tests/omega/pass/layouts/private_callback_descriptor_fragments_exit/main.omg	pass	outside	accepted	n-a	machine service reach	14.383
+tests/omega/pass/layouts/resident_array_field_access/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	6.508
+tests/omega/pass/layouts/resident_qualified_schema_result/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	6.503
+tests/omega/pass/layouts/retained_layout_predicate_decisions_exit/main.omg	pass	outside	accepted	n-a	contract disjunction	2.922
+tests/omega/pass/layouts/runtime_indexed_restricted_field_read/main.omg	pass	outside	accepted	n-a	type reference	2.637
+tests/omega/pass/layouts/runtime_placed_external_nested_array_exit/main.omg	pass	outside	accepted	n-a	machine attached data	6.388
+tests/omega/pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.883
+tests/omega/pass/layouts/runtime_run_zero_sized_element_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	6.781
+tests/omega/pass/layouts/runtime_target_layout_queries_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	4.077
+tests/omega/pass/layouts/single_i32_array_layout_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.242
+tests/omega/pass/layouts/two_float_member_layout_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.209
+tests/omega/pass/layouts/wide_then_byte_layout_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.221
+tests/omega/pass/locals/runtime_local_array_member_stores_without_mut_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.113
+tests/omega/pass/machines/cyclic_private_arrival_guard_context_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.744
+tests/omega/pass/machines/private_completion_console_value_exit/main.omg	pass	outside	accepted	n-a	machine service reach	10.120
+tests/omega/pass/machines/private_division_signed_remainder_exit/main.omg	pass	rejected	accepted	disagree		2.843
+tests/omega/pass/machines/private_frontier_enum_guard_disjunction_exit/main.omg	pass	outside	accepted	n-a	type reference	2.834
+tests/omega/pass/machines/runtime_explicit_data_parameter_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.800
+tests/omega/pass/memory/resident_content_mutation_transport/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	4.810
+tests/omega/pass/memory/runtime_selected_resident_exchange_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.931
+tests/omega/pass/modules/closed_sum_constructors/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.266
+tests/omega/pass/modules/computed_nominal_constants/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.449
+tests/omega/pass/modules/fixed_array_machine_indices/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.356
+tests/omega/pass/modules/module_declaration/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.311
+tests/omega/pass/modules/package_bare_cases/leaf/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.423
+tests/omega/pass/modules/packaged_structured_const_generic_composition_exit/main.omg	pass	accepted	accepted	agree		3.858
+tests/omega/pass/modules/qualified_declarations/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.394
+tests/omega/pass/modules/runtime_public_generic_dependency_exit/main.omg	pass	outside	accepted	n-a	machine attached data	3.944
+tests/omega/pass/modules/selected_constant_array_alias_match_qualification/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.408
+tests/omega/pass/modules/selected_constant_nominal_generic_match_literal/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.398
+tests/omega/pass/operators/compound_assignment_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.171
+tests/omega/pass/operators/fixed_use_survives_division_and_call_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.144
+tests/omega/pass/operators/runtime_constructed_operand_result_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.968
+tests/omega/pass/operators/runtime_named_unit_statement_effects_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.603
+tests/omega/pass/optimizer/constant_branch_selection_compile/main.omg	pass	accepted	accepted	agree		2.691
+tests/omega/pass/optimizer/pre_allocation_joint_frontier_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.693
+tests/omega/pass/optimizer/rollback_copy_propagation_selected/main.omg	pass	accepted	accepted	agree		2.781
+tests/omega/pass/optimizer/rollback_sparse_conditional_constant_propagation_selected/main.omg	pass	outside	accepted	n-a	type constrained	2.767
+tests/omega/pass/ownership/aliased_shared_views_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.227
+tests/omega/pass/ownership/copied_parameter_case_field_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.887
+tests/omega/pass/ownership/domain_mut_param_loan_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.340
+tests/omega/pass/ownership/linear_ambiguous_state_result_mapping/main.omg	pass	outside	accepted	n-a	machine attached data	2.915
+tests/omega/pass/ownership/linear_call_result_members_fused_owner_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.739
+tests/omega/pass/ownership/linear_issued_argument_transfer_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.646
+tests/omega/pass/ownership/linear_submit_outcome/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.469
+tests/omega/pass/ownership/move_after_view_read_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.258
+tests/omega/pass/ownership/mutable_array_view_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.223
+tests/omega/pass/ownership/registration_owned_claim_retains_provenance_exit/main.omg	pass	outside	rejected	n-a	machine type equations, owned data or conformances	2.064
+tests/omega/pass/ownership/runtime_borrowed_case_result_restore_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.813
+tests/omega/pass/ownership/runtime_borrowed_referent_move_variants_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.782
+tests/omega/pass/ownership/runtime_captured_case_structural_call_exit/main.omg	pass	outside	accepted	n-a	machine service reach	9.729
+tests/omega/pass/ownership/runtime_complete_array_reference_store_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.600
+tests/omega/pass/ownership/runtime_first_match_linear_consumption_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.735
+tests/omega/pass/ownership/runtime_indexed_recoverable_replacement_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.823
+tests/omega/pass/ownership/runtime_match_nested_observation_cleanup_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	2.410
+tests/omega/pass/ownership/runtime_nested_owner_observation_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.642
+tests/omega/pass/ownership/runtime_owned_sum_store_completion_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.627
+tests/omega/pass/ownership/runtime_replacement_call_child_snapshot_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.639
+tests/omega/pass/ownership/runtime_selected_projection_completion_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.572
+tests/omega/pass/ownership/runtime_view_parameter_element_window_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.722
+tests/omega/pass/ownership/selected_storage_join_backedge_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	3.639
+tests/omega/pass/ownership/shared_record_view_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.224
+tests/omega/pass/ownership/view_to_view_reborrow_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.208
+tests/omega/pass/packages/retained_dependency_bodies_exit/vendor/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.357
+tests/omega/pass/parser/deep_nesting_within_limit/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.261
+tests/omega/pass/proofs/accepted_axiom_cited_exit/main.omg	pass	outside	rejected	n-a	machine service reach	9.062
+tests/omega/pass/proofs/axiom_citation/main.omg	pass	outside	rejected	n-a	bucket:no-program-entry	1.212
+tests/omega/pass/proofs/case_call_premises/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	0.657
+tests/omega/pass/proofs/completed_qualified_membership_exit/main.omg	pass	outside	accepted	n-a	type constrained	2.602
+tests/omega/pass/proofs/declaration_predicate_calls_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.680
+tests/omega/pass/proofs/dyn_requirement_float_alias_rounding_exit/main.omg	pass	outside	accepted	n-a	type float	2.702
+tests/omega/pass/proofs/embedded_successor_call_requirement_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.823
+tests/omega/pass/proofs/finite_boolean_policy_exit/main.omg	pass	outside	accepted	n-a	type reference	47.550
+tests/omega/pass/proofs/kernel_integer_subtract_bound/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.245
+tests/omega/pass/proofs/mathematical_machine_result_carrier/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.763
+tests/omega/pass/proofs/named_witness_static_trait_plural_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.266
+tests/omega/pass/proofs/nested_machine_public_contract_exit/main.omg	pass	outside	accepted	n-a	expression match on a scalar subject	2.868
+tests/omega/pass/proofs/piecewise_call_result_arithmetic/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.275
+tests/omega/pass/proofs/proof_congruence_add_constant/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.269
+tests/omega/pass/proofs/proof_linear_range_sum/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.230
+tests/omega/pass/proofs/proposition_const_operand_application/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.239
+tests/omega/pass/proofs/quotient_mutual_cycle/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.378
+tests/omega/pass/proofs/ring_law_conformance/main.omg	pass	outside	accepted	n-a	machine service reach	11.609
+tests/omega/pass/proofs/runtime_qualified_copy_across_case_payload_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	60.448
+tests/omega/pass/proofs/runtime_result_index_zero_parameter_owner_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.777
+tests/omega/pass/proofs/scalar_field_snapshot_captures_replaced_collection/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.837
+tests/omega/pass/proofs/selected_specification_requires_renamed/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.227
+tests/omega/pass/proofs/structural_application_premise_reentry_exit/main.omg	pass	outside	accepted	n-a	contract term other than a formal or literal	2.634
+tests/omega/pass/providers/applied_routed_index_forwarding_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.569
+tests/omega/pass/providers/assumed_result_bound_other_machine_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.644
+tests/omega/pass/providers/binding_param_capability/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.361
+tests/omega/pass/providers/boundary_extent_caller/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.377
+tests/omega/pass/providers/build_product_adapter_frontiers_exit/main.omg	pass	error	stopped	n-a	bucket:typed-frontier-stopped	1.693
+tests/omega/pass/providers/checked_fixed_operator_physical_custody/main.omg	pass	outside	accepted	n-a	machine service reach	11.332
+tests/omega/pass/providers/direct_boundary_array_snapshot_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.269
+tests/omega/pass/providers/finite_requirement_forwarded_const_exit/main.omg	pass	outside	accepted	n-a	machine supply mode other than a checked body	2.683
+tests/omega/pass/providers/foreign_owned_record_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.553
+tests/omega/pass/providers/generic_result_recursive_reference_issuer/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.221
+tests/omega/pass/providers/inherited_boundary_field_postcondition_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.530
+tests/omega/pass/providers/lifetime_boundary_requirement_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.470
+tests/omega/pass/providers/named_foreign_record_result_contract/main.omg	pass	outside	accepted	n-a	machine service reach	9.638
+tests/omega/pass/providers/phantom_local_calling_applications/main.omg	pass	outside	accepted	n-a	machine service reach	10.625
+tests/omega/pass/providers/reference_dispatch_on_demand/main.omg	pass	outside	accepted	n-a	machine service reach	2.717
+tests/omega/pass/providers/runtime_boundary_array_forwarding_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.300
+tests/omega/pass/providers/runtime_checked_completion_forwarding_exit/main.omg	pass	outside	accepted	n-a	machine service reach	4.717
+tests/omega/pass/providers/runtime_foreign_owned_allocation_release_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.674
+tests/omega/pass/providers/runtime_provider_mutable_reference_forward_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.594
+tests/omega/pass/providers/runtime_provider_reference_view_exit/main.omg	pass	outside	accepted	n-a	machine service reach	3.188
+tests/omega/pass/providers/scalar_membership_boundary_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.757
+tests/omega/pass/providers/specialized_boundary_operator_physical_custody/main.omg	pass	outside	accepted	n-a	machine service reach	11.864
+tests/omega/pass/providers/structural_result_field_guarantee_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.734
+tests/omega/pass/range/data_parameter_counter_non_negative_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.268
+tests/omega/pass/ranges/runtime_subject_guard_compound_read_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.099
+tests/omega/pass/recast/borrowed_byte_scalar_views_exit/main.omg	pass	outside	accepted	n-a	type reference	2.654
+tests/omega/pass/recast/case_payload_member_view_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.227
+tests/omega/pass/recast/i16_unsigned_view_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.394
+tests/omega/pass/recast/mutable_byte_signed_write_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.307
+tests/omega/pass/recast/mutable_i32_unsigned_write_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.234
+tests/omega/pass/recast/native_bounded_array_window_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.764
+tests/omega/pass/recast/reference_view_helper_backing_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.672
+tests/omega/pass/recast/runtime_authored_toolchain_type_shadow_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.732
+tests/omega/pass/recast/runtime_guarded_offset_recast_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.153
+tests/omega/pass/recast/runtime_interior_slice_view_mutable_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.417
+tests/omega/pass/recast/runtime_recast_record_view_indexed_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.271
+tests/omega/pass/recast/runtime_shared_record_float_range_weakening_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.078
+tests/omega/pass/recast/u32_signed_bits_view_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.208
+tests/omega/pass/references/mutable_loan_member_read_initializes_local_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.066
+tests/omega/pass/register_allocation/runtime_call_crossing_decimal_reload_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.427
+tests/omega/pass/relevance/erased_formal_borrowed/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.366
+tests/omega/pass/relevance/erased_reference_receiver_field_exit/main.omg	pass	outside	accepted	n-a	type reference	2.473
+tests/omega/pass/slices/bounded_byte_parameter_range_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.670
+tests/omega/pass/slices/declared_view_fill/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.361
+tests/omega/pass/slices/extent_no_wrap/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.333
+tests/omega/pass/slices/guarded_slice_parameter_empty_false_index_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.210
+tests/omega/pass/slices/local_record_array_state_view_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.092
+tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.703
+tests/omega/pass/slices/nested_operand_view/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.358
+tests/omega/pass/slices/returned_collection_window_copy/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.626
+tests/omega/pass/slices/runtime_borrowed_noncopy_array_argument_exit/main.omg	pass	outside	accepted	n-a	type reference	2.603
+tests/omega/pass/slices/runtime_captured_subslice_predicates_exit/main.omg	pass	outside	accepted	n-a	contract contracts on a state	2.746
+tests/omega/pass/slices/runtime_empty_qualified_scalar_array_exit/main.omg	pass	outside	accepted	n-a	declaration domain	2.609
+tests/omega/pass/slices/runtime_helper_stored_view_return_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	2.024
+tests/omega/pass/slices/runtime_indexed_store_operand_effect_order_exit/main.omg	pass	outside	rejected	n-a	type reference	2.180
+tests/omega/pass/slices/runtime_mutable_byte_view_loop_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.543
+tests/omega/pass/slices/runtime_namespace_range_contract_exit/main.omg	pass	outside	rejected	n-a	type reference	2.095
+tests/omega/pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit/main.omg	pass	outside	accepted	n-a	declaration domain	2.628
+tests/omega/pass/slices/runtime_range_qualified_fixed_scalar_snapshot_exit/main.omg	pass	outside	accepted	n-a	type reference	2.657
+tests/omega/pass/slices/runtime_same_carrier_inline_cast_index_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.622
+tests/omega/pass/slices/runtime_slice_index_copy_dispatch_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.192
+tests/omega/pass/slices/runtime_state_selected_nested_view_exit/main.omg	pass	outside	rejected	n-a	machine generic parameters	1.978
+tests/omega/pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.192
+tests/omega/pass/slices/slice_core_surface/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.348
+tests/omega/pass/slices/subslice_folded_bound_facts_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.219
+tests/omega/pass/slices/wrapping_count_window_length/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.633
+tests/omega/pass/storage/runtime_alias_integer_write/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.211
+tests/omega/pass/structs/affine_record_state_clone/main.omg	pass	outside	accepted	n-a	machine service reach	11.161
+tests/omega/pass/structs/qualified_record_element_assignment_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.246
+tests/omega/pass/structs/runtime_local_record_policy_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.162
+tests/omega/pass/structs/runtime_struct_array_literal_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.113
+tests/omega/pass/structural/case_field_local_store/main.omg	pass	outside	accepted	n-a	machine service reach	11.099
+tests/omega/pass/structural/local_record_receivers/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.246
+tests/omega/pass/structural/runtime_provider_payload_array_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.353
+tests/omega/pass/targets/aarch64_hfa_entry_argument/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.220
+tests/omega/pass/targets/provider_family_private_contracts_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.626
+tests/omega/pass/targets/runtime_family_current_completion_paths_exit/main.omg	pass	outside	accepted	n-a	parameter mutable parameter	2.805
+tests/omega/pass/targets/runtime_family_nominal_callback_application_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.758
+tests/omega/pass/targets/runtime_target_named_provider_defaults_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.657
+tests/omega/pass/targets/target_body_call_contracts_exit/main.omg	pass	outside	accepted	n-a	machine attached data	2.626
+tests/omega/pass/tasks/task_runtime_machine_selection_compile/main.omg	pass	outside	rejected	n-a	machine attached data	2.598
+tests/omega/pass/terminal_psi/selected_empty_component/main.omg	pass	accepted	accepted	agree		2.462
+tests/omega/pass/termination/borrowed_carrier_rank/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.372
+tests/omega/pass/termination/const_call_range_endpoint/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.709
+tests/omega/pass/termination/external_result_ranked_arrival_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.369
+tests/omega/pass/termination/inherited_requirement_guarantee_compile/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.269
+tests/omega/pass/termination/measure_borrowed_projection_range/main.omg	pass	outside	rejected	n-a	bucket:no-program-entry	1.203
+tests/omega/pass/termination/measure_field_pinned_limit/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.258
+tests/omega/pass/termination/measure_member_endpoint/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.473
+tests/omega/pass/termination/named_computed_rank_endpoints/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.237
+tests/omega/pass/termination/nested_leaf_rank/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.371
+tests/omega/pass/termination/progress_selector_owned_arrival_affine_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.684
+tests/omega/pass/termination/progress_selector_owned_arrival_repeated_rebind_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.685
+tests/omega/pass/termination/rank_arrival_fresh_nested_owner/main.omg	pass	outside	accepted	n-a	type data with custody	2.646
+tests/omega/pass/termination/rank_range_nested_slice_carrier_borrowed/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.227
+tests/omega/pass/termination/rank_range_state_cycle/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.234
+tests/omega/pass/termination/remainder_natural_descent/main.omg	pass	outside	accepted	n-a	contract ranking witness	2.661
+tests/omega/pass/termination/runtime_distance_crossed_header_exit/main.omg	pass	outside	accepted	n-a	contract ranking witness	2.654
+tests/omega/pass/termination/runtime_public_result_field_rank_arrivals_exit/main.omg	pass	outside	rejected	n-a	type data with custody	1.965
+tests/omega/pass/termination/runtime_rankless_boundary_suffix_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.766
+tests/omega/pass/termination/runtime_selected_requirement_rank_prefix_exit/main.omg	pass	outside	accepted	n-a	type reference	2.722
+tests/omega/pass/termination/satisfies_terminates/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.381
+tests/omega/pass/termination/target_family_published_progress/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.257
+tests/omega/pass/text/byte_content_store_continuation_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.409
+tests/omega/pass/text/local_bounded_text_scalar_loan_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.908
+tests/omega/pass/text/plain_and_qualified_byte_arrays_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.405
+tests/omega/pass/text/runtime_bounded_carrier_concat_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.685
+tests/omega/pass/text/runtime_decimal_scalar_across_output_alternate_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.701
+tests/omega/pass/text/runtime_number_to_decimal_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.352
+tests/omega/pass/text/runtime_qualified_owner_view_open_exit/main.omg	pass	outside	accepted	n-a	type reference	2.740
+tests/omega/pass/text/runtime_view_local_boundary_write_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.283
+tests/omega/pass/text/runtime_view_local_record_local_field_store_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.200
+tests/omega/pass/text/zii_default_string_equality_exit/main.omg	pass	outside	accepted	n-a	machine attached data	11.222
+tests/omega/pass/time/runtime_kernel_clock_wait_loans_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.812
+tests/omega/pass/traits/applied_callable_law_equality_exit/main.omg	pass	accepted	accepted	agree		2.617
+tests/omega/pass/traits/applied_nominal_callback_scopes_exit/main.omg	pass	outside	accepted	n-a	type reference	2.806
+tests/omega/pass/traits/contract_proposition_alias_correspondence/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.222
+tests/omega/pass/traits/default_row_shadowed_captured_operand/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.234
+tests/omega/pass/traits/equatable_string_field_equality_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.209
+tests/omega/pass/traits/forwarded_implementation_argument_member_call_exit/main.omg	pass	outside	accepted	n-a	machine type equations, owned data or conformances	2.798
+tests/omega/pass/traits/implementation_argument_mixed_telescope/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.236
+tests/omega/pass/traits/implementation_value_unused_const_one_value/main.omg	pass	outside	accepted	n-a	type generic application	2.716
+tests/omega/pass/traits/nominal_generic_reference_forwarding_exit/main.omg	pass	outside	accepted	n-a	machine service reach	11.886
+tests/omega/pass/traits/public_implementation_member_selection_exit/support/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.378
+tests/omega/pass/traits/requirement_evidence_renamed_regions_exit/main.omg	pass	outside	accepted	n-a	machine service reach	2.835
+tests/omega/pass/traits/runtime_dyn_byte_result_candidates/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.670
+tests/omega/pass/traits/runtime_dyn_field_assignment_establishment_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.693
+tests/omega/pass/traits/runtime_dyn_nested_result_exit/main.omg	pass	outside	accepted	n-a	type data with custody	2.673
+tests/omega/pass/traits/runtime_dyn_selected_reach_recursive_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.897
+tests/omega/pass/traits/runtime_dyn_slot_metadata_exit/main.omg	pass	outside	accepted	n-a	machine generic parameters	2.678
+tests/omega/pass/traits/runtime_dyn_suspending_retained_selector_exit/main.omg	pass	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.620
+tests/omega/pass/traits/runtime_finite_family_correlated_case_result_exit/main.omg	pass	outside	accepted	n-a	machine service reach	13.692
+tests/omega/pass/traits/runtime_qualified_owned_requirement_calls_exit/main.omg	pass	outside	rejected	n-a	parameter mutable parameter	2.617
+tests/omega/pass/traits/trait_generic_bound_static_dispatch/main.omg	pass	outside	accepted	n-a	machine service reach	11.522
+tests/omega/pass/types/exact_address_conversion/main.omg	pass	outside	accepted	n-a	type reference	2.761
+tests/omega/pass/types/storage_address_aggregate/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	1.225
+tests/omega/pass/wire/library_compact_binary_packed_decode_exit/main.omg	pass	outside	accepted	n-a	type reference	12.381
+tests/omega/pass/wire/library_compact_binary_utf8_exit/main.omg	pass	outside	accepted	n-a	type fixed array	12.301
+tests/omega/pass/wire/runtime_wire_decode_byte_slice_exit/main.omg	pass	outside	accepted	n-a	machine service reach	23.539
+tests/omega/pass/wire/runtime_wire_exact_array_without_count_exit/main.omg	pass	outside	accepted	n-a	machine service reach	20.918
+tests/omega/pass/wire/wire_field_numbers/main.omg	pass	outside	accepted	n-a	bucket:no-program-entry	12.399
+tests/omega/run/arithmetic/fixed_integer_operand_after_call/main.omg	run	outside	accepted	n-a	machine service reach	11.303
+tests/omega/run/arithmetic/policy_operator_minimum_quotient_traps/main.omg	run	outside	accepted	n-a	machine service reach	11.108
+tests/omega/run/borrows/call_result_reference_field_overwrite/main.omg	run	outside	accepted	n-a	machine generic parameters	2.616
+tests/omega/run/borrows/indexed_loan_element_write/main.omg	run	outside	accepted	n-a	machine service reach	11.454
+tests/omega/run/borrows/recast_mut_borrow/main.omg	run	outside	accepted	n-a	machine service reach	11.366
+tests/omega/run/borrows/returned_indexed_case_descriptor_field/main.omg	run	outside	accepted	n-a	machine generic parameters	2.629
+tests/omega/run/borrows/shared_runtime_index_borrow/main.omg	run	outside	accepted	n-a	machine service reach	11.354
+tests/omega/run/calls/affine_call_local_field_exit/main.omg	run	outside	accepted	n-a	type float	2.711
+tests/omega/run/calls/named_transition_scalar_borrow_arguments_exit/main.omg	run	outside	accepted	n-a	type reference	2.629
+tests/omega/run/calls/ordered_literal_call_operands/main.omg	run	outside	accepted	n-a	parameter mutable parameter	2.602
+tests/omega/run/calls/projected_call_domain_exit/main.omg	run	outside	accepted	n-a	parameter mutable parameter	2.681
+tests/omega/run/calls/returned_reference_case_write_then_view_exit/main.omg	run	outside	accepted	n-a	parameter mutable parameter	2.700
+tests/omega/run/calls/table_report_call_survival/main.omg	run	outside	accepted	n-a	machine service reach	11.204
+tests/omega/run/contracts/scalar_crash_route_exit/main.omg	run	accepted	accepted	agree		2.643
+tests/omega/run/domains/current_record_predicate_captures/main.omg	run	outside	accepted	n-a	contract contracts on a state	2.755
+tests/omega/run/domains/issued_owned_case_parameter/main.omg	run	outside	accepted	n-a	type constrained	2.799
+tests/omega/run/domains/issued_record_integer_bounds/main.omg	run	outside	rejected	n-a	type constrained	2.045
+tests/omega/run/domains/qualified_fixed_byte_array_carrier_exit/main.omg	run	outside	accepted	n-a	contract contracts on a state	2.562
+tests/omega/run/domains/qualified_fixed_byte_array_plain_copy_exit/main.omg	run	outside	accepted	n-a	machine service reach	11.086
+tests/omega/run/domains/qualified_fixed_byte_array_view_element_store_exit/main.omg	run	outside	accepted	n-a	type constrained	2.732
+tests/omega/run/domains/structural_qualification_cast_transitions/main.omg	run	outside	accepted	n-a	contract contracts on a state	2.703
+tests/omega/run/dyn_finite_family_correlated/main.omg	run	outside	accepted	n-a	machine service reach	11.368
+tests/omega/run/facts/double_indexed_rmw_through_other_machine_traps/main.omg	run	outside	accepted	n-a	parameter mutable parameter	2.690
+tests/omega/run/facts/float_comparison_route_through_match_join_traps/main.omg	run	outside	accepted	n-a	type float	2.625
+tests/omega/run/generics/runtime_value_index_operands/main.omg	run	outside	accepted	n-a	machine generic parameters	2.757
+tests/omega/run/layouts/placed_ram_stored_field_return/main.omg	run	outside	accepted	n-a	machine service reach	15.172
+tests/omega/run/ownership/content_transform_empty_array/main.omg	run	outside	accepted	n-a	machine type equations, owned data or conformances	2.772
+tests/omega/run/ownership/owned_parameter_narrow_member_moves_exit/main.omg	run	outside	accepted	n-a	machine service reach	11.122
+tests/omega/run/providers/module_named_float_conversion_family_exit/main.omg	run	outside	accepted	n-a	machine service reach	11.029
+tests/omega/run/ranges/refuted_boolean_alias_local/main.omg	run	outside	accepted	n-a	type reference	2.683
+tests/omega/run/slices/mutable_window_call_argument/main.omg	run	outside	accepted	n-a	machine generic parameters	2.728
+tests/omega/run/testing/application_calling_test_differs_from_baseline/main.omg	run	outside	accepted	n-a	machine type equations, owned data or conformances	3.292
+tests/omega/run/traits/target_scoped_map_method_arguments/main.omg	run	outside	accepted	n-a	declaration Build selection that is not a machine or a data type	2.948
