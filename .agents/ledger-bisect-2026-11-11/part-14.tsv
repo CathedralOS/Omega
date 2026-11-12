@@ -1,0 +1,19 @@
+fixture	class	first_diagnostic	cluster_id
+fail/facts/core_float_representation_through_const_name_rejected	fixed_on_main		-
+pass/facts/core_float_representation_through_call_result_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_field_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_local_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_match_join_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_other_machine_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_other_state_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_parameter_exit	fixed_on_main		-
+pass/facts/core_float_representation_through_target_body_exit	fixed_on_main		-
+pass/contracts/runtime_mutable_owned_call_poststate_exit	fixed_on_main		-
+fail/layouts/declaration_only_array_formation	fixed_on_main		-
+pass/build/component_declaration_scalar_conditions_exit	still_broken	constant checking: machine `@array-extent-1-9` is not build-time admissible; Trap crash route	0
+pass/layouts/declaration_only_array_formation	still_broken	constant checking: machine `@array-extent-1-3327` is not build-time admissible; Trap crash route	0
+pass/facts/generic_calling_policy/ordinary_parent_fused_exit	still_broken	selected provider requirement `named-callable(path(...))` has no emitted exact declaration candidate	1
+pass/traits/public_method_const_prefix_inference_exit	still_broken	selected provider requirement `named-callable(path(...))` has no emitted exact declaration candidate	1
+pass/facts/core_float_representation_through_const_name_exit	still_broken	constant initializer: Terminal result scalar is outside the compiler-owned vocabulary	2
+pass/calls/native_code_layout_forward_machine_exit	still_broken	copied call lost its ordinary and realized Value operand roster	3
+pass/expressions/runtime_match_copy_descriptor_call_exit	still_broken	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise"	4
