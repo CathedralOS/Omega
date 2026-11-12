@@ -44,26 +44,18 @@ pin_rc=$(witness_rc)
 }
 
 good=""
-dist=1
-while [[ "$dist" -le 20000 ]]; do
-  cand=$(git rev-parse --verify "${PIN}~${dist}" 2>/dev/null) || break
-  git checkout -q "$cand"
+cur="$PIN"
+for _ in $(seq 1 20000); do
+  cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
+  git checkout -q "$cur"
   rc=$(witness_rc)
   if [[ "$rc" -eq 0 ]]; then
-    good="$cand"
+    good="$cur"
     break
   fi
-  dist=$((dist * 2))
+  # 125 = missing fixture or ambiguous outcome; keep walking for a definite good.
+  [[ "$rc" -eq 125 ]] && continue
 done
-if [[ -z "$good" ]]; then
-  cur="$PIN"
-  for _ in $(seq 1 1200); do
-    cur=$(git rev-parse --verify "${cur}^@" 2>/dev/null) || break
-    git checkout -q "$cur"
-    rc=$(witness_rc)
-    [[ "$rc" -eq 0 ]] && good="$cur" && break
-  done
-fi
 git checkout -q "$PIN"
 [[ -n "$good" ]] || {
   printf '{"witness":"%s","error":"no good first-parent ancestor"}\n' "$WITNESS"
@@ -86,7 +78,7 @@ git checkout -q "$PIN"
 
 git bisect reset >/dev/null 2>&1 || true
 git bisect start --first-parent "$PIN" "$good"
-export BISECT_WITNESS="$WITNESS"
+export BISECT_ROOT="$ROOT" BISECT_WITNESS="$WITNESS"
 : >/tmp/bisect_run.log
 set +e
 git bisect run "$TOOL/bisect_witness.sh" 2>&1 | tee /tmp/bisect_run.log
