@@ -28,7 +28,7 @@ Members: `fail/generics/const_data_argument_out_of_range`, `fail/generics/depend
 | 1 | fail wrong reason | anonymous operand `25/8` is not an integer in closed const argument; type an operand before division if intege | `fail/generics/grouped_decimal_const_fraction_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/generics/grouped_decimal_const_fraction_rejected`
 
-| 1 | fail wrong reason | cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only t | `fail/float/state_constructor_ieee_reflexivity` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |
+| 1 | fail wrong reason | cannot compare against payload-bearing case `Chain::Cons` with `==`: structural equality is synthesized only t | `fail/float/state_constructor_ieee_reflexivity` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/float/state_constructor_ieee_reflexivity`
 
 | 1 | fail wrong reason | cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry` | `fail/borrows/owned_capture_weaker_formal_qualification` | `` | 2505 | bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759 | propagated |  |

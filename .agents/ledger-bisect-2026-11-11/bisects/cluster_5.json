@@ -1,8 +1,9 @@
 {
-  "witness": "fail/constants/predicate_constant_generic_static_index_fence",
+  "witness": "fail/float/state_constructor_ieee_reflexivity",
   "breaking_commit": "",
-  "pr": "2505",
-  "mechanism": "bisect endpoint collapsed to PIN only (no strict good at ledger stamp); use sweep good 759c80404428 for manual bisect",
+  "pr": null,
+  "mechanism": "no first-parent good commit found (witness still regressed at ledger stamp and 120 parents of 759c80404428)",
   "status": "propagated",
-  "bisect_exit": 1
+  "bisect_exit": 2,
+  "stability": "unknown"
 }
