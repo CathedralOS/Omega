@@ -276,8 +276,15 @@ impl<'host> HostContext<'host> {
             }
             command
         });
+        let allocations = std::sync::Arc::new(std::sync::Mutex::new(
+            allocation::AllocationValues::default(),
+        ));
         Self {
-            native: native_provider::NativeContext::new(native_provider, native_services),
+            native: native_provider::NativeContext::new(
+                native_provider,
+                native_services,
+                std::sync::Arc::clone(&allocations),
+            ),
             filesystem: filesystem::FilesystemContext::new(filesystem),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
@@ -285,9 +292,7 @@ impl<'host> HostContext<'host> {
             addresses: std::sync::Arc::new(std::sync::Mutex::new(
                 network_address::AddressValues::default(),
             )),
-            allocations: std::sync::Arc::new(std::sync::Mutex::new(
-                allocation::AllocationValues::default(),
-            )),
+            allocations,
         }
     }
 }
@@ -391,6 +396,15 @@ pub(super) fn bind<'host>(
     instance.bind_storage_resolver(std::rc::Rc::new(allocation::AllocationStorage {
         values: std::sync::Arc::clone(allocations),
     }))?;
+    let mut emulates_allocation = false;
+    for provision in provisions.map_or(&[][..], TerminalRuntimeHostProvisions::host) {
+        if imports.contains(&provision.boundary)
+            && let BoundarySettlementRealization::NormalizedForeignCall(binding) =
+                &provision.realization
+        {
+            emulates_allocation |= allocation::emulates_allocation(binding)?;
+        }
+    }
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
@@ -513,6 +527,7 @@ pub(super) fn bind<'host>(
                     binding,
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
                     std::sync::Arc::clone(allocations),
+                    emulates_allocation,
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

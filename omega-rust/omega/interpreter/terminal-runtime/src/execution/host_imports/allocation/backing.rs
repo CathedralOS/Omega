@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn resolve_only_retained_live_ranges_and_preserve_physical_identity() {
         let values = Arc::new(Mutex::new(AllocationValues::default()));
-        let address = values.lock().unwrap().allocate(1, 32, 7);
+        let address = values.lock().unwrap().allocate(1, 32, 7).unwrap();
         let resolver = AllocationStorage {
             values: values.clone(),
         };

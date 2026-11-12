@@ -21,6 +21,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     process::Command,
     rc::Rc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 use terminal_interpreter::{
@@ -102,6 +103,8 @@ pub(in super::super) struct NativeContext {
     homes: Rc<RefCell<BTreeMap<(u64, u64), OriginalHome>>>,
     available: bool,
     services: crate::execution::TerminalNativeServiceDelegation,
+    // Shared with the emulated allocator so host and emulated addresses stay disjoint.
+    addresses: Arc<Mutex<super::super::allocation::AllocationValues>>,
 }
 
 struct OriginalHome {
@@ -157,10 +160,12 @@ impl NativeContext {
     pub fn new(
         command: Option<Command>,
         services: crate::execution::TerminalNativeServiceDelegation,
+        addresses: Arc<Mutex<super::super::allocation::AllocationValues>>,
     ) -> Self {
         Self {
             available: command.is_some(),
             services,
+            addresses,
             sponsor: Rc::new(RefCell::new(Sponsor {
                 command,
                 process: None,
@@ -180,6 +185,44 @@ impl NativeContext {
 
     pub fn finish(&self) -> Result<(), TerminalEffectRejection> {
         self.sponsor.borrow_mut().finish()
+    }
+
+    // A native import may receive only an address the host itself returned.
+    pub(super) fn host_address_argument(
+        &self,
+        value: TerminalScalarValue,
+    ) -> Result<Vec<u8>, TerminalEffectRejection> {
+        let address = host_address_value(value)?;
+        let addresses = self.addresses.lock().map_err(|_| poisoned_addresses())?;
+        if !addresses.is_host_address(address) {
+            return Err(rejection(
+                "native import argument is not an address the host returned",
+            ));
+        }
+        Ok(address.to_le_bytes().to_vec())
+    }
+
+    pub(super) fn host_address_result(
+        &self,
+        bytes: &[u8],
+        scalar: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+        let ScalarType::Integer(scalar_type) = scalar else {
+            return Err(rejection("host address result lost its address carrier"));
+        };
+        let address = u64::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| rejection("host address result has the wrong width"))?,
+        );
+        self.addresses
+            .lock()
+            .map_err(|_| poisoned_addresses())?
+            .admit_host_address(address)?;
+        Ok(TerminalScalarValue::Integer {
+            scalar_type,
+            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(address)),
+        })
     }
 
     pub(super) fn prepare(
@@ -689,4 +732,25 @@ fn reference_location(
     }
     selected
         .ok_or_else(|| rejection("original reference has no exact produced pointer-slot recipe"))
+}
+
+fn poisoned_addresses() -> TerminalEffectRejection {
+    rejection("host address ledger was poisoned")
+}
+
+fn host_address_value(value: TerminalScalarValue) -> Result<u64, TerminalEffectRejection> {
+    match value {
+        TerminalScalarValue::Integer {
+            scalar_type,
+            value: semantic_vocabulary::IntegerValue::Unsigned(address),
+        } if super::super::scalar_codec::is_host_address_carrier(ScalarType::Integer(
+            scalar_type,
+        )) =>
+        {
+            u64::try_from(address).map_err(|_| rejection("host address exceeds its carrier"))
+        }
+        _ => Err(rejection(
+            "native address argument lost its address carrier",
+        )),
+    }
 }
