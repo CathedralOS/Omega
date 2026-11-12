@@ -185,6 +185,8 @@ def row_from_harness_output(
             roots.append(parsed)
 
     route_verdict, first_refusal = aggregate_route(roots)
+    if route_verdict != "outside":
+        first_refusal = None
     if route_verdict == "outside" and not first_refusal:
         for root in roots:
             if root.fallback_construct:
