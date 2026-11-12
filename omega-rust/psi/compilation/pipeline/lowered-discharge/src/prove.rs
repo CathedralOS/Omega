@@ -256,6 +256,28 @@ fn flip(equality: ProofNode) -> Result<ProofNode, Unproven> {
     ))
 }
 
+/// `goal` from `absurd`, a proved proposition whose denotation is
+/// `Falsehood` (a closed false relation, or `true == false`): `Falsehood and
+/// goal` has that same denotation, so it holds, and so does `goal`
+/// (`wiki/spec/proofs/classicality.md`, contradiction elimination). The
+/// kernel recomputes both denotations and refuses when `absurd`'s is not
+/// `Falsehood`.
+fn ex_falso(absurd: ProofNode, goal: &Proposition) -> ProofNode {
+    let both = node(
+        Proposition::Conjunction(vec![Proposition::Falsehood, goal.clone()]),
+        ProofRule::PredicateDenotation {
+            premise: Box::new(absurd),
+        },
+    );
+    node(
+        goal.clone(),
+        ProofRule::ConjunctionElimination {
+            conjunction: Box::new(both),
+            conjunct: 1,
+        },
+    )
+}
+
 /// The facts transport may substitute: `v == t` for a Boolean value `v` (an
 /// operation result equation, a callee guarantee or a block invariant's
 /// definition of a join parameter) or for any value defined as a literal.
@@ -460,13 +482,15 @@ impl<'a> Prover<'a> {
             .ok_or(direct.err().unwrap_or("no proof"))
     }
 
-    /// `goal` at a point no execution reaches: some order fact known there
-    /// contradicts the rest, so anything follows
-    /// (`wiki/spec/proofs/contracts.md`, "Required automatic discharge":
-    /// order reasoning includes "contradiction of an unreachable path"). The
-    /// derivation is `refute`'s, applied to a fact instead of a split
-    /// alternative. It is tried last, so a reachable point pays for it only
-    /// when its goal is otherwise unproved.
+    /// `goal` at a point no execution reaches: what is known there is
+    /// contradictory, so anything follows (`wiki/spec/proofs/contracts.md`,
+    /// "Required automatic discharge": order reasoning includes
+    /// "contradiction of an unreachable path"). Two searches, both ending in
+    /// `ex_falso`: an order fact chained with its opposite into a closed
+    /// false relation (`refute`, which needs a literal endpoint), then a
+    /// taken guard whose negation is provable (`refute_guard`, which does
+    /// not). It is tried last, so a reachable point pays for it only when its
+    /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
         let orders: Vec<ProofNode> = self
             .facts
@@ -474,9 +498,79 @@ impl<'a> Prover<'a> {
             .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
             .map(|fact| fact.proof.clone())
             .collect();
-        orders
+        if let Some(refuted) = orders
             .into_iter()
             .find_map(|known| self.refute(known, goal))
+        {
+            return Some(refuted);
+        }
+        let guards: Vec<ProofNode> = self
+            .facts
+            .iter()
+            .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
+            .map(|fact| fact.proof.clone())
+            .collect();
+        guards
+            .into_iter()
+            .find_map(|taken| self.refute_guard(taken, goal))
+    }
+
+    /// `goal` where the guard that was taken cannot have held: `taken` is the
+    /// branch fact `c == b`, and `c == not b` is provable from the rest.
+    ///
+    /// This is how two order facts over values with no literal between them
+    /// contradict. After `requires low <= high`, the arm of `high < low`
+    /// knows `c == true` with `c` defined as `high < low`. Chaining the two
+    /// orders only reaches `high < high`, which the kernel has no rule to
+    /// call false: its closed relations need literals. But `c == false`
+    /// denotes `low <= high` under `c`'s definition, which is known, so
+    /// `true == c` and `c == false` give `true == false`, and that the
+    /// kernel's denotation already calls `Falsehood`. Every step is an
+    /// existing rule (`ValueEqualityTransport`, `EqualitySymmetry`,
+    /// `EqualityTransitivity`, `PredicateDenotation`); no order arithmetic is
+    /// done, so nothing here depends on signedness, width or overflow.
+    ///
+    /// The negated guard's denotation is proved without a split or a nested
+    /// contradiction search, so this cannot re-enter itself.
+    fn refute_guard(&mut self, taken: ProofNode, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::Equal(condition, ScalarTerm::Boolean(value)) = &taken.conclusion else {
+            return None;
+        };
+        let untaken = Proposition::Equal(condition.clone(), ScalarTerm::Boolean(!*value));
+        let absurd = Proposition::Equal(ScalarTerm::Boolean(*value), ScalarTerm::Boolean(!*value));
+        let denotation = check_value_equality_denotation(
+            self.context,
+            &untaken,
+            self.equations.iter().map(|(equation, _)| equation),
+        )
+        .ok()?;
+        // Unchanged means `condition` has no definition here, and then
+        // nothing but the taken fact itself speaks of it.
+        if denotation == untaken {
+            return None;
+        }
+        let nested = std::mem::replace(&mut self.case_split, false);
+        let premise = self.prove_direct(&denotation);
+        self.case_split = nested;
+        let untaken = node(
+            untaken,
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise.ok()?),
+                equalities: self
+                    .equations
+                    .iter()
+                    .map(|(_, proof)| proof.clone())
+                    .collect(),
+            },
+        );
+        let absurd = node(
+            absurd,
+            ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(flip(taken).ok()?),
+                middle_equals_right: Box::new(untaken),
+            },
+        );
+        Some(ex_falso(absurd, goal))
     }
 
     /// `goal` from a disjunctive fact (a disequality guard transports to
@@ -535,9 +629,8 @@ impl<'a> Prover<'a> {
     }
 
     /// `goal` from an alternative that contradicts what is known: chained
-    /// with the opposite order it gives a closed false relation, whose
-    /// denotation is `Falsehood`, so `Falsehood and goal` holds and so does
-    /// `goal` (`wiki/spec/proofs/classicality.md`, contradiction elimination).
+    /// with the opposite order it gives a closed false relation, which
+    /// `ex_falso` turns into `goal`.
     fn refute(&mut self, local: ProofNode, goal: &Proposition) -> Option<ProofNode> {
         let (strict, left, right) = order(&local.conclusion)?;
         let (left, right) = (left.clone(), right.clone());
@@ -554,20 +647,7 @@ impl<'a> Prover<'a> {
         } else {
             return None;
         };
-        let both = Proposition::Conjunction(vec![Proposition::Falsehood, goal.clone()]);
-        let both = node(
-            both,
-            ProofRule::PredicateDenotation {
-                premise: Box::new(false_relation),
-            },
-        );
-        Some(node(
-            goal.clone(),
-            ProofRule::ConjunctionElimination {
-                conjunction: Box::new(both),
-                conjunct: 1,
-            },
-        ))
+        Some(ex_falso(false_relation, goal))
     }
 
     /// `premise => conclusion`: the kernel adds the premise as the next
