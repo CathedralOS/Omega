@@ -71,11 +71,15 @@ pub(crate) fn check_product_source(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
+    // An opaque representation is chosen by naming its conformance, and the
+    // check re-forms that choice from the authored request. The conformance
+    // must survive projection with the opaque type: a dependency's
+    // representation is otherwise reached by nothing in the consumer's program.
     selected.extend(
         build
             .opaque_representation_selections
             .iter()
-            .map(|selection| selection.opaque()),
+            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
     );
     demanded.extend(selected.iter().copied());
     // A dependency's provider-default machines run for every product that

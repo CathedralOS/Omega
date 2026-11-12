@@ -10575,6 +10575,7 @@ pub mod storage_contents {
                             | ContentsRequirement::RepresentedOwned
                             | ContentsRequirement::BorrowedStorage
                             | ContentsRequirement::BorrowFree
+                            | ContentsRequirement::OwnedOrSharedView
                             | ContentsRequirement::DescriptorCleanup)
                         && domain.subject == typed_trees::types::DomainConstraintSubject::Declared
                         && domain.semantic_id.is_valid()
