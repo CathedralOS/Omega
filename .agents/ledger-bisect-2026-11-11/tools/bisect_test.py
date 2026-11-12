@@ -32,15 +32,11 @@ def meets_ledger_expected(obs_status: str, meta: dict) -> bool:
 
 
 def matches_pin_regression(obs: dict, meta: dict) -> bool:
-    if not meets_ledger_expected(obs["status"], meta):
-        obs_diag = norm_diag((obs.get("diagnostics") or [""])[0])
-        if obs["status"] == meta["pin_status"] and obs_diag == meta["pin_diag_norm"]:
-            return True
-        if meta["tier"] != "fail" and obs["status"] not in PASS_OK:
-            return True
-        if meta["tier"] == "fail" and obs["status"] not in FAIL_OK:
-            return True
-    return False
+    """Exit 1 only when the observation matches the PIN broken outcome (status + diagnostic)."""
+    if meets_ledger_expected(obs["status"], meta):
+        return False
+    obs_diag = norm_diag((obs.get("diagnostics") or [""])[0])
+    return obs["status"] == meta["pin_status"] and obs_diag == meta["pin_diag_norm"]
 
 
 def main() -> int:
