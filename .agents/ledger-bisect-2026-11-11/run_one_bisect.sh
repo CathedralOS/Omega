@@ -20,7 +20,7 @@ git checkout -q work/ledger-bisect-part-31
 LOG="$ROOT/.agents/ledger-bisect-2026-11-11/bisect-c${CLUSTER_ID}.log"
 export BISECT_WITNESS="$WITNESS"
 git bisect start --first-parent "$PIN" "$GOOD"
-git bisect run bash "$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh" 2>&1 | tee "$LOG"
+git bisect run bash /tmp/ledger-bisect-pin/tools/bisect_witness.sh 2>&1 | tee "$LOG"
 FIRST=$(grep -m1 'first bad commit' "$LOG" | sed -n 's/.*\[\([^]]*\)\].*/\1/p')
 git bisect reset
 git checkout -q work/ledger-bisect-part-31

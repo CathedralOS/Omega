@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PIN = sys.argv[2] if len(sys.argv) > 2 else "51e8c45c793007f211d0d9baee7de16767172444"
 WITNESS = sys.argv[1]
-SCRIPT = ROOT / ".agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+SCRIPT = Path("/tmp/ledger-bisect-pin/tools/bisect_witness.sh")
 JUMPS = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 
 
