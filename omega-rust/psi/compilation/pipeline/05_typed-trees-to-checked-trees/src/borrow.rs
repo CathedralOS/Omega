@@ -4933,6 +4933,13 @@ mod loans {
                     return Ok(Vec::new());
                 }
                 Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {
+                    // A callee without a complete relation of its own is
+                    // refused by `check_stored_output_relations`, which names
+                    // that callee and then this call. Failing the caller's
+                    // loan walk here would hide the callee's diagnostic.
+                    if crate::borrow::deferred_to_stored_output_check(frames, machine, statement) {
+                        return Ok(Vec::new());
+                    }
                     return Err(reason);
                 }
             };
@@ -9615,4 +9622,17 @@ pub(crate) fn build_borrow_facts(
         returned_loans,
         states,
     ))
+}
+
+/// Whether a statement's stored-reference relation is missing only because a
+/// call in it has no complete invocation relation. The borrow walk leaves such
+/// a statement to `check_stored_output_relations`, which always refuses it.
+pub(crate) fn deferred_to_stored_output_check(
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &typed_trees::machine::Machine,
+    statement: &checked_trees::statement::StatementNode,
+) -> bool {
+    frames
+        .stored_reference_call_failures(machine, statement)
+        .is_some_and(|failures| !failures.is_empty())
 }

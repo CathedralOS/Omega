@@ -1,1 +1,1 @@
-names its implementation as its one last static argument
+explicit selection requires a named implementation as the final static argument
