@@ -103,7 +103,7 @@ that photograph: a different object, and a green check on it is not done.
 1. **Prove what you built, then the ring around it ([Law of completion](../../../AGENTS.md#law-of-completion)):**
    - Prove the change itself: the unit tests of the crates you touched.
    - Run `cargo xtask corpus --filter <fixtures>` naming only the fixtures
-     this change targets, ten at most. You already know which they are. The
+     this change targets. You already know which they are. The
      gate adds the ring around them (each one's twin in the other tiers and
      its neighbours by name) and prints every record as it finishes.
    - A clean blast ends pre-merge testing. Land.

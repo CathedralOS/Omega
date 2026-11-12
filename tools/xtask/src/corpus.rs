@@ -11,12 +11,6 @@ use crate::fixture_selection::FixtureSelection;
 use crate::repo_root;
 
 pub(crate) const SELECTION_BUDGET: usize = 200;
-/// The most fixtures one pre-merge run may name. The author knows which
-/// fixtures a change targets; the gate adds the ring around them
-/// ([`blast_wave`]). A cold fixture costs minutes of several cores and main is
-/// measured after every merge, so anything larger is a sweep.
-pub(crate) const NAMED_LIMIT: usize = 10;
-
 /// The fixtures one step away from `named`, with why each was added: the same
 /// name in another tier (a pass program's fail twin), and the fixture just
 /// before and just after it by name in its own group, which are usually
@@ -800,19 +794,32 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let selection = if sweep || !shard.trim().is_empty() {
         FixtureSelection::fragments(&filter)
     } else {
-        if selected > NAMED_LIMIT {
-            eprintln!(
-                "corpus: --filter matches {selected} fixtures. Name the fixtures this change targets, {NAMED_LIMIT} at most; the gate adds the ones around them. A whole group or tier is a sweep (--sweep), which is a background checkpoint, not a pre-merge step."
-            );
-            return Err(2);
-        }
         let list = |selection: &FixtureSelection| {
             selected_fixture_names(&root, selection).map_err(|e| {
                 eprintln!("corpus: {e}");
                 2u8
             })
         };
-        let named = list(&FixtureSelection::fragments(&filter))?;
+        // The author names fixtures, because they know which ones the change
+        // targets. A fragment that matches several is a family, and choosing
+        // a family is choosing by name what to sweep.
+        let mut named = Vec::new();
+        for fragment in filter.split(',').map(str::trim).filter(|f| !f.is_empty()) {
+            let matches = list(&FixtureSelection::fragments(fragment))?;
+            match matches.iter().find(|name| name.as_str() == fragment) {
+                Some(exact) => named.push(exact.clone()),
+                None if matches.len() == 1 => named.extend(matches),
+                None => {
+                    eprintln!(
+                        "corpus: `{fragment}` matches {} fixtures, so it names a family, not a fixture. Name each fixture this change targets (tier/group/name); the gate adds the ones around them. A group or tier is a sweep (--sweep): a background checkpoint, not a pre-merge step.",
+                        matches.len()
+                    );
+                    return Err(2);
+                }
+            }
+        }
+        named.sort();
+        named.dedup();
         let all: BTreeSet<String> = list(&FixtureSelection::All)?.into_iter().collect();
         let wave = blast_wave(&named, &all);
         eprintln!(

@@ -90,7 +90,6 @@ merge. Work that turns no existing row green is allowed but must say what it unl
 
 The same PRs carry one line saying what proved the change:
 `Proof: <tests on the change> | blast: <n> fixtures | <clean, or what the rows that moved turned out to be>`.
-`check-rules` refuses a blast larger than the corpus gate itself allows.
 
 ## Law of completion
 
@@ -253,7 +252,7 @@ mbx xtask check-boundary
 The only pre-merge check is `admission` (rules and formatting, about a
 minute); `main` is checked after every merge.
 
-Name the fixtures your change targets, ten at most: `mbx xtask corpus` adds the
+Name the fixtures your change targets: `mbx xtask corpus` adds the
 ring around them (twins and neighbours by name), prints each record as it
 finishes, and has no time caps. A clean blast ends pre-merge testing; one that
 is not clean is an investigation of those rows at the base commit, never a wider
