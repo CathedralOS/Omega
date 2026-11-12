@@ -42,6 +42,9 @@ fn process_entry_state_plan(initial_regime: MachineRegime) -> StatePlan {
             MachineState::Flags,
             MachineState::InstructionPointer,
             MachineState::StackPointer,
+            // A returning import's floating-control envelope restores the
+            // callee-preserved MXCSR/FPCR controls.
+            MachineState::ControlState,
         ]),
         stack: EntryStack::ProviderSelected,
         preemption: Preemption::NotApplicable,
