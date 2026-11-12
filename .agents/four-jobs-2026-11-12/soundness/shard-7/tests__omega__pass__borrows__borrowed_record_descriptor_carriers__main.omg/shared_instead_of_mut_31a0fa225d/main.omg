@@ -1,0 +1,43 @@
+// Expected exit: 0
+// Reading each stored pointer uses the borrowed record's carrier permission;
+// each update still uses that pointer's separate exclusive pointee permission.
+use omega::language::core::drop;
+data Storage {
+    before: u64;
+    left: [u64; 1];
+    between: u64;
+    right: [u64; 1];
+    after: u64;
+}
+data Carriers {
+    before: u64;
+    first: & [u64; 1];
+    between: u64;
+    second: &mut [u64; 1];
+    after: u64;
+}
+machine update(carriers: &mut Carriers) {
+    carriers.first[0] = ((carriers.first[0] as u64 in Wrapping) + 3) as u64;
+    carriers.second[0] = ((carriers.second[0] as u64 in Wrapping) + 5) as u64;
+}
+machine main() crashes Trap {
+    let mut storage: Storage = Storage {
+        before: 211, left: [11], between: 223, right: [29], after: 227
+    };
+    let mut carriers: Carriers = Carriers {
+        before: 77, first: &mut storage.left, between: 83,
+        second: &mut storage.right, after: 97
+    };
+    update(&mut carriers);
+    update(&mut carriers);
+    let carrier_canaries: bool = carriers.before == 77
+        && carriers.between == 83 && carriers.after == 97;
+    drop(carriers);
+    transition carrier_canaries && storage.left[0] == 17 && storage.right[0] == 39
+        && storage.before == 211 && storage.between == 223 && storage.after == 227 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

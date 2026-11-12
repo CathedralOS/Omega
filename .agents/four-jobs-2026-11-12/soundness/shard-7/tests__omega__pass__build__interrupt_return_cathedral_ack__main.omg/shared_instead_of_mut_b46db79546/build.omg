@@ -1,0 +1,20 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "timer_borrowed_gate_probe");
+    let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../../../source/library/std" });
+    dependency::with_alias(&mut std_dependency, "std");
+    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);
+    let mut facts_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "facts" });
+    dependency::with_alias(&mut facts_dependency, "facts");
+    let facts_registration: DependencyRegistration = Build::dependency(builder, facts_dependency);
+    Build::select_representation<InterruptAcknowledgement, isa::x86_64::interrupts::entry::CathedralAcknowledgementRepresentation>(builder);
+    Build::select_provider<GatePreparation, CheckedGatePreparation>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, start);
+    Build::bind<ProcessExit::exit_process>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5" }
+    });
+    Build::bind<NativeGateObserver::observe>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned { object: "libomega_timer_observer.so", symbol: "timer_observe", version: "OMEGA_TIMER_1" }
+    });
+    builder.freestanding = true;
+}

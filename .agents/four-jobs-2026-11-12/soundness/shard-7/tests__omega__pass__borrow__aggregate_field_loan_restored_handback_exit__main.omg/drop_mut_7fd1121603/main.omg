@@ -1,0 +1,30 @@
+// A mutable loan of an array field, one of its elements, or a nested record
+// field may end when the callee's `ensures` re-establishes the owner's
+// `requires` for what the place then holds.
+// Expected exit: 0
+data Inner { x: u64; }
+data Bag requires cells[0] <= 4 && cells[1] <= 4 && inner.x <= 4 {
+    cells: [u64; 4];
+    inner: Inner;
+}
+machine set_cells(cells: &mut [u64; 4]) ensures cells[0] <= 4 && cells[1] <= 4 {
+    cells[0] = 3;
+    cells[1] = 0;
+}
+machine set_cell(cell: &mut u64) ensures cell <= 4 { cell = 4; }
+machine set_inner(inner: &mut Inner) ensures inner.x <= 4 { inner.x = 2; }
+machine poke(bag: &mut Bag) {
+    set_cells(&mut bag.cells);
+    set_cell(&mut bag.cells[1]);
+    set_inner(&mut bag.inner);
+}
+machine main() crashes Trap {
+    let bag: Bag;
+    poke(&mut bag);
+    transition bag.cells[0] == 3 && bag.cells[1] == 4 && bag.inner.x == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

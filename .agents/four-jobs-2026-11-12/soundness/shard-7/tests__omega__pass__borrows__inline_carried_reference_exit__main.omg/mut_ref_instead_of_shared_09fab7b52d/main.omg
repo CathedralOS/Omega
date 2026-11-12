@@ -1,0 +1,37 @@
+// Expected exit: 0
+// An inline returned field retains its incoming descriptor, including when
+// its containing record was only a temporary and its backing is ordinary RAM.
+data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
+
+machine packet<'bytes>(bytes: &'bytes [u8]) -> Packet<'bytes> { Packet { bytes: bytes } }
+machine selected<'bytes>(packet: &mut Packet<'bytes>) -> &'bytes [u8] { packet.bytes }
+machine first(bytes: &[u8]) -> u64 {
+    transition bytes.len > 0u64 {
+        true -> read(bytes)
+        false -> 7u64
+    }
+    machine read(bytes: &[u8]) -> u64 { bytes[0u64] as u64 }
+}
+machine inspect<'bytes>(packet: &Packet<'bytes>) -> u64 { first(selected(packet)) }
+machine inspect_buffers<'left, 'right>(left: &'left [u8], right: &'right [u8]) crashes Trap {
+    let packet: Packet<'left> = Packet { bytes: left };
+    let named: u64 = inspect(&packet);
+    let temporary: u64 = first(selected(&packet(right)));
+    transition named == 17u64 && temporary == 42u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let left: [u8; 1] = [17u8];
+    let right: [u8; 3] = [91u8, 42u8, 73u8];
+    inspect_buffers(&left[..], &right[1u64..2u64]);
+    transition right[0u64] == 91u8 && right[2u64] == 73u8 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
