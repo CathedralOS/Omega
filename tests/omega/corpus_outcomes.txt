@@ -20000,9 +20000,9 @@ pass/borrow/mutable_selector_rhs_snapshot_exit checked 4528ms check-target:macos
 pass/borrow/mutable_selector_unchanged_exit checked 4428ms check-target:macos_arm64 @1ac79518de3d
 pass/borrow/named_operator_disjoint_argument_preserves_bound checked 6477ms @12385533695f
 pass/borrow/nested_reference_parameter_referent_assignment checked 2407ms @ccdb99ca2214
-pass/borrow/owned_capture_replaced_reference rejected 2790ms regressed-from:checked @234ea171ee6e
+pass/borrow/owned_capture_replaced_reference rejected 2716ms regressed-from:checked @9417a2a2e929
 	cannot prove requires contract for call observe from main: first[0] in Cell::Issued in state `entry`
-pass/borrow/owned_capture_weaker_formal rejected 2762ms regressed-from:checked @234ea171ee6e
+pass/borrow/owned_capture_weaker_formal rejected 2633ms regressed-from:checked @9417a2a2e929
 	cannot prove requires contract for call observe from main: cells[0] in Cell::Issued in state `entry`
 pass/borrow/projected_record_state_loan_split_exit checked 75098ms check-target:macos_arm64 @71d7a6330d0b
 pass/borrow/reference_parameter_referent_copy_exit checked 3721ms check-target:macos_arm64 @ccdb99ca2214
@@ -20110,7 +20110,8 @@ pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-targe
 pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/dispatch_subject_view_released_exit checked 8842ms check-target:macos_arm64 @d0478b7180a6
-pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/dynamic_window_return_custody_exit rejected 5258ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	returned projection does not match this invocation and result path
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/erased_input_before_returned_reference_exit checked 7151ms check-target:macos_arm64 @7e859cc5b918
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 16453ms check-target:macos_arm64 @ccdb99ca2214
@@ -20130,7 +20131,7 @@ pass/borrows/incoming_reference_slot_replacement_exit rejected 7123ms check-targ
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/indexed_record_field_replacement_exit checked 16352ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/initialized_empty_array_snapshot_replacement_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/inline_carried_reference_exit rejected 4180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+pass/borrows/inline_carried_reference_exit rejected 4309ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 2
 pass/borrows/interleaved_parameter_field_replacement_exit checked 19013ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/later_state_reference_field_loan_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
@@ -20162,11 +20163,23 @@ pass/borrows/nested_machine_unit_output_long_cycle_exit checked 19665ms check-ta
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit checked 17938ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_parent_forwarding_independent_object_exit checked 3678ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_reference_byte_observations_exit checked 16112ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/nested_reference_call_checked_index_exit checked 4196ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/nested_reference_call_checked_index_exit rejected 6765ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `read_reference` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `observe` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
+	state `hold` receives `value.inner.value` while local borrow `entry` is still active
 pass/borrows/nested_reference_crossings_exit checked 15962ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_reference_join_state_backing_exit checked 3503ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/nested_reference_leaf_projection_exit checked 14966ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/nested_reference_write_disjoint_facts_exit checked 3447ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/nested_reference_write_disjoint_facts_exit rejected 5248ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	statement 0 cannot resolve the complete borrowed destination of `value.middle.items[0].value.changed`: the incoming descriptor has no retained loan occurrence
 pass/borrows/opaque_generic_owned_input_declaration checked 2892ms @ccdb99ca2214
 pass/borrows/opaque_generic_reference_readers checked 2930ms @ccdb99ca2214
 pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 2794ms @ccdb99ca2214
@@ -20395,8 +20408,8 @@ pass/borrows/runtime_returned_owned_sibling_descriptor_exit checked 3851ms check
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 107018ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 77761ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 61137ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_returned_stored_view_reborrow_exit rejected 4951ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
-	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 3, generation: 43 } in observe::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref-mut(named(name(nominal\\\\(package-owner\\\\(32:be372796d57980f8ac38e63d71a64c4cc81ea06783463ac569414c6ddb89f14f\\\\)\\\\,path\\\\(Wrapper\\\\)\\\\))))"), expected None, path [Some(Field { symbol: Handle { arena_index: 668, generation: 1 } })] (1 segments)
+pass/borrows/runtime_returned_stored_view_reborrow_exit rejected 5032ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 3, generation: 45 } in observe::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref-mut(named(name(nominal\\\\(package-owner\\\\(32:6e4a0b12ee799d1f29c8b5723a3313c365558f6f2e41b6d269eaf59f258f9a1b\\\\)\\\\,path\\\\(Wrapper\\\\)\\\\))))"), expected None, path [Some(Field { symbol: Handle { arena_index: 689, generation: 1 } })] (1 segments)
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_scalar_field_local_loan_handback_exit checked 9013ms check-target:macos_arm64 @f07ae35f9283
 pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target:macos_arm64 @ccdb99ca2214
@@ -20422,7 +20435,8 @@ pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit che
 pass/borrows/runtime_shared_result_attenuates_exclusive_origin_exit checked 4059ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 16583ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_shared_temporary_call_exit checked 16743ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_shared_view_record_presentation_exit checked 3919ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_shared_view_record_presentation_exit rejected 7285ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(92), reason: "descriptor result origin could not be substituted at the call" }))
 pass/borrows/runtime_slice_reference_result_exit checked 3955ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_arrival_recast_footprint_exit checked 3665ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_boolean_reference_exit checked 18197ms check-target:macos_arm64 @ccdb99ca2214
@@ -20430,8 +20444,11 @@ pass/borrows/runtime_state_fixed_element_reference_exit checked 15170ms check-ta
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 18286ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_static_callback_snapshot_exit checked 10437ms check-target:macos_arm64 @edd05427fd02
 pass/borrows/runtime_stored_boolean_reference_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_stored_carrier_exchange_exit incomplete 11500ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @f632a980b2a0
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 5
+pass/borrows/runtime_stored_carrier_exchange_exit rejected 4688ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 13)
+	statement 5 creates local borrow `windows` while local borrow `retired` is still active (borrowed at statement 5; its last use is at statement 7)
+	statement 10 creates local borrow `windows` while local borrow `second_retired` is still active (borrowed at statement 10; its last use is at statement 11)
+	statement 10 creates local borrow `second_retired` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 13)
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit checked 80189ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_stored_reference_array_leaf_retirement_exit checked 83850ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_stored_reference_case_residual_retirement_exit rejected 21360ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
@@ -22994,12 +23011,12 @@ pass/facts/computed_record_window_through_const_name_exit checked 7512ms check-t
 pass/facts/computed_record_window_through_field_exit checked 6886ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_local_exit checked 7439ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_match_join_exit checked 6617ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_record_window_through_other_machine_exit incomplete 6897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @234ea171ee6e
+pass/facts/computed_record_window_through_other_machine_exit incomplete 7187ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 0
-pass/facts/computed_record_window_through_other_state_exit incomplete 6467ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @234ea171ee6e
+pass/facts/computed_record_window_through_other_state_exit incomplete 7127ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	`main` calls `exercise`, which calls `window`; `window` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: returned reference sources); in state `window::entry`, statement 1
 pass/facts/computed_record_window_through_parameter_exit checked 7958ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_record_window_through_target_body_exit checked 25498ms check-target:macos_arm64 @25f8bb78090b
+pass/facts/computed_record_window_through_target_body_exit checked 8729ms check-target:macos_arm64 @9417a2a2e929
 pass/facts/computed_subslice_extent_shared_predicate_inputs_exit checked 9569ms check-target:macos_arm64 @93ac4da811fe
 pass/facts/computed_subslice_extent_through_call_result_exit checked 7809ms check-target:macos_arm64 @93ac4da811fe
 pass/facts/computed_subslice_extent_through_const_name_exit checked 9775ms check-target:macos_arm64 @93ac4da811fe
@@ -27970,7 +27987,7 @@ pass/slices/guarded_slice_parameter_min_length_tail_compile checked 2522ms @ccdb
 pass/slices/guarded_slice_parameter_successor_index_compile checked 2836ms @ccdb99ca2214
 pass/slices/inclusive_subslice_bounds checked 3317ms @ccdb99ca2214
 pass/slices/inclusive_subslice_literal_bounds_compile checked 3051ms @ccdb99ca2214
-pass/slices/let_matched_mutable_window checked 6994ms check-target:macos_arm64 @bc49525b6c1a
+pass/slices/let_matched_mutable_window checked 7685ms check-target:macos_arm64 @9417a2a2e929
 pass/slices/live_view_edge_write checked 3174ms @ccdb99ca2214
 pass/slices/local_array_element_view_exit checked 42878ms check-target:macos_arm64 @1e29a538216e
 pass/slices/local_record_array_state_view_exit checked 36035ms check-target:macos_arm64 @4815ea579d91
@@ -28036,7 +28053,7 @@ pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_
 pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 29369ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_indexed_descriptor_replacement_call_exit rejected 4980ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+pass/slices/runtime_indexed_descriptor_replacement_call_exit rejected 5029ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	returned view has no complete formation frontier
 pass/slices/runtime_indexed_record_field_range_exit checked 8680ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit checked 4276ms check-target:macos_arm64 @ccdb99ca2214
@@ -28060,10 +28077,11 @@ pass/slices/runtime_namespace_range_contract_exit checked 3892ms check-target:ma
 pass/slices/runtime_nested_descriptor_scalar_store_exit checked 15376ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_nested_machine_field_window_exit checked 2891ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_element_replacement_exit checked 2945ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_stored_view_return_exit rejected 4255ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+pass/slices/runtime_nested_stored_view_return_exit rejected 5697ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	returned view has no complete formation frontier
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 12724ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_view_candidate_backings_exit checked 3449ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_nested_view_candidate_backings_exit rejected 5223ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	returned view has no complete formation frontier
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5433ms check-target:macos_arm64 @00a39fc4e84c
 pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit checked 3310ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nonzero_window_result_snapshot_exit checked 3660ms check-target:macos_arm64 @ccdb99ca2214
@@ -28078,8 +28096,8 @@ pass/slices/runtime_range_qualified_scalar_copy_exit checked 2999ms check-target
 pass/slices/runtime_range_qualified_scalar_copy_local_exit checked 3239ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_range_qualified_scalar_dynamic_store_exit checked 4082ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_range_qualified_scalar_store_phi_exit checked 3024ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_reborrowed_partition_append_exit rejected 5468ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/runtime_reborrowed_partition_append_exit rejected 3650ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	machine `main` state `entry` statement 4: stored call has no complete statement-successor effects: an invocation relation is unavailable
 pass/slices/runtime_returned_nested_array_window_home_exit checked 3381ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_returned_range_extent_contract_exit checked 3271ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_same_carrier_inline_cast_index_exit checked 3642ms check-target:macos_arm64 @ccdb99ca2214
@@ -28098,13 +28116,13 @@ pass/slices/runtime_slice_indexed_read_exit checked 12999ms check-target:macos_a
 pass/slices/runtime_slice_iteration_exit checked 27911ms check-target:macos_arm64 @4815ea579d91
 pass/slices/runtime_slice_record_field_offset_exit checked 12251ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_state_cycle_tagged_reference_argument checked 6198ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_state_selected_nested_view_exit rejected 3393ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
-pass/slices/runtime_stored_element_view_replacement_exit rejected 5088ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
-	returned projection exceeds its source presentation
-pass/slices/runtime_stored_view_direct_window_argument_exit rejected 4664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+pass/slices/runtime_state_selected_nested_view_exit rejected 5452ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	returned view has no complete formation frontier
-pass/slices/runtime_stored_view_dynamic_selection_exit rejected 4187ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+pass/slices/runtime_stored_element_view_replacement_exit rejected 5572ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	returned projection exceeds its source presentation
+pass/slices/runtime_stored_view_direct_window_argument_exit rejected 5008ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	returned view has no complete formation frontier
+pass/slices/runtime_stored_view_dynamic_selection_exit rejected 5112ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
 	returned view has no complete formation frontier
 pass/slices/runtime_subslice_and_element_read_call_operands_exit checked 12593ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_subslice_dynamic_index_exit checked 11621ms check-target:macos_arm64 @ccdb99ca2214
@@ -28119,13 +28137,14 @@ pass/slices/saved_byte_predicate_fields_disjoint_exit checked 3299ms check-targe
 pass/slices/saved_byte_predicate_operand_disjoint_exit checked 3487ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/signed_index_and_range_lower_bounds checked 2044ms @ccdb99ca2214
 pass/slices/slice_core_surface checked 4396ms @ccdb99ca2214
-pass/slices/state_projected_selector_bounds checked 2535ms @ccdb99ca2214
+pass/slices/state_projected_selector_bounds rejected 2779ms regressed-from:checked @9417a2a2e929
+	cannot form specification index in machine `store` requires contract: independent collection bounds are not established by preceding formed facts
 pass/slices/state_record_array_mutable_view_exit checked 13579ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/state_record_array_shared_child_view_exit checked 12021ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/static_data_computed_index_hoists checked 5067ms @911f6617ba9e
 pass/slices/stored_element_view_branching_value checked 15794ms check-target:macos_arm64 @602404d45977
-pass/slices/stored_element_view_runtime_destination rejected 3106ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/slices/stored_element_view_runtime_destination rejected 2646ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	machine `main` state `entry` statement 3: stored call has no complete statement-successor effects: an invocation relation is unavailable
 pass/slices/stored_element_window_field_exit checked 6719ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/subslice_folded_bound_facts_compile checked 3591ms @ccdb99ca2214
 pass/slices/subslice_folded_facts checked 3248ms @ccdb99ca2214
@@ -29038,7 +29057,8 @@ run/slices/folded_window_endpoint_effects checked 1208ms check-target:macos_arm6
 run/slices/matched_computed_window_end checked 3476ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/matched_record_window_lower_bound checked 2924ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/mutable_window_call_argument checked 2693ms check-target:macos_arm64 @ccdb99ca2214
-run/slices/returned_record_fixed_array_window checked 3473ms check-target:macos_arm64 @ccdb99ca2214
+run/slices/returned_record_fixed_array_window incomplete 3913ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @9417a2a2e929
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 2
 run/slices/returned_record_parameter_length checked 2713ms check-target:macos_arm64 @ccdb99ca2214
 run/state_owned_nested_borrow checked 71041ms check-target:macos_arm64 @c3cb68d51f3f
 run/state_shared_nested_backing checked 28142ms check-target:macos_arm64 @c3cb68d51f3f
