@@ -757,6 +757,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "symbols",
 ]
@@ -2699,6 +2700,7 @@ dependencies = [
  "access-plans",
  "arena",
  "compiler-storage",
+ "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",

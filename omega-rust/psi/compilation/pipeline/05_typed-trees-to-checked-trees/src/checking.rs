@@ -1135,15 +1135,6 @@ fn check_program(
     ) {
         return Err(merge_overflow(&mut deferred_overflow, errors));
     }
-    let specialization_identities =
-        match validation::contract_identities::prepare_specialization_contract_identities(
-            &program,
-            &facts.contract_plans,
-            &prepared_effects,
-        ) {
-            Ok(identities) => identities,
-            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
-        };
 
     if let Err(errors) = checks::check_checked_facts_recording(
         &program,
@@ -1191,6 +1182,17 @@ fn check_program(
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
+    let specialization_identities =
+        match validation::contract_identities::prepare_specialization_contract_identities(
+            &program,
+            &facts.contract_plans,
+            &prepared_effects,
+            &facts.carry,
+        ) {
+            Ok(identities) => identities,
+            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
+        };
+
     facts.specialization_identities = specialization_identities;
     facts.accepted_template_identities = {
         checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
@@ -1205,10 +1207,12 @@ fn check_program(
                         identity: validation::contract_identities::generic_machine_template_report_fingerprint(
                             &program,
                             machine.symbol,
+                            &facts.carry,
                         )
                         .zip(validation::contract_identities::generic_machine_template_commitment(
                             &program,
                             machine.symbol,
+                            &facts.carry,
                         ))
                         .map(|(report_fingerprint, commitment)| {
                             checked_trees::CheckedAcceptedTemplateIdentity {

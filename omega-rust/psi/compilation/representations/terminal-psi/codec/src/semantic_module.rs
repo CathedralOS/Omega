@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 253`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 254`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1482,6 +1482,8 @@ pub(crate) mod machine_declaration_wire {
         writer.u32(body.callable.0);
         writer.u32(body.result_type.0);
         writer.bytes(&body.contract);
+        writer.boolean(body.published_may_suspend);
+        writer.boolean(body.published_may_block);
         writer.boolean(body.specialization.is_some());
         if let Some(specialization) = &body.specialization {
             writer.u32(specialization.template.identity().0);
@@ -1507,6 +1509,8 @@ pub(crate) mod machine_declaration_wire {
         let callable = TerminalIdentityIndex(reader.u32()?);
         let result_type = TerminalIdentityIndex(reader.u32()?);
         let contract = reader.array()?;
+        let published_may_suspend = reader.boolean()?;
+        let published_may_block = reader.boolean()?;
         let specialization = if reader.boolean()? {
             Some(CheckedMachineSpecialization {
                 template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
@@ -1534,6 +1538,8 @@ pub(crate) mod machine_declaration_wire {
             callable,
             result_type,
             contract,
+            published_may_suspend,
+            published_may_block,
             specialization,
         };
         validate(&body)?;
@@ -2286,6 +2292,13 @@ pub(crate) mod reach_application_wire {
         writer.boolean(true);
         writer.u32(application.template_identity.0);
         writer.bytes(&application.template_commitment);
+        encode_operational(
+            writer,
+            application.template_base_commitment,
+            &application.suspension_dependency,
+            &application.blocking_dependency,
+            &application.conditional_carry,
+        )?;
         writer.bytes(&application.specialization_commitment);
         encode_kinds(writer, &application.parameter_kinds)?;
         encode_telescope(writer, &application.telescope)?;
@@ -2293,6 +2306,13 @@ pub(crate) mod reach_application_wire {
         if let Some(capture) = &application.capture {
             writer.u32(capture.template_identity.0);
             writer.bytes(&capture.template_commitment);
+            encode_operational(
+                writer,
+                capture.template_base_commitment,
+                &capture.suspension_dependency,
+                &capture.blocking_dependency,
+                &capture.conditional_carry,
+            )?;
             writer.bytes(&capture.specialization_commitment);
             encode_kinds(writer, &capture.parameter_kinds)?;
             encode_telescope(writer, &capture.telescope)?;
@@ -2369,6 +2389,10 @@ pub(crate) mod reach_application_wire {
                         writer.u32(argument.0);
                     }
                     encode_service_ceiling(writer, &binding.upper_bound)?;
+                    writer.boolean(binding.upper_bound_may_suspend);
+                    writer.boolean(binding.upper_bound_may_block);
+                    writer.boolean(binding.selected_may_suspend);
+                    writer.boolean(binding.selected_may_block);
                     writer.u32(binding.selected_identity.0);
                     writer.bytes(&binding.selected_contract_commitment);
                     encode_service_ceiling(writer, &binding.selected_reach)?;
@@ -2392,13 +2416,31 @@ pub(crate) mod reach_application_wire {
         }
         let template_identity = TerminalIdentityIndex(reader.u32()?);
         let template_commitment = reader.array()?;
+        let (
+            template_base_commitment,
+            suspension_dependency,
+            blocking_dependency,
+            conditional_carry,
+        ) = decode_operational(reader)?;
         let specialization_commitment = reader.array()?;
         let parameter_kinds = decode_kinds(reader)?;
         let telescope = decode_telescope(reader)?;
         let capture = if reader.boolean()? {
+            let template_identity = TerminalIdentityIndex(reader.u32()?);
+            let template_commitment = reader.array()?;
+            let (
+                template_base_commitment,
+                suspension_dependency,
+                blocking_dependency,
+                conditional_carry,
+            ) = decode_operational(reader)?;
             Some(ClosedReachCapture {
-                template_identity: TerminalIdentityIndex(reader.u32()?),
-                template_commitment: reader.array()?,
+                template_identity,
+                template_commitment,
+                template_base_commitment,
+                suspension_dependency,
+                blocking_dependency,
+                conditional_carry,
                 specialization_commitment: reader.array()?,
                 parameter_kinds: decode_kinds(reader)?,
                 telescope: decode_telescope(reader)?,
@@ -2409,6 +2451,10 @@ pub(crate) mod reach_application_wire {
         Ok(Some(ClosedReachApplication {
             template_identity,
             template_commitment,
+            template_base_commitment,
+            suspension_dependency,
+            blocking_dependency,
+            conditional_carry,
             specialization_commitment,
             parameter_kinds,
             telescope,
@@ -2458,6 +2504,10 @@ pub(crate) mod reach_application_wire {
                             Ok(TerminalIdentityIndex(reader.u32()?))
                         })?,
                         upper_bound: decode_ids(reader, "ServiceId")?,
+                        upper_bound_may_suspend: reader.boolean()?,
+                        upper_bound_may_block: reader.boolean()?,
+                        selected_may_suspend: reader.boolean()?,
+                        selected_may_block: reader.boolean()?,
                         selected_identity: TerminalIdentityIndex(reader.u32()?),
                         selected_contract_commitment: reader.array()?,
                         selected_reach: decode_ids(reader, "ServiceId")?,
@@ -2475,6 +2525,264 @@ pub(crate) mod reach_application_wire {
                 tag => return Err(CodecError::InvalidTag("ClosedReachParameter", tag)),
             })
         })
+    }
+
+    type Dependency = terminal_psi::ContractDependency<bool, Vec<u32>>;
+    type Carry = terminal_psi::ConditionalCarryRequirement;
+
+    fn encode_term(writer: &mut Writer, term: &Dependency) -> Result<(), CodecError> {
+        writer.boolean(term.concrete);
+        writer.len("callback dependency", term.parameters.len())?;
+        for parameter in &term.parameters {
+            writer.u32(*parameter);
+        }
+        Ok(())
+    }
+
+    fn decode_term(reader: &mut Reader<'_>) -> Result<Dependency, CodecError> {
+        Ok(Dependency {
+            concrete: reader.boolean()?,
+            parameters: decode_counted(reader, |reader| reader.u32())?,
+        })
+    }
+
+    fn encode_coordinate(writer: &mut Writer, coordinate: usize) -> Result<(), CodecError> {
+        writer.u64(
+            u64::try_from(coordinate)
+                .map_err(|_| CodecError::CollectionTooLong("carry coordinate"))?,
+        );
+        Ok(())
+    }
+
+    fn decode_coordinate(reader: &mut Reader<'_>) -> Result<usize, CodecError> {
+        usize::try_from(reader.u64()?)
+            .map_err(|_| CodecError::CollectionTooLong("carry coordinate"))
+    }
+
+    fn encode_acquisition(
+        writer: &mut Writer,
+        machine: &str,
+        state: &str,
+        source: &language_semantics::ScopedPermissionEventSource<String>,
+    ) -> Result<(), CodecError> {
+        use language_semantics::ScopedPermissionEventSource as Source;
+        writer.string("carry acquisition machine", machine)?;
+        writer.string("carry acquisition state", state)?;
+        match source {
+            Source::StateEntry => writer.u8(0),
+            Source::Statement { statement_index } => {
+                writer.u8(1);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::Call {
+                statement_index,
+                call_ordinal,
+                target_symbol,
+            } => {
+                writer.u8(2);
+                encode_coordinate(writer, *statement_index)?;
+                encode_coordinate(writer, *call_ordinal)?;
+                writer.string("carry acquisition target", target_symbol)?;
+            }
+            Source::InstructionDisposition { statement_index } => {
+                writer.u8(3);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::InstructionExitDisposition { statement_index } => {
+                writer.u8(4);
+                encode_coordinate(writer, *statement_index)?;
+            }
+            Source::StateExit => writer.u8(5),
+        }
+        Ok(())
+    }
+    fn decode_acquisition(
+        reader: &mut Reader<'_>,
+    ) -> Result<
+        (
+            String,
+            String,
+            language_semantics::ScopedPermissionEventSource<String>,
+        ),
+        CodecError,
+    > {
+        use language_semantics::ScopedPermissionEventSource as Source;
+        let machine = reader.string("carry acquisition machine")?;
+        let state = reader.string("carry acquisition state")?;
+        let source = match reader.u8()? {
+            0 => Source::StateEntry,
+            1 => Source::Statement {
+                statement_index: decode_coordinate(reader)?,
+            },
+            2 => Source::Call {
+                statement_index: decode_coordinate(reader)?,
+                call_ordinal: decode_coordinate(reader)?,
+                target_symbol: reader.string("carry acquisition target")?,
+            },
+            3 => Source::InstructionDisposition {
+                statement_index: decode_coordinate(reader)?,
+            },
+            4 => Source::InstructionExitDisposition {
+                statement_index: decode_coordinate(reader)?,
+            },
+            5 => Source::StateExit,
+            tag => return Err(CodecError::InvalidTag("carry acquisition", tag)),
+        };
+        Ok((machine, state, source))
+    }
+
+    fn encode_operational(
+        writer: &mut Writer,
+        base: [u8; 32],
+        suspension: &Dependency,
+        blocking: &Dependency,
+        carry: &[Carry],
+    ) -> Result<(), CodecError> {
+        use language_semantics::SuspensionValueOrigin;
+        writer.bytes(&base);
+        encode_term(writer, suspension)?;
+        encode_term(writer, blocking)?;
+        writer.len("conditional carry", carry.len())?;
+        for row in carry {
+            writer.u32(row.state);
+            writer.u64(row.statement_index);
+            writer.u64(row.call_ordinal);
+            match &row.subject {
+                SuspensionValueOrigin::Parameter { symbol, position } => {
+                    writer.u8(0);
+                    writer.string("carry subject", symbol)?;
+                    encode_coordinate(writer, *position)?;
+                }
+                SuspensionValueOrigin::Local {
+                    symbol,
+                    statement_index,
+                    environment_position,
+                } => {
+                    writer.u8(1);
+                    writer.string("carry subject", symbol)?;
+                    encode_coordinate(writer, *statement_index)?;
+                    encode_coordinate(writer, *environment_position)?;
+                }
+                SuspensionValueOrigin::CallArgument { position } => {
+                    writer.u8(2);
+                    encode_coordinate(writer, *position)?;
+                }
+            }
+            writer.string("carry type", &row.value_type)?;
+            writer.len("carry acquisitions", row.claims.len())?;
+            for arrival in &row.claims {
+                let language_semantics::ScopedPermissionClaimIdentity::Established {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                    ordinal,
+                } = &arrival.claim_identity
+                else {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "conditional carry receiving claim is unknown",
+                    ));
+                };
+                encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                writer.u32(*ordinal);
+                match &arrival.provenance {
+                    language_semantics::ScopedPermissionProvenance::Unknown => {
+                        return Err(CodecError::MalformedStructuralFoundation(
+                            "conditional carry acquisition join is unknown",
+                        ));
+                    }
+                    language_semantics::ScopedPermissionProvenance::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                    } => {
+                        writer.u8(1);
+                        encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                    }
+                    language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal,
+                    } => {
+                        writer.u8(2);
+                        encode_acquisition(writer, machine_symbol, state_symbol, source)?;
+                        writer.u32(*ordinal);
+                    }
+                }
+            }
+            encode_term(writer, &row.condition)?;
+        }
+        Ok(())
+    }
+
+    fn decode_operational(
+        reader: &mut Reader<'_>,
+    ) -> Result<([u8; 32], Dependency, Dependency, Vec<Carry>), CodecError> {
+        use language_semantics::SuspensionValueOrigin;
+        let base = reader.array()?;
+        let suspension = decode_term(reader)?;
+        let blocking = decode_term(reader)?;
+        let carry = decode_counted(reader, |reader| {
+            let state = reader.u32()?;
+            let statement_index = reader.u64()?;
+            let call_ordinal = reader.u64()?;
+            let subject = match reader.u8()? {
+                0 => SuspensionValueOrigin::Parameter {
+                    symbol: reader.string("carry subject")?,
+                    position: decode_coordinate(reader)?,
+                },
+                1 => SuspensionValueOrigin::Local {
+                    symbol: reader.string("carry subject")?,
+                    statement_index: decode_coordinate(reader)?,
+                    environment_position: decode_coordinate(reader)?,
+                },
+                2 => SuspensionValueOrigin::CallArgument {
+                    position: decode_coordinate(reader)?,
+                },
+                tag => return Err(CodecError::InvalidTag("carry subject", tag)),
+            };
+            let value_type = reader.string("carry type")?;
+            let claims = decode_counted(reader, |reader| {
+                let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
+                let claim_identity =
+                    language_semantics::ScopedPermissionClaimIdentity::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal: reader.u32()?,
+                    };
+                let tag = reader.u8()?;
+                let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
+                let provenance = match tag {
+                    1 => language_semantics::ScopedPermissionProvenance::Established {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                    },
+                    2 => language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol,
+                        state_symbol,
+                        source,
+                        ordinal: reader.u32()?,
+                    },
+                    tag => return Err(CodecError::InvalidTag("carry acquisition join", tag)),
+                };
+                Ok(language_semantics::PermissionArrival {
+                    claim_identity,
+                    provenance,
+                })
+            })?;
+            Ok(Carry {
+                state,
+                statement_index,
+                call_ordinal,
+                subject,
+                value_type,
+                claims,
+                condition: decode_term(reader)?,
+            })
+        })?;
+        Ok((base, suspension, blocking, carry))
     }
 
     pub(crate) fn encode_argument(writer: &mut Writer, argument: &ClosedReachArgument) {
@@ -2642,6 +2950,8 @@ mod external_provider_tests {
                 callable: TerminalIdentityIndex(8),
                 result_type: TerminalIdentityIndex(7),
                 contract: [17; 32],
+                published_may_suspend: false,
+                published_may_block: false,
                 specialization: None,
             },
             realization_package: PackageKeyIdentity::from_digest([1; 32]),
@@ -3615,7 +3925,17 @@ mod routed_scalar_tests {
     }
 
     #[test]
-    fn routed_scalar_specialization_retains_exact_authored_issuer() {
+    fn previous_callback_contract_format_refuses_before_decoding() {
+        let mut bytes = b"PSITERM\0".to_vec();
+        bytes.extend_from_slice(&253_u16.to_le_bytes());
+        assert!(matches!(
+            decode_module(&bytes),
+            Err(crate::CodecError::UnsupportedFormatMarker(253))
+        ));
+    }
+
+    #[test]
+    fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
         let declaration = module.machines[0].declaration.as_mut().unwrap();
         declaration.callable = TerminalIdentityIndex(2);
@@ -3628,7 +3948,18 @@ mod routed_scalar_tests {
         });
         module.machines[0].closed_reach_application = Some(ClosedReachApplication {
             template_identity: TerminalIdentityIndex(1),
-            template_commitment: [7; 32],
+            template_base_commitment: [7; 32],
+            template_commitment: terminal_psi::template_contract_commitment(
+                [7; 32],
+                0,
+                &false.into(),
+                &false.into(),
+                &[],
+            )
+            .unwrap(),
+            suspension_dependency: false.into(),
+            blocking_dependency: false.into(),
+            conditional_carry: Vec::new(),
             specialization_commitment: [9; 32],
             parameter_kinds: Vec::new(),
             telescope: Vec::new(),
@@ -3637,6 +3968,167 @@ mod routed_scalar_tests {
             dependencies: Vec::new(),
             calls: Vec::new(),
         });
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
+        {
+            use language_semantics::{
+                ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
+            };
+            let application = module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap();
+            application.parameter_kinds = vec![3];
+            application.telescope = vec![terminal_psi::ClosedReachParameter::Machine(
+                terminal_psi::ClosedReachMachineBinding {
+                    nominal_requirement: None,
+                    requirement_parameter_kinds: Vec::new(),
+                    requirement_arguments: Vec::new(),
+                    upper_bound: Vec::new(),
+                    upper_bound_may_suspend: true,
+                    upper_bound_may_block: false,
+                    selected_may_suspend: false,
+                    selected_may_block: false,
+                    selected_identity: TerminalIdentityIndex(2),
+                    selected_contract_commitment: [3; 32],
+                    selected_reach: Vec::new(),
+                    callee: None,
+                    schema: None,
+                },
+            )];
+            application.suspension_dependency = terminal_psi::ContractDependency {
+                concrete: false,
+                parameters: vec![0],
+            };
+            application.conditional_carry = vec![terminal_psi::ConditionalCarryRequirement {
+                state: 0,
+                statement_index: 2,
+                call_ordinal: 1,
+                subject: SuspensionValueOrigin::Local {
+                    symbol: "helper::kept".into(),
+                    statement_index: 0,
+                    environment_position: 0,
+                },
+                value_type: "Kept".into(),
+                claims: vec![language_semantics::PermissionArrival {
+                    claim_identity: ScopedPermissionClaimIdentity::Established {
+                        machine_symbol: "helper".into(),
+                        state_symbol: "helper::entry".into(),
+                        source: ScopedPermissionEventSource::Statement { statement_index: 0 },
+                        ordinal: 0,
+                    },
+                    provenance: language_semantics::ScopedPermissionProvenance::Joined {
+                        machine_symbol: "helper".into(),
+                        state_symbol: "helper::entry".into(),
+                        source: ScopedPermissionEventSource::Call {
+                            statement_index: 0,
+                            call_ordinal: 0,
+                            target_symbol: "acquire".into(),
+                        },
+                        ordinal: 0,
+                    },
+                }],
+                condition: application.suspension_dependency.clone(),
+            }];
+            application.template_commitment = terminal_psi::template_contract_commitment(
+                application.template_base_commitment,
+                1,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )
+            .unwrap();
+        }
+        // A captured helper still uses the callback supplied to its method.
+        // The guard names that method slot after the capture's type slot.
+        let capture_commitment = {
+            let application = module.machines[0]
+                .closed_reach_application
+                .as_mut()
+                .unwrap();
+            application.suspension_dependency.parameters = vec![1];
+            application.conditional_carry[0].condition.parameters = vec![1];
+            let capture_commitment = terminal_psi::template_contract_commitment(
+                [8; 32],
+                2,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )
+            .unwrap();
+            application.capture = Some(terminal_psi::ClosedReachCapture {
+                template_identity: TerminalIdentityIndex(1),
+                template_base_commitment: [8; 32],
+                template_commitment: capture_commitment,
+                suspension_dependency: application.suspension_dependency.clone(),
+                blocking_dependency: application.blocking_dependency.clone(),
+                conditional_carry: application.conditional_carry.clone(),
+                specialization_commitment: [6; 32],
+                parameter_kinds: vec![0],
+                telescope: vec![terminal_psi::ClosedReachParameter::Type {
+                    argument: "u32".into(),
+                }],
+            });
+            application.template_commitment = terminal_psi::template_contract_commitment(
+                application.template_base_commitment,
+                2,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )
+            .unwrap();
+            capture_commitment
+        };
+        module.machines[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .capture = Some(terminal_psi::CheckedMachineCapture {
+            template_identity: TerminalIdentityIndex(1),
+            template_commitment: capture_commitment,
+            specialization_commitment: [6; 32],
+        });
+        let preserved = module.clone();
+        module.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .conditional_carry
+            .clear();
+        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        module = preserved.clone();
+        module.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .conditional_carry[0]
+            .condition
+            .parameters = vec![2];
+        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        module = preserved.clone();
+        module.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .conditional_carry[0]
+            .subject = language_semantics::SuspensionValueOrigin::CallArgument { position: 0 };
+        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        module = preserved.clone();
+        if let terminal_psi::ClosedReachParameter::Machine(binding) = &mut module.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .telescope[0]
+        {
+            binding.selected_may_suspend = true;
+        }
+        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        module = preserved;
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
@@ -3862,6 +4354,8 @@ pub(crate) mod target_family_tests {
                 machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
                 state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
                 contract: [7; 32],
+                published_may_suspend: false,
+                published_may_block: false,
                 specialization: None,
             }),
             nominal_cleanup_subject: None,
@@ -4058,7 +4552,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // application roles, target case-tag geometry, lifecycle target inputs and
 // separate source/destination relocation requirements. Both independently
 // extended 252 layouts, and all earlier layouts, are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 253;
+pub(crate) const FORMAT_MARKER: u16 = 254;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

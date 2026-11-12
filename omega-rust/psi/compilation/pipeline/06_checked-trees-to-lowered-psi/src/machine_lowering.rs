@@ -135,6 +135,18 @@ pub(crate) mod boundary_applications {
                         machine,
                         state,
                         contract: candidate.contract,
+                        published_may_suspend: checked
+                            .facts
+                            .operational
+                            .machine_by_symbol(candidate.machine)
+                            .ok_or("boundary candidate lost its published operational contract")?
+                            .published_may_suspend,
+                        published_may_block: checked
+                            .facts
+                            .operational
+                            .machine_by_symbol(candidate.machine)
+                            .ok_or("boundary candidate lost its published operational contract")?
+                            .published_may_block,
                         specialization,
                     },
                 });
@@ -966,6 +978,18 @@ pub(crate) mod declarations {
             callable,
             result_type,
             contract: declaration.contract.as_bytes(),
+            published_may_suspend: checked
+                .facts
+                .operational
+                .machine_by_symbol(machine)
+                .ok_or("checked declaration lost its published operational contract")?
+                .published_may_suspend,
+            published_may_block: checked
+                .facts
+                .operational
+                .machine_by_symbol(machine)
+                .ok_or("checked declaration lost its published operational contract")?
+                .published_may_block,
             specialization,
         })
     }
@@ -1063,6 +1087,9 @@ pub(crate) mod declarations {
             result_type: identities
                 .intern(&program.package_qualified_type_identity_text(signature.return_type)),
             contract: contract.as_bytes(),
+            published_may_suspend: validation::signature_operational(checked, signature)
+                .may_suspend,
+            published_may_block: validation::signature_operational(checked, signature).may_block,
             specialization: None,
         }))
     }
