@@ -195,6 +195,8 @@ pub(crate) fn check_product_source(
             previous: &previous,
             retain: reuse.retain,
             library_slice,
+            // A product check judges the consumer's own package.
+            checked_slices: None,
         }
         .check_keeping_typed_frontier(frontier.is_some().then_some(&mut judged));
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {

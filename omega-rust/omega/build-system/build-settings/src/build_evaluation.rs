@@ -67,6 +67,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub artifact_only: bool,
     pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>, // Scan-ordered prior Build language judgments (own slot chain + equal-projection siblings).
     pub retain_check: bool, // Retain a successful judgment only when a subsequent review pass will consume it.
+    pub checked_slices: Option<&'request dyn psi_compiler::CheckedSliceStore>, // Local store of checked dependency slices; `None` checks every slice afresh.
 }
 
 pub use compilation_products::EvaluatedBuild;
@@ -225,6 +226,7 @@ pub fn prepare_build_evaluation(
         artifact_only,
         prior_checks,
         retain_check,
+        checked_slices,
     } = request;
     let BuildExecutionInputs {
         profile: execution_profile,
@@ -293,6 +295,7 @@ pub fn prepare_build_evaluation(
             timings,
             &prior_checks,
             retain_check || pure_build_compilation.is_some(),
+            checked_slices,
         )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,

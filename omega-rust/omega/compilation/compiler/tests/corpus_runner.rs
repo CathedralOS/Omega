@@ -2602,6 +2602,8 @@ fn main() {
         "corpus_runner: library slices: {} distinct, {} computed",
         slices.distinct, slices.computed
     );
+    let (loaded, saved) = compiler::checked_slice_totals();
+    eprintln!("corpus_runner: checked slices: {loaded} loaded, {saved} saved");
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }
