@@ -10,7 +10,7 @@ SHORT=$(git rev-parse --short=12 HEAD)
 TARGET="$ROOT/target/bisect-$SHORT"
 rm -rf "$TARGET"
 export OMEGA_CORPUS_JOBS=1 CARGO_BUILD_JOBS=4 MBX_SCHEDULER_CPUS=4
-CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TARGET" nice -n 19 mbx build -p compiler --tests < /dev/null >/dev/null 2>&1 || exit 125
+CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TARGET" nice -n 19 mbx test -p compiler --test corpus_runner --no-run < /dev/null >/dev/null 2>&1 || exit 125
 shopt -s nullglob
 candidates=("$TARGET"/debug/build/compiler/*/out/corpus_runner-*)
 shopt -u nullglob
