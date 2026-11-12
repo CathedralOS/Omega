@@ -334,6 +334,7 @@ fn decode_sources(cursor: &mut ObservationCursor<'_>) -> Option<Vec<SourceFile>>
         let origin = match cursor.u8()? {
             0 => SourceOrigin::User,
             1 => SourceOrigin::Toolchain,
+            2 => SourceOrigin::ToolchainContract,
             _ => return None,
         };
         let resolution_stratum = match cursor.u8()? {
@@ -451,6 +452,7 @@ fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
     output.push(match source.origin {
         SourceOrigin::User => 0,
         SourceOrigin::Toolchain => 1,
+        SourceOrigin::ToolchainContract => 2,
     });
     output.push(match source.resolution_stratum {
         SourceResolutionStratum::Base => 0,
@@ -506,6 +508,38 @@ fn decode_path(cursor: &mut ObservationCursor<'_>) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_codec_preserves_contract_origin_without_reusing_core_tag() {
+        for (origin, tag) in [
+            (SourceOrigin::User, 0),
+            (SourceOrigin::Toolchain, 1),
+            (SourceOrigin::ToolchainContract, 2),
+        ] {
+            let file = SourceFile {
+                source_id: SourceId(0),
+                package_root: PathBuf::from("std"),
+                path: PathBuf::from("std").join("entry.omg"),
+                package_identity: None,
+                dependency_scope: DependencyScope::Product,
+                origin,
+                resolution_stratum: SourceResolutionStratum::Base,
+                source: Arc::from("machine entry() {}"),
+            };
+            let mut owner = Vec::new();
+            source_owner(&file, &mut owner);
+            assert_eq!(owner, [0, 0, tag, 0]);
+            let mut bytes = Vec::new();
+            encode_sources(&[file], &mut bytes);
+            let mut cursor = ObservationCursor::new(&bytes);
+            let decoded = decode_sources(&mut cursor).expect("source origins roundtrip");
+            assert!(cursor.exhausted());
+            assert_eq!(decoded[0].origin, origin);
+            let mut reencoded = Vec::new();
+            encode_sources(&decoded, &mut reencoded);
+            assert_eq!(reencoded, bytes);
+        }
+    }
 
     #[test]
     fn provider_selection_envelope_roundtrip_and_retired_version_refusal() {
