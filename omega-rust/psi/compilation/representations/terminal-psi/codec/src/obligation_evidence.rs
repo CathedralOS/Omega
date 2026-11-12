@@ -22,12 +22,10 @@ use terminal_psi::{
 
 use crate::CodecError;
 use crate::semantic_module::{Writer, encode_proposition, encode_scalar_term};
+use crate::term_table::{TableChildren, TableTerm, encode_term_table};
 use crate::term_wire::integer_math_term_wire::encode_integer_math_term;
 
 const DOMAIN: &[u8] = b"psi-obligation-evidence-fingerprint\0";
-
-/// Deeper certificates are refused rather than encoded on the host stack.
-const MAX_CERTIFICATE_DEPTH: usize = 1024;
 
 /// One accepted obligation's evidence and its fingerprint.
 ///
@@ -74,16 +72,16 @@ impl ObligationEvidenceSeal {
         let mut writer = Writer::default();
         writer.id(self.machine);
         writer.id(self.obligation);
-        encode_proposition(&mut writer, &self.goal, 0)?;
+        encode_proposition(&mut writer, &self.goal)?;
         for list in [&self.assumptions, &self.axioms] {
             writer.len("evidence hypotheses", list.len())?;
             for proposition in list {
-                encode_proposition(&mut writer, proposition, 0)?;
+                encode_proposition(&mut writer, proposition)?;
             }
         }
         writer.id(self.certificate.identity);
         writer.u16(self.certificate.proof_system_marker.get());
-        encode_proof_node(&mut writer, &self.certificate.proof, 0)?;
+        encode_proof_node(&mut writer, &self.certificate.proof)?;
         let bytes = writer.finish();
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(DOMAIN);
         let length = u64::try_from(bytes.len()).map_err(|_| CodecError::NonCanonicalEncoding)?;
@@ -122,7 +120,7 @@ impl EvidenceSeals {
 /// The canonical bytes of one certificate.
 pub fn canonical_certificate_bytes(proof: &ProofNode) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    encode_proof_node(&mut writer, proof, 0)?;
+    encode_proof_node(&mut writer, proof)?;
     Ok(writer.finish())
 }
 
@@ -150,17 +148,9 @@ fn indices(writer: &mut Writer, values: &[usize]) -> Result<(), CodecError> {
     Ok(())
 }
 
-fn nodes(writer: &mut Writer, children: &[ProofNode], depth: usize) -> Result<(), CodecError> {
-    writer.len("certificate children", children.len())?;
-    for child in children {
-        encode_proof_node(writer, child, depth + 1)?;
-    }
-    Ok(())
-}
-
 fn branch(writer: &mut Writer, branch: &CorrelatedAffineBranchWitness) -> Result<(), CodecError> {
-    encode_scalar_term(writer, &branch.root, 0)?;
-    encode_scalar_term(writer, &branch.target, 0)?;
+    encode_scalar_term(writer, &branch.root)?;
+    encode_scalar_term(writer, &branch.target)?;
     writer.len("correlated branch steps", branch.steps.len())?;
     for step in &branch.steps {
         index(writer, step.definition_axiom)?;
@@ -169,30 +159,164 @@ fn branch(writer: &mut Writer, branch: &CorrelatedAffineBranchWitness) -> Result
     Ok(())
 }
 
-/// A rule tag, its fields in declaration order, then the conclusion. The
-/// match is exhaustive: a new rule changes this encoding deliberately.
-fn encode_proof_node(
-    writer: &mut Writer,
-    node: &ProofNode,
-    depth: usize,
-) -> Result<(), CodecError> {
-    if depth > MAX_CERTIFICATE_DEPTH {
-        return Err(CodecError::CertificateNestingTooDeep);
-    }
-    let child =
-        |writer: &mut Writer, child: &ProofNode| encode_proof_node(writer, child, depth + 1);
-    match &node.rule {
-        ProofRule::ValueEqualityTransport {
-            premise,
-            equalities,
-        } => {
-            writer.u8(0);
-            child(writer, premise)?;
-            nodes(writer, equalities, depth)?;
+/// A certificate is one postorder table (`crate::term_table`): each row is the
+/// rule tag, the rule's non-premise fields in declaration order and the
+/// conclusion, then one handle per premise. The match is exhaustive: a new
+/// rule changes this encoding deliberately.
+fn encode_proof_node(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
+    encode_term_table(writer, node)
+}
+
+impl TableTerm for ProofNode {
+    const LABEL: &'static str = "certificate node";
+
+    fn children<'term>(&'term self, premises: &mut Vec<&'term Self>) {
+        match &self.rule {
+            ProofRule::ValueEqualityTransport {
+                premise,
+                equalities,
+            } => {
+                premises.push(premise);
+                premises.extend(equalities.iter());
+            }
+            ProofRule::PredicateDenotation { premise } => {
+                premises.push(premise);
+            }
+            ProofRule::ConjunctionIntroduction(children) => {
+                premises.extend(children.iter());
+            }
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                premises.push(conjunction);
+            }
+            ProofRule::DisjunctionIntroduction { disjunct, .. } => {
+                premises.push(disjunct);
+            }
+            ProofRule::DisjunctionElimination {
+                disjunction,
+                branches,
+            } => {
+                premises.push(disjunction);
+                premises.extend(branches.iter());
+            }
+            ProofRule::ImplicationIntroduction { body } => {
+                premises.push(body);
+            }
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => {
+                premises.push(implication);
+                premises.push(premise);
+            }
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                premises.push(left_equals_middle);
+                premises.push(middle_equals_right);
+            }
+            ProofRule::EqualitySymmetry { equality } => {
+                premises.push(equality);
+            }
+            ProofRule::IntegerOrderWeakening { relation } => {
+                premises.push(relation);
+            }
+            ProofRule::IntegerOrderDiscreteness { relation } => {
+                premises.push(relation);
+            }
+            ProofRule::IntegerMathOrderTranslation { relation, .. } => {
+                premises.push(relation);
+            }
+            ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+                premises.push(forward);
+                premises.push(backward);
+            }
+            ProofRule::IntegerSubtractOrder {
+                difference,
+                positive,
+            } => {
+                premises.push(difference);
+                premises.push(positive);
+            }
+            ProofRule::IntegerAddOrder { sum, positive } => {
+                premises.push(sum);
+                premises.push(positive);
+            }
+            ProofRule::IntegerSubtractAntitone {
+                smaller,
+                larger,
+                order,
+            } => {
+                premises.push(smaller);
+                premises.push(larger);
+                premises.push(order);
+            }
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle,
+                middle_less_or_equal_right,
+            } => {
+                premises.push(left_less_or_equal_middle);
+                premises.push(middle_less_or_equal_right);
+            }
+            ProofRule::IntegerStrictOrderTransitivity {
+                left_to_middle,
+                middle_to_right,
+            } => {
+                premises.push(left_to_middle);
+                premises.push(middle_to_right);
+            }
+            ProofRule::IntegerOrderSubstitution {
+                relation, equality, ..
+            } => {
+                premises.push(relation);
+                premises.push(equality);
+            }
+            ProofRule::IntegerAffineBound { root_bound, .. } => {
+                premises.push(root_bound);
+            }
+            ProofRule::IntegerExactAddDefinitionBound {
+                left_bound,
+                right_bound,
+                ..
+            } => {
+                premises.push(left_bound);
+                premises.push(right_bound);
+            }
+            ProofRule::IntegerExactSubtractDefinitionBound {
+                left_bound,
+                right_bound,
+                ..
+            } => {
+                premises.push(left_bound);
+                premises.push(right_bound);
+            }
+            ProofRule::IntegerCastBound { root_bound, .. } => {
+                premises.push(root_bound);
+            }
+            _ => {}
         }
-        ProofRule::PredicateDenotation { premise } => {
+    }
+
+    fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
+        write_proof_row(writer, self)
+    }
+
+    fn read_row(
+        _reader: &mut crate::semantic_module::Reader<'_>,
+        _children: &mut TableChildren<'_, Self>,
+    ) -> Result<Self, CodecError> {
+        Err(CodecError::NonCanonicalEncoding)
+    }
+}
+
+fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
+    match &node.rule {
+        ProofRule::ValueEqualityTransport { equalities, .. } => {
+            writer.u8(0);
+            writer.len("certificate children", equalities.len())?;
+        }
+        ProofRule::PredicateDenotation { .. } => {
             writer.u8(1);
-            child(writer, premise)?;
         }
         ProofRule::Primitive(judgment) => {
             writer.u8(2);
@@ -213,131 +337,70 @@ fn encode_proof_node(
         }
         ProofRule::ConjunctionIntroduction(children) => {
             writer.u8(5);
-            nodes(writer, children, depth)?;
+            writer.len("certificate children", children.len())?;
         }
-        ProofRule::ConjunctionElimination {
-            conjunction,
-            conjunct,
-        } => {
+        ProofRule::ConjunctionElimination { conjunct, .. } => {
             writer.u8(6);
-            child(writer, conjunction)?;
             index(writer, *conjunct)?;
         }
         ProofRule::DisjunctionIntroduction {
-            disjunct,
-            index: position,
+            index: position, ..
         } => {
             writer.u8(7);
-            child(writer, disjunct)?;
             index(writer, *position)?;
         }
-        ProofRule::DisjunctionElimination {
-            disjunction,
-            branches,
-        } => {
+        ProofRule::DisjunctionElimination { branches, .. } => {
             writer.u8(8);
-            child(writer, disjunction)?;
-            nodes(writer, branches, depth)?;
+            writer.len("certificate children", branches.len())?;
         }
-        ProofRule::ImplicationIntroduction { body } => {
+        ProofRule::ImplicationIntroduction { .. } => {
             writer.u8(9);
-            child(writer, body)?;
         }
-        ProofRule::ImplicationElimination {
-            implication,
-            premise,
-        } => {
+        ProofRule::ImplicationElimination { .. } => {
             writer.u8(10);
-            child(writer, implication)?;
-            child(writer, premise)?;
         }
-        ProofRule::EqualityTransitivity {
-            left_equals_middle,
-            middle_equals_right,
-        } => {
+        ProofRule::EqualityTransitivity { .. } => {
             writer.u8(11);
-            child(writer, left_equals_middle)?;
-            child(writer, middle_equals_right)?;
         }
-        ProofRule::EqualitySymmetry { equality } => {
+        ProofRule::EqualitySymmetry { .. } => {
             writer.u8(12);
-            child(writer, equality)?;
         }
-        ProofRule::IntegerOrderWeakening { relation } => {
+        ProofRule::IntegerOrderWeakening { .. } => {
             writer.u8(13);
-            child(writer, relation)?;
         }
-        ProofRule::IntegerOrderDiscreteness { relation } => {
+        ProofRule::IntegerOrderDiscreteness { .. } => {
             writer.u8(14);
-            child(writer, relation)?;
         }
-        ProofRule::IntegerMathOrderTranslation { relation, addend } => {
+        ProofRule::IntegerMathOrderTranslation { addend, .. } => {
             writer.u8(15);
-            child(writer, relation)?;
-            encode_integer_math_term(writer, addend, 0)?;
+            encode_integer_math_term(writer, addend)?;
         }
-        ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+        ProofRule::IntegerOrderAntisymmetry { .. } => {
             writer.u8(16);
-            child(writer, forward)?;
-            child(writer, backward)?;
         }
-        ProofRule::IntegerSubtractOrder {
-            difference,
-            positive,
-        } => {
+        ProofRule::IntegerSubtractOrder { .. } => {
             writer.u8(17);
-            child(writer, difference)?;
-            child(writer, positive)?;
         }
-        ProofRule::IntegerAddOrder { sum, positive } => {
+        ProofRule::IntegerAddOrder { .. } => {
             writer.u8(18);
-            child(writer, sum)?;
-            child(writer, positive)?;
         }
-        ProofRule::IntegerSubtractAntitone {
-            smaller,
-            larger,
-            order,
-        } => {
+        ProofRule::IntegerSubtractAntitone { .. } => {
             writer.u8(19);
-            child(writer, smaller)?;
-            child(writer, larger)?;
-            child(writer, order)?;
         }
-        ProofRule::IntegerLessOrEqualTransitivity {
-            left_less_or_equal_middle,
-            middle_less_or_equal_right,
-        } => {
+        ProofRule::IntegerLessOrEqualTransitivity { .. } => {
             writer.u8(20);
-            child(writer, left_less_or_equal_middle)?;
-            child(writer, middle_less_or_equal_right)?;
         }
-        ProofRule::IntegerStrictOrderTransitivity {
-            left_to_middle,
-            middle_to_right,
-        } => {
+        ProofRule::IntegerStrictOrderTransitivity { .. } => {
             writer.u8(21);
-            child(writer, left_to_middle)?;
-            child(writer, middle_to_right)?;
         }
-        ProofRule::IntegerOrderSubstitution {
-            relation,
-            equality,
-            endpoint,
-        } => {
+        ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
             writer.u8(22);
-            child(writer, relation)?;
-            child(writer, equality)?;
             index(writer, *endpoint)?;
         }
-        ProofRule::IntegerAffineBound {
-            root_bound,
-            witness,
-        } => {
+        ProofRule::IntegerAffineBound { witness, .. } => {
             writer.u8(23);
-            child(writer, root_bound)?;
-            encode_scalar_term(writer, &witness.root, 0)?;
-            encode_scalar_term(writer, &witness.target, 0)?;
+            encode_scalar_term(writer, &witness.root)?;
+            encode_scalar_term(writer, &witness.target)?;
             indices(writer, &witness.definition_axioms)?;
             writer.len("affine literal axioms", witness.literal_axioms.len())?;
             for literal in &witness.literal_axioms {
@@ -345,33 +408,21 @@ fn encode_proof_node(
             }
         }
         ProofRule::IntegerExactAddDefinitionBound {
-            left_bound,
-            right_bound,
-            definition_axiom,
+            definition_axiom, ..
         } => {
             writer.u8(24);
-            child(writer, left_bound)?;
-            child(writer, right_bound)?;
             index(writer, *definition_axiom)?;
         }
         ProofRule::IntegerExactSubtractDefinitionBound {
-            left_bound,
-            right_bound,
-            definition_axiom,
+            definition_axiom, ..
         } => {
             writer.u8(25);
-            child(writer, left_bound)?;
-            child(writer, right_bound)?;
             index(writer, *definition_axiom)?;
         }
-        ProofRule::IntegerCastBound {
-            root_bound,
-            witness,
-        } => {
+        ProofRule::IntegerCastBound { witness, .. } => {
             writer.u8(26);
-            child(writer, root_bound)?;
-            encode_scalar_term(writer, &witness.root, 0)?;
-            encode_scalar_term(writer, &witness.target, 0)?;
+            encode_scalar_term(writer, &witness.root)?;
+            encode_scalar_term(writer, &witness.target)?;
             indices(writer, &witness.definition_axioms)?;
         }
         ProofRule::IntegerCorrelatedForbiddenRoots { witness } => {
@@ -381,10 +432,10 @@ fn encode_proof_node(
             index(writer, witness.definition_axiom_count)?;
             index(writer, witness.lower_bound_axiom)?;
             index(writer, witness.upper_bound_axiom)?;
-            encode_proposition(writer, &witness.conclusion, 0)?;
+            encode_proposition(writer, &witness.conclusion)?;
         }
     }
-    encode_proposition(writer, &node.conclusion, 0)
+    encode_proposition(writer, &node.conclusion)
 }
 
 #[cfg(test)]
@@ -464,19 +515,22 @@ mod tests {
     }
 
     #[test]
-    fn an_over_deep_certificate_is_refused() {
-        let mut proof = truth();
-        for _ in 0..=MAX_CERTIFICATE_DEPTH {
-            proof = ProofNode {
-                conclusion: Proposition::Truth,
-                rule: ProofRule::EqualitySymmetry {
-                    equality: Box::new(proof),
-                },
-            };
-        }
-        assert_eq!(
-            canonical_certificate_bytes(&proof),
-            Err(CodecError::CertificateNestingTooDeep)
-        );
+    fn a_deep_certificate_encodes_without_host_stack_recursion() {
+        std::thread::spawn(|| {
+            let mut proof = truth();
+            for _ in 0..4096 {
+                proof = ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::EqualitySymmetry {
+                        equality: Box::new(proof),
+                    },
+                };
+            }
+            let bytes = canonical_certificate_bytes(&proof).unwrap();
+            assert_eq!(&bytes[..4], &4097_u32.to_le_bytes());
+            assert_eq!(canonical_certificate_bytes(&proof).unwrap(), bytes);
+        })
+        .join()
+        .expect("certificate encoding uses an explicit stack");
     }
 }
