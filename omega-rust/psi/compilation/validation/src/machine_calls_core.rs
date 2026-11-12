@@ -7066,7 +7066,6 @@ pub mod invocations {
     ) {
         validate_declared_targets(program, diagnostics);
         let plan = crate::infer_synchronous_invocations(program);
-        let mut provider_edges = Vec::new();
 
         for machine in program.machines() {
             let Some(summary) = plan.for_machine(machine.symbol) else {
@@ -7096,108 +7095,10 @@ pub mod invocations {
                     diagnostics,
                 );
             }
-            validate_conformance_refinement(
-                program,
-                machine,
-                summary,
-                &mut provider_edges,
-                diagnostics,
-            );
-        }
-        validate_provider_invocation_acyclicity(program, &provider_edges, diagnostics);
-    }
-
-    /*
-        A requirement-to-requirement synchronous edge contributed by one declared
-        checked provider. Source checking rejects a cycle among these edges
-        whether or not any Build selects the providers, so a cycle only a future
-        composition could realize is still rejected where it is written.
-    */
-    struct ProviderInvocationEdge<'program> {
-        source: usize,
-        target: usize,
-        provider: &'program str,
-    }
-
-    fn boundary_trait_position(
-        program: &dyn CheckingInput,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<usize> {
-        program
-            .traits()
-            .iter()
-            .position(|definition| definition.is_boundary && definition.symbol == symbol)
-    }
-
-    fn validate_provider_invocation_acyclicity(
-        program: &dyn CheckingInput,
-        edges: &[ProviderInvocationEdge<'_>],
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let traits = program.traits();
-        let mut adjacency = vec![Vec::new(); traits.len()];
-        for edge in edges {
-            if !adjacency[edge.source].contains(&edge.target) {
-                adjacency[edge.source].push(edge.target);
-            }
-        }
-        for targets in &mut adjacency {
-            targets.sort_unstable();
-        }
-        let components =
-            crate::machine_calls::graph_components::strongly_connected_components(&adjacency);
-        for component in components {
-            let [first, ..] = component.as_slice() else {
-                continue;
-            };
-            if component.len() == 1 && !adjacency[*first].contains(first) {
-                continue;
-            }
-            // Walk edges inside the component until a node repeats; the suffix
-            // from that node's first visit is one witness cycle.
-            let mut path = vec![*first];
-            let cycle_start = loop {
-                let current = *path.last().expect("cycle walk starts with one node");
-                let Some(next) = adjacency[current]
-                    .iter()
-                    .copied()
-                    .find(|next| component.contains(next))
-                else {
-                    break None;
-                };
-                if let Some(position) = path.iter().position(|node| *node == next) {
-                    path.push(next);
-                    break Some(position);
-                }
-                path.push(next);
-            };
-            let Some(cycle_start) = cycle_start else {
-                continue;
-            };
-            let cycle = &path[cycle_start..];
-            let route = cycle
-                .iter()
-                .map(|node| traits[*node].name.as_str())
-                .collect::<Vec<_>>()
-                .join(" -> ");
-            let witnesses = cycle
-                .windows(2)
-                .filter_map(|step| {
-                    edges
-                        .iter()
-                        .find(|edge| edge.source == step[0] && edge.target == step[1])
-                        .map(|edge| {
-                            format!(
-                                "`{}` ({} -> {})",
-                                edge.provider, traits[step[0]].name, traits[step[1]].name,
-                            )
-                        })
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            diagnostics.push(Diagnostic::error(format!(
-                "declared checked providers form a cyclic synchronous `invokes` graph: {route} (through {witnesses}); the cycle is rejected even though no Build selects these providers together; break one edge with a mailbox, queue, scheduler handoff, or other new activation",
-            )));
+            // A requirement dependency does not choose every eligible provider.
+            // Check each body's ceiling here; composition checks cycles after
+            // resolving dependencies to the selected exact applications.
+            validate_conformance_refinement(program, machine, summary, diagnostics);
         }
     }
 
@@ -7285,11 +7186,10 @@ pub mod invocations {
         }
     }
 
-    fn validate_conformance_refinement<'program>(
-        program: &'program dyn CheckingInput,
-        machine: &'program Machine,
+    fn validate_conformance_refinement(
+        program: &dyn CheckingInput,
+        machine: &Machine,
         summary: &flow_effects::MachineInvocationInference,
-        provider_edges: &mut Vec<ProviderInvocationEdge<'program>>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for conformance in program.machine_trait_conformances(machine) {
@@ -7361,35 +7261,6 @@ pub mod invocations {
                 )));
                     continue;
                 };
-                if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                    && let Some(source) = boundary_trait_position(program, trait_definition.symbol)
-                {
-                    let target_parameters = if self_forwarded {
-                        parameters
-                    } else {
-                        actual_parameters
-                    };
-                    for target in &actual {
-                        let service = match *target {
-                            flow_effects::InvocationTarget::Service(symbol) => Some(symbol),
-                            flow_effects::InvocationTarget::Parameter(index) => target_parameters
-                                .get(index as usize)
-                                .and_then(|parameter| {
-                                    boundary_trait_for_type(program, parameter.type_reference)
-                                })
-                                .map(|definition| definition.symbol),
-                        };
-                        if let Some(target) =
-                            service.and_then(|symbol| boundary_trait_position(program, symbol))
-                        {
-                            provider_edges.push(ProviderInvocationEdge {
-                                source,
-                                target,
-                                provider: machine.name.as_str(),
-                            });
-                        }
-                    }
-                }
                 report_missing_targets(
                     program,
                     parameters,
