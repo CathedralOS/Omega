@@ -604,7 +604,9 @@ pub mod completed_storage {
     }
     pub use query::{at_snapshot, contents_preserved_from, sources_at_snapshot};
     pub mod versions {
-        use super::{StoredObservation, StoredOperand, at_snapshot, contents_preserved_from};
+        use super::{
+            StoredObservation, StoredOperand, contents_preserved_from, sources_at_snapshot,
+        };
         use crate::CanonicalPlace;
         use arena::Handle;
         use checked_trees::{
@@ -765,7 +767,7 @@ pub mod completed_storage {
         ) -> bool {
             if !anchor.is_valid() {
                 return matches!(
-                    at_snapshot(program, graph, at, place, observation),
+                    sources_at_snapshot(program, graph, at, place, observation),
                     Some(StoredOperand::Incoming(_))
                 );
             }
