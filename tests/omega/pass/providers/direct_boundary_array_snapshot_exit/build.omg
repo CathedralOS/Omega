@@ -1,7 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "direct_boundary_array_snapshot_exit");
     builder.identifier = "com.omega.boundaryarray";
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::select_provider<ThingTake, ThingProvider>(builder, linux_arm64);
     Build::select_provider<ThingTake, ThingProvider>(builder, linux_x86_64);
     Build::select_provider<ThingTake, ThingProvider>(builder, macos_arm64);

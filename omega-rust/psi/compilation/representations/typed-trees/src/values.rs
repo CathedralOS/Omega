@@ -706,7 +706,10 @@ pub mod expression {
             }
 
             fn display_name_with_owner(&self, table: Option<&ExpressionTable>) -> String {
-                if self.type_reference.is_valid() {
+                // An authored type operand has no name path. A named operand may
+                // also carry a type reference that records the scope it was
+                // written in; it is still shown by its name.
+                if self.type_reference.is_valid() && self.path.is_empty() {
                     return "<structural type>".to_owned();
                 }
                 if let Some(literal) = &self.const_literal {

@@ -754,7 +754,10 @@ mod evaluation {
         match expression {
             CheckedScalarExpression::StructuralParameterField {
                 observation,
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 primitive_type: PrimitiveType::Bool,
                 ..
@@ -789,11 +792,19 @@ mod evaluation {
     ) -> Option<(IntegerType, IntegerValue)> {
         match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead { .. }
-            | CheckedScalarExpression::StructuralLocalField { .. }
+            | CheckedScalarExpression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            }
             | CheckedScalarExpression::StructuralSequenceLength { .. } => None,
             CheckedScalarExpression::StructuralParameterField {
                 observation,
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 primitive_type,
                 ..

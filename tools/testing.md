@@ -410,6 +410,17 @@ per-fixture compile time — against `tests/omega/corpus_outcomes.txt`. A diff
 means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
+Pull requests no longer edit that file. The post-merge check publishes the
+ledger it measured as the asset `corpus_outcomes.txt` of the release
+`corpus-ledger`. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
+`cargo xtask corpus` compares with it and says so; otherwise it compares with
+the file in the repository. `--record` and `--golden` are unaffected. Fetch
+the copy with:
+
+```bash
+gh release download corpus-ledger --pattern corpus_outcomes.txt --dir build/corpus-ledger --clobber
+```
+
 ```bash
 python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
 python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior
@@ -447,11 +458,13 @@ otherwise request N times the machine.
 
 ### The corpus in CI
 
-Every pull request that is not a draft, and every merge-queue entry, runs the
+Every pull request that is not a draft runs the
 corpus rows its diff can affect against this ledger, and the job fails when a
 row gets worse: a pass/run row that stops checking, a fail row that is
 accepted, or a fail row that loses its pinned reason. A row main already lost
-is not charged to the pull request. Each night a sweep measures the whole
+is not charged to the pull request. A merge-queue entry does not run the rows
+again; it reuses its pull request's verdict, so the hosted runners go to the
+two required checks. Each night a sweep measures the whole
 corpus on main and opens one ledger-only pull request recording every row that
 moved, with accepted fail rows listed first as soundness alerts. Both are
 described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by

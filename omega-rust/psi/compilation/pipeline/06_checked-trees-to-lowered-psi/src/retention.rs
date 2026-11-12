@@ -299,10 +299,6 @@ pub(crate) mod access_lifecycles {
         lowered: &LoweredPsi,
         role: typed_trees::types::TypeReferenceHandle,
     ) -> Result<terminal_psi::TerminalAccessProfileRequirement, LoweringError> {
-        const LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/layout.omg"
-        ));
         let typed = &checked.typed;
         let role_identity = typed.type_identity(
             typed_trees::type_identity::TypeIdentityRequest::ordinary(role),
@@ -313,11 +309,8 @@ pub(crate) mod access_lifecycles {
                 .symbol_source_span(symbol)
                 .and_then(|span| typed.symbols.source_file(span))
                 .is_some_and(|source| {
-                    source.origin == source::SourceOrigin::Toolchain
-                        && source.package_identity.is_none()
-                        && source.path.strip_prefix(&source.package_root).ok()
-                            == Some(std::path::Path::new("layout.omg"))
-                        && source.source.as_bytes() == LAYOUT_SOURCE
+                    symbols::core_source_at(source)
+                        == Some(language_core::core_vocabulary::CoreSource::Layout)
                 })
         };
         let mut selected = None;
@@ -505,9 +498,7 @@ pub(crate) mod access_lifecycles {
         LoweringError,
     > {
         let typed = &checked.typed;
-        if !validation::is_extent_declaration(typed, extent)
-            || typed.symbols.name(extent) != "Extent"
-        {
+        if !validation::is_core_extent(typed, extent) {
             return unsupported("placement storage is not the core extent");
         }
         let data = typed

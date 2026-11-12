@@ -1,7 +1,11 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "dependency_generated_source_unimported");
-    Build::depend_as(builder, "kit", Source::Path { location: "kit" });
-    Build::build_depend_as(builder, "tool", Source::Path { location: "tool" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "kit" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
+    let mut tool_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "tool" });
+    dependency::with_alias(&mut tool_dependency, "tool");
+    let tool_registration: DependencyRegistration = Build::build_dependency(builder, tool_dependency);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

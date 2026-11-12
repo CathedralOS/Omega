@@ -19,7 +19,12 @@ def write(path, text):
 
 
 def dependency(alias, path):
-    return f'Build::depend_as(builder, "{alias}", Source::Path {{ location: "{path.as_posix()}" }});'
+    return (
+        f'let mut {alias}_dependency: DependencyDescription = '
+        f'dependency::from_source(Source::Path {{ location: "{path.as_posix()}" }});\n'
+        f'    dependency::with_alias(&mut {alias}_dependency, "{alias}");\n'
+        f'    let package_registration: DependencyRegistration = Build::dependency(builder, {alias}_dependency);'
+    )
 
 
 def check(omega, repository, workspace, mode):

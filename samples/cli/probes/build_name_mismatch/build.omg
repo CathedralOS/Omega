@@ -8,8 +8,12 @@ use depkit::main;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "app_declared");
-    Build::build_depend_as(builder, "depkit", Source::Path { location: "depdir" });
-    Build::depend_as(builder, "depkit", Source::Path { location: "depdir" });
+    let mut depkit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
+    dependency::with_alias(&mut depkit_dependency, "depkit");
+    let depkit_registration: DependencyRegistration = Build::build_dependency(builder, depkit_dependency);
+    let mut depkit_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
+    dependency::with_alias(&mut depkit_dependency_2, "depkit");
+    let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
     builder.freestanding = true;
     let observed: i32 = value();
     transition observed == 9 {

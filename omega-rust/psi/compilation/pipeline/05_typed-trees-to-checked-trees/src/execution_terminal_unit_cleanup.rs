@@ -2401,8 +2401,37 @@ pub(super) mod normal_edges {
                         result,
                     });
                 }
+                // Flow records a completed result for every arm it walked,
+                // including one the checker ruled out. The roster may leave
+                // out exactly the arms the dispatch planner itself omits; any
+                // other completed arm without a planned result is refused.
                 if seen.len() != source.branches.len() {
-                    return Err("normal result selection omits a completed source arm");
+                    let typed_trees::expression::ExpressionNode::Match(dispatch) =
+                        program.expression_table.expression(source.expression)
+                    else {
+                        return Err("normal result selection omits a completed source arm");
+                    };
+                    let authored = program.expression_table.match_arms(dispatch.arms);
+                    let mut accounted = seen.len();
+                    for (source_arm, arm) in dispatch.arms.handles().zip(authored) {
+                        let key = (source_arm.arena_index(), source_arm.generation());
+                        if seen.contains(&key) || !source.branches.contains_key(&key) {
+                            continue;
+                        }
+                        if !crate::execution::scalar_computations::structural_dispatch_omits_arm(
+                            program,
+                            machine,
+                            state.symbol,
+                            dispatch,
+                            arm,
+                        ) {
+                            return Err("normal result selection omits a completed source arm");
+                        }
+                        accounted += 1;
+                    }
+                    if accounted != source.branches.len() {
+                        return Err("normal result selection omits a completed source arm");
+                    }
                 }
                 checked_trees::CheckedNormalResultCompletion::Dispatch {
                     computation,

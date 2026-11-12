@@ -8312,7 +8312,7 @@ mod elaboration {
                     witness,
                 } => {
                     let root = operands.take(root_bound);
-                    let cited = integer_bound_rules::affine_bound_relation(
+                    let (rule, cited) = integer_bound_rules::affine_bound_relation(
                         self.context,
                         self.axioms,
                         &root_bound.conclusion,
@@ -8389,12 +8389,7 @@ mod elaboration {
                         premises.push(proposition);
                         evidence.push(variable);
                     }
-                    self.rule_instance(
-                        AcceptedProofRule::IntegerAffineBound,
-                        premises,
-                        evidence,
-                        &proof.conclusion,
-                    )
+                    self.rule_instance(rule, premises, evidence, &proof.conclusion)
                 }
                 ProofRule::IntegerExactAddDefinitionBound {
                     left_bound,

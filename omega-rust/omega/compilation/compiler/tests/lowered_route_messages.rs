@@ -28,6 +28,12 @@ const REJECTIONS: &[(&str, &str)] = &[
         "tests/omega/fail/arithmetic/bitwise_non_singleton_endpoint_bounds",
         "probe",
     ),
+    // The same, where the fixture pins the whole sentence: the fact the
+    // callee asked for in its own words, and the caller's state.
+    (
+        "tests/omega/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
+        "main",
+    ),
     // A nested callee.
     (
         "tests/omega/fail/calls/state_arrival_call_result_above_bound",
@@ -47,6 +53,11 @@ const REJECTIONS: &[(&str, &str)] = &[
     (
         "tests/omega/fail/arithmetic/exact_divisor_unproven",
         "quotient",
+    ),
+    // A case payload read where no case was selected.
+    (
+        "tests/omega/fail/contracts/case_payload_requires_declared_premise",
+        "main",
     ),
     // A shift count.
     (

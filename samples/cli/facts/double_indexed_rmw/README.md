@@ -29,7 +29,7 @@ Historical macOS qualification of the corpus fixtures
 `runtime_double_indexed_rmw_exit`,
 `runtime_indexed_struct_field_rmw_exit`, and `runtime_hoisted_index_write_exit`
 kept their authored exits and stopped at program-entry admission
-because `Build::depend` on std asks for an accepted `WindowsX86_64Application`
+because `Build::dependency` on std asks for an accepted `WindowsX86_64Application`
 binding. That earlier observation is separate from the package-free row below.
 
 | Place | Positive | Reject twin | Transport |

@@ -1,6 +1,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_alias_multi");
     builder.freestanding = true;
-    Build::depend_as(builder, "kit1", Source::Path { location: "dep" });
-    Build::depend_as(builder, "kit2", Source::Path { location: "dep" });
+    let mut kit1_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut kit1_dependency, "kit1");
+    let kit1_registration: DependencyRegistration = Build::dependency(builder, kit1_dependency);
+    let mut kit2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut kit2_dependency, "kit2");
+    let kit2_registration: DependencyRegistration = Build::dependency(builder, kit2_dependency);
 }

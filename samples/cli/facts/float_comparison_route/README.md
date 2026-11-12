@@ -13,7 +13,7 @@ compares the two `f64` values 212.0 and 2.0 with `==` and reaches `done()`
 (exit 0) only when the comparison is false; a true comparison reaches
 `machine bad() { crash Trap; }`. Only the transport of the operands and of the
 comparison result changes. No place imports
-`omega::language::core::float_operations`, and no place adds a `Build::depend`
+`omega::language::core::float_operations`, and no place adds a `Build::dependency`
 line, so the declared route is exercised without a float library in the
 program's package closure.
 
