@@ -20860,8 +20860,7 @@ pass/calls/requires_carrier_ceiling_vacuous checked 11756ms check-target:macos_a
 pass/calls/requires_machine_explicit_operational_closers_exit checked 1220ms check-target:macos_arm64 @45fb2a705c96
 pass/calls/requires_operand_flip_discharge checked 16267ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/result_overload_terminal_arm_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/resultless_native_callback_compile rejected 25829ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @bbcd76b6ba0a
-	no provider is selected for boundary requirement `OnceRegistrar::execute`, which the program entry reaches on target `linux_x86_64`
+pass/calls/resultless_native_callback_compile checked 98211ms check-target:linux_x86_64 @83699bc0772c
 pass/calls/retained_receiver_argument_order_exit checked 17156ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/returned_nested_record_disjoint_field_move_exit checked 1391ms check-target:macos_arm64 @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit checked 1389ms check-target:macos_arm64 @1e127a84987a
