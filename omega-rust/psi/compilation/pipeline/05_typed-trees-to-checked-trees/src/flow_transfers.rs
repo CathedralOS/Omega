@@ -2453,7 +2453,9 @@ mod scalar_values {
                                 || parameter.is_const
                                 || parameter.is_mutable
                                 || !parameter.symbol.is_valid()
-                                || program.primitive_type_reference(parameter.type_reference).is_none()
+                                || program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_none()
                                 || target_symbols.contains(&parameter.symbol)
                             {
                                 return None;
@@ -2466,9 +2468,8 @@ mod scalar_values {
                                     else {
                                         return None;
                                     };
-                                    let position = symbols
-                                        .iter()
-                                        .position(|symbol| *symbol == path.symbol)?;
+                                    let position =
+                                        symbols.iter().position(|symbol| *symbol == path.symbol)?;
                                     values.bindings.get(position)?.clone()
                                 }
                             };
