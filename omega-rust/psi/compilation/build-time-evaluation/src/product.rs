@@ -1797,14 +1797,22 @@ pub mod provider_declarations {
                     || !applications
                         .declarations()
                         .contains(&occurrence.lexical_owner)
-                    || work
-                        .iter()
-                        .any(|selection| selection.contains(occurrence.lexical_owner))
-                    || declaration_roots.contains(&occurrence.lexical_owner)
                 {
                     continue;
                 }
-                declaration_roots.push(occurrence.lexical_owner);
+                // A requirement's types are visited through its trait. Select that
+                // declaration while retaining the occurrence's exact lexical owner.
+                let owner = typed
+                    .trait_machine_signature(occurrence.lexical_owner)
+                    .map_or(occurrence.lexical_owner, |(declaration, _)| {
+                        declaration.symbol
+                    });
+                if work.iter().any(|selection| selection.contains(owner))
+                    || declaration_roots.contains(&owner)
+                {
+                    continue;
+                }
+                declaration_roots.push(owner);
             }
             for ((scope, request), work) in prepared.iter().zip(scopes).zip(&mut work) {
                 let roots = declaration_roots
