@@ -54,12 +54,19 @@ linear_first_compiler_bad() {
   echo "$found"
 }
 if ! GOOD="$(nice -n 19 "$FIND_GOOD" "$WITNESS")"; then
-  python3 - "$OUT_JSON" "$WITNESS" <<'PY'
+  FIX_REL="tests/omega/${WITNESS}.omg"
+  FIX_ADD=""
+  if [[ -f "$ROOT/$FIX_REL" ]]; then
+    FIX_ADD="$(git log -1 --diff-filter=A --format=%H --first-parent -- "$FIX_REL" 2>/dev/null || true)"
+  fi
+  MECH_NG="never-good on first-parent walk (depth ${BISECT_GOOD_DEPTH:-800})"
+  [[ -n "$FIX_ADD" ]] && MECH_NG="$MECH_NG; fixture added ${FIX_ADD:0:12}"
+  python3 - "$OUT_JSON" "$WITNESS" "$MECH_NG" "$FIX_ADD" <<'PY'
 import json, sys
 open(sys.argv[1], "w").write(json.dumps({
-    "witness": sys.argv[2], "breaking_commit": "", "pr": None,
-    "mechanism": "no first-parent good commit found (witness regressed at 759c80404428 and full good-depth walk on first-parent)",
-    "status": "propagated", "bisect_exit": 2, "stability": "unknown",
+    "witness": sys.argv[2], "breaking_commit": "", "fixture_added": sys.argv[4] or None,
+    "pr": None, "mechanism": sys.argv[3], "status": "propagated",
+    "bisect_exit": 2, "stability": "unknown",
 }, indent=2))
 print("propagated no-good", sys.argv[2])
 PY
