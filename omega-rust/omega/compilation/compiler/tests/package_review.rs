@@ -1320,7 +1320,87 @@ fn check_native_binding_applications(select_second_local: bool) {
         .collect::<Vec<_>>();
     outer.sort_unstable();
     outer.dedup();
-    assert_eq!(outer.len(), if select_second_local { 5 } else { 4 });
+    assert_eq!(
+        outer.len(),
+        4,
+        "different method locals share their outer boundary"
+    );
+    let mut expected_receiving = native
+        .iter()
+        .flat_map(|candidate| {
+            candidate
+                .plan
+                .rows
+                .iter()
+                .zip(&candidate.provenance.row_realizations)
+                .map(move |(row, realization)| {
+                    let origin = realization
+                        .native()
+                        .expect("actual selected native binding");
+                    let effects::provider_plan::EvaluatedNativeBinding::Import(import) =
+                        &origin.origin.primary.evaluated
+                    else {
+                        panic!("this fixture retains actual libc imports");
+                    };
+                    (
+                        candidate
+                            .plan
+                            .schema
+                            .root_application_identity()
+                            .unwrap()
+                            .to_owned(),
+                        candidate
+                            .plan
+                            .identities
+                            .text(row.requirement_identity)
+                            .to_owned(),
+                        import.locator().identity_digest().as_bytes().to_owned(),
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    let mut actual_receiving = selections
+        .iter()
+        .map(|selection| {
+            let outer = typed
+                .product_operand_application_identity(selection.application.unwrap())
+                .unwrap()
+                .unwrap();
+            let outer = typed
+                .type_identity_text(outer)
+                .expect("portable receiving outer scope");
+            let closed = typed.closed_requirement_application(selection.requirement);
+            let (owner, declared) = typed
+                .trait_machine_signature(
+                    closed
+                        .as_ref()
+                        .map_or(selection.requirement, |closed| closed.template),
+                )
+                .unwrap();
+            let selected = typed.trait_requirement_callable_identity_text(
+                owner,
+                closed.as_ref().map_or(declared, |closed| closed.signature),
+            );
+            let semantic_vocabulary::NativeBindingLocator::Import(locator) = &selection.locator
+            else {
+                panic!("this fixture reloads actual libc imports");
+            };
+            let locator =
+                target::normalize_foreign_locator(locator.clone(), target::TargetProfile::LinuxX64)
+                    .unwrap();
+            (
+                outer,
+                selected,
+                locator.identity_digest().as_bytes().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    expected_receiving.sort();
+    actual_receiving.sort();
+    assert_eq!(
+        actual_receiving, expected_receiving,
+        "package reload must preserve every exact outer/method/locator association"
+    );
     for missing in [false, true] {
         let mut declarations = restored.native_declarations().to_vec();
         if missing {
