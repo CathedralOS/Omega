@@ -1,78 +1,119 @@
 # CI rebuild plan
 
-On 2026-11-12 nothing merged for more than four hours. Every pull request and
-every merge-queue entry rebuilt the compiler several times and re-ran up to
-eight corpus shards on a handful of 2-CPU hosted runners, two bots dispatched a
-four-target smoke run every few minutes, and entries timed out waiting for
-runners. The old workflows were removed; this is the plan for what replaces
-them. The aim is that CI never blocks landing for more than about a minute,
-and that full verification happens after landing, not before.
+On 2026-11-12 nothing merged for more than four hours, so the old workflows
+and branch rules were removed. This is the plan for what replaces them. The
+goal: a pull request merges in about a minute, main is verified continuously
+after merge, and a break on main is found, attributed and reverted without a
+person or a session spending time on it.
 
-## Principles
+## What went wrong, measured
 
-1. **One required check, about a minute.** It reads the diff and runs only
-   checks that need no compiler build. Nothing else may block a merge.
-2. **Everything heavy runs after merge.** Lint, tests, corpus, samples and
-   native targets run on main and file a repair PR for what they find. Agents
-   follow `AGENTS.md`, "Spec first, land first".
-3. **Build once.** A post-merge run compiles once and shares the binaries.
-4. **Bounded load.** Every workflow has a concurrency group and a
-   `max-parallel`; no account can start unbounded runs.
+- **Every fixture re-checks the bundled std library**, 55 to 117 seconds on a
+  2-CPU hosted runner (comment in the old `compiler-regression.yml`). This is
+  why the full corpus costs about 26 runner-hours and why fixtures time out.
+- **Every job rebuilt the compiler** (about 8.5 minutes cold). A pull request
+  built it in `compiler-check`, `workspace-clippy` and each of eight corpus
+  shards, then all of it again in the merge queue.
+- **The repository gets only a few hosted runners at a time**; 100 queued runs
+  behind 2 to 6 running was normal that night.
+- **Every pull request edits one file**, `tests/omega/corpus_outcomes.txt`, so
+  a slow queue turns into ledger merge conflicts for whoever waits.
+- **Nothing bounded load**: bots dispatched a four-target smoke run every five
+  minutes, each in its own concurrency group.
 
-## Stages
+## Design
 
-### 1. Required: `admission` (about one minute)
+### 1. Before merge: `admission`, about one minute, the only required check
 
-One job on `ubuntu-24.04`, no Rust build of the compiler:
+No compiler build. A prebuilt `xtask` binary (restored from cache, rebuilt
+only when `tools/xtask` changes) runs:
 
-- `cargo xtask check-rules` (title, body, provenance line, path and
-  file-count rules), with the `xtask` binary restored from cache;
-- `cargo xtask fmt --check` when Rust files changed (formatting needs no
-  build).
+- `check-rules`: title, body, provenance line, file-count and path rules;
+- `fmt --check` when Rust files changed.
 
-That is the whole required set. Clippy, unit tests and `check-boundary` move
-after merge.
+Squash merge only. No merge queue: with a one-minute check there is nothing
+to queue for.
 
-### 2. After merge to main: `main-verify`
+### 2. After merge: `main-keeper`, continuous, one run at a time
 
-Triggered on push to main, one run at a time (`concurrency` with
-`cancel-in-progress: true`, so a busy main measures only its newest head):
+Triggered by pushes to main; a new push while one is running waits and the
+newest pending run replaces older ones, so a burst of merges is verified as
+one batch.
 
-- a `build` job compiles `omega` and the corpus runner once, runs Clippy,
-  unit tests and `check-boundary`, and uploads the binaries;
-- shards (`max-parallel: 4`) run the corpus rows the merged diffs can reach and
-  the sample gate, using the uploaded binaries;
-- a report job opens or updates one ledger PR with moved rows, accepted
-  `fail/` rows listed first, and publishes `observed.txt` for anyone who wants
-  a baseline.
+1. **Build once**: compile `omega` and the corpus runner, run Clippy
+   (`--workspace --all-targets`), unit tests and `check-boundary`. Upload the
+   binaries.
+2. **Verify the batch**: shards download the binaries and run the corpus rows
+   and samples the batch's changed paths can reach (the selection logic from
+   the old `corpus-gate plan` is kept), with a fixed smoke set.
+3. **Record**: the keeper, not the pull request, writes the ledger. It commits
+   moved rows to `corpus_outcomes.txt` directly, so authors stop recording and
+   stop conflicting on that file.
+4. **Attribute and repair**: when a batch makes rows worse or breaks the
+   build, the keeper bisects the batch with the already-shared build cache,
+   names the pull request, and opens a revert PR that `admission` passes in a
+   minute. Fix-forward is the author's choice; the default is that main is
+   green again within one keeper cycle.
 
 ### 3. Nightly: `full-sweep`
 
-Same build-once shape over every corpus row and sample, plus native runs on the
-four hosted targets. Off-peak, `max-parallel: 4`.
+The whole corpus, all samples, and native runs on the four hosted targets,
+build-once, off-peak. Its ledger commit is the baseline the keeper compares
+with.
 
 ### 4. On demand: `qualify`
 
-`workflow_dispatch` with an explicit target list, defaulting to
-`linux_x86_64`, one run per dispatching account at a time. Replaces the
-qualification mode of Post-merge smoke.
+`workflow_dispatch` with an explicit target list, default `linux_x86_64`,
+one run per dispatching account, newest pending replaces older.
 
-### 5. Kept as they were
+## Speed work, in order of payoff
 
-`warm-build.yml` (publishes the warm build cloud sessions start from) and
-`pages.yml` (documentation site) are not checks and were kept.
+1. **Check std once per run, not once per fixture.** The corpus runner checks
+   the bundled library once, keeps the checked artifact, and every fixture
+   reuses it. This removes most of the 26 runner-hours and the fixture
+   timeouts. It is the largest single win and is compiler-harness work, not
+   workflow work.
+2. **Self-hosted runners on the machines we already own** (`omega-linux`,
+   the Windows and macOS test hosts). Persistent `target/` and warm caches
+   make the keeper's build incremental (about a minute, not 8.5), and they do
+   not share GitHub's hosted-runner limit. Hosted runners stay for
+   `admission` only.
+3. **Build once per run**, shared as an artifact with a receipt (revision,
+   tree, host, digest); a shard refuses a binary whose receipt does not match.
+4. **`sccache`** keyed on `Cargo.lock` for any hosted build that remains.
+5. **Every workflow has a concurrency group and `max-parallel`.**
 
-## Repository settings (owner action)
+## Repository settings (owner action, once)
 
-- `main` ruleset, "Require status checks to pass": only `admission`.
-- No merge queue: with a one-minute check, merge directly. If one is kept,
-  build concurrency 4, group size up to 8, "require all queue entries to pass"
-  off.
+- Pull requests: squash merging only.
+- One ruleset on `main`: require `admission`; no merge queue.
+- Register the owned machines as self-hosted runners.
+
+## Changes to agent rules
+
+- Authors do not run `corpus --record` or edit `corpus_outcomes.txt`; the
+  keeper records. The `Gate: ... | red rows:` line states the expected change
+  and the keeper checks it after merge.
+- `AGENTS.md`, "Spec first, land first" already covers the rest.
+
+## Targets
+
+| Measure | Target |
+| --- | --- |
+| Pull request ready to merged | under 2 minutes |
+| Merge to keeper verdict | under 20 minutes |
+| Main red to revert PR open | one keeper cycle |
+| Full corpus sweep | under 2 hours |
+| Hosted-runner minutes per pull request | under 2 |
 
 ## Order of work
 
-1. Land `admission` and make it the only required check (one PR, one settings
-   change).
-2. Land `main-verify` with build-once, including Clippy, unit tests and
-   `check-boundary`.
-3. Land `full-sweep` and `qualify`.
+1. `admission` workflow and the ruleset that requires it.
+2. `main-keeper` with build-once, verification and attribution; hosted
+   runners first, self-hosted when registered.
+3. Keeper-owned ledger; remove author recording from `AGENTS.md`, the
+   `advance` skill and `check-rules`.
+4. Std-once in the corpus runner.
+5. `full-sweep` and `qualify`.
+
+Each step is one pull request and is useful without the later ones.
