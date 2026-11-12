@@ -1606,7 +1606,11 @@ pub(crate) mod reach_applications {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ClosedReachApplication {
         pub template_identity: TerminalIdentityIndex,
+        pub template_base_commitment: [u8; 32],
         pub template_commitment: [u8; 32],
+        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Vec<flow_effects::ConditionalCarryRequirement>,
         pub specialization_commitment: [u8; 32],
         pub parameter_kinds: Vec<u8>,
         pub telescope: Vec<ClosedReachParameter>,
@@ -1619,7 +1623,11 @@ pub(crate) mod reach_applications {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ClosedReachCapture {
         pub template_identity: TerminalIdentityIndex,
+        pub template_base_commitment: [u8; 32],
         pub template_commitment: [u8; 32],
+        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Vec<flow_effects::ConditionalCarryRequirement>,
         pub specialization_commitment: [u8; 32],
         pub parameter_kinds: Vec<u8>,
         pub telescope: Vec<ClosedReachParameter>,
@@ -1652,6 +1660,10 @@ pub(crate) mod reach_applications {
         pub requirement_parameter_kinds: Vec<u8>,
         pub requirement_arguments: Vec<TerminalIdentityIndex>,
         pub upper_bound: Vec<ServiceId>,
+        pub upper_bound_may_suspend: bool,
+        pub upper_bound_may_block: bool,
+        pub selected_may_suspend: bool,
+        pub selected_may_block: bool,
         pub selected_identity: TerminalIdentityIndex,
         pub selected_contract_commitment: [u8; 32],
         pub selected_reach: Vec<ServiceId>,

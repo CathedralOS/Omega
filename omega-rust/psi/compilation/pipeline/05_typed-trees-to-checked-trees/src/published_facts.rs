@@ -7770,7 +7770,8 @@ mod machine_facts {
             .map(|machine| {
                 let blocking_row = blocking.iter().find(|row| row.symbol == machine.symbol);
                 let checked_may_block = blocking_row.is_some_and(|row| row.transitive_may_block);
-                let published_may_block = checked_may_block;
+                let published_may_block =
+                    blocking_row.map_or(machine.blocks, |row| row.published_may_block);
                 let publishes_operational_contract = machine.is_public
                     || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
                 checked_trees::MachineBlockingFact {
@@ -7802,7 +7803,8 @@ mod machine_facts {
                 let suspension_row = suspensions.iter().find(|row| row.symbol == machine.symbol);
                 let checked_may_suspend =
                     suspension_row.is_some_and(|row| row.transitive_may_suspend);
-                let published_may_suspend = checked_may_suspend;
+                let published_may_suspend =
+                    suspension_row.map_or(machine.suspends, |row| row.published_may_suspend);
                 let publishes_operational_contract = machine.is_public
                     || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
                 checked_trees::MachineSuspensionFact {
@@ -10919,12 +10921,14 @@ use validation::select_pending_domain_operator_meanings;
 #[derive(Clone, Copy)]
 struct MachineSuspensionRow {
     symbol: SymbolHandle,
+    published_may_suspend: bool,
     transitive_may_suspend: bool,
 }
 
 #[derive(Clone, Copy)]
 struct MachineBlockingRow {
     symbol: SymbolHandle,
+    published_may_block: bool,
     transitive_may_block: bool,
 }
 
@@ -10936,6 +10940,7 @@ fn project_operational_rows(
         .iter()
         .map(|summary| MachineSuspensionRow {
             symbol: summary.symbol,
+            published_may_suspend: summary.published_may_suspend,
             transitive_may_suspend: summary.transitive_may_suspend,
         })
         .collect();
@@ -10944,6 +10949,7 @@ fn project_operational_rows(
         .iter()
         .map(|summary| MachineBlockingRow {
             symbol: summary.symbol,
+            published_may_block: summary.published_may_block,
             transitive_may_block: summary.transitive_may_block,
         })
         .collect();

@@ -10,10 +10,30 @@ suspends {
 }
 public machine quiet(value: u32) -> u32 { value }
 public machine may_pause(value: u32) -> u32 suspends { value }
+machine private_wide(value: u32) -> u32 suspends { value }
+public machine first<const Callback: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    transition remaining > 0 {
+        true -> suspend second<Callback>(remaining - 1, value)
+        _ -> suspend retain<Callback>(value)
+    }
+}
+public machine second<const Forwarded: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    suspend first<Forwarded>(remaining, value)
+}
+public machine retain_scalar<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
+suspends {
+    let kept: u32 = value;
+    let callback_result: u32 = suspend Callback(value);
+    kept
+}
 machine main() crashes Trap {
     let observed: u32 = suspend retain<quiet>(73u32);
     let unmarked: u32 = retain<quiet>(73u32);
-    transition observed == 73u32 && unmarked == 73u32 { true -> done() _ -> bad() }
+    let recursive: u32 = first<quiet>(3, 73u32);
+    let allowed: u32 = suspend retain_scalar<may_pause>(73u32);
+    transition observed == 73u32 && unmarked == 73u32 && recursive == 73u32 && allowed == 73u32 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

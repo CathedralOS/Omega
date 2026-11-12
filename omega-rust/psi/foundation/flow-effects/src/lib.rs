@@ -198,10 +198,197 @@ pub mod flow_effects {
         // parameters. The same expression is built with local vectors, retained
         // in checked arenas, and normalized to binder positions for publication.
         // Reach and operational effects differ only in the fixed value's type.
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            compiler_storage::Record,
+        )]
         pub struct ContractDependency<Contribution, Parameters = HandleSpan<SymbolHandle>> {
             pub concrete: Contribution,
             pub parameters: Parameters,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
+        pub struct ConditionalCarryRequirement {
+            pub state: u32,
+            pub statement_index: u64,
+            pub call_ordinal: u64,
+            pub subject: language_semantics::SuspensionValueOrigin<String>,
+            pub value_type: String,
+            pub claims: Vec<language_semantics::ScopedPermissionClaimIdentity<String>>,
+            pub condition: ContractDependency<bool, Vec<u32>>,
+        }
+
+        pub fn validate_published_dependency(
+            dependency: &ContractDependency<bool, Vec<u32>>,
+            parameter_count: usize,
+        ) -> Result<(), &'static str> {
+            if (dependency.concrete && !dependency.parameters.is_empty())
+                || dependency
+                    .parameters
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                || dependency
+                    .parameters
+                    .iter()
+                    .any(|parameter| *parameter as usize >= parameter_count)
+            {
+                return Err(
+                    "published callback dependency is not a normalized term over its telescope",
+                );
+            }
+            Ok(())
+        }
+
+        pub fn template_contract_commitment(
+            base: [u8; 32],
+            parameter_count: usize,
+            suspension: &ContractDependency<bool, Vec<u32>>,
+            blocking: &ContractDependency<bool, Vec<u32>>,
+            carry: &[ConditionalCarryRequirement],
+        ) -> Result<[u8; 32], &'static str> {
+            // The published identity binds the retained subjects as well as the
+            // callback condition. Removing a private acquisition or changing its
+            // origin must not leave an apparently unchanged generic interface.
+            validate_published_dependency(suspension, parameter_count)?;
+            validate_published_dependency(blocking, parameter_count)?;
+            if carry.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Err("conditional carry requirements are not uniquely ordered");
+            }
+            let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(
+                b"omega.machine-template.v4\0",
+            );
+            digest.raw(&base);
+            digest.len(parameter_count);
+            fn term(
+                digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+                dependency: &ContractDependency<bool, Vec<u32>>,
+            ) {
+                digest.byte(u8::from(dependency.concrete));
+                digest.len(dependency.parameters.len());
+                for parameter in &dependency.parameters {
+                    digest.u64(u64::from(*parameter));
+                }
+            }
+            term(&mut digest, suspension);
+            term(&mut digest, blocking);
+            digest.len(carry.len());
+            for row in carry {
+                validate_published_dependency(&row.condition, parameter_count)?;
+                if row.value_type.is_empty()
+                    || row.condition.concrete
+                    || row.condition.parameters.is_empty()
+                    || row.claims.windows(2).any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(
+                        "conditional carry requirement lost its subject, provenance or guard",
+                    );
+                }
+                digest.u64(u64::from(row.state));
+                digest.u64(row.statement_index);
+                digest.u64(row.call_ordinal);
+                subject(&mut digest, &row.subject)?;
+                digest.bytes(row.value_type.as_bytes());
+                digest.len(row.claims.len());
+                for claim in &row.claims {
+                    acquisition(&mut digest, claim)?;
+                }
+                term(&mut digest, &row.condition);
+            }
+            Ok(digest.finish())
+        }
+
+        fn identity(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            identity: &str,
+        ) -> Result<(), &'static str> {
+            if identity.is_empty() {
+                return Err("conditional carry provenance has an empty declaration identity");
+            }
+            digest.bytes(identity.as_bytes());
+            Ok(())
+        }
+
+        fn subject(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            subject: &language_semantics::SuspensionValueOrigin<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::SuspensionValueOrigin;
+            match subject {
+                SuspensionValueOrigin::Parameter { symbol, position } => {
+                    digest.byte(0);
+                    identity(digest, symbol)?;
+                    digest.len(*position);
+                }
+                SuspensionValueOrigin::Local {
+                    symbol,
+                    statement_index,
+                    environment_position,
+                } => {
+                    digest.byte(1);
+                    identity(digest, symbol)?;
+                    digest.len(*statement_index);
+                    digest.len(*environment_position);
+                }
+                SuspensionValueOrigin::CallArgument { position } => {
+                    digest.byte(2);
+                    digest.len(*position);
+                }
+            }
+            Ok(())
+        }
+
+        fn acquisition(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            claim: &language_semantics::ScopedPermissionClaimIdentity<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::{ScopedPermissionClaimIdentity, ScopedPermissionEventSource};
+            let ScopedPermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source,
+                ordinal,
+            } = claim
+            else {
+                return Err("conditional carry requires an exact acquisition provenance");
+            };
+            identity(digest, machine_symbol)?;
+            identity(digest, state_symbol)?;
+            match source {
+                ScopedPermissionEventSource::StateEntry => digest.byte(0),
+                ScopedPermissionEventSource::Statement { statement_index } => {
+                    digest.byte(1);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal,
+                    target_symbol,
+                } => {
+                    digest.byte(2);
+                    digest.len(*statement_index);
+                    digest.len(*call_ordinal);
+                    identity(digest, target_symbol)?;
+                }
+                ScopedPermissionEventSource::InstructionDisposition { statement_index } => {
+                    digest.byte(3);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::InstructionExitDisposition { statement_index } => {
+                    digest.byte(4);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::StateExit => digest.byte(5),
+            }
+            digest.u64(u64::from(*ordinal));
+            Ok(())
         }
 
         impl<Parameters: Default> From<bool> for ContractDependency<bool, Parameters> {
@@ -273,6 +460,67 @@ pub mod flow_effects {
         mod tests {
             use super::ContractDependency;
             type Condition = ContractDependency<bool, Vec<symbols::SymbolHandle>>;
+
+            #[test]
+            fn published_carry_commits_exact_guard_subject_and_acquisition() {
+                use super::{ConditionalCarryRequirement, template_contract_commitment};
+                use language_semantics::{
+                    ScopedPermissionClaimIdentity, ScopedPermissionEventSource,
+                    SuspensionValueOrigin,
+                };
+                let condition = super::ContractDependency {
+                    concrete: false,
+                    parameters: vec![0],
+                };
+                let row = ConditionalCarryRequirement {
+                    state: 0,
+                    statement_index: 2,
+                    call_ordinal: 1,
+                    subject: SuspensionValueOrigin::Local {
+                        symbol: "helper::kept".into(),
+                        statement_index: 0,
+                        environment_position: 1,
+                    },
+                    value_type: "Kept".into(),
+                    claims: vec![ScopedPermissionClaimIdentity::Established {
+                        machine_symbol: "helper".into(),
+                        state_symbol: "helper::entry".into(),
+                        source: ScopedPermissionEventSource::Call {
+                            statement_index: 0,
+                            call_ordinal: 0,
+                            target_symbol: "acquire".into(),
+                        },
+                        ordinal: 3,
+                    }],
+                    condition: condition.clone(),
+                };
+                let commit = |rows: &[ConditionalCarryRequirement]| {
+                    template_contract_commitment([7; 32], 2, &condition, &false.into(), rows)
+                };
+                let expected = commit(std::slice::from_ref(&row)).unwrap();
+                assert_ne!(expected, commit(&[]).unwrap());
+                let mut changed = row.clone();
+                changed.condition.parameters = vec![1];
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                changed.subject = SuspensionValueOrigin::CallArgument { position: 1 };
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                let ScopedPermissionClaimIdentity::Established { ordinal, .. } =
+                    &mut changed.claims[0]
+                else {
+                    unreachable!()
+                };
+                *ordinal += 1;
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                changed.condition.parameters = vec![2];
+                assert!(commit(&[changed]).is_err());
+                let mut changed = row.clone();
+                changed.claims[0] = ScopedPermissionClaimIdentity::Unknown;
+                assert!(commit(&[changed]).is_err());
+                assert!(commit(&[row.clone(), row]).is_err());
+            }
 
             #[test]
             fn callback_conditions_are_finite_normalized_or_expressions() {
@@ -420,8 +668,8 @@ pub mod flow_effects {
             pub symbol: SymbolHandle,
             pub suspension_dependency: super::dependencies::ContractDependency<bool>,
             pub blocking_dependency: super::dependencies::ContractDependency<bool>,
-            pub published_may_suspend: bool, // Authored suspension ceiling.
-            pub published_may_block: bool,   // Authored blocking ceiling.
+            pub published_may_suspend: bool, // Selected contract after checked generic substitution.
+            pub published_may_block: bool, // Selected contract after checked generic substitution.
             pub transitive_may_suspend: bool, // Effective recursive suspension summary consumed by callers.
             pub transitive_may_block: bool, // Effective recursive blocking summary consumed by callers.
             pub body_may_suspend: bool,     // Declaration-free recursive body suspension summary.
@@ -659,7 +907,10 @@ pub mod flow_effects {
     }
 
     pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
-    pub use dependencies::ContractDependency;
+    pub use dependencies::{
+        ConditionalCarryRequirement, ContractDependency, template_contract_commitment,
+        validate_published_dependency,
+    };
     pub use invocations::{
         InvocationInferencePlan, InvocationTarget, MachineInvocationInference,
         RealizedInvocationTarget,
@@ -679,10 +930,11 @@ pub mod flow_effects {
 pub use flow_effects::{
     CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
     CapabilityFlowPlan, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
-    CapturedSelectorOrigin, CleanupDependency, ContractDependency, InstallationReachRequirement,
-    InvocationInferencePlan, InvocationTarget, MachineInvocationInference, MachineOperational,
-    MachineServiceReachInference, OperationalPlan, RealizedInvocationTarget, SelectedCallContext,
-    SelectedCallContexts, SelectedContextCall, SelectedContextTarget, ServiceReachDependency,
-    ServiceReachInferencePlan, StateOperational, StateServiceReachInference,
-    StaticMachineCallBinding, capabilities, invocations, operational, service_reach,
+    CapturedSelectorOrigin, CleanupDependency, ConditionalCarryRequirement, ContractDependency,
+    InstallationReachRequirement, InvocationInferencePlan, InvocationTarget,
+    MachineInvocationInference, MachineOperational, MachineServiceReachInference, OperationalPlan,
+    RealizedInvocationTarget, SelectedCallContext, SelectedCallContexts, SelectedContextCall,
+    SelectedContextTarget, ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
+    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
+    service_reach, template_contract_commitment, validate_published_dependency,
 };

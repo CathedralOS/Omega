@@ -1,2 +1,5 @@
+call to `independent` may suspend
+call to `may_pause` may suspend
+call to `private_wide` may suspend
 kept
 suspension: forbidden

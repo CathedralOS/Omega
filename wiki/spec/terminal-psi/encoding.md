@@ -61,7 +61,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 253 even when every table
+order below. This layout uses semantic format marker 254 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -894,7 +894,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 253 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 254 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1504,12 +1504,12 @@ BlockParameter places are machine-local and reject at content positions:
 | 2 | Separate | counted content terms |
 
 A closed reach application is a `bool` presence flag; when present it carries
-the template identity index, the 32-byte template commitment, the 32-byte
-specialization commitment, a counted declaration-kind roster, a counted
+the template identity index, the 32-byte template commitment, its operational
+contract payload (below), the 32-byte specialization commitment, a counted declaration-kind roster, a counted
 invocation telescope, the fixed service ceiling, a
 counted `u32` dependency binder list, and counted call rows. After the invocation
 telescope, a `bool` marks a distinct capture receipt: template identity, 32-byte
-template commitment, 32-byte capture commitment, a counted declaration-kind
+template commitment, operational contract payload, 32-byte capture commitment, a counted declaration-kind
 roster, and its counted telescope.
 Dependency positions traverse capture slots before method-local invocation slots;
 method invocation tuple comparisons use only the latter. A call row is an
@@ -1520,7 +1520,7 @@ when present, by the call application.
 
 | Closed reach row | Fields |
 | --- | --- |
-| machine binding | `bool` nominal-requirement presence + requirement string when present + counted requirement declaration kinds + counted argument identity indices + upper-bound service ceiling + selected identity index + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity index and 32-byte schema template commitment when present |
+| machine binding | `bool` nominal-requirement presence + requirement string when present + counted requirement declaration kinds + counted argument identity indices + upper-bound service ceiling + `bool` upper-bound suspension + `bool` upper-bound blocking + `bool` selected suspension + `bool` selected blocking + selected identity index + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity index and 32-byte schema template commitment when present |
 | call application | callee machine id + 32-byte specialization commitment + counted reach arguments |
 
 <!-- reach-parameter-tags -->
@@ -1564,6 +1564,42 @@ live subject or claim, its scoped provenance, the required suspension permission
 and the normalized suspension-dependency expression. Expressions use the existing
 fixed Boolean contributions and exact callback projections; they may name several
 binders. Forwarding retains substitutions for subjects as well as conditions.
+
+Marker 254 adds this payload to both invocation and capture receipts. A checked
+machine declaration also retains its published suspension and blocking Booleans
+immediately after its 32-byte contract, before the specialization-presence flag.
+These describe the selected public contract, independently of private-body
+inference. A closed machine binding retains both its requirement upper bounds
+and the selected public Booleans. Admission compares selected callees with these
+retained public contracts and evaluates callback projections in the complete
+capture-then-invocation telescope. Marker 253 and older modules reject.
+
+| Operational contract payload | Fields |
+| --- | --- |
+| contract | 32-byte base template commitment + suspension dependency + blocking dependency + counted conditional carry rows |
+| dependency | `bool` fixed contribution + counted strictly increasing `u32` machine-binder positions; a true fixed contribution has no positions |
+| conditional carry | `u32` declaration-state position + `u64` statement position + `u64` call ordinal + subject + canonical value-type string + counted acquisition claims + dependency |
+| parameter subject | `u8` 0 + scoped declaration identity string + `u64` parameter position |
+| local subject | `u8` 1 + scoped declaration identity string + `u64` declaration statement position + `u64` environment position |
+| call argument subject | `u8` 2 + `u64` argument position |
+| acquisition claim | scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
+| entry acquisition | `u8` 0 |
+| statement acquisition | `u8` 1 + `u64` statement position |
+| call acquisition | `u8` 2 + `u64` statement position + `u64` call ordinal + scoped target identity string |
+| instruction acquisition | `u8` 3 + `u64` statement position |
+| instruction-exit acquisition | `u8` 4 + `u64` statement position |
+| exit acquisition | `u8` 5 |
+
+Unknown subject or acquisition tags reject. Claims cannot encode unknown
+provenance. Carry rows and each row's claims are strictly ordered and unique;
+a carry guard has at least one exact projection and no true fixed contribution.
+The `omega.machine-template.v4` commitment binds the base template identity,
+complete telescope size, both dependencies, and every scoped subject, acquisition
+and guard. Dropping or altering a row without changing its checked commitment
+rejects. The payload retains requirements; it grants no carry permission or
+runtime authority. False guards discharge only suspension permission. Closed
+true guards still require the ordinary suspension call plan and its complete
+live frontier.
 
 These rows participate in canonical interface identity and dependency checking.
 A decoder cannot interpret a missing row as permission. Closed applications
@@ -2500,7 +2536,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 253 | yes |
+| semantic module | `PSITERM\0` | 254 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

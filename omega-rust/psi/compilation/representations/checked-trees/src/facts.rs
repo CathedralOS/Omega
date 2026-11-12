@@ -2833,21 +2833,8 @@ pub(crate) mod carry {
         },
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum SuspensionCrossingValueOrigin {
-        Parameter {
-            symbol: SymbolHandle,
-            position: usize,
-        },
-        Local {
-            symbol: SymbolHandle,
-            statement_index: usize,
-            environment_position: usize,
-        },
-        CallArgument {
-            position: usize,
-        },
-    }
+    pub type SuspensionCrossingValueOrigin =
+        language_semantics::SuspensionValueOrigin<SymbolHandle>;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum SuspensionCrossingStorage {
@@ -3253,7 +3240,11 @@ pub(crate) mod specialization_identities {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedMachineSpecializationIdentity {
         pub instance: symbols::SymbolHandle,
+        pub template_base_commitment: [u8; 32],
         pub template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
+        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Box<[flow_effects::ConditionalCarryRequirement]>,
         pub machine_argument_contract_commitments: Box<[[u8; 32]]>,
         pub commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
     }

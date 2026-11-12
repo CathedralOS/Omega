@@ -9,6 +9,18 @@ suspends {
 }
 public machine quiet(value: u32) -> u32 { value }
 public machine may_pause(value: u32) -> u32 suspends { value }
+machine private_wide(value: u32) -> u32 suspends { value }
+public machine first<const Callback: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    transition remaining > 0 {
+        true -> suspend second<Callback>(remaining - 1, value)
+        _ -> suspend retain<Callback>(value)
+    }
+}
+public machine second<const Forwarded: machine(value: u32) -> u32 suspends>(remaining: i32 in Wrapping, value: u32) -> u32
+suspends {
+    suspend first<Forwarded>(remaining, value)
+}
 public machine independent(value: u32) -> u32 suspends { value }
 public machine fixed<const Callback: machine(value: u32) -> u32 suspends>(value: u32) -> u32
 suspends {
@@ -19,5 +31,7 @@ suspends {
 }
 machine main() suspends {
     let selected: u32 = suspend retain<may_pause>(73u32);
+    let wide: u32 = suspend retain<private_wide>(73u32);
+    let recursive: u32 = suspend first<may_pause>(3, 73u32);
     let fixed_result: u32 = suspend fixed<quiet>(73u32);
 }

@@ -1488,6 +1488,56 @@ pub mod closed_reach {
         Ok(())
     }
 
+    fn validate_operational_contract(
+        base: [u8; 32],
+        commitment: [u8; 32],
+        parameters: &[&ClosedReachParameter],
+        suspension: &terminal_psi::ContractDependency<bool, Vec<u32>>,
+        blocking: &terminal_psi::ContractDependency<bool, Vec<u32>>,
+        carry: &[terminal_psi::ConditionalCarryRequirement],
+    ) -> Result<(bool, bool), &'static str> {
+        if base == [0; 32]
+            || terminal_psi::template_contract_commitment(
+                base,
+                parameters.len(),
+                suspension,
+                blocking,
+                carry,
+            )? != commitment
+        {
+            return Err(
+                "closed callback contract lost its dependency or conditional carry commitment",
+            );
+        }
+        let evaluate = |term: &terminal_psi::ContractDependency<bool, Vec<u32>>,
+                        suspension_axis: bool|
+         -> Result<bool, &'static str> {
+            let mut possible = term.concrete;
+            for parameter in &term.parameters {
+                let Some(ClosedReachParameter::Machine(binding)) =
+                    parameters.get(*parameter as usize).copied()
+                else {
+                    return Err(
+                        "closed callback dependency is outside its exact machine telescope",
+                    );
+                };
+                possible |= if suspension_axis {
+                    binding.selected_may_suspend
+                } else {
+                    binding.selected_may_block
+                };
+            }
+            Ok(possible)
+        };
+        for requirement in carry {
+            // Only the suspension permission is guarded. A true guard leaves
+            // the ordinary closed-call carry plan responsible for the crossing;
+            // this metadata cannot grant ownership or acquisition permission.
+            evaluate(&requirement.condition, true)?;
+        }
+        Ok((evaluate(suspension, true)?, evaluate(blocking, false)?))
+    }
+
     pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(), &'static str> {
         use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::{ClosedReachArgument, TerminalIdentityIndex};
@@ -1613,6 +1663,36 @@ pub mod closed_reach {
                     return Err("closed reach capture lost its checked application commitment");
                 }
             }
+            let parameters = application.parameters().collect::<Vec<_>>();
+            let (may_suspend, may_block) = validate_operational_contract(
+                application.template_base_commitment,
+                application.template_commitment,
+                &parameters,
+                &application.suspension_dependency,
+                &application.blocking_dependency,
+                &application.conditional_carry,
+            )?;
+            let published = machine
+                .declaration
+                .as_ref()
+                .ok_or("closed callback application lost its checked public declaration")?;
+            if may_suspend != published.published_may_suspend
+                || may_block != published.published_may_block
+            {
+                return Err(
+                    "closed callback substitution differs from its published operational contract",
+                );
+            }
+            if let Some(capture) = &application.capture {
+                validate_operational_contract(
+                    capture.template_base_commitment,
+                    capture.template_commitment,
+                    &capture.telescope.iter().collect::<Vec<_>>(),
+                    &capture.suspension_dependency,
+                    &capture.blocking_dependency,
+                    &capture.conditional_carry,
+                )?;
+            }
             row(&application.fixed)?;
             row(&machine.published_service_ceiling)?;
             for parameter in application.parameters() {
@@ -1650,6 +1730,13 @@ pub mod closed_reach {
                         for argument in &binding.requirement_arguments {
                             identity(*argument)?;
                         }
+                        if (binding.selected_may_suspend && !binding.upper_bound_may_suspend)
+                            || (binding.selected_may_block && !binding.upper_bound_may_block)
+                        {
+                            return Err(
+                                "selected callback operational contract exceeds its requirement bound",
+                            );
+                        }
                         row(&binding.upper_bound)?;
                         row(&binding.selected_reach)?;
                         if binding
@@ -1671,6 +1758,12 @@ pub mod closed_reach {
                                 .map(|declaration| declaration.contract)
                                 != Some(binding.selected_contract_commitment)
                                 || callee.published_service_ceiling != binding.selected_reach
+                                || callee.declaration.as_ref().is_none_or(|declaration| {
+                                    declaration.published_may_suspend
+                                        != binding.selected_may_suspend
+                                        || declaration.published_may_block
+                                            != binding.selected_may_block
+                                })
                             {
                                 return Err(
                                     "closed reach selection differs from its retained callee contract",

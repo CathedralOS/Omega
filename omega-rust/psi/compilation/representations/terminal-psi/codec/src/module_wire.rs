@@ -343,6 +343,8 @@ pub(crate) mod boundary_application_wire {
                         machine: nominal("owner::body"),
                         state: nominal("owner::entry"),
                         contract: [3; 32],
+                        published_may_suspend: false,
+                        published_may_block: false,
                         specialization,
                     },
                 };
@@ -414,6 +416,8 @@ pub(crate) mod callback_application_wire {
                         terminal_psi::TerminalIdentityIndex(12),
                     ),
                     contract: [5; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
                     specialization: None,
                 },
             };
