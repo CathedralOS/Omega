@@ -1,0 +1,48 @@
+// Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
+// Expected exit: 0
+data Interval [copy]
+    requires (self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))
+{
+    case Empty;
+    case Point(lo: u64, hi: u64);
+}
+data Main { interval: Interval; left_guard: u64; width: u64; right_guard: u64; flag: bool; }
+
+machine identity(interval: Interval) -> Interval { interval }
+
+machine run_main(main: &mut Main) crashes Trap {
+    main.width = 99;
+    main.interval = Interval::Point { lo: 17, hi: 17 };
+    guarded_width(main);
+}
+
+machine guarded_width(main: &mut Main) crashes Trap {
+
+    let interval: Interval = identity(main.interval);
+    transition interval {
+        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Empty -> fail()
+    }
+    machine take(lo: u64, hi: u64, main: &mut Main) {
+        main.width = hi - lo;
+        transition main.width == 0 {
+            true -> pass()
+            _ -> fail()
+        }
+    }
+    machine pass() { }
+    machine fail() { crash Trap; }
+}
+
+
+// Observe the caller's original home and adjacent cells after return.
+machine entry_start() crashes Trap {
+    let entry_storage: Main = Main { interval: Interval::Empty {}, left_guard: 101, width: 99, right_guard: 107, flag: false };
+    run_main(&mut entry_storage);
+    transition entry_storage.width == 0 && entry_storage.left_guard == 101 && entry_storage.right_guard == 107 && entry_storage.flag == false {
+        true -> observed()
+        false -> writeback_failed()
+    }
+    machine observed() {}
+    machine writeback_failed() { crash Trap; }
+}
