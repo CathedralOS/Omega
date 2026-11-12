@@ -7,11 +7,35 @@ MAIN_REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 ROOT="${BISECT_REPO_ROOT:-$MAIN_REPO}"
 SCRIPT="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
 FIND_GOOD="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/find_good_commit.sh"
+PREPARE="$MAIN_REPO/.agents/ledger-bisect-2026-11-11/tools/prepare_bisect_expect.py"
 cd "$ROOT"
 START_SHA="$(git rev-parse HEAD)"
 START_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 export BISECT_REPO_ROOT="$ROOT"
+export BISECT_PIN_LEDGER="${BISECT_PIN_LEDGER:-/tmp/bisect_pin_corpus_outcomes.txt}"
+export BISECT_EXPECT_FILE="$(BISECT_PIN_LEDGER="$BISECT_PIN_LEDGER" python3 "$PREPARE" "$WITNESS")"
+commit_is_ledger_only() {
+  local brk="$1"
+  mapfile -t files < <(git diff-tree --no-commit-id --name-only -r "$brk" 2>/dev/null)
+  [[ ${#files[@]} -eq 0 ]] && return 1
+  local compiler=0
+  for f in "${files[@]}"; do
+    case "$f" in tests/omega/corpus_outcomes.txt|*.md) ;; *) compiler=1; break ;; esac
+  done
+  [[ "$compiler" -eq 0 ]]
+}
+mechanism_from_diff() {
+  local brk="$1"
+  local subj
+  subj="$(git log -1 --format='%s' "$brk" 2>/dev/null)"
+  mapfile -t files < <(git diff-tree --no-commit-id --name-only -r "$brk" 2>/dev/null | grep -v '^tests/omega/corpus_outcomes.txt$' | grep -v '\.md$' | head -6)
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "$subj"
+    return
+  fi
+  echo "$subj — ${files[0]}"
+}
 if ! GOOD="$(nice -n 19 "$FIND_GOOD" "$WITNESS")"; then
   python3 - "$OUT_JSON" "$WITNESS" <<'PY'
 import json, sys
@@ -86,13 +110,12 @@ git checkout -f "$START_SHA" >/dev/null 2>&1
 PR=""
 MECH=""
 STATUS=propagated
-if [[ -n "$BREAK" && "$RC" -le 1 && "$BREAK" != "$PIN" ]]; then
+if [[ -n "$BREAK" && "$RC" -le 1 && "$BREAK" != "$PIN" ]] && ! commit_is_ledger_only "$BREAK"; then
   STATUS=bisected
   PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
-  SUBJ=$(git log -1 --format='%s' "$BREAK" 2>/dev/null)
-  STAT=$(git show --stat --format= "$BREAK" 2>/dev/null | tr '\n' '; ' | head -c 220)
-  MECH="$SUBJ"
-  [[ -n "$STAT" ]] && MECH="$MECH ($STAT)"
+  MECH="$(mechanism_from_diff "$BREAK")"
+elif [[ -n "$BREAK" ]] && commit_is_ledger_only "$BREAK"; then
+  MECH="git bisect landed on ledger-only commit ${BREAK:0:12}; witness script should skip these — re-run"
 elif [[ -n "$BREAK" && "$BREAK" == "$PIN" ]]; then
   MECH="bisect reported PIN as first bad but witness was already broken at 741270df — check good commit or bisect_test"
 fi

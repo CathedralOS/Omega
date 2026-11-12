@@ -13,6 +13,8 @@ PIN=51e8c45c793007f211d0d9baee7de16767172444
 cd "$BISECT_REPO_ROOT"
 git fetch origin "$PIN" 2>/dev/null || git fetch origin
 git checkout -f "$PIN"
+cp "$BISECT_REPO_ROOT/tests/omega/corpus_outcomes.txt" /tmp/bisect_pin_corpus_outcomes.txt
+export BISECT_PIN_LEDGER=/tmp/bisect_pin_corpus_outcomes.txt
 python3 <<'PY'
 import json
 import os
@@ -25,13 +27,12 @@ for c in sorted(clusters, key=lambda x: (-x["rows"], x["cluster_id"])):
     cid = c["cluster_id"]
     w = c["witness"]
     out = root / f".agents/ledger-bisect-2026-11-11/bisects/cluster_{cid}.json"
-    if out.exists():
-        prev = json.loads(out.read_text())
-        if prev.get("status") == "bisected" and prev.get("breaking_commit") and prev["breaking_commit"][:12] != "51e8c45c7930":
-            print(f"=== cluster {cid} skip (already bisected {prev['breaking_commit'][:12]})", flush=True)
-            continue
     print(f"=== cluster {cid} rows={c['rows']} witness={w}", flush=True)
-    env = {**dict(**os.environ), "BISECT_REPO_ROOT": str(root / ".agents/ledger-bisect-wt")}
+    env = {
+        **dict(**os.environ),
+        "BISECT_REPO_ROOT": str(root / ".agents/ledger-bisect-wt"),
+        "BISECT_PIN_LEDGER": "/tmp/bisect_pin_corpus_outcomes.txt",
+    }
     subprocess.run(
         ["nice", "-n", "19", str(root / ".agents/ledger-bisect-2026-11-11/bisect_one.sh"), w, str(out)],
         cwd=root,
