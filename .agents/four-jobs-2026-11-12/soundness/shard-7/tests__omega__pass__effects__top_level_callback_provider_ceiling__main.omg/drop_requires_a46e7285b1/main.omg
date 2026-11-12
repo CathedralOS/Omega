@@ -1,0 +1,16 @@
+public boundary trait Read {}
+public boundary trait Handler {
+    machine read() -> u64 reaches Read blocks;
+}
+data Provider {}
+public boundary trait Operations {
+    machine execute<machine Callback>() -> u64
+    reaches
+    invokes Handler;
+}
+
+machine implementation<machine Callback>() -> u64
+requires machine Callback satisfies Handler::read;
+satisfies Operations::execute
+reaches Read blocks
+{ block Callback() }

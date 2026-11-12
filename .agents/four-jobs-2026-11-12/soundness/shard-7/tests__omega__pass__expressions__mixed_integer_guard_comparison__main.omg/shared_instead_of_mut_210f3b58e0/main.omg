@@ -1,0 +1,48 @@
+use omega_language_std::console;
+
+data Main {
+    text: [u8; 8];
+    i: i32;
+}
+
+machine Main::main(main: & Main) reaches Console {
+    main.i = 0;
+    transition { _ -> step(main) }
+
+    machine step(main: &mut Main) {
+        transition main.i < main.text.len {
+            true -> guarded(main)
+            _ -> done(main)
+        }
+    }
+
+    // The re-guard keeps the increment's own overflow obligation out of the
+    // way, exactly as `cli/text/parse_int` does, so the guard comparison is
+    // the only thing this fixture pins.
+    machine guarded(main: &mut Main) {
+        transition main.i >= 0 && main.i < 8 {
+            true -> bump(main)
+            _ -> done(main)
+        }
+    }
+
+    machine bump(main: &mut Main) {
+        main.i = main.i + 1;
+        transition { _ -> step(main) }
+    }
+
+    machine done(main: &mut Main) {
+        transition main.i == 8 {
+            true -> correct(main)
+            _ -> incorrect(main)
+        }
+    }
+    machine correct(main: &mut Main) { Console::exit_process(70); }
+    machine incorrect(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

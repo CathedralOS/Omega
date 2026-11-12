@@ -1,0 +1,25 @@
+// CASE-CONSTRAINTS migrated: the Range case predicate lives in the data
+// `requires` disjunction; under the `Interval::Range` arm the projected
+// case fact (`lo <= hi`) is a branch-local proposition on the exact subject,
+// so the target state's `requires lo <= hi` proves at arrival with no extra
+// evidence.
+data Interval requires
+    (self in Interval::Empty)
+    || ((self in Interval::Range) && self.lo <= self.hi)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+data Main { interval: Interval; }
+machine Main::main(main: & Main) {
+    transition main.interval {
+        Interval::Range { lo, hi } -> take(lo, hi)
+        Interval::Empty -> done()
+    }
+    machine take(lo: u64, hi: u64)
+    requires
+        lo <= hi
+    {
+    }
+    machine done() { }
+}

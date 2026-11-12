@@ -1,0 +1,42 @@
+// A `true ->` arm reads `offsets[u + 1]` only after `u < 8` selected it, so
+// the read and its index stay behind that selection and are proved from it.
+// Expected exit: 0
+
+data Graph {
+    offsets: [u64; 9];
+    node_count: u64;
+}
+
+// Walks nodes while `u < 8 && u < node_count`; each edge span must be
+// nonempty, so a misread offset returns 100 instead of the node count.
+machine walk(g: &Graph) -> u64 {
+    transition { _ -> nodes(g, 0) }
+
+    machine nodes(g: &Graph, u: u64) -> u64 {
+        transition u < 8 && u < g.node_count {
+            true -> edges(g, u, g.offsets[u], g.offsets[u + 1])
+            _ -> (u)
+        }
+    }
+
+    machine edges(g: &Graph, u: u64, start: u64, stop: u64) -> u64
+    requires u >= 8 {
+        transition stop > start {
+            true -> nodes(g, u + 1)
+            _ -> (100)
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let small: Graph = Graph { offsets: [0, 2, 3, 5, 6, 8, 9, 11, 12], node_count: 3 };
+    let large: Graph = Graph { offsets: [1, 2, 4, 5, 7, 8, 10, 11, 13], node_count: 20 };
+    let stopped_by_count: u64 = walk(&small);
+    let stopped_by_bound: u64 = walk(&large);
+    transition stopped_by_count == 3 && stopped_by_bound == 8 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

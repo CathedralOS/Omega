@@ -1,0 +1,15 @@
+// The requirement `low <= high` and the branch condition `high < low` relate
+// two runtime values, not a value and a literal; they still contradict, so the
+// subtraction on that branch closes and the live branch computes the width.
+machine pick(low: u64, high: u64) -> u64
+{
+    transition high < low {
+        true -> (low - 100u64)
+        false -> (high - low)
+    }
+}
+machine main() crashes Trap {
+    transition pick(3, 10) == 7 && pick(5, 5) == 0 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

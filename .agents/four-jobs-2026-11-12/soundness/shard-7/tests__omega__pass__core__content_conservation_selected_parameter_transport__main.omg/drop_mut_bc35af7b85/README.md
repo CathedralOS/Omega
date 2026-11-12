@@ -1,0 +1,1 @@
+A completed selected pair crosses an owned whole parameter and returns with its exact current claim roster. The helper publishes scalar field-preservation guarantees. Both selection arms execute and both engines must exit 70. This pins claim transport; it does not infer an enclosing partition theorem from a private helper body.

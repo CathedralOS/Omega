@@ -1,0 +1,33 @@
+data Token dropped by drop_token { value: u64; ready: bool; }
+
+machine drop_token(token: &mut Token)
+{
+    token.value = 0;
+    token.ready = false;
+}
+
+machine prepare(token: &mut Token)
+ensures token.value == 9 && token.ready
+{
+    token.value = 9;
+    token.ready = true;
+}
+
+machine main() crashes Trap {
+    let mut token: Token = Token { value: 7, ready: false };
+    prepare(&mut token);
+    // Capture the helper's result before outgoing-edge cleanup mutates it.
+    // The outgoing edge is unconditional: a guard cannot supply the hook's
+    // prerequisite and hide a missing helper-guarantee join.
+    let value: u64 = token.value;
+    let ready: bool = token.ready;
+    transition { _ -> observe(value, ready) }
+    machine observe(value: u64, ready: bool) {
+        transition value == 9 && ready {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

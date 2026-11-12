@@ -1,0 +1,35 @@
+// Expected exit: 0. A `mut` parameter qualified by a scalar domain keeps its
+// declared membership as the caller's arrival obligation while the body
+// rewrites the binding. `mirror` receives `value in Counted` and replaces it
+// with `100 - value`, which checking proves stays in the domain; `relay`
+// forwards its value into a nested machine whose own `mut` formal carries the
+// same domain. Mirroring 5 and 21 must give 95 and 79, and relaying 30 must
+// give 70; a lowering that drops or misreads either write traps.
+domain i32::Counted
+    requires self < 0;
+    self <= 100;
+
+machine mirror(mut value: i32 in Counted) -> i32 {
+    value = 100 - value;
+    value
+}
+
+machine relay(value: i32 in Counted) -> i32 {
+    transition { _ -> rewrite(value) }
+    machine rewrite(mut held: i32 in Counted) -> i32 {
+        held = 100 - held;
+        held
+    }
+}
+
+machine main() crashes Trap {
+    let small: i32 = mirror(5);
+    let large: i32 = mirror(21);
+    let relayed: i32 = relay(30);
+    transition small == 95 && large == 79 && relayed == 70 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

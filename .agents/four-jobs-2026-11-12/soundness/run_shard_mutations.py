@@ -129,7 +129,7 @@ def mutations_for(text: str) -> list[Mutation]:
                 break
 
     if LET_MUT_RE.search(text):
-        add("drop_mut", LET_MUT_RE.sub("let ", text, count=1))
+        add("remove_mut", LET_MUT_RE.sub("let ", text, count=1))
 
     if REF_MUT_RE.search(text):
         add("shared_instead_of_mut", REF_MUT_RE.sub("&", text, count=1))

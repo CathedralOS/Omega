@@ -1,0 +1,14 @@
+// A `transition` arm may pass a literal argument to its target state:
+// `0 -> seed(main, 5)` supplies the state's parameter from the arm's own
+// expression — arm expressions are atomic call arguments, not just subjects.
+data Main { answer: u64; }
+
+machine Main::main(main: & Main) {
+    transition 0 {
+        0 -> seed(main, 5)
+        _ -> other(main)
+    }
+
+    machine seed(main: &mut Main, value: u64) { main.answer = value; }
+    machine other(main: &mut Main) { main.answer = 0; }
+}

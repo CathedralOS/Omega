@@ -1,0 +1,54 @@
+// Expected exit: 0
+// A private helper may read a case payload when every arrival selects that case.
+// One helper of each kind receives a direct caller and a callable whose interface
+// states the same case, at the root and at a named field.
+public data Slot { case Absent; case Present(value: i64); }
+public data Rec { before: u64; slot: Slot; after: u64; }
+public data Counter { before: u64; count: u64; after: u64; }
+
+machine read_root(s: &mut Slot) -> i64 { s.value }
+machine read_field(r: &mut Rec) -> i64 { r.slot.value }
+machine need_zero(v: u64) -> u64
+{ v }
+machine read_count(c: &mut Counter) -> u64 { need_zero(c.count) }
+
+public machine invoke_root<machine Reader>(s: &mut Slot) -> i64
+requires machine Reader(s: &mut Slot) -> i64
+requires s in Slot::Present;
+requires s in Slot::Present
+{ Reader(s) }
+
+public machine invoke_field<machine Reader>(r: &mut Rec) -> i64
+requires machine Reader(r: &mut Rec) -> i64
+requires r.slot in Slot::Present;
+requires r.slot in Slot::Present
+{ Reader(r) }
+
+public machine invoke_count<machine Reader>(c: &mut Counter) -> u64
+requires machine Reader(c: &mut Counter) -> u64
+requires c.count == 0;
+requires c.count == 0
+{ Reader(c) }
+
+machine main() crashes Trap {
+    let mut first: Slot = Slot::Present { value: 17 };
+    let mut second: Slot = Slot::Present { value: 5 };
+    let mut direct: Rec = Rec { before: 1, slot: Slot::Absent, after: 2 };
+    direct.slot = Slot::Present { value: 29 };
+    let mut through: Rec = Rec { before: 3, slot: Slot::Present { value: 31 }, after: 4 };
+    let mut counted: Counter = Counter { before: 5, count: 0, after: 6 };
+    let mut stated: Counter = Counter { before: 7, count: 0, after: 8 };
+    let a: i64 = read_root(&mut first);
+    let b: i64 = invoke_root<read_root>(&mut second);
+    let c: i64 = read_field(&mut direct);
+    let d: i64 = invoke_field<read_field>(&mut through);
+    let e: u64 = read_count(&mut counted);
+    let f: u64 = invoke_count<read_count>(&mut stated);
+    transition a == 17 && b == 5 && c == 29 && d == 31 && e == 0 && f == 0
+        && direct.before == 1 && direct.after == 2 && through.before == 3 && through.after == 4 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

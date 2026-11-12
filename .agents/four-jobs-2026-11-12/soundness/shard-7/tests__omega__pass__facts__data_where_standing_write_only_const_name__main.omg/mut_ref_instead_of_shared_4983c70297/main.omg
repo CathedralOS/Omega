@@ -1,0 +1,27 @@
+// Counter.cell.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+public data Cell [copy] { left: i32; value: i32; right: i32; }
+public data Counter [copy] requires self.cell.value <= 60 && self.peer <= 60 { before: i32; cell: Cell; peer: i32; after: i32; }
+public machine fill(counter: &mut write Counter, replacement: i32)
+requires replacement <= 60
+{
+    counter.cell.value = 61;
+    counter.cell.value = replacement;
+}
+machine produce(replacement: i32) -> Counter
+requires replacement <= 60
+{
+    let mut counter: Counter = Counter { before: 31, cell: Cell { left: 17, value: 0, right: 53 }, peer: 13, after: 47 };
+    let selected: &write Counter = &write counter;
+    fill(&write selected, replacement);
+    counter
+}
+
+const LOW_COUNTER: Counter = produce(-2147483648);
+const NAMED_COUNTER: Counter = produce(60);
+machine compute<const COUNTER: Counter>() -> i32 { 70 + COUNTER.cell.value }
+machine main() crashes Trap {
+    transition compute<NAMED_COUNTER>() == 130 && compute<LOW_COUNTER>() == -2147483578 && NAMED_COUNTER.cell.left == 17 && NAMED_COUNTER.cell.right == 53 && NAMED_COUNTER.before == 31 && NAMED_COUNTER.peer == 13 && NAMED_COUNTER.after == 47 && LOW_COUNTER.cell.left == 17 && LOW_COUNTER.cell.right == 53 && LOW_COUNTER.before == 31 && LOW_COUNTER.peer == 13 && LOW_COUNTER.after == 47 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

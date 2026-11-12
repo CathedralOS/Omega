@@ -1,0 +1,15 @@
+// A generic machine whose branch already contradicts its own requirement is
+// reported once, for the authored machine, not once per specialization.
+machine pick<const N: u64>(count: u64) -> u64
+requires count < 10
+{
+    transition count < 5 {
+        true -> (count + N)
+        false -> (count - 10u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick<10>(12) == 2 && pick<3>(15) == 5 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,27 @@
+data Main {
+}
+
+machine main(main: & Main) {
+    _ = evaluate(main);
+}
+
+machine evaluate(main: &mut Main) -> u64 {
+    transition {
+        _ -> walk(main, 4, 0)
+    }
+}
+
+machine walk(main: &mut Main, limit: u64, index: u64) -> u64
+terminates by (index, limit) -> Nat::BoundedDistance
+{
+    transition index < limit {
+        true -> walk(main, limit, index + 1)
+        false -> index
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

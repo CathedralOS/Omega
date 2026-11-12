@@ -1,0 +1,25 @@
+// Erasing an issued meaning leaves a linear value in its storage: the erased
+// copy is still the same token, so a later read, a move into a local and a
+// consuming call all reach the bytes the issuer wrote.
+// Expected exit: 0.
+use omega::language::core::drop;
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
+domain Token::Held established by issue;
+machine issue(value: u64) -> Token in Token::Held { Token { value: value } }
+machine read(token: &mut Token) -> u64 { token.value }
+
+machine main() crashes Trap {
+    let first: Token in Token::Held = issue(3);
+    let moved: Token = first as Token;
+    let seen: u64 = read(&moved);
+    drop(moved);
+    let second: Token in Token::Held = issue(5);
+    drop(second as Token);
+    transition seen == 3 {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

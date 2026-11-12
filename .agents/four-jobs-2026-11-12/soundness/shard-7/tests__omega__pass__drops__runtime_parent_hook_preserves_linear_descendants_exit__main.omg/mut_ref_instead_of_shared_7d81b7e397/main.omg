@@ -1,0 +1,33 @@
+data Receipt [linear] dropped by drop_receipt { value: u64; }
+data Owner dropped by drop_owner { first: Receipt; second: Receipt; }
+
+machine drop_receipt(receipt: &mut Receipt)
+requires receipt.value == 9
+{
+    receipt.value = 0;
+}
+
+machine drop_owner(owner: &mut Owner)
+requires owner.first.value == 7 && owner.second.value == 13
+ensures owner.first.value == 9 && owner.second.value == 9
+{
+    owner.first.value = 9;
+    owner.second.value = 9;
+}
+
+machine inspect(owner: &mut Owner) -> bool {
+    owner.first.value == 7 && owner.second.value == 13
+}
+
+machine main() crashes Trap {
+    let observed: bool = inspect(Owner {
+        first: Receipt { value: 7 },
+        second: Receipt { value: 13 }
+    });
+    transition observed {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

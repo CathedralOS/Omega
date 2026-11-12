@@ -1,0 +1,18 @@
+// Fact: an omitted Capacity is inferred as 2 from the actual [u8; 2] type and Length == [u8; Capacity], independently of element values.
+// Expected exit: 0
+machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
+{ Capacity }
+machine joined(flag: bool, expected_first: u8) -> u64 crashes Trap {
+    let left: [u8; 2] = [7, 11];
+    let right: [u8; 2] = [19, 23];
+    let items: [u8; 2] = match flag { true -> left, false -> right };
+    let observed: u64 = capacity(items);
+    transition items[0] == expected_first { true -> observed false -> bad() }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let left_result: u64 = joined(true, 7u8);
+    let right_result: u64 = joined(false, 19u8);
+    transition left_result == 2 && right_result == 2 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

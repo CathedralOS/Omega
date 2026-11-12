@@ -1,0 +1,92 @@
+// A borrowed match join records the selected place, and a later projection read uses that recorded referent. The consumer reads the joined field.
+// Place: target_body.
+// Expected exit: 0
+
+data Pair { kept: i64; other: i64; }
+
+machine choose() -> bool
+ensures result == true
+{
+    true
+}
+
+machine read_field(place: &mut Pair) -> i64
+requires place.kept == 17
+{
+    place.kept
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Apply satisfies SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let joined: &Pair = match choose() {
+            true -> chosen
+            false -> spare
+        };
+        read_field(joined)
+    }
+}
+
+ArmApply satisfies SelectedApply {
+    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    requires chosen.kept == 17
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let joined: &Pair = match choose() {
+            true -> chosen
+            false -> spare
+        };
+        read_field(joined)
+    }
+}
+
+machine main() crashes Trap {
+    let chosen: Pair = Pair { kept: 17, other: 5 };
+    let spare: Pair = Pair { kept: 0, other: 8 };
+    let observed: i64 = SelectedApply::apply(&chosen, &spare);
+    transition observed == 17 {
+        true -> done()
+        false -> wrong()
+    }
+
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

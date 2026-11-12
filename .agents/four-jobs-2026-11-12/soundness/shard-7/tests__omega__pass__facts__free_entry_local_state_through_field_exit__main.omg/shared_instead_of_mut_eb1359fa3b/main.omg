@@ -1,0 +1,21 @@
+// A free entry owns and cleans an ordinary local tally of 7, and the hosted contract supplies no provisioned ZII context.
+// Place: field.
+// Expected exit: 0
+data Tally { total: u64; }
+data Mark dropped by drop_mark { slot: & Tally; code: u64; }
+machine drop_mark(mark: &mut Mark) requires mark.code == 7 {
+    mark.slot.total = mark.code;
+}
+machine settle(mark: &Mark) {}
+data Holder { code: u64; }
+machine start() crashes Trap {
+    let holder: Holder = Holder { code: 7 };
+    let mut tally: Tally = Tally { total: 0 };
+    settle(&Mark { slot: &mut tally, code: holder.code });
+    transition tally.total == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

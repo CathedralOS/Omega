@@ -1,0 +1,15 @@
+// Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual &[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].
+// Expected exit: 0
+data Packet { before: u8; items: [u8; 3]; after: u8; }
+boundary trait Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0;
+}
+SelectedBytes satisfies Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }
+}
+machine main() crashes Trap {
+    let packet: Packet = Packet { before: 41, items: [7, 11, 13], after: 43 };
+    let observed: u8 = Bytes::last<3u64>(&mut packet.items);
+    transition observed == 13 && packet.before == 41 && packet.after == 43 { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

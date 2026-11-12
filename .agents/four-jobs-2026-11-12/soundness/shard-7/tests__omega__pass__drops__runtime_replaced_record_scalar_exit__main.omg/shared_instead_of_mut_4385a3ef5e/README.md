@@ -1,0 +1,3 @@
+The Cathedral UI scene test replaces enum fields of an affine Style record, then transfers that whole record to its node constructor and returns a Boolean. Projected replacement must not exempt the later whole transfer from custody accounting: the scalar return cannot discard the transferred caller home. The plain Unit route already passed before this repair.
+
+This reduced customer regression retains an affine child, both field replacements, the owned consuming call, and observable scalar/borrowed results. Its duplicate-transfer control is `tests/omega/fail/drops/replaced_record_scalar_duplicate_move`. This pins the demonstrated lowering repair under `RESOURCE-CLEANUP-MODEL`; it does not close that capability or claim the other hosted targets were executed.
