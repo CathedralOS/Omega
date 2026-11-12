@@ -816,7 +816,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 32
+    requires cursor < 32, parser.output.type_argument_count < 1024
     {
         parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor] as u64 in Trapping;
         parser.output.type_argument_count = parser.output.type_argument_count + 1;
@@ -1045,7 +1045,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 32
+    requires cursor < 32, parser.output.type_lifetime_count < 1024
     {
         let tag: IdentifierSpan = parser.pending_type_lifetimes[cursor];
         parser.output.type_lifetimes[parser.output.type_lifetime_count] = tag;

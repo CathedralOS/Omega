@@ -2063,7 +2063,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 64
+    requires cursor < 64, parser.output.match_arm_count < 1024
     {
         parser.output.match_arms[parser.output.match_arm_count] = parser.pending_arms[cursor];
         parser.output.match_arm_count = parser.output.match_arm_count + 1;
@@ -2186,7 +2186,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 256
+    requires cursor < 256, parser.output.argument_count < 65536
     {
         parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
@@ -2240,7 +2240,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 64
+    requires cursor < 64, parser.output.construct_field_count < 4096
     {
         parser.output.construct_fields[parser.output.construct_field_count] = parser.pending_fields[cursor];
         parser.output.construct_field_count = parser.output.construct_field_count + 1;
