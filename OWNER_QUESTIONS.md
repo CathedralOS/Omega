@@ -804,3 +804,52 @@ per type.
 
 Until answered the lowered-form checker takes the first way, which meets
 either answer.
+
+### Q19 - Does a long operator chain count against the parser's expression depth, and what limit does the Rust compiler publish?
+
+Decision name: `expression-tree-depth-provision`.
+
+**Customer.** `PIPELINE-ARCHITECTURE-ENFORCEMENT` on [TASKS.md](TASKS.md)
+asks to drop the compiler's 256 MiB thread stacks. They exist so that
+recursive walks over an expression reach an explicit bound before the stack
+ends, and several hundred walkers in Psi 02 to 06 recurse once per level of
+the expression tree. Measured on a development build, the whole standard
+library and 1,000 nested parentheses both check with every such stack at
+8 MiB, so the size is driven by how deep a tree may be, not by ordinary
+programs.
+
+**Gap.** The parser refuses nesting beyond 1,024 levels
+(`MAX_NESTING_DEPTH`; `tests/omega/fail/parser/nesting_exceeds_max_depth`),
+but only parentheses, calls and types count. An operator chain such as
+`a + b + c + ...` is parsed by a loop and builds a tree as deep as the chain
+is long; prefix runs (`~~~x`) and suffix chains (`a.b.c`) do the same. The
+parser's unit tests parse 4,096 prefixes and a 7,167-operator chain on
+purpose. No fixture or sample chains more than 264 operators, and a
+2,000-term sum does not finish checking in ten minutes, but nothing bounds
+the tree those chains build.
+
+[Compiler requests](wiki/spec/build/compiler_request.md#outcomes) defines
+`Incomplete` as "Named private provision exceeded; no verdict on unexamined
+source" and its scalar-resource table already names `parser_expression_depth`
+and `parser_type_depth`, each with limit 128. The same section says "The
+parser capacities are private D budgets over its fixed tables, not Omega
+source limits". It does not say whether the Rust reference compiler publishes
+under those codes, with which limit, or what an expression's depth is for a
+chain.
+
+**Question.**
+
+- **(a)** Is an expression's depth the depth of its tree, so that every
+  operator of a chain, every prefix and every suffix counts one level, the
+  same as a parenthesis?
+- **(b)** When the Rust compiler exceeds its own bound, does it publish
+  `Incomplete` under `parser_expression_depth` with its own selected limit
+  (today's 1,024), or `Reject` as the existing nesting fixture pins?
+- **(c)** Is 128, the table's limit, a ceiling the Rust compiler must also
+  meet? Two corpus fixtures nest 200 and 300 parentheses deep and four chain
+  264 operators.
+
+Until answered the stacks keep their size. A parser change that charges
+chains against the existing 1,024 levels and refuses beyond it is prepared on
+`work/psi-parser-chain-depth` and meets answer (a) with either answer to (b);
+it is held because it changes which programs parse.
