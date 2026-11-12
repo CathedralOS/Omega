@@ -7,7 +7,9 @@ requires counter == 0
     true
 }
 
-machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64 {
+machine apply(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64
+requires visits == 0
+{
     transition { _ -> write(chosen, other, visits) }
     machine write(chosen: &mut i64, other: &mut i64, visits: &mut u64) -> i64 {
         let selected: &mut i64 = match choose(visits) {

@@ -176,19 +176,43 @@ pub struct Elaboration {
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
+    /// The requirements that are another generic machine's own contract, at
+    /// the type arguments one call in this generic check form's entry
+    /// applies it at (`same<T>(left, right)` inside `compare<T>`). A
+    /// specialization of the entry calls the machine stage 04 generated
+    /// from that machine for the same arguments, whose contract is this one
+    /// at them, so no refinement proof stands between the two. Each is
+    /// also in `requirements`. Empty for every concrete module.
+    pub applications: Vec<MachineId>,
+    /// How many of each machine's scalar formals are value parameters
+    /// (`const Units: u64`) left rigid by a generic check form: they are the
+    /// machine's last scalar formals, in declaration order, and no caller
+    /// passes them. Zero for every machine of a concrete module, and empty
+    /// for bodies lowered without typed trees.
+    pub value_parameters: IdTable<MachineId, usize>,
+    /// The literals a requirement's value parameters are bound to in the
+    /// machine that stands for it, in declaration order: a requirement read
+    /// at the static arguments of a call (`Step::apply<7>(x)`), in a generic
+    /// check form or as a conformance witness. Empty for every other
+    /// machine, and for bodies lowered without typed trees.
+    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
 /// generated for a static application: which machine holds the call, the
 /// parameter and the requirement it was written against, and the member the
 /// application selected for it. All identities; nothing here is a spelling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selected {
     pub caller: MachineId,
     pub parameter: SymbolHandle,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub implementation: MachineId,
+    /// The literals the call binds the requirement's value parameters to
+    /// (`Selected::apply<7>(x)`), in declaration order, read from the
+    /// call's own static arguments; empty when it has none.
+    pub value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -304,11 +328,15 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
     elaborate_form(typed, entry, false)
 }
 
-/// Elaborates the generic check form of `template`, a machine whose only
-/// generic parameters are implementation parameters. Each parameter stays
-/// rigid: a call through one names the requirement, which is read for its
-/// contract and has no body (`lower_generic`). The result is checked once,
-/// against the requirements alone, and is never sealed, encoded or run.
+/// Elaborates the generic check form of `template`, a machine whose generic
+/// parameters are implementation parameters and value parameters. Each stays
+/// rigid. A call through an implementation parameter names the requirement,
+/// which is read for its contract and has no body (`lower_generic`). A value
+/// parameter (`const Units: u64`) is a scalar formal after the authored
+/// ones, with no definition: what is known of it is what the machine's
+/// `requires` say (`Elaboration::value_parameters`). The result is checked
+/// once, against the requirements alone, and is never sealed, encoded or
+/// run.
 pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
     elaborate_form(typed, template, true)
 }
@@ -340,14 +368,21 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
 /// requirements are the implementation's `requires` under the requirement's,
 /// and its guarantees the requirement's `ensures` under the implementation's.
 /// It is a statement to prove, not a program: nothing calls or runs it.
+///
+/// `arguments` are the literals of the requirement's value parameters, in
+/// declaration order (`Selected::value_arguments`): the requirement's
+/// contract is read at them, and `implementation` is then the machine stage
+/// 04 generated for the member at the same arguments. Empty for a
+/// requirement with no value parameter.
 pub fn elaborate_witness(
     typed: &TypedTrees,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
+    arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed(declaring_trait, requirement)?;
+    let entry = program.witnessed(declaring_trait, requirement, arguments)?;
     let callee = program.machine(implementation)?;
     program.forwards(entry, callee);
     let required =
@@ -431,6 +466,9 @@ fn finish_reading(
     elaboration.machines = program.symbols;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
+    elaboration.applications = program.applications;
+    elaboration.value_parameters = program.value_parameters;
+    elaboration.value_arguments = program.value_arguments;
     Ok(elaboration)
 }
 
@@ -530,6 +568,9 @@ pub fn lower_generic(
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),
+        applications: Vec::new(),
+        value_parameters: IdTable::default(),
+        value_arguments: IdTable::default(),
     })
 }
 

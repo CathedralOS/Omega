@@ -66,6 +66,16 @@ access obligations, retains permitted effects and progress, and supplies checked
 postconditions and returned-borrow origins. Calls can take zero, one or multiple
 state arguments. They are not method calls on the record containing the field.
 
+Additional body-derived semantic facts follow the
+[local-summary boundary](state_contracts.md#local-call-summaries). A retained
+exact checked selection may use its summary in the same fixed verification
+unit; an unknown callable or abstract requirement uses its contract. Target
+prediction and mere availability of an implementation do not establish an exact
+selection. Callable construction and conversion check any inferred private
+entry conditions as part of the effective input contract; a helper needing a
+positive argument cannot inhabit a callable that admits zero. The originating
+interface must never be silently narrowed from a selected body's requirements.
+
 Forwarding, reassignment, joins, fields and containers preserve the selected code
 and its contract evidence. Known selection may narrow the operational envelope
 only by [retained checked evidence](effects.md#known-dynamic-selections).

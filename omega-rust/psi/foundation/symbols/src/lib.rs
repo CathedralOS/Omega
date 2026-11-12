@@ -50,11 +50,35 @@ pub fn sealed_intrinsic_at(
     file: &source::SourceFile,
     declaration: &str,
 ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-    use language_core::sealed_intrinsics::{SealedDeclarationSite, SealedIntrinsicCatalog};
+    language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify(toolchain_site(
+        file,
+        declaration,
+    )?)
+}
+
+/*
+    The same gate in front of the core vocabulary catalog. Recognizing a core
+    declaration by this route grants no custody: it only tells checking that
+    the declaration is the bundled one its rules are written against.
+*/
+pub fn core_vocabulary_at(
+    file: &source::SourceFile,
+    declaration: &str,
+) -> Option<language_core::core_vocabulary::CoreVocabulary> {
+    language_core::core_vocabulary::CoreVocabularyCatalog::classify(toolchain_site(
+        file,
+        declaration,
+    )?)
+}
+
+fn toolchain_site<'a>(
+    file: &'a source::SourceFile,
+    declaration: &'a str,
+) -> Option<language_core::sealed_intrinsics::SealedDeclarationSite<'a>> {
     if file.origin != source::SourceOrigin::Toolchain || file.package_identity.is_some() {
         return None;
     }
-    SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+    Some(language_core::sealed_intrinsics::SealedDeclarationSite {
         file: file.path.strip_prefix(&file.package_root).ok()?,
         declaration,
         source: file.source.as_bytes(),

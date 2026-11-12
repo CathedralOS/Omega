@@ -740,7 +740,26 @@ mod context_transport {
                             .is_some_and(|place| canonical_places_agree(program, &place, source))
                         })
                     };
-                    match fact.payload {
+                    /*
+                        A zero-formed array element read as the source moves the
+                        one tag its `ZeroCaseElements` fact states for that element.
+                    */
+                    let (payload, exact_source) = match fact.payload {
+                        FactPayload::ZeroCaseElements { .. } => {
+                            let variant = source_value_place.as_ref().and_then(|source| {
+                                crate::flow::zero_case_at(program, semantic, &fact, source)
+                            })?;
+                            (
+                                FactPayload::CaseValue {
+                                    variant,
+                                    value: true,
+                                },
+                                true,
+                            )
+                        }
+                        payload => (payload, false),
+                    };
+                    match payload {
                         FactPayload::CaseValue { .. }
                         | FactPayload::AssignedValue { .. }
                         | FactPayload::AssignedScalarValue { .. }
@@ -779,8 +798,8 @@ mod context_transport {
                                 return None;
                             }
                             let fact_place = fact.place.as_place()?;
-                            matches_source(fact_place).then_some((
-                                fact.payload,
+                            (exact_source || matches_source(fact_place)).then_some((
+                                payload,
                                 fact.evidence,
                                 None,
                             ))
@@ -1491,6 +1510,62 @@ mod projected {
             .map(|reference| *semantic.facts.get(reference.fact))
             .collect();
         for fact in facts {
+            /*
+                A `ZeroCaseElements` fact reads below the source either as the
+                whole array, which carries the fact itself, or as one element's
+                tag. `elements` keeps the array's path and the fact's own payload
+                for the first; both are judged on the tagged place they stand for.
+            */
+            let mut elements = None;
+            let mut zero_case_segments = None;
+            let fact = match fact.payload {
+                FactPayload::ZeroCaseElements {
+                    first,
+                    end,
+                    element,
+                    variant,
+                } => {
+                    let Some(place) = fact.place.as_place() else {
+                        continue;
+                    };
+                    let place = semantic.places.get(place);
+                    if place.root != source_place.root || first >= end {
+                        continue;
+                    }
+                    let array = semantic.place_segments.span_or_empty(place.segments);
+                    let element_segments = semantic.place_segments.span_or_empty(element);
+                    let tagged = match flow::zero_case_below(
+                        program,
+                        array,
+                        first..end,
+                        element_segments,
+                        &source_segments,
+                    ) {
+                        Some(flow::ZeroCaseBelow::Elements { .. }) => {
+                            elements = Some((array.len(), fact.payload));
+                            array
+                                .iter()
+                                .copied()
+                                .chain([facts::PlaceSegment::FixedIndex { index: first }])
+                                .chain(element_segments.iter().copied())
+                                .collect::<Vec<_>>()
+                        }
+                        Some(flow::ZeroCaseBelow::Element { place }) => {
+                            source_segments.iter().copied().chain(place).collect()
+                        }
+                        None => continue,
+                    };
+                    zero_case_segments = Some(tagged);
+                    Fact {
+                        payload: FactPayload::CaseValue {
+                            variant,
+                            value: true,
+                        },
+                        ..fact
+                    }
+                }
+                _ => fact,
+            };
             let payload = match fact.payload {
                 facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain) => {
                     if !program
@@ -1524,7 +1599,10 @@ mod projected {
                 continue;
             };
             let place = semantic.places.get(place);
-            let segments = semantic.place_segments.span_or_empty(place.segments);
+            let segments = match &zero_case_segments {
+                Some(tagged) => tagged.as_slice(),
+                None => semantic.place_segments.span_or_empty(place.segments),
+            };
             if place.root != source_place.root
                 || segments.len() < source_segments.len()
                 || (evidence == CopiedEvidence::ContainedStorage
@@ -1589,6 +1667,13 @@ mod projected {
             ) {
                 continue;
             }
+            let (suffix, payload) = match elements {
+                Some((array_length, elements)) => (
+                    segments[source_segments.len()..array_length].to_vec(),
+                    elements,
+                ),
+                None => (suffix, payload),
+            };
             let copied_place = semantic.append_place(facts::Place {
                 root: destination_place.root,
                 segments: HandleSpan::empty(),

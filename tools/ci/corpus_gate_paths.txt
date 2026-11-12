@@ -1,0 +1,48 @@
+# Path prefix -> corpus fixture families the corpus gate always samples first
+# when a pull request changes that path (`cargo xtask corpus-gate plan`).
+#
+# A family is a fixture-name fragment, matched the way the runner's filter
+# matches (`pass/packages/` selects every pass fixture in that group). A path
+# that reaches the compiler also gets the corpus-wide sample, so a missing
+# line here narrows nothing; a line only moves its families to the front.
+# Families get at most two thirds of the gate's budget; when they hold more,
+# they are sampled evenly across their groups.
+
+# Native realization, ABI and target lowering: the check leg realizes every
+# fixture whose Build binds a program entry.
+omega-rust/omega/compilation/backend/          run/,pass/asm/,pass/inline_asm/,pass/register_allocation/,pass/targets/,fail/targets/,pass/entry/,pass/layouts/
+omega-rust/omega/compilation/pipeline/         run/,pass/asm/,pass/inline_asm/,pass/register_allocation/,pass/targets/,fail/targets/,pass/entry/
+omega-rust/omega/compilation/realization/      pass/providers/,fail/providers/,pass/host/,fail/host/,pass/boundary/,fail/boundary/,pass/targets/
+omega-rust/omega/compilation/representations/  run/,pass/register_allocation/,pass/asm/
+omega-rust/omega/compilation/native-compiler/  run/,pass/entry/,pass/targets/
+omega-rust/omega/interpreter/                  run/,pass/terminal_psi/,fail/terminal_psi/
+omega-rust/omega/packages/                     pass/packages/,fail/packages/,pass/build/,fail/build/,pass/versioning/,pass/modules/,fail/modules/
+omega-rust/omega/build-system/                 pass/build/,fail/build/,pass/providers/,fail/providers/,pass/targets/,fail/targets/,pass/testing/,fail/testing/
+
+# Psi front end and checking, by stage.
+omega-rust/psi/compilation/pipeline/00_        fail/parse/,fail/parser/,pass/parser/,pass/text/,fail/text/
+omega-rust/psi/compilation/pipeline/01_        fail/parse/,fail/parser/,pass/parser/,pass/patterns/
+omega-rust/psi/compilation/pipeline/02_        pass/modules/,fail/modules/,pass/packages/,fail/packages/
+omega-rust/psi/compilation/pipeline/03_        pass/generics/,fail/generics/,pass/traits/,fail/traits/,pass/types/,fail/types/
+omega-rust/psi/compilation/pipeline/04_        pass/generics/,fail/generics/,pass/traits/,fail/traits/,pass/domains/,fail/domains/
+omega-rust/psi/compilation/pipeline/05_        pass/proofs/,fail/proofs/,pass/contracts/,fail/contracts/,pass/borrows/,fail/borrows/,pass/ownership/,fail/ownership/
+omega-rust/psi/compilation/pipeline/06_        run/,pass/drops/,fail/drops/,pass/terminal_psi/,fail/terminal_psi/
+omega-rust/psi/compilation/pipeline/07_        run/,pass/optimizer/,fail/optimizer/,pass/terminal_psi/
+omega-rust/psi/compilation/pipeline/08_        run/,pass/terminal_psi/,fail/terminal_psi/
+omega-rust/psi/compilation/pipeline/lowered-discharge/  pass/proofs/,fail/proofs/,pass/termination/,fail/termination/
+omega-rust/psi/compilation/proof/              pass/proofs/,fail/proofs/,pass/termination/,fail/termination/,pass/dependent/,fail/dependent/
+omega-rust/psi/compilation/build-time-evaluation/  pass/build/,fail/build/,pass/comptime/,fail/comptime/,pass/compile_time/,fail/compile_time/
+omega-rust/psi/compilation/validation/         pass/layouts/,fail/layouts/,pass/recast/,fail/recast/,pass/representation/
+
+# Bundled library modules.
+source/library/core/float                      pass/float/,fail/float/,run/float/
+source/library/std/filesystem                  pass/filesystem/,fail/filesystem/
+source/library/std/posix_filesystem            pass/filesystem/,fail/filesystem/
+source/library/std/windows_filesystem          pass/filesystem/,fail/filesystem/
+source/library/std/time                        pass/time/,fail/time/
+source/library/std/clock                       pass/time/,fail/time/
+source/library/core/extent                     pass/facts/resident_backing,pass/facts/extent_view,fail/facts/resident_backing,fail/facts/extent_view
+source/library/core/slice                      pass/slices/,fail/slices/
+source/library/core/atomic                     pass/atomics/,fail/atomics/
+source/library/core/task                       pass/tasks/,fail/tasks/,pass/concurrency/,fail/concurrency/
+source/library/blocking-executor/              pass/tasks/,fail/tasks/,pass/concurrency/

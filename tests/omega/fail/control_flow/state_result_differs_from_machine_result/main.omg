@@ -1,5 +1,5 @@
-// A state may restate the machine's result, but a different one cannot be
-// fused into the machine's one callable graph. Before, checking accepted
+// A nested machine called terminally must complete with its caller's result: a
+// different one cannot become the caller's result. Before, checking accepted
 // this and the state graph planner declined the machine late — at terminal
 // lowering — behind a bare `does not lower` with no source diagnostic.
 machine Main::main(main: &mut Main) {

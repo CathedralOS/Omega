@@ -3,7 +3,7 @@
 // write a new carrier, output it. The shift reads cleanly now that a carrier
 // indexed read works inside an expression:
 //
-//   out[i] = text[i] as u8 in Wrapping + key
+//   out[i] = (text[i] as u8 in Wrapping) + key
 //
 // `in Wrapping` makes the byte add wrap (decision 17: byte arithmetic is modular,
 // not exact -- 'X' + 3 would otherwise need an unprovable no-overflow proof). The

@@ -955,7 +955,6 @@ mod invalidation {
     use crate::flow::appended_span_since;
     use crate::flow::mutation::close_storage_places_over_aliases;
     use crate::flow::mutation::{CallMutationWrite, call_mutation_writes};
-    use crate::flow::project_constraint_refs_to_active_contexts;
     use arena::HandleSpan;
     use checked_trees::{
         BorrowCallFact, BorrowFacts, DomainFacts, FlowConstraintRef, FlowInvalidationFact,
@@ -1258,9 +1257,11 @@ mod invalidation {
         } else {
             0
         });
+        let mut restated = crate::flow::RestatedContexts::default();
         let post_contexts = match writes {
             None => HandleSpan::empty(),
             Some(writes) => crate::flow::domain::filter_contexts_after_mutations(
+                program,
                 semantic,
                 &mut build.contexts.semantic_context_refs,
                 &mut build.invalidations.segments,
@@ -1271,6 +1272,7 @@ mod invalidation {
                     call_ordinal: borrow_call.call_ordinal,
                     target_symbol: borrow_call.target_symbol,
                 },
+                &mut restated,
                 |plan, fact, place| {
                     writes.contributions.iter().find_map(|contribution| {
                         let preserved = contribution
@@ -1317,11 +1319,12 @@ mod invalidation {
                 },
             ),
         };
-        let post_constraints = project_constraint_refs_to_active_contexts(
+        let post_constraints = crate::flow::project_constraint_refs_after_invalidation(
             &mut build.contexts.constraint_refs,
             active_constraints,
             post_contexts,
             &build.contexts.semantic_context_refs,
+            &restated,
         );
         let invalidations = appended_span_since(&build.invalidations.events, invalidations_start);
 

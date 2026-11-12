@@ -4100,7 +4100,7 @@ pub mod machine_parameters {
             machine: &typed_trees::machine::Machine,
         ) -> Result<language_semantics::ServiceReachId, String> {
             let required = language_core::static_interrupts::StaticInterruptOperation::Install
-                .required_service_identity()
+                .required_service()
                 .ok_or("interrupt installation has no catalog service requirement")?;
             let mut selected = None;
             for service in program
@@ -4111,15 +4111,7 @@ pub mod machine_parameters {
                     .service_reaches
                     .definition(*service)
                     .ok_or("interrupt installer reaches an unknown service")?;
-                if program.symbol_toolchain_relative_path(definition.symbol)
-                    != Some(std::path::Path::new("assembly.omg"))
-                {
-                    continue;
-                }
-                let identity = program
-                    .normalized_hermetic_symbol_identity(definition.symbol)
-                    .map_err(|reason| format!("interrupt installer service identity: {reason}"))?;
-                if identity != required {
+                if program.symbols.core_vocabulary(definition.symbol) != Some(required) {
                     continue;
                 }
                 if selected.replace(*service).is_some() {

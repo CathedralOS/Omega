@@ -1,1 +1,1 @@
-cannot prove scalar result domain for return from @const-qualification-SCALAR
+domain constraint `Small` for the const leaf value is false; failed domain `u64::Small`

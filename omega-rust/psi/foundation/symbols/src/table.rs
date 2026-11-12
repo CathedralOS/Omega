@@ -1386,6 +1386,21 @@ mod source_queries {
         }
 
         /*
+            The core vocabulary row `symbol` is declared by, if any. This is
+            recognition only; it never implies compiler custody.
+        */
+        pub fn core_vocabulary(
+            &self,
+            symbol: SymbolHandle,
+        ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let file = self.source_file(self.symbol_source_span(symbol)?)?;
+            crate::core_vocabulary_at(file, &self.display_path(symbol, "::"))
+        }
+
+        /*
             The catalog row for `symbol` under the authored declaration path
             its owning tree records (a machine's declared name, for example,
             which keeps target-selected realizations in their source spelling).

@@ -60,9 +60,9 @@ terminates
 | `terminates` | The machine always finishes. |
 | `reaches`, `crashes`, `suspends`, `blocks` | What it may touch and how it may fail or wait. See [Chapter 16](chapter_16_errors_traps_failure.md), [18](chapter_18_concurrency.md) and [19](chapter_19_capabilities_effects_boundaries.md). |
 
-A machine is private unless marked `public`. A private machine has these
-worked out from its body. On a public machine, leaving off `suspends`,
-`blocks` or `crashes` promises it does none of them.
+A machine is private unless marked `public`. A private machine's omitted
+operational clauses are worked out from its body. On a public machine, leaving
+off `suspends`, `blocks` or `crashes` promises it does none of them.
 
 A machine always has a brace body; there is no `machine f(...) = expr;` form.
 A declaration with no body ends in a semicolon and is a requirement that
@@ -130,7 +130,16 @@ ensures result <= 200
 }
 ```
 
-The body proves the `ensures`; callers get to use it.
+The body proves the `ensures`; callers get to use it. Exact calls checked
+together can also use routine facts from the body. Independently checked clients rely on the
+published promise, so write the result guarantees they need.
+
+A private helper can leave off `requires` and let the compiler infer simple
+input conditions, checked at every call. Once you write `requires`, it must
+cover everything the body needs; the compiler cannot quietly add more conditions.
+Public machines must handle all inputs their published contract admits. See
+[local calls and contracts](../spec/language/state_contracts.md#local-call-summaries).
+
 [Chapter 7](chapter_7_types_constraints_invariants.md) shows how these facts
 flow through branches and calls.
 
