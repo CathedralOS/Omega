@@ -4401,6 +4401,8 @@ fail/data/record_pattern_missing_field rejected 27301ms expected @911f6617ba9e
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
 fail/data/recursive_data_infinite_size rejected 10889ms expected @ccdb99ca2214
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/data/reference_local_store_breaks_collection_predicate rejected 2357ms expected @dd36590272d6
+	cannot complete return from machine `poke` state `entry`: this write left the `requires` facts of `b` (data `B`) unproved; restore them first
 fail/data/struct_literal_duplicate_field_rejected rejected 14472ms expected @ccdb99ca2214
 	data `Point` literal has duplicate field `x`
 fail/data/unbounded_integer_field rejected 584ms expected @ccdb99ca2214
