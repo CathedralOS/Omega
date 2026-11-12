@@ -7512,10 +7512,8 @@ mod carry {
 
             // Both producers number calls within their source statement. Prepare
             // that correspondence once; repeated coordinates stay ambiguous.
-            let mut operational_calls = vec![
-                Vec::<OperationalCallSummary<'_>>::new();
-                state.statement_nodes.len() as usize
-            ];
+            let mut operational_calls =
+                vec![Vec::<OperationalCallSummary<'_>>::new(); state.statement_nodes.len()];
             for summary in facts
                 .operational
                 .machine_by_symbol(machine.symbol)
