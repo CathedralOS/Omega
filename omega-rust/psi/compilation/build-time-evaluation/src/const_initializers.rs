@@ -2330,29 +2330,24 @@ mod replay {
             prepare_selected_execution(&probe, selected.provider_bodies, selected.operators)
                 .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?
                 .unwrap_or(probe);
-        // A replayed initializer reads the constants its probes reference,
-        // including one named only by a type extent such as `[u64; SIZE]`;
-        // the realized program must retain their declarations.
-        let referenced_constants = typed_trees::references::collect_selected_program_references(
-            &probe,
-            &typed_trees::references::DeclarationSelection::from_symbols(
-                probe_symbols.iter().copied(),
-            ),
-        )
-        .symbols
-        .into_iter()
-        .filter(|symbol| probe.symbols.get(*symbol).kind == symbols::SymbolKind::Const)
-        .collect::<Vec<_>>();
-        if std::env::var("OMEGA_DBG_CONST").is_ok() {
-            eprintln!(
-                "CONSTDBG replay roots add [{}]",
-                referenced_constants
-                    .iter()
-                    .map(|symbol| probe.symbols.name(*symbol).to_owned())
-                    .collect::<Vec<_>>()
-                    .join(",")
-            );
-        }
+        // A replayed initializer's type can name a constant only through a
+        // fixed-array extent, as `SIZE` in `[u64; SIZE]`, which no probe
+        // declaration references. The realized program must still retain it.
+        let referenced_constants = {
+            let mut constants = TypeExtentConstants {
+                program: &probe,
+                visited: Vec::new(),
+                constants: Vec::new(),
+            };
+            for declaration in &replay_declarations {
+                typed_trees::references::visit_type_reference(
+                    &probe,
+                    &mut constants,
+                    declaration.declared_type,
+                );
+            }
+            constants.constants
+        };
         let replay_roots = probe_symbols
             .iter()
             .copied()
@@ -4631,4 +4626,34 @@ fn materialize_value(
     let handle = syntax.expressions.insert(value);
     syntax.expressions.set_source_span(handle, source_span);
     Ok(handle)
+}
+
+/// Constants named by the types a replayed initializer is checked against.
+struct TypeExtentConstants<'program> {
+    program: &'program typed_trees::TypedTrees,
+    visited: Vec<typed_trees::types::TypeReferenceHandle>,
+    constants: Vec<symbols::SymbolHandle>,
+}
+
+impl Extend<symbols::SymbolHandle> for TypeExtentConstants<'_> {
+    fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if symbol.is_valid()
+                && self.program.symbols.get(symbol).kind == symbols::SymbolKind::Const
+                && !self.constants.contains(&symbol)
+            {
+                self.constants.push(symbol);
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for TypeExtentConstants<'_> {
+    fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        if self.visited.contains(&reference) {
+            return false;
+        }
+        self.visited.push(reference);
+        true
+    }
 }
