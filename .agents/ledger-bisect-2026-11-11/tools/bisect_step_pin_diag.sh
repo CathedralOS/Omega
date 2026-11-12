@@ -15,13 +15,15 @@ mkdir -p "$TDIR"
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TDIR" nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || { git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null; exit 125; }
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TDIR" nice -n 19 mbx test -p compiler corpus_runner --no-run < /dev/null >/dev/null 2>&1 || { git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null; exit 125; }
 python3 "$LB/tools/prepare_bisect_pin.py" "$WITNESS" >/dev/null
-RUNNER=$(ls -t "$TDIR"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
-[[ -x "$RUNNER" ]] || { git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null; exit 125; }
+RUNNER=$(ls -t "$TDIR"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | while read -r p; do [[ -x "$p" && "$p" != *.d ]] && { echo "$p"; break; }; done)
+[[ -n "$RUNNER" && -x "$RUNNER" ]] || { git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null; exit 125; }
 export OMEGA_CORPUS_ROOT="$WT" OMEGA_LIBRARY_ROOT="$WT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-rc=0
-python3 "$LB/tools/pin_diag_test.py" || rc=$?
+set +e
+python3 "$LB/tools/pin_diag_test.py"
+rc=$?
+set -e
 git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null || rm -rf "$WT"
 exit "$rc"

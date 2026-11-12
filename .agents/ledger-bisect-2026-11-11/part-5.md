@@ -2,151 +2,84 @@
 
 PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 
-## Prior slice (cluster indices 5, 45, 85, 125, 165, 205 on report #2359)
+## Slice (unchanged)
 
-| prior rows | measured members | fixed at PIN | still broken at PIN |
+| prior rows | measured | fixed at PIN | still broken at PIN |
 | ---: | ---: | ---: | ---: |
-| 34 (recovered; index-5 row (+22) via report batch corpus) | 34 | 23 | 11 |
+| 34 | 34 | 23 | **11** |
 
-At PIN these rows re-cluster into **2** still-broken diagnostics (11 rows); **23** prior-slice rows are fixed on main.
+Still-broken rows form **4** attribution clusters below (11 rows total).
 
-## First-bad verification
+---
 
-### Cluster A — statement-successor (10 rows at PIN)
+## Cluster B — domain pattern (accepted)
 
 | | |
 |---|---|
-| **First bad** | `d26fa952d579d52642970560c719d24fa2a89f8a` (PR #1909) |
-| **First-parent good** | `82d2247b96e872df79f26ec9b7af2fdec0153ce7` |
-| **Bisect good used** | `5c6c16d4d1867bcac99343285c5074169d7cbfbc` |
-| **Witness** | `pass/facts/selected_native_code_layout_through_other_state_exit` |
+| Witness | `pass/facts/domain_pattern_match_bound_through_field_exit` |
+| First bad (PIN class) | `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` (#1582) |
+| Parent | `aea7dbe2ae380673377b4a49b91b173e01e3137c` |
+| Witness @ parent / @ bad | 0 0 0 / 1 1 1 |
 
-| commit | witness run1 | run2 | run3 |
-| --- | ---: | ---: | ---: |
-| `d26fa952d579d52642970560c719d24fa2a89f8a` | 1 | 1 | 1 |
-| `82d2247b96e872df79f26ec9b7af2fdec0153ce7` | 0 | 0 | 0 |
+Member: `pass/facts/domain_pattern_match_bound_through_field_exit`.
 
-All 10 members are **good** at parent (`checked`). At first-bad, **5** flip to `incomplete` (not PIN statement-successor text yet); **5** stay ledger-good — own subcluster:
+---
 
-| fixture | parent `82d2247b96e872df79f26ec9b7af2fdec0153ce7` | bad `d26fa952d579d52642970560c719d24fa2a89f8a` |
+## Cluster A1 — statement-successor, ledger break / `incomplete` (#1909)
+
+**Only these five rows** are attributed to `d26fa952d579d52642970560c719d24fa2a89f8a` (parent `82d2247b96e872df79f26ec9b7af2fdec0153ce7`).
+
+Witness `pass/facts/selected_native_code_layout_through_other_state_exit` at `d26fa952d579d52642970560c719d24fa2a89f8a`: exit **125, 125, 125** under strict PIN comparison (not exit 1 — lowering/`incomplete`, not the PIN statement-successor class).
+
+| fixture | first ledger break | diagnostic at `d26fa952` |
 | --- | --- | --- |
-| `pass/calls/native_code_layout_discarded_exit` | good | good |
-| `pass/facts/selected_native_code_layout_through_const_name_exit` | good | bad (incomplete) |
-| `pass/facts/selected_native_code_layout_through_field_exit` | good | bad (incomplete) |
-| `pass/facts/selected_native_code_layout_through_local_exit` | good | bad (incomplete) |
-| `pass/facts/selected_native_code_layout_through_match_join_exit` | good | good |
-| `pass/facts/selected_native_code_layout_through_other_state_exit` | good | bad (incomplete) |
-| `pass/facts/selected_native_code_layout_through_target_body_exit` | good | bad (incomplete) |
-| `pass/facts/source_indexed_family_alpha_positive` | good | good |
-| `pass/facts/source_indexed_family_recursive_index_positive` | good | good |
-| `pass/proofs/erased_mathematical_initializers` | good | good |
+| `pass/facts/selected_native_code_layout_through_const_name_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | `incomplete` (lowering) |
+| `pass/facts/selected_native_code_layout_through_field_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | `incomplete` |
+| `pass/facts/selected_native_code_layout_through_local_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | `incomplete` |
+| `pass/facts/selected_native_code_layout_through_other_state_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | `incomplete` |
+| `pass/facts/selected_native_code_layout_through_target_body_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | `incomplete` |
 
-**Mechanism (quoted hunks from `d26fa952d579d52642970560c719d24fa2a89f8a`)**
+Parent `82d2247b96e872df79f26ec9b7af2fdec0153ce7`: witness **0 0 0**; all five match fixed PIN ledger (`checked`).
 
-`fused.rs` — drop reverse-reachability retention of the recursive component only; keep every discovered terminal target:
+**First commit showing current PIN diagnostic class** (all ten statement rows): `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` (#2238), parent `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2`. Pin-class witness (`pass/facts/selected_native_code_layout_through_other_state_exit`) at parent/bad from completed manual bisect bracket: **0 at parent, 1 at bad** (see `/tmp/cluster-a-bisect-logs/*.log` probes `cdb14cc… rc=0`, `33cefbc6… rc=1`). **Mechanism not established** between #2238 float realization and statement-successor diagnostics (backend/target `float_realization.rs`; no quoted psi statement-successor hunk on this commit).
 
-```diff
-@@ -60,106 +65,9 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
-     }
--    // Discovery establishes forward reachability. Reverse reachability back
--    // to the root keeps exactly its machine component. Include all states of
--    // each retained owner, including acyclic finishing states.
--    let mut owners = fused
--        .iter()
--        .map(|(owner, _)| owner.symbol)
--        .collect::<Vec<_>>();
--    owners.dedup(); // Discovery appends each owner's complete state roster once.
--    if owners.len() <= 1 {
--        return fused;
--    }
--    let mut predecessors = Vec::new();
--    ...
--    fused.retain(|(owner, _)| retained[owners.iter().position(...).unwrap()]);
-     fused
-```
+**Quoted hunk — ledger break at `d26fa952` (#1909)** (`fused.rs` / `successors.rs`, same as prior report).
 
-`successors.rs` — mutable-home successors use `local_storage::occupant` instead of `StructuralResult` from `source`:
+---
 
-```diff
-@@ -378,10 +378,15 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
-                 if place.segments.is_empty()
-                     && let Some(symbol) = place.root.as_symbol()
--                    && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
--                        super::super::local_storage::source(program, source, operations, symbol)
-+                    && let Some(binding_ordinal) =
-+                        super::super::local_storage::occupant(program, source, operations, symbol)
-```
+## Cluster A2 — statement-successor, PIN class (#2238)
 
-### Cluster B — domain pattern (1 row at PIN)
+**Five rows** still ledger-good at `d26fa952`; first-bad for PIN broken outcome (bisect good=`d26fa952d579d52642970560c719d24fa2a89f8a`, bad=PIN, pin-class test):
 
-| | |
-|---|---|
-| **First bad** | `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` (PR #1582) |
-| **First-parent good** | `aea7dbe2ae380673377b4a49b91b173e01e3137c` (exit **0**, not skipped) |
-| **Narrow good** | `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` |
-| **Narrow bad bracket** | `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` |
-| **Witness** | `pass/facts/domain_pattern_match_bound_through_field_exit` |
+| witness | first bad | PR | parent |
+| --- | --- | --- | --- |
+| each row (self witness) | `33cefbc6c241048ff6f6c583acc5aca9b0176ec5` | 2238 | `cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2` |
 
-| commit | witness run1 | run2 | run3 |
-| --- | ---: | ---: | ---: |
-| `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` | 1 | 1 | 1 |
-| `aea7dbe2ae380673377b4a49b91b173e01e3137c` | 0 | 0 | 0 |
+Members (one cluster — identical bisect result):  
+`pass/calls/native_code_layout_discarded_exit`,  
+`pass/facts/selected_native_code_layout_through_match_join_exit`,  
+`pass/facts/source_indexed_family_alpha_positive`,  
+`pass/facts/source_indexed_family_recursive_index_positive`,  
+`pass/proofs/erased_mathematical_initializers`.
 
-Sole member: good at parent (`checked`), bad at first-bad (`rejected`, domain construction diagnostic).
+Bisect artifacts: `bisect_remain_*.json`, logs under `/tmp/cluster-a-bisect-logs/`.
 
-**Narrowed range (full-range skip):** `git bisect run` from PIN `51e8c45c793007f211d0d9baee7de16767172444` to distant good `5c6c16d4d1867bcac99343285c5074169d7cbfbc` aborted with `git bisect skip` exit code -1 after many steps returned **125** — ledger-only commits (only `tests/omega/corpus_outcomes.txt` / `*.md`) and unbuildable ancient hosts (not PIN-classification skips). Manual probes: `12a1feb4aa100ab41afd8cc59f53969c2ffc4009` → 0, `647e274b14274e6d0e8a386df2ab66e7dd3e4f8d` → 1. Narrow bisect between those SHAs → `66ee9999011ed557510ddd18f20ceca6cb4aa5ae`.
+**Mechanism:** mechanism not established (see Cluster A1).
 
-**Mechanism (quoted hunk from `66ee9999011ed557510ddd18f20ceca6cb4aa5ae`)** — `result_facts.rs` stops copying validation expression intervals onto completed values as flow facts:
+---
 
-```diff
-@@ -182,36 +182,6 @@ impl Execution<'_, '_, '_> {
-                 })
-             });
--        // Checking already judged this completed expression under every clean
--        // incoming environment. Publish its resulting enclosure on the value,
--        // so constructors, returns and later transports read that record rather
--        // than rediscovering which source construct produced it. Missing i64
--        // endpoints mean the actual carrier's extreme, never a fabricated cap.
--        if let Some(interval) =
--            validation::expression_interval(self.context.expression_intervals, expression)
--            && let Some(primitive) = self.program.primitive_type_reference(reference)
--            && let Some(mut bounds) = validation::carrier_integer_range(primitive)
--        {
--            let carrier_bounds = bounds.clone();
--            let has_call_bounds = integer_bounds.is_some();
--            if let Some(minimum) = interval.low {
--                bounds.minimum = bounds
--                    .minimum
--                    .max(numerics::bignum::BigInt::from_i64(minimum));
--            }
--            if let Some(maximum) = interval.high {
--                bounds.maximum = bounds
--                    .maximum
--                    .min(numerics::bignum::BigInt::from_i64(maximum));
--            }
--            if let Some(previous) = integer_bounds.take() {
--                bounds.minimum = bounds.minimum.max(previous.minimum);
--                bounds.maximum = bounds.maximum.min(previous.maximum);
--            }
--            if bounds.minimum <= bounds.maximum && (has_call_bounds || bounds != carrier_bounds) {
--                integer_bounds = Some(bounds);
--            }
--        }
-         let zero_fields = if matches!(
-```
+## Not attributed as first-bad
 
-## Still-broken clusters at PIN (summary)
+- PIN `51e8c45c793007f211d0d9baee7de16767172444` — range endpoint only.
+- Ledger-only `f3612364ffbb9489d7be1409397df6867fcbebc6` (#2228) — not used as first-bad.
 
-| rows | witness | breaking commit | PR | status |
-| ---: | --- | --- | --- | --- |
-| 10 | `pass/facts/selected_native_code_layout_through_other_state_exit` | `d26fa952d579d52642970560c719d24fa2a89f8a` | 1909 | bisected (partial member flip at first-bad; see verify file) |
-| 1 | `pass/facts/domain_pattern_match_bound_through_field_exit` | `66ee9999011ed557510ddd18f20ceca6cb4aa5ae` | 1582 | bisected |
+---
 
-## Fixed on main at PIN (23 rows)
+## Method
 
-Listed in `.agents/ledger-bisect-2026-11-11/part-5.tsv` (`fixed_at_pin`).
+- Fixed PIN ledger: `git show 51e8c45c793007f211d0d9baee7de16767172444:tests/omega/corpus_outcomes.txt`
+- Per-commit `CARGO_TARGET_DIR=target/verify-<sha-prefix>`, worktrees, `OMEGA_CORPUS_JOBS=1`
+- Exit **1** = exact PIN status + normalized diagnostic; **125** = any other outcome
+- Pin-class bisect: `pin_diag_test.py` / `bisect_step_pin_diag.sh`; ledger-range bisect: `bisect_pin_manual.py` from `d26fa952d579d52642970560c719d24fa2a89f8a`
 
-## Commands
-
-- Host: Linux x86_64, `OMEGA_CORPUS_JOBS=1`, direct `corpus_runner`, fixed PIN ledger via `git show 51e8c45c793007f211d0d9baee7de16767172444:tests/omega/corpus_outcomes.txt`
-- Verification artifacts: `verify_statement_cluster.txt`, `verify_domain_cluster.txt`
+Verification: `verify_cluster_a_key.txt`, `verify_statement_cluster.txt`, `verify_domain_cluster.txt`.

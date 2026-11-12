@@ -1,0 +1,71 @@
+=== d26 incomplete 5 ===
+commit=82d2247b96e872df79f26ec9b7af2fdec0153ce7
+witness_triplet=0 0 0
+pass/facts/selected_native_code_layout_through_const_name_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_field_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_local_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_other_state_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_target_body_exit	bad	1	rejected
+commit=d26fa952d579d52642970560c719d24fa2a89f8a
+witness_triplet=125 125 125
+pass/facts/selected_native_code_layout_through_const_name_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_field_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_local_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_other_state_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_target_body_exit	bad	1	rejected
+=== pin class all 10 witness other_state ===
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/facts/selected_native_code_layout_through_const_name_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_field_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_local_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_other_state_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_target_body_exit	bad	1	rejected
+pass/calls/native_code_layout_discarded_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_match_join_exit	bad	1	rejected
+pass/facts/source_indexed_family_alpha_positive	bad	1	rejected
+pass/facts/source_indexed_family_recursive_index_positive	bad	1	rejected
+pass/proofs/erased_mathematical_initializers	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/facts/selected_native_code_layout_through_const_name_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_field_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_local_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_other_state_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_target_body_exit	bad	1	rejected
+pass/calls/native_code_layout_discarded_exit	bad	1	rejected
+pass/facts/selected_native_code_layout_through_match_join_exit	bad	1	rejected
+pass/facts/source_indexed_family_alpha_positive	bad	1	rejected
+pass/facts/source_indexed_family_recursive_index_positive	bad	1	rejected
+pass/proofs/erased_mathematical_initializers	bad	1	rejected
+=== pin class remaining witness each ===
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/calls/native_code_layout_discarded_exit	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/calls/native_code_layout_discarded_exit	bad	1	rejected
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/facts/selected_native_code_layout_through_match_join_exit	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/facts/selected_native_code_layout_through_match_join_exit	bad	1	rejected
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/facts/source_indexed_family_alpha_positive	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/facts/source_indexed_family_alpha_positive	bad	1	rejected
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/facts/source_indexed_family_recursive_index_positive	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/facts/source_indexed_family_recursive_index_positive	bad	1	rejected
+commit=cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2
+witness_triplet=1 1 1
+pass/proofs/erased_mathematical_initializers	bad	1	rejected
+commit=33cefbc6c241048ff6f6c583acc5aca9b0176ec5
+witness_triplet=1 1 1
+pass/proofs/erased_mathematical_initializers	bad	1	rejected

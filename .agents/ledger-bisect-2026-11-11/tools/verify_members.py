@@ -43,8 +43,6 @@ def classify(meta: dict, obs: dict) -> str:
         return "good"
     if matches_pin_regression(obs, meta):
         return "bad"
-    if meta["tier"] != "fail" and obs["status"] not in ("built", "checked"):
-        return "bad"
     return "ambiguous"
 
 

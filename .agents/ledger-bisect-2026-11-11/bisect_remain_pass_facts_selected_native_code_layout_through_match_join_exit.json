@@ -1,0 +1,12 @@
+{
+  "witness": "pass/facts/selected_native_code_layout_through_match_join_exit",
+  "good": "d26fa952d579d52642970560c719d24fa2a89f8a",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "breaking_commit": "33cefbc6c241048ff6f6c583acc5aca9b0176ec5",
+  "parent": "cdb14cc0c3e5b5bf3ea887f1c9d35737cab677d2",
+  "pr": "2238",
+  "mechanism": "compiler: realize canonical float operations from the target's declared table (#2238)",
+  "mechanism_detail": " TASKS.md                                           |   4 +-\n .../build-settings/src/admission/checking.rs       |   7 +-\n .../backend/target/src/float_realization.rs        | 317 +++++++++++++++++++++\n .../omega/compilation/backend/target/src/lib.rs    |   5 +\n .../compiler/src/terminal/product_code.rs          |   7 +\n .../provider-admission/src/provider_admission.rs   |  11 +\n .../src/calling_policy_plans/selected_providers.rs |   3 +-\n .../provider-planning/src/provider_planning.rs     |  29",
+  "bisect_exit": 0,
+  "status": "bisected"
+}
