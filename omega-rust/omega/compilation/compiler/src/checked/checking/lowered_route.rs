@@ -63,32 +63,19 @@ impl RouteScope<'_> {
     /// applications are judged as closed machines of the closure. The route
     /// decides only when it decides every one of them.
     pub(super) fn judge(&self, typed: &typed_trees::TypedTrees) -> RouteJudgment {
-        let elaborated = structure_elaboration::elaborate(
-            typed,
-            structure_elaboration::Compilation {
-                entries: self.entries,
-                subject: self.subject,
-                selected: self.selected,
-            },
-        );
-        let templates = match &elaborated {
-            Ok(elaboration) => elaboration.generic_templates.clone(),
-            Err(_) => Vec::new(),
-        };
-        let mut judgments = vec![RouteJudgment::of(lowered_discharge::judge(elaborated))];
-        if !templates.is_empty() {
-            match structure_elaboration::elaborate_generic_forms(typed, &templates) {
-                Ok(forms) => judgments.extend(
-                    forms
-                        .into_iter()
-                        .map(|form| RouteJudgment::of(lowered_discharge::judge(Ok(form)))),
-                ),
-                Err(refused) => {
-                    judgments.push(RouteJudgment::of(lowered_discharge::judge(Err(refused))))
-                }
-            }
-        }
-        RouteJudgment::all(judgments)
+        RouteJudgment::all(
+            lowered_discharge::judge_compilation(
+                typed,
+                structure_elaboration::Compilation {
+                    entries: self.entries,
+                    subject: self.subject,
+                    selected: self.selected,
+                },
+            )
+            .into_iter()
+            .map(RouteJudgment::of)
+            .collect(),
+        )
     }
 }
 

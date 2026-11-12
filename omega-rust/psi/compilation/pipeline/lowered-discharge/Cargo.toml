@@ -21,3 +21,4 @@ terminal-check-tables = { path = "../../representations/terminal-psi/check-table
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
+typed-trees = { path = "../../representations/typed-trees" }

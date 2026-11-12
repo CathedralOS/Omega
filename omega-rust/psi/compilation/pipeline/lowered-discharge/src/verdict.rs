@@ -324,6 +324,18 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         Ok(elaboration) => elaboration,
         Err(refused) => return fall_back_or_defect(refused),
     };
+    // A compilation's generic machines are judged as their own check forms
+    // (`judge_compilation`). A closure that still lists them was judged
+    // without them, so it decides nothing.
+    if !elaboration.generic_templates.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "machine generic parameters",
+        )));
+    }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
@@ -487,6 +499,37 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
         discharge: discharged,
         seals,
     })))
+}
+
+/// The route's verdicts on everything `compilation` claims: the closure of
+/// its roots first, then the check form of each generic machine its subject
+/// declares, in declaration order, one per alternative for a finite family.
+/// generics.md, "Static type equality": "An unspecialized body checks every
+/// admitted alternative; one consumer cannot authorize an otherwise invalid
+/// generic body." So each generic body is judged as written whether or not
+/// the program applies it; the machines stage 04 generated for the
+/// program's own applications are closed machines of the closure. The
+/// compilation is decided only when every part is.
+pub fn judge_compilation(
+    typed: &typed_trees::TypedTrees,
+    compilation: structure_elaboration::Compilation<'_>,
+) -> Vec<Checked<RouteVerdict>> {
+    let elaborated = structure_elaboration::elaborate(typed, compilation);
+    let (closure, templates) = match elaborated {
+        Ok(mut elaboration) => {
+            let templates = std::mem::take(&mut elaboration.generic_templates);
+            (Ok(elaboration), templates)
+        }
+        Err(refused) => (Err(refused), Vec::new()),
+    };
+    let mut verdicts = vec![judge(closure)];
+    if !templates.is_empty() {
+        match structure_elaboration::elaborate_generic_forms(typed, &templates) {
+            Ok(forms) => verdicts.extend(forms.into_iter().map(|form| judge(Ok(form)))),
+            Err(refused) => verdicts.push(judge(Err(refused))),
+        }
+    }
+    verdicts
 }
 
 /// Where an operation, edge or block arises in the source, from
