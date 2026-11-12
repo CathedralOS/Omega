@@ -546,3 +546,31 @@ tapes. Closure, identity and path checks were rerun after relocation. The
 source-owned receipt above retains its original pre-relocation input custody;
 it is not presented as a second reference execution. An earlier interrupted
 invocation produced no completed receipt and supplies no acceptance claim.
+
+### Native Epsilon correspondence for the same storage customer
+
+The independent peer's already source-constructed native Epsilon evaluator ran
+the exact frozen PR2722 request in 907.570 seconds. All 13 emitted Alpha
+executables and 36 refusal controls passed; the complete observation and every
+tape matched the Alpha-VM receipt above byte-for-byte. This checks an actual
+Omega-compiler source helper customer, not complete Omega product construction.
+
+The 767,037-byte request has SHA-256
+`1bce7413e7085408fd052a0cb786ff08f3f2f99bee2e69e6a8a5f633e1a81048`. Compiler, customer and
+Delta-closure identities are the same as above. The reused native executable
+is 26,119,826 bytes,
+`b1cc4441a52ec91feae60d958ada4c400122ce070a2ec66bdd8982c16bbfe2e0`,
+constructed in [PR2719](https://github.com/CathedralOS/Omega/pull/2719). Its
+729,060-byte canonical evaluator-entry Gamma receipt is
+`bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368`,
+identical to the earlier Alpha-VM evaluator's receipt. This invocation reused
+that constructed runtime; it is not another cold construction.
+
+Both realizations use the shared monotonic 32-byte pair allocation with no
+garbage collection. A nonstopping sample observed a native high-water RSS of
+16,436,004 KiB and 16,803,601,088 allocated pair bytes; the final maximum RSS
+was not recorded. No resource failure, budget change or source mutation occurred.
+The 907.570-second native and 3,411.948-second VM observations ran on a shared
+host at different times; these are functional timings, not a controlled
+performance benchmark. Stronger assurance and the remaining native construction
+work stay explicit in [the independent peer](../independent/README.md).
