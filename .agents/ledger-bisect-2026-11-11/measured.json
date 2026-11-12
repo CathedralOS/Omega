@@ -1,0 +1,106 @@
+[
+  {
+    "fixture": "pass/targets/private_target_supplies_remain_disclosed",
+    "cls": "broken",
+    "diag": "unknown canonical target profile `reserved_target`",
+    "status": "rejected",
+    "cluster": "c01",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/targets/retained_target_provider_family_exit",
+    "cls": "broken",
+    "diag": "unknown canonical target profile `reserved_target`",
+    "status": "rejected",
+    "cluster": "c01",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/targets/retained_target_family_bodies",
+    "cls": "broken",
+    "diag": "unknown canonical target profile `archive_target`",
+    "status": "rejected",
+    "cluster": "c02",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+    "cls": "broken",
+    "diag": "state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 9)",
+    "status": "rejected",
+    "cluster": "c03",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "run/borrows/terminal_case_completed_observation",
+    "cls": "broken",
+    "diag": "state `finish` receives `pool` while local borrow `field` is still active (borrowed at statement 0; its last use is at statement 2)",
+    "status": "rejected",
+    "cluster": "c04",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/traits/prepared_callable_nested_borrow_paths_exit",
+    "cls": "broken",
+    "diag": "`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `main::entry`",
+    "status": "incomplete",
+    "cluster": "c05",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit",
+    "cls": "broken",
+    "diag": "cannot prove requires contract for call agree from read_kept: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+    "status": "rejected",
+    "cluster": "c06",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "pass/facts/case_payload_exclusive_loan_through_other_machine_exit",
+    "cls": "broken",
+    "diag": "machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case",
+    "status": "rejected",
+    "cluster": "c07",
+    "expected_status": "checked"
+  },
+  {
+    "fixture": "fail/contracts/target_family_recursive_guarantee",
+    "cls": "fixed",
+    "diag": "unknown canonical target profile `reserved_target`",
+    "status": "rejected",
+    "cluster": "",
+    "expected_status": "rejected"
+  },
+  {
+    "fixture": "fail/contracts/target_family_unshared_result",
+    "cls": "fixed",
+    "diag": "unknown canonical target profile `reserved_target`",
+    "status": "rejected",
+    "cluster": "",
+    "expected_status": "rejected"
+  },
+  {
+    "fixture": "fail/targets/sibling_body_type_error_rejected",
+    "cls": "fixed",
+    "diag": "unknown canonical target profile `demo_target`",
+    "status": "rejected",
+    "cluster": "",
+    "expected_status": "rejected"
+  },
+  {
+    "fixture": "fail/targets/unrealized_conformance_rejected",
+    "cls": "fixed",
+    "diag": "unknown canonical target profile `reserved_target`",
+    "status": "rejected",
+    "cluster": "",
+    "expected_status": "rejected"
+  },
+  {
+    "fixture": "fail/borrows/aliased_forwarded_placed_views",
+    "cls": "fixed",
+    "diag": "state `view_mut` receives `value` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4)",
+    "status": "rejected",
+    "cluster": "",
+    "expected_status": "rejected"
+  }
+]

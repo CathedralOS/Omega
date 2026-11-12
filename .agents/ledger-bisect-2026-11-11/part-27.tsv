@@ -1,9 +1,4 @@
 fixture	class	first_diagnostic	cluster_id
-fail/contracts/target_family_recursive_guarantee	fixed		
-fail/contracts/target_family_unshared_result	fixed		
-fail/targets/sibling_body_type_error_rejected	fixed		
-fail/targets/unrealized_conformance_rejected	fixed		
-fail/borrows/aliased_forwarded_placed_views	fixed		
 pass/targets/private_target_supplies_remain_disclosed	broken	unknown canonical target profile `reserved_target`	c01
 pass/targets/retained_target_provider_family_exit	broken	unknown canonical target profile `reserved_target`	c01
 pass/targets/retained_target_family_bodies	broken	unknown canonical target profile `archive_target`	c02
@@ -12,3 +7,8 @@ run/borrows/terminal_case_completed_observation	broken	state `finish` receives `
 pass/traits/prepared_callable_nested_borrow_paths_exit	broken	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion stored reference dependencies); in state `main::entry`	c05
 pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit	broken	cannot prove requires contract for call agree from read_kept: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`	c06
 pass/facts/case_payload_exclusive_loan_through_other_machine_exit	broken	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence: the current source does not select its required case	c07
+fail/contracts/target_family_recursive_guarantee	fixed	unknown canonical target profile `reserved_target`	
+fail/contracts/target_family_unshared_result	fixed	unknown canonical target profile `reserved_target`	
+fail/targets/sibling_body_type_error_rejected	fixed	unknown canonical target profile `demo_target`	
+fail/targets/unrealized_conformance_rejected	fixed	unknown canonical target profile `reserved_target`	
+fail/borrows/aliased_forwarded_placed_views	fixed	state `view_mut` receives `value` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 4)	

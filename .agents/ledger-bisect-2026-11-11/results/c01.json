@@ -1,0 +1,38 @@
+{
+  "cluster": "c01",
+  "witness": "pass/targets/private_target_supplies_remain_disclosed",
+  "members": [
+    "pass/targets/private_target_supplies_remain_disclosed",
+    "pass/targets/retained_target_provider_family_exit"
+  ],
+  "good": "a48219f5cf97b2d7d766d07c48e1d8946a2b6477",
+  "good_subject": "compiler: complete Windows raw filesystem metadata (#1401)",
+  "breaking": "eacdc3114349460f12c4a923026824330a8381d3",
+  "breaking_subject": "library: bind PosixCanonicalLibc through Build rows (#1617)",
+  "pr": "1617",
+  "parent": "098f3b8ac9da49281b35f55ce025117b3ed6ab3d",
+  "bad_runs": [
+    1,
+    1,
+    1
+  ],
+  "parent_runs": [
+    0,
+    0,
+    0
+  ],
+  "stop_matching": "eacdc3114349460f12c4a923026824330a8381d3",
+  "mechanism": "mechanism not established",
+  "status": "bisected",
+  "member_runs": {
+    "pass/targets/private_target_supplies_remain_disclosed": {
+      "at_parent": 0,
+      "at_bad": 1
+    },
+    "pass/targets/retained_target_provider_family_exit": {
+      "at_parent": 0,
+      "at_bad": 127
+    }
+  },
+  "note": "members that did not flip with the witness: pass/targets/retained_target_provider_family_exit"
+}
