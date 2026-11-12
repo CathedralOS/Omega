@@ -8063,18 +8063,24 @@ mod carry {
             .zip(&crossing.obligations)
             .zip(lifetime_demands)
         {
-            let missing_borrow_obligation = obligation
-                .requires_borrow_preservation
-                .then(|| lifetime.as_ref().err().copied())
-                .flatten();
-            // A template-dependent frontier proves its known leaves, not the
-            // unknown part's permission or preservation. Keep its ordinary
-            // policy and symbolic type in the conditional contract. Every
-            // selected application is checked with its substituted frontier.
             let template_dependent = matches!(
                 live.borrow_frontier,
                 checked_trees::SuspensionValueBorrowFrontier::TemplateDependent { .. }
             );
+            // The known leaves do not complete a generic value's loan frontier.
+            // Only an exact callback-dependent crossing can retain the symbolic
+            // remainder until selection; a fixed suspension requires its backing
+            // now, even when the descriptor has AcrossSuspend permission. Keep
+            // every known-leaf failure unconditional in either case.
+            let lifetime = if template_dependent && !conditional_permission {
+                lifetime.and(Err("the stored loan-leaf frontier is template-dependent"))
+            } else {
+                lifetime
+            };
+            let missing_borrow_obligation = obligation
+                .requires_borrow_preservation
+                .then(|| lifetime.as_ref().err().copied())
+                .flatten();
             let policy = if obligation.requires_borrow_preservation {
                 match lifetime {
                     Ok(demand) if template_dependent => obligation.ordinary.intersect(demand),
