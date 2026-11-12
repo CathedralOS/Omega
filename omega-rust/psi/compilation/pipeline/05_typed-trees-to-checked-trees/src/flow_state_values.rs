@@ -512,10 +512,11 @@ pub(super) mod lexical_regions {
         };
         let owner = &program.machines()[owner_index];
         let destination = &program.machine_states(owner)[state_index];
-        let nested_or_extracted = owner.lexical_region_origin.is_some()
-            || super::lexically_nested_machine(program, owner.symbol);
         let closed_private = super::caller_roster_supplies_entry(program, owner);
-        if !nested_or_extracted && !closed_private {
+        // Nesting does not let callers strengthen a written entry contract.
+        // Compiler-extracted assembly regions instead continue a checked source
+        // location, identified by their retained lexical origin.
+        if owner.lexical_region_origin.is_none() && !closed_private {
             return;
         }
         if super::entry_state(program, owner).is_none_or(|entry| entry.symbol != destination.symbol)
@@ -540,7 +541,7 @@ pub(super) mod lexical_regions {
             return;
         }
         let parameters = program.state_parameters(destination);
-        let authenticated = super::caller_roster_supplies_entry(program, owner)
+        let authenticated = closed_private
             && site.is_some_and(|site| {
                 site.target_symbol(program) == destination.symbol
                     && match owner.lexical_region_origin {
@@ -3436,8 +3437,9 @@ fn joined_cases(edges: &[ArgumentEdge]) -> Vec<SelectedCase> {
 
 /*
     Caller facts can enter a body only when every possible invocation is known.
-    Public entries, escaped callables and provider bodies use their declared
-    input conditions, even when the visible callers happen to pass one value.
+    A written precondition is complete. Public entries, escaped callables and
+    provider bodies also use declared inputs, even when known callers supply
+    stronger facts. Compiler-extracted regions retain their source continuation.
 */
 pub(super) fn caller_roster_supplies_entry(
     program: &dyn ::validation::CheckingInput,
@@ -3503,10 +3505,9 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
-    let ordinary_entry = machine.lexical_region_origin.is_none()
-        && !lexically_nested_machine(program, machine.symbol)
+    let declared_entry = machine.lexical_region_origin.is_none()
         && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol);
-    if ordinary_entry && !caller_roster_supplies_entry(program, machine) {
+    if declared_entry && !caller_roster_supplies_entry(program, machine) {
         return;
     }
     let Some(input) = build

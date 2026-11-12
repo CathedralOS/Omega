@@ -85068,6 +85068,7 @@ pub(crate) mod structural_prefix {
             use symbols::SymbolKeyMap;
             use typed_trees::expression::ExpressionNode;
             use typed_trees::references::TypedReferences;
+            use typed_trees::signature::SignatureContractKind;
             use typed_trees::types::TypeReferenceHandle;
 
             fn authored_machine(
@@ -85113,6 +85114,22 @@ pub(crate) mod structural_prefix {
                     )
             }
 
+            fn has_authored_entry_requires(program: &dyn CheckingInput, machine: &Machine) -> bool {
+                // A written precondition states every input the body must handle.
+                // Even `requires true` cannot borrow a stronger condition from callers.
+                // The keyword span separates authored clauses from derived requirements.
+                let authored = |contracts: &[typed_trees::signature::SignatureContract]| {
+                    contracts.iter().any(|contract| {
+                        contract.kind == SignatureContractKind::Requires
+                            && contract.keyword_source_span.is_some()
+                    })
+                };
+                authored(program.machine_contracts(machine))
+                    || crate::activation_target_state_index(program, machine, machine.symbol)
+                        .and_then(|index| program.machine_states(machine).get(index))
+                        .is_some_and(|entry| authored(program.state_contracts(entry)))
+            }
+
             pub fn private_invocation_entry_is_closed(
                 program: &dyn CheckingInput,
                 machine: &Machine,
@@ -85126,6 +85143,9 @@ pub(crate) mod structural_prefix {
                 machine: &Machine,
                 consume: impl FnOnce(&[StaticMachineContractObligation]) -> T,
             ) -> Option<T> {
+                if has_authored_entry_requires(program, machine) {
+                    return None;
+                }
                 let index = private_invocation_index(program);
                 if !index.has_complete_private_uses(program, machine) {
                     return None;
@@ -85502,6 +85522,9 @@ pub(crate) mod structural_prefix {
                     .get(&callee.symbol)
                     .copied()
                     .ok_or("the callable is not a private member of the enclosing declaration")?;
+                if has_authored_entry_requires(program, callee) {
+                    return Err("the private helper has a complete written entry contract");
+                }
                 if callee.is_public
                     || callee.target_family_interface
                     || externally_invocable(program, callee)
@@ -85595,10 +85618,11 @@ pub(crate) mod structural_prefix {
                     .iter()
                     .enumerate()
                     .filter_map(|(member_index, member)| {
-                        let exposed = member.is_public
+                        let independent_entry = member.is_public
                             || member.target_family_interface
                             || externally_invocable(program, member)
-                            || !program.machine_trait_conformances(member).is_empty();
+                            || !program.machine_trait_conformances(member).is_empty()
+                            || has_authored_entry_requires(program, member);
                         let open_use = std::iter::once(member.symbol)
                             .chain(
                                 program
@@ -85620,7 +85644,7 @@ pub(crate) mod structural_prefix {
                                     )
                             });
                         (needed[member_index]
-                            && (exposed
+                            && (independent_entry
                                 || open_use
                                 || outside.contains(&member_index)
                                 || incoming_owners[member_indices[member_index]].is_empty()))
