@@ -16,7 +16,7 @@ PIN: `51e8c45c793007f211d0d9baee7de16767172444`
 | 5 | pass/run rejected | cannot compare `Tree` values with `==`: structural equality is synthesized only through a named implementation | `pass/relevance/runtime_static_proof_namespace_exit` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `pass/proofs/case_call_premises`, `pass/proofs/cauchy_predicates_compile`, `pass/proofs/defined_proposition_premises`, `pass/relevance/runtime_static_proof_namespace_exit`, `pass/traits/structural_array_crash_identity_exit`
 
-| 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` |  |  | pending |  |
+| 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
 Members: `fail/build/helper_contract_context`, `fail/contracts/replacement_call_child_false_snapshot`, `fail/expressions/cast_result_range`, `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected`
 
 | 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` |  |  | pending |  |
