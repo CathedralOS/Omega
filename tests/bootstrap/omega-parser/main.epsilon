@@ -140,6 +140,61 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() -> bool { transition !f(1) && g(h(2)) { true -> true _ -> false } } machine q() -> bool { transition compare(47) { true -> true _ -> false } }");
     self.check_subject_call_rows();
 
+    // These declarations and clear body are exact canonical source bytes;
+    // the ordinary caller adds no parser-specific recognition or lowering.
+    self.parser.parse_view("public data SourceId [copy] {\n    value: u32 in Trapping;\n}\n\n\npublic data SourceUnit\nrequires\n    length <= 131072,\n{\n    id: SourceId;\n    bytes: [u8; 131072] in Trapping;\n    length: u64;\n    last_retained: bool;\n}\n\n\nmachine source_unit_clear(source_unit: &mut SourceUnit, id: SourceId) {\n    source_unit.id = id;\n    source_unit.length = 0;\n    source_unit.last_retained = true;\n}\n\nmachine caller() { let mut unit: SourceUnit; let id: SourceId = SourceId { value: 42 as +Trapping }; source_unit_clear(&mut unit, id); }");
+    self.check_source_unit_clear_rows();
+
+    self.parser.parse_view("machine p() { take(&value, &mut value, &write value); }");
+    self.check_complete();
+    assert self.parser.call_statement_count == 1;
+    assert self.parser.unary_expression_count == 0;
+    self.check_borrow_argument(0, 0);
+    self.check_borrow_argument(1, 1);
+    self.check_borrow_argument(2, 2);
+
+    self.parser.parse_view("machine p() { take(&mut value as -Trapping); }");
+    self.check_borrow_cast(0);
+
+    self.parser.parse_view("machine p() { take(&mut items[0] as -Trapping); }");
+    self.check_borrow_cast(1);
+
+    self.parser.parse_view("machine p() { take(&mut (value as -Trapping)); }");
+    self.check_cast_inside_borrow();
+
+    self.parser.parse_view("machine p() { take(!&value as -Trapping); }");
+    self.check_outer_unary_borrow_cast();
+
+    self.parser.parse_view("machine p() -> &u8 { &value }");
+    self.check_complete();
+    assert self.parser.statement_count == 1;
+    self.check_borrow_node(self.parser.statements[0].item_index, 0);
+
+    self.parser.parse_view("machine p() { take(&");
+    self.check_syntax_refused(20, 20);
+
+    self.parser.parse_view("machine p() { take(&mut ; }");
+    self.check_refused();
+
+    self.parser.parse_view("machine p() { take(value); }");
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.expression_prefix_count == 0;
+    assert self.parser.cast_expression_count == 0;
+    self.check_plain_call_argument();
+
+    self.parser.parse_view("data D requires first <= 4, second <= 8, { first: u8; second: u8; }");
+    self.check_complete();
+    assert self.parser.data_items[0].requirement_count == 2;
+    assert self.parser.binary_expression_count == 2;
+    assert self.parser.data_requirements[0].end < self.parser.data_requirements[1].start;
+
+    self.parser.parse_view("data D requires first <= 4,, { first: u8; }");
+    self.check_refused();
+
+    self.parser.parse_view("machine outer() { machine helper() {} }");
+    self.check_empty_unit_entry();
+
     self.console.write_byte(65);
 }
 
@@ -495,6 +550,131 @@ machine Main::check_subject_call_rows(&mut self) {
     state direct() {
         transition self.parser.expressions[self.parser.transition_statements[2].subject].kind {
             OmegaExpressionKind::Call -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_borrow_node(&mut self, expression: i32, access: i32) {
+    transition self.parser.expressions[expression].kind {
+        OmegaExpressionKind::Borrow -> row(expression, access)
+        _ -> self.console.exit_process(1)
+    }
+    state row(expression: i32, access: i32) {
+        assert self.parser.expressions[expression].payload0 < expression;
+        assert self.parser.expressions[expression].payload1 == access;
+        assert self.parser.expressions[expression].payload3 > self.parser.expressions[expression].payload2;
+        assert self.parser.expressions[expression].payload4 == 0;
+        assert self.parser.expressions[expression].payload5 == 0;
+    }
+}
+machine Main::check_borrow_argument(&mut self, offset: i32, access: i32) {
+    let first: i32 = self.parser.call_statements[0].first_argument;
+    self.check_borrow_node(self.parser.call_arguments[first + offset], access);
+}
+machine Main::check_borrow_cast(&mut self, indexed: i32) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.cast_expression_count == 1;
+    assert self.parser.unary_expression_count == 0;
+    assert self.parser.indexed_expression_count == indexed;
+    self.check_cast_kind(0, 2);
+    self.check_borrow_node(self.parser.cast_expressions[0].value, 1);
+    let argument: i32 = self.parser.call_arguments[self.parser.call_statements[0].first_argument];
+    transition self.parser.expressions[argument].kind {
+        OmegaExpressionKind::Cast -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_cast_inside_borrow(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    let argument: i32 = self.parser.call_arguments[self.parser.call_statements[0].first_argument];
+    self.check_borrow_node(argument, 1);
+    let operand: i32 = self.parser.expressions[argument].payload0;
+    transition self.parser.expressions[operand].kind {
+        OmegaExpressionKind::Cast -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_outer_unary_borrow_cast(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.unary_expression_count == 1;
+    self.check_borrow_node(self.parser.cast_expressions[0].value, 0);
+    let argument: i32 = self.parser.call_arguments[self.parser.call_statements[0].first_argument];
+    transition self.parser.expressions[argument].kind {
+        OmegaExpressionKind::Unary -> operand()
+        _ -> self.console.exit_process(1)
+    }
+    state operand() {
+        transition self.parser.expressions[self.parser.unary_expressions[0].operand].kind {
+            OmegaExpressionKind::Cast -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+machine Main::check_plain_call_argument(&mut self) {
+    let argument: i32 = self.parser.call_arguments[self.parser.call_statements[0].first_argument];
+    transition self.parser.expressions[argument].kind {
+        OmegaExpressionKind::Path -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+machine Main::check_source_unit_clear_rows(&mut self) {
+    self.check_complete();
+    self.check_call_stacks_empty();
+    assert self.parser.root_count == 4;
+    assert self.parser.data_count == 2;
+    assert self.parser.data_items[0].field_count == 1;
+    assert self.parser.data_items[1].field_count == 4;
+    assert self.parser.data_items[1].requirement_count == 1;
+    assert self.parser.machine_count == 2;
+    assert self.parser.machine_state_count == 2;
+    assert self.parser.machine_states[0].has_return_type == 0;
+    assert self.parser.machine_states[0].statement_count == 3;
+    assert self.parser.assignment_statement_count == 3;
+    assert self.parser.local_data_statement_count == 2;
+    assert self.parser.local_data_statements[0].is_mutable == 1;
+    assert self.parser.local_data_statements[0].has_initial_value == 0;
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.struct_literal_field_count == 1;
+    assert self.parser.cast_expression_count == 1;
+    self.check_cast_kind(0, 1);
+    assert self.parser.call_statements[0].argument_count == 2;
+    self.check_borrow_argument(0, 1);
+    let target: i32 = self.parser.assignment_statements[0].target;
+    transition self.parser.expressions[target].path_kind {
+        OmegaPathExpressionKind::Member -> reference()
+        _ -> self.console.exit_process(1)
+    }
+    state reference() {
+        let parameter_type: i32 = self.parser.machine_parameters[0].type_reference;
+        assert self.parser.type_references[parameter_type].payload1 == 1;
+        transition self.parser.type_references[parameter_type].kind {
+            OmegaTypeReferenceKind::Reference -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
+}
+
+machine Main::check_empty_unit_entry(&mut self) {
+    self.check_complete();
+    assert self.parser.machine_count == 1;
+    assert self.parser.machine_state_count == 2;
+    assert self.parser.machine_items[0].first_state == 0;
+    assert self.parser.machine_items[0].state_count == 2;
+    assert self.parser.machine_states[0].has_return_type == 0;
+    assert self.parser.machine_states[0].statement_count == 0;
+    assert self.parser.machine_states[1].has_return_type == 0;
+    assert self.parser.machine_states[1].statement_count == 0;
+    transition self.parser.machine_states[0].name_kind {
+        OmegaMachineStateNameKind::GeneratedEntry -> helper()
+        _ -> self.console.exit_process(1)
+    }
+    state helper() {
+        transition self.parser.machine_states[1].name_kind {
+            OmegaMachineStateNameKind::Authored -> return
             _ -> self.console.exit_process(1)
         }
     }

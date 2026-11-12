@@ -62,7 +62,7 @@ returning `000000000041` with status 0 and empty stderr — now that
 Bash execution; the PE artifact is proven byte-exact under wine but the
 MINGW/MSYS shell route itself has not run on Windows hardware.
 
-The current customer reuses one parser across thirty-seven invocations. Direct
+The current customer reuses one parser across fifty invocations. Direct
 Boolean transition results retain ordinary expression rows; parameterized
 nested-machine transfers retain their argument rows. The retired `state`
 declaration spelling refuses, while `state` remains a usable identifier. A
@@ -74,6 +74,17 @@ Explicit carrier casts and single `+Domain` / `-Domain` entries
 retain distinct tags. Retired whole-type domain casts and unsupported multi-entry
 casts refuse. These parser observations do not establish runtime execution of
 the parsed programs; that belongs to the executable compiler customers.
+
+Borrow controls retain shared, mutable and write-only access, operand identity
+and operator spans. A borrow groups before its following domain cast; explicit
+grouping may instead put a cast inside the borrowed operand. The exact SourceId,
+SourceUnit and source_unit_clear declarations exercise record field casts,
+comma-separated data requirements, mutable zero initialization, field assignment
+and independent Unit completion. Their source bytes come from
+`source/psi/source/source.omg` at `cf97ce29165`. Empty outer machines retain their
+own entry before nested declarations. These are syntax/custody checks; the
+compiler's actual SourceUnit customer owns checking and native execution.
+
 
 Four header controls were added in the historical twenty-invocation customer:
 termination and reach clauses in both orders retain their exact ranges, and

@@ -575,6 +575,7 @@ data OmegaExpressionKind {
     case Cast;
     case Unary;
     case Membership;
+    case Borrow;
 }
 
 data OmegaBinaryOperatorKind {
@@ -610,6 +611,11 @@ data OmegaUnaryOperatorKind {
     case BitwiseNot;
     case LogicalNot;
     case Negate;
+    // Borrow modes are pending-prefix markers. Publication produces a Borrow
+    // expression, never a numeric/unary row with one of these operators.
+    case SharedBorrow;
+    case MutableBorrow;
+    case WriteOnlyBorrow;
 }
 
 data OmegaUnaryExpressionSyntax {
@@ -710,7 +716,9 @@ data OmegaStructLiteralSyntax {
 // byte length. Membership uses payload0 for the value expression, payload1/
 // payload2 for the domain path-member span, and payload3/payload4 for the exact
 // contextual `in` span. StructLiteral, Binary, Indexed, Range, Call, Cast, and
-// Unary payload0 select their dedicated rows.
+// Unary payload0 select their dedicated rows. Borrow uses payload0 for its
+// operand, payload1 for access (0 shared, 1 mutable, 2 write-only), and
+// payload2/payload3 for the complete operator span; payload4/payload5 are zero.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
     kind: OmegaExpressionKind;
@@ -839,6 +847,7 @@ data OmegaParseDiagnosticCode {
     case ExpectedMembershipDomain;
     case ExpectedMembershipEnd;
     case ExpectedDataFieldEnd;
+    case ExpectedBorrowOperand;
 }
 
 data OmegaParserResource {
