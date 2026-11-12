@@ -128,6 +128,110 @@ impl Program<'_> {
         }
     }
 
+    /// Whether two closed types are the same type, when both are builtin
+    /// scalar types: decided by the compiler-installed atom each symbol
+    /// names, never by a spelling. `None` for any other operand (a type
+    /// parameter, a data type, an application), which is not decided here.
+    /// generics.md, "Static type equality": "`==` between type expressions
+    /// states exact normalized type equality".
+    fn closed_type_equation(
+        &self,
+        left: TypeReferenceHandle,
+        right: TypeReferenceHandle,
+    ) -> Option<bool> {
+        let atom = |handle: TypeReferenceHandle| {
+            if !handle.is_valid() {
+                return None;
+            }
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                    self.typed.symbols.builtin_type_atom(*symbol)
+                }
+                _ => None,
+            }
+        };
+        Some(atom(left)? == atom(right)?)
+    }
+
+    /// The truth of an expression that closed type equations decide: an
+    /// equation between two closed builtin types, a local bound to such a
+    /// truth, and `==`, `&&`, `||` and `!` over those, where `==` may also
+    /// compare one with a Boolean literal. `None` for every other
+    /// expression, a lone Boolean literal included: only a type equation
+    /// makes a condition static. generics.md, "Static type equality": "a
+    /// branch with established `T == u32` may use that equality to check its
+    /// operations and values as u32", so in a machine generated for `u32`
+    /// the branch `u32 == u64` is one no value reaches and no rule types.
+    pub(super) fn static_truth(&self, expression: ExpressionHandle) -> Option<bool> {
+        use typed_trees::expression::{BinaryOperator, UnaryOperator};
+        if !expression.is_valid() {
+            return None;
+        }
+        let table = &self.typed.expression_table;
+        match table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                if !path.symbol.is_valid() || table.name_path_members(path.members).len() != 1 {
+                    return None;
+                }
+                self.static_truths
+                    .iter()
+                    .rev()
+                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .map(|(_, truth)| *truth)
+            }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                self.static_truth(unary.operand).map(|truth| !truth)
+            }
+            ExpressionNode::Binary(binary) => {
+                let literal = |handle: ExpressionHandle| match handle
+                    .is_valid()
+                    .then(|| table.expression(handle))
+                {
+                    Some(ExpressionNode::Boolean(value)) => Some(*value),
+                    _ => None,
+                };
+                match binary.operator {
+                    BinaryOperator::Equal => {
+                        if let (
+                            Some(ExpressionNode::TypeExpression(left)),
+                            Some(ExpressionNode::TypeExpression(right)),
+                        ) = (
+                            binary
+                                .left
+                                .is_valid()
+                                .then(|| table.expression(binary.left)),
+                            binary
+                                .right
+                                .is_valid()
+                                .then(|| table.expression(binary.right)),
+                        ) {
+                            return self.closed_type_equation(*left, *right);
+                        }
+                        match (
+                            self.static_truth(binary.left),
+                            self.static_truth(binary.right),
+                        ) {
+                            (Some(left), Some(right)) => Some(left == right),
+                            (Some(truth), None) => {
+                                literal(binary.right).map(|value| truth == value)
+                            }
+                            (None, Some(truth)) => literal(binary.left).map(|value| truth == value),
+                            (None, None) => None,
+                        }
+                    }
+                    BinaryOperator::And => {
+                        Some(self.static_truth(binary.left)? && self.static_truth(binary.right)?)
+                    }
+                    BinaryOperator::Or => {
+                        Some(self.static_truth(binary.left)? || self.static_truth(binary.right)?)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// A formal's, local's, result's or field's type: a record when the
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.

@@ -75,6 +75,9 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// The locals of the body being read whose value is decided statically
+    /// by closed type equations (`static_truth`), by the local's symbol.
+    static_truths: Vec<(SymbolHandle, bool)>,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -144,6 +147,7 @@ impl<'t> Program<'t> {
             scopes: IdTable::default(),
             applications: Vec::new(),
             applied: Vec::new(),
+            static_truths: Vec::new(),
             value_parameters: IdTable::default(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),

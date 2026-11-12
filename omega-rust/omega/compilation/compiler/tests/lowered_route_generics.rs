@@ -176,3 +176,76 @@ fn the_comparison_witness_lowers_and_corresponds() {
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "refused"), 0);
 }
+
+/// The route's verdict on each machine stage 04 generated from the machine
+/// named `template`, each as the root of its own closure.
+fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
+    use fixture_package_inputs::{FixtureFrontierCheck, check_fixture_keeping_typed_frontier};
+    let _guard = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let main = repo_root().join(fixture).join("main.omg");
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let frontier = match check_fixture_keeping_typed_frontier(&main, "linux_x86_64") {
+                FixtureFrontierCheck::Accepted { frontier, .. }
+                | FixtureFrontierCheck::Rejected { frontier, .. } => frontier,
+                _ => panic!("{fixture}: no typed trees"),
+            };
+            let typed = &frontier.typed;
+            let declared = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == template)
+                .unwrap_or_else(|| panic!("{fixture}: no machine `{template}`"))
+                .symbol;
+            typed
+                .machine_specializations
+                .iter()
+                .filter(|specialization| specialization.template == declared)
+                .map(|specialization| {
+                    let closure =
+                        structure_elaboration::elaborate_closure(typed, specialization.instance);
+                    match lowered_discharge::judge(closure) {
+                        Ok(lowered_discharge::RouteVerdict::Accepted { .. }) => "accepted".into(),
+                        Ok(lowered_discharge::RouteVerdict::Rejected { .. }) => "rejected".into(),
+                        Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => {
+                            "incomplete".into()
+                        }
+                        Ok(lowered_discharge::RouteVerdict::FallBack(refusal)) => {
+                            format!("falls back: {}", refusal.detail)
+                        }
+                        Err(refusal) => format!("defect: {}", refusal.detail),
+                    }
+                })
+                .collect()
+        })
+        .expect("spawn a compile worker")
+        .join()
+        .expect("the judgment does not panic")
+    })
+}
+
+/// A finite type family: `threshold<T>` requires `T == u32 || T == u64` and
+/// branches on `T == u32`. Stage 04 does not fold the branch, so the machine
+/// generated for `u32` still holds `u32 == u32`, both arms, and an arm that
+/// returns a `u64`. Closed type equations are decided statically: the
+/// `requires` states nothing, the true arm is taken, and the arm of the
+/// other type is left unread. Both generated machines are then judged.
+#[test]
+fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
+    assert_eq!(
+        generated_verdicts(
+            "tests/omega/pass/contracts/generic_effective_result_comparison_exit",
+            "threshold",
+        ),
+        ["accepted", "accepted"]
+    );
+    assert_eq!(
+        generated_verdicts(
+            "tests/omega/fail/contracts/specialized_normal_call_wrong_type_contract",
+            "choose",
+        ),
+        ["accepted", "accepted"]
+    );
+}

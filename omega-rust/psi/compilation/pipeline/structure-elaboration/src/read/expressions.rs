@@ -123,6 +123,11 @@ impl<'t> Program<'t> {
                     }
                 }
             }
+            // A condition closed type equations decide is that Boolean.
+            ExpressionNode::Binary(_) if self.static_truth(handle).is_some() => {
+                let truth = self.static_truth(handle).unwrap_or_default();
+                (ExpressionKind::Boolean(truth), ScalarType::Boolean)
+            }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
                 let (value, integer) = self.anonymous_value(id, handle, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))

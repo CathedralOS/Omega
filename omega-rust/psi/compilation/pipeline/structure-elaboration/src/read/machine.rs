@@ -680,10 +680,13 @@ impl<'t> Program<'t> {
                 // A clause that is the literal `true` states nothing: it
                 // asks nothing of a caller and promises nothing, so it adds
                 // no clause, as an absent `requires` or `ensures` adds none.
+                // So does a clause closed type equations decide as true:
+                // `requires T == u32 || T == u64` in the machine generated
+                // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
-                        if self.is_true(expression) {
+                        if self.states_nothing(id, expression)? {
                             continue;
                         }
                         requires.push(self.clause(id, &required, expression)?);
@@ -693,7 +696,7 @@ impl<'t> Program<'t> {
                 SignatureContractKind::Ensures => {
                     for fact in facts {
                         let expression = self.fact(id, fact)?;
-                        if self.is_true(expression) {
+                        if self.states_nothing(id, expression)? {
                             continue;
                         }
                         ensures.push(self.clause(id, &exit, expression)?);
@@ -815,13 +818,32 @@ impl<'t> Program<'t> {
             })
     }
 
-    /// Whether a clause's expression is the Boolean literal `true`.
-    fn is_true(&self, expression: typed_trees::expression::ExpressionHandle) -> bool {
-        expression.is_valid()
+    /// Whether a clause states nothing: it is the Boolean literal `true`,
+    /// or closed type equations decide it as true. One they decide as false
+    /// is refused: the application is outside the family its declaration
+    /// admits, and nothing about its body would mean anything.
+    fn states_nothing(
+        &self,
+        id: MachineId,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Checked<bool> {
+        if expression.is_valid()
             && matches!(
                 self.typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::Boolean(true)
             )
+        {
+            return Ok(true);
+        }
+        match self.static_truth(expression) {
+            Some(true) => Ok(true),
+            Some(false) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("type equation that is false for this application"),
+            )),
+            None => Ok(false),
+        }
     }
 
     fn formal(&mut self, id: MachineId, formal: &StateParameter) -> Checked<ValueType> {
@@ -920,8 +942,20 @@ impl<'t> Program<'t> {
         }
         let mut body = Vec::with_capacity(statements.len());
         let mut completed = false;
+        // Set once an arm whose guard closed type equations decide as true
+        // has completed the machine: the arms after it are the branches of
+        // other types, which no value of this application reaches. They are
+        // left unread, because they are typed under an equation that is
+        // false here (`threshold<u32>` still holds the arm that returns a
+        // `u64`).
+        let mut statically_completed = false;
+        self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
+            if statically_completed && matches!(statement, StatementNode::Transition(_)) {
+                position += 1;
+                continue;
+            }
             if completed {
                 return Err(refuse(
                     id,
@@ -991,6 +1025,9 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local)?;
+                    if let Some(truth) = self.static_truth(local.initial_value) {
+                        self.static_truths.push((local.symbol, truth));
+                    }
                     slots.push(slot);
                     slot_names.push(local.name.as_str().to_owned());
                     statement
@@ -1005,8 +1042,27 @@ impl<'t> Program<'t> {
                     dispatch
                 }
                 StatementNode::Transition(transition) => {
+                    // An arm whose guard closed type equations decide: a
+                    // false one is the branch of another type and is left
+                    // unread; a true one is taken unconditionally.
+                    let decided = match transition.guard {
+                        typed_trees::statement::TransitionGuardNode::When(guard) => {
+                            self.static_truth(guard)
+                        }
+                        typed_trees::statement::TransitionGuardNode::Always => None,
+                    };
+                    if decided == Some(false) {
+                        position += 1;
+                        continue;
+                    }
                     let (guard, target) =
                         self.transition(id, &slots, transition, signature.result)?;
+                    let guard = if decided == Some(true) {
+                        statically_completed = true;
+                        None
+                    } else {
+                        guard
+                    };
                     completed = guard.is_none();
                     Statement::Arm {
                         guard,
