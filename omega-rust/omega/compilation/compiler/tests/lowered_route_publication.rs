@@ -50,7 +50,7 @@ fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
     });
     let frontier = match checked {
         FixtureFrontierCheck::Accepted { frontier, .. } => frontier,
-        other => panic!("{fixture}: the program must check: {other:?}"),
+        _ => panic!("{fixture}: the program must check"),
     };
     match judge(elaborate(
         &frontier.typed,
@@ -85,7 +85,10 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         .iter()
         .map(|seal| seal.fingerprint)
         .collect();
-    assert!(!expected.is_empty(), "the program has discharged operations");
+    assert!(
+        !expected.is_empty(),
+        "the program has discharged operations"
+    );
     let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
         publication.artifact.semantic_module(),
         publication.seals.clone(),
@@ -93,12 +96,13 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     .expect("Omega 00 lowers the published module with its seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) = abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
-        input,
-        psi_work::WorkSchedule::CURRENT.identity(),
-    )
-    .expect("Omega 01 builds the verified unit")
-    .into_parts();
+    let (_, unit) =
+        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_work::WorkSchedule::CURRENT.identity(),
+        )
+        .expect("Omega 01 builds the verified unit")
+        .into_parts();
     let sealed: Vec<[u8; 32]> = unit
         .accepted_obligation_facts
         .iter()
@@ -119,12 +123,16 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         .resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects)
         .expect("the published program runs");
     let expected_exit = std::fs::read_to_string(
-        repo_root().join("tests/omega/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
+        repo_root()
+            .join("tests/omega/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
     )
     .unwrap();
     assert_eq!(expected_exit.trim(), "0");
     assert!(
-        matches!(status, terminal_interpreter::TerminalExecutionStatus::Complete(_)),
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(_)
+        ),
         "{status:?}"
     );
 }
