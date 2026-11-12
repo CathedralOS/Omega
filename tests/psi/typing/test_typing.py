@@ -18,7 +18,7 @@ KINDS = (
 )
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
-    "f32", "f64", "Slice", "Result", "SyscallResult", "Terminal", "Never",
+    "f32", "f64", "Slice", "SyscallResult", "Terminal", "Never",
     "UInt", "Int", "AtomicBool", "AtomicU32", "AtomicU64",
 )
 DOMAINS = ("", "Wrapping", "Saturating", "Trapping", "Finite")
