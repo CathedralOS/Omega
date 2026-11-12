@@ -1193,8 +1193,10 @@ fn check_program(
         facts,
         typed_program.boundary_signatures(),
     )?;
+    crate::__mem_probe("after-finalize");
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
+    crate::__mem_probe("after-semantic-deps");
 
     facts.specialization_identities = specialization_identities;
     facts.accepted_template_identities = {

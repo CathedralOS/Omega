@@ -7349,6 +7349,7 @@ crate::__mem_probe("unit-effect-bodies-done");
         })
         .collect::<Vec<_>>()
         .into_iter();
+    crate::__mem_probe("unit-after-cleanup-select");
     drop(targets);
     let mut cleanup_gaps = BTreeMap::new();
     composed_machines.retain_mut(|plan| match composed_selections.next() {
@@ -7454,6 +7455,7 @@ crate::__mem_probe("unit-effect-bodies-done");
             .map(|(_, gap)| gap),
     );
 
+    crate::__mem_probe("unit-before-closure");
     let closure_gaps = candidate_closure::retain_available(
         program,
         facts,

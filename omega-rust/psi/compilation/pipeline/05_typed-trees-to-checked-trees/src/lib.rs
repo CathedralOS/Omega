@@ -90,6 +90,20 @@ pub fn __mem_probe(label: &str) {
     if std::env::var_os("OMEGA_MEM_PROBE").is_none() {
         return;
     }
+    static SAMPLER: std::sync::Once = std::sync::Once::new();
+    SAMPLER.call_once(|| {
+        std::thread::spawn(|| {
+            let mut reported = 0u64;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                let rss = __mem_rss_mb();
+                if rss >= reported + 512 {
+                    reported = rss;
+                    eprintln!("MEMPROBE sample rss={rss}MB");
+                }
+            }
+        });
+    });
     let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
     let field = |name: &str| {
         status

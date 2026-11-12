@@ -1134,6 +1134,7 @@ impl CheckRequest<'_> {
             (outcome, layout_evaluation)
         };
         let (outcome, layout_evaluation) = outcome;
+        typed_trees_to_checked_trees::__mem_probe("sc-after-check");
         if let (Some(reuse), Some(key)) = (self.checked_slices.as_ref(), stored_slice.as_ref()) {
             checked_slice::save(reuse, key, &outcome.checked);
             record_checked_slice_save();
@@ -1161,8 +1162,10 @@ impl CheckedSource {
                     source::DependencyScope::Product,
                 ),
             )?;
+        typed_trees_to_checked_trees::__mem_probe("sc-before-select");
         let (program, selection) =
             typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
+        typed_trees_to_checked_trees::__mem_probe("sc-after-select");
         Ok(SelectedCheckedSource {
             program,
             provider_defaults: provider_defaults.into(),

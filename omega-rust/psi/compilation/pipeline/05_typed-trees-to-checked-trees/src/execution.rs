@@ -309,6 +309,7 @@ pub(crate) mod finalize_execution {
                 crate::execution::terminal_unit::ScalarCalleeClosure,
                 call_frames.as_ref(),
             );
+        crate::__mem_probe("fin-after-unit-effects");
         facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
         let (nominal_cleanups, nominal_types) =
             crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
@@ -325,6 +326,7 @@ pub(crate) mod finalize_execution {
                 program.type_identity_text(identity).unwrap_or_default()
             )));
         }
+        crate::__mem_probe("fin-after-nominal");
         let mut construction_shapes = Vec::new();
         for state in terminal_unit_effects
             .machines
@@ -378,6 +380,7 @@ pub(crate) mod finalize_execution {
         if !cleanup_diagnostics.is_empty() {
             return Err(cleanup_diagnostics);
         }
+        crate::__mem_probe("fin-after-constructions");
         facts.flow.terminal_unit_effects = terminal_unit_effects;
         crate::execution::terminal_unit::retain_structural_value_calls(&mut facts, prepared_calls)
             .map_err(|reason| {
@@ -386,6 +389,7 @@ pub(crate) mod finalize_execution {
                 ))]
             })?;
 
+        crate::__mem_probe("fin-before-completion");
         crate::execution::terminal_unit::cleanup::finalize_completion_actions(program, &mut facts)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(

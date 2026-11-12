@@ -439,6 +439,7 @@ pub(crate) mod terminal_production {
             let native_formations =
                 capture_native_formations(checked, self.machine, &declaration_requests)
                     .map_err(TerminalArtifactProductionError::BuildContext)?;
+            crate::__mem_probe2("tp-before-lowering");
             let mut lowered = observer
                 .record_result(PsiCompilationStage::Lowering, || {
                     lower_machine(
@@ -468,6 +469,7 @@ pub(crate) mod terminal_production {
                 .iter()
                 .map(terminal_psi::UnoptimizedMachineBehavior::capture)
                 .collect();
+            crate::__mem_probe2("tp-after-lowering");
             let provenance =
                 checked_trees_to_lowered_psi::lowered_module_provenance(checked, &lowered);
             let source_records = std::mem::take(&mut lowered.source_records);
@@ -476,6 +478,7 @@ pub(crate) mod terminal_production {
                     run_psi_optimization(lowered, self.optimization_selections)
                 })
                 .map_err(TerminalArtifactProductionError::Optimization)?;
+            crate::__mem_probe2("tp-after-optimization");
             let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
                 .map_err(TerminalArtifactProductionError::BuildContext)?;
             let request_calls = crate::build_requests::capture(checked, optimized.lowered())
@@ -492,6 +495,7 @@ pub(crate) mod terminal_production {
                     )
                 })
                 .map_err(TerminalArtifactProductionError::Artifact)?;
+            crate::__mem_probe2("tp-after-publication");
             let applications = applications
                 .iter()
                 .map(|application| {
@@ -714,4 +718,22 @@ pub(crate) mod composition_roots {
             ),
         })
     }
+}
+
+#[doc(hidden)]
+pub fn __mem_probe2(label: &str) {
+    if std::env::var_os("OMEGA_MEM_PROBE").is_none() {
+        return;
+    }
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    let field = |name: &str| {
+        status
+            .lines()
+            .find(|line| line.starts_with(name))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|kb| kb.parse::<u64>().ok())
+            .unwrap_or(0)
+            / 1024
+    };
+    eprintln!("MEMPROBE {label}: rss={}MB hwm={}MB", field("VmRSS:"), field("VmHWM:"));
 }
