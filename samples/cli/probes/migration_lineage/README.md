@@ -8,8 +8,7 @@ own non-aliased requirement identity.
 
 ## Learnings
 
-- `use omega::language::core::format_lineage` + `Build::depend(builder,
-  Source::Path{location: "../../../../source/library/std"})` — the
+- `use omega::language::core::format_lineage` + `Build::dependency(builder, dependency::from_source(Source::Path{location: "../../../../source/library/std"}))` — the
   std-package path dependency route.
 - Package review staleness ("accepted package compiler identity
   changed"): `mbx run` rebuilds the compiler binary on sibling commits,

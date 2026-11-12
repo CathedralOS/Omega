@@ -1,7 +1,7 @@
 // An unexecuted helper body grants no behavior exclusion.
 machine build(builder: &mut Build) {
     Build::application(builder, "crash_exclusion_unexecuted_helper_exit");
-    Build::depend(builder, Source::Path { location: "../../../packages/assert-kit" });
+    let assert_kit_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/assert-kit" }));
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, linux_arm64);
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, linux_x86_64);
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssertProvider>(builder, macos_arm64);

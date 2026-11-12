@@ -1,1 +1,1 @@
-machine build(builder: &mut Build) { Build::package(builder, "boundary_call_guard_wrong_format"); Build::depend(builder, Source::Path { location: "../../../../../source/library/std" }); }
+machine build(builder: &mut Build) { Build::package(builder, "boundary_call_guard_wrong_format"); let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" })); }

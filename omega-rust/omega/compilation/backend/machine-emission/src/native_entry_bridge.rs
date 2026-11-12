@@ -1,7 +1,7 @@
 /*
 We emit physical native entry bridges that adapt an external calling or interrupt arrival plan to a function's unchanged internal calling plan.
 
-Before any destination register is written, we snapshot incoming values into our bridge activation so nominal parameter permutations execute as parallel moves rather than sequential overwrites. Scalar loans construct address-and-codec descriptor storage in this activation and pass the descriptor address to the internal convention; owned indirect values copy their complete byte extent into our frame so the caller's ABI pointer never becomes a loan. Over-aligned owned homes reserve alignment padding inside the fixed ABI frame, and any internal clobbers excluded from the inbound promise—including all 128 bits of clobbered vector registers and borrowed scratch registers—are saved before redistribution and restored before return. For returning and fatal installed interrupt entries, we validate the hardware return frame, machine-state ceiling, and active root/gate geometry before dispatching to the internal handler body.
+Before any destination register is written, we snapshot incoming values into our bridge activation so nominal parameter permutations execute as parallel moves rather than sequential overwrites. Scalar loans construct address-and-codec descriptor storage in this activation and pass the descriptor address to the internal convention; owned indirect values copy their complete byte extent into our frame so the caller's ABI pointer never becomes a loan. Over-aligned owned homes reserve alignment padding inside the fixed ABI frame, and any internal clobbers excluded from the inbound promise—including all 128 bits of clobbered vector registers and borrowed scratch registers—are saved before redistribution and restored before return, except a register class the body's checked closure never overwrites. For returning and fatal installed interrupt entries, we validate the hardware return frame, machine-state ceiling, and active root/gate geometry before dispatching to the internal handler body.
 */
 
 use arena::Arena;
@@ -234,7 +234,7 @@ fn select_entry_protocol(request: &NativeEntryBridgeRequest) -> Result<EntryProt
         (architecture, EntryControl::CallReturn) => Ok(EntryProtocol {
             incoming_argument_bias: call_stack_bias(architecture),
             frame_alignment_padding: call_stack_bias(architecture),
-            body_clobbers: request.internal.ordinary_clobbers.clone(),
+            body_clobbers: checked_body_clobbers(request),
             preserved_registers: RegisterSet::default(),
             before_body: &[],
             return_bytes: match architecture {
@@ -245,6 +245,30 @@ fn select_entry_protocol(request: &NativeEntryBridgeRequest) -> Result<EntryProt
         (Architecture::X86_64, EntryControl::InterruptReturn) => select_interrupt_protocol(request),
         _ => Err(Error::UnsupportedEntryControl),
     }
+}
+
+// The internal convention lists every register a body may overwrite, and the
+// inbound promise may keep some of them. Saving all of those would make the
+// bridge itself touch state the entry's ceiling excludes: a handler that never
+// writes a vector register would still have each one spilled around it. The
+// checked footprint of the body's whole synchronous closure says which register
+// classes it overwrites, so a class it leaves alone needs no save. Without that
+// evidence the convention's full list stands.
+fn checked_body_clobbers(request: &NativeEntryBridgeRequest) -> RegisterSet {
+    let convention = &request.internal.ordinary_clobbers;
+    let Some(footprint) = request.body_footprint.as_ref() else {
+        return convention.clone();
+    };
+    let overwritten = footprint.clobbered_state();
+    RegisterSet::new(convention.as_slice().iter().copied().filter(|register| {
+        let class = match register {
+            MachineRegister::X86Xmm(_) | MachineRegister::Aarch64V(_) => {
+                MachineState::VectorRegisters
+            }
+            _ => MachineState::GeneralRegisters,
+        };
+        overwritten.contains_all(MachineStateSet::new([class]))
+    }))
 }
 
 fn select_interrupt_protocol(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error> {
@@ -1292,9 +1316,23 @@ mod tests {
             target,
             internal,
             inbound: inbound.plan().clone(),
-            body_footprint: Some(StateEffectsEvidence::empty()),
+            body_footprint: Some(full_convention_body()),
             parameters,
         }
+    }
+
+    // A body that overwrites both register classes, as the internal convention allows.
+    fn full_convention_body() -> StateEffectsEvidence {
+        let classes = MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::VectorRegisters,
+        ]);
+        StateEffectsEvidence::new(
+            RegisterSet::default(),
+            RegisterSet::default(),
+            classes,
+            classes,
+        )
     }
 
     fn interrupt_request(shapes: Vec<ValueShape>) -> NativeEntryBridgeRequest {
@@ -1515,6 +1553,38 @@ mod tests {
                     .any(|bytes| bytes == restore.to_le_bytes())
             );
         }
+        validate_native_entry_bridge(&bridge).unwrap();
+    }
+
+    #[test]
+    fn body_that_overwrites_no_vector_register_gets_no_vector_saves() {
+        let mut request = request(NativeTarget::macos_arm64(), vec![], vec![], &[], &[], None);
+        narrow_inbound_clobbers(&mut request, |register| {
+            !matches!(
+                register,
+                MachineRegister::Aarch64X(9) | MachineRegister::Aarch64V(16)
+            )
+        });
+        let general = MachineStateSet::new([MachineState::GeneralRegisters]);
+        request.body_footprint = Some(StateEffectsEvidence::new(
+            RegisterSet::default(),
+            RegisterSet::default(),
+            general,
+            general,
+        ));
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        let before_call = &bridge.bytes()[..bridge.call_field_offset()];
+        assert!(
+            before_call
+                .windows(4)
+                .any(|bytes| bytes == 0xf900_07e9_u32.to_le_bytes())
+        );
+        assert!(
+            !bridge
+                .complete_effects()
+                .machine_state()
+                .contains_all(MachineStateSet::new([MachineState::VectorRegisters]))
+        );
         validate_native_entry_bridge(&bridge).unwrap();
     }
 

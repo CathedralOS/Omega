@@ -2401,6 +2401,7 @@ mod declaration_inputs {
         }
     }
 }
+pub(crate) use dispatch::structural_dispatch_omits_arm;
 mod dispatch {
 
     /*
@@ -2419,7 +2420,62 @@ mod dispatch {
         CheckedScalarDispatchPattern, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
         CheckedUnitStructuralArgumentSourcePlan,
     };
+    use symbols::SymbolHandle;
     use typed_trees::expression::{MatchPattern, TableMatchExpression};
+
+    /*
+        An authored structural arm that can never run: its pattern condition is
+        statically false or unreachable, or it names a case whose value sits in
+        an unreachable static type context.
+    */
+    fn structural_dispatch_arm_is_impossible(
+        program: &dyn ::validation::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        dispatch: &TableMatchExpression,
+        arm: &typed_trees::expression::TableMatchArm,
+    ) -> bool {
+        match arm.pattern {
+            MatchPattern::Destructure(pattern) => {
+                program.static_type_context_is_unreachable(pattern.condition)
+                    || program.static_boolean_value(pattern.condition) == Some(false)
+            }
+            MatchPattern::Value(_) if program.static_type_context_is_unreachable(arm.value) => {
+                let Some(machine) = program.machine_by_symbol(machine) else {
+                    return false;
+                };
+                let Some(state) = program.state_in_machine(machine, state) else {
+                    return false;
+                };
+                validation::structural_match_pattern_case(
+                    program,
+                    machine,
+                    state,
+                    dispatch,
+                    arm.pattern,
+                )
+                .is_some_and(|case| case.is_valid())
+            }
+            _ => false,
+        }
+    }
+
+    /*
+        Whether a structural dispatch plans no arm for this authored arm. The
+        dispatch roster and the normal-result tree both ask here, so an arm the
+        roster leaves out is exactly an arm the result tree may find missing.
+        Flow still records a completed result for a ruled-out arm it walked.
+    */
+    pub(crate) fn structural_dispatch_omits_arm(
+        program: &dyn ::validation::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        dispatch: &TableMatchExpression,
+        arm: &typed_trees::expression::TableMatchArm,
+    ) -> bool {
+        structural_dispatch_arm_is_impossible(program, machine, state, dispatch, arm)
+            || program.static_type_context_is_unreachable(arm.value)
+    }
 
     impl Builder<'_, '_> {
         /*
@@ -2962,32 +3018,13 @@ mod dispatch {
             dispatch: &TableMatchExpression,
             arm: &typed_trees::expression::TableMatchArm,
         ) -> bool {
-            match arm.pattern {
-                MatchPattern::Destructure(pattern) => {
-                    self.program
-                        .static_type_context_is_unreachable(pattern.condition)
-                        || self.program.static_boolean_value(pattern.condition) == Some(false)
-                }
-                MatchPattern::Value(_)
-                    if self.program.static_type_context_is_unreachable(arm.value) =>
-                {
-                    let Some(machine) = self.program.machine_by_symbol(self.machine) else {
-                        return false;
-                    };
-                    let Some(state) = self.program.state_in_machine(machine, self.state) else {
-                        return false;
-                    };
-                    validation::structural_match_pattern_case(
-                        self.program,
-                        machine,
-                        state,
-                        dispatch,
-                        arm.pattern,
-                    )
-                    .is_some_and(|case| case.is_valid())
-                }
-                _ => false,
-            }
+            structural_dispatch_arm_is_impossible(
+                self.program,
+                self.machine,
+                self.state,
+                dispatch,
+                arm,
+            )
         }
 
         /*

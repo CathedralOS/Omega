@@ -6,58 +6,60 @@ public domain u8::Mode requires self <= 7;
 public domain u8::Code requires self <= 15;
 
 public data PackedFlags { present: bool; mode: u8 in Mode; code: u8 in Code; }
-data CompactBits {}
-machine CompactBits::plan(schema: Schema) -> LayoutPlan {
-    let mut entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::Bits {
-            container: 0,
-            container_width: 8,
-            destination_lsb: 0,
-            source_lsb: 0,
-            width: 1,
-        },
-    };
-    entries[1] = FieldEntry {
-        key: schema.fields[1].key,
-        representation: FieldPlan::Bits {
-            container: 0,
-            container_width: 8,
-            destination_lsb: 1,
-            source_lsb: 0,
-            width: 3,
-        },
-    };
-    entries[2] = FieldEntry {
-        key: schema.fields[2].key,
-        representation: FieldPlan::Bits {
-            container: 0,
-            container_width: 8,
-            destination_lsb: 4,
-            source_lsb: 0,
-            width: 2,
-        },
-    };
-    entries[3] = FieldEntry {
-        key: schema.fields[2].key,
-        representation: FieldPlan::Bits {
-            container: 0,
-            container_width: 8,
-            destination_lsb: 6,
-            source_lsb: 2,
-            width: 2,
-        },
-    };
-    LayoutPlan {
-        entries: entries,
-        entry_count: 4,
-        size_fixed: 1,
-        size_is_dynamic: false,
-        align: 1,
+CompactBits satisfies FixedLayout<PackedFlags> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry {
+            key: schema.fields[0].key,
+            representation: FieldPlan::Bits {
+                container: 0,
+                container_width: 8,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 1,
+            },
+        };
+        entries[1] = FieldEntry {
+            key: schema.fields[1].key,
+            representation: FieldPlan::Bits {
+                container: 0,
+                container_width: 8,
+                destination_lsb: 1,
+                source_lsb: 0,
+                width: 3,
+            },
+        };
+        entries[2] = FieldEntry {
+            key: schema.fields[2].key,
+            representation: FieldPlan::Bits {
+                container: 0,
+                container_width: 8,
+                destination_lsb: 4,
+                source_lsb: 0,
+                width: 2,
+            },
+        };
+        entries[3] = FieldEntry {
+            key: schema.fields[2].key,
+            representation: FieldPlan::Bits {
+                container: 0,
+                container_width: 8,
+                destination_lsb: 6,
+                source_lsb: 2,
+                width: 2,
+            },
+        };
+        LayoutPlan {
+            entries: entries,
+            entry_count: 4,
+            size_fixed: 1,
+            size_is_dynamic: false,
+            align: 1,
+        }
     }
 }
-data Main { packed: CompactBits<PackedFlags>; }
+data Main { packed: LayoutStorage<PackedFlags, CompactBits>; }
 machine Main::main(main: &mut Main) {
     main.packed.present = true;
     main.packed.mode = 5;

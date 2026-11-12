@@ -33,7 +33,7 @@ try:
         (directory / 'build.omg').write_text(
             'machine build(builder: &mut Build) {\n'
             ' Build::application(builder, "new079_pump_matrix");\n'
-            ' Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });\n'
+            ' let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));\n'
             ' Build::bind(builder, linux_x86_64::ProgramEntry, main);\n}\n')
         (directory / 'input.txt').write_text(case['input'])
         (directory / 'expected_stdout.txt').write_text(case['stdout'])

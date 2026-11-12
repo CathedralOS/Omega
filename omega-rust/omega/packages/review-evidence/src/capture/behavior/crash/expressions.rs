@@ -127,7 +127,12 @@ fn project_scalar_expression(
         CheckedScalarExpression::ConstantApplication { .. } => return None,
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => return None,
-        CheckedScalarExpression::StructuralLocalField { .. } => return None,
+        CheckedScalarExpression::StructuralParameterField {
+            root:
+                checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            ..
+        } => return None,
         CheckedScalarExpression::ImplementationSelection { .. } => return None,
         CheckedScalarExpression::StructuralSequenceLength { root, path } => {
             PackageReviewScalarExpression::StructuralParameterByteLength {
@@ -175,7 +180,10 @@ fn project_scalar_expression(
                                 }
                             }
                             CheckedScalarExpression::StructuralParameterField {
-                                parameter_position,
+                                root:
+                                    checked_trees::CheckedStorageRoot::Parameter {
+                                        index: parameter_position,
+                                    },
                                 path,
                                 ..
                             } => PackageReviewRuntimeIndex::StructuralField(
@@ -216,7 +224,10 @@ fn project_scalar_expression(
             primitive_type: project_primitive_type(*primitive_type),
         },
         CheckedScalarExpression::StructuralParameterField {
-            parameter_position,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
             path,
             primitive_type,
             ..
