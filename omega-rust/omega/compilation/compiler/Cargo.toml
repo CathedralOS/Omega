@@ -176,6 +176,12 @@ path = "tests/lowered_route_subjects.rs"
 name = "lowered_route_messages"
 path = "tests/lowered_route_messages.rs"
 
+# A generic body is checked once on the lowered form and its certificates
+# are re-decided by the kernel in each generated specialization.
+[[test]]
+name = "lowered_route_generics"
+path = "tests/lowered_route_generics.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"

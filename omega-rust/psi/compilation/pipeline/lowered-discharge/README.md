@@ -894,11 +894,12 @@ memory.
 
 A generic machine is proved once, against the contracts its parameters
 require, and each specialization of it re-checks those proofs instead of
-searching again. This section covers one kind of parameter, an
+searching again. This section covers two kinds of parameter: an
 implementation parameter such as `Selected satisfies Step`, whose body calls
-`Selected::apply(..)`. No production path calls any of it. Type and value
-parameters are not served; [what is missing](#what-the-lowered-form-does-not-carry)
-says why.
+`Selected::apply(..)`, and a [value parameter](#value-parameters) such as
+`const Units: u64`. No production path calls any of it. Type parameters are
+not served; [what is missing](#what-the-lowered-form-does-not-carry) says
+why.
 
 The example the tests and the corpus fixture use:
 
@@ -979,6 +980,101 @@ twin. The twin differs only in the bound `advance` promises, `result <= 18`:
 a search over each of its two specializations alone proves that bound, and
 the generic check refuses it.
 
+### Value parameters
+
+A body over `const Units: u64` is proved once for every value of `Units`,
+and the machine stage 04 generates for `<7>` takes those proofs with 7 in
+`Units`' place. The example:
+
+```omega
+machine clamp<const Units: u64>(input: u64) -> u64
+requires input <= Units
+ensures result <= Units
+{ input }
+```
+
+**The generic check form.** `Units` is a scalar formal of the machine, after
+`input`, that no caller passes
+([structure-elaboration](../structure-elaboration/README.md#generic-machines)).
+Nothing else is new: the `requires` row is `input <= Units` over two values,
+and the guarantee is proved from it like any relation between formals. What
+is known of `Units` is its carrier's range and what the `requires` say, so a
+proof found here holds at every admitted value
+([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+"An unspecialized body checks every admitted alternative; one consumer
+cannot authorize an otherwise invalid generic body").
+
+**The instantiation is worked out, not read.** The generated machine has one
+formal and the literal 7 wherever the declaration named `Units`. The typed
+trees record the argument of a generated machine only as its spelling, which
+is not read. `Instantiation::of` ([reuse.rs](src/reuse.rs)) finds the
+literals from the two lowered contracts: the ones at which each `ensures`
+clause of the generic form is the specialization's clause at that position
+and its `requires` clauses are the specialization's in some order (they are
+held in canonical order, which a literal in place of a formal can change).
+When no literals do that, the machine is not that body's contract at any
+value of its parameters and nothing is carried into it. A parameter neither
+contract mentions stays unbound, and a proof that names it cannot be moved.
+
+**Carrying.** `reverify_specialization` moves each certificate with the
+values renamed: the specialization's formals keep their identities, each
+value parameter becomes its literal (in scalar terms, and as the integer a
+literal embeds as in mathematical terms), and every later value is the
+specialization's value that many identities earlier. A cited entry
+requirement is found by what it says once moved, not by its position. The
+kernel decides the result against the specialization's own goal and
+hypotheses; a literal that did not fit would yield a certificate it refuses.
+
+**A requirement with value parameters.** A call through an implementation
+parameter with a static argument, `Implementation::value<7>(7)`, is held in
+the generic form to the requirement's contract at 7, and in the generated
+machine it calls the machine generated from the selected member for 7. The
+refinement proof is the conformance witness at the same literals. So the
+caller's body and the member's body are each proved once, and the member's
+refinement of its requirement is proved once per tuple of value arguments in
+use, not once for every value.
+
+**What the tests show.**
+[tests/value_parameters.rs](src/tests/value_parameters.rs):
+
+| Test | Shows |
+| --- | --- |
+| `a_body_over_a_value_parameter_is_checked_once_and_carried_to_two_literals` | one proof of `clamp`'s guarantee accepted for `clamp<7>` and `clamp<9>`, each against its own goal, no prover started |
+| `a_proof_that_chains_two_requirements_is_carried_too` | a proof citing two entry requirements, one of which names the parameter, is carried with each requirement found by its moved statement |
+| `a_body_that_holds_only_at_the_literal_in_use_is_rejected` | `ensures result <= 7` is proved by a search over `clamp<7>` and refused as a generic body; the specialization then has nothing to carry |
+| `a_machine_whose_contract_is_no_instance_of_the_generic_contract_is_refused` | a contract that is the generic one at no single literal, and a machine with a formal too many, take no proof |
+| `a_body_that_reads_the_parameter_as_an_operand_is_not_carried` | the limit below |
+
+`compiler`'s test `lowered_route_generics` runs the three steps from source
+on `tests/omega/pass/facts/lexical_generic_bound_through_local_exit`, where
+`Selected::value<const Units: u64>` is a trait member called as
+`Implementation::value<7>(7)`, and on its fail twin, which differs only in
+the requirement's contract (`requires true`): the member then asks `input <=
+Units`, which the requirement does not give. A search over the generated
+caller proves the call's requirement, because the one call passes 7; the
+refinement proof does not exist, and the carried requirement is refused.
+
+Limits:
+
+- **A body that reads the parameter as an operand is not carried**
+  (`{ input + Units }`). The generic form reads its formal there and the
+  specialization evaluates a constant, so the specialization has an
+  operation and a value the generic form does not, and
+  `Carry::corresponds` refuses the pair. Carrying it needs the two bodies
+  matched operation for operation, with each such constant standing for
+  the parameter. Until then such a specialization takes no proof.
+- **A member's refinement is proved per value argument in use**, as above,
+  not for every value. A conformance declaration whose member has value
+  parameters is therefore not yet judged as a declaration; that needs the
+  witness stated over the parameters, calling the member's generic form.
+- **An equality is matched as written.** Terminal Psi orders the operands
+  of `==` and the conjuncts of `&&` canonically. Where a literal in place
+  of the parameter changes that order inside one clause, the generic clause
+  is not recognized as the specialization's and nothing is carried.
+- Only an integer carrier, only `const` binders, and only parameters of
+  the machine itself: a value parameter used in a type (`&[u8; N]`) waits
+  for arrays.
+
 ### What the lowered form does not carry
 
 Read from the types, not built:
@@ -995,8 +1091,9 @@ Read from the types, not built:
   integer rules depend on the width. Moving a certificate to another type
   would have to rebuild it, and the correspondence of values and calls this
   experiment relies on would no longer hold.
-- **A rigid value parameter** (`const N: u64`) has the same shape as a
-  formal with no argument; it was not tried.
+- **A rigid value parameter** (`const N: u64`) is served as a formal with
+  no argument ([value parameters](#value-parameters)); it is the one kind
+  of the four that needed no new row.
 
 Limits of what was built:
 

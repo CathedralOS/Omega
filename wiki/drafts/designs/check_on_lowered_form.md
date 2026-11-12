@@ -361,6 +361,30 @@ that cannot fail cannot hold work back, and work went ahead
      typed trees.
    - Whether this meets the condition is the owner's reading.
 
+   <a id="condition-3-value-parameters"></a>
+   **Second result, 2026-11-12: value parameters.** A machine over `const
+   Units: u64` is lowered once with `Units` a formal that no caller passes,
+   and proved from its own `requires`. The machine stage 04 generates for
+   `<7>` then has each certificate decided again by `proof/admission` with
+   the literal in the formal's place, against its own goals and hypotheses
+   and with no search. The witness is
+   `pass/facts/lexical_generic_bound_through_local_exit`, the first in
+   [lowered type generics](lowered_type_generics.md#recommendation-and-order):
+   both of its generic bodies, `Selected::value<const Units: u64>` and
+   `selected<Implementation satisfies Bounded>`, are checked once and
+   carried, and its fail twin, which differs only in the trait member's
+   `requires`, is refused at the member's refinement proof while a search
+   over the generated caller alone accepts it. The compiler test
+   `lowered_route_generics` pins both, with `#2378`'s pair. The program
+   passes `omega run --both` on the current pipeline (native exit 0, Psi
+   exit 0, Linux x86_64, `omega` built at `b741666a1`). Limits, each stated with its reason in the
+   [lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#value-parameters):
+   a body that reads the parameter as an operand is not carried; a member's
+   refinement of a requirement with value parameters is proved per argument
+   in use, not for every value; a value parameter in a type waits for
+   arrays. A type parameter is still not served, and the route is still not
+   the compile path.
+
 4. **For one fully supported scope, old code is retired and the result is
    measured.** A scope is fully supported when every program in it is governed
    by the route with no fallback: nothing in the program or in the closure it

@@ -127,11 +127,12 @@ entry, since neither is inside the lowered subset.
 
 ### Generic machines
 
-One kind of generic machine is read, as an experiment for
+Two kinds of generic parameter are read, as an experiment for
 [the checker's generic bodies](../lowered-discharge/README.md#generic-bodies-experiment):
-a machine whose only generic parameters are implementation parameters
-(`Selected satisfies Step`), calling members through them
-(`Selected::apply(x)`). It is read in two forms.
+an implementation parameter (`Selected satisfies Step`), through which the
+body calls members (`Selected::apply(x)`), and a value parameter (`const
+Units: u64`), which the body and its contract name like a formal. A machine
+whose generic parameters are all of these two kinds is read in two forms.
 
 - **Its specializations**, by `elaborate`. Stage 04 closes each static
   application `advance<Double>` by generating a machine for it, so the
@@ -140,23 +141,51 @@ a machine whose only generic parameters are implementation parameters
   call; inside it, the call through the parameter targets the selected
   member and is read as a direct call of that member. Each such call is
   recorded in `Elaboration::selections` with the parameter, the trait, the
-  requirement and the member, all symbols. Only a declaration whose
-  generic parameters are all implementation parameters has its generated
-  machines read; an application with a type or value argument is still
-  `call static application arguments`, and a member named through the
-  implementation itself (`Double::apply(x)`) is still `call static
-  requirement dispatch`.
+  requirement and the member, all symbols. A machine generated for a
+  value argument (`clamp<7>`) has an integer literal wherever its
+  declaration named the binder, so it reads as any closed machine. Only a
+  declaration whose generic parameters are all implementation or value
+  parameters has its generated machines read; an application with a type
+  argument is still `call static application arguments`, and a member named
+  through the implementation itself (`Double::apply(x)`) is still `call
+  static requirement dispatch`.
 - **The generic check form**, by `elaborate_generic`. The declared machine
-  is read with its parameters rigid: a call through one names the
-  requirement, which becomes a machine with a signature, a contract and no
-  body (`Elaboration::requirements`, `lower_generic`). It lowers to a
-  machine with no block. A generic form is never sealed, encoded or run.
+  is read with its parameters rigid. A call through an implementation
+  parameter names the requirement, which becomes a machine with a
+  signature, a contract and no body (`Elaboration::requirements`,
+  `lower_generic`); it lowers to a machine with no block. A value parameter
+  becomes a scalar formal after the authored ones, of the binder's carrier
+  and with no definition (`Elaboration::value_parameters`): a name in the
+  body or in a clause resolves to it by the binder's symbol, and all that is
+  known of it is what the `requires` say. Only an integer carrier is
+  served. A generic form is never sealed, encoded or run.
+
+**A requirement with value parameters** (`trait Bounded { machine
+value<const Units: u64>(input: u64) -> u64 requires input <= Units ...; }`)
+is read at the literals one call binds them to: `Implementation::value<7>(x)`
+is held to the contract with 7 where the clauses name `Units`
+(`requirement_signature`, `ClauseScope::bound`). The literals are the call
+site's own static arguments, each of which must be exactly one integer
+literal (`StaticMachineArgument::const_literal`); a requirement is one
+machine per tuple of them (`Elaboration::value_arguments`). In a generated
+machine the same call targets the machine stage 04 generated from the
+selected member for those arguments, and its selection records the literals
+(`Selected::value_arguments`). Stage 04 also records the requirement's
+signature at those arguments beside the dispatch
+(`StaticRequirementDispatch::contract_signature`); the reader states that
+contract itself and does not read the record, which only Psi 05's helpers
+can resolve.
 
 `elaborate_witness` builds the statement that an implementation refines a
-requirement: the requirement's contract on a body that is one call of the
-implementation. `template_of` gives the declaration a generated machine came
-from. A type, value or callable parameter is still refused as `machine
-generic parameters` (findings 29 to 32).
+requirement: the requirement's contract, at the given value arguments, on a
+body that is one call of the implementation. `template_of` gives the
+declaration a generated machine came from. A type or callable parameter, a
+runtime-capable value binder (`Count: u32` without `const`) and a value
+parameter of a carrier other than an integer are still refused as `machine
+generic parameters` or by the parameter's own refusal (findings 29 to 32).
+
+A contract clause that is the literal `true` adds no clause: it asks and
+promises nothing, as an absent `requires` or `ensures` does.
 
 ### Records
 
