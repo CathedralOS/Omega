@@ -435,6 +435,15 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
+            let representations =
+                representation_planning::collect_opaque_representation_selections(
+                    self.typed(),
+                    request.activation,
+                    request.declared,
+                    request.executed,
+                )?;
+            // Preparing an applied native requirement interns its argument
+            // types, so this one step needs the trees mutably.
             let native_bindings = build_time_evaluation::native_bindings::collect(
                 Arc::make_mut(&mut self.input).typing.typed_mut(),
                 request.activation,
@@ -442,13 +451,6 @@ mod product_policy {
                 request.native_bindings,
             )?;
             let typed = self.typed();
-            let representations =
-                representation_planning::collect_opaque_representation_selections(
-                    typed,
-                    request.activation,
-                    request.declared,
-                    request.executed,
-                )?;
             let grants = build_time_evaluation::product_policy::collect_product_root_grants(
                 typed,
                 request.activation,
