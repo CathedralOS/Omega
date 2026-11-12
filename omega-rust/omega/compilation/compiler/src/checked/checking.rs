@@ -84,7 +84,7 @@ pub(crate) mod compile_thread {
     {
         std::thread::Builder::new()
             .name("omega-compile".to_owned())
-            .stack_size(COMPILE_STACK_SIZE)
+            .stack_size(std::env::var("OMEGA_PROBE_STACK_MB_COMPILE").ok().and_then(|v| v.parse::<usize>().ok()).map(|mb| mb * 1024 * 1024).unwrap_or(COMPILE_STACK_SIZE))
             .spawn_scoped(scope, move || {
                 ON_COMPILER_WORKER.set(true);
                 work()

@@ -4988,7 +4988,7 @@ pub fn checking_thread_pool() -> &'static rayon::ThreadPool {
     POOL.get_or_init(|| {
         rayon::ThreadPoolBuilder::new()
             .thread_name(|index| format!("omega-check-{index}"))
-            .stack_size(CHECKING_STACK_SIZE)
+            .stack_size(std::env::var("OMEGA_PROBE_STACK_MB_CHECK").ok().and_then(|v| v.parse::<usize>().ok()).map(|mb| mb * 1024 * 1024).unwrap_or(CHECKING_STACK_SIZE))
             .build()
             .expect("machine validation worker pool")
     })

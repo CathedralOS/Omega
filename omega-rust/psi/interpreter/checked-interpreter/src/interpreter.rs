@@ -702,7 +702,7 @@ fn run_with_interpreter_stack<Output: Send>(
     }
     std::thread::scope(|scope| {
         std::thread::Builder::new()
-            .stack_size(INTERPRETER_STACK_SIZE)
+            .stack_size(std::env::var("OMEGA_PROBE_STACK_MB_INTERP").ok().and_then(|v| v.parse::<usize>().ok()).map(|mb| mb * 1024 * 1024).unwrap_or(INTERPRETER_STACK_SIZE))
             .spawn_scoped(scope, || {
                 ON_INTERPRETER_STACK.set(true);
                 work()

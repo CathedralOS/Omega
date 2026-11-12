@@ -115,7 +115,7 @@ fn parse_thread_pool() -> &'static rayon::ThreadPool {
     POOL.get_or_init(|| {
         rayon::ThreadPoolBuilder::new()
             .thread_name(|index| format!("omega-parse-{index}"))
-            .stack_size(PARSE_STACK_SIZE)
+            .stack_size(std::env::var("OMEGA_PROBE_STACK_MB_PARSE").ok().and_then(|v| v.parse::<usize>().ok()).map(|mb| mb * 1024 * 1024).unwrap_or(PARSE_STACK_SIZE))
             .build()
             .expect("parser worker pool must spawn")
     })
