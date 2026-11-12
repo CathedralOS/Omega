@@ -673,6 +673,59 @@ pub mod frozen_program {
         }
     }
 
+    impl dyn CheckingInput + '_ {
+        /*
+            The static boolean value of `expression`, memoized for the checking
+            run when it has memos. This shadows the typed-tree query reached
+            through `Deref`, so every checking caller shares the memo.
+        */
+        pub fn static_boolean_value(
+            &self,
+            expression: typed_trees::expression::ExpressionHandle,
+        ) -> Option<bool> {
+            match self.checking_memos() {
+                Some(memos) => self
+                    .typed_program()
+                    .static_boolean_value_memoized(expression, memos),
+                None => self.typed_program().static_boolean_value(expression),
+            }
+        }
+    }
+
+    impl typed_trees::StaticBooleanMemo for CheckingMemos {
+        fn static_boolean(
+            &self,
+            expression: typed_trees::expression::ExpressionHandle,
+        ) -> Option<Option<bool>> {
+            let answers = self.static_booleans.read().ok()?;
+            match answers.get(expression.arena_index() as usize).copied()? {
+                1 => Some(None),
+                2 => Some(Some(false)),
+                3 => Some(Some(true)),
+                _ => None,
+            }
+        }
+
+        fn remember_static_boolean(
+            &self,
+            expression: typed_trees::expression::ExpressionHandle,
+            value: Option<bool>,
+        ) {
+            let Ok(mut answers) = self.static_booleans.write() else {
+                return;
+            };
+            let slot = expression.arena_index() as usize;
+            if slot >= answers.len() {
+                answers.resize(slot + 1, 0);
+            }
+            answers[slot] = match value {
+                None => 1,
+                Some(false) => 2,
+                Some(true) => 3,
+            };
+        }
+    }
+
     impl PartialEq for dyn CheckingInput + '_ {
         fn eq(&self, other: &Self) -> bool {
             self.external_invocation_roots() == other.external_invocation_roots()
@@ -1315,6 +1368,9 @@ pub mod frozen_program {
     /// Operator validation asks both of each binary's operands, and each
     /// answer descends its operand's whole arithmetic subtree, so without
     /// these an operator chain was classified once per enclosing operator.
+    /// Static boolean answers per arena slot: 0 unknown, 1 none, 2 false,
+    /// 3 true (`TypedTrees::static_boolean_value_memoized`).
+    pub(crate) static_booleans: std::sync::RwLock<Vec<u8>>,
     pub(crate) expression_value_classes: std::sync::RwLock<
         symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
     >,
