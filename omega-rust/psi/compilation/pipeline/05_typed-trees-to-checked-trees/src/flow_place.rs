@@ -884,6 +884,26 @@ mod case_access {
                 subject.segments.push(PlaceSegment::Case {
                     variant: row.variant,
                 });
+                /*
+                    A sum that owns nothing has no claim and no cleanup for a
+                    custody walk to find under its cases, in any element. Its
+                    exclusions are named once for the whole range: only the
+                    questions asked of an enclosing or contained path read
+                    them, and those accept a range where an index would stand.
+                    A sum with owned contents keeps one exclusion per element,
+                    because cleanup geometry is published per element.
+                */
+                if validation::has_no_owned_cleanup_obligations(self.program, reference) {
+                    subject.segments[index_position] = PlaceSegment::FixedRange {
+                        start: row.first,
+                        end: row.end,
+                    };
+                    for variant in &excluded {
+                        subject.segments[case_position] = PlaceSegment::Case { variant: *variant };
+                        visit(&subject);
+                    }
+                    continue;
+                }
                 for index in row.first..row.end {
                     subject.segments[index_position] = PlaceSegment::FixedIndex { index };
                     for variant in &excluded {
