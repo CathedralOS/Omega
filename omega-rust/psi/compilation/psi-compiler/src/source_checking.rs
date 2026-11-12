@@ -243,7 +243,10 @@ mod library_slice {
             }
         }
 
-        pub(super) fn encode(&self, digest: &mut optimization::digest_encoder::DomainDigestEncoder) {
+        pub(super) fn encode(
+            &self,
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+        ) {
             digest.raw(&self.package);
             digest.bytes(self.path.as_bytes());
             digest.byte(self.scope);
@@ -514,7 +517,9 @@ mod checked_slice {
         {
             let mut packages: Vec<PackageKeyIdentity> = scope
                 .iter()
-                .flat_map(|(requester, owners)| std::iter::once(*requester).chain(owners.iter().copied()))
+                .flat_map(|(requester, owners)| {
+                    std::iter::once(*requester).chain(owners.iter().copied())
+                })
                 .collect();
             packages.sort_unstable();
             packages.dedup();
@@ -592,7 +597,10 @@ mod checked_slice {
             }
             fn load(&self, key: &[u8; 32]) -> Option<Vec<u8>> {
                 let records = self.0.lock().unwrap();
-                records.iter().find(|(stored, _)| stored == key).map(|(_, bytes)| bytes.clone())
+                records
+                    .iter()
+                    .find(|(stored, _)| stored == key)
+                    .map(|(_, bytes)| bytes.clone())
             }
             fn save(&self, key: &[u8; 32], record: &[u8]) {
                 self.0.lock().unwrap().push((*key, record.to_vec()));
@@ -612,7 +620,10 @@ mod checked_slice {
             let store = Memory::default();
             let checked = checked_trees::CheckedTrees::default();
             super::save(&reuse(&store), &SliceKey([1; 32]), &checked);
-            assert_eq!(super::load(&reuse(&store), &SliceKey([1; 32])), Some(checked));
+            assert_eq!(
+                super::load(&reuse(&store), &SliceKey([1; 32])),
+                Some(checked)
+            );
             assert_eq!(super::load(&reuse(&store), &SliceKey([2; 32])), None);
         }
 

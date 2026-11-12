@@ -444,7 +444,10 @@ mod tests {
             (0..64).map(|value| value.to_string()).collect();
         let right: std::collections::HashSet<String> =
             (0..64).rev().map(|value| value.to_string()).collect();
-        assert_eq!(encode(&left, limits).unwrap(), encode(&right, limits).unwrap());
+        assert_eq!(
+            encode(&left, limits).unwrap(),
+            encode(&right, limits).unwrap()
+        );
     }
 
     #[derive(Debug, PartialEq, Eq, Record)]

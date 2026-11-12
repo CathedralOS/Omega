@@ -6,7 +6,9 @@ the same library Build programs again in every process. The Psi checker keys
 each such check exactly and frames the record (`psi_compiler::CheckedSliceStore`);
 this module only decides where records live and writes them so a reader never
 sees a partial file. Records are written once and never rewritten: a key names
-one exact input, so an existing record is already the right one.
+one exact input, so an existing record is already the right one. The directory
+holds at most `MAX_BYTES`; publishing past that removes the oldest records
+first. A record removed while another process reads it is only a miss there.
 
 The directory is `CathedralOS/Omega/checked-slices/v1` beneath the per-user
 cache base. `OMEGA_CHECKED_SLICE_CACHE=off` turns the store off for one
@@ -22,7 +24,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const VARIABLE: &str = "OMEGA_CHECKED_SLICE_CACHE";
 const COMPONENTS: &[&str] = &["CathedralOS", "Omega", "checked-slices", "v1"];
 const EXTENSION: &str = "rec";
-const MAX_RECORDS: usize = 1024;
+const MAX_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 static STORE: OnceLock<Option<CheckedSliceDirectory>> = OnceLock::new();
 static NEXT_WRITE: AtomicU64 = AtomicU64::new(0);
@@ -72,8 +74,41 @@ impl CheckedSliceDirectory {
         self.directory.join(name)
     }
 
-    fn has_room(&self) -> bool {
-        std::fs::read_dir(&self.directory).is_ok_and(|entries| entries.count() < MAX_RECORDS)
+    /*
+        Removes the oldest records until `incoming` more bytes fit the budget.
+        A record larger than the whole budget is never kept.
+    */
+    fn make_room(&self, incoming: u64) -> bool {
+        if incoming > MAX_BYTES {
+            return false;
+        }
+        let Ok(entries) = std::fs::read_dir(&self.directory) else {
+            return false;
+        };
+        let mut records: Vec<(std::time::SystemTime, u64, PathBuf)> = entries
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == EXTENSION)
+            })
+            .filter_map(|entry| {
+                let metadata = entry.metadata().ok()?;
+                Some((metadata.modified().ok()?, metadata.len(), entry.path()))
+            })
+            .collect();
+        let mut total: u64 = records.iter().map(|(_, length, _)| length).sum();
+        records.sort();
+        for (_, length, path) in records {
+            if total + incoming <= MAX_BYTES {
+                break;
+            }
+            if std::fs::remove_file(path).is_ok() {
+                total -= length;
+            }
+        }
+        total + incoming <= MAX_BYTES
     }
 }
 
@@ -88,7 +123,7 @@ impl psi_compiler::CheckedSliceStore for CheckedSliceDirectory {
 
     fn save(&self, key: &[u8; 32], record: &[u8]) {
         let path = self.path(key);
-        if path.exists() || !self.has_room() {
+        if path.exists() || !self.make_room(record.len() as u64) {
             return;
         }
         let temporary = self.directory.join(format!(

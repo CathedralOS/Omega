@@ -342,17 +342,18 @@ pub(crate) fn prepare_checked_build(
     let target = execution_profile
         .or_else(target::TargetProfile::host_if_supported)
         .map(|profile| profile.target_name());
-    let checked_slices = checked_slices
-        .zip(target)
-        .map(|(store, target)| psi_compiler::CheckedSliceReuse {
-            store,
-            target,
-            owner: if dependency_activation {
-                psi_compiler::CheckedSliceOwner::Dependency
-            } else {
-                psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
-            },
-        });
+    let checked_slices =
+        checked_slices
+            .zip(target)
+            .map(|(store, target)| psi_compiler::CheckedSliceReuse {
+                store,
+                target,
+                owner: if dependency_activation {
+                    psi_compiler::CheckedSliceOwner::Dependency
+                } else {
+                    psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
+                },
+            });
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         let result = psi_compiler::CheckRequest {
