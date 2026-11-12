@@ -11144,6 +11144,17 @@ pub(crate) fn build_check_facts<'program>(
             break;
         }
     }
+    /*
+        The fixed point is over. Its retry snapshots (the inputs one flow
+        construction read, the facts it left, the walk's memory) and the
+        declaration fact plan each iteration restarted from are whole copies
+        of the largest tables in checking. Nothing after this reads them, so
+        they are released before the publication phases below allocate theirs
+        rather than at the end of this function.
+    */
+    drop(previous_construction);
+    drop(walk_memory);
+    drop(semantic);
     let completed =
         program_context.clone_with_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
     match finish_check_facts(
