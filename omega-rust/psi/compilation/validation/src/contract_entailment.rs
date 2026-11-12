@@ -17623,11 +17623,6 @@ pub(crate) mod law_conformance {
                     provided_expression,
                     provided_binders,
                 ) {
-                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                        eprintln!(
-                            "STRUCT correspondence payload mismatch required={required_expression:?} provided={provided_expression:?}"
-                        );
-                    }
                     return false;
                 }
                 let source_keys_disagree = match (required_key, provided_key) {
@@ -17644,15 +17639,10 @@ pub(crate) mod law_conformance {
                         None,
                     )
                 };
-                let required_term = term(required, required_expression);
-                let provided_term = term(provided, provided_expression);
-                let (Some(required_term), Some(provided_term)) = (required_term, provided_term)
-                else {
-                    if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                        eprintln!(
-                            "STRUCT correspondence has no complete terms required={required_expression:?} provided={provided_expression:?}"
-                        );
-                    }
+                let (Some(required_term), Some(provided_term)) = (
+                    term(required, required_expression),
+                    term(provided, provided_expression),
+                ) else {
                     return false;
                 };
                 let (Some(required_roles), Some(provided_roles)) = (
@@ -17708,47 +17698,7 @@ pub(crate) mod law_conformance {
                     &[],
                     false,
                 );
-                let judgment =
-                    judge.judge_explicit_identity(required_term.clone(), provided_term.clone(), 0);
-                if std::env::var_os("OMEGA_ENTAILMENT_TRACE").is_some() {
-                    let admission = |term: &super::super::StructuralTerm| {
-                        if let super::super::StructuralTerm::Application {
-                            target,
-                            selections,
-                            ..
-                        } = term
-                        {
-                            Some(super::super::structural_judgment::specification_application_candidate(program, provided.0, *target, selections, judge.frame_resolver()))
-                        } else {
-                            None
-                        }
-                    };
-                    let published = |term, depth| {
-                        judge
-                            .specification_application_guarantees(term, depth)
-                            .map(|guarantees| guarantees.data_identities.clone())
-                    };
-                    let available = [
-                        judge.identity_value_is_available(&required_term),
-                        judge.identity_value_is_available(&provided_term),
-                    ];
-                    let forms = [
-                        judge.diagnostic_identity_forms(required_term.clone(), 2),
-                        judge.diagnostic_identity_forms(provided_term.clone(), 2),
-                    ];
-                    let deep = [published(&required_term, 3), published(&provided_term, 3)];
-                    let shallow = [published(&required_term, 0), published(&provided_term, 0)];
-                    let repeated = judge.judge_explicit_identity(
-                        required_term.clone(),
-                        provided_term.clone(),
-                        0,
-                    );
-                    eprintln!(
-                        "STRUCT correspondence identity required={required_expression:?} provided={provided_expression:?} judgment={judgment:?} admissions={:?}/{:?} available={available:?} forms={forms:?} published_depth3={deep:?} published_depth0={shallow:?} repeated={repeated:?} terms={required_term:?}/{provided_term:?}",
-                        admission(&required_term),
-                        admission(&provided_term),
-                    );
-                }
+                let judgment = judge.judge_explicit_identity(required_term, provided_term, 0);
                 matches!(judgment, super::super::StructuralJudgment::Proven)
             }
             /// The shared index key intentionally omits some operation payloads. Check
@@ -50466,21 +50416,6 @@ pub(crate) mod structural_judgment {
                 }
             }
 
-            // Temporary bounded correspondence diagnosis; removed before landing.
-            pub(crate) fn diagnostic_identity_forms(
-                &self,
-                value: StructuralTerm,
-                depth: usize,
-            ) -> Vec<(StructuralTerm, bool)> {
-                self.data_identity_forms(value, depth, &mut 64)
-                    .into_iter()
-                    .map(|value| {
-                        let available = self.identity_value_is_available(&value);
-                        (value, available)
-                    })
-                    .collect()
-            }
-
             fn data_identity_forms(
                 &self,
                 value: StructuralTerm,
@@ -50543,10 +50478,28 @@ pub(crate) mod structural_judgment {
                             self.specification_application_guarantees(&value, depth + 1)
                     {
                         for (left, right) in &guarantees.data_identities {
-                            if left.same_resolution_payload(&value) {
+                            // Mathematical Id subjects retain typed observation
+                            // shells. Rejoin their checked representation before
+                            // following the published edge; raw payload equality
+                            // cannot identify an owned observation with its value.
+                            // Representation correspondence uses no hypotheses or
+                            // recursive guarantee search, and preserves reference
+                            // descriptors, carriers and exact selected payloads.
+                            let mut endpoint_matches = |endpoint: &StructuralTerm| {
+                                matches!(
+                                    self.identity_representation_correspondence(
+                                        endpoint.clone(),
+                                        value.clone(),
+                                        depth + 1,
+                                        remaining,
+                                    ),
+                                    StructuralJudgment::Proven
+                                )
+                            };
+                            if endpoint_matches(left) {
                                 follow(right.clone());
                             }
-                            if right.same_resolution_payload(&value) {
+                            if endpoint_matches(right) {
                                 follow(left.clone());
                             }
                         }
