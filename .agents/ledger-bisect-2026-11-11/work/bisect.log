@@ -1,0 +1,89 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 292 revisions left to test after this (roughly 8 steps)
+[dd84ccca332b7a608edf430de84b56056158aea4] psi: avoid recalculating variable values for each kind of call argument (#1587)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 146 revisions left to test after this (roughly 7 steps)
+[41faea90ea31c634966030a6fda93e19d4c1eb17] omega: prepare checked-oracle dispatch beside the corpus runner (#1438)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 72 revisions left to test after this (roughly 6 steps)
+[cb2bb7751cae97da20c04f3a80b92ef99dabc416] psi: narrow dynamic service reach to the selected conformance (#1350)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 36 revisions left to test after this (roughly 5 steps)
+[a8e1281ebeac6407ec828ac77298f0838fc5238f] psi: preserve captured alias suppliers through fields and parameters (#1317)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 17 revisions left to test after this (roughly 4 steps)
+[7148371452d28d08ae83c96993a49f91f3055c5d] psi: judge contract entailment after flow facts exist (#1302)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[fe24ed35c27f14ae07fc809196227efb41fa7fcf] psi: record a named constant's value in applied callable array lengths (#1289)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[83a8ae832811b3169bbe3ab27937651d722ddde5] psi: alias current storage to each arm's read instead of read cuts (#1288)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[6b61ee1f112abff11e7aa026924649ae64d35010] psi: retain alias RHS constant declaration scope (#1280)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[b1d6dad3c52a15788391b5e025730dc15493abbd] psi: project data requires onto the selected case for guard narrowing (#1276)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+b1d6dad3c52a15788391b5e025730dc15493abbd is the first bad commit
+commit b1d6dad3c52a15788391b5e025730dc15493abbd
+Author: Jarod Castillo <43973221+Smotto@users.noreply.github.com>
+Date:   Sun Nov 1 20:05:42 2026 +0000
+
+    psi: project data requires onto the selected case for guard narrowing (#1276)
+    
+    Since #958 moved case-local `where` clauses into the data default-domain
+    `requires` as `self in Data::Case` disjunctions, a case's own fact span is
+    empty except for generic-synthesis impossibility witnesses. The arithmetic
+    guard-narrowing step that supplies a selected case's facts at a match arm
+    read only that span, so an arm's payload carried no interval. The structural
+    judge still projected the disjunction, which is why a callee with
+    `ensures result >= 40 && result <= 80` checked, but a callee with no contract
+    returned an unbounded `u64`: on 6e5131c510b, 8 of the 10
+    four_variant_enum_payload_bound programs were refused (every place whose
+    extractor has no `ensures`), and their twins rejected only because the
+    positives did.
+    
+    One owner, `default_domains::selected_case_requirements`, now derives the
+    conjuncts the data `requires` implies for one selected case: a clause that
+    mentions case membership keeps the single disjunct not refuted by the
+    selected case; a clause leaving two live disjuncts, or mentioning no case,
+    contributes nothing. Cases are identified by member position so generic
+    instances share their template's facts. Guard narrowing reads that list and
+    maps `self.field` onto the dispatched place. Rejected: rebuilding the bound
+    for call results only, or requiring authors to restate it with `ensures`.
+    
+    On macos_arm64 with an optimized producer, omega run --both exits 0 in both
+    engines for all 10 four programs and all 10 five programs (control); all 18
+    twins reject with their fragments. The call_result twin's fragment moves from
+    statement 6 to 7: the base refused valid arms as well, the candidate refuses
+    only Gamma's weakened arm. The target_body twin pins the current
+    `X86TargetProbe::target_probe` / `ArmTargetProbe::target_probe` spelling; its
+    obligation is unchanged. The 18 four corpus rows are re-recorded. A 119-fixture
+    corpus selection (four, five, match_join_multi_variant_bound,
+    case_payload_transport, case_dependent_default_domain and the guarded or
+    borrowed case-payload fixtures) shows 32 structural moves against stale
+    golden rows; base and candidate produce the same outcome on the 12
+    examined, and the 2 std-importing timeouts check with a 900 s cap at load 54.
+    
+    Still reading the case span: payload interval readers for representation and
+    borrowed write-back (`case_where_field_intervals`), payload-write invariant
+    windows, totality formation and zero gating.
+    
+    Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+ .../arithmetic_domains/guard_narrowing.rs          |   2 +-
+ .../guard_narrowing/case_facts.rs                  | 170 +++++++++++++--------
+ .../src/proof_contracts/default_domains.rs         |   2 +
+ .../default_domains/case_requirements.rs           | 139 +++++++++++++++++
+ .../four_variant_enum_payload_bound/README.md      |  28 +++-
+ .../call_result/invalid/expected.txt               |   2 +-
+ .../target_body/invalid/expected.txt               |   3 +-
+ tests/omega/corpus_outcomes.txt                    |  42 +++--
+ .../expected.txt                                   |   2 +-
+ .../expected.txt                                   |   3 +-
+ tools/dangling_task_ids.txt                        |   2 -
+ 11 files changed, 300 insertions(+), 95 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/checking/src/proof_contracts/default_domains/case_requirements.rs
+bisect found first bad commit

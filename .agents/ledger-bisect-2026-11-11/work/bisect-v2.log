@@ -1,0 +1,52 @@
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 584 revisions left to test after this (roughly 9 steps)
+[10117c714f1138d86a4f3fc4f623cf42acabd6c6] library: establish empty runs from vacant prefixes (#1891)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 584 revisions left to test after this (roughly 9 steps)
+[fca627657c010e60f711e5790b71a2bb6774ebd1] psi: evaluate call-argument slice endpoints once (#2229)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 465 revisions left to test after this (roughly 9 steps)
+[bfcc2b3bb7956f86a66f07cd044eebe5c806be9d] psi: match applied domain carriers to their explicit arguments (#1790)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 465 revisions left to test after this (roughly 9 steps)
+[6326c6ae7aa971cc2f8eeb749f0e13385e3f85b5] psi: spell empty rows as reaches none and ratify binder contract dependencies (#2166)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 430 revisions left to test after this (roughly 9 steps)
+[4f2f860e2915c320e4955106ee51135379cd77ca] psi: lower machines whose mutable parameters carry a domain (#1727)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 214 revisions left to test after this (roughly 8 steps)
+[55c887bbf29d97fc9a99677c6d8d3a354c0df252] psi: preserve Optional defaults across build and application checks (#1954)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 107 revisions left to test after this (roughly 7 steps)
+[e47df0b99073ffdd27a8e2c2fcf2eea3848f8ae0] repo: put common framing in AGENTS.md and trim advance/swarm skills to workflow (#1838)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 107 revisions left to test after this (roughly 7 steps)
+[c122783b97b7935a26218ec8b4b685d30450a290] compiler: return vacant backing from empty owned runs (#1940)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[b750758f9e4f2981abf643595b2f099752172e56] repo: add coordinator-review skill and draft-only worker boundary (#1830)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[77271bfb91344cd3d3788e1d8563796983dfbf13] psi: preserve saved references when pointer fields change (#1794)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[4f4a419dfb82aacf8404b1078a5fe4f68cad88d5] docs: clarify domain restoration when lending locals (#1783)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea] tests: record returned-reference validation (#1817)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[0aeed1114ae3d056f78113e377f10b7126b1e75e] psi: admit sealed placed-field accessor calls in scalar computations (#1896)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[11ae2059ce19080a1db4951229b1772e90c3b5db] tests: finish checks for fields read by selected generic methods (#1836)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[6c7efd540bf76c4096aed85f9077b5ae179932d9] psi: reduce repeated work when checking stored fields (#1900)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[bc941c4a89d1396fbdb970ee77926c51af233877] repo: trim AGENTS.md to fit system prompt window without truncation (#1845)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'
+Bisecting: 102 revisions left to test after this (roughly 7 steps)
+[991dd14b8c0842749774ceb5924f89f763b177dd] psi: name uncovered trap crashes at the authored statement (#1895)
+running 'bash' '.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh'

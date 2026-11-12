@@ -1,0 +1,23 @@
+pass/facts/target_family_contract_operand/match_join checked 3493ms check-target:macos_arm64
+pass/ownership/registration_owned_claim_retains_provenance_exit rejected 2281ms check-target:macos_arm64
+	cannot prove requires contract for call drop from main: retained in Capacity::Held in state `entry`
+	`as ... in Capacity::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	cannot prove initializer of `retained` in main is in domain `Capacity::Held`; an annotation cannot establish routed qualification
+fail/arithmetic/bounded_assignment_unproven rejected 10238ms expected
+	cannot complete a call at statement 2 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+fail/arithmetic/guarded_read_count_exceeds_target rejected 1172ms expected
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
+fail/arithmetic/guarded_read_count_unguarded_arrival rejected 1186ms expected
+	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first
+fail/arithmetic/wrapping_guard_does_not_bound_original rejected 1250ms expected
+	cannot complete a call at statement 2 in machine `bounded` state `entry`: this write left the `requires` facts of `values` (data `Values`) unproved; restore them first
+fail/float/primitive_comparison_no_named_helper_exposure rejected 1153ms unexpected
+	named operator `F64::is_finite` is not available in this source's import scope
+fail/providers/assumed_result_bound_equal_count_lifetime_mapping_rejected rejected 2684ms unexpected
+	assumed binding requirement absent from canonical artifact
+fail/providers/assumed_result_bound_lifetime_mapping_rejected rejected 2977ms unexpected
+	assumed binding requirement absent from canonical artifact
+fail/range/indexed_field_range_runtime_write_rejected rejected 8128ms expected
+	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first

@@ -1,0 +1,10 @@
+fail/arithmetic/bounded_assignment_unproven	fixed	cannot complete a call at statement 2 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first	(prior-slice-35)
+fail/arithmetic/guarded_read_count_exceeds_target	fixed	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first	(prior-slice-35)
+fail/arithmetic/guarded_read_count_unguarded_arrival	fixed	cannot complete a call at statement 2 in machine `store` state `entry`: this write left the `requires` facts of `reader` (data `Reader`) unproved; restore them first	(prior-slice-35)
+fail/arithmetic/wrapping_guard_does_not_bound_original	fixed	cannot complete a call at statement 2 in machine `bounded` state `entry`: this write left the `requires` facts of `values` (data `Values`) unproved; restore them first	(prior-slice-35)
+fail/range/indexed_field_range_runtime_write_rejected	fixed	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main.cells[*]` (data `Cell`) unproved; restore them first	(prior-slice-35)
+fail/providers/assumed_result_bound_equal_count_lifetime_mapping_rejected	fixed	assumed binding requirement absent from canonical artifact	(prior-slice-75)
+fail/providers/assumed_result_bound_lifetime_mapping_rejected	fixed	assumed binding requirement absent from canonical artifact	(prior-slice-75)
+pass/facts/target_family_contract_operand/match_join	fixed	(corpus checked at PIN; no regression vs ledger)	(prior-slice-115)
+fail/float/primitive_comparison_no_named_helper_exposure	fixed	named operator `F64::is_finite` is not available in this source's import scope	(prior-slice-195)
+pass/ownership/registration_owned_claim_retains_provenance_exit	still-broken	cannot prove requires contract for call drop from main: retained in Capacity::Held in state `entry`	pin-cluster-0
