@@ -1,0 +1,51 @@
+pass/borrows/returned_record_case_field_store_exit rejected 15717ms check-target:macos_arm64
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+	cannot establish assignment invariants: partial write enclosure has no exact active-case frontier
+pass/build/default_component_abi_extents rejected 15268ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/build/explicit_provider_storage_extent_exit rejected 4629ms
+	anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value
+pass/build/native_component_case_cycle rejected 10491ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/build/native_component_case_loan_cycle rejected 10608ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/build/native_component_reuse rejected 10932ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/build/native_component_reuse_foreign rejected 11344ms check-target:macos_arm64
+	no provider is selected for boundary requirement `NativeAbsolute::absolute`, which the program entry reaches on target `macos_arm64`
+pass/capabilities/selected_applied_synchronous_chain_exit rejected 9653ms check-target:macos_arm64 terminal-inspections:failed
+	machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+	inspection Main::main admission: [Diagnostic { severity: Error, message: "machine call cycle: `FirstStage::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/components/independent_same_spelling_packages rejected 13181ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 5973ms check-target:macos_arm64
+pass/facts/component_scalar_lending_through_call_result_exit rejected 10952ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_const_name_exit rejected 10708ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_field_exit rejected 10860ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_local_exit rejected 10929ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_match_join_exit rejected 10677ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_other_machine_exit rejected 10578ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_other_state_exit rejected 10804ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_parameter_exit rejected 11181ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/facts/component_scalar_lending_through_target_body_exit rejected 10840ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(4) has no admitted mechanism
+pass/generics/runtime_const_data_symbolic_expression_exit rejected 7615ms check-target:macos_arm64
+	const argument expression in generic data `ForwardedBuffer` is invalid: const operator application requires declaration selection
+pass/providers/independent_imported_data_exit rejected 12033ms check-target:macos_arm64
+	native artifact terminal-authority closure review failed: foreign settlement BoundaryMachineId(3) has no admitted mechanism
+pass/traits/applied_requirement_lexical_isolation_exit rejected 4731ms check-target:macos_arm64
+	machine call cycle: `Caller::read` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
+fail/build/explicit_provider_scalar_budget rejected 4643ms unexpected
+	anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value
+fail/build/explicit_provider_storage_extent rejected 4509ms unexpected
+	anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value
