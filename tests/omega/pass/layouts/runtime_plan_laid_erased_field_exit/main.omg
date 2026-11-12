@@ -17,14 +17,16 @@ terminates by fuel
     spread16.index = 0;
     transition { _ -> fill(spread16, schema, fuel, entries) }
     machine fill(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
-    requires fuel >= 1 && fuel <= 128 {
+    requires fuel >= 1 && fuel <= 128
+    terminates by fuel {
         transition fuel > 1 && spread16.index < schema.field_count {
             true -> place(spread16, schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
     machine place(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
-    requires fuel >= 1 && fuel <= 128 {
+    requires fuel >= 1 && fuel <= 128
+    terminates by fuel {
         let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = (spread16.index * 16) as u64;
         updated[spread16.index] = FieldEntry {
