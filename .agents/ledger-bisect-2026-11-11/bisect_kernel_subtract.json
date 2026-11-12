@@ -1,9 +1,10 @@
 {
   "witness": "pass/proofs/kernel_integer_subtract_order",
-  "good": "759c80404428e6d9922a8b67cce32daf7e41a02e",
-  "breaking_commit": "f3612364ffbb9489d7be1409397df6867fcbebc6",
-  "pr": "2228",
-  "mechanism": "tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt)",
+  "good": "8a99466dd36365bc6e1dea19b4349cd1b13cc1be",
+  "breaking_commit": "e8fb4b1364b0859bc5103780a87360c1ed78ec10",
+  "pr": "1432",
+  "mechanism": "psi: select case-where equality bodies through Build (#1432) (omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment.rs, omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/domain_premises.rs, omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/equations.rs, omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/invocati",
   "status": "bisected",
-  "bisect_exit": 0
+  "bisect_exit": 0,
+  "ledger_only_break": false
 }

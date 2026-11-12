@@ -1,0 +1,30 @@
+# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)
+# good: [8a99466dd36365bc6e1dea19b4349cd1b13cc1be] psi: prepare constructed values in contract scopes
+git bisect start '51e8c45c793007f211d0d9baee7de16767172444' '8a99466dd36365bc6e1dea19b4349cd1b13cc1be' '--first-parent'
+# good: [c6ae60e8c903e3548822bc7256c1372b67fa6248] samples: pin the twelve-variant and twenty-arg fact fixture rows
+git bisect good c6ae60e8c903e3548822bc7256c1372b67fa6248
+# good: [53d74019edb439b66952e5ada3b8beac1a18adb3] psi: admit callable machine binders on transparent aliases (#1135)
+git bisect good 53d74019edb439b66952e5ada3b8beac1a18adb3
+# bad: [c15929193d3993f264c54338440f4e1405dff0f6] tests: record runtime index family and repair borrows backing controls (#1813)
+git bisect bad c15929193d3993f264c54338440f4e1405dff0f6
+# bad: [412ef9eb566b8d3c9545829e499a76c57fdcff9b] compiler: attach program entry roots from retained declarations (#1481)
+git bisect bad 412ef9eb566b8d3c9545829e499a76c57fdcff9b
+# good: [cfc81afeb607bf9863ccaa3d2b2170b7b686cbb3] docs: unify domain establishment and access policies (#1308)
+git bisect good cfc81afeb607bf9863ccaa3d2b2170b7b686cbb3
+# good: [c58a7b2c593a00968138a2a5974f8a496c5b88f4] omega: run package-local native reach in Terminal on the matching host (#1367)
+git bisect good c58a7b2c593a00968138a2a5974f8a496c5b88f4
+# good: [badb9b948fa42087f985420f407bcd2c99e6da5a] psi: carry proven selector coordinates into call operand custody (#1440)
+git bisect good badb9b948fa42087f985420f407bcd2c99e6da5a
+# good: [1d775cf13b25cbb17a6321be12a47820cb5ec4d1] tools: enqueue armed pull requests after checks pass (#1458)
+git bisect good 1d775cf13b25cbb17a6321be12a47820cb5ec4d1
+# bad: [5903bbcd1e9041295d4cd403311c26d789fd6caf] psi: form boolean relations in declared call requirements (#1469)
+git bisect bad 5903bbcd1e9041295d4cd403311c26d789fd6caf
+# bad: [212b0c6345f4910a8b08e7440257f1cb31399f4b] compiler: complete Windows canonicalization through both engines (#1457)
+git bisect bad 212b0c6345f4910a8b08e7440257f1cb31399f4b
+# good: [bd78ac0d130b69cf59689b346f0d6272b4d37cdf] packages: recover historical Git source from recorded Build metadata (#1460)
+git bisect good bd78ac0d130b69cf59689b346f0d6272b4d37cdf
+# bad: [67f4877a5ce9ccfb15c5757d843cd10b9ed8f0d3] compiler: retain service owners before target settlement (#1463)
+git bisect bad 67f4877a5ce9ccfb15c5757d843cd10b9ed8f0d3
+# bad: [e8fb4b1364b0859bc5103780a87360c1ed78ec10] psi: select case-where equality bodies through Build (#1432)
+git bisect bad e8fb4b1364b0859bc5103780a87360c1ed78ec10
+# first bad commit: [e8fb4b1364b0859bc5103780a87360c1ed78ec10] psi: select case-where equality bodies through Build (#1432)
