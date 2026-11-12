@@ -887,13 +887,35 @@ pub mod names {
                 output: &mut compiler_storage::RecordWriter,
             ) -> Result<(), compiler_storage::RecordError> {
                 /*
-                    Generations come from a process-wide counter and a reader
-                    remaps them from here on (`read`), so they are written by
-                    first appearance: equal syntax then writes equal bytes in
-                    every compile, which keys over it need.
+                    Generations come from a process-wide counter, handed out in
+                    the order parallel parsing threads retain their files, and
+                    a reader remaps them from here on (`read`). They are
+                    written by first appearance instead, with the sources
+                    numbered in the order of their text: equal syntax then
+                    writes equal bytes in every compile, which keys over it
+                    need. The list is written in number order, which is the
+                    increasing generation order a reader requires.
                 */
                 output.number_by_appearance::<RetainedSource>();
-                compiler_storage::Record::write(&self.sources, output)
+                let mut by_text: Vec<&RetainedSource> = self.sources.iter().collect();
+                by_text.sort_by(|left, right| left.text.cmp(&right.text));
+                let mut numbered: Vec<(u32, &RetainedSource)> = by_text
+                    .into_iter()
+                    .map(|source| {
+                        (
+                            output.appearance_number::<RetainedSource>(source.generation),
+                            source,
+                        )
+                    })
+                    .collect();
+                numbered.sort_by_key(|(number, _)| *number);
+                output.record(|output| {
+                    output.sequence(numbered.len())?;
+                    for (_, source) in numbered {
+                        compiler_storage::Record::write(source, output)?;
+                    }
+                    Ok(())
+                })
             }
             fn read<Context>(
                 input: &mut compiler_storage::RecordReader<'_, Context>,
