@@ -5727,7 +5727,18 @@ mod loans {
                             local.type_reference,
                             &path,
                         )
-                        .ok_or("saved descriptor has no declared receiving leaf")?;
+                        .ok_or_else(|| {
+                            if std::env::var("OMEGA_DBG_EVID").is_ok() {
+                                eprintln!(
+                                    "EVIDDBG retain local={} path={:?} formation_same={} lineage={:?}",
+                                    program.display_type_reference(local.type_reference),
+                                    owner_path,
+                                    source.formation_expression == local.initial_value,
+                                    source.lineage,
+                                );
+                            }
+                            "saved descriptor has no declared receiving leaf"
+                        })?;
                         let kind = super::types::reference_borrow_access_kind(program, reference)
                             .ok_or("saved descriptor's receiving leaf is not a reference")?;
                         source
