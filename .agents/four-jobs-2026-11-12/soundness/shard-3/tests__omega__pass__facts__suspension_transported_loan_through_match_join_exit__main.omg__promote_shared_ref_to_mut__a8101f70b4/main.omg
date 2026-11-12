@@ -1,0 +1,26 @@
+// Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+data Cell { value: i32; }
+data Message { left: i32; body: &mut Cell; right: i32; }
+// The canaries beside the transported descriptor must survive with it.
+machine read(message: Message) -> i32 {
+    transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
+}
+// Both arms run; each must keep its own backing across the call.
+machine pick(flag: bool) -> i32 suspends reaches Scheduler {
+    let first: Cell = Cell { value: 73 };
+    let second: Cell = Cell { value: 11 };
+    let reference: &Cell = match flag { true -> &first _ -> &second };
+    let message: Message = Message { left: 5, body: reference, right: 9 };
+    suspend Scheduler::park();
+    read(message)
+}
+machine main() reaches Scheduler crashes Trap {
+    let observed: i32 = suspend pick(true);
+    let other: i32 = suspend pick(false);
+    transition observed == 73 && other == 11 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

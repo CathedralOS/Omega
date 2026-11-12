@@ -1,0 +1,29 @@
+// `/!` traps on a zero divisor when it runs. The same machine with a nonzero
+// divisor returns the quotient in
+// run/arithmetic/policy_operator_division_matches_policy_domains.
+use omega_language_std::console;
+data Main { }
+
+machine quotient(value: i32, divisor: i32) -> i32 crashes Trap {
+    value /! divisor
+}
+
+machine subject() -> bool crashes Trap {
+    quotient(-7, 0) == 0
+}
+
+// Reaching either exit means the operation returned instead of trapping.
+machine Main::main(main: &Main) reaches Console crashes Trap {
+    transition subject() {
+        true -> returned(main)
+        _ -> returned_other(main)
+    }
+    machine returned(main: &mut Main) { Console::exit_process(70); }
+    machine returned_other(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

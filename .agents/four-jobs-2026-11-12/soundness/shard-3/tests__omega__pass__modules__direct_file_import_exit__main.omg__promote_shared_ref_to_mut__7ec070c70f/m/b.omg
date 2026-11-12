@@ -1,0 +1,2 @@
+use m::a::A;
+public data B { value: A; }

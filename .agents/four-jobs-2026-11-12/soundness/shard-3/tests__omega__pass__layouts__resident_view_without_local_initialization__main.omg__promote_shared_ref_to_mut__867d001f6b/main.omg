@@ -1,0 +1,24 @@
+// Embedding entry: read an already resident value through a qualified owner.
+// Export must retain the backing-field roles without a local initialize call.
+use omega::language::core::extent;
+use omega::language::core::layout;
+
+public data Word { value: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    let services: [u64; 32];
+    AccessPlan::with_reach(
+        AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+            FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported }),
+        BoundaryReach { services: services, service_count: 0 }
+    )
+}
+
+machine read_existing(storage: &mut mut Extent in Granted & Resident<WordPlacement, Word>) -> u64 {
+    let view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(storage);
+    read(&view.value)
+}

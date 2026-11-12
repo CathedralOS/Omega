@@ -1,0 +1,15 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "boundary_operator_contract");
+    Build::select_provider<CheckedMath::offset_zero, CheckedMathProvider>(builder, linux_arm64);
+    Build::select_provider<CheckedMath::low_byte, CheckedMathProvider>(builder, linux_arm64);
+    Build::select_provider<CheckedMath::offset_zero, CheckedMathProvider>(builder, linux_x86_64);
+    Build::select_provider<CheckedMath::low_byte, CheckedMathProvider>(builder, linux_x86_64);
+    Build::select_provider<CheckedMath::offset_zero, CheckedMathProvider>(builder, macos_arm64);
+    Build::select_provider<CheckedMath::low_byte, CheckedMathProvider>(builder, macos_arm64);
+    Build::select_provider<CheckedMath::offset_zero, CheckedMathProvider>(builder, windows_x86_64);
+    Build::select_provider<CheckedMath::low_byte, CheckedMathProvider>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

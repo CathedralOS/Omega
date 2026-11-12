@@ -1,0 +1,2 @@
+module m::a;
+public data A { value: i32; }

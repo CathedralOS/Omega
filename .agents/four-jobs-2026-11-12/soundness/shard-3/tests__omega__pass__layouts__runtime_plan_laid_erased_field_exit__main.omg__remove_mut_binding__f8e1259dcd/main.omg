@@ -1,0 +1,88 @@
+use omega::language::core::layout;
+// Layout relevance: `proof` remains a semantic field of Certified but is
+// absent from reflected Schema and physical placement. The policy therefore
+// sees two fields and places `right` at byte 16. Interpreter and native reads
+// must agree after a whole-value copy.
+use omega_language_std::console;
+
+data Spread16State { index: u64 in Wrapping; }
+machine Spread16State::make_plan(spread16: &mut Spread16State, schema: Schema) -> LayoutPlan {
+    Spread16State::evaluate(spread16, schema, 128)
+}
+machine Spread16State::evaluate(spread16: &mut Spread16State, schema: Schema, fuel: u64) -> LayoutPlan
+requires fuel >= 1 && fuel <= 128
+terminates by fuel
+{
+    let mut entries: [FieldEntry; 64];
+    spread16.index = 0;
+    transition { _ -> fill(spread16, schema, fuel, entries) }
+    machine fill(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
+    requires fuel >= 1 && fuel <= 128
+    terminates by fuel {
+        transition fuel > 1 && spread16.index < schema.field_count {
+            true -> place(spread16, schema, fuel - 1, entries)
+            _ -> done(schema, entries)
+        }
+    }
+    machine place(spread16: &mut Spread16State, schema: Schema, fuel: u64, entries: [FieldEntry; 64]) -> LayoutPlan
+    requires fuel >= 1 && fuel <= 128
+    terminates by fuel {
+        let updated: [FieldEntry; 64] = entries;
+        let offset: u64 = (spread16.index * 16) as u64;
+        updated[spread16.index] = FieldEntry {
+            key: schema.fields[spread16.index].key,
+            representation: FieldPlan::At { offset: offset },
+        };
+        spread16.index = spread16.index + 1;
+        transition fuel > 1 { true -> fill(spread16, schema, fuel - 1, updated) _ -> done(schema, updated) }
+    }
+    machine done(schema: Schema, entries: [FieldEntry; 64]) -> LayoutPlan {
+        LayoutPlan {
+            entries: entries,
+            entry_count: schema.field_count,
+            size_fixed: schema.field_count * 16,
+            size_is_dynamic: false,
+            align: 16,
+        }
+    }
+}
+
+// The selected policy uses ordinary scratch state while computing the same
+// sixteen-byte field slots. Stored values use the validated layout directly.
+Spread16 satisfies FixedLayout<Certified> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none terminates {
+        let mut scratch: Spread16State = Spread16State { index: 0u64 };
+        Spread16State::make_plan(&mut scratch, schema)
+    }
+}
+
+data Evidence [copy] { case Only; }
+data Certified [copy] {
+    left: u16;
+    proof [erased]: Evidence;
+    right: u32;
+}
+
+data Main {
+    value: LayoutStorage<Certified, Spread16>;
+    twin: LayoutStorage<Certified, Spread16>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.value.left = 7;
+    main.value.right = 63;
+    main.twin = main.value;
+    transition main.twin.left == 7 && main.twin.right == 63 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

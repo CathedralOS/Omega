@@ -1,0 +1,33 @@
+// The live pair.left measure decreases around the ranked cycle. Its
+// original bounded snapshot may be returned from an acyclic finishing state
+// without retaining the measure in that state's telescope.
+data Pair requires left <= 5 { left: u32; }
+
+machine walk(remaining: u32) -> u32
+terminates by remaining in 0..=5 {
+    transition { _ -> s(Pair { left: remaining }, remaining) }
+    machine s(pair: Pair, copy: u32) -> u32
+    requires copy <= 5
+    terminates by pair.left in 0..=5
+    {
+        transition pair.left > 0 {
+            true -> s(Pair { left: pair.left - 1 }, copy)
+            false -> finish(copy)
+        }
+    }
+    machine finish(result: u32) -> u32
+    requires result <= 5
+    { result }
+}
+
+// Execute the unchanged walk: the live field reaches zero, but finish must
+// observe the independent scalar snapshot captured at invocation.
+machine main() crashes Trap {
+    let snapshot: u32 = walk(5);
+    transition snapshot == 5 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

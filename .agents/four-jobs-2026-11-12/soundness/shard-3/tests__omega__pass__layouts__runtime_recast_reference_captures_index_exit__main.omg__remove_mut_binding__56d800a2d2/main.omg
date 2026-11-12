@@ -1,0 +1,64 @@
+use omega::language::core::layout;
+// The aggregate recast captures its byte endpoint before the selector changes.
+// A later nested scalar loan writes only that original endpoint.
+
+
+SignedByte satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+    let entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        representation: FieldPlan::IntegerAt {
+            offset: 0,
+            stored_width: 8,
+            interpretation: IntegerInterpretation::Signed,
+        },
+    };
+    LayoutPlan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+}
+
+data PortableByte [copy] { value: i64; }
+data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+
+data Main
+requires position < 2;
+{
+    position: u64;
+    bytes: [u8; 2];
+}
+
+machine set(dst: &mut i64, value: i64) { dst = value; }
+machine forward(dst: &mut i64, value: i64) { set(dst, value); }
+machine read(src: &i64) -> i64 { src }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.bytes[0] = 0;
+    main.bytes[1] = 85;
+    main.position = 0;
+    let view: &mut RawView = &mut main.bytes[main.position] as &mut RawView;
+    // Formation freezes the endpoint, not an expression to replay at projection.
+    main.position = 1;
+    let leaf: &mut i64 = &mut view.value.value;
+    set(leaf, -128);
+    let negative: i64 = read(leaf);
+    forward(leaf, 127);
+    transition negative == -128 && main.position == 1 && main.bytes[0] == 127 && main.bytes[1] == 85 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "gui_provider_substitution");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+}

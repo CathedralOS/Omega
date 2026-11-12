@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "unselected_target_helper_layout_underflow");
+    Build::select_provider<LayoutExpectedSize, MacosArm64LayoutExpectedSize>(builder, macos_arm64);
+    Build::select_provider<LayoutExpectedSize, LinuxX8664LayoutExpectedSize>(builder, linux_x86_64);
+    Build::select_provider<LayoutExpectedSize, LinuxArm64LayoutExpectedSize>(builder, linux_arm64);
+    Build::select_provider<LayoutExpectedSize, WindowsX8664LayoutExpectedSize>(builder, windows_x86_64);
+    Build::select_provider<LayoutScoped, MacosArm64LayoutScoped>(builder, macos_arm64);
+    Build::select_provider<LayoutScoped, WindowsX8664LayoutScoped>(builder, windows_x86_64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

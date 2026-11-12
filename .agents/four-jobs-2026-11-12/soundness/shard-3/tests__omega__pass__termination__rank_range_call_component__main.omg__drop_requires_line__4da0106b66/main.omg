@@ -1,0 +1,35 @@
+data Main {}
+
+machine Main::main(main: &mut Main) -> u64 {
+    transition { _ -> Main::first(main, 2, 6, 6) }
+}
+
+machine Main::first(main: &mut Main, floor: u64, remaining: u64, ceiling: u64) -> u64
+terminates by remaining in floor..=ceiling {
+    transition remaining > floor {
+        true -> Main::second(main, ceiling, remaining, floor)
+        false -> remaining
+    }
+}
+
+machine Main::second(main: &mut Main, upper: u64, pending: u64, lower: u64) -> u64
+requires lower <= pending && pending <= upper
+terminates by pending in lower..=upper {
+    transition pending > lower {
+        true -> Main::first(main, lower, pending - 1, upper)
+        false -> pending
+    }
+}
+
+// Execute the original mutual component without changing its weak/strict
+// edges or reordered rank endpoints. The countdown stops at its lower bound.
+machine run() crashes Trap {
+    let mut main: Main;
+    let result: u64 = Main::main(&mut main);
+    transition result == 2 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

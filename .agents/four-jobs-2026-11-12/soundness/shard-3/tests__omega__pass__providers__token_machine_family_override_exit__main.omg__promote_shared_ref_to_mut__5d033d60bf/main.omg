@@ -1,0 +1,41 @@
+// One Build selection covers both overloads. Both calls must use RightProvider,
+// not the competing LeftProvider and not primitive subtraction. The public
+// requirements and suppliers must also survive the CLI's package review.
+use omega_language_std::console;
+
+public data Math {}
+public domain i32::SignedChoice;
+public domain u32::UnsignedChoice;
+public boundary machine - Math::choose(left: i32 in SignedChoice, right: i32 in SignedChoice) -> i32;
+public boundary machine - Math::choose(left: u32 in UnsignedChoice, right: u32 in UnsignedChoice) -> u32;
+
+public data LeftProvider {}
+public machine LeftProvider::signed(left: i32 in SignedChoice, right: i32 in SignedChoice) -> i32
+satisfies Math::choose { left as i32 }
+public machine LeftProvider::unsigned(left: u32 in UnsignedChoice, right: u32 in UnsignedChoice) -> u32
+satisfies Math::choose { left as u32 }
+
+public data RightProvider {}
+public machine RightProvider::signed(left: i32 in SignedChoice, right: i32 in SignedChoice) -> i32
+satisfies Math::choose { right as i32 }
+public machine RightProvider::unsigned(left: u32 in UnsignedChoice, right: u32 in UnsignedChoice) -> u32
+satisfies Math::choose { right as u32 }
+
+data Main { }
+machine Main::main(main: &mut mut Main)
+reaches Console
+{
+    let signed: i32 = (3 as i32 in SignedChoice) - (30 as i32 in SignedChoice);
+    let unsigned: u32 = (90 as u32 in UnsignedChoice) - (40 as u32 in UnsignedChoice);
+    transition signed == 30 && unsigned == 40 { true -> good(main) _ -> bad(main) }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main) { Console::exit_process(1); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

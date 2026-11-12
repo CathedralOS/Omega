@@ -1,0 +1,50 @@
+// A `boundary operator` declares a checked operator contract with its own
+// requires/ensures; the satisfying provider restates both sides and the
+// caller discharges the requires by literal.
+use omega::language::core::numeric_conversion;
+
+data CheckedMath {}
+boundary operator CheckedMath::offset_zero(value: i32) -> i32
+requires value == value
+ensures result == value + 0 && value == value;
+
+data CheckedMathProvider {}
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+ensures result == input + 0 && input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+data Main { out: i32; }
+
+machine Main::main(main: &mut mut Main) {
+    let result: i32 = CheckedMath::offset_zero(70);
+    main.out = result;
+}
+
+// The public promise and its provider retain the cast's arithmetic policy.
+// At 256, Wrapping yields 0 while Saturating yields 255.
+boundary operator CheckedMath::low_byte(value: u16) -> u8
+ensures result == (narrow_u16_to_u8_wrapping(value));
+
+machine CheckedMathProvider::low_byte_impl(input: u16) -> u8
+satisfies CheckedMath::low_byte
+ensures result == (narrow_u16_to_u8_wrapping(input))
+{
+    narrow_u16_to_u8_wrapping(input)
+}
+
+// Expected exit: 0
+machine main() crashes Trap {
+    let mut observed: Main = Main { out: 99 };
+    Main::main(&mut observed);
+    let wrapped: u8 = CheckedMath::low_byte(256u16);
+    transition observed.out == 70 && wrapped == 0u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

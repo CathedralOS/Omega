@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "resident_external_owner_probe");
+}

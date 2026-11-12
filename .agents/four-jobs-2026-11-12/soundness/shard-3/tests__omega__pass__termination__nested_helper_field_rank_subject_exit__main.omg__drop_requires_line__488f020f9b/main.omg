@@ -1,0 +1,26 @@
+// Fact: a nested helper's `terminates by pending.left in 0..=5` ranks a field of its record parameter; each recursive call rebuilds the record with `left: pending.left - 1` under the guard `pending.left > 0`, and the data domain `Pair requires left <= 5` bounds the rank.
+// Expected exit: 0
+
+data Pair requires left <= 5, right <= 5 { left: u32; right: u32; }
+
+machine walk(remaining: u32) -> u32
+terminates by remaining in 0..=5 {
+    transition { _ -> iterate(Pair { left: remaining, right: 4 }) }
+    machine iterate(pending: Pair) -> u32
+    terminates by pending.left in 0..=5 {
+        transition pending.left > 0 {
+            true -> iterate(Pair { left: pending.left - 1, right: pending.right })
+            false -> pending.left
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let result: u32 = walk(5);
+    transition result == 0 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

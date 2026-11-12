@@ -1,0 +1,1 @@
+thin scalar foreign pointer requires the same byte footprint in every backing
