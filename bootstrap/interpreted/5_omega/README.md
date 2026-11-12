@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 19,657 lines / 714,400 bytes with SHA-256
-`30e6ea13e8ccab73633af4887dfb3d5ef00d1c25a114f01496aa2290cd6c9511`.
+manifest materializes 20,461 lines / 749,173 bytes with SHA-256
+`4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896`.
 The manifest itself is 1,339 bytes, SHA-256
-`1156c4ec588609191a85e5a4a58d3629a0af4d085d74d5585830b37b6dd87ee7`;
+`0cf9a9b5b49beecd4ad6e309876651ee3fb4dd01609efa11148edf591d4f80e7`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -78,7 +78,7 @@ A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses, receivers,
-other runtime carriers/policies, numeric runtime arithmetic, non-Boolean dynamic
+other runtime carriers/policies, arithmetic beyond the bounded unsigned addition below, non-Boolean dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
@@ -110,8 +110,10 @@ cycles cannot bypass the check. At most 4,096 source ordinary calls can be live.
 No admitted source operation converts these private addresses to numeric values.
 Numeric comparisons bias both unsigned words by the high bit before Alpha's
 signed comparison, preserving unsigned order. Decimal literals currently cover
-`0..4294967295`; larger `u64` spellings and runtime arithmetic remain explicitly
-unsupported. Comparisons retain carrier/policy identity rather
+`0..4294967295`; larger `u64` spellings remain explicitly
+unsupported. Plain `u64` addition by a nonnegative literal is admitted when
+checked upper bounds prove the complete result at most 2147483647. The emitted
+word addition is then exact; unproved or wider arithmetic remains unsupported. Comparisons retain carrier/policy identity rather
 than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
@@ -147,8 +149,8 @@ contained cleanup may leave scope; it is never implicitly copied.
 The first default-domain solver admits direct scalar-field `<=` literal bounds,
 with the literal checked against the field's carrier. Zero establishment proves
 these predicates recursively. Every field store must preserve the declared
-bound immediately, using an admitted literal or an equal/stronger declared field
-bound. Unknown predicates and temporary invariant violations decline. A checked
+bound immediately, using the same unsigned upper-bound evidence as indexed
+access and explicit entry contracts. Unknown predicates and temporary invariant violations decline. A checked
 record copy preserves all nested field validity. Calls retain only declared
 validity, not stale stronger facts about fields they may mutate.
 
@@ -167,9 +169,17 @@ mutable views; other reference attenuation remains unsupported. Other domains,
 range views and structural
 equivalence of separately spelled array value types remain unsupported.
 
-Index bounds currently come from literals, immutable snapshots of such values,
-or declared scalar-field upper bounds preserved by every admitted write. A
-guard alone is not yet sufficient evidence. The collection is captured before
+Index bounds come from literals, immutable snapshots, declared scalar-field
+upper bounds, or explicit checked machine entry requirements. The requirement
+profile supports `true`, conjunction, and unsigned formal/projected-field `<` or
+`<=` literal bounds. Every call and transfer must discharge the exact target
+requirements; unsupported predicates cannot disappear. Pure Boolean guards
+establish bounds at nested arrivals, with pure actual expressions required for
+contract-bearing calls. No private requirement is inferred from a later access.
+An overlapping write or exclusive call invalidates the entry version. Call
+mutation ranges are retained before checking the next operand, including within
+the same expression; disjoint sibling ranges preserve their evidence.
+The collection is captured before
 the selector and the resulting destination before the RHS; selector mutation
 cannot redirect a pending store. A scoped collection loan remains live during
 selector evaluation and, for assignment, through the RHS. Whole-array overlap
@@ -180,23 +190,26 @@ address. Calls support one reference parameter, explicit borrows of owned
 records or projected record fields, and projected reborrows. The checker tracks
 active argument loans by exact root and field range: overlapping access after
 an exclusive loan refuses, while disjoint fields remain usable. The referenced
-root cannot be rebound; escaping/stored references, bare reference-root
-forwarding/reborrowing, implicit shared lending and lifetime syntax decline.
-Mutation through a shared reference rejects. All these checks finish before
+root cannot be rebound. Nested transfers may forward the enclosing invocation's
+original incoming reference as a bare matching parameter; its whole referent
+loan remains live while later arguments evaluate. A local-backed reference
+cannot enter this path, so repeated tail transfers cannot outlive reused local
+storage. Ordinary bare reference forwarding, escaping/stored references, implicit
+shared lending and lifetime syntax decline. Mutation through a shared reference rejects. All these checks finish before
 any executable bytes are published.
 
-The `--omega-storage` customer takes exact SourceId, SourceUnit and
-`source_unit_clear` declarations from `source/psi/source/source.omg`, adds
-`storage_controls.omg`, and executes the emitted result. Companion controls
-exercise copy independence, nested record results, projected borrowing,
-qualification, bounds, refusal and reuse. Clear updates only its three authored
-fields; the customer first stores a nonzero byte and checks that clear preserves
-it. A companion program changes a disjoint selector field in the RHS and checks
-that the write still reaches the previously captured element. Negative controls
-cover invalid bounds/access, qualified shells without a removal view, overlapping
-RHS loans, and local-backed tail transfers. Nested reference parameters remain
-unsupported until transfer lifetime and activation-storage preservation are
-implemented; a local loan must not outlive the cell that a later transfer reuses.
+The `--omega-storage` customer takes exact SourceId, SourceUnit, ModulePath,
+`source_unit_clear`, `source_unit_append`, `source_unit_byte_or_nul` and
+`module_path_append` declarations from `source/psi/source/source.omg`, adds
+`storage_controls.omg`, and executes the emitted result. The real private
+helpers now state their existing guarded bounds explicitly and remove the
+array-shell policy through checked shared/mutable views. The customer checks
+clear's preserved byte, zero/final/full append boundaries, absent reads and
+ModulePath capacity. Generic controls check disjoint mutation, captured indexed
+assignment, original-reference forwarding and explicit scalar entry contracts.
+Refusals cover missing/stale bounds, mutating guard operands, same-expression
+call invalidation, overlapping argument loans and local-backed tail transfers.
+The parser and compiler contain no special cases for these helper names.
 
 ```sh
 python3 bootstrap/compiled_vm/source_test.py --omega-storage
@@ -432,7 +445,11 @@ points directly to the shared expression node; indexing has no assignment-only
 syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit
-states in source order, matching the canonical parser. Parameters, a return,
+states in source order, matching the canonical parser. Outer and nested
+`requires` clauses retain shared predicate-expression rows with exact owner
+slices, including repeated clauses, conjunctions and calls. The parser does not
+infer predicates or resolve their meaning; the compiler's narrower checked
+requirement profile is described above. Parameters, a return,
 implicit statements, or an otherwise empty machine require the implicit entry;
 an explicit-state-only machine without those forms does not manufacture one. A
 free machine uses the generated `entry` identity, while an attached machine
@@ -442,7 +459,7 @@ a machine snapshots its
 path extent before parameter types can append domain members. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
 `Slice<T>` spelling, return types placed after clauses, generics, remaining
-machine-clause forms, state arrival contracts, and `boundary` forms; target
+machine-clause forms beyond the explicit `requires` profile, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
 other bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque

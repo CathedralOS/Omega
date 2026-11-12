@@ -428,7 +428,7 @@ blocks
     }
 
     machine store(typing_harness: &mut TypingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
-        let kept: bool = ModulePath::append(path, value as u8);
+        let kept: bool = module_path_append(path, value as u8);
         transition kept {
             true -> block byte(typing_harness, path, left - 1)
             _ -> failed()
