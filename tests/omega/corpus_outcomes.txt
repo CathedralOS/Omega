@@ -4294,9 +4294,7 @@ fail/core/scoped_integer_call_guarantee_requires_formation rejected 684ms expect
 	cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/core/scoped_integer_call_guarantee_retains_actual rejected 2021ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result
-fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 1797ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result
-	cannot prove ensures contract for exit from second at statement 0: first(value) as i16  == result
+fail/core/scoped_integer_call_guarantees_cannot_form_cycle checked 2251ms @ac9e0f3cd7f1
 fail/core/scoped_integer_call_inherited_trait_operator_requires_formation rejected 18994ms expected @ccdb99ca2214
 	cannot form specification operator `==` in trait `InheritedArithmetic` state `restricted` requires contract: no exact selected meaning
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
