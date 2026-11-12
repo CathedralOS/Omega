@@ -217,10 +217,35 @@ def inject_violating_probe(mutant: str, call: str) -> str:
     return mutant + f"\nmachine __soundness_probe() {{ {call}; }}\n"
 
 
+MODULAR_ENTRY_CALLER = (
+    "A written entry contract remains complete even when all currently visible callers "
+    "happen to establish stronger facts."
+)
+
+
+def machine_internal_restates_removed(mutant: str, removed: str) -> str | None:
+    """Transition arms or `when` guards inside the machine, not external callers."""
+    removed_compact = re.sub(r"\s+", "", removed)
+    for pat, label in (
+        (r"transition\s+([^{;\n]+)", "transition"),
+        (r"^\s*when\s+(.+)$", "when guard"),
+    ):
+        for m in re.finditer(pat, mutant, re.MULTILINE):
+            arm = m.group(1).strip()
+            arm_compact = re.sub(r"\s+", "", arm)
+            if len(removed_compact) >= 8 and removed_compact in arm_compact:
+                return f"{label} `{arm}` restates removed requires `{removed}`"
+            for ge in re.finditer(r"(\w+)\s*>=\s*(-?\d+)", removed):
+                param, bound = ge.group(1), ge.group(2)
+                if re.search(rf"\b{re.escape(param)}\s*>=\s*{re.escape(bound)}\b", arm):
+                    return f"{label} `{arm}` restates `{param} >= {bound}` from `{removed}`"
+    return None
+
+
 def probe_drop_requires_subtype(mutant_text: str, removed: str, mutant_main: Path) -> str:
     call = synthesize_violating_call(mutant_text, removed)
     if not call:
-        return "unchecked"
+        return "probe-not-built"
     probed = inject_violating_probe(mutant_text, call)
     saved = mutant_main.read_text(encoding="utf-8")
     try:
@@ -504,11 +529,21 @@ def read_spec_verdict(
         obligation = drop_requires_dependent_obligation(original, mutant, removed) or ""
         if obligation:
             return SpecRead(True, obligation, "", False, SPEC_RULES["drop_requires"])
+        internal = machine_internal_restates_removed(mutant, removed)
+        if internal:
+            return SpecRead(
+                False,
+                internal,
+                f"Inside the machine, {internal}. Outside callers cannot substitute: "
+                f"{MODULAR_ENTRY_CALLER}",
+                False,
+                None,
+            )
         return SpecRead(
             False,
             "",
-            "no body or ensures line needs the removed requires fact (modular entry: "
-            "caller restatement does not heal missing requires)",
+            "no body/ensures line needs the removed fact; no internal transition/guard "
+            f"restatement ({MODULAR_ENTRY_CALLER})",
             False,
             None,
         )
@@ -971,7 +1006,7 @@ def main() -> int:
                     m.text, m.meta.get("removed", ""), mutant_main
                 )
             elif bucket == "confirmed-hole":
-                hole_subtype = "unchecked"
+                hole_subtype = "n/a"
             rel_mutant = mutant_main.relative_to(REPO).as_posix()
             if not keep:
                 shutil.rmtree(mutant_main.parent, ignore_errors=True)
