@@ -1,6 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "kernel_import_result_chain_exit");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind<ProcessProbe::process_id>(builder, linux_x86_64, ForeignBinding::Syscall { number: 39 });
@@ -15,16 +16,6 @@ machine build(builder: &mut Build) {
     Build::bind<ProcessProbe::absolute>(builder, linux_arm64, ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "abs", version: "GLIBC_2.17",
-        },
-    });
-    Build::bind<ProcessProbe::exit_with>(builder, linux_x86_64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5",
-        },
-    });
-    Build::bind<ProcessProbe::exit_with>(builder, linux_arm64, ForeignBinding::DllImport {
-        import: DllImport::ElfVersioned {
-            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.17",
         },
     });
 }
