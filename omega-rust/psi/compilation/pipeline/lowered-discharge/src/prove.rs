@@ -468,6 +468,9 @@ impl<'a> Prover<'a> {
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    // `n == 1 or n == 2` proves `n == 1 or n == 2 or
+                    // n == 3`, although no one alternative holds alone.
+                    | Proposition::Disjunction(_)
                     // Owed where nothing may happen: a crash site whose
                     // machine publishes no route for its cause. It holds
                     // only where what is known is contradictory.

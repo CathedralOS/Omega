@@ -102,13 +102,21 @@ fn private_inputs_cross_an_omitted_helper_chain() {
             vec![returns(call(4, vec![slot(0, u32_type())]))],
         )
     };
-    let RouteVerdict::Accepted(accepted) = judge(Ok(with_private_inputs(
+    let verdict = judge(Ok(with_private_inputs(
         vec![entry, forward(), forward(), predecessor()],
         &[2, 3, 4],
     )))
-    .unwrap() else {
-        panic!("every forwarded input permits subtracting one")
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("every forwarded input permits subtracting one: {verdict:?}")
     };
+    for (machine, result) in accepted.discharge.machines.iter() {
+        for (obligation, verdict) in result.verdicts.iter() {
+            if let Ok(Discharged::Certificate(evidence)) = verdict {
+                assert_kernel_accepted(&accepted.elaboration, machine.get(), obligation, evidence);
+            }
+        }
+    }
     accepted
         .publish()
         .expect("the proved input contract must encode canonically");
