@@ -121,12 +121,14 @@ that photograph: a different object, and a green check on it is not done.
    mbx clippy -p <crate> --all-targets -- -D warnings  # each Rust crate you touched
    git push origin HEAD:refs/heads/work/<lane>-<topic>
    cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
-   gh pr create --title "<title>" --body-file PR_BODY
+   gh pr create --base main --head work/<lane>-<topic> --title "<title>" --body-file PR_BODY
    ```
 2. **Land it:** Review your own diff the way a careful reviewer would
    ([coordinator-review](../coordinator-review/SKILL.md)), then squash-merge it
    when `admission` passes. You already have permission; waiting for it only
    slows the project down.
 3. **Chain the next requirement on the warm worktree:** Once landed, continue the
-   parent capability's next remaining requirement on the same warm worktree
-   (`git fetch origin main && git checkout --detach origin/main && git clean -fd`).
+   parent capability's next remaining requirement on the same warm worktree.
+   Inspect `git status --short` and preserve unfinished or untracked work before
+   fetching main and switching the detached checkout to the next fixed base.
+   Retain the warm build cache; do not clean the worktree blindly.

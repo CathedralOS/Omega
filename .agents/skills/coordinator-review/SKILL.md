@@ -1,19 +1,15 @@
 ---
 name: coordinator-review
-description: Audit worker, subagent, and cloud-session diffs before marking any pull request ready or landing it on main. Use whenever a coordinator session controls threads, subagents, sub-sessions, or cloud sessions, or when reviewing a compiler/sample PR for soundness, golden-file integrity, witness fidelity, and algorithmic complexity.
+description: Review an Omega compiler or sample change for soundness, witness fidelity and algorithmic cost before landing it. Use for author self-review and coordinator review; landing ownership follows AGENTS.md.
 ---
 
-# Coordinator Review Gate
+# Review a Change Before Landing
 
-When one coordinator session controls threads, subagents, sub-sessions, or cloud
-sessions ([`swarm`](../swarm/SKILL.md)), the coordinator is not a passive message router.
-**The coordinator is the mandatory code-review and landing gate.**
-
-Workers (especially fast/lightweight models or parallel sessions racing to close
-an assignment) will occasionally take shortcuts that pass a narrow local check
-or CI rule gate while breaking compiler soundness or golden-file integrity.
-Never trust a worker's summary text (`"re-recorded 18 rows"`, `"all tests pass"`)
-without reading the actual `git diff`.
+Read the actual diff before landing so a passing check does not hide a broken
+language guarantee or a weakened test. Authors use this checklist on their own
+changes; coordinators can use it when reviewing a change that needs attention.
+Ownership follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), and
+publication follows [landing](../../../tools/landing.md).
 
 ## 1. Who Lands
 
@@ -28,8 +24,9 @@ completion messages wake the session.
 Before merging, inspect the actual diff:
 
 ```bash
-gh pr diff <pr> --exclude 'tests/omega/corpus_*.txt'
-gh pr diff <pr> -- 'tests/omega/corpus_*.txt' 'TASKS.md'
+gh pr diff NUMBER
+# For a scoped local view, use the recorded base and submitted head:
+git diff BASE HEAD -- omega-rust/ tests/omega/ samples/ TASKS.md
 ```
 
 Reject the candidate and send line-level feedback back to the worker if any of
@@ -71,37 +68,26 @@ the five checks below fail:
 - **Bounce a sound patch in the wrong place:** Correct is not sufficient. Return
   a PR that adds a carrier, case or per-place branch where a shared operation
   could serve, even if every check passes. Accept a cluster report in its place.
-- **Family sweep shown, not claimed:** A claimed family sweep names the rows it
-  covered. The PR's `Gate:` line must describe the change's real purpose; a
+- **Known affected rows shown:** Focused results name the rows they covered.
+  The PR's `Gate:` line must describe the change's real purpose; a
   `red rows: 0` PR must unlock something this review can check.
 
-### Point 3: Golden File Diff Audit (`tests/omega/corpus_outcomes.txt` & `corpus_both_*.txt`)
-Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
-- **Red rows belong only to an observation-only PR:** The two rules below hold
-  for every PR that changes anything besides corpus ledgers and Markdown. A PR
-  that changes only those may record regressions already on `main`
-  ([who may record a regression](../../../tools/testing.md#who-may-record-a-regression));
-  check that each such row was measured on a clean base checkout and attributed,
-  and that a lost `pass/`/`run/` success carries `regressed-from:`.
-- **Every `pass/` and `run/` row in the diff must be `checked` or `built`:**
-  Never allow a worker to record a `pass/` or `run/` fixture as `rejected` just
-  to satisfy `cargo xtask check-rules` (for example, recording `pass/facts/<fact>/target_body`
-  as `rejected` because `target_body` still used deprecated `Build::select_provider`
-  or missed a `reaches` clause).
-- **Every `fail/` row in the diff must be `rejected ... expected`:**
-  Never allow a `fail/` row to be recorded as `checked` (lost rejection) or
-  `rejected ... unexpected` (rejected for the wrong reason, such as a parse,
-  import, or reachability error before reaching the intended check).
-- **Clean `@<sha>` commit stamps (no `+wt`):**
-  Every recorded row must be stamped against a clean committed tree (`@<sha>`),
-  never a dirty worktree (`@<sha>+wt`).
-- **Zero `regressed-from:` markers** introduced outside an observation-only PR.
+### Point 3: Outcomes and Diagnostic Expectations
+- **Leave the ledger to post-merge verification:** Author PRs do not edit
+  `tests/omega/corpus_outcomes.txt` or run `corpus --record`. Reject ledger
+  changes rather than repairing or re-recording their rows in the PR.
+- **Read actual focused results:** Positive programs must pass their intended
+  checks and runtime oracles. Negative controls must reject for the obligation
+  they break; a parse, import or reachability error does not establish that.
+- **Inspect changed expectations:** A new `expected.txt` must describe the
+  intended refusal. Never weaken a program or its diagnostic just to make a
+  failed check green. Keep source and host limits beside the reported result.
 
 ### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & `tests/omega/` diff)
 - **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
   `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
-  enforces this). Repairs must flip existing pinned regressions in
-  `tests/omega/corpus_outcomes.txt` and `samples/` or add a focused
+  enforces this). Repairs target existing failing programs in
+  `tests/omega/` and `samples/` or add a focused
   positive/negative fixture pair under `tests/omega/{pass,fail,run}/<behavior>/`.
 - **No weakened positive witnesses:** Confirm the worker did not make a fixture
   or sample pass by adding a caller post-hoc equality guard (`transition x == 100`),
@@ -136,10 +122,10 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
   - `… changes no corpus outcome`: accept it only as performance or
     restructuring work with its measurement in the PR body. Any other repair
     with no observable outcome goes back to the worker.
-- **`TASKS.md` closure:** Confirm a `TASKS.md` bullet is deleted only
-  when all nine places and nine reject twins pass and are pinned under
-  `tests/omega/{pass,fail}/facts/`, and never rewritten into `"preserving /
-  keeping / now passes"` history prose.
+- **`TASKS.md` closure:** Delete a bullet only when its full stated acceptance
+  is demonstrated. For a fact row, check its existing nine places and reject
+  twins; other outcomes follow their own acceptance. Never rewrite completed
+  work into `"preserving / keeping / now passes"` history prose.
 
 ## 3. Review Verdict Actions
 

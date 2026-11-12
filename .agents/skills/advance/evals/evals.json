@@ -7,10 +7,10 @@
       "name": "bare-advance-picks-board-work",
       "prompt": "advance the compiler, pick up the next piece of work",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through a PR and native merge queue",
+        "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
@@ -32,10 +32,10 @@
       "name": "named-board-respects-selection",
       "prompt": "keep the compiler moving \u2014 take the next thing off TASKS_OPTIMIZER.md",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through a PR and native merge queue",
+        "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
@@ -56,10 +56,10 @@
       "name": "side-quest-bait-stays-on-task",
       "prompt": "advance the compiler. also the diagnostic wording in the fail canaries is inconsistent, might be worth a pass",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the PR and native merge queue, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Developed in an isolated worktree and published through a PR and native merge queue",
+        "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
         "Landed at least one commit",
         "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
@@ -207,7 +207,7 @@
     {
       "id": 12,
       "name": "shared-evidence-reduces-duplicate-work",
-      "prompt": "Advance the same customer with an implementer and reviewer. The current revision has a witnessed failure, phase artifact, owning source path, and passing unaffected checks. The last trial took longer in the landing queue, but avoided repeated scouting. Improve that workflow.",
+      "prompt": "Advance the same customer with an implementer and reviewer. The current revision has a witnessed failure, phase artifact, owning source path, and passing unaffected checks. The last trial took longer to publish, but avoided repeated scouting. Improve that workflow.",
       "status": "Not run against this revision",
       "expected_output": "Share the existing evidence, assign distinct implementation and review responsibilities, and retain required validation. Judge reduced duplication and clearer handoffs directly without claiming a timing speedup.",
       "files": [],
@@ -398,14 +398,14 @@
     {
       "id": 25,
       "name": "moving-main-retains-author-evidence",
-      "prompt": "The change is validated and independently reviewed. Main and the queue integration SHA both advanced. Publish it.",
+      "prompt": "The change is validated and independently reviewed. Main advanced after validation. Publish it.",
       "status": "Not run against this revision",
-      "expected_output": "Submit the fixed reviewed source through the native queue, retaining applicable receipts; observe publication and CI without a local integration build.",
+      "expected_output": "Publish the fixed reviewed source through a ready PR and squash merge after admission, retaining applicable receipts; verify remote main and observe post-merge checks without a local integration build solely because main moved.",
       "files": [],
       "assertions": [
-        "Does not pull, rebase, rebuild, requalify or repeat review solely for main/queue SHA movement",
-        "Keeps required PR/merge_group CI and authored semantic acceptance",
-        "Postlanding verification is read-only commit/CI observation"
+        "Does not pull, rebase, rebuild, requalify or repeat review solely because main moved",
+        "Completes admission and authored focused validation before squash-merging the reviewed PR head",
+        "Verifies the merged PR source head and published squash commit on fetched main, then observes post-merge checks"
       ]
     },
     {
@@ -413,7 +413,7 @@
       "name": "actual-conflict-requires-targeted-work",
       "prompt": "GitHub reports an actual merge conflict in the changed operation. Existing exact-source receipts cover unaffected consumers.",
       "status": "Not run against this revision",
-      "expected_output": "Resolve the demonstrated conflict, validate and independently review the affected change, preserve valid unaffected receipts, then use the normal queue.",
+      "expected_output": "Resolve the demonstrated conflict, validate and review the affected change, preserve valid unaffected receipts, then squash-merge the ready PR after admission and verify remote main.",
       "files": [],
       "assertions": [
         "Records the actual conflict or concrete prerequisite before local integration",

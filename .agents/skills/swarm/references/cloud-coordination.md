@@ -1,10 +1,10 @@
 # Coordinate cloud assignments before scaling
 
-Use the executable [cloud adapter contract](../../../../tools/swarm/cloud.md)
-for the staged 2 → 5 → 10 rollout. It extends the existing recovery journal,
-preserving claims-v1 tickets and serialized landing publication. The parent
-uses its actually exposed cloud create/read/follow-up tools; native workers share
-one executor and do not represent cloud provisioning capacity.
+Follow [advance](../../advance/SKILL.md) preflight and
+[claim registration](../../../../tools/claims.md), retaining assignment IDs,
+runtime handles and publication evidence in the wave's recovery journal. The
+parent uses its actually exposed cloud create/read/follow-up tools; native
+workers share one executor and do not represent cloud provisioning capacity.
 
 Before dispatch, record actual producer/consumer and digest/golden dependencies.
 Shared paths alone neither create a dependency nor block work. Use isolated
@@ -43,6 +43,6 @@ across stages. Required digest and golden updates remain part of that
 assignment's review. Admit five, then
 ten only after every outcome in the prior stage satisfies that same contract
 without user rescue. Keep independent executors' build slots independent and
-shared publication serialized. Simulate fault cases in tests, never by disrupting
+publication evidence reconciled. Simulate fault cases in tests, never by disrupting
 another worker or live publication. Follow [cloud launch](cloud-launch.md) and
 [recovery](recovery.md) for preflight, approval, backups and safe cleanup.
