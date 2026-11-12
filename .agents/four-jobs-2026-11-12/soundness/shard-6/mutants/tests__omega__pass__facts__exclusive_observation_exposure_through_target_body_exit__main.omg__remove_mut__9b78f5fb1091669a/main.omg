@@ -1,0 +1,81 @@
+// A saved observation that items[0] is 7 stays provable across a complete, non-writing exclusive call on that element.
+// Expected exit: 0
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+{
+    observed
+}
+
+machine expose(slot: &mut u64) -> u64 {
+    slot
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedObserve {
+    machine observe(items: &mut [u64; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires items[0] == 7;
+}
+
+X86Observe satisfies SelectedObserve {
+    machine observe(items: &mut [u64; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires items[0] == 7
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let saved: u64 = items[0];
+        let held: u64 = expose(&mut items[0]);
+        let agreed: u64 = agree(saved, items[0]);
+        transition { _ -> finish(agreed, held) }
+        machine finish(agreed: u64, held: u64) -> u64 {
+            transition held == held { true -> agreed _ -> agreed }
+        }
+    }
+}
+
+ArmObserve satisfies SelectedObserve {
+    machine observe(items: &mut [u64; 2]) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires items[0] == 7
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let saved: u64 = items[0];
+        let held: u64 = expose(&mut items[0]);
+        let agreed: u64 = agree(saved, items[0]);
+        transition { _ -> finish(agreed, held) }
+        machine finish(agreed: u64, held: u64) -> u64 {
+            transition held == held { true -> agreed _ -> agreed }
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let items: [u64; 2] = [7, 1];
+    transition SelectedObserve::observe(&mut items) == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}
