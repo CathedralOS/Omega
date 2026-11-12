@@ -1,0 +1,27 @@
+use omega::language::core::extent;
+use omega::language::core::content;
+use omega::language::core::nat;
+Adapter satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+    ensures result in Granted,
+            core::Identity<IntervalSet<Nat>>(
+                Granted::content(old(&mut storage)),
+                Granted::content(&result)
+            )
+    { storage }
+}
+machine direct(storage: Extent in Granted) -> Extent
+ensures result in Granted,
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&storage)),
+            Granted::content(&result)
+        )
+{ Adapter::transfer(storage) }
+machine forwarded(storage: Extent in Granted) -> Extent
+ensures result in Granted,
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&storage)),
+            Granted::content(&result)
+        )
+{ direct(storage) }
+machine main() {}

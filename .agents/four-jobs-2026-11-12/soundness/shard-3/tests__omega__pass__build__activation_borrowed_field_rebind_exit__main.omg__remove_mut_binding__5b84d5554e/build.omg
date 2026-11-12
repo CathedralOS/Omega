@@ -1,0 +1,14 @@
+data Configuration<'activation> { builder: &'activation Build; }
+machine rebind<'activation>(builder: &'activation Build) {
+    let mut configuration: Configuration = Configuration { builder: builder };
+    configuration.builder = builder;
+    let observed: bool = configuration.builder.freestanding;
+}
+machine build(builder: &mut Build) {
+    Build::application(builder, "builder_rebind_scope");
+    rebind(builder);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

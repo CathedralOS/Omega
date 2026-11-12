@@ -1,0 +1,14 @@
+// Runtime admission control: a known but unoffered descriptor operation must
+// not fall through to the native worker's null stdin. The native case reads A.
+// Build binds `Probe::read` to the exact libc `read` on each Linux target.
+public boundary trait Probe {
+    machine read(fd: i32, buffer: &mut u64, count: u64) -> i64
+    reaches Probe blocks;
+}
+machine entry_start() reaches Probe blocks crashes Trap {
+    let value: u64 = 0;
+    let count: i64 = block Probe::read(0, &mut value, 1);
+    transition count == 1 && value == 65 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,30 @@
+// Expected exit: 0. Build and Product preserve the exact Optional zero-home case.
+use omega::language::core::option;
+data Envelope { before: u64; some: Optional<u64>; none: Optional<u64>; after: u64; }
+machine default_is_none()
+ensures zero_value<Optional<u64>>() in Optional::None
+{}
+machine main() crashes Trap {
+    let mut values: Envelope;
+    values.before = 101;
+    values.after = 103;
+    values.some = Optional::Some { value: 70 };
+    transition values.some {
+        Optional::Some { value } -> check_none(&mut values, value)
+        Optional::None -> bad()
+    }
+    machine check_none(values: &Envelope, value: u64) {
+        transition values.none {
+            Optional::None -> check(values, value)
+            Optional::Some { value } -> bad()
+        }
+    }
+    machine check(values: &Envelope, value: u64) {
+        transition value == 70 && values.before == 101 && values.after == 103 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

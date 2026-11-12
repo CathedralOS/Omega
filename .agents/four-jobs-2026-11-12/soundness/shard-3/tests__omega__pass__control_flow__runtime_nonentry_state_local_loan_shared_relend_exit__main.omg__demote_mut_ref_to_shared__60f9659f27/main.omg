@@ -1,0 +1,82 @@
+// A non-entry state lends its own local `&mut` to a successor, which writes
+// through the loan and re-lends the storage shared to later states: whole
+// (`inspect(parser)`) and by projection (`report(&parser.output)`). The
+// shared successors join the loan chain, so the local's home outlives them
+// and dies at their exits: on edges in `Main::main`, at a return in
+// `measure`. Before, any shared or projected re-loan out of a chain member
+// refused lowering ("state-local loan chain is re-lent beyond its exclusive
+// members"); the product parser gate's harness re-lends `&parser.output`
+// exactly so.
+//
+// exits: 70 = both chains read their writes back; 71 = the edge-ending
+// chain read the wrong count; 72 = the returning chain did.
+use omega_language_std::console;
+
+data Output { count: u64; accepted: bool; }
+data Parser { output: Output; cursor: u64; }
+
+data Main {
+}
+
+machine Main::main(main: &Main) reaches Console {
+    transition { _ -> prepare(main) }
+
+    machine prepare(main: &mut Main) {
+        let mut parser: Parser;
+        parser.cursor = 3;
+        transition { _ -> parse(main, &mut parser) }
+    }
+    machine parse(main: &mut Main, parser: &mut Parser) {
+        parser.output.count = 70;
+        parser.output.accepted = true;
+        transition { _ -> inspect(main, parser) }
+    }
+    machine inspect(main: &mut Main, parser: &Parser) {
+        transition parser.cursor == 3 {
+            true -> report(main, &parser.output)
+            _ -> wrong(main, 71)
+        }
+    }
+    machine report(main: &mut Main, output: &Output) {
+        transition output.count == 70 && output.accepted {
+            true -> returning(main)
+            _ -> wrong(main, 71)
+        }
+    }
+    machine returning(main: &mut Main) {
+        let measured: u64 = measure(4);
+        transition measured == 66 {
+            true -> done(main)
+            _ -> wrong(main, 72)
+        }
+    }
+    machine done(main: &mut Main) { Console::exit_process(70); }
+    machine wrong(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+machine measure(seed: u64) -> u64 {
+    transition seed > 2 {
+        true -> prepare(seed)
+        _ -> zero()
+    }
+    machine prepare(seed: u64) -> u64 {
+        let mut parser: Parser;
+        parser.cursor = seed;
+        transition { _ -> parse(&mut parser) }
+    }
+    machine parse(parser: &mut Parser) -> u64 {
+        parser.output.count = 66;
+        transition { _ -> inspect(parser) }
+    }
+    machine inspect(parser: &Parser) -> u64 {
+        transition { _ -> report(&parser.output) }
+    }
+    machine report(output: &Output) -> u64 { output.count }
+    machine zero() -> u64 { 0 }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

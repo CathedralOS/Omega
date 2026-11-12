@@ -1,0 +1,57 @@
+// Fact: Commit three bytes under bound eight, write/read the committed region, release it, and observe checked rejection of a request for nine bytes.
+// Expected exit: 0
+// The claim crosses one terminal call inside a nested generic record and a
+// second inside a generic whose own field stores it, so both calls must stay
+// in the establishing activation.
+use omega::language::core::activation;
+data Holder<T> { inner: T; }
+data Tagged<T> { claim: ActivationClaim; tag: T; }
+
+machine write_read(bytes: &mut mut [u8]) -> u8 {
+    transition bytes.len >= 3 {
+        true -> access(bytes)
+        false -> (0u8)
+    }
+    machine access(bytes: &mut [u8]) -> u8
+    requires bytes.len >= 3 {
+        bytes[2] = 37u8;
+        bytes[2]
+    }
+}
+
+machine main() crashes Trap {
+    transition Activation::try_claim<8>(3) {
+        ActivationClaimAttempt::Established { claim } -> unwrap(Holder { inner: Holder { inner: claim } })
+        ActivationClaimAttempt::Rejected -> bad()
+    }
+    machine unwrap(nested: Holder<Holder<ActivationClaim>>) {
+        let middle: Holder<ActivationClaim> = nested.inner;
+        let claim: ActivationClaim = middle.inner;
+        transition {
+            _ -> stamped(Tagged { claim: claim, tag: 7u8 })
+        }
+    }
+    machine stamped(tagged: Tagged<u8>) {
+        let mut held: Tagged<u8> = tagged;
+        let bytes: &mut [u8] = ActivationClaim::bytes(&mut held.claim);
+        let length: u64 = bytes.len;
+        let observed: u8 = write_read(bytes);
+        ActivationClaim::release(held.claim);
+        transition length == 3 && observed == 37u8 && held.tag == 7u8 {
+            true -> over_bound()
+            false -> bad()
+        }
+    }
+    machine over_bound() {
+        transition Activation::try_claim<8>(9) {
+            ActivationClaimAttempt::Rejected -> done()
+            ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
+        }
+    }
+    machine unexpectedly_established(claim: ActivationClaim) {
+        ActivationClaim::release(claim);
+        crash Trap;
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

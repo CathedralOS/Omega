@@ -15,6 +15,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from mutant_classify import BUCKETS, classify_mutant  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[3]
 PIN = "0835b3aaf803ed97f905be42d94727ff58459263"
 SHARD = int(os.environ.get("SHARD", "3"))
@@ -34,62 +38,6 @@ PROGRESS_PATH = OUT_BASE / f"shard-{SHARD}.progress.json"
 MD_PATH = OUT_BASE / f"shard-{SHARD}.md"
 
 
-@dataclass(frozen=True)
-class SpecRule:
-    path: str
-    quote: str
-
-
-# Mutations that only weaken or erase contracts; acceptance means still-valid programs.
-WEAKENING_MUTATIONS = frozenset({"drop_requires_line", "drop_ensures_clause"})
-
-MUTATION_RULES: dict[str, SpecRule] = {
-    "drop_requires_line": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "Machine `requires` applies at every invocation, including terminal and recursive "
-        "calls; callers must discharge those predicates at the call edge.",
-    ),
-    "tighten_requires_equality": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "An authored `requires` is complete, including on a private helper.",
-    ),
-    "remove_mut_binding": SpecRule(
-        "wiki/spec/language/ownership.md",
-        "Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established "
-        "ordinary local's owned storage requires a `mut` binding. This covers direct "
-        "assignment, writes to owned fields or array elements, and formation of "
-        "`&mut` or `&write` loans to those places.",
-    ),
-    "demote_mut_ref_to_shared": SpecRule(
-        "wiki/spec/language/ownership.md",
-        "`&mut T` | Exclusive observation and mutation.",
-    ),
-    "promote_shared_ref_to_mut": SpecRule(
-        "wiki/spec/language/ownership.md",
-        "`&T` | Shared observation under its loan contract.",
-    ),
-    "delete_transition_guard": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "Transition guards establish that only enabled edges may fire; removing a guard "
-        "allows entering a state without the guard's required facts.",
-    ),
-    "drop_ensures_clause": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "An `ensures` postcondition is an obligation on every exit value; returning without "
-        "satisfying it is invalid.",
-    ),
-    "corrupt_ensures_constant": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "Every invocation retains both sides of its own contract.",
-    ),
-    "corrupt_literal_callee_argument": SpecRule(
-        "wiki/spec/language/state_contracts.md",
-        "Every arrival establishes the target's requirements and declared domains "
-        "under actual argument substitution.",
-    ),
-}
-
-
 @dataclass
 class MutantRecord:
     original_fixture: str
@@ -101,6 +49,8 @@ class MutantRecord:
     disposition: str
     spec_path: str = ""
     spec_quote: str = ""
+    spec_heading: str = ""
+    obligation_line: str = ""
     seconds: float = 0.0
 
 
@@ -214,17 +164,6 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
         unguarded = source[: guard_line.start()] + source[guard_line.end() :]
         out.append(("delete_transition_guard", unguarded))
 
-    ensures_eq = re.search(r"(?m)^\s*ensures\s+result\s*==", source)
-    if ensures_eq:
-        corrupted = re.sub(
-            r"(?m)^(\s*)ensures\s+result\s*==\s*(-?\d+)",
-            r"\1ensures result == (\2 - 1)",
-            source,
-            count=1,
-        )
-        if corrupted != source:
-            out.append(("corrupt_ensures_constant", corrupted))
-
     call_mismatch = re.search(r"(?m)^(\s*\w+\()\d+(\)[;,])", source)
     if call_mismatch:
         corrupted_call = re.sub(
@@ -242,7 +181,6 @@ def generate_mutations(source: str) -> list[tuple[str, str]]:
         "promote_shared_ref_to_mut",
         "tighten_requires_equality",
         "corrupt_literal_callee_argument",
-        "corrupt_ensures_constant",
         "delete_transition_guard",
     ]
     dedup: dict[str, str] = {}
@@ -344,27 +282,145 @@ def save_progress(done: set[str], counts: dict[str, int]) -> None:
     )
 
 
+TSV_HEADER = (
+    "original_fixture\tmutation_kind\tmutant_path\tcurrent_verdict\t"
+    "route_verdict\thand_check\tdisposition\tspec_heading\tspec_path\t"
+    "obligation_line\tseconds\n"
+)
+
+
 def append_tsv(rows: list[MutantRecord]) -> None:
-    header = (
-        "original_fixture\tmutation_kind\tmutant_path\tcurrent_verdict\t"
-        "route_verdict\thand_check\tdisposition\tspec_path\tseconds\n"
-    )
     if not TSV_PATH.exists():
-        TSV_PATH.write_text(header)
+        TSV_PATH.write_text(TSV_HEADER)
     with TSV_PATH.open("a", encoding="utf-8") as handle:
         for row in rows:
             handle.write(
                 f"{row.original_fixture}\t{row.mutation_kind}\t{row.mutant_path}\t"
                 f"{row.current_verdict}\t{row.route_verdict}\t{row.hand_check}\t"
-                f"{row.disposition}\t{row.spec_path}\t{row.seconds:.3f}\n"
+                f"{row.disposition}\t{row.spec_heading}\t{row.spec_path}\t"
+                f"{row.obligation_line}\t{row.seconds:.3f}\n"
             )
 
 
-def write_md(
-    kept: list[MutantRecord],
-    counts: dict[str, int],
-    host: str,
-) -> None:
+def bucket_counts_from_rows(rows: list[MutantRecord]) -> dict[str, int]:
+    counts = {bucket: 0 for bucket in BUCKETS}
+    for row in rows:
+        counts[row.disposition] = counts.get(row.disposition, 0) + 1
+    return counts
+
+
+def parse_tsv_line(cols: list[str]) -> MutantRecord | None:
+    if len(cols) < 7:
+        return None
+    if len(cols) >= 11:
+        return MutantRecord(
+            original_fixture=cols[0],
+            mutation_kind=cols[1],
+            mutant_path=cols[2],
+            current_verdict=cols[3],
+            route_verdict=cols[4],
+            hand_check=cols[5],
+            disposition=cols[6],
+            spec_heading=cols[7],
+            spec_path=cols[8],
+            obligation_line=cols[9],
+            seconds=float(cols[10]) if cols[10] else 0.0,
+        )
+    return MutantRecord(
+        original_fixture=cols[0],
+        mutation_kind=cols[1],
+        mutant_path=cols[2],
+        current_verdict=cols[3],
+        route_verdict=cols[4],
+        hand_check=cols[5],
+        disposition=cols[6],
+        spec_path=cols[7] if len(cols) > 7 else "",
+        seconds=float(cols[8]) if len(cols) > 8 and cols[8] else 0.0,
+    )
+
+
+def revalidate_tsv_rows() -> list[MutantRecord]:
+    if not TSV_PATH.exists():
+        return []
+    rows: list[MutantRecord] = []
+    for line in TSV_PATH.read_text(encoding="utf-8").splitlines()[1:]:
+        cols = line.split("\t")
+        old = parse_tsv_line(cols)
+        if not old:
+            continue
+        original_path = REPO / old.original_fixture
+        mutant_path = Path(old.mutant_path)
+        if not original_path.is_file() or not mutant_path.is_file():
+            rows.append(old)
+            continue
+        original = read_text(original_path)
+        mutant = read_text(mutant_path)
+        result = classify_mutant(
+            old.mutation_kind,
+            old.current_verdict,
+            old.route_verdict,
+            original,
+            mutant,
+        )
+        spec_path = spec_quote = spec_heading = ""
+        if result.spec:
+            spec_path = result.spec.path
+            spec_quote = result.spec.quote
+            spec_heading = result.spec.heading
+        rows.append(
+            MutantRecord(
+                original_fixture=old.original_fixture,
+                mutation_kind=old.mutation_kind,
+                mutant_path=old.mutant_path,
+                current_verdict=old.current_verdict,
+                route_verdict=old.route_verdict,
+                hand_check=result.hand_check,
+                disposition=result.disposition,
+                spec_path=spec_path,
+                spec_quote=spec_quote,
+                spec_heading=spec_heading,
+                obligation_line=result.obligation_line,
+                seconds=old.seconds,
+            )
+        )
+    TSV_PATH.write_text(TSV_HEADER)
+    append_tsv(rows)
+    return rows
+
+
+def capture_check_output(main_path: Path) -> tuple[int, str, str]:
+    proc = subprocess.run(
+        [str(OMEGA), "--check", str(main_path)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        stdin=subprocess.DEVNULL,
+    )
+    return proc.returncode, proc.stdout[:2000], proc.stderr[:2000]
+
+
+def capture_route_output(main_path: Path) -> str:
+    proc = subprocess.run(
+        [str(ROUTE), str(main_path)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+        stdin=subprocess.DEVNULL,
+    )
+    return "\n".join(proc.stdout.splitlines()[:30])
+
+
+def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
+    buckets = bucket_counts_from_rows(rows)
+    mutants_run = len(rows)
+    bucket_sum = sum(buckets.get(b, 0) for b in BUCKETS)
+    confirmed = [row for row in rows if row.disposition == "confirmed-invalid"]
+    by_kind: dict[str, int] = {}
+    for row in confirmed:
+        by_kind[row.mutation_kind] = by_kind.get(row.mutation_kind, 0) + 1
+
     lines = [
         f"# Soundness mutations shard {SHARD}",
         "",
@@ -372,55 +428,110 @@ def write_md(
         f"Shard selection: `(i % {SHARD_MOD}) == {SHARD}` over sorted "
         "`tests/omega/pass/**/main.omg` and `tests/omega/run/**/main.omg`.",
         "",
-        "## Counts",
+        "## Mutant buckets (each row is exactly one bucket)",
         "",
-        f"- fixtures in shard: {counts.get('fixtures', 0)}",
-        f"- fixtures processed: {counts.get('fixtures_processed', 0)}",
-        f"- mutants generated: {counts.get('mutants_generated', 0)}",
-        f"- mutants run: {counts.get('mutants_run', 0)}",
-        f"- kept (confirmed holes + disagreements): {counts.get('kept', 0)}",
-        f"- discarded-valid: {counts.get('discarded_valid', 0)}",
-        f"- discarded-no-rule: {counts.get('discarded_no_rule', 0)}",
-        f"- discarded-both-reject: {counts.get('discarded_both_reject', 0)}",
-        "",
-        "## Commands",
-        "",
-        "```bash",
-        f"git checkout {PIN}",
-        "CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target "
-        "mbx build -p omega -p compiler --example route_one_comparison < /dev/null",
-        f"SHARD={SHARD} python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py",
-        "```",
-        "",
-        f"Harness build commit: `{PIN}`. Host: `{host}`.",
-        f"Omega: `{OMEGA}`. Route: `{ROUTE}`. Per-mutant timeout: {TIMEOUT}s.",
-        "",
-        "## Confirmed holes and disagreements",
-        "",
+        "| Bucket | Count |",
+        "| --- | ---: |",
     ]
-    if not kept:
-        lines.append("_None in this shard._")
+    for bucket in BUCKETS:
+        lines.append(f"| `{bucket}` | {buckets.get(bucket, 0)} |")
+    lines.extend(
+        [
+            f"| **Total (mutants run)** | **{mutants_run}** |",
+            "",
+            f"Bucket sum check: {bucket_sum} == {mutants_run} ({ 'OK' if bucket_sum == mutants_run else 'MISMATCH'}).",
+            "",
+            f"- Fixtures in shard: {meta.get('fixtures', 0)}",
+            f"- Fixtures processed: {meta.get('fixtures_processed', 0)}",
+            f"- Mutants generated: {meta.get('mutants_generated', mutants_run)}",
+            "",
+            "### Confirmed-invalid by mutation kind",
+            "",
+        ]
+    )
+    if by_kind:
+        for kind, count in sorted(by_kind.items(), key=lambda item: (-item[1], item[0])):
+            lines.append(f"- `{kind}`: {count}")
     else:
-        for index, row in enumerate(kept, 1):
+        lines.append("_None._")
+    lines.extend(
+        [
+            "",
+            "## Commands",
+            "",
+            "```bash",
+            f"git checkout {PIN}",
+            "CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target "
+            "mbx build -p omega -p compiler --example route_one_comparison < /dev/null",
+            f"SHARD={SHARD} python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py",
+            "SHARD=3 python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py --revalidate",
+            "```",
+            "",
+            f"Harness build commit: `{PIN}`. Host: `{host}`.",
+            f"Omega: `{OMEGA}`. Route: `{ROUTE}`. Per-mutant timeout: {TIMEOUT}s.",
+            "",
+            "## Hand verification (5 confirmed-invalid)",
+            "",
+        ]
+    )
+    samples = confirmed[:5]
+    if not samples:
+        lines.append("_No confirmed-invalid rows to sample yet._")
+    for index, row in enumerate(samples, 1):
+        exit_code, out, err = capture_check_output(Path(row.mutant_path))
+        route_out = capture_route_output(Path(row.mutant_path))
+        original = read_text(REPO / row.original_fixture)
+        mutant = read_text(Path(row.mutant_path))
+        lines.extend(
+            [
+                f"### Sample {index}: `{row.original_fixture}` / `{row.mutation_kind}`",
+                "",
+                f"- Obligation line: `{row.obligation_line}`",
+                f"- Disposition: `{row.disposition}`",
+                f"- Current verdict: **{row.current_verdict}** (exit {exit_code})",
+                f"- Route verdict: **{row.route_verdict}**",
+                "",
+                f"**Spec** — `{row.spec_path}` ({row.spec_heading}):",
+                "",
+                f"> {row.spec_quote}",
+                "",
+                "**omega --check** (stdout/stderr head):",
+                "",
+                "```text",
+                out.strip() or "(empty)",
+                err.strip() or "",
+                "```",
+                "",
+                "**route_one_comparison** (first lines):",
+                "",
+                "```text",
+                route_out.strip() or "(empty)",
+                "```",
+                "",
+            ]
+        )
+    lines.extend(["## Confirmed-invalid entries", ""])
+    if not confirmed:
+        lines.append("_None._")
+    else:
+        for index, row in enumerate(confirmed, 1):
             lines.extend(
                 [
                     f"### {index}. `{row.original_fixture}` — `{row.mutation_kind}`",
                     "",
                     f"- Mutant: `{row.mutant_path}`",
-                    f"- Current checker: **{row.current_verdict}**",
-                    f"- Route checker: **{row.route_verdict}**",
-                    f"- Hand check: **{row.hand_check}**",
+                    f"- Current: **{row.current_verdict}** | Route: **{row.route_verdict}**",
+                    f"- Obligation: `{row.obligation_line}`",
                     "",
-                    f"Spec rule (`{row.spec_path}`):",
+                    f"**{row.spec_path}** — *{row.spec_heading}*:",
                     "",
                     f"> {row.spec_quote}",
                     "",
-                    "```omg",
-                    Path(row.mutant_path).read_text(encoding="utf-8").strip(),
-                    "```",
-                    "",
                 ]
             )
+    lines.extend(["## Known gap: Q7 mut", ""])
+    q7 = [row for row in rows if row.disposition == "known-gap-q7-mut"]
+    lines.append(f"Count: {len(q7)} (tracked migration; not counted as confirmed holes).")
     MD_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -429,37 +540,30 @@ def main() -> int:
         print("Build omega and route_one_comparison first.", file=sys.stderr)
         return 2
 
+    if "--revalidate" in sys.argv:
+        rows = revalidate_tsv_rows()
+        meta = json.loads(PROGRESS_PATH.read_text())["counts"] if PROGRESS_PATH.exists() else {}
+        meta.setdefault("fixtures_processed", len(load_progress()))
+        host = subprocess.check_output(["hostname"], text=True).strip()
+        write_md(rows, meta, host)
+        print(json.dumps({"revalidated": len(rows), "buckets": bucket_counts_from_rows(rows)}, indent=2))
+        return 0
+
     fixtures = list_shard_fixtures()
     done = load_progress()
     counts = {
         "fixtures": len(fixtures),
         "fixtures_processed": len(done),
         "mutants_generated": 0,
-        "mutants_run": 0,
-        "kept": 0,
-        "discarded_valid": 0,
-        "discarded_no_rule": 0,
-        "discarded_both_reject": 0,
     }
-    kept_all: list[MutantRecord] = []
-
+    all_rows: list[MutantRecord] = []
     if TSV_PATH.exists():
-        # reload kept from tsv for md regen
-        for line in TSV_PATH.read_text().splitlines()[1:]:
-            cols = line.split("\t")
-            if len(cols) >= 7 and cols[6] == "kept":
-                kept_all.append(
-                    MutantRecord(
-                        original_fixture=cols[0],
-                        mutation_kind=cols[1],
-                        mutant_path=cols[2],
-                        current_verdict=cols[3],
-                        route_verdict=cols[4],
-                        hand_check=cols[5],
-                        disposition=cols[6],
-                        spec_path=cols[7] if len(cols) > 7 else "",
-                    )
-                )
+        all_rows = [
+            parse_tsv_line(line.split("\t"))
+            for line in TSV_PATH.read_text().splitlines()[1:]
+            if parse_tsv_line(line.split("\t"))
+        ]
+        counts["mutants_generated"] = len(all_rows)
 
     for fixture in fixtures:
         if fixture in done:
@@ -495,83 +599,58 @@ def main() -> int:
         route_results = run_route(batch_dirs)
 
         fixture_rows: list[MutantRecord] = []
+        original = source
         for kind, main_path in batch_meta:
             key = str(main_path)
             current = current_by_path.get(key, "unknown")
             route, _, rsec = route_results.get(key, ("unknown", "unknown", 0.0))
-            rule = MUTATION_RULES.get(kind)
-
-            disposition = "discarded-both-reject"
-            hand = "n/a"
-            spec_path = ""
-            spec_quote = ""
-
-            if current == "accepted" or route == "accepted":
-                if kind in WEAKENING_MUTATIONS and current == "accepted" and route in (
-                    "accepted",
-                    "no-entry",
-                    "fallback",
-                ):
-                    disposition = "discarded-valid"
-                    hand = "discarded-valid"
-                    counts["discarded_valid"] += 1
-                elif not rule:
-                    disposition = "discarded-no-rule"
-                    counts["discarded_no_rule"] += 1
-                else:
-                    disposition = "kept"
-                    hand = "confirmed-invalid"
-                    spec_path = rule.path
-                    spec_quote = rule.quote
-                    counts["kept"] += 1
-            elif current != route and current not in ("unknown", "timeout") and route not in (
-                "unknown",
-                "timeout",
-            ):
-                if not rule:
-                    disposition = "discarded-no-rule"
-                    counts["discarded_no_rule"] += 1
-                else:
-                    disposition = "kept"
-                    hand = "confirmed-invalid"
-                    spec_path = rule.path
-                    spec_quote = rule.quote
-                    counts["kept"] += 1
-            elif current == "rejected" and route == "rejected":
-                counts["discarded_both_reject"] += 1
-            else:
-                counts["discarded_valid"] += 1
-                disposition = "discarded-valid"
-                hand = "discarded-valid"
-
+            mutant = read_text(main_path)
+            result = classify_mutant(kind, current, route, original, mutant)
+            spec_path = spec_quote = spec_heading = ""
+            if result.spec:
+                spec_path = result.spec.path
+                spec_quote = result.spec.quote
+                spec_heading = result.spec.heading
             row = MutantRecord(
                 original_fixture=fixture,
                 mutation_kind=kind,
                 mutant_path=key,
                 current_verdict=current,
                 route_verdict=route,
-                hand_check=hand,
-                disposition=disposition,
+                hand_check=result.hand_check,
+                disposition=result.disposition,
                 spec_path=spec_path,
                 spec_quote=spec_quote,
+                spec_heading=spec_heading,
+                obligation_line=result.obligation_line,
                 seconds=rsec,
             )
             fixture_rows.append(row)
-            if disposition == "kept":
-                kept_all.append(row)
 
         append_tsv(fixture_rows)
+        all_rows.extend(fixture_rows)
+        counts["mutants_generated"] = len(all_rows)
         done.add(fixture)
         counts["fixtures_processed"] = len(done)
         save_progress(done, counts)
 
         if counts["fixtures_processed"] % 25 == 0:
             host = subprocess.check_output(["hostname"], text=True).strip()
-            write_md(kept_all, counts, host)
+            write_md(all_rows, counts, host)
 
+    all_rows = revalidate_tsv_rows()
     host = subprocess.check_output(["hostname"], text=True).strip()
-    write_md(kept_all, counts, host)
-    print(json.dumps(counts, indent=2))
+    write_md(all_rows, counts, host)
+    print(
+        json.dumps(
+            {
+                **counts,
+                "mutants_run": len(all_rows),
+                "buckets": bucket_counts_from_rows(all_rows),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

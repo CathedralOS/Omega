@@ -1,0 +1,18 @@
+// A drop hook carrying `requires`: `drop_token` demands
+// `token.value == 42` on the cleanup edge. A partially-constructed
+// record constructs only `pair.right` — the untouched `left` storage has
+// no valid Token and receives neither replacement nor exit cleanup.
+domain u64::Positive requires 1 <= self;
+data Token dropped by drop_token { value: u64 in Positive; }
+data Pair { left: Token; right: Token; }
+machine drop_token(token: &mut Token)
+    requires token.value == 42
+{
+    token.value = 1;
+}
+machine main() {
+    let pair: Pair;
+    pair.right = Token { value: 42 };
+    transition { _ -> done() }
+    machine done() {}
+}

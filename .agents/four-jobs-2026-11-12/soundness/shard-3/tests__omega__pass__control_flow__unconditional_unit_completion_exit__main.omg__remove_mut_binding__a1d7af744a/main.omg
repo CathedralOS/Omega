@@ -1,0 +1,14 @@
+machine finish(output: &mut u32) {
+ transition { _ -> tail(output) }
+ machine tail(output: &mut u32) {
+  output = 7;
+  transition { _ -> {} }
+ }
+}
+machine main() crashes Trap {
+ let output: u32 = 99;
+ finish(&mut output);
+ transition output == 7 { true -> done() false -> bad() }
+ machine done() {}
+ machine bad() { crash Trap; }
+}
