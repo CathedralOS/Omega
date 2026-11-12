@@ -895,3 +895,76 @@ Until answered the stacks keep their size. A parser change that charges
 chains against the existing 1,024 levels and refuses beyond it is prepared on
 `work/psi-parser-chain-depth` and meets answer (a) with either answer to (b);
 it is held because it changes which programs parse.
+
+### Q22 - Does a hosted program entry's state ceiling include the floating-control envelope of the imports it calls?
+
+Decision name: `hosted-entry-floating-control-ceiling`.
+
+**Customer.** An `Independent` component whose hosted `ProgramEntry` calls a
+returning native import: the `independent*` places of
+`samples/cli/facts/opaque_closed_carrier_exchange` (about 50 samples) and the
+seven `pass/facts/opaque_independent_*` corpus rows. Each checks, then its native
+component entry is refused with `complete entry code uses machine state outside
+its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(31)`.
+Any `Independent` component calling libc meets the same refusal.
+
+**Gap.** [Floating control state](wiki/spec/build/foreign_bindings.md#floating-control-state)
+requires a save/restore envelope around every returning import unless a
+preservation proof is admitted. The envelope's `RestoreFloatingControl`
+instruction writes the floating-control unit, so the body's footprint includes
+control state. [The final-artifact obligation](wiki/spec/build/machine_state_evidence.md#final-artifact-obligation)
+requires `actual_transitive_footprint ⊆ permitted_transitive_use`, with the
+ceiling covering the complete synchronous callee closure. The four hosted
+`ProgramEntry` plans (`source/library/std/targets/*/entry.omg`, mirrored in
+`program_entry_physical.rs`) and every ordinary boundary plan
+(`evaluate_ordinary_boundary_entry_plan`) leave `control_state` out, while
+the UEFI entry includes it. So the two specified rules cannot both hold for a
+hosted entry that calls an import. Programs that are not `Independent`
+components do not reach this check today.
+
+**Question.**
+
+- **(a)** Does a hosted entry's published ceiling include control state? The
+  hosted ABIs make the floating controls callee-preserved, as they do the
+  callee-saved general registers the ceiling already lists. This widens the four
+  hosted entry plans and the ordinary boundary ceiling, and so the plan identity
+  of every ordinary boundary.
+- **(b)** Or does a save/restore envelope that provably returns the controls to
+  their entry value count as preservation, not use, so the ceiling stays as
+  published and the footprint omits a restored pair?
+
+Until answered, these components stay refused at native entry admission.
+
+### Q23 - May the Psi interpreter carry a host address that a native import returned?
+
+Decision name: `interpreter-host-address-carriage`.
+
+**Customer.** `tests/omega/pass/providers/foreign_address_result_release_exit`
+calls glibc `malloc`, receives an `addr`, and passes it unchanged to `free`. Its
+native leg exits 70 as authored. Under `omega run --both` the interpreter
+declines with `native-provider-adapter: native scalar differs from its admitted
+logical/storage codec`. It is the one `providers/foreign_*` fixture of the
+NORMALIZED-ABI-LOWERING acceptance that does not pass on both engines, and every
+program that keeps a native allocation handle meets the same refusal.
+
+**Gap.** [Host result validation](wiki/spec/terminal-psi/boundary_calls.md#host-result-validation)
+lets an embedding handler return an "exactly typed scalar", and `addr` is a
+scalar. But it also says: "The host must supply a legitimate owned value. An
+opaque identity number does not establish global allocation freshness against
+interpreter-created values or suspended callers." The interpreter has no runtime
+value for an address: its host-import scalar codec, borrowed-storage and
+scalar-record codecs and terminal installation all refuse `addr` scalars. The
+specification does not say whether a host-returned address may be admitted, and
+if so with what provenance, or what interpreter code may do with it.
+
+**Question.**
+
+- **(a)** May the interpreter admit a host-returned `addr` as an opaque
+  host-provenance value? Such a value could be stored, compared and passed back
+  to native imports, but never dereferenced, offset into or mixed with
+  interpreter-created addresses.
+- **(b)** Or must a program that holds a native address handle be refused by the
+  interpreter, so that `--both` cannot qualify it and the fixture is native-only?
+
+Until answered, the interpreter declines this fixture and the native leg alone
+runs it.
