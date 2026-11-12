@@ -98,7 +98,6 @@ impl BuildOutputIdentity<'_> {
             optimization_report_request,
             evaluation_usage: _,
             observation_summary: _,
-            toolchain_provider_defaults: _,
             selected_build_machine_symbol,
             generated_sources,
         } = value;

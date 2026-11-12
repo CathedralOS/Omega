@@ -20,7 +20,6 @@ pub struct SettledBuildSource {
     // Whether Build ran as a dependency's activation. Settling the Build slice
     // again on a deferred Product frontier must choose the same subjects.
     pub dependency_activation: bool,
-    pub toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     pub timings: CompileTimings,
     pub build_elapsed_micros: u128,
 }
@@ -49,7 +48,6 @@ impl SettledPackageBuild {
                 original_assembly: self.source.original_assembly.clone(),
                 build_execution_profile: self.source.build_execution_profile,
                 dependency_activation: self.source.dependency_activation,
-                toolchain_provider_defaults: self.source.toolchain_provider_defaults.clone(),
                 timings: self.source.timings.clone(),
                 build_elapsed_micros: self.source.build_elapsed_micros,
             },

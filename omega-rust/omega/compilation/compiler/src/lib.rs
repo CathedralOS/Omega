@@ -42,7 +42,7 @@ mod terminal;
 pub mod checked;
 
 pub use crate::checked::{
-    BuildAdvance, CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
+    CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
     CurrentCheckerVerdict, IndependentComponentDiscovery, IndependentComponentSelection,
     OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
@@ -54,10 +54,6 @@ pub use crate::checked::{
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
-#[doc(hidden)]
-pub use checked::checking::build_continuation::{
-    core_product_speculations, refuse_core_product_speculation,
-};
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
