@@ -1140,6 +1140,9 @@ fail/borrows/byte_array_state_loan_wrong_extent rejected 14337ms expected @ccdb9
 	argument `bytes` for state `entry` expects `&[u8; 4]`, got `named value`
 fail/borrows/byte_view_shared_element_mutable_reference rejected 775ms expected @ccdb99ca2214
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/call_replaced_local_backing_keeps_new_backing rejected 4592ms expected @6861742e58f5
+	statement 6 mutates `y.value` while local borrow `second` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 6 mutates `y.value` while local borrow `state` is still active (borrowed at statement 5; its last use is at statement 7)
 fail/borrows/call_transfer_scalar_observation rejected 2139ms @ccdb99ca2214
 	state `receive` receives `control` as both mutable and read-only
 fail/borrows/callable_multi_input_elision_needs_relation rejected 3655ms expected @ccdb99ca2214
@@ -1214,10 +1217,10 @@ fail/borrows/conditional_copied_slot_retains_parent_loan rejected 1775ms expecte
 	statement 9 mutates `parent` while local borrow `copied` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/conditional_overlapping_field_loans rejected 19472ms expected @ccdb99ca2214
 	state `split` receives `application.left` as both mutable and read-only
-fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 1917ms expected @ccdb99ca2214
-	cannot prove index `holder.value` is within length 2 in exercise::entry
-fail/borrows/conditional_reference_replacement_true_first_stale_index rejected 2009ms expected @ccdb99ca2214
-	cannot prove index `holder.value` is within length 2 in exercise::entry
+fail/borrows/conditional_reference_replacement_false_first_stale_index rejected 2543ms unexpected @4386462dff13
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers
+fail/borrows/conditional_reference_replacement_true_first_stale_index rejected 2534ms unexpected @4386462dff13
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `exercise` state `entry` at statement 1: destination descriptor has no complete captured suppliers
 fail/borrows/conditional_returned_descriptor_local_escape rejected 6877ms expected @af4614055bdd
 	machine `select` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/constant_temporary_reference_escape rejected 2541ms expected @ccdb99ca2214
@@ -1459,9 +1462,8 @@ fail/borrows/indexed_shared_primitive_loan_missing_bound rejected 6316ms expecte
 	cannot prove index `column` is within length 3 in read::entry
 fail/borrows/indexed_shared_primitive_loan_retains_backing rejected 4196ms expected @911f6617ba9e
 	statement 4 mutates `main.rows[__hoist_2].cells[__hoist_3].value` while local borrow `copied_value` is still active (borrowed at statement 1; its last use is at statement 5 and it is released at state exit)
-fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b1e6a51ea70
-	state `observe` receives `bytes` as both mutable and read-only
-	state `observe` receives `bytes` as both mutable and read-only
+fail/borrows/inline_carried_reference_holds_backing rejected 3473ms unexpected @4386462dff13
+	temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 0
 fail/borrows/invocation_lifetime_captured_body_return rejected 12633ms expected @4815ea579d91
 	machine `callback` returns a view borrowing input `context`, which is not permitted by the declared result lifetime relation
 fail/borrows/local_array_borrow_operand_read rejected 1906ms expected @ccdb99ca2214
@@ -1577,11 +1579,8 @@ fail/borrows/nested_callable_field_regions_swapped rejected 2654ms expected @ccd
 	machine `Separate::join` state `join` does not satisfy trait `Joining` machine `join`: conformance borrow contract: callable returned view has a different input-source relation
 fail/borrows/nested_machine_carried_field_sibling_rejected rejected 12365ms expected @ccdb99ca2214
 	statement 5 mutates `second.value` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 6)
-fail/borrows/nested_machine_carried_live_child_rejected rejected 17528ms expected @ccdb99ca2214
-	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
-	statement 3 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
-	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
-	statement 5 creates local borrow `view` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 6)
+fail/borrows/nested_machine_carried_live_child_rejected rejected 17376ms unexpected @4386462dff13
+	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
 	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
 fail/borrows/nested_machine_carried_missing_repair_rejected rejected 15133ms expected @ccdb99ca2214
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 0): `slot` must hold a value again before this state's exits consume the borrow
@@ -1798,8 +1797,8 @@ fail/borrows/reference_selector_guard_rebound_index_rejected rejected 11180ms ex
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/borrows/region_store_live_sibling_reference rejected 2248ms expected regressed-from:checked @00a39fc4e84c
 	statement 9 mutates `parent` while local borrow `holders` is still active (borrowed at statement 5; it is reassigned at statement 11)
-fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
-	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1998ms unexpected @4386462dff13
+	machine `reject_live_write` state `entry` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
 fail/borrows/replaced_descriptor_stale_pointee_fact rejected 727ms expected @cdaaea7fffc3
 	cannot prove requires contract for call demand_old from exercise: message.body.value == 19 (needs fact `target.value == 19` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/returned_case_descriptor_live_write rejected 10302ms expected @8f21571f2eb6
@@ -1868,8 +1867,8 @@ fail/borrows/returned_slice_record_reference_conflict rejected 2515ms expected @
 	statement 3 mutates `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/returned_stored_view_reborrow_local_escape_rejected rejected 7506ms unexpected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `wrapper`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/returned_stored_view_reborrow_parent_write_rejected rejected 2462ms expected @ccdb99ca2214
-	statement 1 mutates `wrapper.bundle.windows[0][0]` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrows/returned_stored_view_reborrow_parent_write_rejected rejected 4022ms unexpected @4386462dff13
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 3, generation: 43 } in observe::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref-mut(named(name(nominal\\\\(package-owner\\\\(32:73feb2d1c6ef4f2a8449f9db0a223e42ed00deb089b5137676f1fc64843e7f0b\\\\)\\\\,path\\\\(Wrapper\\\\)\\\\))))"), expected None, path [Some(Field { symbol: Handle { arena_index: 668, generation: 1 } })] (1 segments)
 fail/borrows/returned_stored_view_reborrow_shared_crossing_rejected rejected 1104ms expected @ccdb99ca2214
 	machine `capture` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/returned_view_argument_retains_completed_child_backing rejected 2656ms expected @ccdb99ca2214
@@ -2878,27 +2877,27 @@ fail/calls/ordered_bound_requires_argument_rejected rejected 13643ms expected @c
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false (`2 > 5`)
 fail/calls/ordered_terminal_skipped_arm_type_rejected rejected 15129ms expected @32c7663ba3ad
 	argument `value` for state `identity` expects `u64`, got `bool`
-fail/calls/outcome_specific_computed_mutated rejected 2169ms expected @ccdb99ca2214
+fail/calls/outcome_specific_computed_mutated rejected 1816ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold + 1) in state `entry`
-fail/calls/outcome_specific_failure_selector rejected 2295ms expected @6970b2a448ed+wt
+fail/calls/outcome_specific_failure_selector rejected 2140ms expected @ea12dfca92e4
 	outcome proof selector `selected` is not a named guarantee of the matching result case
-fail/calls/outcome_specific_later_mutated rejected 3435ms expected @ccdb99ca2214
+fail/calls/outcome_specific_later_mutated rejected 1711ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_mixed_mutated rejected 3129ms expected @ccdb99ca2214
+fail/calls/outcome_specific_mixed_mutated rejected 1631ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:pair(gate.threshold,count) in state `entry`
-fail/calls/outcome_specific_mutated_subject rejected 2962ms expected @ccdb99ca2214
+fail/calls/outcome_specific_mutated_subject rejected 1829ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_nonmatching_scope rejected 3348ms expected @ccdb99ca2214
+fail/calls/outcome_specific_nonmatching_scope rejected 1876ms expected @ea12dfca92e4
 	unknown incoming evidence term `proof` in call `accepted`; erased arguments must name an explicit requires binding
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(before.threshold) in state `entry`
-fail/calls/outcome_specific_primary_expression_mutated rejected 2770ms expected @ccdb99ca2214
+fail/calls/outcome_specific_primary_expression_mutated rejected 1781ms expected @ea12dfca92e4
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold) in state `entry`
-fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 10019ms expected @ccdb99ca2214
+fail/calls/outcome_specific_witness_on_nonmatching_exit rejected 14941ms expected @ea12dfca92e4
 	outcome-specific evidence `selected` is assigned on a nonmatching ordinary exit through pick::entry
 fail/calls/plain_let_reassign_rejected rejected 14995ms expected @ccdb99ca2214
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
@@ -3651,10 +3650,8 @@ fail/contracts/recursive_result_bound_changed_actual rejected 2897ms expected @c
 fail/contracts/referent_replacement_false_guarantee rejected 1894ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from replace at statement 2: pair.first.value == 7
 	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 7
-fail/contracts/replacement_call_child_false_snapshot rejected 2350ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from false_producer at statement 0: result == 9
-	cannot prove ensures contract for exit from overwrite at statement 2: pair.first.value == 9
-	cannot prove ensures contract for exit from install_interval at statement 1: pair.first.value == 9
+fail/contracts/replacement_call_child_false_snapshot rejected 2297ms unexpected @4386462dff13
+	machine `false_producer` ensures contract proof fact `result == 9` is disproved by constant arithmetic on the transition arm guarded by `<always>`
 fail/contracts/requires_disequality_leaves_crash_route_open rejected 4265ms expected @c608e6488bb9
 	call from `divide` to `bad` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 	machine `divide` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
@@ -9073,7 +9070,9 @@ fail/facts/foreign_nested_record_backing_call_result rejected 11020ms expected @
 	statement 5 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_nested_record_backing_const_name rejected 11285ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_nested_record_backing_field rejected 9469ms expected @ee4dbb4b2d56
+fail/facts/foreign_nested_record_backing_field rejected 5732ms expected @6861742e58f5
+	statement 6 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.cell.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 6 reads `buffer.cell.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/foreign_nested_record_backing_local rejected 9749ms expected @5310cdb20eac
 	statement 4 reads `buffer.cell.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
@@ -9112,36 +9111,32 @@ fail/facts/foreign_package_service_reach_through_parameter_rejected rejected 104
 	machine `shout` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
 fail/facts/foreign_package_service_reach_through_target_body_rejected rejected 9994ms expected @c03602bad609
 	machine `UpperShouting::shout` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
-fail/facts/foreign_reference_result_through_call_result_rejected rejected 60039ms expected @9e24c7342c2a
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_const_name_rejected rejected 30614ms expected @9e24c7342c2a
-	state `apply` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_field_rejected rejected 29989ms expected @9e24c7342c2a
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_local_rejected rejected 16770ms expected @9e24c7342c2a
-	state `apply` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_match_join_rejected rejected 20152ms expected @9e24c7342c2a
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_other_machine_rejected rejected 18496ms expected @9e24c7342c2a
-	state `forward` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_other_state_rejected rejected 18255ms expected @9e24c7342c2a
-	state `nested` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_parameter_rejected rejected 17500ms expected @9e24c7342c2a
-	state `receive` receives `Memory.fill(cell, 37, 8)` without an exact retained backing for its loan: the completed call has no declared return-source relation
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
-fail/facts/foreign_reference_result_through_target_body_rejected rejected 16746ms expected @9e24c7342c2a
-	state `apply` receives `selected` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-	machine `fill` returns a view whose access cannot be supplied by matching input `value`
+fail/facts/foreign_reference_result_through_call_result_rejected rejected 2948ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `select` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_const_name_rejected rejected 2819ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13527, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_field_rejected rejected 2800ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13526, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_local_rejected rejected 2924ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_match_join_rejected rejected 3181ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `first_choice` state `entry` statement 1: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_other_machine_rejected rejected 3416ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_other_state_rejected rejected 2648ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_parameter_rejected rejected 2902ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13525, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
+fail/facts/foreign_reference_result_through_target_body_rejected rejected 2550ms unexpected @4386462dff13
+	normal call `fill` (Handle { arena_index: 13523, generation: 1 }) in machine `journey` state `entry` statement 0: completed call result has no complete reference set
 fail/facts/foreign_retained_mutable_borrow_call_result rejected 10237ms expected @5310cdb20eac
 	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/facts/foreign_retained_mutable_borrow_const_name rejected 11838ms expected @5310cdb20eac
 	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/foreign_retained_mutable_borrow_field rejected 8638ms expected @ee4dbb4b2d56
+fail/facts/foreign_retained_mutable_borrow_field rejected 6566ms expected @6861742e58f5
+	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
+	statement 6 reads `buffer.value` while local borrow `envelope` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/foreign_retained_mutable_borrow_local rejected 10538ms expected @5310cdb20eac
 	statement 4 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 6)
@@ -9149,10 +9144,7 @@ fail/facts/foreign_retained_mutable_borrow_match_join rejected 11613ms expected 
 	statement 6 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 8)
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 	statement 6 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 12176ms expected @5310cdb20eac
-	statement 11 creates local borrow `mutable_envelope` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
-	statement 12 creates local borrow `mutable_routed` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
-	statement 12 creates local borrow `mutable_routed` while local borrow `mutable_forwarded` is still active (borrowed at statement 10; its last use is at statement 17)
+fail/facts/foreign_retained_mutable_borrow_mixed_issuers_live rejected 6746ms expected @6861742e58f5
 	statement 13 reads `mutable_buffer.value` while local borrow `mutable_pending` is still active (borrowed at statement 9; its last use is at statement 17)
 	statement 13 reads `mutable_buffer.value` while local borrow `mutable_forwarded` is still active (borrowed at statement 10; its last use is at statement 17)
 	statement 13 reads `mutable_buffer.value` while local borrow `mutable_envelope` is still active (borrowed at statement 11; its last use is at statement 17)
@@ -9184,8 +9176,9 @@ fail/facts/foreign_retained_mutable_borrow_stale_completion_fact rejected 11282m
 fail/facts/foreign_retained_mutable_borrow_target_body rejected 8206ms expected @5310cdb20eac
 	statement 5 reads `buffer.value` while local borrow `pending` is still active (borrowed at statement 3; its last use is at statement 7)
 	statement 5 reads `buffer.value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 14649ms expected @ee4dbb4b2d56
-	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
+fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 5801ms expected @6861742e58f5
+	statement 13 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 16)
+	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 16)
 fail/facts/foreign_retained_shared_borrow_call_result rejected 10810ms expected @5310cdb20eac
 	statement 4 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 6)
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
@@ -9209,10 +9202,12 @@ fail/facts/foreign_retained_shared_borrow_other_state rejected 11069ms expected 
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/foreign_retained_shared_borrow_parameter rejected 10913ms expected @5310cdb20eac
 	statement 3 mutates `buffer.value` while local borrow `pending` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 14375ms expected @ee4dbb4b2d56
-	statement 9 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 10)
-fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 17362ms expected @ee4dbb4b2d56
-	statement 9 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 10)
+fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 4842ms expected @6861742e58f5
+	statement 9 mutates `first_buffer.value` while local borrow `first` is still active (borrowed at statement 4; its last use is at statement 12)
+	statement 9 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 6; its last use is at statement 12)
+fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 3823ms expected @6861742e58f5
+	statement 9 mutates `second_buffer.value` while local borrow `second` is still active (borrowed at statement 5; its last use is at statement 12)
+	statement 9 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 12)
 fail/facts/foreign_retained_shared_borrow_retained_escape rejected 10795ms expected @5310cdb20eac
 	machine `escape` returns a view borrowing the local `buffer`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 10661ms expected @5310cdb20eac
@@ -18441,6 +18436,9 @@ fail/slices/bare_range_at_mutable_return rejected 758ms expected @ccdb99ca2214
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/bare_range_at_mutable_transition_return rejected 862ms expected @ccdb99ca2214
 	machine `middle` state `entry` return value receives a bare range that forms a shared view; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
+fail/slices/bare_range_returned_subslice_source_write rejected 4270ms expected @66914f73c885
+	statement 4 mutates `main.buffer[1]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
+	statement 4 mutates `main.buffer[1]` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/slices/bare_subslice_call_cannot_lend_mutable rejected 800ms expected @ccdb99ca2214
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but a bare range forms a shared view and the caller lends only immutable access; `bare-range-reference-access` spells the mutable subrange `&mut collection[start..end]`
 fail/slices/byte_view_element_reference_without_bound rejected 1763ms expected @ccdb99ca2214
@@ -18595,8 +18593,8 @@ fail/slices/reborrowed_reference_retarget rejected 2191ms expected @ccdb99ca2214
 	cannot prove index `selected` is within unknown slice length of `output` in store::entry
 	cannot prove index `selected` is within unknown slice length of `output` in store::entry
 	cannot prove index `output[selected].count` is within unknown slice length of `output[selected].values` in store::entry
-fail/slices/reborrowed_replaced_descriptor rejected 2022ms expected @ccdb99ca2214
-	cannot prove index `output[selected].count` is within unknown slice length of `output[selected].values` in store::entry
+fail/slices/reborrowed_replaced_descriptor rejected 2322ms unexpected @4386462dff13
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `store` state `entry` at statement 5: assignment has no complete incoming storage prefix
 fail/slices/reborrowed_window_does_not_inherit_whole_bounds rejected 820ms expected @ccdb99ca2214
 	exact arithmetic in machine `increment` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/rebound_slice_local_index_uses_new_extent rejected 4938ms expected @a55978ecf3a8
@@ -18697,17 +18695,15 @@ fail/slices/stored_shared_view_mutable_call rejected 842ms expected @ccdb99ca221
 	argument `values` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/slices/stored_view_alias_replacement_bounds rejected 2490ms expected @ccdb99ca2214
 	cannot prove index `position` is within unknown slice length of `alias.values` in replace::entry
-fail/slices/stored_view_backing_mutated_while_returned_live rejected 1280ms expected @ccdb99ca2214
-	statement 4 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 2; its last use is at statement 5)
-	statement 4 mutates `original[0].value` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/slices/stored_view_backing_mutated_while_returned_live rejected 1762ms unexpected @4386462dff13
+	returned view has no complete formation frontier
 fail/slices/stored_view_callee_changed_selector_bounds rejected 1611ms expected @ccdb99ca2214
 	cannot prove index `selected` is within length 2 in overwrite::entry
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
 fail/slices/stored_view_changed_selector_bounds rejected 2107ms expected @ccdb99ca2214
 	cannot prove index `0` is within unknown slice length of `output.values` in overwrite::entry
-fail/slices/stored_view_container_read_while_returned_live rejected 1751ms expected @ccdb99ca2214
-	state `observe` receives `windows[1].values` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
-	statement 4 reads `windows[1].values` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/slices/stored_view_container_read_while_returned_live rejected 1692ms unexpected @4386462dff13
+	returned view has no complete formation frontier
 fail/slices/stored_write_only_view_mutable_call rejected 809ms expected @ccdb99ca2214
 	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
@@ -19818,8 +19814,10 @@ fail/wire/reflection_callback_not_unique rejected 6760ms expected @4815ea579d91
 	generic machine `visit_runtime_fields` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Machine slot `Visitor` has no proposal
 fail/wire/reflection_foreign_query_without_delegation rejected 10297ms expected @4815ea579d91
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/wire/returned_preserving_remainder_input_write rejected 55795ms expected @1e29a538216e
-	statement 6 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 7 and it is released at state exit)
+fail/wire/returned_preserving_remainder_input_write rejected 15050ms expected @66914f73c885
+	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
+	state `refused` receives `main` while local borrow `decoded` is still active
+	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 13523ms expected @1e29a538216e
 	machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments
 	machine `SelectedCodec::field` requires type predicate does not hold for the supplied arguments
@@ -20142,9 +20140,11 @@ pass/borrows/borrowed_window_parameter_provenance_exit checked 3456ms check-targ
 pass/borrows/boundary_scalar_slice_write_exit checked 3831ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/branch_selected_record_composed_receiver_exit checked 16605ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/branch_selected_record_receiver_exit checked 19054ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/call_replaced_local_backing_releases_exit checked 6802ms check-target:macos_arm64 @6861742e58f5
 pass/borrows/callee_returned_shared_reborrow_chain_exit checked 2867ms check-target:macos_arm64 @1f01fe627c9b
 pass/borrows/captured_state_shared_reborrow checked 5573ms check-target:macos_arm64 @230151eef4fe
-pass/borrows/carried_loan_replacement checked 3528ms @ccdb99ca2214
+pass/borrows/carried_loan_replacement rejected 1998ms regressed-from:checked @4386462dff13
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
 pass/borrows/carry_permission_alias checked 8917ms @ee4dbb4b2d56
 pass/borrows/carry_property_declared checked 3255ms @ccdb99ca2214
 pass/borrows/case_payload_shared_transition_exit checked 34572ms check-target:macos_arm64 @8fce926f9735
@@ -20186,10 +20186,12 @@ pass/borrows/formed_mutable_slice_argument_completion_exit checked 3970ms check-
 pass/borrows/generic_record_slice_referent_exit rejected 6792ms check-target:macos_arm64 @ac4821665951+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "loan retirement requires a descriptor carrier", gap: None })
 pass/borrows/guard_subject_ends_before_returning_call_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/incoming_reference_slot_replacement_exit checked 4353ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/incoming_reference_slot_replacement_exit rejected 7123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(9), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/indexed_record_field_replacement_exit checked 16352ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/initialized_empty_array_snapshot_replacement_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/inline_carried_reference_exit checked 13975ms check-target:macos_arm64 @6b1e6a51ea70
+pass/borrows/inline_carried_reference_exit rejected 4180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	temporary backing lifetime coverage is unavailable for an operand of `entry` in state `entry` at statement 2
 pass/borrows/interleaved_parameter_field_replacement_exit checked 19013ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/later_state_reference_field_loan_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/lifetime_return_borrow checked 3542ms @ccdb99ca2214
@@ -20392,7 +20394,8 @@ pass/borrows/runtime_nested_owned_call_backing_exit checked 3163ms check-target:
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 77610ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_nested_reference_partition_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 68753ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_owned_carrier_descriptor_replacement_exit checked 4144ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_owned_carrier_descriptor_replacement_exit rejected 5907ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(14), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/runtime_owned_carrier_indexed_referent_store_exit checked 3965ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_owned_generic_carrier_reborrow_exit checked 4756ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_owned_input_reference_replacement_copies_exit checked 2855ms check-target:macos_arm64 @ccdb99ca2214
@@ -20452,7 +20455,8 @@ pass/borrows/runtime_returned_owned_sibling_descriptor_exit checked 3851ms check
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 107018ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 77761ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 61137ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_returned_stored_view_reborrow_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_returned_stored_view_reborrow_exit rejected 4951ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned projection source permission is unavailable: the saved descriptor has no complete checked borrowing source; source Handle { arena_index: 3, generation: 43 } in observe::entry statement 0: no exact invocation access supplies this descriptor; carrier Some("ref-mut(named(name(nominal\\\\(package-owner\\\\(32:be372796d57980f8ac38e63d71a64c4cc81ea06783463ac569414c6ddb89f14f\\\\)\\\\,path\\\\(Wrapper\\\\)\\\\))))"), expected None, path [Some(Field { symbol: Handle { arena_index: 668, generation: 1 } })] (1 segments)
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_scalar_field_local_loan_handback_exit checked 9013ms check-target:macos_arm64 @f07ae35f9283
 pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target:macos_arm64 @ccdb99ca2214
@@ -20490,7 +20494,8 @@ pass/borrows/runtime_stored_carrier_exchange_exit incomplete 11500ms check-targe
 	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 5
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit checked 80189ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_stored_reference_array_leaf_retirement_exit checked 83850ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_stored_reference_case_residual_retirement_exit checked 72752ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/runtime_stored_reference_case_residual_retirement_exit rejected 21360ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	state `selected` receives `main` while local borrow `pair` is still active (borrowed at statement 2; its last use is at statement 9)
 pass/borrows/runtime_stored_reference_child_constructor_retirement_exit checked 72165ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_stored_reference_leaf_call_retirement_exit checked 69384ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_stored_reference_leaf_child_retirement_exit checked 67584ms check-target:macos_arm64 @911f6617ba9e
@@ -20844,18 +20849,15 @@ pass/calls/nonreturning_record_match_stopped_exit checked 17453ms check-target:m
 pass/calls/nonreturning_scalar_arithmetic_operand_exit checked 15624ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/nonreturning_scalar_call_initialization_exit checked 17836ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/ordered_field_selector_calls_exit checked 65924ms check-target:macos_arm64 @911f6617ba9e
-pass/calls/outcome_specific_closed_argument checked 3561ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_later_snapshot incomplete 3624ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `probe::accepted` reaches no executable callee plan; in state `probe::entry`, statement 5
+pass/calls/outcome_specific_closed_argument checked 5713ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_later_snapshot checked 5719ms check-target:macos_arm64 @ea12dfca92e4
 pass/calls/outcome_specific_mixed_snapshot rejected 3990ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("guarded evidence input has no current selected result case"))
-pass/calls/outcome_specific_nested_formals checked 3119ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_primary_expression incomplete 3539ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `accepted` reaches no executable callee plan; in state `probe::entry`, statement 6
-pass/calls/outcome_specific_root_exit checked 3478ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_snapshot_runtime checked 3339ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/outcome_specific_snapshot_subject incomplete 3111ms check-target:macos_arm64 regressed-from:checked @ccdb99ca2214
-	`main` calls `probe`; `probe` has no executable body: its call of `probe::accepted` reaches no executable callee plan; in state `probe::entry`, statement 6
+pass/calls/outcome_specific_nested_formals checked 5340ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_primary_expression checked 5220ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_root_exit checked 4878ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_snapshot_runtime checked 5251ms check-target:macos_arm64 @ea12dfca92e4
+pass/calls/outcome_specific_snapshot_subject checked 5564ms check-target:macos_arm64 @ea12dfca92e4
 pass/calls/owned_indirect_argument_complete_forwarding_exit checked 3761ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_mixed_overaligned_call checked 12475ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/owned_overaligned_local_call checked 3953ms check-target:macos_arm64 @ccdb99ca2214
@@ -22491,7 +22493,8 @@ pass/facts/array_element_default_domain/target_body checked 4046ms check-target:
 pass/facts/as_slice_views_generic_offset_selector_exit checked 4244ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_root_exit checked 3662ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_shadowed_extent_exit checked 4306ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/as_slice_views_generic_stored_reference_selectors_exit checked 3736ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/as_slice_views_generic_stored_reference_selectors_exit rejected 5664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	cannot prove ensures contract for exit from whole_view at statement 0: result.len == Count
 pass/facts/as_slice_views_generic_through_call_result_exit checked 4143ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_through_const_name_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/as_slice_views_generic_through_field_exit checked 3995ms check-target:macos_arm64 @ccdb99ca2214
@@ -23741,7 +23744,7 @@ pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 4
 pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 5021ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_nested_record_backing_call_result checked 14903ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_nested_record_backing_const_name checked 14969ms check-target:macos_arm64 @5310cdb20eac
-pass/facts/foreign_nested_record_backing_field checked 16294ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_nested_record_backing_field checked 8187ms check-target:macos_arm64 @6861742e58f5
 pass/facts/foreign_nested_record_backing_local checked 13220ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_nested_record_backing_match_join checked 14532ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_nested_record_backing_other_machine checked 14673ms check-target:macos_arm64 @5310cdb20eac
@@ -23769,16 +23772,16 @@ pass/facts/foreign_reference_result_through_parameter_exit checked 21129ms check
 pass/facts/foreign_reference_result_through_target_body_exit checked 62316ms check-target:macos_arm64 @9e24c7342c2a
 pass/facts/foreign_retained_mutable_borrow_call_result checked 14729ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_const_name checked 14498ms check-target:macos_arm64 @5310cdb20eac
-pass/facts/foreign_retained_mutable_borrow_field checked 12925ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_mutable_borrow_field checked 8040ms check-target:macos_arm64 @6861742e58f5
 pass/facts/foreign_retained_mutable_borrow_local checked 14373ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_match_join checked 13028ms check-target:macos_arm64 @5310cdb20eac
-pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 18306ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_mutable_borrow_mixed_issuers checked 8125ms check-target:macos_arm64 @6861742e58f5
 pass/facts/foreign_retained_mutable_borrow_other_machine checked 13144ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_other_state checked 13090ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_parameter checked 12618ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_reverse_completion checked 13020ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_mutable_borrow_target_body checked 13373ms check-target:macos_arm64 @5310cdb20eac
-pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap checked 17089ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_shared_borrow_borrowed_slot_swap checked 8074ms check-target:macos_arm64 @6861742e58f5
 pass/facts/foreign_retained_shared_borrow_call_result checked 18919ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_const_name checked 18293ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_enclosing_allocation checked 15174ms check-target:macos_arm64 @5310cdb20eac
@@ -23788,8 +23791,8 @@ pass/facts/foreign_retained_shared_borrow_match_join checked 14083ms check-targe
 pass/facts/foreign_retained_shared_borrow_other_machine checked 13705ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_other_state checked 14440ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_parameter checked 13655ms check-target:macos_arm64 @5310cdb20eac
-pass/facts/foreign_retained_shared_borrow_persistent_restore checked 13754ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/foreign_retained_shared_borrow_persistent_retention checked 19040ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/foreign_retained_shared_borrow_persistent_restore checked 7963ms check-target:macos_arm64 @6861742e58f5
+pass/facts/foreign_retained_shared_borrow_persistent_retention checked 7752ms check-target:macos_arm64 @6861742e58f5
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 12383ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 14447ms check-target:macos_arm64 @5310cdb20eac
 pass/facts/foreign_retained_shared_borrow_resident_whole_move checked 13825ms check-target:macos_arm64 @5310cdb20eac
@@ -24912,15 +24915,24 @@ pass/facts/recorded_build_role/other_machine checked 17905ms check-target:macos_
 pass/facts/recorded_build_role/other_state checked 18217ms check-target:macos_arm64 @1a41b8e686ed
 pass/facts/recorded_build_role/parameter checked 19855ms check-target:macos_arm64 @1a41b8e686ed
 pass/facts/recorded_build_role/target_body checked 18785ms check-target:macos_arm64 @1a41b8e686ed
-pass/facts/recoverable_replacement_window_through_call_result_exit checked 17462ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_const_name_exit checked 16861ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_field_exit checked 19665ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_local_exit checked 16861ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_match_join_exit checked 16463ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_other_machine_exit checked 14046ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_other_state_exit checked 12950ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_parameter_exit checked 14120ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/facts/recoverable_replacement_window_through_target_body_exit checked 17597ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/facts/recoverable_replacement_window_through_call_result_exit incomplete 5815ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `prepare`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_const_name_exit incomplete 5591ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_field_exit incomplete 6791ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_local_exit incomplete 5851ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_match_join_exit incomplete 6388ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `choose`, which calls `prepare`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_other_machine_exit incomplete 6700ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `forward`, which calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_other_state_exit incomplete 6411ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_parameter_exit incomplete 5858ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`main` calls `repair`; `repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `repair::entry`, statement 2
+pass/facts/recoverable_replacement_window_through_target_body_exit incomplete 5512ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	`X86Repair::repair` has no executable body: this compiler does not lower a statement of it yet (statement sequence: assignment: structural operand custody); in state `X86Repair::repair::repair`, statement 3
 pass/facts/reference_arrival_handoff_through_call_result_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_const_name_exit checked 4195ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_field_exit checked 4159ms check-target:macos_arm64 @ccdb99ca2214
@@ -27286,7 +27298,8 @@ pass/ownership/runtime_captured_exclusive_argument_exit checked 13405ms check-ta
 pass/ownership/runtime_captured_replacement_selector_exit checked 25789ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_captured_selector_call_exit checked 12576ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_captured_selector_partial_cleanup_exit checked 12975ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/runtime_carried_loan_field_replacement_exit rejected 11535ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	machine `Main::main` state `main` expression type application uses undeclared lifetime argument `'storage' in `Carrier`; declare it in the owner's generic parameter list
 pass/ownership/runtime_case_alternative_custody_exit checked 17691ms check-target:macos_arm64 @cd110dbe60a3
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_completed_case_claim_return_exit checked 2842ms check-target:macos_arm64 @ab6bb7225261
@@ -27945,6 +27958,7 @@ pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
 pass/relevance/runtime_static_proof_namespace_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
 pass/resources/owned_extent_label_erasure_exit checked 25697ms check-target:macos_arm64 @089c0a150e63
+pass/slices/bare_range_returned_subslice_exit checked 5613ms check-target:macos_arm64 @66914f73c885
 pass/slices/bounded_byte_parameter_range_exit checked 3766ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/byte_sequence_literal_tail_return_compile checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/callee_non_byte_view_len_index_subslice checked 12549ms check-target:macos_arm64 @ccdb99ca2214
@@ -28040,7 +28054,8 @@ pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_
 pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
 pass/slices/runtime_inclusive_call_endpoint_order_exit checked 29369ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_indexed_descriptor_replacement_call_exit checked 4113ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_indexed_descriptor_replacement_call_exit rejected 4980ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned view has no complete formation frontier
 pass/slices/runtime_indexed_record_field_range_exit checked 8680ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit checked 4276ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_indexed_store_operand_effect_order_exit checked 4064ms check-target:macos_arm64 @ccdb99ca2214
@@ -28063,7 +28078,8 @@ pass/slices/runtime_namespace_range_contract_exit checked 3892ms check-target:ma
 pass/slices/runtime_nested_descriptor_scalar_store_exit checked 15376ms check-target:macos_arm64 @602404d45977
 pass/slices/runtime_nested_machine_field_window_exit checked 2891ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_stored_view_element_replacement_exit checked 2945ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_nested_stored_view_return_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_nested_stored_view_return_exit rejected 4255ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned view has no complete formation frontier
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 12724ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_view_candidate_backings_exit checked 3449ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5433ms check-target:macos_arm64 @00a39fc4e84c
@@ -28102,9 +28118,12 @@ pass/slices/runtime_slice_record_field_offset_exit checked 12251ms check-target:
 pass/slices/runtime_state_cycle_tagged_reference_argument checked 6198ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_state_selected_nested_view_exit rejected 3393ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
-pass/slices/runtime_stored_element_view_replacement_exit checked 3239ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_stored_view_direct_window_argument_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_stored_view_dynamic_selection_exit checked 3522ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_stored_element_view_replacement_exit rejected 5088ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned projection exceeds its source presentation
+pass/slices/runtime_stored_view_direct_window_argument_exit rejected 4664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned view has no complete formation frontier
+pass/slices/runtime_stored_view_dynamic_selection_exit rejected 4187ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4386462dff13
+	returned view has no complete formation frontier
 pass/slices/runtime_subslice_and_element_read_call_operands_exit checked 12593ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_subslice_dynamic_index_exit checked 11621ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/runtime_subslice_len_exit checked 13172ms check-target:macos_arm64 @ccdb99ca2214
@@ -28845,7 +28864,7 @@ run/calls/nested_range_call_operands checked 15760ms check-target:macos_arm64 @6
 run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
 run/calls/nested_static_implementation_shadow checked 11504ms check-target:macos_arm64 @5708d93d2a13
 run/calls/ordered_literal_call_operands checked 3697ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/outcome_specific_selected_guarantee_exit checked 66263ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_exit checked 19918ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
@@ -28854,11 +28873,11 @@ run/calls/outcome_specific_selected_guarantee_input_exit rejected 8279ms check-t
 run/calls/outcome_specific_selected_guarantee_inputs_exit rejected 6914ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_nested_exit checked 78318ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_nested_exit checked 14922ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/outcome_specific_selected_guarantee_result_exit rejected 7362ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `succeed` state `entry` uses `selected`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 	machine `succeed` state `entry` assignment cannot write `selected` because it is not mutable in this state (if `selected` is undeclared -- a typo -- no such field or local exists)
-run/calls/outcome_specific_selected_guarantee_variants_exit checked 75509ms check-target:macos_arm64 @c3cb68d51f3f
+run/calls/outcome_specific_selected_guarantee_variants_exit checked 15173ms check-target:macos_arm64 @ea12dfca92e4
 run/calls/owned_literal_call_operands checked 2565ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_exit checked 3003ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/projected_call_domain_plain_exit checked 3007ms check-target:macos_arm64 @ccdb99ca2214
