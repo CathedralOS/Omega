@@ -187,5 +187,5 @@ if skip:
 open(out, "w").write(json.dumps(obj, indent=2))
 print(status, (brk or "?")[:12], "pr", pr, "good", good[:12])
 PY
-BISECT_REPO_ROOT="$ROOT" python3 "$ENRICH" "$OUT_JSON"
+BISECT_REPO_ROOT="$ROOT" BISECT_STEP_LOG="${BISECT_STEP_LOG:-$MAIN_REPO/.agents/ledger-bisect-2026-11-11/bisect_steps.tsv}" python3 "$ENRICH" "$OUT_JSON"
 git checkout -f "$START_SHA" >/dev/null 2>&1
