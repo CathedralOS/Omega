@@ -1,0 +1,22 @@
+// Disjunctive equality 
+    transition { _ -> product(position, side) }
+    machine product(position: i32, side: i32) -> i32
+    requires position >= 0 && position <= 3 && (side == 0 || side == 1)
+    {
+        position * 2 + side
+    }
+}
+
+machine slot_mirrored(position: i32, side: i32) -> i32
+requires position >= 0 && position <= 3 && (0 == side || 1 == side)
+ensures result >= 0 && result < 8
+{
+    side + position * 2
+}
+
+machine main() {
+    let mut values: [f64; 8] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let direct: i32 = slot(1, 0);
+    values[direct] = 2.0;
+    values[slot_mirrored(3, 1)] = 7.0;
+}
