@@ -4393,10 +4393,11 @@ mod reads {
                         loan.owner_symbol,
                     )?;
                     /*
-                        Ending the source path also runs the state's exit cleanup,
-                        which may still read an owned local. Only a reference local,
-                        or a local whose cleanup runs no code and whose last use is
-                        this statement, holds nothing past its final observation here.
+                        Ending the source path skips every later statement, so a later
+                        arm's read is no use on this path; only the state's exit
+                        cleanup could still read an owned local. A reference local, or
+                        a local whose cleanup runs no code, holds nothing past its
+                        final observation here.
                     */
                     let reference = matches!(
                         program
@@ -4404,10 +4405,9 @@ mod reads {
                             .type_reference(local.type_reference),
                         typed_trees::types::TypeReferenceNode::Reference { .. }
                     );
-                    let codeless_last_use = loan.last_use_statement_index
-                        == statement.statement_index
-                        && validation::has_no_code_cleanup_contents(program, local.type_reference);
-                    if !reference && !codeless_last_use {
+                    if !reference
+                        && !validation::has_no_code_cleanup_contents(program, local.type_reference)
+                    {
                         return None;
                     }
                 }
@@ -4458,32 +4458,43 @@ mod reads {
     }
 
     /*
-        Whether `alias` is the generated subject a match transition reads in
-        place of the whole local `owner` (`let __transition_subject#N = owner`).
+        The whole local a match transition's generated subject alias reads in its
+        place (`let __transition_subject#N = owner` or `= &owner`). The alias has
+        no storage of its own: observations and payload projections through it are
+        observations and projections of `owner`.
     */
+    fn transition_subject_owner(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        alias: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        let (_, local) = program.state_local_declaration(state, alias)?;
+        if !local.name.as_str().starts_with("__transition_subject#") {
+            return None;
+        }
+        let mut initializer = local.initial_value;
+        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initializer) {
+            initializer = borrow.target;
+        }
+        match program.expression_table.expression(initializer) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && path.symbol == path.head_symbol
+                    && program.expression_table.name_path_members(path.members).len() == 1 =>
+            {
+                Some(path.symbol)
+            }
+            _ => None,
+        }
+    }
+
     fn transition_subject_aliases(
         program: &dyn ::validation::CheckingInput,
         state: &typed_trees::state::State,
         alias: SymbolHandle,
         owner: SymbolHandle,
     ) -> bool {
-        let Some((_, local)) = program.state_local_declaration(state, alias) else {
-            return false;
-        };
-        if !local.name.as_str().starts_with("__transition_subject#") {
-            return false;
-        }
-        let mut initializer = local.initial_value;
-        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initializer) {
-            initializer = borrow.target;
-        }
-        matches!(
-            program.expression_table.expression(initializer),
-            ExpressionNode::Name(path)
-                if path.symbol == owner
-                    && path.head_symbol == owner
-                    && program.expression_table.name_path_members(path.members).len() == 1
-        )
+        transition_subject_owner(program, state, alias) == Some(owner)
     }
 
     /*
