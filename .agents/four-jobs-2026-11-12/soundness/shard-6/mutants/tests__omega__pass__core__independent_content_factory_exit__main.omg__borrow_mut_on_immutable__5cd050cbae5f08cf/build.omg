@@ -1,0 +1,13 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "issued_box_boundary_2");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<Factory, SourceFactory>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<Factory, SourceFactory>(builder, linux_x86_64);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider<Factory, SourceFactory>(builder, linux_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<Factory, SourceFactory>(builder, macos_arm64);
+    Build::bind(builder, macos_x86_64::ProgramEntry, main);
+    Build::select_provider<Factory, SourceFactory>(builder, macos_x86_64);
+}
