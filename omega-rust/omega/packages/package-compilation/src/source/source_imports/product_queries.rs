@@ -212,6 +212,9 @@ impl ProductQueryInputs {
 
     pub(crate) fn mount(&self, storage: &mut SourceStorage) -> Result<(), Vec<Diagnostic>> {
         for graph in self.graphs() {
+            storage.require_disjoint_contract_packages(graph)?;
+        }
+        for graph in self.graphs() {
             storage
                 .filesystem
                 .join_captures(graph.source_filesystem())

@@ -141,7 +141,7 @@ impl DeferredProductSources {
         }
         for seed in inputs.entry_contract_seeds(&storage)? {
             imports.seed(
-                seed.register_custody(&mut storage),
+                seed.register_custody(&mut storage)?,
                 source::DependencyScope::Product,
             );
         }
@@ -498,7 +498,7 @@ impl ImmutableSourceParseCheckpoint {
         if !seeds.is_empty() {
             for seed in seeds {
                 imports.seed(
-                    seed.register_custody(&mut source_storage),
+                    seed.register_custody(&mut source_storage)?,
                     source::DependencyScope::Product,
                 );
             }
