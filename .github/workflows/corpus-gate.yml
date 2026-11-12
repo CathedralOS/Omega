@@ -65,7 +65,12 @@ jobs:
     if: needs.plan.outputs.skip == 'false'
     name: shard ${{ matrix.shard }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # A shard that finds rows worse than the ledger runs them again and then
+    # builds the base commit to see whether main already lost them. On
+    # 2026-11-12 a shard spent 27 minutes on its build and first pass, found
+    # eight such rows, and was cancelled at 40 minutes before the base build
+    # finished, so rows main had already lost failed an unrelated change.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
