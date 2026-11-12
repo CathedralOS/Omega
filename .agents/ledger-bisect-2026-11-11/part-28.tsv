@@ -1,0 +1,13 @@
+fixture	class	first_diagnostic	cluster_id
+fail/facts/live_across_call_spill_through_other_state_rejected	fixed		
+fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected	fixed		
+fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected	fixed		
+fail/facts/scalar_sign_zero_extension_through_other_state_rejected	fixed		
+fail/facts/unsigned_exact_subtraction_interval_through_other_state_rejected	fixed		
+pass/expressions/match_owned_computed_arm_arguments	still-broken	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.	c0
+pass/arithmetic/modular_power_state_bounds_exit	fixed		
+pass/float/float_range_field_storage_exit	fixed		
+pass/generics/runtime_const_extent_origin_exit	fixed		
+pass/host/runtime_semantic_gui_reach_exit	fixed		
+fail/proofs/structural_application_premise_false_rejected	fixed		
+fail/traits/evidence_binder_given_data_type	fixed		

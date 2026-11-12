@@ -1,0 +1,22 @@
+pass/arithmetic/modular_power_state_bounds_exit checked 13446ms check-target:macos_arm64
+pass/expressions/match_owned_computed_arm_arguments rejected 6922ms check-target:macos_arm64
+	Exact integer cast in machine `exit` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+pass/float/float_range_field_storage_exit checked 10386ms check-target:macos_arm64
+pass/generics/runtime_const_extent_origin_exit checked 10851ms check-target:macos_arm64
+pass/host/runtime_semantic_gui_reach_exit rejected 7749ms check-target:macos_arm64
+	a value call to generic machine `macos_window_create` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+	argument `title` for state `macos_window_create` expects `&[u8; Count]`, got `indexed value`; expected carrier `ref(array(named(name(u8)),const-parameter(nominal\\(package-owner\\(32:1e7e5bf5d4036ea6f813db369bae4f107293555a43bb8c851830dc73c957ada3\\)\\,path\\(macos_window_create::Count\\)\\))))`, declared place carrier `named(name(u8))`
+fail/facts/live_across_call_spill_through_other_state_rejected rejected 1532ms unexpected
+	Exact integer cast in machine `step` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_sign_extension_through_other_state_rejected rejected 1568ms unexpected
+	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/narrow_to_wide_zero_extension_through_other_state_rejected rejected 1453ms unexpected
+	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/scalar_sign_zero_extension_through_other_state_rejected rejected 1543ms unexpected
+	Exact integer cast in machine `compute` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/unsigned_exact_subtraction_interval_through_other_state_rejected rejected 1526ms unexpected
+	Exact integer cast in machine `step` state `entry` from `u64` to `i32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/proofs/structural_application_premise_false_rejected rejected 2313ms unexpected
+	cannot prove requires contract for call bounded from main: selected(3) < 1 && 3 < 9 (needs fact `selected(value) < 1 && value < 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/evidence_binder_given_data_type rejected 1217ms unexpected
+	machine `apply` static argument 2 requires a named implementation
