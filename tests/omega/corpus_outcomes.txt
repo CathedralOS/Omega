@@ -19240,6 +19240,9 @@ fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 7358ms expected re
 	cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`
 fail/text/borrowed_byte_snapshot_unbounded rejected 3887ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/text/bounded_ascii_write_self_edge_breaks_class rejected 3217ms expected @780058414b56
+	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[__hoist_2]; bytes is part of [u8; N]::Ascii) in state `entry`
+	cannot prove default-domain field requirement for call replace from Main::main::main: parameter bytes requires [u8; N]::Ascii
 fail/text/bounded_carrier_growth_overflow_rejected rejected 32263ms expected @911f6617ba9e
 	cannot prove requires contract for call append from main: [111, 109, 101, 103, 97].len <= 16 - buffer.used (needs fact `bytes.len <= 16 - buffer.used` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/byte_field_snapshot_domain_widening rejected 8818ms expected @ccdb99ca2214
@@ -21591,8 +21594,7 @@ pass/control_flow/runtime_indexed_case_dispatch_exit checked 50126ms check-targe
 pass/control_flow/runtime_indexed_edge_regions_exit checked 17358ms check-target:macos_arm64 @602404d45977
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 12133ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_later_state_shared_array_loan checked 3086ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_local_record_array_byte_render_exit rejected 251352ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e1cfe02f1a9b
-	cannot prove requires contract for call emit_line from prepare_line: line in [u8; N]::Ascii (invalidated by prior mutation of line[__hoist_13]; line is part of [u8; N]::Ascii) in state `entry`
+pass/control_flow/runtime_local_record_array_byte_render_exit checked 27065ms check-target:macos_arm64 @780058414b56
 pass/control_flow/runtime_loop_patterns_exit checked 11002ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 19847ms check-target:macos_arm64 @61d32e24eb90
 pass/control_flow/runtime_namespace_local_state_loan checked 3983ms check-target:macos_arm64 @ccdb99ca2214
