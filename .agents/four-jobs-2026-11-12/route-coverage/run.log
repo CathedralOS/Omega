@@ -10,3 +10,112 @@ shard 5/8: 2174 fixtures, 2174 todo
 [225/2174] tests/omega/fail/core/scoped_integer_call_inherited_trait_operator_requires_formation/main.omg 10.4s
 [250/2174] tests/omega/fail/domains/domain_pattern_match_bound_generic_unrelated_equation_rejected/main.omg 1.3s
 [275/2174] tests/omega/fail/domains/target_issuer_nonrealized_predicate/main.omg 1.3s
+[300/2174] tests/omega/fail/facts/abi_multi_arg_spill_through_match_join_rejected/main.omg 2.4s
+[325/2174] tests/omega/fail/facts/atomic_bounded_fetch/const_name/main.omg 1.3s
+[350/2174] tests/omega/fail/facts/captured_window_slot_retirement_through_parameter_rejected/main.omg 2.3s
+[375/2174] tests/omega/fail/facts/checked_predicate_disjoint_loans_through_other_machine_rejected/main.omg 2.4s
+[400/2174] tests/omega/fail/facts/crash_entry_representation_view_through_match_join_rejected/main.omg 2.3s
+[425/2174] tests/omega/fail/facts/domain_carrier_identity_through_local_rejected/main.omg 1.2s
+[450/2174] tests/omega/fail/facts/finite_family_input_index/parameter/main.omg 2.5s
+[475/2174] tests/omega/fail/facts/foreign_retained_mutable_borrow_field/main.omg 3.1s
+[500/2174] tests/omega/fail/facts/indexed_element_mut_loan_through_field_rejected/main.omg 1.3s
+[525/2174] tests/omega/fail/facts/machine_tuple_dispatch_through_parameter_rejected/main.omg 1.4s
+[550/2174] tests/omega/fail/facts/nested_array_element_projection_through_call_result_rejected/main.omg 2.3s
+[575/2174] tests/omega/fail/facts/open_record_const_implementation_through_other_state_rejected/main.omg 1.7s
+[600/2174] tests/omega/fail/facts/recoverable_replacement_window_through_other_machine_rejected/main.omg 2.2s
+[625/2174] tests/omega/fail/facts/runtime_index_application_mutating_operator_through_match_join_rejected/main.omg 1.4s
+[650/2174] tests/omega/fail/facts/selected_crash_formal_through_other_machine_rejected/main.omg 2.6s
+[675/2174] tests/omega/fail/facts/signed_8bit_wrapping_arithmetic_bound_through_parameter_rejected/main.omg 2.5s
+[700/2174] tests/omega/fail/facts/static_callback_reach_through_call_result/main.omg 2.5s
+[725/2174] tests/omega/fail/facts/unsigned_64bit_saturating_multiplication_bound_through_other_state_rejected/main.omg 2.4s
+[750/2174] tests/omega/fail/facts/write_only_borrow_struct_destination_through_call_result_rejected/main.omg 2.3s
+[775/2174] tests/omega/fail/generics/authored_specialized_call_wrong_actual_rejected/main.omg 1.4s
+[800/2174] tests/omega/fail/generics/inferred_statement_lifetime_conformance_mismatch/main.omg 1.6s
+[825/2174] tests/omega/fail/inline_asm/asm_deriver_only_exit/main.omg 0.6s
+[850/2174] tests/omega/fail/machines/retired_self_receiver/main.omg 0.7s
+[875/2174] tests/omega/fail/ownership/local_subslice_window_wrong_repair/main.omg 1.3s
+[900/2174] tests/omega/fail/proofs/indexed_boolean_guarantee_after_write/main.omg 1.3s
+[925/2174] tests/omega/fail/proofs/structural_ensures_unjudged_rejected/main.omg 10.8s
+[950/2174] tests/omega/fail/ranges/subject_guard_compound_index_mutated/main.omg 1.3s
+[975/2174] tests/omega/fail/slices/predicate_scalar_result_invalid_membership/main.omg 2.4s
+[1000/2174] tests/omega/fail/termination/progress_selector_owned_arrival_borrowed_reborrow_exit/main.omg 2.3s
+[1025/2174] tests/omega/fail/traits/explicit_implementation_binder_trait_arguments/main.omg 1.1s
+[1050/2174] tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg 13.7s
+[1075/2174] tests/omega/pass/borrow/runtime_write_only_local_affine_aggregate_exit/main.omg 3.1s
+[1100/2174] tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/main.omg 3.2s
+[1125/2174] tests/omega/pass/borrows/runtime_whole_referent_payload_case_store_exit/main.omg 14.3s
+[1150/2174] tests/omega/pass/build/runtime_static_service_exclusion_exit/main.omg 4.3s
+[1175/2174] tests/omega/pass/calls/runtime_closed_constructor_requires_exit/main.omg 14.1s
+[1182/2174] tests/omega/pass/calls/runtime_indexed_case_pool_transition_exit/main.omg 81.6s
+[1200/2174] tests/omega/pass/capabilities/sysv_small_aggregate_import_compile/main.omg 3.0s
+[1225/2174] tests/omega/pass/comptime/runtime_generic_constructor_field_demand_extent_exit/main.omg 4.6s
+[1250/2174] tests/omega/pass/control_flow/guarded_transition_dispatch_exit/main.omg 13.6s
+[1275/2174] tests/omega/pass/core/integer_query_public_refinement_exit/main.omg 3.3s
+[1300/2174] tests/omega/pass/domains/domain_pattern_match_bound_generic_open_same_carrier_exit/main.omg 3.1s
+[1325/2174] tests/omega/pass/drops/runtime_nested_temporary_capture_cleanup_exit/main.omg 3.1s
+[1350/2174] tests/omega/pass/expressions/unit_case_return_call_product/main.omg 13.4s
+repair 1365 fixtures
+[repair 50/1365] tests/omega/fail/borrow/write_only_capture_missing_bounds/main.omg 1.3s
+[repair 100/1365] tests/omega/fail/borrows/state_transfer_retained_loan_overlap/main.omg 1.3s
+[repair 150/1365] tests/omega/fail/calls/numeric_operand_exclusive_arguments_overlap/main.omg 8.4s
+[repair 200/1365] tests/omega/fail/control_flow/arm_pattern_missing_field/main.omg 8.2s
+[repair 250/1365] tests/omega/fail/domains/domain_pattern_match_bound_generic_unrelated_equation_rejected/main.omg 1.2s
+[repair 300/1365] tests/omega/fail/facts/abi_multi_arg_spill_through_match_join_rejected/main.omg 2.3s
+[repair 350/1365] tests/omega/fail/facts/captured_window_slot_retirement_through_parameter_rejected/main.omg 2.3s
+[repair 400/1365] tests/omega/fail/facts/crash_entry_representation_view_through_match_join_rejected/main.omg 2.3s
+[repair 450/1365] tests/omega/fail/facts/finite_family_input_index/parameter/main.omg 2.5s
+[repair 500/1365] tests/omega/fail/facts/indexed_element_mut_loan_through_field_rejected/main.omg 1.3s
+[repair 550/1365] tests/omega/fail/facts/nested_array_element_projection_through_call_result_rejected/main.omg 2.3s
+[repair 600/1365] tests/omega/fail/facts/recoverable_replacement_window_through_other_machine_rejected/main.omg 2.2s
+[repair 650/1365] tests/omega/fail/facts/selected_crash_formal_through_other_machine_rejected/main.omg 2.6s
+[repair 700/1365] tests/omega/fail/facts/static_callback_reach_through_call_result/main.omg 2.4s
+[repair 750/1365] tests/omega/fail/facts/write_only_borrow_struct_destination_through_call_result_rejected/main.omg 2.3s
+[repair 800/1365] tests/omega/fail/generics/inferred_statement_lifetime_conformance_mismatch/main.omg 1.8s
+[repair 850/1365] tests/omega/fail/machines/retired_self_receiver/main.omg 0.7s
+[repair 900/1365] tests/omega/fail/proofs/indexed_boolean_guarantee_after_write/main.omg 1.4s
+[repair 950/1365] tests/omega/fail/ranges/subject_guard_compound_index_mutated/main.omg 1.4s
+[repair 1000/1365] tests/omega/fail/termination/progress_selector_owned_arrival_borrowed_reborrow_exit/main.omg 2.4s
+[repair 1050/1365] tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg 11.4s
+[repair 1100/1365] tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/main.omg 3.2s
+[repair 1150/1365] tests/omega/pass/build/runtime_static_service_exclusion_exit/main.omg 4.5s
+[repair 1182/1365] tests/omega/pass/calls/runtime_indexed_case_pool_transition_exit/main.omg 82.4s
+[repair 1200/1365] tests/omega/pass/capabilities/sysv_small_aggregate_import_compile/main.omg 3.2s
+[repair 1250/1365] tests/omega/pass/control_flow/guarded_transition_dispatch_exit/main.omg 12.1s
+[repair 1300/1365] tests/omega/pass/domains/domain_pattern_match_bound_generic_open_same_carrier_exit/main.omg 3.2s
+[repair 1350/1365] tests/omega/pass/expressions/unit_case_return_call_product/main.omg 11.2s
+shard 5/8: 2174 fixtures, 809 todo
+[25/809] tests/omega/pass/facts/bounded_activation_claim_split_through_other_machine_exit/main.omg 3.2s
+[50/809] tests/omega/pass/facts/case_where_equality_data_predicate_formed_call_exit/main.omg 3.1s
+[75/809] tests/omega/pass/facts/computed_record_window_through_match_join_exit/main.omg 3.1s
+[100/809] tests/omega/pass/facts/data_where_standing_recast_owner_restoration/main.omg 3.4s
+[125/809] tests/omega/pass/facts/dynamic_selected_reach_through_const_name_exit/main.omg 3.2s
+[150/809] tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_local_exit/main.omg 4.1s
+[175/809] tests/omega/pass/facts/generic_case_subject_through_match_join_exit/main.omg 3.3s
+[200/809] tests/omega/pass/facts/inferred_record_equation_call/match_join/main.omg 3.4s
+[225/809] tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg 2.3s
+[250/809] tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_parameter_exit/main.omg 3.1s
+[275/809] tests/omega/pass/facts/non_owning_reference_erasure_through_parameter_exit/main.omg 2.3s
+[300/809] tests/omega/pass/facts/qualified_field_capacity_through_local_exit/main.omg 3.2s
+[325/809] tests/omega/pass/facts/returned_indexed_linear_residual_through_other_machine_exit/main.omg 3.1s
+[350/809] tests/omega/pass/facts/saved_observation_snapshot_through_field_exit/main.omg 3.5s
+[375/809] tests/omega/pass/facts/signed_64bit_wrapping_multiplication_bound_through_match_join_exit/main.omg 3.2s
+[400/809] tests/omega/pass/facts/source_indexed_binary_tree_through_const_name_exit/main.omg 5.2s
+[425/809] tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_call_result_exit/main.omg 6.2s
+[450/809] tests/omega/pass/facts/unsigned_division_quotient_through_target_body_exit/main.omg 3.1s
+[471/809] tests/omega/pass/filesystem/cross_linux_value_syscalls/main.omg 135.6s
+[473/809] tests/omega/pass/filesystem/runtime_portable_copy_errors_exit/main.omg 138.2s
+[475/809] tests/omega/pass/filesystem/windows_native_create_write_close_exit/main.omg 48.9s
+[477/809] tests/omega/pass/filesystem/wrapper_open_with_exit/main.omg 138.7s
+[500/809] tests/omega/pass/generics/dependent_const_recursive_forwarding/main.omg 1.4s
+[525/809] tests/omega/pass/generics/selected_value_bool_public_contract_exit/main.omg 3.3s
+[550/809] tests/omega/pass/layouts/resident_returned_field_access/main.omg 6.9s
+[575/809] tests/omega/pass/modules/runtime_qualified_static_mutation_exit/main.omg 14.0s
+[600/809] tests/omega/pass/ownership/runtime_first_match_pattern_consumption_exit/main.omg 3.8s
+[625/809] tests/omega/pass/proofs/polynomial_expand_core_nat/main.omg 12.0s
+[650/809] tests/omega/pass/providers/requirement_service_unsupplied_linux/main.omg 2.9s
+[675/809] tests/omega/pass/relevance/erased_array_calls/main.omg 1.6s
+[700/809] tests/omega/pass/slices/subslice_folded_facts/main.omg 1.8s
+[725/809] tests/omega/pass/termination/native_layout_family_premises/main.omg 3.0s
+[750/809] tests/omega/pass/traits/applied_conformance_captured_fresh_regions_exit/main.omg 3.5s
+[775/809] tests/omega/pass/wire/runtime_wire_policy_authored_plan_exit/main.omg 32.4s
+[800/809] tests/omega/run/facts/float_comparison_route_through_other_machine_traps/main.omg 3.2s
