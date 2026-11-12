@@ -1,0 +1,72 @@
+// Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
+// Expected exit: 0
+public machine bounded(value: &mut i32) -> bool { value <= 60 }
+public data Counter<'storage> [copy] requires bounded(self.value) == true { before: i32; value: &'storage i32; after: i32; marker: i32; }
+machine read(value: &i32) -> i32 ensures result == value, { value }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedCompute {
+    machine compute(counter: &Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Compute satisfies SelectedCompute {
+    machine compute(counter: &Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     let value: i32 = read(counter.value);
+        let total: i32 = 70 + value;
+        transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } 
+    }
+}
+
+ArmCompute satisfies SelectedCompute {
+    machine compute(counter: &Counter) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     let value: i32 = read(counter.value);
+        let total: i32 = 70 + value;
+        transition counter.before == 17 && counter.after == 53 { true -> total false -> -99 } 
+    }
+}
+
+machine main() crashes Trap {
+    let high: i32 = 60;
+    let low: i32 = -17;
+    let mut first: Counter = Counter { before: 17, value: &high, after: 53, marker: 19 };
+    let mut second: Counter = Counter { before: 17, value: &low, after: 53, marker: 23 };
+    transition SelectedCompute::compute(&first) == 130 && SelectedCompute::compute(&second) == 53
+        && first.before == 17 && first.after == 53 && first.marker == 19
+        && second.before == 17 && second.after == 53 && second.marker == 23
+        && high == 60 && low == -17 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

@@ -1,0 +1,25 @@
+data Player [copy] {
+    health: i32;
+}
+
+domain Player::Alive
+requires
+    self.health > 0;
+
+data Main {
+    player: Player;
+}
+
+machine Main::inspect(player: Player)
+requires
+    player in Player::Alive
+{
+}
+
+machine Main::main(main: &mut Main)
+requires
+    main.player in Player::Alive
+{
+    let copy: Player = main.player;
+    Main::inspect(copy);
+}

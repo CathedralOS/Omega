@@ -1,0 +1,51 @@
+// After an opaque callback, fresh count <= slots.len and preserved immutable remaining_steps > 0 admit the nested call's slots.len - count and remaining_steps - 1.
+// Expected exit: 0
+public data CompactBinary {}
+public data Ctx { slots: &mut [u64]; count: u64; valid: bool; }
+public data Observation [copy] { remaining: u64; remaining_steps: u64; }
+public machine CompactBinary::read_record<machine Plan>(slots: &mut [u64], remaining_steps: u64, choose: bool) -> Observation
+requires machine Plan(context: &mut Ctx);
+requires remaining_steps > 0u64
+{
+    let context: Ctx = Ctx { slots: slots, count: 0u64, valid: true };
+    receive<Plan>(&mut context, remaining_steps)
+}
+public machine receive<machine Plan>(context: &mut Ctx, remaining_steps: u64) -> Observation
+requires machine Plan(context: &mut Ctx);
+requires remaining_steps > 0u64
+{
+    Plan(context);
+    transition context.valid && context.count <= context.slots.len {
+        true -> parse(context, remaining_steps)
+        false -> Observation { remaining: 99u64, remaining_steps: 99u64 }
+    }
+    machine parse(context: &mut Ctx, remaining_steps: u64) -> Observation
+    requires context.count <= context.slots.len && remaining_steps > 0u64
+    {
+        Observation { remaining: context.slots.len - context.count, remaining_steps: remaining_steps - 1u64 }
+    }
+}
+machine PlanGood(context: &mut Ctx) { context.count = context.slots.len; }
+machine PlanFalse(context: &mut Ctx) { context.valid = false; }
+machine main() crashes Trap {
+    let mut first: [u64; 4] = [0x13579BDFu64, 7u64, 11u64, 0x2468ACE0u64];
+    let first_result: Observation = CompactBinary::read_record<PlanGood>(&mut first[1u64..3u64], 2u64, true);
+    let mut second: [u64; 4] = [0x13579BDFu64, 7u64, 11u64, 0x2468ACE0u64];
+    let second_result: Observation = CompactBinary::read_record<PlanGood>(&mut second[1u64..3u64], 2u64, false);
+    let mut third: [u64; 4] = [0x13579BDFu64, 7u64, 11u64, 0x2468ACE0u64];
+    let invalid: Observation = CompactBinary::read_record<PlanFalse>(&mut third[1u64..3u64], 2u64, false);
+    transition first_result.remaining == 0u64 && first_result.remaining_steps == 1u64
+        && second_result.remaining == 0u64 && second_result.remaining_steps == 1u64
+        && invalid.remaining == 99u64 && invalid.remaining_steps == 99u64
+        && first[0] == 0x13579BDFu64 && first[3] == 0x2468ACE0u64
+        && first[1] == 7u64 && first[2] == 11u64
+        && second[0] == 0x13579BDFu64 && second[3] == 0x2468ACE0u64
+        && second[1] == 7u64 && second[2] == 11u64
+        && third[0] == 0x13579BDFu64 && third[3] == 0x2468ACE0u64
+        && third[1] == 7u64 && third[2] == 11u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

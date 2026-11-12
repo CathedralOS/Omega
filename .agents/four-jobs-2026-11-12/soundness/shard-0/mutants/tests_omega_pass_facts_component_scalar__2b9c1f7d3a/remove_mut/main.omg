@@ -1,0 +1,24 @@
+// Fact: A suspended independent component writes 73 to the caller's original scalar-backed record, preserving neighbor cells and storage addresses.
+// Place: other_machine.
+// Expected exit: 0
+use producer::main;
+machine operate(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
+    let value: Word = Word { before: 11, count: 0, after: 29 };
+    let original: addr = address_of(&value);
+    let member: addr = address_of(&value.count);
+    let reported: u64 = suspend Lending::write(&mut value, &token, original, member);
+    let reused: u64 = suspend Reading::read(&value, &value, &token, &token, original, member);
+    Observation::seen(&token);
+    transition reused == 73 && value.before == 11 && value.after == 29 && address_of(&value) == original && address_of(&value.count) == member  {
+        true -> value.count
+        _ -> bad()
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap { suspend operate(token) }
+machine main() reaches Lending Reading Observation suspends crashes Trap {
+    let result: u64 = suspend entry(Token {});
+    transition result == 73 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

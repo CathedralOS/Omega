@@ -1,0 +1,19 @@
+// Borrowing a same-carrier cast compiles and runs under --both.
+// Expected exit: 0.
+data Ticket [copy] { number: u64; }
+domain Ticket::Held established by issue;
+machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
+machine look(t: &mut Ticket) -> u64 { t.number }
+machine observe(t: &Ticket in Ticket::Held) -> u64 { t.number }
+
+machine main() crashes Trap {
+    let issued: Ticket in Ticket::Held = issue();
+    let val: u64 = look(&(issued as Ticket));
+    let val2: u64 = observe(&(issued as Ticket in Ticket::Held));
+    transition val == 17 && val2 == 17 {
+        true -> good()
+        _ -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}
