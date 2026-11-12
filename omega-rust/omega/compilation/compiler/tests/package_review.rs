@@ -6,6 +6,9 @@ mod build_sequence;
 mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[path = "support/native_entry_controls.rs"]
+mod native_entry_controls;
 mod target_constant_custody;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
@@ -1429,5 +1432,190 @@ fn check_native_binding_applications(select_second_local: bool) {
             "{errors:?}"
         );
     }
+    std::fs::remove_dir_all(scratch).unwrap();
+}
+
+// Restrict an existing working registrar to the callback it actually receives.
+// Its program, C provider, layout and exit oracle remain the original control.
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
+    use std::sync::Arc;
+    let root = fixture_package_inputs::repo_root();
+    let fixture = root.join("tests/omega/pass/layouts/private_callback_inherited_policy_exit");
+    let scratch = root.join("build").join(format!(
+        "omega-closed-native-callback-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&scratch).unwrap();
+    for entry in std::fs::read_dir(&fixture).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            std::fs::copy(entry.path(), scratch.join(entry.file_name())).unwrap();
+        }
+    }
+    assert_eq!(
+        std::fs::read(scratch.join("main.omg")).unwrap(),
+        std::fs::read(fixture.join("main.omg")).unwrap()
+    );
+    let original = std::fs::read_to_string(scratch.join("build.omg")).unwrap();
+    assert_eq!(
+        original.matches("Build::bind<Registrar::register>").count(),
+        1
+    );
+    let build = original
+        .replace(
+            "Build::bind<Registrar::register>",
+            "Build::bind<Registrar::register<TimerHandler::call>>",
+        )
+        .replace(
+            "location: \"../../../../../source/library/std\"",
+            &format!("location: {:?}", root.join("source/library/std")),
+        );
+    std::fs::write(scratch.join("build.omg"), build).unwrap();
+    let provider = scratch.join("provider");
+    let prepared_provider = std::process::Command::new("python3")
+        .arg(fixture.join("fixture/prepare.py"))
+        .arg("--output")
+        .arg(&provider)
+        .output()
+        .expect("prepare the existing authored C provider");
+    assert!(
+        prepared_provider.status.success(),
+        "C provider: {:?}",
+        prepared_provider
+    );
+    eprintln!(
+        "C_PROVIDER_PREPARATION {}",
+        String::from_utf8_lossy(&prepared_provider.stdout)
+    );
+    let source = scratch.join("main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(
+        &source,
+        package_compilation::BuildExecutionInputs {
+            snapshot: fixture_package_inputs::fixture_build_snapshot(&source).unwrap(),
+            ..Default::default()
+        },
+    )
+    .expect("discover the exact closed registrar binding");
+    let product =
+        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            installation_assumptions: Vec::new(),
+            retain_native_inputs: true,
+            image: Default::default(),
+            private_entry_ram: Vec::new(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
+            terminal_authority_permission_policy: None,
+            optimization_rollback: Default::default(),
+        });
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::MacosArm64],
+        product,
+    )
+    .expect("admit the closed native product without weakening its callback contract");
+    let mut output = fixture_package_inputs::produce_fixture(&mut prepared, Some("macos_arm64"))
+        .expect("produce the native product and saved inputs");
+    let compiler::CompilationOutput::Native(pending) = &output else {
+        panic!("expected native application work");
+    };
+    let bytes = pending
+        .retained_native_inputs
+        .as_ref()
+        .expect("save the exact native derivation inputs");
+    let artifact = Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(
+            &pending.terminal.artifact().to_bytes(),
+        )
+        .unwrap(),
+    );
+    let (recovered, recovered_permissions, installation_assumptions) =
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(artifact, bytes)
+            .expect("reload the closed binding from its canonical artifact and saved inputs");
+    assert_eq!(recovered, pending.terminal);
+    assert_eq!(recovered_permissions, pending.accepted_package_permissions);
+    assert!(installation_assumptions.is_empty());
+    let module = recovered.artifact().semantic_module();
+    assert!(
+        !module.callback_applications.is_empty(),
+        "the existing native callback must actually be emitted"
+    );
+    let selected = &recovered
+        .native_realization_proposal()
+        .unwrap()
+        .providers()
+        .selection;
+    for callback in &module.callback_applications {
+        let operation = module
+            .operations()
+            .find(|operation| operation.id == callback.registrar)
+            .expect("actual emitted registrar operation");
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            panic!("registrar must retain its exact boundary call");
+        };
+        let declaration = module
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap();
+        let requirement = module.identities.text(declaration.identity).unwrap();
+        let (plan, row) = selected
+            .selected_requirement_row(requirement)
+            .expect("the emitted closed call must select its own native row");
+        assert_ne!(
+            plan.identities.text(row.requirement_identity),
+            plan.identities.text(row.declared_requirement_identity)
+        );
+        let abi = module
+            .calling_abi_identity(boundary)
+            .expect("actual emitted boundary ABI");
+        assert_eq!(row.calling_signature, Some(abi.id()));
+        let wrong = module
+            .calling_abi_signatures
+            .iter()
+            .find(|declaration| declaration.id != abi.id())
+            .expect("the callback's distinct ABI supplies an actual substitution control");
+        let mut changed = plan.clone();
+        let index = plan
+            .rows
+            .iter()
+            .position(|candidate| std::ptr::eq(candidate, row))
+            .unwrap();
+        changed.rows[index].calling_signature = Some(wrong.id);
+        assert_ne!(
+            changed.identity_digest(),
+            plan.identity_digest(),
+            "a different real ABI must not reuse the selected binding commitment"
+        );
+    }
+    drop(prepared);
+    let compiler::CompilationOutput::Native(pending) = &mut output else {
+        unreachable!()
+    };
+    pending.terminal = recovered;
+    pending.accepted_package_permissions = recovered_permissions;
+    let report = orchestration::complete_product(output)
+        .and_then(compiler::CompilationOutput::into_report)
+        .expect("complete actual native lowering after saved-input recovery");
+    native_entry_controls::inspect(&report, &scratch)
+        .expect("preserve the original native entry readback falsifiers");
+    let published = compilation_products::publication::publish_compilation(
+        report,
+        &scratch.join("native-output"),
+    )
+    .expect("publish the checked native executable");
+    let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .env("DYLD_LIBRARY_PATH", &provider)
+        .output()
+        .expect("run the unchanged descriptor callback program");
+    assert_eq!(
+        observed.status.code(),
+        Some(0),
+        "native callback oracle: {observed:?}"
+    );
     std::fs::remove_dir_all(scratch).unwrap();
 }
