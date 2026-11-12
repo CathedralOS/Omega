@@ -3,7 +3,7 @@
   "good_commit": "d25889014d5e1a5f3770dacd77612125f046e372",
   "breaking_commit": "22f215eb3e7d9814cb3e29f42856e56bb57e60ed",
   "pr": "2078",
-  "mechanism": "psi: preserve common fields when matching case values (#2078) — omega-rust/psi/compilation/pipeline/structure-elaboration/, source/library/",
+  "mechanism": "psi: preserve common fields when matching case values (#2078) — case/pattern elaboration in omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/ left X86Repair::repair without a lowered repair body",
   "status": "bisected",
   "bisect_exit": 0
 }

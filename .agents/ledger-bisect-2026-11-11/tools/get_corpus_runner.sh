@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${LEDGER_BISECT_ROOT:-}"
+if [[ -z "$ROOT" ]]; then
+  ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+[[ -n "$ROOT" ]] || { echo "LEDGER_BISECT_ROOT unset" >&2; exit 1; }
 TD="${CARGO_TARGET_DIR:-$ROOT/target-pin}"
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TD" mbx build -p compiler < /dev/null >/dev/null 2>&1 || true
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TD" \
