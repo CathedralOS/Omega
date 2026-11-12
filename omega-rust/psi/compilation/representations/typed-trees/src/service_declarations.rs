@@ -1491,18 +1491,25 @@ pub(crate) mod catalog {
             self.catalog.declared_traits()
         }
 
-        pub fn retain_named_application(
+        // Calling must keep the exact declaration used to form the candidate.
+        // Looking it up again by its authored name would discard applied
+        // arguments. Only the same catalog-owned declaration can name its
+        // retained source and requirement correspondence.
+        pub fn retain_surface(
             self,
-            declaration: SymbolHandle,
-            capture: Handle<crate::CapturedMachineApplication>,
-            receiver: SymbolHandle,
+            declaration: &Arc<ServiceSurface>,
         ) -> Option<RetainedServiceSurface> {
-            let record = self.catalog.record(ServiceOrigin::Named {
-                declaration,
-                capture,
-                receiver,
+            let mut matching = self.catalog.records.iter().filter(|(_, record)| {
+                record
+                    .declaration
+                    .as_ref()
+                    .is_some_and(|owned| Arc::ptr_eq(owned, declaration))
             });
-            self.catalog.view(self.catalog.records.get(record))?;
+            let (record, retained) = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            self.catalog.view(retained)?;
             Some(RetainedServiceSurface {
                 catalog: Arc::clone(self.catalog),
                 record,

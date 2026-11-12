@@ -92,25 +92,21 @@ impl CallingCandidate {
         services: ServiceCatalog<'_>,
         derived: DerivedProviderPlan,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let surface =
-            if let ProviderSchemaDeclaration::BoundaryTrait(receiver) = derived.provenance.schema {
-                let surface = match &derived.provenance.named_application {
-                    Some(application) => services.retain_named_application(
-                        application.declaration,
-                        application.capture,
-                        receiver,
-                    ),
-                    None => services.retain_declaration(derived.provenance.schema),
-                }
+        let surface = if matches!(
+            derived.provenance.schema,
+            ProviderSchemaDeclaration::BoundaryTrait(_)
+        ) {
+            let surface = services
+                .retain_surface(&derived.plan.schema.declaration)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "provider candidate lost its exact prepared Calling surface",
                     )]
                 })?;
-                Some(surface)
-            } else {
-                None
-            };
+            Some(surface)
+        } else {
+            None
+        };
         Ok(Self { derived, surface })
     }
 
