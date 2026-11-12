@@ -1,0 +1,1 @@
+only `+Trapping` can name a domain the operand lacks

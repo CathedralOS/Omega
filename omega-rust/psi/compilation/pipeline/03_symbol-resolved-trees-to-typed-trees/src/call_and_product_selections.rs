@@ -1236,7 +1236,7 @@ pub(crate) mod construction_destinations {
         expression_frontier: usize,
         machine_frontier: usize,
         completed_machines: &[SymbolHandle],
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
 
@@ -1422,10 +1422,17 @@ pub(crate) mod construction_destinations {
                 destinations.push((argument, reference, call.target));
             }
         }
+        let mut cast_destinations = Vec::new();
         for (value, destination, lifetime_owner) in destinations {
-            land_one(program, value, destination, lifetime_owner)?;
+            land_one(
+                program,
+                value,
+                destination,
+                lifetime_owner,
+                &mut cast_destinations,
+            )?;
         }
-        Ok(())
+        Ok(cast_destinations)
     }
 
     fn collect_call_destinations(
@@ -1451,13 +1458,14 @@ pub(crate) mod construction_destinations {
 
     fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
         value.is_valid()
-            && matches!(
-                program.expression_table.expression(value),
+            && match program.expression_table.expression(value) {
                 ExpressionNode::StructLiteral(_)
-                    | ExpressionNode::String(_)
-                    | ExpressionNode::ArrayLiteral(_)
-                    | ExpressionNode::Match(_)
-            )
+                | ExpressionNode::String(_)
+                | ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Match(_) => true,
+                ExpressionNode::Cast(cast) => cast.form.entry().is_some(),
+                _ => false,
+            }
     }
 
     fn land_one(
@@ -1465,6 +1473,7 @@ pub(crate) mod construction_destinations {
         value: ExpressionHandle,
         destination: TypeReferenceHandle,
         mut lifetime_owner: SymbolHandle,
+        cast_destinations: &mut Vec<TypeReferenceHandle>,
     ) -> Result<(), Diagnostic> {
         if !value.is_valid() || !destination.is_valid() {
             return Ok(());
@@ -1472,9 +1481,42 @@ pub(crate) mod construction_destinations {
         if let Some(dispatch) = program.expression_table.match_node(value) {
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
             for arm in arms {
-                land_one(program, arm.value, destination, lifetime_owner)?;
+                land_one(
+                    program,
+                    arm.value,
+                    destination,
+                    lifetime_owner,
+                    cast_destinations,
+                )?;
             }
             return Ok(());
+        }
+        // An expected type supplies a literal's carrier, never its domains.
+        // Retain the destination at the complete cast, not at its operand:
+        // accounting still checks every written addition, keep and removal.
+        if let Some(cast) = program
+            .expression_table
+            .cast_node(value)
+            .copied()
+            .filter(|cast| cast.form.entry().is_some())
+        {
+            // Expression handles are dense. Keep lookup independent of the
+            // number of casts in a compiler-sized source cohort.
+            let index = value.arena_index() as usize;
+            if cast_destinations.len() <= index {
+                cast_destinations.resize(index + 1, TypeReferenceHandle::invalid());
+            }
+            cast_destinations[index] = destination;
+            // Domain-only casts preserve the receiving carrier through an
+            // inner cast or match. An explicit carrier cast is a boundary:
+            // land_one does not descend through an ordinary value cast.
+            return land_one(
+                program,
+                cast.value,
+                destination,
+                lifetime_owner,
+                cast_destinations,
+            );
         }
         let mut carrier = destination;
         loop {
@@ -1541,7 +1583,13 @@ pub(crate) mod construction_destinations {
                 if let Some(field_type) =
                     selected_construction_field_type(program, value, &literal, field.field_symbol)
                 {
-                    land_one(program, field.value, field_type, literal.type_symbol)?;
+                    land_one(
+                        program,
+                        field.value,
+                        field_type,
+                        literal.type_symbol,
+                        cast_destinations,
+                    )?;
                 }
             }
             return Ok(());
@@ -1558,7 +1606,13 @@ pub(crate) mod construction_destinations {
                 .to_vec();
             let element_type = *element_type;
             for element in elements {
-                land_one(program, element, element_type, lifetime_owner)?;
+                land_one(
+                    program,
+                    element,
+                    element_type,
+                    lifetime_owner,
+                    cast_destinations,
+                )?;
             }
             return Ok(());
         }
@@ -2093,8 +2147,14 @@ pub(crate) mod qualification_casts {
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         program: &mut TypedTrees,
         expression_frontier: usize,
+        cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
-        super::domain_cast_accounting::account(source, program, expression_frontier)?;
+        super::domain_cast_accounting::account(
+            source,
+            program,
+            expression_frontier,
+            cast_destinations,
+        )?;
         let sites = expression_table(program)
             .expression_entries()
             .filter_map(|(handle, expression)| {
@@ -2410,6 +2470,7 @@ pub(crate) mod domain_cast_accounting {
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         program: &mut TypedTrees,
         frontier: usize,
+        cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         let sites = entry_sites(program, frontier);
         if sites.is_empty() {
@@ -2442,7 +2503,7 @@ pub(crate) mod domain_cast_accounting {
         // Operands are allocated before the casts over them, so inner runs settle first.
         runs.sort_by_key(|run| run[0].0.arena_index());
         for run in runs {
-            account_run(source, program, &owners, &run)?;
+            account_run(source, program, &owners, &run, cast_destinations)?;
         }
         Ok(())
     }
@@ -2593,14 +2654,8 @@ pub(crate) mod domain_cast_accounting {
         }))
     }
 
-    fn is_anonymous_literal(program: &TypedTrees, mut expression: ExpressionHandle) -> bool {
-        loop {
-            match expression_table(program).expression(expression) {
-                ExpressionNode::Integer(_) | ExpressionNode::Float(_) => return true,
-                ExpressionNode::Unary(unary) => expression = unary.operand,
-                _ => return false,
-            }
-        }
+    fn is_anonymous_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+        validation::has_anonymous_numeric_results(program, expression)
     }
 
     fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<source::SourceSpan> {
@@ -2701,12 +2756,14 @@ pub(crate) mod domain_cast_accounting {
             .to_owned()
     }
 
-    /* The operand's declared type; an anonymous literal takes the carrier its domains are declared on. */
+    /* An anonymous operand takes its receiving carrier, or a carrier fixed
+    by a named domain when no receiving type is available. */
     fn operand_type(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         program: &TypedTrees,
         owners: &[(ExpressionHandle, usize, usize)],
         run: &Run,
+        cast_destinations: &[TypeReferenceHandle],
     ) -> Result<TypeReferenceHandle, Diagnostic> {
         let (first, first_cast, _) = run[0];
         let operand = first_cast.value;
@@ -2722,6 +2779,15 @@ pub(crate) mod domain_cast_accounting {
                     "cannot read the declared type of the operand of `as {label}`; a domain cast accounts for the domains its operand's type carries, so bind the operand to a `let` with its type first",
                 ),
             ));
+        }
+        if let Some(destination) = cast_destinations
+            .get(run[run.len() - 1].0.arena_index() as usize)
+            .filter(|destination| destination.is_valid())
+        {
+            // The anonymous operand starts unqualified. Taking the full
+            // expected type here would silently insert its domains before
+            // the authored entries have accounted for them.
+            return Ok(flatten(program, *destination).0);
         }
         for (handle, cast, _) in run {
             if cast.semantic_domain.is_empty() {
@@ -2935,11 +3001,12 @@ pub(crate) mod domain_cast_accounting {
         program: &mut TypedTrees,
         owners: &[(ExpressionHandle, usize, usize)],
         run: &Run,
+        cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         let (first, first_cast, _) = run[0];
         let outermost = run[run.len() - 1].0;
         refuse_qualified_carrier_operand(program, owners, run)?;
-        let operand_type = operand_type(source, program, owners, run)?;
+        let operand_type = operand_type(source, program, owners, run, cast_destinations)?;
         if matches!(
             program.type_reference_table.type_reference(operand_type),
             TypeReferenceNode::Reference { .. }

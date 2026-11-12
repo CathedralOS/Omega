@@ -1,0 +1,7 @@
+// The receiving field supplies u32, but does not give the literal Trapping.
+// Keeping a domain the operand never carried must fail; +Trapping is valid.
+data Word { value: u32 in Trapping; }
+machine main() -> u8 {
+    let word: Word = Word { value: 77 as =Trapping };
+    0
+}
