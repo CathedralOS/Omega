@@ -66,6 +66,21 @@ def drop_first_requires(text: str) -> str | None:
     return new if new != text else None
 
 
+def requires_placement(text: str) -> str:
+    """Return ``header`` when the first requires sits on a machine signature line, else ``body``."""
+    span = first_requires_span(text)
+    if span is None:
+        return "body"
+    line_start = text.rfind("\n", 0, span[0]) + 1
+    line_end = text.find("\n", span[0])
+    if line_end == -1:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    if re.search(r"\bmachine\b", line) and re.search(r"\brequires\b", line):
+        return "header"
+    return "body"
+
+
 def extract_first_requires_clause(text: str) -> str | None:
     span = first_requires_span(text)
     if span is None:

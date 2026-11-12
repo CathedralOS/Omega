@@ -49,6 +49,15 @@ SPEC_REBORROW = (
     "parent's mutation; exclusive children suspend the corresponding parent branch.",
 )
 
+# Q7 known gap: checker accepts some demoted-`let mut` / exclusive-borrow mutants without
+# enforcing immutable-binding-exclusive-loan on every obligation shape. Confirmed-hole for
+# those kinds requires an obligation outside this gap (see wiki/spec/language/ownership.md).
+Q7_RULE = (
+    "Default `remove_mut` and exclusive→shared `flip_borrow_mutability` acceptances are "
+    "`known-gap-q7-mut` unless review cites a check-time obligation outside reborrow/&mut "
+    "formation (direct owned write through an exclusive loan still maps to Q7)."
+)
+
 ROUTE_NON_VERDICT = frozenset(
     {"outside", "no-entry", "unreached", "unsupported", "incomplete", "defect", "error"}
 )
@@ -97,11 +106,62 @@ class Invalidity:
     hole_subtype: str = ""
 
 
-def _line_find(pattern: str, text: str) -> str | None:
+def _is_comment_line(line: str) -> bool:
+    stripped = line.strip()
+    return not stripped or stripped.startswith("//")
+
+
+def _line_find(pattern: str, text: str, *, code_only: bool = False) -> str | None:
     for number, line in enumerate(text.splitlines(), 1):
+        if code_only and _is_comment_line(line):
+            continue
         if re.search(pattern, line):
             return f"L{number}: {line.strip()}"
     return None
+
+
+def _line_find_division(text: str) -> str | None:
+    for number, line in enumerate(text.splitlines(), 1):
+        code = line.split("//", 1)[0]
+        if not code.strip():
+            continue
+        if re.search(r"\w+\s*/\s*\w+|\)\s*/\s*\w+", code):
+            return f"L{number}: {line.strip()}"
+    return None
+
+
+def _shared_borrow_write_after_flip(mutant: str, flip_line: str) -> bool:
+    """True when executable code writes through an exclusive→shared borrow introduced on flip_line."""
+    names = re.findall(r"let\s+(\w+)\s*=\s*&(?:mut\s+|write\s+)?", flip_line)
+    if not names:
+        names = re.findall(r"&(?:mut\s+|write\s+)(\w+)", flip_line)
+    body = mutant
+    for name in names:
+        for pat in (
+            rf"\b{name}\s*\[[^\]]+\]\s*=",
+            rf"\b{name}\.[A-Za-z_][\w]*\s*=",
+            rf"&mut\s+{re.escape(name)}\b",
+            rf"&write\s+{re.escape(name)}\b",
+        ):
+            if _line_find(pat, body, code_only=True):
+                return True
+    if re.search(r"\[[0-9]+\]\s*=", flip_line) or re.search(r"\.[A-Za-z_][\w]*\s*=", flip_line):
+        return True
+    return False
+
+
+def no_runtime_trap_evidence(mutant: str, kind: str) -> tuple[bool, str]:
+    if runtime_trap_only(mutant, kind):
+        return False, "violation only on runtime Trap arm"
+    if re.search(r"\bcrash(?:es)?\s+Trap\b", mutant) and kind in {
+        "drop_requires",
+        "widen_requires",
+        "drop_divisor_guard",
+    }:
+        hit = _line_find_division(mutant) or _line_find(r"\[[^\]]+\]", mutant, code_only=True)
+        if not hit:
+            return False, "crash Trap without check-time divide/index obligation in code"
+    return True, "obligation is check-time contract, not runtime-only Trap"
 
 
 def demoted_mut_binding(original: str, mutant: str) -> str | None:
@@ -183,27 +243,28 @@ def drop_requires_invalidity(original: str, mutant: str) -> Invalidity:
             ),
         )
 
-    for pat, spec in (
-        (r"/", SPEC_NONZERO_RANGE),
-        (r"\[[^\]]+\]", SPEC_INDEX_BOUNDS),
-    ):
-        hit = _line_find(pat, mutant)
-        if hit:
-            return Invalidity(
-                True,
-                hit,
-                SPEC_MODULAR_ENTRY[0],
-                modular_quote,
-                hole_subtype="probe-not-built",
-            )
-    ensures = _line_find(r"\bensures\b", mutant)
-    if ensures:
+    from requires_span import requires_placement  # noqa: WPS433
+
+    placement = requires_placement(original)
+    base_subtype = f"{placement}-requires"
+
+    div = _line_find_division(mutant)
+    if div:
         return Invalidity(
             True,
-            ensures,
-            SPEC_AUTHORED_REQUIRES[0],
-            modular_quote,
-            hole_subtype="probe-not-built",
+            div,
+            SPEC_NONZERO_RANGE[0],
+            f"{SPEC_NONZERO_RANGE[1]} | {modular_quote}",
+            hole_subtype=base_subtype,
+        )
+    idx = _line_find(r"\[[^\]]+\]", mutant, code_only=True)
+    if idx and not _is_comment_line(idx.split(":", 1)[-1]):
+        return Invalidity(
+            True,
+            idx,
+            SPEC_INDEX_BOUNDS[0],
+            f"{SPEC_INDEX_BOUNDS[1]} | {modular_quote}",
+            hole_subtype=base_subtype,
         )
     return Invalidity(
         False,
@@ -220,43 +281,55 @@ def remove_mut_invalidity(original: str, mutant: str) -> Invalidity:
     obligation = mutating_use(mutant, binding) or ""
     if not obligation:
         return Invalidity(False, valid_reason="demoted binding has no mutating use")
-    q7 = bool(
-        re.search(
-            rf"&mut\s+{re.escape(binding)}\b|&write\s+{re.escape(binding)}\b", obligation
-        )
-    )
     return Invalidity(
         True,
         obligation,
         SPEC_OWNED_LOCAL_MUT[0],
         SPEC_OWNED_LOCAL_MUT[1],
-        q7_only=q7,
+        q7_only=True,
     )
 
 
 def weaken_requires_invalidity(original: str, mutant: str) -> Invalidity:
-    if "!= 0" in original and "== 0" in mutant:
-        div = _line_find(r"/", mutant)
-        if div:
-            return Invalidity(True, div, SPEC_NONZERO_RANGE[0], SPEC_NONZERO_RANGE[1])
-    return Invalidity(False, valid_reason="weakened guard not used in body")
+    if "!= 0" not in original or "== 0" not in mutant:
+        return Invalidity(False, valid_reason="requires nonzero guard not inverted")
+    if re.search(r"match\s+\w+\s*!=\s*0", mutant):
+        return Invalidity(False, valid_reason="body still has explicit nonzero match guard")
+    div = _line_find_division(mutant)
+    if not div:
+        return Invalidity(False, valid_reason="inverted requires unused; no check-time division in code")
+    return Invalidity(True, div, SPEC_NONZERO_RANGE[0], SPEC_NONZERO_RANGE[1])
 
 
 def flip_borrow_invalidity(original: str, mutant: str) -> Invalidity:
-    for number, (o, m) in enumerate(zip(original.splitlines(), mutant.splitlines()), 1):
-        if o == m:
+    flipped: list[str] = []
+    for o, m in zip(original.splitlines(), mutant.splitlines()):
+        if o == m or (_is_comment_line(o) and _is_comment_line(m)):
             continue
-        if "&mut" in m or "&write" in m or ("&" in m and "&mut" not in o and "&write" not in o):
+        if ("&mut" in o or "&write" in o) and "&mut" not in m and "&write" not in m and "&" in m:
+            flipped.append(m)
+        elif "&mut" in m or "&write" in m:
+            # shared→exclusive in sample seed; only invalid if write through shared parent
+            flipped.append(m)
+    if not flipped:
+        return Invalidity(False, valid_reason="no executable borrow mutability change")
+    for line in flipped:
+        if _shared_borrow_write_after_flip(mutant, line):
+            num = next(
+                (i for i, ln in enumerate(mutant.splitlines(), 1) if ln.strip() == line.strip()),
+                0,
+            )
             return Invalidity(
                 True,
-                f"L{number}: {m.strip()}",
+                f"L{num}: {line.strip()}" if num else line.strip(),
                 SPEC_REBORROW[0],
                 SPEC_REBORROW[1],
+                q7_only=True,
             )
-    hit = _line_find(r"&mut|&write", mutant)
-    if hit and hit not in original:
-        return Invalidity(True, hit, SPEC_REBORROW[0], SPEC_REBORROW[1])
-    return Invalidity(False, valid_reason="borrow change not tied to a use line")
+    return Invalidity(
+        False,
+        valid_reason="mut→shared borrow change with no write through the shared borrow in code",
+    )
 
 
 def assess_invalidity(kind: str, original: str, mutant: str) -> Invalidity:
@@ -321,20 +394,32 @@ def classify(
                 inv.spec_path,
                 inv.spec_quote,
                 inv.obligation,
-                f"Q7 missing-mut enforcement on `{inv.obligation}`",
+                f"Q7 gap ({Q7_RULE[:120]}…): `{inv.obligation}`",
                 acc,
                 inv.hole_subtype,
             )
         if cur_ok or rte_ok:
             ok, why = confirmed_hole_allowed(kind, mutant, inv.spec_path)
-            if not ok:
-                return "discarded-valid", "", "", inv.obligation, why, "", ""
+            trap_ok, trap_note = no_runtime_trap_evidence(mutant, kind)
+            if not inv.spec_quote.strip() or not inv.spec_path.strip():
+                return (
+                    "discarded-valid",
+                    "",
+                    "",
+                    inv.obligation,
+                    "missing wiki/spec quote for alleged hole",
+                    "",
+                    "",
+                )
+            if not ok or not trap_ok:
+                reason = why if not ok else trap_note
+                return "discarded-valid", "", "", inv.obligation, reason, "", ""
             return (
                 "confirmed-hole",
                 inv.spec_path,
                 inv.spec_quote,
                 inv.obligation,
-                f"modular-entry hole: {why}",
+                f"check-time hole: {why}; no-runtime-trap: {trap_note}",
                 acc,
                 inv.hole_subtype or ("probe-not-built" if kind == "drop_requires" else ""),
             )

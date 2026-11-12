@@ -87,8 +87,19 @@ def main() -> int:
                 return cur == "accepted"
 
             built = probe_subtype(mutant_path, original, accepted)
-            if built in {"inferred-entry", "unchecked", "probe-not-built"}:
-                hole_subtype = built
+            base = hole_subtype or "body-requires"
+            if ":" in base:
+                base = base.split(":")[0]
+            hole_subtype = f"{base}:{built}"
+            if built == "probe-not-built":
+                hand = "discarded-valid"
+                review = (
+                    "drop_requires accepted but violating-entry probe not built; "
+                    "cannot claim modular-entry hole"
+                )
+            elif built not in {"inferred-entry", "unchecked"}:
+                hand = "discarded-valid"
+                review = f"unexpected probe subtype `{built}`"
         parts[5:13] = [
             hand,
             spec_path,

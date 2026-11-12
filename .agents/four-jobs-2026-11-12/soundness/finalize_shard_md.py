@@ -18,6 +18,7 @@ from run_shard_mutations import (  # noqa: E402
     _totals_from_tsv,
 )
 from run_shard_mutations import Counters  # noqa: E402
+from soundness_validate import Q7_RULE  # noqa: E402
 
 
 def capture(main: Path) -> str:
@@ -69,6 +70,54 @@ def minimal_diff(original: Path, mutant: Path) -> str:
     if len(o) != len(m):
         out.append(f"@@ length {len(o)} -> {len(m)} @@")
     return "\n".join(out[:24]) or "_no line diff (identical)_"
+
+
+def explicit_reconcile(tsv: Path, shard: int) -> list[str]:
+    from run_shard_mutations import _totals_from_tsv, shard_fixtures  # noqa: WPS433
+
+    totals = _totals_from_tsv(tsv)
+    fixtures = len(shard_fixtures(shard))
+    no_mut = totals["no_mutation"]
+    skipped = totals["originals_skipped"]
+    mutated_fixtures = fixtures - no_mut - skipped
+    bucket_sum = (
+        totals["confirmed_hole"]
+        + totals["known_gap_q7"]
+        + totals["disagreement_valid"]
+        + totals["valid_route_outside"]
+        + totals["discarded_valid"]
+        + totals["rejected_both"]
+        + totals["timeout"]
+        + totals["failed_run"]
+    )
+    lines = [
+        "## Ledger reconciliation",
+        "",
+        f"| Identity | Count |",
+        f"| --- | ---: |",
+        f"| Shard fixtures | {fixtures} |",
+        f"| = no-mutation + mutated + originals skipped | {no_mut} + {mutated_fixtures} + {skipped} = {no_mut + mutated_fixtures + skipped} |",
+        f"| Mutant rows in TSV | {totals['mutants_run']} |",
+        f"| Mutant bucket sum | {bucket_sum} |",
+        f"| Buckets match mutant total | {'yes' if bucket_sum == totals['mutants_run'] else 'NO'} |",
+        "",
+    ]
+    hdr = 0
+    body = 0
+    for line in tsv.read_text().splitlines()[1:]:
+        p = line.split("\t")
+        if len(p) < 6 or p[5] != "confirmed-hole" or p[1] != "drop_requires":
+            continue
+        sub = p[12] if len(p) > 12 else ""
+        if sub.startswith("header"):
+            hdr += 1
+        elif sub.startswith("body"):
+            body += 1
+    lines += [
+        f"**drop_requires confirmed-hole placement:** header {hdr}, body {body} (see `hole_subtype` prefix).",
+        "",
+    ]
+    return lines
 
 
 def fixture_reconcile(tsv: Path, shard: int) -> list[str]:
@@ -183,19 +232,52 @@ def main() -> int:
         f"**{drop_rows}** `drop_requires` TSV rows.",
         "",
     ]
+    body += [
+        "## Classification rules (shard 0)",
+        "",
+        f"**Q7 vs confirmed-hole:** {Q7_RULE}",
+        "",
+        "**flip_borrow_mutability:** exclusive→shared with **no write through the shared borrow** in "
+        "executable code → `discarded-valid`; otherwise → `known-gap-q7-mut` when accepted.",
+        "",
+        "**widen_requires:** invalid only when the inverted `!= 0` guard is not backed by an in-body "
+        "`match … != 0` and executable division remains in the mutant.",
+        "",
+        "**drop_requires:** invalid when requires was removed, no internal restatement, and a "
+        "check-time divide/index/`ensures` obligation remains; header vs body tracked in `hole_subtype`.",
+        "",
+    ]
+    import subprocess
+
+    audit = subprocess.run(
+        [sys.executable, str(REPO / ".agents/four-jobs-2026-11-12/soundness/audit_no_mutation.py"), "--shard", str(args.shard)],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+    )
+    body += ["## no-mutation breakdown", "", "```", (audit.stdout or audit.stderr).strip(), "```", ""]
+    body += explicit_reconcile(tsv, args.shard)
     body += fixture_reconcile(tsv, args.shard)
+    for kind, n in (
+        ("drop_requires", 4),
+        ("remove_mut", 4),
+        ("flip_borrow_mutability", 4),
+        ("widen_requires", 4),
+        (None, 4),
+    ):
+        title = f"Hand verification: confirmed-hole {kind or 'any'} ({n})"
+        body += write_section(
+            title,
+            pick_rows(tsv, "confirmed-hole", kind, n),
+            with_diff=True,
+        )
     body += write_section(
-        "Hand verification: confirmed-hole (5)",
-        pick_rows(tsv, "confirmed-hole", None, 5),
-        with_diff=True,
+        "Hand verification: known-gap-q7 remove_mut (4)",
+        pick_rows(tsv, "known-gap-q7-mut", "remove_mut", 4),
     )
     body += write_section(
-        "Hand verification: known-gap-q7 remove_mut (5)",
-        pick_rows(tsv, "known-gap-q7-mut", "remove_mut", 5),
-    )
-    body += write_section(
-        "Hand verification: discarded drop_requires (5)",
-        pick_rows(tsv, "discarded-valid", "drop_requires", 5),
+        "Hand verification: discarded drop_requires (4)",
+        pick_rows(tsv, "discarded-valid", "drop_requires", 4),
     )
     md.write_text("\n".join(body), encoding="utf-8")
     return 0
