@@ -6912,21 +6912,23 @@ use crate::trait_definition::TraitDefinition;
 
 /*
     Every program numbers type identities in its own table, and a program can
-    hold another (its product declaration frontier). Under a canonical
-    numbering, each program's fields are written under its own table's, and
-    the enclosing one is restored after; see `TypeIdentityTable`'s `Record`.
+    hold another (its product declaration frontier). When the record is
+    written canonically, each program's fields are written under its own
+    table's numbering, and the enclosing one is restored after; see
+    `TypeIdentityTable`'s `Record`.
 */
 pub(crate) fn write_under_own_numbering(
     program: &TypedTrees,
     output: &mut compiler_storage::RecordWriter,
     write: impl FnOnce(&mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError>,
 ) -> Result<(), compiler_storage::RecordError> {
-    let Some(enclosing) = output.take_renumbering::<TypeIdentityId>() else {
+    let enclosing = output.take_renumbering::<TypeIdentityId>();
+    if enclosing.is_none() && !output.is_canonical() {
         return write(output);
-    };
+    }
     program.type_identities.renumber_canonically(output);
     let written = write(output);
-    output.restore_renumbering::<TypeIdentityId>(Some(enclosing));
+    output.restore_renumbering::<TypeIdentityId>(enclosing);
     written
 }
 

@@ -161,6 +161,7 @@ pub struct RecordWriter {
     external: Option<(TypeId, usize)>, // The one value of its type the reader supplies instead of the bytes.
     renumberings: Vec<Renumbering>,
     appearance_numberings: Vec<AppearanceNumbering>,
+    canonical: bool, // Owners of minted numbers write them under their canonical numbering.
 }
 
 /*
@@ -211,8 +212,22 @@ impl RecordWriter {
             external: None,
             renumberings: Vec::new(),
             appearance_numberings: Vec::new(),
+            canonical: false,
             limits,
         }
+    }
+
+    /*
+        Asks every owner of minted numbers in the record to write them under
+        its canonical numbering (`renumber`), so equal values write equal
+        bytes. Keys and stored records are written this way.
+    */
+    pub fn write_canonically(&mut self) {
+        self.canonical = true;
+    }
+
+    pub fn is_canonical(&self) -> bool {
+        self.canonical
     }
 
     /*
@@ -260,6 +275,7 @@ impl RecordWriter {
         let mut scratch = Self::new(self.limits);
         scratch.renumberings = self.renumberings.clone();
         scratch.appearance_numberings = self.appearance_numberings.clone();
+        scratch.canonical = self.canonical;
         scratch
     }
 

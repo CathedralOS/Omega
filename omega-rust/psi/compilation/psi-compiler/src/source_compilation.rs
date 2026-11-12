@@ -135,6 +135,8 @@ mod activation {
         pub pre_checks: Vec<PreCheckEvaluation>,
         pub declaration_syntax: Arc<SyntaxTrees>,
         sources: Arc<SourceMap>,
+        /// The store key of the retained typing this extends, if it has one.
+        pub predecessor_key: Option<[u8; 32]>,
     }
 
     impl ActivatedSource {
@@ -204,6 +206,7 @@ mod activation {
         candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
         for (_, source, sources) in candidates {
             let declaration_syntax = Arc::clone(&source.context.declaration_syntax);
+            let predecessor_key = source.stored_key;
             let (typing, pending_pre_checks) = super::SourceContinuation::complete_selected(
                 source,
                 Arc::clone(&sources),
@@ -271,6 +274,7 @@ mod activation {
                 pre_checks,
                 declaration_syntax,
                 sources,
+                predecessor_key,
             }));
         }
         Ok(None)
@@ -736,6 +740,10 @@ struct SourceCompletionInput {
     pending_bodies: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
+    /// The store key this typing was saved or loaded under, so a request
+    /// that extends it can be keyed as well (`typed_slice`).
+    #[record(skip)]
+    stored_key: Option<[u8; 32]>,
 }
 
 pub struct BuildSourceInput<'source> {
@@ -812,12 +820,21 @@ mod typed_slice {
         }
     }
 
+    /*
+        `predecessor` is the key of the retained typing a request extends.
+        The extension's result is a function of that exact typing and of the
+        request, so the two together key it; a request that extends a typing
+        with no key is not keyed.
+    */
     pub(super) fn key(
         request: &SourceCompilationRequest,
         stored: StoredTyping,
+        predecessor: Option<[u8; 32]>,
     ) -> Option<(StoredTyping, SliceKey)> {
         let sources = &request.sources;
+        let predecessor = predecessor.map_or_else(Vec::new, |key| key.to_vec());
         let parts = [
+            predecessor,
             compiler_storage::encode_beside(&request.syntax, sources, LIMITS).ok()?,
             compiler_storage::encode_beside(&request.source_items, sources, LIMITS).ok()?,
             compiler_storage::encode_beside(&request.root_sources, sources, LIMITS).ok()?,
@@ -859,7 +876,11 @@ mod typed_slice {
         target: &str,
         input: &SourceCompletionInput,
     ) {
-        if let Ok(payload) = compiler_storage::encode_beside(input, &key.sources, LIMITS) {
+        if let Ok(payload) =
+            compiler_storage::encode_beside_with(input, &key.sources, LIMITS, |output| {
+                output.write_canonically()
+            })
+        {
             checked_slice::save_payload(&reuse(stored, target), key, &payload);
             SAVES.fetch_add(1, Ordering::Relaxed);
         }
@@ -885,8 +906,11 @@ impl SourceCompilationRequest {
         };
         let activation = activation::select_retained_source(&self, &context, observer)?;
         let typed_slice = match (&activation, self.stored_typing) {
-            (None, Some(stored)) => typed_slice::key(&self, stored),
-            _ => None,
+            (None, Some(stored)) => typed_slice::key(&self, stored, None),
+            (Some(activation), Some(stored)) => activation
+                .predecessor_key
+                .and_then(|predecessor| typed_slice::key(&self, stored, Some(predecessor))),
+            (_, None) => None,
         };
         if std::env::var_os("TMPKEY").is_some() {
             eprintln!(
@@ -901,6 +925,10 @@ impl SourceCompilationRequest {
             && let Some(input) = typed_slice::load(*stored, key, self.build_helper_identity)
             && let Ok(input) = input.rejoin_current_authority(self.selection_authority.clone())
         {
+            let input = Arc::new(SourceCompletionInput {
+                stored_key: Some(key.digest),
+                ..Arc::unwrap_or_clone(input)
+            });
             self.frontends.retain(Arc::clone(&input))?;
             typed_slice::record_load();
             return Ok(SourceContinuation {
@@ -1012,6 +1040,7 @@ impl SourceCompilationRequest {
             pending_bodies,
             pending_pre_checks,
             context,
+            stored_key: typed_slice.as_ref().map(|(_, key)| key.digest),
         });
         if let Some((stored, key)) = typed_slice.as_ref() {
             typed_slice::save(*stored, key, self.build_helper_identity, &input);
@@ -1166,6 +1195,7 @@ impl SourceContinuation {
             pending_bodies,
             pending_pre_checks,
             context,
+            stored_key: _,
         } = Arc::unwrap_or_clone(input);
         let (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
         Ok(Self {
@@ -1174,6 +1204,7 @@ impl SourceContinuation {
                 pending_bodies,
                 pending_pre_checks,
                 context,
+                stored_key: None,
             }),
             completions,
         })
@@ -1196,6 +1227,7 @@ impl SourceContinuation {
             mut pending_bodies,
             pending_pre_checks,
             context,
+            stored_key: _,
         } = Arc::unwrap_or_clone(owned_input);
         (typing, pending_bodies) = complete_authored_bodies(typing, pending_bodies, observer)?;
         drop(pending_bodies);

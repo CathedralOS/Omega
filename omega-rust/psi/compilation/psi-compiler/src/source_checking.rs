@@ -463,7 +463,7 @@ pub(crate) mod checked_slice {
     }
 
     pub(crate) struct SliceKey {
-        pub(super) digest: [u8; 32],
+        pub(crate) digest: [u8; 32],
         pub(crate) sources: std::sync::Arc<source::SourceMap>,
     }
 
@@ -670,6 +670,7 @@ pub(crate) mod checked_slice {
         sources: &std::sync::Arc<source::SourceMap>,
     ) -> Result<Vec<u8>, compiler_storage::RecordError> {
         compiler_storage::encode_beside_with(value, sources, LIMITS, |output| {
+            output.write_canonically();
             identities.renumber_canonically(output)
         })
     }
