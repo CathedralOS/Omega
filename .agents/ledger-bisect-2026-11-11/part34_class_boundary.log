@@ -1,0 +1,16 @@
+count=9954 range=84c2330b018df161905ec21172e542e4572b1c71..51e8c45c793007f211d0d9baee7de16767172444
+bisect lo=4977 hi=9953 mid=4976 8306c39d129 psi: retain live collection bounds across arrivals and stores
+bisect lo=7466 hi=9953 mid=7465 a84729d2ca1 psi: derive the builtin subslice window length once
+bisect lo=8710 hi=9953 mid=8709 1ea8c21f8b4 samples: migrate retained owned arrays to Build bindings (#1210)
+bisect lo=9332 hi=9953 mid=9331 6618a8c606d psi: let layout queries reach scalar range checking (#1851)
+bisect lo=9643 hi=9953 mid=9642 189c63d654f psi: avoid repeating work when checking large programs (#2164)
+bisect lo=9799 hi=9953 mid=9798 dd7ab46b413 compiler: refuse a program whose obligation the lowered route cannot prove (#2321)
+bisect lo=9877 hi=9953 mid=9876 dbd0af26d67 tests: record borrow and slice-bound rows that already regressed on main (#2419)
+bisect lo=9916 hi=9953 mid=9915 157ac65f931 tests: record fifty-seven rows whose outcomes already moved on main (#2457)
+bisect lo=9935 hi=9953 mid=9934 2aab3a55594 psi: discharge a cross-carrier mutable view's handback from the written value (#2484)
+bisect lo=9945 hi=9953 mid=9944 420195930d7 psi: decide float provider and layout custody from the sealed intrinsic catalog (#2467)
+bisect lo=9950 hi=9953 mid=9949 182a33b423f repo: read required landing checks from exact commit jobs (#2492)
+bisect lo=9952 hi=9953 mid=9951 dfece9ee066 psi: cover crash routes restricted by their call path and by float guards (#2502)
+bisect lo=9953 hi=9953 mid=9952 e2e7876a03e repo: gate pull requests on the corpus rows they can affect, sweep the ledger nightly (#2463)
+FIRST_BUILDABLE_PIN_CLASS=51e8c45c793007f211d0d9baee7de16767172444
+CLASS_PARENT=e2e7876a03e415c6aad2defbbe743e0ec24e7caa

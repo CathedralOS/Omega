@@ -1,0 +1,18 @@
+FIXTURE_ADD=648fa099e29f4477cf58d5f9e881ec894aaaaf6f
+PIN=1
+step=1 r=1 st=incomplete e2e7876a03e repo: gate pull requests on the corpus rows they can affect, sweep the ledger nightly (#2463)
+step=2 r=1 st=incomplete dfece9ee066 psi: cover crash routes restricted by their call path and by float guards (#2502)
+step=4 r=1 st=incomplete 182a33b423f repo: read required landing checks from exact commit jobs (#2492)
+step=8 r=1 st=incomplete a24aae8c0d7 psi: recognize core interrupt, segment and service declarations from one vocabulary (#2496)
+step=16 r=1 st=incomplete 4561f923e68 docs: make provider-selection-after-terminal acceptance measure the migration (#2486)
+step=32 r=1 st=incomplete 3bbe5c131a1 docs: ratify ordinary trait records and resulting-value identity (#2460)
+step=64 r=1 st=incomplete d14bba6d178 psi: prove a field's data requires for a whole-slice view of that field (#2429)
+step=128 r=1 st=incomplete 7b3a04c7c50 psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)
+step=256 r=1 st=incomplete ca85a279ff0 tools: keep the worktree pool usable when a registered worktree's directory is gone (#2236)
+step=512 r=1 st=incomplete c417f61c95b compiler: preserve array contracts across calls and state changes (#1880)
+step=1024 r=1 st=incomplete a48219f5cf9 compiler: complete Windows raw filesystem metadata (#1401)
+step=2048 r=1 st=incomplete 68b1302cf9e build: resume provider readiness through dependency acquisition (#324)
+step=4096 r=1 st=incomplete 2be444ab1c3 facts(linear_claim_retirement): add root witness and complete 8-layer requirements evidence
+step=8192 r=1 st=incomplete bd9aee3464d backend: look constraint rows up through the catalog accessor
+fixture_add=1 st=incomplete
+VERDICT=never-good-since-648fa099e29f4477cf58d5f9e881ec894aaaaf6f

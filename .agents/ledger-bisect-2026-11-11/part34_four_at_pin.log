@@ -1,0 +1,4 @@
+pass/borrows/runtime_mutable_byte_loan_read_exit class=1
+pass/borrows/runtime_recursive_mutable_array_store_exit class=125
+pass/termination/distance_constant_bound_exit class=125
+pass/termination/runtime_call_result_short_circuit_rank_exit class=125

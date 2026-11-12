@@ -1,0 +1,3 @@
+witness=pass/borrows/runtime_mutable_byte_loan_read_exit
+pin_status=incomplete
+pin_diag=`entry_start` calls `Main::main`, which calls `reverse`; `reverse` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
