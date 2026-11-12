@@ -17,9 +17,9 @@ python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py --shard 0 
 
 - Fixtures visited this run: 0
 - Fixtures completed (progress file): 1131
-- Originals skipped (not accepted): 52
+- Original failed-run fixtures (PIN): 52
 - Mutants generated (this run): 0
-- Mutants run (cumulative): 1907
+- Mutants run (cumulative): 1876
 ## Mutant bucket table (sums to mutant total)
 
 | Bucket | Count |
@@ -27,15 +27,15 @@ python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py --shard 0 
 | confirmed-hole | 22 |
 | known-gap-q7-mut | 290 |
 | disagreement-valid | 3 |
-| valid-route-outside | 278 |
+| valid-route-outside | 276 |
 | discarded-valid | 2 |
-| rejected-both | 1312 |
+| rejected-both | 1283 |
 | timeout | 0 |
 | failed-run | 0 |
-| no-mutation | 356 |
-| **mutant total** | **1907** |
+| no-mutation | 132 |
+| **mutant total** | **1876** |
 
-Baseline mutant total before this resume pass: 1907. Delta explained in shard-0.meta.json.
+Baseline mutant total before this resume pass: 1876. Delta explained in shard-0.meta.json.
 
 Downgraded from pre-review `confirmed-invalid`: 0 (reclassified into the buckets above, chiefly `discarded-valid`).
 
@@ -3791,7 +3791,7 @@ Downgraded from pre-review `confirmed-invalid`: 0 (reclassified into the buckets
 
 ## drop_requires coverage note
 
-Shard 0 initially recorded **zero** `drop_requires` rows through the first ~968 fixtures because `mut_drop_first_requires` used a broken parenthesis walk on `requires (...)` clauses (it never closed the opening `(`) and only matched line-start `requires`, not **machine-header** `machine … requires … {` forms. Other shards (~100 rows each) likely ran an earlier build before that regression or used different fixture mix; the bug suppressed **all** drop mutants here until `requires_span.py` fixed parsing and `backfill_drop_requires.py` re-ran the kind for fixtures already in `shard-0.progress`. After backfill this shard has **658** `drop_requires` TSV rows.
+Shard 0 initially recorded **zero** `drop_requires` rows through the first ~968 fixtures because `mut_drop_first_requires` used a broken parenthesis walk on `requires (...)` clauses (it never closed the opening `(`) and only matched line-start `requires`, not **machine-header** `machine … requires … {` forms. Other shards (~100 rows each) likely ran an earlier build before that regression or used different fixture mix; the bug suppressed **all** drop mutants here until `requires_span.py` fixed parsing and `backfill_drop_requires.py` re-ran the kind for fixtures already in `shard-0.progress`. After backfill this shard has **627** `drop_requires` TSV rows.
 
 ## Classification rules (shard 0)
 
@@ -3806,27 +3806,85 @@ Shard 0 initially recorded **zero** `drop_requires` rows through the first ~968 
 ## no-mutation breakdown
 
 ```
-no_mutation fixtures: 356
-  widen_requires: 356
-  drop_divisor_guard: 356
-  remove_mut: 356
-  flip_borrow_mutability_ampmut: 356
-  flip_borrow_mutability_amp: 356
-  write_through_shared_borrow: 356
-  break_ensures: 356
-  drop_requires: 132
-  all-generators-inert: 132
+no_mutation fixtures: 184
+  drop_divisor_guard: 184
+  write_through_shared_borrow: 184
+  break_ensures: 184
+  widen_requires: 183
+  flip_borrow_mutability_ampmut: 179
+  drop_requires: 153
+  remove_mut: 152
+  flip_borrow_mutability_amp: 151
+  all-generators-inert: 137
 ```
+
+## Original failed-run fixtures (PIN)
+
+These **52** fixtures did not accept on the original at PIN; each has a `_no_mutations` row with `hand_verdict=failed-run` and a `review_reason`.
+
+- `tests/omega/pass/asm/checked_asm_saved_nested_field_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/asm/checked_asm_saved_nested_field_exit/main.omg main.omg:20 bytes 816..821 cannot prove ensures contract for exit from compare at statement 8: 
+- `tests/omega/pass/borrow/owned_capture_weaker_formal/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/borrow/owned_capture_weaker_formal/main.omg main.omg:10 bytes 472..479 cannot prove requires contract for call observe from main: cells[0] in C
+- `tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit/main.omg main.omg:11 bytes 375..380 machine `clear_selected` cannot lend restricted fi
+- `tests/omega/pass/borrows/runtime_stored_carrier_exchange_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/borrows/runtime_stored_carrier_exchange_exit/main.omg no-span state `unchanged` receives `second_retired.values` while local borrow `windows` is
+- `tests/omega/pass/build/build_satisfier_trait_retention_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/build/dependency_generated_source_unimported/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/comptime/runtime_const_array_length_dependency_order_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/comptime/runtime_const_array_length_dependency_order_exit/main.omg main.omg:14 bytes 400..437 `table_size` has no executable body: this compiler
+- `tests/omega/pass/contracts/runtime_mutable_owned_call_poststate_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/contracts/runtime_mutable_owned_call_poststate_exit/main.omg no-span cannot prove asm `requires` fact at block entry in main state `entry` (stat
+- `tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg no-span state `right` receives `main` while local borrow `__transition_subject#15
+- `tests/omega/pass/data/reference_local_store_keeps_collection_predicate_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/domains/qualified_record_case_predicate/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/domains/qualified_record_case_predicate/main.omg no-span cannot prove default-domain field requirement for return from issue_handle at statemen
+- `tests/omega/pass/drops/borrowed_temporary_normal_completion_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/drops/borrowed_temporary_normal_completion_exit/main.omg main.omg:72 bytes 3336..3341 temporary backing lifetime coverage is unavailable for an 
+- `tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg main.omg:51 bytes 1663..1665 Exact integer cast in machine `exit` state `entry` from `u6
+- `tests/omega/pass/facts/abstract_signature_call_generic_actual_through_field_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/abstract_signature_call_generic_actual_through_field_exit/main.omg main.omg:24 bytes 534..538 machine-parameter requirement `Observe` requ
+- `tests/omega/pass/facts/as_slice_views_generic_through_local_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/as_slice_views_generic_through_local_exit/main.omg no-span cannot prove ensures contract for exit from whole_view at statement 0: result.l
+- `tests/omega/pass/facts/case_match_payload_loan_through_target_body_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/case_match_payload_loan_through_target_body_exit/main.omg no-span state `store` receives `<saved subject #4:1>::Active.message.body` while
+- `tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/main.omg no-span machine `capture` returns a view borrowing input `holder`, which is 
+- `tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg no-span machine `capture` returns a view borrowing input `holder`, which 
+- `tests/omega/pass/facts/installed_entry_storage_through_const_name_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg main.omg:23 bytes 463..475 cannot prove requires contract for call read_throu
+- `tests/omega/pass/facts/non_owning_reference_erasure_through_parameter_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/non_owning_reference_erasure_through_parameter_exit/main.omg no-span cannot prove default-domain field requirement for return from write a
+- `tests/omega/pass/facts/open_const_implementation_statement_saved_output_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/facts/recoverable_replacement_window_through_local_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/recoverable_replacement_window_through_local_exit/main.omg main.omg:29 bytes 1176..1291 `main` calls `repair`; `repair` has no executable 
+- `tests/omega/pass/facts/static_callback_reach_requirement_telescope/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/static_callback_reach_requirement_telescope/main.omg no-span `quiet` does not satisfy `StepContract::step`: helper `Requirement` requires 
+- `tests/omega/pass/filesystem/cross_linux_value_syscalls/main.omg` — **timeout** / route **timeout**: original checker timeout at PIN (current=timeout, route=timeout)
+- `tests/omega/pass/filesystem/runtime_portable_copy_errors_exit/main.omg` — **timeout** / route **timeout**: original checker timeout at PIN (current=timeout, route=timeout)
+- `tests/omega/pass/filesystem/wrapper_open_with_exit/main.omg` — **timeout** / route **timeout**: original checker timeout at PIN (current=timeout, route=timeout)
+- `tests/omega/pass/float/public_integer_input_contract_import_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/float/public_integer_input_contract_import_exit/main.omg no-span specification call `F32::classify` has no observation-free, reach-free, crash-f
+- `tests/omega/pass/generics/inferred_record_equation_repeated_equal_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/generics/runtime_captured_map_const_machine/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/generics/runtime_captured_map_const_machine/main.omg no-span machine argument `read` for `Selected` does not refine `Callback`: parameter 0 expe
+- `tests/omega/pass/layouts/placed_primitive_callback/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/layouts/placed_primitive_callback/main.omg no-span terminal-artifact production failed: Lowering(Unsupported("closed reach call lost its exact e
+- `tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg main.omg:51 bytes 1752..1758 `entry_start` calls `Main::main`; `Main::main` has no
+- `tests/omega/pass/modules/rational_boolean_indices/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/ownership/runtime_match_observation_cleanup_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/ownership/runtime_match_observation_cleanup_exit/main.omg no-span cannot plan contextual call cleanup against the executable hook roster: machin
+- `tests/omega/pass/proofs/cauchy_predicates_compile/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/proofs/float_guarded_negated_result_contract/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/float_guarded_negated_result_contract/main.omg main.omg:5 bytes 209..226 machine `retain_when_false` ensures contract proof fact `flag |
+- `tests/omega/pass/proofs/kernel_integer_subtract_order/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/kernel_integer_subtract_order/main.omg no-span terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` f
+- `tests/omega/pass/proofs/polynomial_expand_core_nat/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/polynomial_expand_core_nat/main.omg main.omg:12 bytes 561..576 machine `binomial_expand` ensures contract proof fact `core::Identity<Nat>
+- `tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg no-span terminating machine descend reaches recursive component `loop`, which has no `
+- `tests/omega/pass/providers/checked_operator_declaration_without_application/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/providers/checked_operator_declaration_without_application/main.omg no-span terminal-artifact production failed: Lowering(InvalidUnitMachinePla
+- `tests/omega/pass/slices/runtime_stored_element_view_replacement_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/slices/runtime_stored_element_view_replacement_exit/main.omg no-span returned projection exceeds its source presentation)
+- `tests/omega/pass/slices/state_projected_selector_bounds/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/slices/state_projected_selector_bounds/main.omg main.omg:51 bytes 1856..1857 cannot form specification index in machine `store` requires contra
+- `tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg no-span terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machin
+- `tests/omega/pass/targets/retained_target_family_bodies/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/termination/measure_computed_endpoint/main.omg` — **rejected** / route **no-entry**: original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/termination/measure_computed_endpoint/main.omg no-span terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank 
+- `tests/omega/pass/termination/progress_selector_owned_arrival_replacement_helper_exit/main.omg` — **stopped** / route **unreached**: original stopped at PIN (route=unreached; route_verdict=unreached)
+- `tests/omega/pass/text/runtime_slice_indexed_string_guard_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/text/runtime_slice_indexed_string_guard_exit/main.omg main.omg:30 bytes 1140..1144 cannot establish assignment invariants: performed write has u
+- `tests/omega/pass/traits/applied_conformance_captured_fresh_regions_exit/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/traits/applied_conformance_captured_fresh_regions_exit/main.omg no-span machine `Reader::read` state `read` does not satisfy trait `Reading` mac
+- `tests/omega/run/borrows/computed_element_view_state_extent/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/borrows/computed_element_view_state_extent/main.omg no-span returned projection exceeds its source presentation)
+- `tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg main.omg:13 bytes 538..555 `main` has no executable body: this compiler does not lower a statemen
+- `tests/omega/run/slices/returned_record_fixed_array_window/main.omg` — **rejected** / route **outside**: original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/slices/returned_record_fixed_array_window/main.omg main.omg:37 bytes 1174..1191 `main` has no executable body: this compiler does not lower a sta
 
 ## Ledger reconciliation
 
 | Identity | Count |
 | --- | ---: |
 | Shard fixtures | 1131 |
-| = no-mutation + mutated + originals skipped | 356 + 723 + 52 = 1131 |
-| Mutant rows in TSV | 1907 |
-| Mutant bucket sum | 1907 |
+| = no-mutation + mutated + original failed-run | 132 + 947 + 52 = 1131 |
+| Mutant rows in TSV | 1876 |
+| Mutant bucket sum | 1876 |
 | Buckets match mutant total | yes |
+| Fixture ledger disjoint (1131) | yes |
 
 **drop_requires confirmed-hole placement:** header 5, body 17 (see `hole_subtype` prefix).
 
@@ -3836,30 +3894,30 @@ no_mutation fixtures: 356
 | --- | ---: |
 | Fixtures in shard (index % 8 == 0) | 1131 |
 | Fixtures with any TSV row | 1131 |
-| No-mutation fixtures (`_no_mutations`) | 356 |
-| Mutated fixtures (≥1 mutant row) | 978 |
-| Mutant rows (excl. metadata) | 1907 |
-| Fixtures with >1 TSV row | 885 |
+| No-mutation fixtures (`_no_mutations`) | 184 |
+| Mutated fixtures (≥1 mutant row) | 947 |
+| Mutant rows (excl. metadata) | 1876 |
+| Fixtures with >1 TSV row | 630 |
 
 Sample fixtures with multiple rows:
 
 - `tests/omega/pass/arithmetic/call_surviving_return_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/closed_call_transition_return_proves_exact_sum_exit/main.omg` (2 rows)
-- `tests/omega/pass/arithmetic/exact_cast_carries_bound_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/indexed_divisor_requirement/main.omg` (3 rows)
 - `tests/omega/pass/arithmetic/nested_clamp_resolution_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/reused_fixed_integer_operands_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/runtime_comparison_signedness_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/runtime_exact_projection_sibling_exit/main.omg` (4 rows)
-- `tests/omega/pass/arithmetic/runtime_full_width_unsigned_quotient_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/runtime_nested_unsigned_witness_exit/main.omg` (3 rows)
-- `tests/omega/pass/arithmetic/runtime_returned_constructor_operation_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/runtime_unit_terminal_guarded_cast_exit/main.omg` (2 rows)
 - `tests/omega/pass/arithmetic/total_contract_guarded_division/main.omg` (3 rows)
 - `tests/omega/pass/arrays/runtime_index_recast/main.omg` (2 rows)
+- `tests/omega/pass/asm/atomic_release_disposition_replaced_contents_exit/main.omg` (2 rows)
+- `tests/omega/pass/asm/checked_label_edges_exit/main.omg` (3 rows)
+- `tests/omega/pass/asm/port_write_effect_contract/main.omg` (3 rows)
 
-_…and 870 more._
+_…and 615 more._
 
 ## Hand verification: confirmed-hole drop_requires (4)
 
@@ -3885,7 +3943,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_opaque_incoming_f057633817/drop_requires/main.omg	current=accepted	current_us=3308346	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_opaque_incoming_f057633817/drop_requires/main.omg	current=accepted	current_us=3113385	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
@@ -3932,7 +3990,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_shared__6809b457d2/drop_requires/main.omg	current=accepted	current_us=3347743	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_shared__6809b457d2/drop_requires/main.omg	current=accepted	current_us=3288335	root=compilation	route=outside	Unsupported: machine generic parameters
 
 ```
 
@@ -3958,7 +4016,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_comptime_runtime_generi_9e9492e92e/drop_requires/main.omg	current=accepted	current_us=4915015	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_comptime_runtime_generi_9e9492e92e/drop_requires/main.omg	current=accepted	current_us=4862785	root=compilation	route=outside	Unsupported: machine generic parameters
 
 ```
 
@@ -3984,7 +4042,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_proof_fact_in_b0871d8ee1/drop_requires/main.omg	current=accepted	current_us=1715704	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_proof_fact_in_b0871d8ee1/drop_requires/main.omg	current=accepted	current_us=1651246	root=compilation	route=no-entry
 
 ```
 
@@ -4024,7 +4082,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_opaque_incoming_f057633817/drop_requires/main.omg	current=accepted	current_us=3389295	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_opaque_incoming_f057633817/drop_requires/main.omg	current=accepted	current_us=3143118	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
@@ -4071,7 +4129,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_shared__6809b457d2/drop_requires/main.omg	current=accepted	current_us=3245588	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_borrows_runtime_shared__6809b457d2/drop_requires/main.omg	current=accepted	current_us=3147273	root=compilation	route=outside	Unsupported: machine generic parameters
 
 ```
 
@@ -4097,7 +4155,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_comptime_runtime_generi_9e9492e92e/drop_requires/main.omg	current=accepted	current_us=4735500	root=compilation	route=outside	Unsupported: machine generic parameters
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_comptime_runtime_generi_9e9492e92e/drop_requires/main.omg	current=accepted	current_us=4584195	root=compilation	route=outside	Unsupported: machine generic parameters
 
 ```
 
@@ -4123,7 +4181,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_proof_fact_in_b0871d8ee1/drop_requires/main.omg	current=accepted	current_us=1682950	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_contracts_proof_fact_in_b0871d8ee1/drop_requires/main.omg	current=accepted	current_us=1666100	root=compilation	route=no-entry
 
 ```
 
@@ -4144,7 +4202,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arithmetic_runtime_unit_dc1f1a502f/remove_mut/main.omg	current=accepted	current_us=3302049	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arithmetic_runtime_unit_dc1f1a502f/remove_mut/main.omg	current=accepted	current_us=3180843	root=compilation	route=outside	Unsupported: parameter mutable parameter
 
 ```
 
@@ -4163,7 +4221,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/remove_mut/main.omg	current=accepted	current_us=2438166	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_arrays_runtime_index_re_895472a97d/remove_mut/main.omg	current=accepted	current_us=2424765	root=compilation	route=no-entry
 
 ```
 
@@ -4182,7 +4240,7 @@ compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_atomic_release_disp_b91482c80d/remove_mut/main.omg	current=accepted	current_us=2970417	root=compilation	route=outside	Unsupported: machine service reach
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_atomic_release_disp_b91482c80d/remove_mut/main.omg	current=accepted	current_us=2934847	root=compilation	route=outside	Unsupported: machine service reach
 
 ```
 
@@ -4201,7 +4259,7 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 ```
 **route** exit=0
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_checked_label_edges_35e4663f16/remove_mut/main.omg	current=accepted	current_us=3148904	root=compilation	route=outside	Unsupported: machine attached data
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-0/mutants/tests_omega_pass_asm_checked_label_edges_35e4663f16/remove_mut/main.omg	current=accepted	current_us=3100792	root=compilation	route=outside	Unsupported: machine attached data
 
 ```
 

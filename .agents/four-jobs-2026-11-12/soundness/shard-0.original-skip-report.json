@@ -1,0 +1,366 @@
+[
+  {
+    "fixture": "tests/omega/pass/asm/checked_asm_saved_nested_field_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/asm/checked_asm_saved_nested_field_exit/main.omg main.omg:20 bytes 816..821 cannot prove ensures contract for exit from compare at statement 8: r)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/borrow/owned_capture_weaker_formal/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/borrow/owned_capture_weaker_formal/main.omg main.omg:10 bytes 472..479 cannot prove requires contract for call observe from main: cells[0] in Cel)",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/borrows/borrow_guarded_window_write_and_call/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit/main.omg main.omg:11 bytes 375..380 machine `clear_selected` cannot lend restricted fie)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/borrows/runtime_stored_carrier_exchange_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/borrows/runtime_stored_carrier_exchange_exit/main.omg no-span state `unchanged` receives `second_retired.values` while local borrow `windows` is )",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/build/build_satisfier_trait_retention_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/build/dependency_generated_source_unimported/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/comptime/runtime_const_array_length_dependency_order_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/comptime/runtime_const_array_length_dependency_order_exit/main.omg main.omg:14 bytes 400..437 `table_size` has no executable body: this compiler )",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/contracts/runtime_mutable_owned_call_poststate_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/contracts/runtime_mutable_owned_call_poststate_exit/main.omg no-span cannot prove asm `requires` fact at block entry in main state `entry` (state)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg no-span state `right` receives `main` while local borrow `__transition_subject#15`)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/data/reference_local_store_keeps_collection_predicate_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/domains/qualified_record_case_predicate/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/domains/qualified_record_case_predicate/main.omg no-span cannot prove default-domain field requirement for return from issue_handle at statement )",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/drops/borrowed_temporary_normal_completion_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/drops/borrowed_temporary_normal_completion_exit/main.omg main.omg:72 bytes 3336..3341 temporary backing lifetime coverage is unavailable for an o)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/expressions/match_owned_computed_arm_arguments/main.omg main.omg:51 bytes 1663..1665 Exact integer cast in machine `exit` state `entry` from `u64)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/abstract_signature_call_generic_actual_through_field_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/abstract_signature_call_generic_actual_through_field_exit/main.omg main.omg:24 bytes 534..538 machine-parameter requirement `Observe` requi)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/as_slice_views_generic_through_local_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/as_slice_views_generic_through_local_exit/main.omg no-span cannot prove ensures contract for exit from whole_view at statement 0: result.le)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/case_match_payload_loan_through_target_body_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/case_match_payload_loan_through_target_body_exit/main.omg no-span state `store` receives `<saved subject #4:1>::Active.message.body` while )",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/data_where_standing_nested_borrowed_field_const_name/main.omg no-span machine `capture` returns a view borrowing input `holder`, which is n)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/data_where_standing_nested_borrowed_field_other_machine/main.omg no-span machine `capture` returns a view borrowing input `holder`, which i)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/installed_entry_storage_through_const_name_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/match_reference_referent_through_other_machine_exit/main.omg main.omg:23 bytes 463..475 cannot prove requires contract for call read_throug)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/non_owning_reference_erasure_through_parameter_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/non_owning_reference_erasure_through_parameter_exit/main.omg no-span cannot prove default-domain field requirement for return from write at)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/open_const_implementation_statement_saved_output_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/recoverable_replacement_window_through_local_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/recoverable_replacement_window_through_local_exit/main.omg main.omg:29 bytes 1176..1291 `main` calls `repair`; `repair` has no executable b)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/facts/static_callback_reach_requirement_telescope/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/facts/static_callback_reach_requirement_telescope/main.omg no-span `quiet` does not satisfy `StepContract::step`: helper `Requirement` requires `)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/filesystem/cross_linux_value_syscalls/main.omg",
+    "class": "failed-run",
+    "reason": "original checker timeout at PIN (current=timeout, route=timeout)",
+    "current": "timeout",
+    "route": "timeout"
+  },
+  {
+    "fixture": "tests/omega/pass/filesystem/runtime_portable_copy_errors_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original checker timeout at PIN (current=timeout, route=timeout)",
+    "current": "timeout",
+    "route": "timeout"
+  },
+  {
+    "fixture": "tests/omega/pass/filesystem/wrapper_open_with_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original checker timeout at PIN (current=timeout, route=timeout)",
+    "current": "timeout",
+    "route": "timeout"
+  },
+  {
+    "fixture": "tests/omega/pass/float/public_integer_input_contract_import_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/float/public_integer_input_contract_import_exit/main.omg no-span specification call `F32::classify` has no observation-free, reach-free, crash-fr)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/generics/inferred_record_equation_repeated_equal_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/generics/runtime_captured_map_const_machine/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/generics/runtime_captured_map_const_machine/main.omg no-span machine argument `read` for `Selected` does not refine `Callback`: parameter 0 expec)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/layouts/placed_primitive_callback/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/layouts/placed_primitive_callback/main.omg no-span terminal-artifact production failed: Lowering(Unsupported(\"closed reach call lost its exact em)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/locals/runtime_local_qualified_view_member_read_exit/main.omg main.omg:51 bytes 1752..1758 `entry_start` calls `Main::main`; `Main::main` has no )",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/modules/rational_boolean_indices/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/ownership/runtime_match_observation_cleanup_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/ownership/runtime_match_observation_cleanup_exit/main.omg no-span cannot plan contextual call cleanup against the executable hook roster: machine)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/proofs/cauchy_predicates_compile/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/proofs/float_guarded_negated_result_contract/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/float_guarded_negated_result_contract/main.omg main.omg:5 bytes 209..226 machine `retain_when_false` ensures contract proof fact `flag || )",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/proofs/kernel_integer_subtract_order/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/kernel_integer_subtract_order/main.omg no-span terminating machine walk: cannot prove rank range `0..limits.limit % limits.divisor + 6` fo)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/proofs/polynomial_expand_core_nat/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/polynomial_expand_core_nat/main.omg main.omg:12 bytes 561..576 machine `binomial_expand` ensures contract proof fact `core::Identity<Nat>()",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg no-span terminating machine descend reaches recursive component `loop`, which has no `t)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/providers/checked_operator_declaration_without_application/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/providers/checked_operator_declaration_without_application/main.omg no-span terminal-artifact production failed: Lowering(InvalidUnitMachinePlan )",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/slices/runtime_stored_element_view_replacement_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/slices/runtime_stored_element_view_replacement_exit/main.omg no-span returned projection exceeds its source presentation)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/slices/state_projected_selector_bounds/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/slices/state_projected_selector_bounds/main.omg main.omg:51 bytes 1856..1857 cannot form specification index in machine `store` requires contract)",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/structural/runtime_scalar_record_reclamation_exit/main.omg no-span terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/targets/retained_target_family_bodies/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/termination/measure_computed_endpoint/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=no-entry; current-diagnostic /agent/repos/omega/tests/omega/pass/termination/measure_computed_endpoint/main.omg no-span terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank pr)",
+    "current": "rejected",
+    "route": "no-entry"
+  },
+  {
+    "fixture": "tests/omega/pass/termination/progress_selector_owned_arrival_replacement_helper_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original stopped at PIN (route=unreached; route_verdict=unreached)",
+    "current": "stopped",
+    "route": "unreached"
+  },
+  {
+    "fixture": "tests/omega/pass/text/runtime_slice_indexed_string_guard_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/text/runtime_slice_indexed_string_guard_exit/main.omg main.omg:30 bytes 1140..1144 cannot establish assignment invariants: performed write has un)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/pass/traits/applied_conformance_captured_fresh_regions_exit/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/pass/traits/applied_conformance_captured_fresh_regions_exit/main.omg no-span machine `Reader::read` state `read` does not satisfy trait `Reading` mach)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/run/borrows/computed_element_view_state_extent/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/borrows/computed_element_view_state_extent/main.omg no-span returned projection exceeds its source presentation)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/calls/anonymous_shared_borrow_operands/main.omg main.omg:13 bytes 538..555 `main` has no executable body: this compiler does not lower a statement)",
+    "current": "rejected",
+    "route": "outside"
+  },
+  {
+    "fixture": "tests/omega/run/slices/returned_record_fixed_array_window/main.omg",
+    "class": "failed-run",
+    "reason": "original rejected at PIN (route=outside; current-diagnostic /agent/repos/omega/tests/omega/run/slices/returned_record_fixed_array_window/main.omg main.omg:37 bytes 1174..1191 `main` has no executable body: this compiler does not lower a stat)",
+    "current": "rejected",
+    "route": "outside"
+  }
+]

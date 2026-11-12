@@ -241,7 +241,7 @@ def _md_lines(
         "",
         f"- Fixtures visited this run: {counters.fixtures}",
         f"- Fixtures completed (progress file): {_progress_count(shard)}",
-        f"- Originals skipped (not accepted): {totals['originals_skipped']}",
+        f"- Original failed-run fixtures (PIN): {totals.get('failed_run_original', 0)}",
         f"- Mutants generated (this run): {counters.mutants_generated}",
         f"- Mutants run (cumulative): {totals['mutants_run']}",
         "## Mutant bucket table (sums to mutant total)",
@@ -348,21 +348,25 @@ def main() -> int:
             continue
         counters.fixtures += 1
         processed_new += 1
-        cur0, _, _ = run_both_checkers(main, args.timeout)
+        cur0, route0, route_reason0 = run_both_checkers(main, args.timeout)
         if cur0 != "accepted":
             counters.originals_skipped += 1
+            from reconcile_skipped_originals import original_skip_reason  # noqa: WPS433
+
             append_tsv(
                 tsv,
                 [
                     rel,
-                    "_original_not_accepted",
+                    "_no_mutations",
                     "",
                     cur0,
+                    route0,
+                    "failed-run",
                     "",
-                    "discarded-valid",
                     "",
                     "",
-                    "",
+                    route_reason0.replace("\t", " ")[:500],
+                    original_skip_reason(cur0, route0, route_reason0),
                     "",
                     "",
                 ],
@@ -503,7 +507,7 @@ def _totals_from_tsv(tsv: Path) -> dict:
         "no_mutation": 0,
         "fixtures": 0,
         "confirmed_by_acceptor": {},
-        "originals_skipped": 0,
+        "failed_run_original": 0,
         "confirmed_by_kind": {},
         "downgraded": 0,
         "baseline_mutants": 0,
@@ -521,11 +525,11 @@ def _totals_from_tsv(tsv: Path) -> dict:
             parts.append("")
         kind, hand = parts[1], parts[5]
         fixtures.add(parts[0])
-        if kind == "_original_not_accepted":
-            counts["originals_skipped"] += 1
-            continue
         if kind == "_no_mutations":
-            counts["no_mutation"] += 1
+            if hand == "failed-run":
+                counts["failed_run_original"] = counts.get("failed_run_original", 0) + 1
+            else:
+                counts["no_mutation"] += 1
             continue
         if kind.startswith("_"):
             counts["failed_run"] += 1

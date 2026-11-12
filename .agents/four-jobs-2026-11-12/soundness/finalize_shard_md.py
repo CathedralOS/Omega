@@ -78,8 +78,24 @@ def explicit_reconcile(tsv: Path, shard: int) -> list[str]:
     totals = _totals_from_tsv(tsv)
     fixtures = len(shard_fixtures(shard))
     no_mut = totals["no_mutation"]
-    skipped = totals["originals_skipped"]
-    mutated_fixtures = fixtures - no_mut - skipped
+    failed_orig = totals.get("failed_run_original", 0)
+    mutated_fixtures = fixtures - no_mut - failed_orig
+    # sanity: disjoint fixture ledger
+    failed_fix: set[str] = set()
+    no_mut_fix: set[str] = set()
+    mut_fix: set[str] = set()
+    for line in tsv.read_text().splitlines()[1:]:
+        p = line.split("\t")
+        if len(p) < 2:
+            continue
+        if p[1] == "_no_mutations":
+            (failed_fix if p[5] == "failed-run" else no_mut_fix).add(p[0])
+        elif not p[1].startswith("_"):
+            mut_fix.add(p[0])
+    ledger_ok = len(failed_fix | no_mut_fix | mut_fix) == fixtures
+    mutated_fixtures = len(mut_fix - failed_fix - no_mut_fix)
+    no_mut = len(no_mut_fix - mut_fix - failed_fix)
+    failed_orig = len(failed_fix)
     bucket_sum = (
         totals["confirmed_hole"]
         + totals["known_gap_q7"]
@@ -96,10 +112,11 @@ def explicit_reconcile(tsv: Path, shard: int) -> list[str]:
         f"| Identity | Count |",
         f"| --- | ---: |",
         f"| Shard fixtures | {fixtures} |",
-        f"| = no-mutation + mutated + originals skipped | {no_mut} + {mutated_fixtures} + {skipped} = {no_mut + mutated_fixtures + skipped} |",
+        f"| = no-mutation + mutated + original failed-run | {no_mut} + {mutated_fixtures} + {failed_orig} = {no_mut + mutated_fixtures + failed_orig} |",
         f"| Mutant rows in TSV | {totals['mutants_run']} |",
         f"| Mutant bucket sum | {bucket_sum} |",
         f"| Buckets match mutant total | {'yes' if bucket_sum == totals['mutants_run'] else 'NO'} |",
+        f"| Fixture ledger disjoint (1131) | {'yes' if ledger_ok else 'NO'} |",
         "",
     ]
     hdr = 0
@@ -256,6 +273,24 @@ def main() -> int:
         cwd=str(REPO),
     )
     body += ["## no-mutation breakdown", "", "```", (audit.stdout or audit.stderr).strip(), "```", ""]
+    skip_report = REPO / f".agents/four-jobs-2026-11-12/soundness/shard-{args.shard}.original-skip-report.json"
+    if skip_report.exists():
+        import json
+
+        items = json.loads(skip_report.read_text())
+        body += [
+            "## Original failed-run fixtures (PIN)",
+            "",
+            f"These **{len(items)}** fixtures did not accept on the original at PIN; each has a "
+            "`_no_mutations` row with `hand_verdict=failed-run` and a `review_reason`.",
+            "",
+        ]
+        for row in items:
+            body.append(
+                f"- `{row['fixture']}` — **{row.get('current', '?')}** / route **{row.get('route', '?')}**: "
+                f"{row.get('reason', '')[:240]}"
+            )
+        body.append("")
     body += explicit_reconcile(tsv, args.shard)
     body += fixture_reconcile(tsv, args.shard)
     for kind, n in (
