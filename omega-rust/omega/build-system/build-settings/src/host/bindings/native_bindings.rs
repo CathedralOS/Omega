@@ -61,7 +61,14 @@ impl TerminalBuildBindingAdapter {
         // The executed record carries no static environment, so an applied
         // requirement written inside a generic Build helper would lose the
         // helper's own arguments. Refuse it instead of binding a guess.
-        if call.static_environment.is_some() {
+        // A bare `Owner::member` operand names no arguments and keeps working
+        // inside such a helper.
+        if call.static_environment.is_some()
+            && request
+                .operands
+                .iter()
+                .any(|operand| operand.application.is_some())
+        {
             return Err(refuse(
                 "an applied native binding requirement must be written in a Build machine without static parameters",
             ));
