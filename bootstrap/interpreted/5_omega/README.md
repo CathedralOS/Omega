@@ -92,6 +92,27 @@ invocation writes Alpha tape; a refusal writes its source coordinate and exits
 nonzero. The implementation remains under construction; Epsilon source
 acceptance alone does not establish compilation of the Omega compiler closure.
 
+The first whole-input observation supplied 265 exact production units
+(3,697,171 source bytes) for
+`source/omega/application/construction/main.omg::entry_start`. The independent
+Python Epsilon model read the complete construction input and returned
+`Incomplete` at absolute source-buffer byte 841: unit zero, relative byte 711,
+line 24, the `crashes` clause of `malformed`. The source buffer begins with
+130 bytes of package, alias and entry spellings, so these coordinates differ.
+The run took 79.199 seconds with peak RSS 976,256 KiB. It produced no compiler
+artifact and is not source-built evaluator evidence. The frozen input SHA-256
+is `4670fc36a81c825e5e17a4b565a5d01c897a6597a9f3757a050d2f296372c5fd`;
+the compiler and construction entry are the bytes retained at `6d2320a4d7b`.
+A subsequent production source snapshot adds two contracts and is a distinct
+input; it must not inherit this observation.
+
+The next execution must carry that actual closure through effect-clause
+admission. Source-set acceptance also still requires role-aware toolchain
+namespace resolution and checking primitive/domain lookup against ordinary
+binding selection; retaining a role in the input does not yet implement those
+paths. The currently unexecuted module-resolution paths must not be described
+as validated compilation or as an independently constructed Omega compiler.
+
 The emitted subset retains a nullary `u8` program entry. Free and nested
 machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records,
 and Unit results. Omitted results independently mean Unit; a nested declaration
