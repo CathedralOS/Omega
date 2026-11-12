@@ -33,7 +33,13 @@ mechanism_for() {
     echo "ledger-only commit; skipped"
     return
   fi
-  git log -1 --format=%s "$sha"
+  subject=$(git log -1 --format=%s "$sha")
+  mapfile -t code < <(git diff --name-only "${sha}^@" "$sha" | grep -E '\.(rs|omg)$' | grep -v corpus_outcomes | head -3)
+  if ((${#code[@]} > 0)); then
+  printf '%s ({ %s })' "$subject" "$(IFS=,; echo "${code[*]}")"
+  else
+  printf '%s' "$subject"
+  fi
 }
 
 git checkout -q "$PIN"
