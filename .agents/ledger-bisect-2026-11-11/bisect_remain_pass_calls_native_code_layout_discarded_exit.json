@@ -1,0 +1,10 @@
+{
+  "witness": "pass/calls/native_code_layout_discarded_exit",
+  "good": "d26fa952d579d52642970560c719d24fa2a89f8a",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "breaking_commit": null,
+  "bisect_exit": 1,
+  "status": "endpoint_mismatch",
+  "endpoint_good_rc": 125,
+  "endpoint_bad_rc": 1
+}

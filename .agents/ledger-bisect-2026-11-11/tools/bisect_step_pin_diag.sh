@@ -21,6 +21,7 @@ export OMEGA_CORPUS_ROOT="$WT" OMEGA_LIBRARY_ROOT="$WT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-rc=$(python3 "$LB/tools/pin_diag_test.py")
+rc=0
+python3 "$LB/tools/pin_diag_test.py" || rc=$?
 git -C "$ROOT" worktree remove -f "$WT" 2>/dev/null || rm -rf "$WT"
 exit "$rc"

@@ -28,10 +28,10 @@ def ledger_only(commit: str) -> bool:
     return all(f == "tests/omega/corpus_outcomes.txt" or f.endswith(".md") for f in files)
 
 
-def step_rc(commit: str, witness: str) -> int:
+def step_rc(commit: str, witness: str, step_script: Path) -> int:
     env = {**os.environ, "BISECT_WITNESS": witness, "BISECT_HEAD": commit}
     r = subprocess.run(
-        [str(LB / "tools/bisect_step_worktree.sh")],
+        [str(step_script)],
         env=env,
         cwd=ROOT,
         capture_output=True,
@@ -46,12 +46,13 @@ def main() -> int:
         print("usage: bisect_pin_manual.py WITNESS GOOD BAD OUT.json", file=sys.stderr)
         return 2
     witness, good, bad, out = sys.argv[1:5]
+    step_script = Path(sys.argv[5]) if len(sys.argv) > 5 else LB / "tools/bisect_step_pin_diag.sh"
     commits = [c for c in git("rev-list", "--first-parent", "--reverse", f"{good}..{bad}").splitlines() if c]
     if not commits:
         print("empty revision range", file=sys.stderr)
         return 1
-    g0 = step_rc(good, witness)
-    b0 = step_rc(bad, witness)
+    g0 = step_rc(good, witness, step_script)
+    b0 = step_rc(bad, witness, step_script)
     print(f"endpoint good {good} rc={g0}", file=sys.stderr)
     print(f"endpoint bad {bad} rc={b0}", file=sys.stderr)
     if g0 != 0 or b0 != 1:
@@ -75,7 +76,7 @@ def main() -> int:
         if ledger_only(c):
             lo = mid + 1
             continue
-        rc = step_rc(c, witness)
+        rc = step_rc(c, witness, step_script)
         print(f"probe {c} rc={rc}", file=sys.stderr)
         if rc == 0:
             lo = mid + 1

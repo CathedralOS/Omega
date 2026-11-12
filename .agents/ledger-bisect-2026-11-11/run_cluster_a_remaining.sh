@@ -28,11 +28,11 @@ for w in "${WITNESSES[@]}"; do
     continue
   fi
   echo "=== manual bisect $w ===" | tee "$log"
-  python3 "$MANUAL" "$w" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$log"
+  python3 "$MANUAL" "$w" "$GOOD" "$PIN" "$out" "$DIR/tools/bisect_step_pin_diag.sh" 2>&1 | tee -a "$log"
 done
 W=pass/facts/selected_native_code_layout_through_other_state_exit
 out="$DIR/bisect_pin_class_other_state.json"
 log="$LOGDIR/pin_class_other_state.log"
 echo "=== pin diagnostic class $W ===" | tee "$log"
-python3 "$MANUAL" "$W" "$GOOD" "$PIN" "$out" 2>&1 | tee -a "$log"
+python3 "$MANUAL" "$W" "$GOOD" "$PIN" "$out" "$DIR/tools/bisect_step_pin_diag.sh" 2>&1 | tee -a "$log"
 echo DONE >"$LOGDIR/cluster_a_remaining.done"
