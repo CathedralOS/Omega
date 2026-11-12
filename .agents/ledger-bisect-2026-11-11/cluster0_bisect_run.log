@@ -1,0 +1,301 @@
+We are not bisecting.
+Bisecting: 338 revisions left to test after this (roughly 8 steps)
+[2d8a304c0fc098d8e7bdb3c537cbbedb6cc2e2e1] omega: consolidate and document post-allocation pipeline stages 06-09 (#2137)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 169 revisions left to test after this (roughly 7 steps)
+[412ae4a5ba288e19e6b0ad05937ee6f4a7c582dc] psi: preserve provider input facts in private helpers (#1957)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 84 revisions left to test after this (roughly 6 steps)
+[f7c1778c2acd0d0e786e825062f300cbdbcd23fd] tests: preserve timings for atomic bound controls (#1879)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 83 revisions left to test after this (roughly 6 steps)
+[c688d823e06505b85168653b8968ccd70c39d13c] psi: give erased reference formals a root referent identity (#1881)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 41 revisions left to test after this (roughly 5 steps)
+[8d6a58eb1bb5bf425832c729c8f72aaeb7a7bb0f] psi: restore case predicates from untouched entry payload fields (#1420)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 20 revisions left to test after this (roughly 5 steps)
+[c15929193d3993f264c54338440f4e1405dff0f6] tests: record runtime index family and repair borrows backing controls (#1813)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 10 revisions left to test after this (roughly 4 steps)
+[2d1473663e3d5130efbf031d563bea2bb117753f] build: run granted live Source reads in Terminal (#1598)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 4 revisions left to test after this (roughly 3 steps)
+[64183c84cb09b9a31f39fdf3cff657e0c8761ae9] compiler: let kernels select their interrupt-stack storage (#1802)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 2 revisions left to test after this (roughly 2 steps)
+[e58f1e30cd8a97f688e8993da6ee295fd4babe0b] psi: keep a pattern-selected arm's index reads behind its pattern (#1758)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 1 step)
+[5fcb61a0c1b7c808ccbc428a4678d980c38768a3] psi: preserve checked memory bounds across helper calls (#1801)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[60cb5e1f79dd05465f77775990e46bcc2e789470] psi: allow safe array writes in selected functions (#1721)
+running '/tmp/ledger-bisect-tools/bisect_witness.sh'
+60cb5e1f79dd05465f77775990e46bcc2e789470 is the first bad commit
+commit 60cb5e1f79dd05465f77775990e46bcc2e789470
+Author: asmithbot <asmithbot@proton.me>
+Date:   Wed Nov 4 08:09:17 2026 +0000
+
+    psi: allow safe array writes in selected functions (#1721)
+    
+    * docs: define dynamic target migration acceptance
+    
+    * samples: select integer dynamic callers through Build
+    
+    * psi: forward dynamic selectors through selected calls
+    
+    * test: record dynamic argument forwarding on both hosts
+    
+    * docs: define exact-result dynamic migration acceptance
+    
+    * samples: select dynamic addition callers through Build
+    
+    * samples: share the identical platform dispatch provider
+    
+    * samples: remove stray character from selected dispatch sources
+    
+    * samples: preserve empty service reach for selected dispatch
+    
+    * samples: isolate selector establishment in join and field controls
+    
+    * test: record complete dynamic dispatch migration on both hosts
+    
+    * samples: retain integrated dynamic call observations
+    
+    * samples: keep selected dynamic calls outside service reach
+    
+    * samples: retain selected-call contract observations
+    
+    * psi: retain array extents through finite selected calls
+    
+    * build: require authored supply for provider selection
+    
+    * psi: retain checked lengths in array bounds proofs
+    
+    * psi: prove when private helpers cannot be called
+    
+    * psi: record selected array calls and private helper checks
+    
+    Record 57 Source rows, 23 Linux x86-64 BOTH rows, 23 macOS ARM64 BOTH rows and the supplied Linux ARM64 pair from their exact measured producers. Preserve every unrelated golden block.
+    
+    The missing-target obligation survives under the source-valid build-only PASS control: remove the old FAIL key and its one native-input diagnostic, and pin the observed missing-provider refusal instead (configuration.md, Multi-target compilation). Both family rows and the missing-supply control remain. The valid guard-floor program now checks and executes, removing 13 Source and 6 Linux BOTH errors; its live-zero helper twin still rejects. The valid uncalled-family positive also now executes, removing its former Linux BOTH native-input refusal. Full per-row before/after evidence and the diagnostic ledger are retained with PR #1721.
+    
+    * omega: name the missing provider in calling-policy errors
+    
+    Read the interpreter demand roster already computed for the admitted policy, and report its exact missing boundary identity and target before execution. Reuse the existing diagnostic formatter from language-semantics; move its three unchanged string-formatting unit tests with it. Provider choice, invocation contracts and runtime authority do not change.
+    
+    Migrate the related observed negative expectations from removed implicit-scope ambiguity to missing selection. The unselected-body expectation was already stale at the fixed baseline and now pins its actual disproved contract. Move the source-valid provider-type control to a compile-only publication refusal with four explicit entry rows, preserving its original call and both implementations. The nine-place finite-family programs and all 286 previous inputs remain unchanged. Focused validation and final measured records remain pending.
+    
+    * tools: keep large pilot compilations from competing
+    
+    Run one corpus fixture at a time in the focused hosted pilot. The current four-CPU two-worker run timed out both supplied calling-policy positives; an unchanged isolated run completed the same Source check in 100754 ms within the 120-second cap. Instrumented runs and host differences remain separately recorded, so this is a conservative scheduling repair, not a claimed universal speedup.
+    
+    Keep source, limits and authored oracles unchanged. Fresh focused qualification must still establish every intended refusal and actual engine outcome. No language-feature or fixture-name branch is introduced.
+    
+    * omega: retain the missing-provider control result as an observation
+    
+    Keep the original i32 call and both provider bodies. The Unit entry now checks the returned choice, so an optimizer cannot discard it as unused while testing whether publication requires a selected provider. This observes the value; it does not establish a provider choice or numeric contract. The fixture remains a compile-only intended publication refusal.
+    
+    * psi: keep field stores from scanning unrelated fields
+    
+    The captured calling-policy stack spends time collecting rows to remove during structural field stores. Keys already order each carrier by parent path, so begin at the requested subtree and stop at its first non-descendant instead of scanning every field of that carrier.
+    
+    The selected keys and removal order stay identical for scalar fields, byte fields and places, including Member/CasePayload namespaces, empty paths and maximum identities. Row reservation, staging, mutation authority and retirement are unchanged. No carrier, language case or Rust behavior test is added. Focused actual-program validation and measured cost remain pending.
+    
+    * omega: name missing policy providers from their declarations
+    
+    * tests: use ordinary helpers in the missing-provider control
+    
+    * tests: record selected array calls and their refusals
+    
+    * test: record selected-array results after integration
+    
+    Retain actual source 990 observations for all selected Linux and Mac checking, native/Terminal and ordinary-project scopes, plus the supplied ARM pair. Preserve canceled workflows, separate retained-binary replays, every unrelated main record and the explicit diagnostic explanations. Executable and witness bytes are unchanged.
+    
+    * test: record selected-array checks after integration
+    
+    * tests: record complete selected-array host observations
+    
+    * build: select the intended providers in sample projects (#1789)
+    
+    * build: select the intended providers in sample projects
+    
+    * tests: add missing rejection reasons to affected samples
+    
+    * tests: retain explicit-provider validation results
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zacharycanann@gmail.com>
+    (cherry picked from commit d9a17196e2dae64468a15c21dc96649f524fbf42)
+    
+    * docs: retain separate array and provider validation identities
+    
+    * test: record selected-array results after main integration
+    
+    * docs: record selected array checks and retained results
+    
+    ---------
+    
+    Co-authored-by: Zachary Canann <zacharycanann@gmail.com>
+
+ .github/workflows/compiler-pilot.yml               |   4 +-
+ .../build-settings/src/calling_policy_execution.rs |  18 ++
+ .../src/provider_admission/provider_supply.rs      | 118 +-------
+ .../src/choice/provider_selection.rs               |   9 +-
+ .../src/checks/ranges/indexes/validation.rs        |   3 +
+ .../src/checks/ranges/proofs.rs                    |   6 +-
+ .../src/checks/ranges/types.rs                     | 159 ++---------
+ omega-rust/psi/compilation/validation/src/lib.rs   |   7 +-
+ .../write_frames/stored_calls/slot_inventory.rs    |  13 +
+ .../contract_entailment/collection_bounds.rs       |  36 ++-
+ .../collection_bounds/geometry.rs                  |  54 +++-
+ .../specification_calls/collection_operations.rs   |  20 ++
+ .../contract_entailment/structural_case_arms.rs    |   9 +
+ .../structural_case_arms/call_entries.rs           |  71 ++++-
+ .../contract_entailment/structural_prefix.rs       |  13 +
+ .../structural_prefix/private_arrivals.rs          |  95 +------
+ .../private_arrivals/observations.rs               | 112 ++++++++
+ .../structural_prefix/private_arrivals/scope.rs    |  16 +-
+ .../validation/src/value_custody/places.rs         |   5 +
+ .../src/value_custody/places/array_extents.rs      | 226 ++++++++++++++++
+ .../src/value_custody/storage_contents.rs          |  65 +++--
+ .../declaration_selection/provider_choices/mod.rs  |   6 +-
+ .../provider_choices/selection.rs                  |   3 +-
+ .../provider_choices/tests.rs                      |  18 +-
+ .../src/type_identity/callable_display.rs          | 120 +++++++++
+ .../language-semantics/src/type_identity/mod.rs    |   2 +
+ .../src/storage/structural_storage.rs              |  33 ++-
+ .../finite_family_static_inline_result/README.md   | 300 +++++++++++++++++++--
+ .../call_result/invalid/main.omg                   |  20 +-
+ .../call_result/main.omg                           |  20 +-
+ .../const_name/invalid/main.omg                    |  20 +-
+ .../const_name/main.omg                            |  20 +-
+ .../field/invalid/main.omg                         |  20 +-
+ .../field/main.omg                                 |  20 +-
+ .../local/controls/out_of_bounds/invalid/build.omg |   7 +
+ .../controls/out_of_bounds/invalid/expected.txt    |   1 +
+ .../local/controls/out_of_bounds/invalid/main.omg  |  50 ++++
+ .../local/invalid/main.omg                         |  20 +-
+ .../local/main.omg                                 |  20 +-
+ .../match_join/invalid/main.omg                    |  32 ++-
+ .../match_join/main.omg                            |  32 ++-
+ .../other_machine/invalid/main.omg                 |  20 +-
+ .../other_machine/main.omg                         |  20 +-
+ .../other_state/invalid/main.omg                   |  20 +-
+ .../other_state/main.omg                           |  20 +-
+ .../parameter/invalid/main.omg                     |  20 +-
+ .../parameter/main.omg                             |  20 +-
+ .../target_body/invalid/main.omg                   |  26 +-
+ .../target_body/main.omg                           |  26 +-
+ .../uncalled_target/build.omg                      |   4 +
+ .../uncalled_target/invalid/build.omg              |   1 +
+ .../uncalled_target/invalid/expected.txt           |   1 -
+ .../invalid/expected_native_exit.linux_arm64.txt   |   1 +
+ .../expected_native_rejection.linux_x86_64.txt     |   1 +
+ .../expected_native_rejection.macos_arm64.txt      |   1 +
+ .../expected_native_rejection.windows_x86_64.txt   |   1 +
+ .../uncalled_target/invalid/main.omg               |  17 +-
+ .../uncalled_target/invalid/sample.json            |   3 +
+ .../uncalled_target/main.omg                       |  20 +-
+ tests/omega/corpus_both_linux_arm64.txt            |   4 +-
+ tests/omega/corpus_both_linux_x86_64.txt           |  48 ++--
+ tests/omega/corpus_both_macos_arm64.txt            |  43 ++-
+ tests/omega/corpus_outcomes.txt                    | 192 +++++++------
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  13 +
+ .../expected.txt                                   |   1 +
+ .../main.omg                                       |  13 +
+ .../expected.txt                                   |   3 +-
+ .../expected.txt                                   |   2 +-
+ .../expected.txt                                   |   2 +-
+ .../call_result/main.omg                           |  20 +-
+ .../const_name/main.omg                            |  20 +-
+ .../field/main.omg                                 |  20 +-
+ .../interior_index_requires_every_extent/build.omg |   7 +
+ .../expected.txt                                   |   1 +
+ .../interior_index_requires_every_extent/main.omg  |  50 ++++
+ .../local/main.omg                                 |  20 +-
+ .../match_join/main.omg                            |  32 ++-
+ .../other_machine/main.omg                         |  20 +-
+ .../other_state/main.omg                           |  20 +-
+ .../parameter/main.omg                             |  20 +-
+ .../target_body/main.omg                           |  26 +-
+ .../uncalled_target/build.omg                      |   7 -
+ .../uncalled_target/expected.txt                   |   1 -
+ .../uncalled_target/main.omg                       |  15 --
+ .../missing_nested_provider/expected.txt           |   4 +-
+ .../missing_policy_provider/expected.txt           |   4 +-
+ .../const_extent_guard_live_zero_helper/build.omg  |   7 +
+ .../expected.txt                                   |   1 +
+ .../const_extent_guard_live_zero_helper/main.omg   |  57 ++++
+ .../const_extent_guard_negative_index/expected.txt |   2 +-
+ .../expected.txt                                   |   2 +-
+ .../expected.txt                                   |   2 +-
+ .../provider_type_slot_ambiguous/expected.txt      |   1 -
+ .../provider_type_slot_ambiguous/main.omg          |  16 --
+ .../call_result/main.omg                           |  20 +-
+ .../const_name/main.omg                            |  20 +-
+ .../field/main.omg                                 |  20 +-
+ .../local/main.omg                                 |  20 +-
+ .../match_join/main.omg                            |  32 ++-
+ .../other_machine/main.omg                         |  20 +-
+ .../other_state/main.omg                           |  20 +-
+ .../parameter/main.omg                             |  20 +-
+ .../target_body/main.omg                           |  26 +-
+ .../uncalled_target/build.omg                      |   4 +
+ .../uncalled_target/main.omg                       |  20 +-
+ .../uncalled_target_missing_supply/build.omg       |   8 +
+ .../expected_native_exit.linux_arm64.txt           |   1 +
+ .../expected_native_rejection.linux_x86_64.txt     |   1 +
+ .../expected_native_rejection.macos_arm64.txt      |   1 +
+ .../expected_native_rejection.windows_x86_64.txt   |   1 +
+ .../uncalled_target_missing_supply/main.omg        |  22 ++
+ .../build.omg                                      |   4 +
+ .../main.omg                                       |   5 +-
+ .../provider_type_slot_missing_selection/README.md |  12 +
+ .../provider_type_slot_missing_selection/build.omg |   7 +
+ .../expected_native_rejection.txt                  |   1 +
+ .../provider_type_slot_missing_selection/main.omg  |  23 ++
+ .../build.omg                                      |   4 +
+ .../main.omg                                       |   2 +-
+ 120 files changed, 2279 insertions(+), 777 deletions(-)
+ create mode 100644 omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_prefix/private_arrivals/observations.rs
+ create mode 100644 omega-rust/psi/compilation/validation/src/value_custody/places/array_extents.rs
+ create mode 100644 omega-rust/psi/foundation/language-semantics/src/type_identity/callable_display.rs
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/local/controls/out_of_bounds/invalid/build.omg
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/local/controls/out_of_bounds/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/local/controls/out_of_bounds/invalid/main.omg
+ delete mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/expected.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/expected_native_exit.linux_arm64.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/expected_native_rejection.linux_x86_64.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/expected_native_rejection.macos_arm64.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/expected_native_rejection.windows_x86_64.txt
+ create mode 100644 samples/cli/facts/finite_family_static_inline_result/uncalled_target/invalid/sample.json
+ create mode 100644 tests/omega/fail/borrows/concrete_call_before_symbolic_output_obligation/expected.txt
+ create mode 100644 tests/omega/fail/borrows/concrete_call_before_symbolic_output_obligation/main.omg
+ create mode 100644 tests/omega/fail/borrows/symbolic_call_before_concrete_output_obligation/expected.txt
+ create mode 100644 tests/omega/fail/borrows/symbolic_call_before_concrete_output_obligation/main.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/interior_index_requires_every_extent/build.omg
+ create mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/interior_index_requires_every_extent/expected.txt
+ create mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/interior_index_requires_every_extent/main.omg
+ delete mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/uncalled_target/build.omg
+ delete mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/uncalled_target/expected.txt
+ delete mode 100644 tests/omega/fail/facts/finite_family_static_inline_result/uncalled_target/main.omg
+ create mode 100644 tests/omega/fail/generics/const_extent_guard_live_zero_helper/build.omg
+ create mode 100644 tests/omega/fail/generics/const_extent_guard_live_zero_helper/expected.txt
+ create mode 100644 tests/omega/fail/generics/const_extent_guard_live_zero_helper/main.omg
+ delete mode 100644 tests/omega/fail/providers/provider_type_slot_ambiguous/expected.txt
+ delete mode 100644 tests/omega/fail/providers/provider_type_slot_ambiguous/main.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/build.omg
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/expected_native_exit.linux_arm64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/expected_native_rejection.linux_x86_64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/expected_native_rejection.macos_arm64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/expected_native_rejection.windows_x86_64.txt
+ create mode 100644 tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply/main.omg
+ create mode 100644 tests/omega/pass/providers/provider_type_slot_missing_selection/README.md
+ create mode 100644 tests/omega/pass/providers/provider_type_slot_missing_selection/build.omg
+ create mode 100644 tests/omega/pass/providers/provider_type_slot_missing_selection/expected_native_rejection.txt
+ create mode 100644 tests/omega/pass/providers/provider_type_slot_missing_selection/main.omg
+bisect found first bad commit

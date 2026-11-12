@@ -2,13 +2,17 @@
 
 Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`.
 
-Prior report clusters (sorted row count, LC_ALL=C) at indices `11, 51, 91, 131, 171, 211` had **22** report rows; **11** members appear in the report member lines and were re-measured on the PIN (cluster index 11 lists `… (+11 more)` with no recoverable fixture paths in the report artifact).
+## Bisect methodology (correction #2)
+
+Before bisecting, `setup_pin_baseline.py` copies PIN `tests/omega/corpus_outcomes.txt` and each witness’s PIN observation (status + first diagnostic) into `/tmp`. `bisect_test.py` classifies only against those fixed copies: **0** when the run matches the PIN ledger’s expected status (`checked` for these pass regressions), **1** when it reproduces the PIN broken outcome and first diagnostic (normalized), **125** for build failures, missing `corpus_runner`, or any other outcome. `git bisect run` skips commits that touch only `tests/omega/corpus_outcomes.txt` or `*.md` (ledger-only). Good commits are found with `find_good_binary.py` on the first-parent line (commits before `corpus_runner` exists are skipped). Each step builds `mbx test -p compiler --test corpus_runner --no-run` with a fresh `target/bisect-<rev>/` tree.
+
+Prior report clusters (sorted row count, LC_ALL=C) at indices `11, 51, 91, 131, 171, 211` had **22** report rows; cluster index **11** had `+11 more` in the published report—**14** members recovered from `origin/work/ledger-sweep-regressions:.agents/sweep-2026-11-11/regressed_rows.txt` (diagnostic `selected map disagrees with its supplying evidence bound`); **14/14 fixed on PIN** (`cluster11_members.txt`, `cluster11_pin_observed.txt`).
 
 ## PIN re-cluster summary
 
 | PIN cluster | rows | kind | first diagnostic (PIN) | witness | breaking commit | PR | mechanism | status |
 | ---: | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 0 | 3 | pass/run rejected | boundary operator `operator::…` resolves to 0 selected ProviderPlans; expected exactly one | `pass/operators/runtime_named_unit_statement_effects_exit` | `51e8c45c793007f211d0d9baee7de16767172444` | 2505 | psi: check a body over a const value parameter once and carry its proofs (#2505) — boundary operator selection now yields zero `ProviderPlans` on these fixtures | bisected |
+| 0 | 3 | pass/run rejected | boundary operator `operator::…` resolves to 0 selected ProviderPlans; expected exactly one | `pass/operators/runtime_named_unit_statement_effects_exit` | `60cb5e1f79dd05465f77775990e46bcc2e789470` | 1721 | psi: allow safe array writes in selected functions (#1721) — provider-selection / provider-admission and range/index checked-tree validation | bisected |
 | 1 | 1 | pass/run rejected | native artifact component entry ABI failed: native entry transport … machine state ceiling | `pass/providers/runtime_foreign_allocation_across_component_exit` | `51e8c45c793007f211d0d9baee7de16767172444` | 2505 | same #2505 landing as cluster 0 witness bisect (first bad on first-parent walk from ledger good) | bisected |
 | 2 | 1 | pass/run rejected | opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance | `pass/facts/opaque_independent_closed_carrier_through_other_machine_exit` | `d47aa9f0ea2ecabf3ed811cadc1d7672cf258bce` | 1274 | psi: retain enclosing generic identities in nested deliveries (#1274) — git bisect run exited -3 (flaky good/bad classification) | propagated |
 | 3 | 1 | pass/run rejected | terminal-artifact production failed: Lowering(InvalidUnitMachinePlan … attached Unit closure is missing a checked boundary machine plan) | `pass/providers/checked_operator_declaration_without_application` | — | — | witness not in `corpus_outcomes.txt`; bisect helper returns 125; run stopped under host build budget | propagated |
@@ -19,7 +23,7 @@ Prior report clusters (sorted row count, LC_ALL=C) at indices `11, 51, 91, 131, 
 
 | prior idx | report rows | remeasured | fixed | still broken |
 | ---: | ---: | ---: | ---: | ---: |
-| 11 | 14 | 3 | 3 | 0 |
+| 11 | 14 | 14 | 14 | 0 |
 | 51 | 3 | 3 | 0 | 3 → PIN cluster 0 |
 | 91 | 2 | 2 | 0 | 2 → PIN clusters 1–2 (split by diagnostic) |
 | 131 | 1 | 1 | 1 | 0 |
@@ -54,12 +58,9 @@ Prior report clusters (sorted row count, LC_ALL=C) at indices `11, 51, 91, 131, 
 - `fail/dependent/case_where_sibling_payload_scope`
 - `fail/facts/size_align_layout_geometry_through_match_join_rejected`
 
-## Prior report cluster 11 members (only listed paths re-measured)
+## Prior report cluster 11 (recovered members, PIN)
 
-- `fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected` fixed on main
-- `fail/facts/static_callback_reach_captured_shadow` fixed on main
-- `fail/generics/cross_module_const_alias_shadowed_evidence` fixed on main
-- *(+11 report rows: fixture paths not present in published member list)*
+All **14** rows from `cluster11_members.txt` re-measured on PIN; all **fixed on main** (ledger expectations still met). Recovery source: sweep `regressed_rows.txt` ∩ diagnostic filter (not the truncated report member list).
 
 ## Commands
 

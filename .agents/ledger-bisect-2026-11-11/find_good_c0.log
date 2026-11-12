@@ -1,0 +1,14 @@
+probe 51e8c45c7930 rc=1
+probe da03c2d0ae1d rc=1
+probe b939b4489205 rc=0
+probe 1bb9690b8085 rc=1
+probe c15929193d39 rc=1
+probe bb3b32362b84 rc=0
+probe e681bf740fee rc=1
+probe f6be366af11d rc=1
+probe 60cb5e1f79dd rc=1
+probe 86e73a7ba7a2 rc=0
+probe 4d6278c81b83 rc=0
+Previous HEAD position was 4d6278c81b8 samples: acknowledge blocking on calls into machines that block (#1759)
+Switched to branch 'work/ledger-bisect-part-11'
+4d6278c81b8360d8100cef23e2100be18ddf32a7

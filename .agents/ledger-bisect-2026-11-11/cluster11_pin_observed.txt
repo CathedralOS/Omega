@@ -1,0 +1,37 @@
+fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected rejected 2048ms expected
+	generic machine `capacity` cannot bind `Evidence` to conformance `Positive`: expected a complete `Probe` implementation with the instantiated trait arguments
+fail/facts/representation_agreement_through_call_result_rejected rejected 10787ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_const_name_rejected rejected 10510ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_field_rejected rejected 10110ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_local_rejected rejected 10665ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_match_join_rejected rejected 11286ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_other_machine_rejected rejected 11568ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_other_state_rejected rejected 11432ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_parameter_rejected rejected 11247ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/representation_agreement_through_target_body_rejected rejected 10693ms expected
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+	cannot prove ensures contract for exit from first_decodes at statement 0: core::Identity<<structural type>>(ReadFirst.try_from(frame), Result)
+fail/facts/static_callback_reach_captured_shadow rejected 1937ms expected
+	generic machine `choose` cannot bind `Operations` to conformance `Selected`: expected a complete `Getter` implementation with the instantiated trait arguments
+fail/generics/cross_module_const_alias_shadowed_evidence rejected 2759ms expected
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/generics/static_requirement_record_wrong_conformance rejected 2001ms expected
+	generic machine `wrap` cannot bind `Operations` to conformance `Integer`: expected a complete `Arithmetic` implementation with the instantiated trait arguments
+fail/traits/evidence_binder_wrong_trait_arguments rejected 1344ms expected
+	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments

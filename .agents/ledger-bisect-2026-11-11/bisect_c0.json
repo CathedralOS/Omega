@@ -1,9 +1,10 @@
 {
   "witness": "pass/operators/runtime_named_unit_statement_effects_exit",
-  "breaking_commit": "51e8c45c793007f211d0d9baee7de16767172444",
-  "pr": "2505",
-  "mechanism": "psi: check a body over a const value parameter once and carry its proofs (#2505) \u2014 .github/workflows/compiler-regression.yml          |   2 +-  omega-rust/omega/compilation/compiler/Cargo.toml   |   6 +  .../compiler/examples/generic_certificate_carry.rs | 288 +-",
+  "breaking_commit": "60cb5e1f79dd05465f77775990e46bcc2e789470",
+  "pr": "1721",
+  "mechanism": "psi: allow safe array writes in selected functions (#1721) — touched: provider-selection/choice/provider_selection.rs, provider-admission/provider_supply.rs, typed-trees range/index validation and collection_bounds",
   "status": "bisected",
-  "bisect_exit": 1,
-  "good": null
+  "bisect_exit": 0,
+  "good": "4d6278c81b8360d8100cef23e2100be18ddf32a7",
+  "method": "fixed-pin-corpus"
 }
