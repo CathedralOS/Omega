@@ -3984,6 +3984,36 @@ mod scalar_fields {
         }
 
         /*
+            The element index the bound projection selects `depth` segments
+            below the root, when this frame gives that selector one value. An
+            observation that covers a range of elements uses it to name the one
+            element the projection reads.
+        */
+        pub(crate) fn call_argument_projection_index(
+            &self,
+            prefix: &[facts::PlaceSegment],
+            required: &CallArgumentProjection,
+            depth: usize,
+        ) -> Option<usize> {
+            let mut required_path = capture_path(prefix, |selector| {
+                coordinates::selector_value(
+                    self.occurrence(),
+                    selector,
+                    &self.current,
+                    &self.fields,
+                )
+            })?;
+            required_path.extend_from_slice(&required.0);
+            match required_path.get(depth)? {
+                ScalarProjection::Element {
+                    selector: ScopedArithmeticValue::Integer(index),
+                    ..
+                } => usize::try_from(index.to_u64()?).ok(),
+                _ => None,
+            }
+        }
+
+        /*
             Use the argument values passed to a recursive call before resolving
             a field or element. Its index belongs to this invocation, rather than
             the earlier parameter declaration.
