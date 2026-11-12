@@ -96,10 +96,14 @@ else
 fi
 cp /tmp/ledger-bisect-context.json "${OUT_JSON%.json}.pin_context.json"
 
+if [[ -n "${BISECT_GOOD_COMMIT:-}" ]]; then
+  GOOD="$BISECT_GOOD_COMMIT"
+else
 GOOD="$(find_good_commit)" || {
   echo "could not find good commit for $WITNESS; trying walk with cached PIN ledger only" >&2
   exit 2
 }
+fi
 echo "good=$GOOD"
 if [[ "$(git rev-parse "$GOOD")" == "$(git rev-parse "$PIN")" ]]; then
   echo "good equals PIN — abort" >&2
