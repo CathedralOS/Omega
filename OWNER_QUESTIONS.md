@@ -813,3 +813,130 @@ provider at all.
 Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
+
+### Q16 - May a generic body apply an operator to a value of type `T` outside a branch that fixes `T`?
+
+Decision name: `type-family-operation-outside-arm`.
+
+**Customer.** A numeric helper over a finite type family, written once
+without one arm per alternative:
+
+```omega
+machine sum<T>(left: T, right: T) -> T
+requires T == u32 || T == u64
+{ left + right }
+```
+
+The bundled library does not do this today: `core::integer::min<T>` and its
+siblings branch on `T == ...` and return a literal in each arm. The
+requirement is the library's own release check: "the toolchain's own release
+validation checks each bundled library as a subject", and a generic helper of
+this shape in a subject must be judged for every type it admits.
+
+**Gap.** [Static type equality](wiki/spec/language/generics.md#static-type-equality)
+grants operator typing inside a branch: *"a branch with established `T == u32`
+may use that equality to check its operations and values as u32."* It says
+nothing of an operator applied where only the disjunction `T == u32 || T ==
+u64` is known. The same section says *"An unspecialized body checks every
+admitted alternative; one consumer cannot authorize an otherwise invalid
+generic body."*
+
+The current checker accepts the typing and judges the operation in each
+generated machine. On `main` at `182a33b42`, the program above with `main`
+calling `sum<u32>(1u32, 2u32)` is rejected with "exact arithmetic in machine
+`sum$specialized$...` ... return value may overflow `u32`": the overflow
+obligation is stated for the one alternative in use, and nothing is checked
+for `u64`.
+
+**Question.**
+
+- **(a)** Is the operator ill-typed there, so that a body must branch on a
+  type equation before it applies an operator to a `T`? Then the current
+  checker should reject the program at the operator, for any consumer.
+- **(b)** Or is it well-typed when every admitted alternative has the
+  operator, with its obligations owed for every alternative? Then the body
+  above needs a `requires` that bounds the operands for `u32` and for `u64`,
+  whichever is called, and the current per-use check is too narrow.
+
+Until answered the current checker is unchanged, and the lowered-form checker
+serves neither reading: its generic form has no operation on a value of type
+`T` ([lowered type generics](wiki/drafts/designs/lowered_type_generics.md)).
+
+### Q17 - Is a contract conjunct beside a type equation typed under that equation?
+
+Decision name: `contract-conjunct-under-type-equation`.
+
+**Customer.** `core::integer::min<T>` and `max<T>`, `core::float::min<T>` and
+`max<T>` in the bundled library, which publish their value per alternative:
+
+```omega
+public machine min<T>() -> T
+requires T == u8 || T == u16 || ...
+ensures (T == u8 && result == 0u8) || (T == u16 && result == 0u16) || ...
+```
+
+`result` has type `T`, and `result == 0u8` compares it with a `u8`.
+`tests/omega/pass/core/integer_query_public_refinement_exit` relies on a
+caller of `min<u32>` learning `result == 0u32` from this clause.
+
+**Gap.** [Static type equality](wiki/spec/language/generics.md#static-type-equality)
+states the rule for branches of a body, quoted in Q16. No sentence states it
+for a conjunction inside `requires` or `ensures`: whether `result == 0u8` is
+checked as a `u8` comparison because `T == u8` stands beside it, and what the
+disjunct `(T == u8 && result == 0u8)` means in `min<u32>`, where its second
+conjunct compares a `u32` with a `u8`.
+[Data and literals](wiki/spec/language/data_and_literals.md) uses the same
+shape in a data `requires` (`Command<T>`) without stating the rule either.
+
+The current checker accepts it: on `main` at `182a33b42` a machine `least<T>`
+with `requires T == u8 || T == u32 ensures (T == u8 && result == 0u8) || (T ==
+u32 && result == 0u32)` checks, with `least<u32>` called.
+
+**Question.**
+
+- **(a)** Is each conjunct typed under the type equations conjoined with it,
+  left to right, and is a disjunct whose equation is false for the
+  application vacuous there, never ill-typed? Then the library's clauses mean
+  what they are used for, and the specification should say so for contracts
+  and data `requires`.
+- **(b)** Or must such a contract be written another way, and which?
+
+Until answered the lowered-form checker reads no contract with a type
+equation, so `core::integer::min` is not served by it.
+
+### Q18 - Does checking each listed type of a finite family concretely count as checking the generic body once?
+
+Decision name: `finite-family-generic-check`.
+
+**Customer.** Condition 3 of [the lowered-form checker's gate](wiki/drafts/designs/check_on_lowered_form.md#the-gate),
+which holds back every further construct family of that checker, and after it
+the generics lane: both need to know what "checked" means for a body over
+`requires T == u32 || T == u64`.
+
+**Gap.** The gate asks that a generic machine be "checked once as written,
+against its declared requirements and with its parameters left abstract".
+[Generics](wiki/spec/language/generics.md#static-type-equality) asks that
+"An unspecialized body checks every admitted alternative". For an opaque `T`
+only an abstract check can do that. For a finite family there are two ways,
+and the specification does not choose:
+
+- keep `T` abstract outside type-equation branches and check each arm under
+  its equation, which lowers each arm once
+  ([lowered type generics](wiki/drafts/designs/lowered_type_generics.md#finite-type-families-arms-under-their-equation));
+- or check one concrete machine per listed type, whether or not a consumer
+  uses it, which needs nothing new on the lowered form and checks the whole
+  body once per alternative (eight times for `core::integer`).
+
+Both check every admitted alternative and neither depends on consumers. They
+differ in cost, and in whether a proof found once is reused or found again
+per type.
+
+**Question.**
+
+- **(a)** Does the second way meet the gate's condition 3 and the
+  specification's "unspecialized body" for a finite family?
+- **(b)** Or must a finite family's body be checked with `T` abstract, as an
+  opaque `T` must be?
+
+Until answered the lowered-form checker takes the first way, which meets
+either answer.
