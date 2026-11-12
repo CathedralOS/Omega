@@ -1697,7 +1697,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             .satisfied_schema
             .calling_application(&abi)
             .expect("the actual ABI must belong to the original checked boundary contract");
-        assert_eq!(calling.commitment, *original.commitment.as_bytes());
+        assert_eq!(calling.commitment, original.commitment.as_bytes());
         assert_eq!(calling.report_fingerprint, original.report_fingerprint);
         let wrong = module
             .calling_abi_signatures
@@ -1715,6 +1715,8 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         else {
             unreachable!()
         };
+        binding.calling_applications[*calling_index].requirement_identity =
+            wrong.requirement_identity.clone();
         binding.calling_applications[*calling_index].abi = wrong;
         binding.calling_applications[*calling_index].commitment = binding.calling_applications
             [*calling_index]
