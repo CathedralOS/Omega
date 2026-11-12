@@ -34,10 +34,11 @@ Members:
 - `pass/borrows/copied_intermediate_descriptor_snapshot_exit`
 - endpoints: good=[0, 0, 0] flaky=False; pin=[1, 1, 1] flaky=False; anchor=[1, 1, 1] flaky=False
 
-| 1 | pass/run regression | cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establi | `pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit` | `` |  |  | pending |
+| 1 | pass/run regression | cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establi | `pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit` | `` |  |  | propagated |
 
 Members:
 - `pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit`
+- endpoints: good=[0, 0, 0] flaky=False; pin=[1, 1, 1] flaky=False; anchor=[1, 1, 1] flaky=False
 
 | 1 | pass/run regression | machine `clear_selected` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's st | `pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit` | `` |  |  | pending |
 

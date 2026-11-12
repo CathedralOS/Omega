@@ -1,0 +1,65 @@
+good=ffc4d649fa8c2244d87091f8b8a694db7a181036
+We are not bisecting.
+Bisecting: 352 revisions left to test after this (roughly 9 steps)
+[3f0100ebf628b377021c9d646a6c43b16d809507] psi: build integer writes, rank components and contract envelopes in parallel (#2125)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 175 revisions left to test after this (roughly 8 steps)
+[f6cfbbbd84cb7ab010e7ebafba3cb542c56b23db] psi: prepare the permission walk's pure per-state queries on the checking pool (#1949)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 87 revisions left to test after this (roughly 7 steps)
+[171b994082a0cddd46f2c036c60121bc3d29320f] psi: transport caller guards into nested machine entries (#1860)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 43 revisions left to test after this (roughly 6 steps)
+[112405e16cc4df9cde768442b58732f9d8757ade] compiler: accept fixed array lengths alongside callbacks (#1809)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 21 revisions left to test after this (roughly 5 steps)
+[80fe7fad35e57cdbeaac248aba35dbaa768b3a87] packages: keep component approval with the consumer (#1829)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 21 revisions left to test after this (roughly 5 steps)
+[b750758f9e4f2981abf643595b2f099752172e56] repo: add coordinator-review skill and draft-only worker boundary (#1830)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 21 revisions left to test after this (roughly 5 steps)
+[84d19b58a37313b4a1c7395e2b145854b94aed67] repo: deduplicate facts corpus and enforce repository hygiene rules (#1844)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 15 revisions left to test after this (roughly 4 steps)
+[6f4ad2d1e228899c7cd4a54b80a6f591764c0794] psi: restore calls with callbacks and fixed array lengths (#1824)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[5ab36c44602763dc6721fd4e0fd91d5951887b73] compiler: use the helper selected by a trait in its contracts (#1816)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[5aebab4280b329a3b36f944c456ab9465e5e7309] packages: reuse unchanged application reviews on resume (#1810)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea] tests: record returned-reference validation (#1817)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[d31209ea0d20231819cedbc47442baa3335792a5] compiler: lower borrows of same-carrier casts (#1820)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[77271bfb91344cd3d3788e1d8563796983dfbf13] psi: preserve saved references when pointer fields change (#1794)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[d6c44b1e94333ea400bf973412a0db159e96d847] psi: preserve values returned by non-observing atomic attempts (#1815)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[2476d1be2203009f1b32b8164bb6224c562c3bd5] compiler: preserve updated borrowed fields through selected calls (#1604)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f] psi: preserve pair values through buffered conversions (#1562)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[49ceaa29fd03ae651879205bce89b078d1c1ce8a] tests: record input-index results on Windows and ARM (#1814)
+running '/tmp/ledger-bisect-tools/bisect_witness_full.sh'
+There are only 'skip'ped commits left to test.
+The first bad commit could be any of:
+0d18335d4c7e1c6702a24c8e6fafd9dd0308b5ea
+a905fffb8ad3d4dfb99da6a8e3fd99ccea6f5c3f
+5ab36c44602763dc6721fd4e0fd91d5951887b73
+d6c44b1e94333ea400bf973412a0db159e96d847
+49ceaa29fd03ae651879205bce89b078d1c1ce8a
+77271bfb91344cd3d3788e1d8563796983dfbf13
+d31209ea0d20231819cedbc47442baa3335792a5
+We cannot bisect more!
+Your branch is up to date with 'origin/work/ledger-bisect-part-26'.
+propagated pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit ? pr 

@@ -1,0 +1,41 @@
+{
+  "witness": "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit",
+  "good": "ffc4d649fa8c2244d87091f8b8a694db7a181036",
+  "bad": "51e8c45c793007f211d0d9baee7de16767172444",
+  "anchor": "741270df60f7",
+  "breaking_commit": "",
+  "pr": null,
+  "mechanism": "",
+  "status": "propagated",
+  "bisect_exit": 2,
+  "endpoints": {
+    "good": {
+      "results": [
+        0,
+        0,
+        0
+      ],
+      "expect": 0,
+      "flaky": false
+    },
+    "pin": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    },
+    "anchor": {
+      "results": [
+        1,
+        1,
+        1
+      ],
+      "expect": 1,
+      "flaky": false
+    }
+  },
+  "pin_context_path": ".agents/ledger-bisect-2026-11-11/work/bisect_c3.pin_context.json"
+}

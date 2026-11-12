@@ -1,0 +1,9 @@
+{
+  "witness": "pass/facts/saved_observation_snapshot_indexed_handback_call_result_exit",
+  "pin_commit": "51e8c45c793007f211d0d9baee7de16767172444",
+  "pin_status": "rejected",
+  "pin_first_diag": "cannot prove requires contract for call agree from main: saved == holder.items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+  "pin_diag_norm": "cannot prove requires contract for call agree from main: saved == holder.items[N] && saved == N (needs fact `_` here; establish it before the call via a prior c",
+  "ledger_expected_status": "checked",
+  "tier": "pass"
+}
