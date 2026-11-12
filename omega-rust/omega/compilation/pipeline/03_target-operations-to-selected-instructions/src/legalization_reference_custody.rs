@@ -2937,7 +2937,6 @@ pub(crate) mod stored_calls {
                 rows.into_iter()
                     .map(|row| {
                         let parameter = function.structural_parameters.get(row.parameter)?;
-                        let destination_type = parameter.structural_type;
                         let path =
                             descriptor_path(types, parameter.structural_type, &row.exact_path()?)?;
                         let destination = StructuralArgument {
@@ -2949,47 +2948,11 @@ pub(crate) mod stored_calls {
                         for origin in row.origins {
                             if let Some((position, path)) = origin.captured_entry_slot() {
                                 let parameter = function.structural_parameters.get(position)?;
-                                let mut source = StructuralArgument {
+                                sources.push(Source::IncomingSlot(StructuralArgument {
                                     place: parameter.place,
                                     path: descriptor_path(types, parameter.structural_type, &path)?,
                                     access: parameter.access,
-                                };
-                                let supplying =
-                                    leaf_type(types, parameter.structural_type, &source.path)
-                                        .and_then(|ty| find_structural_type(types, ty));
-                                let receiving =
-                                    leaf_type(types, destination_type, &destination.path)
-                                        .and_then(|ty| find_structural_type(types, ty));
-                                if access_covers(parameter.access, StructuralAccess::SharedBorrow)
-                                    && supplying.zip(receiving).is_some_and(
-                                        |(source, destination)| {
-                                            matches!(
-                                                (&source.shape, &destination.shape),
-                                                (
-                                                    StructuralTypeShape::Reference {
-                                                        referent: source,
-                                                        access: StructuralAccess::MutableBorrow,
-                                                    },
-                                                    StructuralTypeShape::Reference {
-                                                        referent: destination,
-                                                        access: StructuralAccess::SharedBorrow,
-                                                    },
-                                                ) if source == destination
-                                            )
-                                        },
-                                    )
-                                {
-                                    /*
-                                        Making a read-only view must leave the stored mutable
-                                        reference in place. Reuse the reborrow path to retain
-                                        its original backing and immediate parent custody.
-                                    */
-                                    source.path.push(StructuralPathSegment::Referent);
-                                    source.access = StructuralAccess::SharedBorrow;
-                                    sources.push(Source::BorrowedStorage(source));
-                                } else {
-                                    sources.push(Source::IncomingSlot(source));
-                                }
+                                }));
                                 continue;
                             }
                             match origin {
@@ -3361,6 +3324,36 @@ pub(crate) mod stored_calls {
             else {
                 return Err(invalid());
             };
+            let borrowed_storage = |source: &StructuralArgument| {
+                if source.access != access
+                    || reference_source_type(function, custody, types, source) != Some(referent)
+                {
+                    return Err(invalid());
+                }
+                let (root, mut parents) = normalized_source(function, custody, types, source)?;
+                let (backing, backing_parents) = descriptor_backing::capture(
+                    function, custody, types, source, operation, &root,
+                )?;
+                parents.extend(backing_parents);
+                parents.sort();
+                parents.dedup();
+                let contract = receiving_contract(function, &destination)?;
+                let identity = OccurrenceIdentity::operation(&destination, operation);
+                Ok(Leaf {
+                    identity: identity.clone(),
+                    root,
+                    backing,
+                    lifetime_debts: Vec::new(),
+                    parents,
+                    formations: vec![Formation {
+                        identity,
+                        contract: contract.clone(),
+                    }],
+                    contract,
+                    referent,
+                    placed: super::access_source(function, custody, types, source),
+                })
+            };
             let mut candidates = Vec::new();
             for origin in &effect.sources {
                 let formal = match origin {
@@ -3482,52 +3475,25 @@ pub(crate) mod stored_calls {
                     Source::BorrowedStorage(formal) => {
                         staged.established.insert(destination.clone());
                         let source = actual(formal)?;
-                        if source.access != access
-                            || reference_source_type(function, custody, types, &source)
-                                != Some(referent)
-                        {
-                            return Err(invalid());
-                        }
-                        let (root, mut parents) =
-                            normalized_source(function, custody, types, &source)?;
-                        let (backing, backing_parents) = descriptor_backing::capture(
-                            function, custody, types, &source, operation, &root,
-                        )?;
-                        parents.extend(backing_parents);
-                        parents.sort();
-                        parents.dedup();
-                        let contract = receiving_contract(function, &destination)?;
-                        candidates.push(Leaf {
-                            identity: OccurrenceIdentity::operation(&destination, operation),
-                            root,
-                            backing,
-                            lifetime_debts: Vec::new(),
-                            parents,
-                            formations: vec![Formation {
-                                identity: OccurrenceIdentity::operation(&destination, operation),
-                                contract: contract.clone(),
-                            }],
-                            contract,
-                            referent,
-                            placed: super::access_source(function, custody, types, &source),
-                        });
+                        candidates.push(borrowed_storage(&source)?);
                         continue;
                     }
                 };
-                let source = if formal.place == effect.destination.place
+                let (source, argument) = if formal.place == effect.destination.place
                     && formal.path == effect.destination.path
                 {
-                    destination.clone()
+                    (destination.clone(), None)
                 } else {
-                    let source = actual(formal)?;
-                    window_storage(
+                    let argument = actual(formal)?;
+                    let source = window_storage(
                         function,
                         custody,
                         types,
-                        source.place,
-                        &source.path,
+                        argument.place,
+                        &argument.path,
                         StructuralAccess::SharedBorrow,
-                    )?
+                    )?;
+                    (source, Some(argument))
                 };
                 let Some(leaf) = custody.leaves.get(&source) else {
                     if source
@@ -3545,19 +3511,34 @@ pub(crate) mod stored_calls {
                 let mut leaf = leaf.clone();
                 if source != destination {
                     if access == StructuralAccess::SharedBorrow {
-                        if !leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
-                            .and_then(|ty| find_structural_type(types, ty))
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::Reference {
-                                        access: StructuralAccess::SharedBorrow,
-                                        ..
-                                    }
-                                )
-                            })
-                        {
-                            return Err(invalid());
+                        let reference =
+                            leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
+                                .and_then(|ty| find_structural_type(types, ty))
+                                .ok_or_else(|| invalid())?;
+                        match reference.shape {
+                            StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            } => {}
+                            StructuralTypeShape::Reference {
+                                referent: original,
+                                access: StructuralAccess::MutableBorrow,
+                            } if original == referent
+                                && access_covers(formal.access, StructuralAccess::SharedBorrow) =>
+                            {
+                                /*
+                                    Making a read-only view must leave the stored mutable
+                                    reference in place. Keep the original substituted argument
+                                    so its reborrow retains the backing and immediate parent.
+                                */
+                                let mut argument = argument.ok_or_else(|| invalid())?;
+                                argument.path.push(StructuralPathSegment::Referent);
+                                argument.access = StructuralAccess::SharedBorrow;
+                                staged.established.insert(destination.clone());
+                                candidates.push(borrowed_storage(&argument)?);
+                                continue;
+                            }
+                            _ => return Err(invalid()),
                         }
                         receiving_identity(function, &destination, operation, &mut leaf)?;
                         staged.established.insert(destination.clone());
