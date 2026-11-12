@@ -123,3 +123,68 @@ a measured largest child RSS, not total simultaneous memory or the 128-GiB
 virtual reservation. These are functional observations on a shared host, not a
 controlled speed comparison or a compiler-correctness proof. None constructs
 the Omega compiler source or closes its self-rebuild acceptance.
+
+## Native successor customers
+
+The next construction check uses the real Delta compiler and Epsilon evaluator,
+then optionally runs the actual bootstrap Omega compiler on its existing fixture:
+
+```sh
+python3 bootstrap/independent/successor_test.py --omega
+
+# Explicitly reuse the retained source-constructed native compiler after
+# checking its source and ELF identities against the construction report.
+python3 bootstrap/independent/successor_test.py --reuse-constructed --omega
+```
+
+Default execution first repeats the cold construction above. Reuse does not
+invoke another compiler; it accepts only the retained reference construction
+whose exact source and executable match. The retained differential Gamma
+evaluator must also match a freshly stamped image of the audited Alpha seed
+and the bound Gamma tape reconstructed during cold construction. This extra
+stamping is an identity check, not a semantic construction shortcut. The test
+compiles Delta to native ELF,
+compares its real Bytes-transformer receipt with the constructed Gamma evaluator,
+and executes the native receipt on empty, ASCII and all-byte inputs. Native Delta
+then reconstructs the bound canonical Epsilon Gamma receipt, and native Gamma
+compiles that receipt to ELF. Existing Console exit/stdin/trap/refusal and
+malformed-envelope controls run unchanged. Both peers share these actual
+customers; the compiled VM peer retains Alpha stamping by default.
+
+This is a construction steppingstone: Epsilon remains the existing evaluator,
+including its explicitly documented [implementation profile](../interpreted/4_epsilon/README.md).
+The bootstrap compiler's Epsilon source still executes through that evaluator.
+These results do not establish a standalone compiled bootstrap compiler, the
+full normative Epsilon language, or an Omega compiler self-rebuild.
+
+A retained-source-constructed-compiler run passed all those customers and the
+Omega fixture with these identities:
+
+| Subject | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Delta compiler Gamma source | 147,840 | `fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929` |
+| Delta compiler native ELF | 3,873,465 | `e465c0c4015ad9b3474689f18f3ad6b1324e3bc89c688dff378e73f9e353a6bb` |
+| Bound Epsilon Gamma receipt | 729,060 | `bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368` |
+| Epsilon evaluator native ELF | 26,119,826 | `b1cc4441a52ec91feae60d958ada4c400122ce070a2ec66bdd8982c16bbfe2e0` |
+| Exact Epsilon/Omega request | 734,042 | `326a8730e5aacf0880e638adaf16ecadbc5ae367c1318316d0885e001bba9e02` |
+| Emitted Omega Alpha program | 50 | `7f22a6c26b9c2876da3ccba9c62fe1cc071cde61fb31399b0d35fb1fa7ca9cae` |
+
+The Epsilon image exceeds Alpha's 16-MiB seed hole and serves the native backend's
+larger image profile. The exact request includes the 714,400-byte bootstrap
+compiler (`30e6ea13e8ccab73633af4887dfb3d5ef00d1c25a114f01496aa2290cd6c9511`)
+and the existing OCREQ entry. It produced a 55-byte Epsilon observation; the
+actual emitted program executed with exit 42 and empty output. That Omega stage
+took 41.196 seconds. The largest child RSS across successor construction and
+execution was 663,552 KiB. These are individual shared-host functional runs,
+not a controlled performance comparison.
+
+Exact sources, requests, artifacts and stage checkpoints go to ignored
+`build/independent-successors/`. The current invocation starts a fresh preflight checkpoint with its PID and
+start time before construction or identity checks. The report names passed
+stages before starting the next, and marks the complete run passed only after
+all requested checks.
+A surviving `running` checkpoint is incomplete evidence. Invocation watchdogs
+retain the existing customer-specific limits; `--seconds` bounds native Gamma
+compilation and the optional Omega observation, while smaller controls retain
+60-second process watchdogs. Host processes and resources remain execution
+dependencies as documented above.

@@ -157,13 +157,14 @@ def pack(manifest, output, prefix=None):
     return output.read_bytes()
 
 
-def customer(work, evaluator, producer=Compiler):
+def customer(work, evaluator, producer=Compiler, realize=stamp):
     source = pack("bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources",
                   work / "delta.gamma", "bootstrap/interpreted/3_delta/delta_compiler.gamma")
     support = pack("bootstrap/interpreted/3_delta/support/support.gamma.sources", work / "support.bin")
     started = time.monotonic()
-    compiler = compile_program(work, source, "delta", compiler=producer)
-    print(f"Delta customer: {len(source)} source bytes -> {(work / 'delta.tape').stat().st_size} tape bytes; compilation {time.monotonic()-started:.3f}s", flush=True)
+    compiler = compile_program(work, source, "delta", compiler=producer, realize=realize)
+    artifact = work / ("delta.tape" if realize is stamp else "delta.elf")
+    print(f"Delta customer: {len(source)} source bytes -> {artifact.stat().st_size} artifact bytes; compilation {time.monotonic()-started:.3f}s", flush=True)
     delta = b"(def main ((source Bytes)) Bytes (bytes_concat source source))\n"
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(delta)) + delta + support
     (work / "request.bin").write_bytes(request)
@@ -174,7 +175,7 @@ def customer(work, evaluator, producer=Compiler):
     assert actual == original and actual[0] == 0, (actual[0], original[0], len(actual[1]), len(original[1]))
     receipt = actual[1]
     (work / "receipt.gamma").write_bytes(receipt)
-    result = compile_program(work, receipt, "receipt", compiler=producer)
+    result = compile_program(work, receipt, "receipt", compiler=producer, realize=realize)
     for payload in (b"", b"ABC", bytes(range(256))):
         assert execute(result, payload) == reference(evaluator, receipt, payload) == (0, payload * 2)
     for request in (b"", b"DCREQ\x01\x00\x00" + struct.pack("<II", 0, 0)):
@@ -182,11 +183,12 @@ def customer(work, evaluator, producer=Compiler):
     print(f"Delta customer: exact receipt {len(receipt)} bytes sha256={hashlib.sha256(receipt).hexdigest()}; compiled execution {elapsed:.3f}s (functional run, not a comparative benchmark)", flush=True)
 
 
-def epsilon_customer(work, producer=Compiler):
+def epsilon_customer(work, producer=Compiler, realize=stamp):
     closure = pack("bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources", work / "epsilon.delta")
     subject = closure + (ROOT / "tests/epsilon/evaluator-entry/evaluator_entry.delta").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + (work / "support.bin").read_bytes())
+    (work / "epsilon-request.bin").write_bytes(request)
     started = time.monotonic()
     status, receipt = execute(work / "delta", request)
     assert status == 0, (status, receipt[:40])
@@ -195,7 +197,7 @@ def epsilon_customer(work, producer=Compiler):
     shell('. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"; '
           '. "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"; '
           'require_epsilon_evaluator_entry_receipt_identity "$1"', work / "epsilon.gamma")
-    executable = compile_program(work, receipt, "epsilon", compiler=producer)
+    executable = compile_program(work, receipt, "epsilon", compiler=producer, realize=realize)
     console = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
@@ -216,7 +218,8 @@ machine Main::main(&mut self) {
         assert execute(executable, request) == (0, expected)
     short = execute(executable, b"")
     assert short == (0, struct.pack("<8sBBHIQQQ", b"\xffEEOUT\x01\x00", 1, 1, 0, 1, 0, 0, 0))
-    print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {(work / 'epsilon.tape').stat().st_size} Alpha bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
+    artifact = work / ("epsilon.tape" if realize is stamp else "epsilon.elf")
+    print(f"Epsilon customer: reconstructed bound {len(receipt)}-byte receipt in {elapsed:.3f}s; {artifact.stat().st_size} artifact bytes; exit, stdin, trap, reject and malformed-envelope observations passed", flush=True)
 
 
 def epsilon_request(closure, source, stdin):
