@@ -683,7 +683,6 @@ crashes Trap
             BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10)
             BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11)
             BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12)
-            BuiltinType::Result -> type_row(resolver_harness, output, index, 1, 13)
             BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 14)
             BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 15)
             BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 16)

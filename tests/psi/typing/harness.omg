@@ -665,7 +665,6 @@ machine TypingHarness::builtin_tag(value: BuiltinType) -> u8 {
         BuiltinType::F32 -> tag(10)
         BuiltinType::F64 -> tag(11)
         BuiltinType::Slice -> tag(12)
-        BuiltinType::Result -> tag(13)
         BuiltinType::SyscallResult -> tag(14)
         BuiltinType::Terminal -> tag(15)
         BuiltinType::Never -> tag(16)
