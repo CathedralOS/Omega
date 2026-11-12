@@ -7,7 +7,7 @@ provider selection, target realization, ABI, artifact emission, and the product
 entrypoint.
 
 [`build.omg`](build.omg) and [`main.omg`](main.omg) are the current roots of the
-Omega-written compiler closure C. The build binds the ordinary
+Omega-written compiler closure. The build binds the ordinary
 `alpha_bootstrap` target alongside native targets and depends on Psi and the
 standard library through ordinary package declarations.
 
@@ -23,26 +23,35 @@ boundary: [`request.omg`](request/request.omg) stages the request (a private
 the subject and invocation field/tag phases (2 and 6);
 [`outcome.omg`](request/outcome.omg) types the contract's Reject and
 Incomplete code tables and encodes the frame. A well-formed request stops at
-`coverage_request_semantics`, exactly as D does, until package identities,
+`coverage_request_semantics`, as the bootstrap compiler does, until package identities,
 the dependency graph, snapshot materialization, admissions and the subject
 commitment (phases 3, 4, 5, 7 and 8) are implemented and hand the root
 source to Psi.
 
 [`tests/product/request/test-request.sh`](../../tests/product/request/test-request.sh)
-builds this root natively and checks its frames against D's request-gate
+builds this root natively and checks its frames against the bootstrap compiler's request-gate
 vectors and against structured variants whose anchors are computed from the
 fields they name. Set `OMEGA_CLI` and `OMEGA_TARGET` as for the Psi gates.
 
-The first compiler D is a separate Epsilon-written bootstrap implementation
-under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega). Interpreted D compiles
-this final closure to `omega0`; `omega0` then recompiles the same closure to
+The bootstrap compiler is separately written in Epsilon
+under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega). The interpreted route must compile
+this exact final closure to `omega0`; `omega0` then recompiles the same closure to
 `omega`. Rust under [`../../omega-rust/`](../../omega-rust) remains a
 nonauthoritative development comparator.
 
 ```text
-interpreted bootstrap/5_omega D + source/{psi,omega,library} -> omega0
-omega0 + source/{psi,omega,library}                        -> omega
+bootstrap compiler + source/{psi,omega,library} -> omega0
+omega0 + source/{psi,omega,library}             -> omega
 ```
+
+The source-owned [`alpha/emitter.omg`](alpha/emitter.omg) realizes the initial
+checked scalar lowering slice from Psi. Its focused
+[execution gate](../../tests/product/alpha/README.md) uses an explicit source-unit
+and selected-callable invocation, then executes the actual emitted Alpha bytes.
+It preserves the complete frontend checking path and refuses unsupported forms.
+The gate uses the Rust development compiler to build its Omega-written compiler
+artifact; it does not claim a source-only bootstrap, full portable publication,
+public OCREQ semantic admission or self-compilation.
 
 Implementation work is tracked in [`../../TASKS.md`](../../TASKS.md), while the
 trust-chain edge is tracked in

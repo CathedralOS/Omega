@@ -32,6 +32,7 @@ public data Admission [copy] {
     case Read;
     // An anonymous value with a fractional part at an integer destination.
     case Fraction;
+    case FractionalIntermediate;
 }
 
 public machine typer_admission(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping) -> Admission
@@ -318,17 +319,26 @@ crashes Trap
         let fixed: bool = fixed_integer(wanted.builtin);
         let fits: bool = exact_integer_fits(wanted.builtin, value);
         transition wanted.kind == TypeKind::Builtin && fixed {
-            true -> landing(fits, denominator == 1)
+            true -> landing(fits, denominator == 1, typing_fractional_origin(&typer.output, expression))
             _ -> rejected()
         }
     }
 
-    machine landing(fits: bool, integral: bool) -> Admission {
+    machine landing(fits: bool, integral: bool, origin: u64 in Trapping) -> Admission {
         transition integral {
-            true -> ranged(fits)
+            true -> acknowledged(fits, origin)
             _ -> fraction()
         }
     }
+
+    machine acknowledged(fits: bool, origin: u64 in Trapping) -> Admission {
+        transition origin == 0 {
+            true -> ranged(fits)
+            _ -> fractional_intermediate()
+        }
+    }
+
+    machine fractional_intermediate() -> Admission { Admission::FractionalIntermediate }
 
     machine ranged(fits: bool) -> Admission {
         transition fits {
@@ -373,13 +383,13 @@ crashes Trap
     let attenuated: bool = spelled.kind == ExpressionKind::Unary && spelled.operator == OperatorKind::BorrowWrite;
     transition write_only && !attenuated {
         true -> reject(typer, spelled, TypeDiagnosticCode::ImplicitAttenuation)
-        _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written)
+        _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written, blamed)
     }
 
     // A `&write` destination is met only by a `&write` borrow: attenuation
     // from mutable access, and forwarding, are spelled at the argument
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
-    machine judged(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression) -> bool {
+    machine judged(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression, blamed: u64 in Trapping) -> bool {
         transition admission {
             Admission::Exact -> admitted()
             Admission::Landed -> landing(typer, syntax, destination, expression, chosen)
@@ -389,10 +399,26 @@ crashes Trap
             Admission::Read -> read(typer, expression)
             Admission::OutOfRange -> reject(typer, written, TypeDiagnosticCode::LiteralOutOfRange)
             Admission::Fraction -> reject(typer, written, TypeDiagnosticCode::AnonymousFraction)
+            Admission::FractionalIntermediate -> fractional_origin(typer, syntax, blamed)
             Admission::NotAValue -> reject(typer, written, TypeDiagnosticCode::NotAValue)
             Admission::Rejected -> reject(typer, written, TypeDiagnosticCode::MismatchedTypes)
         }
     }
+
+    machine fractional_origin(typer: &mut Typer, syntax: &SyntaxTrees, blamed: u64 in Trapping) -> bool {
+        let origin: u64 in Trapping = typing_fractional_origin(&typer.output, blamed);
+        transition origin > 0 {
+            true -> origin_span(typer, syntax, origin - 1)
+            _ -> invalid_origin()
+        }
+    }
+
+    machine origin_span(typer: &mut Typer, syntax: &SyntaxTrees, origin: u64 in Trapping) -> bool {
+        let written: Expression = syntax_trees_expression(syntax, origin);
+        transition { _ -> reject(typer, written, TypeDiagnosticCode::FractionalIntermediate) }
+    }
+
+    machine invalid_origin() -> bool { crash Trap; }
 
     machine landing(typer: &mut Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, chosen: bool) -> bool {
         transition chosen {
