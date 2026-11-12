@@ -5,9 +5,9 @@ use omega::language::core::external_binding;
 
 machine build(builder: &mut Build) {
     Build::package(builder, "audio_playback");
-    Build::depend(builder, Source::Path {
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"
-    });
+    }));
 
     Build::select_provider<audio_playback::AudioPlayback, audio_playback::WindowsAudioPlayback>(builder, windows_x86_64);
     Build::select_provider<audio_playback::AudioPlayback, audio_playback::LinuxAudioPlayback>(builder, linux_x86_64);

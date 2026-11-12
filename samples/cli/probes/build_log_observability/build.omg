@@ -5,7 +5,9 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "build_log_observability");
-    Build::depend_as(builder, "kit", Source::Path { location: "dependency" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
     builder.freestanding = true;
     BuildLog::write_line(&mut builder.log, "requester: activation observed");
 }

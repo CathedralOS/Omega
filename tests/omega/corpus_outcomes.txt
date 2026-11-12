@@ -1279,6 +1279,9 @@ fail/borrows/direct_reference_array_range_narrowing rejected 3638ms expected @91
 	cannot prove ensures contract for exit from Main::read at statement 2: result >= 0 && result <= 50
 fail/borrows/dispatch_boundary_returning_sibling_escape rejected 3545ms expected @54cd60288b4c
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/dispatch_subject_view_carried_with_owner rejected 6987ms expected @d0478b7180a6
+	state `keep` receives `main` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/dropped_reference_qualification_after_alias_write rejected 1980ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket in Ticket::Issued
 fail/borrows/dropped_reference_qualification_carrier_write rejected 2356ms expected @ccdb99ca2214
@@ -4399,6 +4402,8 @@ fail/data/record_pattern_missing_field rejected 27301ms expected @911f6617ba9e
 	record pattern in machine `Main::main` state `main` does not mention field `z` of `Point` -- record patterns are exhaustive by law: bind it, rename it with `as`, or waive it with `as _`
 fail/data/recursive_data_infinite_size rejected 10889ms expected @ccdb99ca2214
 	machine `Main::main` state `main` parameter `main` mentions proof-only `Main`, which has no runtime layout
+fail/data/reference_local_store_breaks_collection_predicate rejected 2357ms expected @dd36590272d6
+	cannot complete return from machine `poke` state `entry`: this write left the `requires` facts of `b` (data `B`) unproved; restore them first
 fail/data/struct_literal_duplicate_field_rejected rejected 14472ms expected @ccdb99ca2214
 	data `Point` literal has duplicate field `x`
 fail/data/unbounded_integer_field rejected 584ms expected @ccdb99ca2214
@@ -16882,8 +16887,8 @@ fail/packages/retained_dependency_body_loan rejected 2879ms expected @ccdb99ca22
 	statement 2 mutates `cell.value` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 6)
 fail/packages/rootless_numeric_provider_missing_satisfaction rejected 20665ms expected @03a7e97e20a3
 	build selects provider `UnusedNumericProvider` for canonical float operation `operator::F32::negate(named(name(f32)))->named(name(f32))`; canonical f32/f64 operations are realized by target `linux_x86_64`'s declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm
-fail/packages/std_missing_dependency_rejected rejected 300ms expected @ccdb99ca2214
-	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (145ac3c645f4d6d28016570d3481be506c9727f8ff632d12f4346c545db6c00e) declares no product dependency under that alias -- declare `Build::depend(builder, ...)` or `Build::depend_as(builder, "omega_language_std", ...)` in its build.omg to add that dependency edge for the product scope
+fail/packages/std_missing_dependency_rejected rejected 1038ms expected @7ab13dd83100
+	tests/omega/fail/packages/std_missing_dependency_rejected/main.omg: import `omega_language_std::console` names package `omega_language_std` (bundled) as `omega_language_std`, but package `std_missing_dependency_rejected` (7c94027e29736aa1f2ad51127c7b2b3762ed3790cbb4199788c67b303456bc77) declares no product dependency under that alias -- register it with `Build::dependency(builder, description)` in its build.omg, configuring the description with `dependency::with_alias(&mut description, "omega_language_std")` when the package's own name differs, to add that dependency edge for the product scope
 fail/packages/std_mount_path_rejected rejected 579ms expected @ccdb99ca2214
 	package-aware import `omega::language::std::console` in tests/omega/fail/packages/std_mount_path_rejected/main.omg cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias
 fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
@@ -19746,9 +19751,8 @@ fail/wire/reflection_callback_not_unique rejected 6760ms expected @4815ea579d91
 	generic machine `visit_runtime_fields` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Machine slot `Visitor` has no proposal
 fail/wire/reflection_foreign_query_without_delegation rejected 10297ms expected @4815ea579d91
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/wire/returned_preserving_remainder_input_write rejected 15050ms expected @66914f73c885
+fail/wire/returned_preserving_remainder_input_write rejected 21435ms expected @d0478b7180a6
 	state `inspect` receives `main` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
-	state `refused` receives `main` while local borrow `decoded` is still active
 	statement 5 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 6 and it is released at state exit)
 fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 13523ms expected @1e29a538216e
 	machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments
@@ -20019,8 +20023,7 @@ pass/borrow/runtime_write_only_affine_sum_exit checked 3784ms check-target:macos
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_boundary_satisfier_exit rejected 6289ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @234ea171ee6e
-	no provider is selected for boundary requirement `Sink::write`, which the program entry reaches on target `macos_arm64`
+pass/borrow/runtime_write_only_boundary_satisfier_exit checked 13955ms check-target:macos_arm64 @dc5655adb651
 pass/borrow/runtime_write_only_call_result_observation_exit checked 3829ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3870ms check-target:macos_arm64 @ccdb99ca2214
@@ -20106,6 +20109,7 @@ pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2903ms check-t
 pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-target:macos_arm64 @867738eb9535+wt
 pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/dispatch_subject_view_released_exit checked 8842ms check-target:macos_arm64 @d0478b7180a6
 pass/borrows/dynamic_window_return_custody_exit checked 3289ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/enum_selected_view_reference_exit checked 16593ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/erased_input_before_returned_reference_exit checked 7151ms check-target:macos_arm64 @7e859cc5b918
@@ -20631,13 +20635,7 @@ pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:mac
 pass/build/same_leaf_runner_entry_left_exit checked 40012ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/same_leaf_runner_entry_right_exit checked 40083ms check-target:macos_arm64 @a4f3937d72ab
 pass/build/segment_selector_reload checked 77704ms check-target:linux_x86_64 @2b8a1382008c
-pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
-	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-13` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-17` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-21` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-25` has non-hermetic source origin `User`"))
+pass/build/selected_const_array_length_exit checked 17101ms check-target:macos_arm64 @5482b092e70b
 pass/build/separate_build_product_imports_exit checked 8375ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_slot_family_rows_exit checked 39605ms check-target:macos_arm64 @a4f3937d72ab
@@ -28775,7 +28773,7 @@ pass/wire/systems_wire_protocol_exit checked 43709ms check-target:macos_arm64 @6
 pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 56196ms @1e29a538216e
-pass/wire/wire_preserving_decode_relay_exit checked 51143ms check-target:macos_arm64 @1e29a538216e
+pass/wire/wire_preserving_decode_relay_exit checked 25322ms check-target:macos_arm64 @d0478b7180a6
 pass/wire/wire_retired_field checked 4022ms @ccdb99ca2214
 pass/write_only/returned_destination_transport_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
 pass/write_only/state_forwarded_scalar_store_exit checked 13290ms check-target:macos_arm64 @ccdb99ca2214
@@ -28797,6 +28795,7 @@ run/arithmetic/policy_operator_zero_divisor_traps checked 72982ms check-target:m
 run/arithmetic/policy_operators_match_policy_domains checked 116124ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/affine_produced_membership_move checked 3029ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/call_result_mutable_window_field_exit checked 73850ms check-target:macos_arm64 @c3cb68d51f3f
+run/borrows/call_result_reference_field_overwrite checked 4167ms check-target:macos_arm64 @7ab13dd83100
 run/borrows/computed_element_view_state_extent checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/conditional_disjoint_field_loans_exit checked 109257ms check-target:macos_arm64 @c3cb68d51f3f
 run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:macos_arm64 @ccdb99ca2214

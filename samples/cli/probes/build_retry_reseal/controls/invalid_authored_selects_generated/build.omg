@@ -4,6 +4,8 @@
 // boundary"); the consumer's check must reject this like the dep's own review.
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_authored_selects_generated");
-    Build::depend_as(builder, "kit", Source::Path { location: "dependency" });
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
     builder.freestanding = true;
 }
