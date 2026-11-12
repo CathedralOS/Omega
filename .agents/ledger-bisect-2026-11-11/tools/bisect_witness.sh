@@ -2,7 +2,7 @@
 # git bisect run helper: 0 good, 1 bad (PIN regression), 125 skip
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${BISECT_REPO_ROOT:?}"
 cd "$ROOT"
 if parent=$(git rev-parse -q HEAD^1 2>/dev/null); then
   mapfile -t touched < <(git diff --name-only "$parent" HEAD 2>/dev/null || true)

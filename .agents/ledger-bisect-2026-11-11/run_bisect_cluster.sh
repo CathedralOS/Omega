@@ -12,6 +12,7 @@ cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/prepare_witness.sh" "$ROOT/.agents
 cd "$ROOT"
 SCRIPT="$TOOLHOME/tools/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
+export BISECT_REPO_ROOT="$ROOT"
 chmod -R u+w "$ROOT/target" 2>/dev/null || true
 
 SPEC=$(bash "$TOOLHOME/prepare_witness.sh" "$WITNESS")
