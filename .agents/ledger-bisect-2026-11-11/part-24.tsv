@@ -1,0 +1,14 @@
+pass/facts/recoverable_replacement_window_through_match_join_exit	broken	`main` calls `choose`, which calls `prepare`, which calls `repair`; `repair` has no executable body	cluster-0
+pass/traits/applied_conformance_captured_fresh_regions_exit	broken	machine `Reader::read` state `read` does not satisfy trait `Reading`	cluster-1
+fail/arithmetic/bounded_store_consumed_before_repair	fixed		
+fail/dependent/data_requires_cyclic_handoff_store_rejected	fixed		
+fail/machines/private_frontier_guarded_counter_cycle_invalid	fixed		
+fail/machines/private_where_store_through_cycle_control	fixed		
+fail/time/instant_mutation_leaves_invalid_return	fixed		
+pass/recast/runtime_mutable_equivalent_range_recast_exit	fixed		
+pass/recast/runtime_mutable_equivalent_record_recast_exit	fixed		
+fail/float/public_class_contract_ieee_equality_retains_zero_sign	fixed		
+fail/float/public_class_result_contract_retains_actual	fixed		
+fail/float/public_class_state_contract_retains_entry_subject	fixed		
+fail/facts/slice_view_element_read_bound_through_other_state_rejected	fixed		
+fail/termination/retired_block_form	fixed		
