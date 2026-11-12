@@ -118,8 +118,21 @@ def fallback_construct(line: str) -> str:
     return concerns
 
 
-def first_refusal_from_parsed(parsed: list[dict[str, str]], fallbacks: list[str]) -> str:
-    for p in parsed:
+UNJUDGED_ROUTE = OUTSIDE_ROUTE | frozenset({"error", ""})
+
+
+def select_parts(comp: dict[str, str], machine_roots: list[dict[str, str]]) -> list[dict[str, str]]:
+    if comp.get("route") != "no-entry":
+        return [comp]
+    if machine_roots:
+        return machine_roots
+    return [comp]
+
+
+def first_refusal_for_parts(
+    parts: list[dict[str, str]], fallbacks: list[str]
+) -> str:
+    for p in parts:
         route = p.get("route", "")
         if route == "outside" and p.get("outside_detail"):
             construct = refusal_construct_from_detail(p["outside_detail"])
@@ -129,21 +142,27 @@ def first_refusal_from_parsed(parsed: list[dict[str, str]], fallbacks: list[str]
             reason = p.get("reason", "")
             if reason:
                 return reason
+        if route in UNJUDGED_ROUTE and route not in ("outside", "refused-module"):
+            if route == "no-entry":
+                return "no_program_entry"
+            if route == "unreached":
+                return "current_stopped_before_typed_trees"
+            if route in ("defect", "panicked", "incomplete", "fallback"):
+                return route
     for line in fallbacks:
         construct = fallback_construct(line)
         if construct:
             return construct
-    for p in parsed:
-        route = p.get("route", "")
-        if route == "no-entry":
+    for p in parts:
+        if p.get("route") == "no-entry":
             return "no_program_entry"
-        if route == "unreached":
+        if p.get("route") == "unreached":
             return "current_stopped_before_typed_trees"
     return ""
 
 
 def aggregate_fixture(
-    program_lines: list[str], fallbacks: list[str], *, fail_every_machine: bool
+    program_lines: list[str], fallbacks: list[str]
 ) -> tuple[str, str, str, str]:
     if not program_lines:
         return "error", "", "n-a", ""
@@ -163,32 +182,25 @@ def aggregate_fixture(
 
     comp = next((p for p in parsed if p.get("root") == "compilation"), parsed[0])
     machine_roots = [p for p in parsed if str(p.get("root", "")).startswith("machine:")]
+    parts = select_parts(comp, machine_roots)
+    routes = [p.get("route", "error") for p in parts]
 
-    if fail_every_machine and comp.get("route") == "no-entry" and machine_roots:
-        routes = [p.get("route", "") for p in machine_roots]
-        if any(r == "rejected" for r in routes):
-            route_verdict = "rejected"
-        elif all(r in OUTSIDE_ROUTE or r in ("", "error") for r in routes):
-            route_verdict = "outside"
-        elif any(r == "accepted" for r in routes) and any(
-            r in OUTSIDE_ROUTE for r in routes
-        ):
-            # One machine judged, another still outside the subset — not fully judged.
-            route_verdict = "outside"
-        elif any(r == "accepted" for r in routes):
-            route_verdict = "accepted"
-        else:
-            route_verdict = "outside"
+    has_rejected = any(r == "rejected" for r in routes)
+    has_accepted = any(r == "accepted" for r in routes)
+    has_unjudged = any(r not in JUDGED_ROUTE for r in routes)
+
+    if has_rejected:
+        route_verdict = "rejected"
+    elif has_accepted and has_unjudged:
+        route_verdict = "partial"
+    elif has_accepted:
+        route_verdict = "accepted"
+    elif all(r in UNJUDGED_ROUTE for r in routes):
+        route_verdict = "outside"
     else:
-        route_raw = comp.get("route", "error")
-        if route_raw in JUDGED_ROUTE:
-            route_verdict = route_raw
-        elif route_raw in OUTSIDE_ROUTE:
-            route_verdict = "outside"
-        else:
-            route_verdict = "outside"
+        route_verdict = "outside"
 
-    first_refusal = first_refusal_from_parsed(parsed, fallbacks)
+    first_refusal = first_refusal_for_parts(parts, fallbacks)
 
     if route_verdict == "accepted":
         if current == "accepted":
@@ -204,7 +216,7 @@ def aggregate_fixture(
             agreement = "disagree"
         else:
             agreement = "n-a"
-    elif route_verdict == "outside":
+    elif route_verdict in ("outside", "partial", "error"):
         agreement = "n-a"
     else:
         agreement = "n-a"
@@ -226,10 +238,7 @@ def load_done() -> set[str]:
 
 
 def run_one(fixture: str) -> tuple[str, float]:
-    cmd = [str(HARNESS)]
-    if tier(fixture) == "fail":
-        cmd.append("--every-machine")
-    cmd.append(fixture)
+    cmd = [str(HARNESS), "--every-machine", fixture]
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -291,7 +300,7 @@ def run_one(fixture: str) -> tuple[str, float]:
         program_lines = ["panicked"]
 
     route_verdict, current, agreement, first_refusal = aggregate_fixture(
-        program_lines, fallbacks, fail_every_machine=tier(fixture) == "fail"
+        program_lines, fallbacks
     )
     row = "\t".join(
         [
