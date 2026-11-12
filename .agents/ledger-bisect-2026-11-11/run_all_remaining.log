@@ -1,0 +1,99 @@
+We are not bisecting.
+Bisecting: 802 revisions left to test after this (roughly 10 steps)
+[9bf9fac6fcf65bcacc1e72debe923fbb73e7a597] repo: pass the RC-REPOSITORY format and lint gates on linux_x86_64 (#1646)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[91b6625545a5e9514b18f615db306f961165c171] psi: read a self-ranked walk's slice length through its own coordinate (#1658)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[ad3cf2407872ee6ed049f8d4c13ac744c00cf0b5] docs: say how hosts bound bulk data work under the logical schedule (#2168)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[5cf16cd71a15d247ddf50e15a212a7234c84867f] psi: preserve loop counters across unrelated calls during compile-time checking (#1584)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[ec3a59bddee0c30fd435d2d530d0992666fd073d] samples: migrate scalar backing to Build-owned supply (#1184)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[ec3a59bddee0c30fd435d2d530d0992666fd073d] samples: migrate scalar backing to Build-owned supply (#1184)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[2d61684c5f5274c3fb80c2a0d8334f205feaa34a] backend: compute each structural type's layout once per module (#1579)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 801 revisions left to test after this (roughly 10 steps)
+[0b7626a5975859f08ce52cc7be55476080277d2f] samples: carry nested C layouts through results joins and constants (#1212)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 181 revisions left to test after this (roughly 8 steps)
+[4e39c52dbd9ab815ec06a767b2feb84cb383fd96] measure: nested-machine field-write checking cliff (#1021)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 181 revisions left to test after this (roughly 8 steps)
+[d6a16be00e2cfa8b0582eb9797e3077b7431855c] psi: resolve nested machines by lexical scope, never by spelling (#1082)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 181 revisions left to test after this (roughly 8 steps)
+[6e980d2d4b8960690ff5139809f918730b2a7458] samples: select inline helper target bodies through Build (#1202)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[7dc788d0669bc3efa164d72015254dab1abe24dc] psi: complete prefix case identities and native product gates (#730)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[cd88cef27bfd9dd8f897e02dfcb118abf1a91698] psi: retain complete const applications through specialization (#866)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[a92f98f2a99f690db4913ede90f3811264cf5006] omega: select calling applications by retained provenance (#974)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[dcad368bc33d0190069325e5465878904300dd91] fix: preserve C layout policy identity through owned values (#1172)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[f20094417384978689cf5618028744c8152febe9] psi: validate generic boundary requirement calls in their type application (#1067)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[2c381c82a250fbcbc58ae1271bb58b92a725c1cd] loc: pipeline-05 and pipeline-10 folds (net -118) (#881)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[928d94b866d77638ada0177f1ca1d2ecde1afe73] tests: select unreached value read through a trait (#986)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[e23529536c2d6227e5ce3b1e5d4aee44f21c4474] psi: close the checked_asm regression (142/147 checked) (#886)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[efed188906b9712917612dd5fde87e18b1034652] psi: preserve computed ranks through private tail-call cycles (#968)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[89cfa7f7d337f3fff3ab02050af9949d91b74125] backend: construct native parameter telescopes once (#1165)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[50a567669d69baa3d60040162cdcc4edcf48aaad] loc: qualified-path collapse and type aliases (batch V, −694) (#1056)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[71d80181a45253213d2f167b812ebf4e0ff902a9] psi: preserve producer-established payload guarantees through moves and fields (#901)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[2de880df933af023c552176e24744e770cd6a61f] psi: pin completion cleanup through ranked nested terminal cycles (#1052)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[2c20c0a3d93648c0755e40435adfced0d92d372d] compiler: attach application roots after terminal publication (#1145)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[b7a564b20ab1f6dcc2f32c1294b8d425051f37e5] compiler: migrate console providers through build-owned bindings (#1005)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[889eee8d36794e6c075df57ebf350dc1e2187904] tools: reconcile dashboard execution goldens by fixture (#910)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[fd17e101cace506ab30d46ceb877280052c11c3e] psi: reach the expression and typed tables through one accessor each (#1010)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[92aec21e421bb10fe28012c521cf34b3813088e5] loc: fold repeated 12-19 line blocks across five crates (#915)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[228d6eab6c2944cd48702cebf689a5f412e3a5c6] psi: initialize complete nested terminal input contents (#1037)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[fbefe92109285b32b6b1a8ab0cdb943490528627] loc: fold repeated 12-19 line blocks across five crates (batch C) (#921)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+Bisecting: 179 revisions left to test after this (roughly 8 steps)
+[6ac592511e88fd440bc4bef8a55c854f9102b087] psi: preserve structured rank observations across cyclic arrivals (#1033)
+running '/tmp/ledger-bisect-part-21-tools/tools/bisect_witness.sh'
+cluster=c0 witness=pass/facts/non_owning_reference_erasure_through_other_machine_exit good=390aafcece6ee2605f76b4887c3e2d0c6cd21547 status=propagated reason=break_not_bad_125
+python3: can't open file '/agent/repos/omega/.agents/ledger-bisect-2026-11-11/generate_part21.py': [Errno 2] No such file or directory

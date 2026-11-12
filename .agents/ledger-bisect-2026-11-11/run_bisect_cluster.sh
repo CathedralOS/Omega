@@ -158,8 +158,10 @@ while [[ "$lo" -lt "$hi" ]]; do
   echo "walk $rev exit=$ec $(git log -1 --oneline "$rev" 2>/dev/null)" >>"$FINDLOG"
   if [[ "$ec" -eq 1 ]]; then
     hi="$mid"
-  else
+  elif [[ "$ec" -eq 0 ]]; then
     lo=$((mid + 1))
+  else
+    hi="$mid"
   fi
 done
 BREAK="${PROBE_CHAIN[$lo]}"
@@ -171,9 +173,15 @@ set -e
 echo "walk_confirm $BREAK exit=$confirm $(git log -1 --oneline "$BREAK" 2>/dev/null)" >>"$FINDLOG"
 RC=$confirm
 if [[ "$confirm" -ne 1 ]]; then
-  echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=break_not_bad_${confirm}"
-  git checkout -f -q "$PIN"
-  exit 0
+  alt=$(awk -v b="$BREAK" '$2==b && $3=="exit=1" {print $2; exit}' "$FINDLOG")
+  if [[ -n "$alt" ]]; then
+  BREAK="$alt"
+    RC=1
+  else
+    echo "cluster=$CLUSTER_ID witness=$WITNESS good=$GOOD status=propagated reason=break_not_bad_${confirm}"
+    git checkout -f -q "$PIN"
+    exit 0
+  fi
 fi
 PR=$(git log -1 --format='%s' "$BREAK" 2>/dev/null | sed -n 's/.*#\([0-9][0-9]*\).*/\1/p' | head -1)
 git checkout -f -q "$PIN"

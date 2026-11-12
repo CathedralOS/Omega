@@ -78,6 +78,8 @@ def main() -> int:
         return 1
     if norm_diag(first_diag) == norm_diag(pin_diag):
         return 1
+    if tier in ("pass", "run") and pin_status == "rejected":
+        return 1
     return 125
 
 
