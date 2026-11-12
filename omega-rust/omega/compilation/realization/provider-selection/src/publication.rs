@@ -383,6 +383,23 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         demand: ProviderApplicationDemand<'_>,
         assumed_bindings: &[effects::AssumedBindingContractSelection],
     ) -> Result<SelectedTargetProviders<Owner, Origin>, Vec<Diagnostic>> {
+        if matches!(demand, ProviderApplicationDemand::Product(..)) {
+            // Unused defaults still need valid configuration. Check their slots,
+            // coverage and conflicts with the usual Build override precedence,
+            // without activating the selected implementations' bodies.
+            let configured = self
+                .candidates
+                .iter()
+                .filter(|candidate| {
+                    self.defaults
+                        .iter()
+                        .chain(&self.overrides)
+                        .any(|choice| candidate.accepts_choice(choice))
+                })
+                .map(|candidate| candidate.choice.clone())
+                .collect();
+            let _ = crate::choose(configured, self.profile, &self.defaults, &self.overrides)?;
+        }
         // The canonical registrar/use index is immutable over this choice. Build
         // it once; only selected rows and reached callers vary in the fixed point.
         let callback_associations = match demand {
@@ -425,36 +442,35 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 .filter(|(_, demanded)| **demanded)
                 .map(|(candidate, _)| candidate.choice.clone())
                 .collect();
-            let invocation_defaults;
+            // Defaults choose among the slots this closure actually needs.
+            // Build overrides are deployment roots for Product selection, so
+            // they remain complete even when no application call reaches them.
+            let relevant = |choice: &&ProviderDeclaration<CanonicalProviderDeclaration, Origin>| {
+                self.candidates
+                    .iter()
+                    .zip(&demanded)
+                    .any(|(candidate, needed)| *needed && candidate.accepts_choice(choice))
+            };
+            let defaults = self
+                .defaults
+                .iter()
+                .filter(relevant)
+                .cloned()
+                .collect::<Vec<_>>();
             let invocation_overrides;
-            let (defaults, overrides) = match demand {
-                ProviderApplicationDemand::Product(..) => (&self.defaults[..], &self.overrides[..]),
+            let overrides = match demand {
+                ProviderApplicationDemand::Product(..) => &self.overrides[..],
                 ProviderApplicationDemand::Invocation(_) => {
-                    let relevant = |choice: &&ProviderDeclaration<
-                        CanonicalProviderDeclaration,
-                        Origin,
-                    >| {
-                        self.candidates
-                            .iter()
-                            .zip(&demanded)
-                            .any(|(candidate, needed)| *needed && candidate.accepts_choice(choice))
-                    };
-                    invocation_defaults = self
-                        .defaults
-                        .iter()
-                        .filter(relevant)
-                        .cloned()
-                        .collect::<Vec<_>>();
                     invocation_overrides = self
                         .overrides
                         .iter()
                         .filter(relevant)
                         .cloned()
                         .collect::<Vec<_>>();
-                    (&invocation_defaults[..], &invocation_overrides[..])
+                    &invocation_overrides[..]
                 }
             };
-            let selected = crate::choose(candidates, self.profile, defaults, overrides)?;
+            let selected = crate::choose(candidates, self.profile, &defaults, overrides)?;
             let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
             if proposed == previous {
                 let (facts, selected) = crate::admit(

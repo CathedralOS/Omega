@@ -98,10 +98,9 @@ impl TargetProviderPreparationRequest<'_> {
             .iter()
             .chain(native_build_plans)
             .collect::<Vec<_>>();
-        let explicit_choices = inventory
-            .defaults()
+        let explicit_choices = self
+            .overrides
             .iter()
-            .chain(self.overrides)
             .filter(|choice| {
                 choice
                     .target
@@ -142,9 +141,9 @@ impl TargetProviderPreparationRequest<'_> {
                     self.context.typed,
                     &candidate.provenance,
                 );
-            // A target's float table supplies reached operations; it does not
-            // deploy unused library bodies. Only an authored choice adds a
-            // provider root independently of the executable call closure.
+            // Target defaults supply reached slots; loading their declarations
+            // does not deploy their bodies. An executed Build choice deploys
+            // the complete map even before an application calls its methods.
             let explicitly_selected = explicit_choices
                 .iter()
                 .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
