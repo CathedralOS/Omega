@@ -5,6 +5,9 @@ WITNESS="${1:?}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 DIR="$(dirname "$0")"
+if [[ -d /tmp/ledger-bisect-tools ]]; then
+  DIR=/tmp/ledger-bisect-tools
+fi
 LOG="${3:-$ROOT/.agents/ledger-bisect-2026-11-11/work/bisect_${WITNESS//\//_}.log}"
 cd "$ROOT"
 export BISECT_WITNESS="$WITNESS"

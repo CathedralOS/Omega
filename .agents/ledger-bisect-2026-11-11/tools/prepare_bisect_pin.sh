@@ -3,11 +3,17 @@
 set -euo pipefail
 WITNESS="${1:?witness fixture}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-$(git -C "${REPO_ROOT:-/agent/repos/omega}" rev-parse --show-toplevel 2>/dev/null || pwd)}"
+if [[ ! -d "$ROOT/.git" ]]; then
+  ROOT=/agent/repos/omega
+fi
 cd "$ROOT"
 git cat-file -e "${PIN}^{commit}" || exit 1
 cp "$ROOT/tests/omega/corpus_outcomes.txt" /tmp/ledger_bisect_corpus_outcomes.txt
-OBS="${3:-$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_observed.txt}"
+OBS="${3:-${LEDGER_BISECT_PIN_OBSERVED:-$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_observed.txt}}"
+if [[ -f /tmp/ledger_bisect_pin_observed.txt ]]; then
+  OBS=/tmp/ledger_bisect_pin_observed.txt
+fi
 python3 - "$WITNESS" "$OBS" "$PIN" <<'PY'
 import json, re, sys
 from pathlib import Path

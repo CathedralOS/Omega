@@ -1,7 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -d /tmp/ledger-bisect-tools ]]; then
+  SCRIPT_DIR=/tmp/ledger-bisect-tools
+fi
+ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || git rev-parse --show-toplevel)"
 cd "$ROOT"
 export OMEGA_REPO="$ROOT"
 export BISECT_PIN_LEDGER="${BISECT_PIN_LEDGER:-/tmp/ledger_bisect_corpus_outcomes.txt}"
@@ -37,4 +41,4 @@ export OMEGA_CORPUS_ROOT="$ROOT" OMEGA_LIBRARY_ROOT="$ROOT/source/library"
 export OMEGA_CORPUS_FIXTURE_FILTER="$WITNESS" OMEGA_CORPUS_RECORDS=/tmp/bisect_one_record.txt
 rm -f /tmp/bisect_one_record.txt
 nice -n 19 "$RUNNER" < /dev/null >/dev/null 2>&1 || true
-python3 "$(dirname "$0")/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
+python3 "$SCRIPT_DIR/bisect_test.py" "$WITNESS" /tmp/bisect_one_record.txt
