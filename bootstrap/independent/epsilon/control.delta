@@ -16,7 +16,7 @@
   (pattern EpsilonPattern) (subject Bytes) (selected Bytes) (otherwise Bytes))
   EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
       (match (epsilon_control_find_complete_transition_pattern pattern control)
         (NoEpsilonTransitionPatternKind
           (EpsilonDeltaInternal (epsilon_pattern_start pattern)))
@@ -64,7 +64,7 @@
 (def epsilon_delta_transition ((context EpsilonDeltaContext)
   (terminal EpsilonTerminal) (subject EpsilonExpression) (arms EpsilonArmList)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
       (match (epsilon_control_find_transition_subject terminal control)
         (NoEpsilonTransitionSubjectReference
           (EpsilonDeltaInternal (epsilon_expression_start subject)))
@@ -73,7 +73,7 @@
             (EpsilonScalarTransitionSubject
               (epsilon_delta_scalar_transition context subject arms))
             ((EpsilonSumTransitionSubject owner)
-              (EpsilonDeltaUnsupported (epsilon_expression_start subject)))))))))
+              (epsilon_delta_enum_transition context owner subject arms))))))))
 
 (def epsilon_delta_terminal ((context EpsilonDeltaContext)
   (terminal EpsilonOptionalTerminal)) EpsilonDeltaCompilation

@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--literals", action="store_true",
                         help="validate Delta byte literals and the actual Epsilon source encoder")
     parser.add_argument("--compile-epsilon", action="store_true",
-                        help="compile the actual scalar lexical customer and check its refusals")
+                        help="compile the complete lexical module and check scalar/nominal refusals")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
@@ -125,7 +125,7 @@ def main():
         compilation_spec.loader.exec_module(compilation_controls)
         result["compiled_epsilon"] = compilation_controls.run(
             work, vm, NativeCompiler, construction.realize, args.seconds)
-        result["passed_stages"].append("compiled_epsilon_scalar_customer")
+        result["passed_stages"].append("compiled_epsilon_lexical_customer")
         checkpoint(next_stage, ())
     if args.omega:
         vm.omega_customer(work, args.seconds)

@@ -1,28 +1,29 @@
-(def epsilon_delta_state_name ((state EpsilonState)) Bytes
+(def epsilon_delta_state_name ((source EpsilonSourceView) (state EpsilonState)) Bytes
   (match state
     ((EpsilonStateSyntax start end name parameters body)
-      (epsilon_emit_generated "state" start))))
+      (bytes_concat (epsilon_emit_generated "state" start)
+        (bytes_concat "_" (epsilon_emit_name source name))))))
 
 ; Lift machine parameter values; each state owns its distinct lexical inputs.
 ; Exact checked bindings select the captured variables without a name lookup.
-(def epsilon_delta_capture_values ((parameters EpsilonParameterList)) Bytes
+(def epsilon_delta_capture_values ((source EpsilonSourceView) (parameters EpsilonParameterList)) Bytes
   (match parameters
     (NoEpsilonParameters "")
     ((MoreEpsilonParameters parameter rest)
       (match parameter
         ((EpsilonParameterSyntax start end name typeValue)
-          (epsilon_emit_spaced (epsilon_compiled_parameter_name name)
-            (epsilon_delta_capture_values rest)))))))
+          (epsilon_emit_spaced (epsilon_compiled_parameter_name source name)
+            (epsilon_delta_capture_values source rest)))))))
 
-(def epsilon_delta_machine_captures ((declaration EpsilonDeclaration)) Bytes
+(def epsilon_delta_machine_captures ((source EpsilonSourceView) (declaration EpsilonDeclaration)) Bytes
   (match declaration
     ((EpsilonMachineDeclaration start end name inputs returnType body)
       (match inputs
         ((NoEpsilonMachineInputs inputStart inputEnd) "")
         ((EpsilonPlainMachineInputs inputStart inputEnd parameters)
-          (epsilon_delta_capture_values parameters))
+          (epsilon_delta_capture_values source parameters))
         ((EpsilonReceiverMachineInputs inputStart inputEnd receiver parameters)
-          (epsilon_delta_capture_values parameters))))
+          (epsilon_delta_capture_values source parameters))))
     ((EpsilonBoundaryDeclaration start end name members) "")
     ((EpsilonDataDeclaration start end name members) "")))
 
@@ -33,28 +34,65 @@
     ((EpsilonDeltaStateTarget name captures)
       (epsilon_emit_call name (epsilon_emit_spaced captures arguments)))))
 
-; Scalar arguments are evaluated left to right and retained as snapshots.
-; A preceding trap prevents evaluation of every later argument.
+; Argument type comes from the resolved callee's checked parameter. Scalar
+; traps stop later evaluation; total enum values retain their named target type.
+(def epsilon_delta_argument_variable ((parameter EpsilonParameter)
+  (coordinate Int)) Bytes
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match typeValue
+        ((EpsilonNamedType typeStart typeEnd owner) (epsilon_emit_generated "enum" coordinate))
+        ((EpsilonI32Type typeStart typeEnd) (epsilon_emit_generated "scalar" coordinate))
+        ((EpsilonU8Type typeStart typeEnd) (epsilon_emit_generated "scalar" coordinate))
+        ((EpsilonNeverType typeStart typeEnd) (epsilon_emit_generated "argument" coordinate))
+        ((EpsilonArrayType typeStart typeEnd element extent) (epsilon_emit_generated "argument" coordinate))
+        ((EpsilonViewType typeStart typeEnd element) (epsilon_emit_generated "argument" coordinate))))))
+
+(def epsilon_delta_argument_then ((context EpsilonDeltaContext)
+  (parameter EpsilonParameter) (expression EpsilonExpression)
+  (continuation Bytes)) EpsilonDeltaCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match typeValue
+        ((EpsilonNamedType typeStart typeEnd owner)
+          (match (epsilon_delta_named_type context owner)
+            ((EpsilonDeltaCompiled typeText)
+              (epsilon_delta_enum_then context expression typeText continuation))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonI32Type typeStart typeEnd) (epsilon_delta_scalar_then context expression continuation))
+        ((EpsilonU8Type typeStart typeEnd) (epsilon_delta_scalar_then context expression continuation))
+        ((EpsilonNeverType typeStart typeEnd) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonArrayType typeStart typeEnd element extent) (EpsilonDeltaUnsupported typeStart))
+        ((EpsilonViewType typeStart typeEnd element) (EpsilonDeltaUnsupported typeStart))))))
+
 (def epsilon_delta_arguments ((context EpsilonDeltaContext)
-  (target EpsilonDeltaCallTarget) (arguments EpsilonExpressionList)
-  (values Bytes)) EpsilonDeltaCompilation
-  (match arguments
-    (NoEpsilonExpressions
-      (EpsilonDeltaCompiled (epsilon_delta_call_finish target values)))
-    ((MoreEpsilonExpressions expression rest)
-      (let coordinate Int (epsilon_expression_start expression)
-        (match (epsilon_delta_arguments context target rest
-          (epsilon_emit_spaced values (epsilon_emit_generated "scalar" coordinate)))
-          ((EpsilonDeltaCompiled continuation)
-            (epsilon_delta_scalar_then context expression continuation))
-          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+  (target EpsilonDeltaCallTarget) (parameters EpsilonParameterList)
+  (arguments EpsilonExpressionList) (values Bytes)) EpsilonDeltaCompilation
+  (match parameters
+    (NoEpsilonParameters
+      (match arguments
+        (NoEpsilonExpressions (EpsilonDeltaCompiled (epsilon_delta_call_finish target values)))
+        ((MoreEpsilonExpressions expression rest)
+          (EpsilonDeltaInternal (epsilon_expression_start expression)))))
+    ((MoreEpsilonParameters parameter remainingParameters)
+      (match arguments
+        (NoEpsilonExpressions (EpsilonDeltaInternal (epsilon_parameter_start parameter)))
+        ((MoreEpsilonExpressions expression rest)
+          (let variable Bytes (epsilon_delta_argument_variable parameter (epsilon_expression_start expression))
+            (match (epsilon_delta_arguments context target remainingParameters rest
+              (epsilon_emit_spaced values variable))
+              ((EpsilonDeltaCompiled continuation)
+                (epsilon_delta_argument_then context parameter expression continuation))
+              ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+              ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+              ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))))
 
 (def epsilon_delta_resolved_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (arguments EpsilonExpressionList)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
       (match (epsilon_find_resolved_callable_reference_normalized expression callables)
         (NoEpsilonResolvedCallableReference
           (EpsilonDeltaInternal (epsilon_expression_start expression)))
@@ -65,7 +103,7 @@
                 ((EpsilonMachineDeclaration start end name inputs returnType body)
                   (epsilon_delta_arguments context
                     (EpsilonDeltaMachineTarget (epsilon_compiled_function_name source name))
-                    arguments ""))
+                    (epsilon_machine_input_parameters inputs) arguments ""))
                 ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
                 ((EpsilonDataDeclaration start end name members) (EpsilonDeltaInternal start))))
             ((EpsilonResolvedConstructorCallable owner member)
@@ -78,7 +116,7 @@
 (def epsilon_delta_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (arguments EpsilonExpressionList)) EpsilonDeltaCompilation
   (match context
-    ((EpsilonDeltaContextAt source locals fields callables control declaration)
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
       (match (epsilon_control_find_state_application expression control)
         (NoEpsilonStateApplicationReference
           (epsilon_delta_resolved_call context expression arguments))
@@ -87,7 +125,9 @@
             (EpsilonStateApplicationResolved
               (EpsilonDeltaInternal (epsilon_expression_start expression)))
             (EpsilonStateApplicationComplete
-              (epsilon_delta_arguments context
-                (EpsilonDeltaStateTarget (epsilon_delta_state_name state)
-                  (epsilon_delta_machine_captures declaration))
-                arguments ""))))))))
+              (match state
+                ((EpsilonStateSyntax stateStart stateEnd stateName parameters body)
+                  (epsilon_delta_arguments context
+                    (EpsilonDeltaStateTarget (epsilon_delta_state_name source state)
+                      (epsilon_delta_machine_captures source declaration))
+                    parameters arguments ""))))))))))

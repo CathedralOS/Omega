@@ -12,7 +12,7 @@ COMPILER = Path(__file__).parent
 COMPILER_MODULES = (
     'emission.delta', 'text.delta', 'compilation.delta', 'locals.delta',
     'binary.delta', 'expressions.delta', 'calls.delta', 'machines.delta',
-    'control.delta',
+    'control.delta', 'enums.delta', 'enum_values.delta', 'enum_control.delta',
 )
 RUNTIME_MODULES = (
     'representations/binary_operators.delta',
@@ -29,12 +29,22 @@ def compiler_source(checked_epsilon_closure):
             + b'\n' + (COMPILER / 'entry.delta').read_bytes())
 
 
+def runtime_declarations():
+    return (b''.join((EPSILON / name).read_bytes() for name in RUNTIME_MODULES[:2])
+            + (COMPILER / 'runtime/values.delta').read_bytes())
+
+
+def runtime_implementation():
+    return ((EPSILON / RUNTIME_MODULES[2]).read_bytes()
+            + (COMPILER / 'runtime/scalars.delta').read_bytes() + b'\n')
+
+
 def runtime_source():
-    # Every member is a complete shared leaf; no Epsilon syntax declaration,
-    # parsing/checking function, or AST dispatcher enters the generated program.
-    declarations = b''.join((EPSILON / name).read_bytes()
-                            for name in RUNTIME_MODULES[:2])
-    values = (COMPILER / 'runtime/values.delta').read_bytes()
-    operators = (EPSILON / RUNTIME_MODULES[2]).read_bytes()
-    scalar_adapter = (COMPILER / 'runtime/scalars.delta').read_bytes()
-    return declarations + values + operators + scalar_adapter + b'\n'
+    return runtime_declarations() + runtime_implementation()
+
+
+def program_source(generated, driver):
+    # The owned module emits its nominal declarations before its functions.
+    # Forward function references allow runtime code after that complete module.
+    # Composition only concatenates complete owners; it parses no generated text.
+    return runtime_declarations() + generated + runtime_implementation() + driver

@@ -107,7 +107,7 @@ def run(work, vm, producer, realize, seconds):
         prefix = actual[:actual.index(b'machine omega_digit_in_base(')]
         source = prefix + CONSOLE + EMPTY_MAIN
         generated = compile_epsilon(source, 'lexical')
-        target = runtime + generated + (FIXTURES / 'lexical_driver.delta').read_bytes()
+        target = composition.program_source(generated, (FIXTURES / 'lexical_driver.delta').read_bytes())
         executable = compile_delta(target, 'lexical-target')
         payload = bytes(range(256))
         result = observe(executable, payload)
@@ -143,7 +143,7 @@ def run(work, vm, producer, realize, seconds):
             body = f'(bytes_concat {call} {body})'
         driver = (FIXTURES / 'scalar_driver.delta').read_bytes()
         driver += f'\n(def main ((source Bytes)) Bytes {body})\n'.encode()
-        executable = compile_delta(runtime + generated + driver, 'scalar-target')
+        executable = compile_delta(composition.program_source(generated, driver), 'scalar-target')
         result = observe(executable)
         expected = b''.join(b'\2' + bytes([value[1]]) if isinstance(value, tuple)
                             else b'\0' + struct.pack('<i', value)
@@ -178,7 +178,7 @@ def run(work, vm, producer, realize, seconds):
         # must both refuse; the compiler publishes no previously emitted prefix.
         for name, suffix in (
             ('effect', b'machine Main::unused_write(&mut self) { self.console.write_byte(1); }\n'),
-            ('nominal', b'data Color { case Red; case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
+            ('nominal', b'data Color { case Red(value: i32); case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
         ):
             request = source + suffix
             (work / f'unsupported-{name}.epsilon').write_bytes(request)
@@ -187,6 +187,12 @@ def run(work, vm, producer, realize, seconds):
             assert refusal.startswith(b'unsupported ') and b'(def' not in refusal, refusal[:80]
             assert reference(request, b'', f'unsupported-{name}-reference') == (
                 b'\0' + struct.pack('<i', 0))
+        report['stage'] = 'complete-lexical-module'
+        checkpoint()
+        enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', Path(__file__).with_name('enum_test.py'))
+        enum_controls = importlib.util.module_from_spec(enum_spec)
+        enum_spec.loader.exec_module(enum_controls)
+        report['enum_customer'] = enum_controls.run(work, vm, producer, realize, seconds, composition, compiler)
         report.update(state='passed', stage='complete', refusal_controls=3, finished=time.time())
         checkpoint()
         return report
