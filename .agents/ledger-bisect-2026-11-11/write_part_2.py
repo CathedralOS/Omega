@@ -5,8 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-DIR = REPO / ".agents/ledger-bisect-2026-11-11"
+DIR = Path(__file__).resolve().parent
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 
 CLUSTER_WITNESS = [
@@ -23,21 +22,24 @@ def load_bisect(witness: str) -> dict:
     return json.loads(p.read_text()) if p.exists() else {"status": "pending"}
 
 
+def fmt_codes(codes: list[int] | None) -> str:
+    if not codes:
+        return "—"
+    return ",".join(str(c) for c in codes)
+
+
 def main() -> int:
     analysis = json.loads((DIR / "slice_2_pin_analysis.json").read_text())
     clusters = analysis["clusters"]
     md = [
         "# Ledger bisect part 2",
         "",
-        f"PIN `{PIN}`. Method: PIN-fixed `corpus_outcomes.txt` + witness observation; "
-        "bisect test never reads ledger at checkout; ledger-only commits skipped (exit 125).",
+        f"PIN `{PIN}`. PIN-fixed ledger + observation; ledger-only commits skipped in `git bisect run`.",
         "",
-        f"**Re-measure:** {len(analysis['fixed']) + len(analysis['broken'])} prior-slice fixtures; "
+        f"**Re-measure:** {len(analysis['fixed']) + len(analysis['broken'])} fixtures; "
         f"**fixed on main** {len(analysis['fixed'])}; **still broken** {len(analysis['broken'])}; "
-        f"**PIN clusters** {len(clusters)}.",
+        f"**clusters** {len(clusters)}.",
         "",
-        "| rows | diagnostic (PIN) | witness | breaking commit | PR | mechanism | status |",
-        "| ---: | --- | --- | --- | ---: | --- | --- |",
     ]
     tsv: list[str] = []
     for i, c in enumerate(clusters):
@@ -47,29 +49,34 @@ def main() -> int:
                 w = bw
                 break
         b = load_bisect(w)
-        diag = c["diag"].replace("|", "\\|")[:96]
-        mech = (b.get("mechanism") or "").replace("|", "\\|")[:90]
-        bc = (b.get("breaking_commit") or "")[:12]
-        md.append(
-            f"| {c['count']} | {diag} | `{w}` | `{bc}` | {b.get('pr') or ''} | {mech} | {b.get('status', 'pending')} |"
-        )
-        for m in c["members"]:
-            md.append(f"- `{m}`")
-            tsv.append(f"{m}\tstill broken\t{c['diag'][:200]}\t2-pin-{i}")
+        diag = c["diag"].replace("|", "\\|")[:120]
+        status = b.get("status", "pending")
+        mech = (b.get("mechanism") or "").strip() or "mechanism not established"
+        md.append(f"## Cluster {i} ({c['count']} rows)")
         md.append("")
+        md.append(f"- **Diagnostic:** {diag}")
+        md.append(f"- **Witness:** `{w}`")
+        md.append(f"- **Status:** {status}")
+        if status == "never_good_since_fixture_add":
+            md.append(f"- **Verdict:** {b.get('verdict', '')}")
+        elif status == "bisected":
+            md.append(f"- **First bad:** `{b.get('breaking_commit', '')}`")
+            md.append(f"- **PR:** {b.get('pr') or '—'}")
+            md.append(f"- **Mechanism:** {mech}")
+            md.append(f"- **Exit codes @ first-bad (3×):** {fmt_codes(b.get('exit_codes_first_bad'))}")
+            md.append(f"- **Exit codes @ first parent (3×):** {fmt_codes(b.get('exit_codes_first_parent'))}")
+        md.append(f"- **Members:** {', '.join(f'`{m}`' for m in c['members'])}")
+        if c["count"] >= 2 and b.get("membership_pin_check"):
+            md.append("- **Membership @ PIN (3× each, pin-fixed):**")
+            for m, rcs in b["membership_pin_check"].items():
+                md.append(f"  - `{m}`: {fmt_codes(rcs)}")
+        md.append("")
+        for m in c["members"]:
+            tsv.append(f"{m}\tstill broken\t{c['diag'][:200]}\t2-pin-{i}")
     md += ["## Fixed on main", ""]
     for f in analysis["fixed"]:
         md.append(f"- `{f}`")
         tsv.append(f"{f}\tfixed on main\t\t")
-    md += [
-        "",
-        "## Commands",
-        "",
-        "- Members: `recover_slice_members.py 2 40`",
-        "- Measure: direct `corpus_runner`, `OMEGA_CORPUS_JOBS=1`",
-        "- Bisect: `pin_snapshot.py` + `bisect_one.sh` (pin-fixed ledger)",
-        "- Host: linux x86_64",
-    ]
     (DIR / "part-2.md").write_text("\n".join(md) + "\n")
     (DIR / "part-2.tsv").write_text("\n".join(tsv) + "\n")
     print("wrote part-2.md")

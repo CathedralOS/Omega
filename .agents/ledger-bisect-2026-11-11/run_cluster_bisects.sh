@@ -16,6 +16,14 @@ for _w in "${WITNESSES[@]}"; do
   python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_snapshot.py" "$_w" "$MEASURE"
 done
 for w in "${WITNESSES[@]}"; do
+  SAFE="${w//\//_}"
+  if [[ -f "$OUT_DIR/${SAFE}.json" ]]; then
+    st=$(python3 -c "import json; print(json.load(open('$OUT_DIR/${SAFE}.json')).get('status',''))")
+    if [[ "$st" == bisected || "$st" == never_good_since_fixture_add ]]; then
+      echo "=== skip $w (already $st) ==="
+      continue
+    fi
+  fi
   echo "=== bisect $w ==="
   set +e
   bash "$ROOT/.agents/ledger-bisect-2026-11-11/bisect_one.sh" "$w"

@@ -29,6 +29,7 @@ def run_triple(witness: str, rev: str) -> list[int]:
 
 
 def main() -> int:
+    subprocess.run(["bash", str(DIR / "install_bisect_tools.sh")], cwd=REPO, check=False)
     result_path = Path(sys.argv[1])
     witness = sys.argv[2]
     data = json.loads(result_path.read_text())

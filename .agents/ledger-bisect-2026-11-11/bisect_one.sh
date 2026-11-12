@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bisect one witness: PIN observation vs fixed PIN ledger; find good by walking first-parent back.
+# Bisect one witness: PIN observation vs fixed PIN ledger; find good by exponential walk on first-parent.
 set -euo pipefail
 WITNESS="${1:?witness}"
 PIN="${BISECT_BAD:-51e8c45c793007f211d0d9baee7de16767172444}"
@@ -30,48 +30,73 @@ run_test_at() {
   return "$rc"
 }
 
-echo "find_good from $PIN (binary search on first-parent)" >&2
+fixture_add_commit() {
+  local w="$1"
+  git log --first-parent --reverse --diff-filter=A --format=%H -- "tests/omega/${w}" 2>/dev/null | head -1
+}
+
+fixture_max_probe_index() {
+  local fix="$1"
+  shift
+  local revs=("$@")
+  local i
+  if [[ -z "$fix" ]]; then
+    echo $((${#revs[@]} - 1))
+    return 0
+  fi
+  for i in "${!revs[@]}"; do
+    if [[ "${revs[i]}" != "$fix" ]] && ! git merge-base --is-ancestor "$fix" "${revs[i]}" 2>/dev/null; then
+      echo $((i - 1))
+      return 0
+    fi
+  done
+  echo $((${#revs[@]} - 1))
+}
+
+echo "find_good from $PIN (exponential walk to fixture-add; git bisect PIN vs first good)" >&2
 mapfile -t REVS < <(git rev-list --first-parent "${PIN}^1")
+FIX_ADD="$(fixture_add_commit "$WITNESS")"
+echo "  fixture_add=${FIX_ADD:-unknown}" >&2
+MAX_IDX=$(fixture_max_probe_index "$FIX_ADD" "${REVS[@]}")
 GOOD=""
 set +e
 if ((${#REVS[@]} > 0)); then
-  max_good_idx=-1
   probe=0
   step=1
-  while ((probe < ${#REVS[@]})); do
+  while ((probe <= MAX_IDX)); do
     run_test_at "${REVS[probe]}"
     rc=$?
     echo "  probe[$probe] ${REVS[probe]:0:12} -> $rc" >&2
     if [[ "$rc" -eq 0 ]]; then
-      max_good_idx=$probe
+      GOOD="${REVS[probe]}"
       break
     fi
     ((step *= 2))
     probe=$((probe + step))
   done
-  if ((max_good_idx >= 0)); then
-    lo=0
-    hi=$max_good_idx
-    while ((lo <= hi)); do
-      mid=$(((lo + hi) / 2))
-      run_test_at "${REVS[mid]}"
-      rc=$?
-      echo "  narrow[$mid] ${REVS[mid]:0:12} -> $rc" >&2
-      if [[ "$rc" -eq 0 ]]; then
-        GOOD="${REVS[mid]}"
-        hi=$((mid - 1))
-      else
-        lo=$((mid + 1))
-      fi
-    done
-  fi
 fi
 set -e
 git checkout --detach "$START_SHA" >/dev/null 2>&1
-[[ -n "$GOOD" ]] || {
-  echo "ERROR: no good first-parent ancestor for $WITNESS" >&2
-  exit 2
-}
+if [[ -z "$GOOD" ]]; then
+  VERDICT="never-good since ${FIX_ADD:-fixture-unknown}"
+  python3 - "$OUT_DIR/${SAFE}.json" "$WITNESS" "$FIX_ADD" "$VERDICT" <<'PY'
+import json, sys
+_, out, witness, fix_add, verdict = sys.argv
+json.dump(
+    {
+        "witness": witness,
+        "fixture_add": fix_add or None,
+        "verdict": verdict,
+        "status": "never_good_since_fixture_add",
+        "method": "pin-fixed-ledger",
+    },
+    open(out, "w"),
+    indent=2,
+)
+PY
+  echo "done witness=$WITNESS verdict=$VERDICT"
+  exit 0
+fi
 
 set +e
 pin_rc=125
@@ -134,19 +159,22 @@ print(subj + (f" — {'; '.join(lines)}" if lines else ""))
 PY
 )
   else
-    MECH="git bisect landed on ledger/markdown-only commit ${BREAK:0:12}"
+    MECH="mechanism not established (ledger/markdown-only first-bad ${BREAK:0:12})"
+    STATUS=propagated
   fi
 fi
+[[ -z "$MECH" ]] && MECH="mechanism not established"
 [[ "$STABLE" -eq 0 ]] && MECH="${MECH}; endpoint stability: flaky across replays"
 
-python3 - "$OUT_DIR/${SAFE}.json" "$WITNESS" "$GOOD" "$PIN" "$BREAK" "$PR" "$MECH" "$STATUS" "$STABLE" "$RC" <<'PY'
+python3 - "$OUT_DIR/${SAFE}.json" "$WITNESS" "$GOOD" "$PIN" "$BREAK" "$PR" "$MECH" "$STATUS" "$STABLE" "$RC" "$FIX_ADD" <<'PY'
 import json, sys
-_, out, witness, good, pin, brk, pr, mech, status, stable, rc = sys.argv
+_, out, witness, good, pin, brk, pr, mech, status, stable, rc, fix_add = sys.argv
 json.dump(
     {
         "witness": witness,
         "good": good,
         "bad_pin": pin,
+        "fixture_add": fix_add or None,
         "breaking_commit": brk,
         "pr": pr or None,
         "mechanism": mech,
@@ -159,4 +187,8 @@ json.dump(
     indent=2,
 )
 PY
+if [[ "$STATUS" == bisected ]]; then
+  python3 "$ROOT/.agents/ledger-bisect-2026-11-11/tools/record_bisect_evidence.py" "$OUT_DIR/${SAFE}.json" "$WITNESS" || true
+fi
+git checkout work/ledger-bisect-part-2 >/dev/null 2>&1
 echo "done witness=$WITNESS good=${GOOD:0:12} break=${BREAK:0:12} pr=$PR status=$STATUS"
