@@ -6,7 +6,7 @@ OUT_JSON="${2:?output json}"
 ROOT="$(git -C "$(dirname "$0")/../../.." rev-parse --show-toplevel)"
 TOOLCACHE="/tmp/ledger-bisect-tools"
 mkdir -p "$TOOLCACHE"
-rsync -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/" "$TOOLCACHE/"
+cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/"
 chmod +x "$TOOLCACHE"/*.sh 2>/dev/null || true
 cd "$ROOT"
 SCRIPT="$TOOLCACHE/bisect_witness_full.sh"

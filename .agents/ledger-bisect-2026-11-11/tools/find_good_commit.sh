@@ -30,7 +30,7 @@ test_at() {
   local cur
   cur=$(nth_fp "$n")
   [[ -n "$cur" ]] || return 125
-  git checkout -q "$cur"
+  git checkout -qf "$cur"
   if is_ledger_only_commit; then
     return 125
   fi
