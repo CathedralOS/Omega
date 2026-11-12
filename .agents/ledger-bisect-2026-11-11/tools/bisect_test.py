@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
+import os
+import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(
+    os.environ.get(
+        "OMEGA_REPO",
+        subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True
+        ).strip(),
+    )
+)
 
 
 def parse_header(line: str) -> tuple[str, str] | None:

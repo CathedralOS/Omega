@@ -5,7 +5,14 @@ WITNESS="${1:?witness}"
 OUT_JSON="${2:?output json}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 PIN="51e8c45c793007f211d0d9baee7de16767172444"
-SCRIPT="$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_witness.sh"
+TOOL_SRC="$ROOT/.agents/ledger-bisect-2026-11-11/tools"
+TMP_TOOLS="/tmp/ledger-bisect-tools-7"
+rm -rf "$TMP_TOOLS"
+mkdir -p "$TMP_TOOLS"
+cp -a "$TOOL_SRC/bisect_witness.sh" "$TOOL_SRC/bisect_test.py" "$TMP_TOOLS/"
+chmod +x "$TMP_TOOLS/bisect_witness.sh"
+# bisect checkouts drop this branch's .agents tree; keep helpers outside the worktree.
+SCRIPT="$TMP_TOOLS/bisect_witness.sh"
 export BISECT_WITNESS="$WITNESS"
 if [[ -z "${BISECT_GOOD:-}" ]]; then
   GOOD=$(python3 - "$WITNESS" <<'PY'
