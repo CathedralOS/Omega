@@ -1,0 +1,13 @@
+data Node { value: u64; }
+// The false edge forwards completion to another top-level machine that can
+// only crash. That arm owes no returned reference origins, so `choose` lowers.
+machine failed() -> &mut Node { crash Trap; }
+machine choose(node: &mut Node, take: bool) -> &mut Node crashes Trap {
+    transition take { true -> (node) false -> failed() }
+}
+// A normal return must finish successfully, so only `failed`'s authored crash
+// can satisfy the trap oracle.
+machine main() crashes Trap {
+    let node: Node = Node { value: 70 };
+    let result: &mut Node = choose(&mut node, false);
+}
