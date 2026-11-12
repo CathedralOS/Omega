@@ -4,7 +4,7 @@ WITNESS="${1:?}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
 BAD_ANCHOR="${3:-$PIN}"
 export OMEGA_REPO="/agent/repos/omega"
-export OMEGA_BISECT_TOOLS="/tmp/ledger-bisect-part-30-tools"
+export OMEGA_BISECT_TOOLS="/opt/cursor/artifacts/ledger-bisect-part-30-tools"
 export OMEGA_PIN_ROOT="/tmp/ledger-bisect-part-30"
 export OMEGA_PIN_LEDGER="$OMEGA_PIN_ROOT/pin_corpus_outcomes.txt"
 export OMEGA_PIN_OBS="$OMEGA_PIN_ROOT/pin_obs_${WITNESS//\//__}.txt"
@@ -15,7 +15,9 @@ LOG="${4:-/opt/cursor/artifacts/ledger-bisect-part-30/exp_walk.log}"
 cd "$OMEGA_REPO"
 
 restore_report() {
-  git checkout -qf work/ledger-bisect-part-30 -- .agents/ledger-bisect-2026-11-11 2>/dev/null || true
+  git checkout -qf work/ledger-bisect-part-30 -- \
+    .agents/ledger-bisect-2026-11-11/part-30.md \
+    .agents/ledger-bisect-2026-11-11/part-30.tsv 2>/dev/null || true
 }
 
 fp_parent() {
@@ -32,14 +34,12 @@ fp_back() {
 }
 
 test_commit() {
-  local c="$1"
+  local c="$1" r
   [[ -z "$c" ]] && return 125
   git checkout -qf "$c"
   restore_report
-  set +e
   "$SCRIPT"
-  local r=$?
-  set -e
+  r=$?
   return "$r"
 }
 
@@ -59,8 +59,9 @@ log "PIN $(git log -1 --oneline "$PIN") -> $prc"
 cur="$BAD_ANCHOR"
 set +e
 test_commit "$cur"
+arc=$?
 set -e
-log "ANCHOR $(git log -1 --oneline "$cur") -> $?"
+log "ANCHOR $(git log -1 --oneline "$cur") -> $arc"
 
 older_good=""
 gap=1
@@ -79,6 +80,11 @@ while ((gap <= 65536)); do
   if [[ "$rc" -eq 1 ]]; then
     cur="$target"
     gap=$((gap * 2))
+    continue
+  fi
+  if [[ "$rc" -eq 125 ]]; then
+    cur=$(fp_parent "$target")
+    [[ -z "$cur" ]] && break
     continue
   fi
   cur=$(fp_parent "$cur")
