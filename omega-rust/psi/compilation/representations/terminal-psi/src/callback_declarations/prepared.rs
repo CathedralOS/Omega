@@ -313,6 +313,7 @@ mod correspondence_tests {
     use super::*;
     use crate::{
         CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalCallbackApplication,
+        TerminalIdentityTableBuilder,
     };
 
     fn prepared() -> (
