@@ -1,33 +1,58 @@
 #!/bin/bash
-# Walk first-parent ancestors of PIN until witness test returns 0.
+# Newest first-parent ancestor of PIN where witness matches fixed-PIN good (binary search).
 set -euo pipefail
 PIN="${BISECT_PIN:?}"
-WITNESS="${BISECT_WITNESS:?}"
-ROOT="${BISECT_REPO_ROOT:?}"
-export BISECT_REPO_ROOT="$ROOT"
-export BISECT_WITNESS_SPEC
 SCRIPT="${BISECT_WITNESS_SCRIPT:?}"
+ROOT="${BISECT_REPO_ROOT:?}"
 cd "$ROOT"
-start_branch="$(git branch --show-current 2>/dev/null || true)"
-trap 'git checkout -q "${start_branch:-$PIN}" 2>/dev/null || git checkout -q "$PIN"' EXIT
+start_ref="$(git rev-parse HEAD)"
+trap 'git checkout -fq "$start_ref" 2>/dev/null || git checkout -fq "$PIN"' EXIT
 
-n=0
-for commit in $(git rev-list --first-parent "$PIN" | tail -n +2); do
-  n=$((n + 1))
-  echo "find_good try $n $(git log -1 --oneline "$commit")" >&2
-  git checkout -q "$commit"
+mapfile -t commits < <(git rev-list --first-parent "$PIN")
+if ((${#commits[@]} < 2)); then
+  echo "find_good_commit: not enough history" >&2
+  exit 1
+fi
+
+run_test() {
+  local commit=$1
+  git checkout -fq "$commit"
   set +e
   "$SCRIPT"
-  ec=$?
+  local ec=$?
   set -e
-  if [[ $ec -eq 0 ]]; then
-    echo "find_good found at try $n" >&2
-    echo "$commit"
-    exit 0
-  fi
-  if [[ $ec -ne 1 && $ec -ne 125 ]]; then
-  :
+  echo "$ec"
+}
+
+echo "find_good: verifying PIN bad" >&2
+ec_pin="$(run_test "${commits[0]}")"
+if [[ "$ec_pin" != "1" ]]; then
+  echo "find_good: PIN witness must exit 1, got $ec_pin" >&2
+  exit 1
+fi
+
+lo=1
+hi=$((${#commits[@]} - 1))
+answer=""
+
+while ((lo <= hi)); do
+  mid=$(((lo + hi) / 2))
+  echo "find_good probe mid=$mid/$((${#commits[@]} - 1)) $(git log -1 --oneline "${commits[mid]}")" >&2
+  ec="$(run_test "${commits[mid]}")"
+  if [[ "$ec" == "0" ]]; then
+    answer="${commits[mid]}"
+    hi=$((mid - 1))
+  elif [[ "$ec" == "1" ]]; then
+    lo=$((mid + 1))
+  else
+    # skip build/ambiguous: treat as inconclusive toward older
+    lo=$((mid + 1))
   fi
 done
-echo "find_good_commit: no good commit found for $WITNESS" >&2
-exit 1
+
+if [[ -z "$answer" ]]; then
+  echo "find_good_commit: no good commit in first-parent chain" >&2
+  exit 1
+fi
+echo "find_good: ${answer}" >&2
+echo "$answer"
