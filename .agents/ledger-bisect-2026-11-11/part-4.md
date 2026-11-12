@@ -19,7 +19,7 @@ Members: `pass/proofs/case_call_premises`, `pass/proofs/cauchy_predicates_compil
 | 4 | fail wrong reason | machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic on the trans | `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected` | `` |  | no first-parent good commit found (witness regressed at 759c80404428 and full good-depth w | propagated | unknown |
 Members: `fail/build/helper_contract_context`, `fail/contracts/replacement_call_child_false_snapshot`, `fail/expressions/cast_result_range`, `fail/facts/unsigned_64bit_bitwise_xor_bound_through_call_result_rejected`
 
-| 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
+| 2 | pass/run rejected | generated generic application does not match its exact retained instance origin | `pass/generics/runtime_computed_nested_const_call_exit` | `` |  | no first-parent good commit found (witness regressed at 759c80404428 and full good-depth w | propagated | unknown |
 Members: `pass/build/const_index_dependency_order_exit`, `pass/generics/runtime_computed_nested_const_call_exit`
 
 | 2 | fail wrong reason | integer node `u8(300)` does not fit exact carrier `u8` | `fail/generics/const_data_argument_out_of_range` | `` |  | no first-parent good commit found (witness still regressed at ledger stamp and 120 parents | propagated | unknown |
