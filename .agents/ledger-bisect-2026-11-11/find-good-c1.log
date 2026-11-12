@@ -14,3 +14,15 @@ Traceback (most recent call last):
   File "/usr/lib/python3.12/subprocess.py", line 571, in run
     raise CalledProcessError(retcode, process.args,
 subprocess.CalledProcessError: Command '['git', 'checkout', '-q', '88b6f47b0f50e3e1e88e33a1ea1287502513280b']' returned non-zero exit status 1.
+probe b3cb66c82bd08ed59d65de85a78d45a3832fc9fa exit=0 b3cb66c82bd omega: take the validated abstract source as stage 03's one entrance (#29)
+probe 83a8ae832811b3169bbe3ab27937651d722ddde5 exit=0 83a8ae83281 psi: alias current storage to each arm's read instead of read cuts (#1288)
+probe 5263839930904bc7e9fcf927de60e1d803c8faf5 exit=125 52638399309 repo: restore local-swarm setup skill to unmodified state (#1892)
+probe e3c4ae4fb406f0a40e8988e2b79100ceeeaff5b3 exit=0 e3c4ae4fb40 omega: look up blocks, registers and functions by position or checked order (#1574)
+probe 1f8d08e209d6a0d006529513dfb74e39f201331c exit=125 1f8d08e209d psi: ask whether a lent local's domain must hold when the borrow returns (#1713)
+probe 9bf9fac6fcf65bcacc1e72debe923fbb73e7a597 exit=0 9bf9fac6fcf repo: pass the RC-REPOSITORY format and lint gates on linux_x86_64 (#1646)
+probe 95148e58b3713100caf4b07b643bc26b4129be7a exit=1 95148e58b37 psi: replace two obsolete fences with real positives and twins (#1703)
+probe 5661b04aafc5daa24b48c5bb8b8d637bd160d573 exit=125 5661b04aafc docs: ratify scoped contradiction elimination (#1724)
+probe 2977bfb92a918ff4c3f83b36cb092c52484f0f84 exit=0 2977bfb92a9 samples: select nested-machine write probes through Build (#1669)
+probe 18fc751d006008859b8c23f100456b58c89a02db exit=0 18fc751d006 psi: stop preparing a program twice when evaluating its layouts (#1693)
+probe 4faf6413467dd7a7f6cf7e62ba77d1c607591f18 exit=1 4faf6413467 psi: check each write once when replaying a state's current values (#1718)
+probe f2c75870ebaf890328b787fa6d8ed50e868edbb8 exit=1 f2c75870eba psi: keep helper-returned views usable across calls that may pause (#1672)
