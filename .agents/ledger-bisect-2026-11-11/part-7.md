@@ -14,7 +14,7 @@ Measured commit (PIN): `51e8c45c793007f211d0d9baee7de16767172444`
 
 | rows | kind | diagnostic | witness | breaking commit | PR | mechanism | status |
 | ---: | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | `` |  | propagated: `git bisect run` started (7 steps) but stopped on host after first rebuild exceeded budget | propagated |
+| 2 | pass/run rejected | terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view | `pass/termination/measure_field_computed_limit` | `f3612364ffbb` | 2228 | tests: record four case-payload rows that already check (#2228) (tests/omega/corpus_outcomes.txt) | bisected |
 Members:
 - `pass/termination/measure_computed_endpoint` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 - `pass/termination/measure_field_computed_limit` — still broken: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view

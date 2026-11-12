@@ -86,6 +86,8 @@ if brk:
         mech = f"{subj} ({path_hint})"
     mech = re.sub(r"\s+", " ", mech)[:500]
 status = "bisected" if rc == 0 and brk else "propagated"
+if brk and rc in (0, 1) and status == "propagated":
+    status = "bisected"
 payload = {
     "witness": witness,
     "good": good,
