@@ -31,8 +31,9 @@ command -v python3 >/dev/null 2>&1 || {
 if [ "$ENCODING_GATE" = "full_subject.py" ] || [ "${MUTATION_MODE:-}" = "--self-test" ]; then
     # The stepper production and mutation construction run host-side: no
     # evaluator seed is materialized, so these modes are not bound to the
-    # native hosts.  The theory and subject identities are the same pins
-    # the native gates use.  --mutations-self-test builds every mutated
+    # native hosts. Full-subject research uses its fixed historical Git
+    # artifacts, separately from the current evaluator identity below.
+    # --mutations-self-test builds every mutated
     # request and verifies each patch lands at its claimed field without
     # asserting any checker verdict.
     require_beta_encoding_theory_identity

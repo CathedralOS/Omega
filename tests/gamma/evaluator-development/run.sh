@@ -38,8 +38,8 @@ from function_lookup import (
 from environment_rows import fixtures as environment_fixtures
 
 artifacts = (
-    ("BETA", 47756, "253b42b447fbe1bae28058691d23f794573759fcd3b1ba000d250ef58ac97613"),
-    ("TAPE", 8575, "00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d"),
+    ("BETA", 48077, "0212314445b22655359d7e8477184fed129f15d6d7e1051f56069842bb06a1a8"),
+    ("TAPE", 8575, "9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()

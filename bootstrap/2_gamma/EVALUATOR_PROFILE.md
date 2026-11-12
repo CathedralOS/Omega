@@ -207,13 +207,13 @@ exposes an Alpha arithmetic trap as a Gamma outcome. Gamma has no time or work
 bound; a nonterminating program diverges.
 
 The selected implementation is
-[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,666-line,
-47,756-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
+[`gamma_evaluator.beta`](gamma_evaluator.beta), a 1,673-line,
+48,077-byte addressed Beta program assembling to an 8,575-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  253b42b447fbe1bae28058691d23f794573759fcd3b1ba000d250ef58ac97613
-Alpha tape   00c05bedbe0eed665bc165a9165ecf09cd40627bc636034ccb8dbfb24df3919d
+Beta source  0212314445b22655359d7e8477184fed129f15d6d7e1051f56069842bb06a1a8
+Alpha tape   9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
@@ -293,10 +293,28 @@ pins and reconstruction and failure controls. It need not change the Alpha
 seed or add a proof rule, but encoding equality would still not prove Gamma
 semantics. No measured customer failure currently warrants those additions.
 
-Direct one-byte punctuation tests in the existing token-based skip loop are a
-smaller, unmeasured alternative: no index or second lexer, but continued linear
-scanning and changed tape/validation obligations. Retain the existing code
-until a concrete execution or proof-feasibility need justifies that comparison.
-The current measurements establish neither a whole-run scanning fraction nor
-an optimization's benefit; future reconsideration should measure the affected
-phase on the then-current complete customer, not reuse old proportions.
+The punctuation helpers now compare the token's first byte directly. The
+existing tokenizer isolates parentheses as singleton tokens and gives character
+literals an apostrophe prefix, so this preserves the full token test without a
+second lexer or index. Both 30-byte helper slots and every control address stay
+fixed; only 36 tape bytes change. The generic string comparison still handles
+ordinary names and keywords.
+
+On Linux x86-64, the complete Delta-to-Epsilon diagnostic receipt reconstructed
+byte-identically: the prior evaluator used 349.620 CPU / 354.968 wall seconds;
+the direct punctuation version used 335.574 CPU / 339.061 wall seconds. These
+are single observations (about 4% less CPU), not a portable speed guarantee.
+A 10,000-call microbenchmark improved by about 29%, which is not representative
+of the complete receipt. The full Gamma fixture matrix, including grouped lets,
+name lookup, environment and depth boundaries, rejection, and augmentation,
+also passed. The 33,330-byte source-authored Gamma compiler
+(SHA-256 `7b439ef26f2cb8a27bb9c0a2b4d5bfca6e7efeed0a5bdf9d798c04b65370b946`)
+constructed the same 457,252-byte compiler tape
+(`71f6650f8201294e6654217f38fcd431fd8daaa233e0330c5da29e9819ad7e71`):
+47.263 seconds versus 62.362 seconds on the prior evaluator, again single
+observations. No expression-end index or new storage partition was introduced.
+
+Historical full-subject proof measurements remain bound to the exact source
+and tape at `d19361fe4deae73e1b488a940a872fec1ed885cb`; their old hashes and
+certificate figures were not transferred to this evaluator. That optional
+research is not a prerequisite for source construction.

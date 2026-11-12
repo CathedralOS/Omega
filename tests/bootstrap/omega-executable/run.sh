@@ -75,4 +75,10 @@ require_gamma_evaluator_identity
 cmp "$OUTPUT_DIR/gamma.tape" "$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
 stamp_seed "$OUTPUT_DIR/gamma.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$OUTPUT_DIR/evaluator.exe" >/dev/null
 echo "Beta self-reconstruction and Gamma source construction: byte-exact"
-python3 "$GATE_PY" "$OUTPUT_DIR_ARG" "$DRIVER_ARG" "$@"
+if [ -n "${EXECUTABLE_SHIM_TMP:-}" ]; then
+    # Windows needs the path shim until Python finishes. Keep EXIT cleanup and
+    # exit within this parsed branch instead of resuming the script afterward.
+    python3 "$GATE_PY" "$OUTPUT_DIR_ARG" "$DRIVER_ARG" "$@"
+    exit $?
+fi
+exec python3 "$GATE_PY" "$OUTPUT_DIR_ARG" "$DRIVER_ARG" "$@"

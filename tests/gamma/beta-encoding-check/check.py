@@ -1,4 +1,4 @@
-"""Run the complete Beta-encoding certificate through the selected chain.
+"""Check the historical Beta-encoding subject through the current interpreter.
 
 Native hosts only; run.sh refuses elsewhere.  The theory section is emitted
 by the real Gamma source inside the materialized evaluator (the same prepare()

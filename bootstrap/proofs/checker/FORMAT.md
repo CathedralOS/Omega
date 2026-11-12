@@ -198,8 +198,8 @@ Decode with explicit cursors and table indexes. Do not repeatedly scan a linked
 list for arbitrary row lookup or copy every sealed-input byte into a pair.
 Comparison and substitution use bounded explicit worklists, preserving DAG
 sharing; recursively expanding two separately encoded shared trees can require
-exponential work. Ordinary byte-list representations of the selected source
-and tape already have 47,756- and 8,575-element spines. Gamma's source syntax
+exponential work. The recorded historical subject has byte-list representations
+with 47,756- and 8,575-element spines. Gamma's source syntax
 and native call-depth limits must not become the logical term-depth limit.
 
 The implementation must publish a concrete, adjustable profile before accepting
