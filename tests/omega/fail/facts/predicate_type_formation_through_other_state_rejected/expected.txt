@@ -1,2 +1,2 @@
 literal violates the default domain
-cannot prove the case constraint
+literal violates the case constraint
