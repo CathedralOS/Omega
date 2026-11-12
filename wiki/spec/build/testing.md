@@ -125,6 +125,13 @@ selected rather than inferred from names. Disabled groups create no execution
 grant and are reported as disabled, not passed; their declarations remain
 subject to ordinary source checking.
 
+The private in-memory filesystem is a `std` provider for the whole
+`FilesystemService` slot. It implements every operation of that contract,
+including directories, metadata, permissions and enumeration, over private
+state created empty for each test invocation, so code under test behaves as it
+does on a real filesystem. A group selects it by naming the `FilesystemService`
+slot.
+
 Test execution is governed by the same authority hierarchy as other build-time
 work. The root selects backing services and delegates bounded capabilities;
 descendant package builds and groups can only attenuate them. Selecting a host
