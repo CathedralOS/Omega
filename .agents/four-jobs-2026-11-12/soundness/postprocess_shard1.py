@@ -78,14 +78,13 @@ def minimal_diff(original: str, mutant: str) -> str:
 
 
 def runtime_trap_only(mutant: str, kind: str) -> bool:
-    """fix4(b): obligation may be enforced only via crash/transition at run time."""
+    """fix4(b): only when check-time proof is not required (no remaining ensures)."""
     if kind not in ("drop_requires", "remove_guard_transition", "widen_requires"):
         return False
-    if re.search(r"\bcrash\b", mutant):
+    if re.search(r"^\s*ensures\b", mutant, re.MULTILINE):
+        return False
+    if re.search(r"\bcrash\s+Trap\b", mutant):
         return True
-    # Runtime transition guards still present after dropping machine requires
-    if kind == "drop_requires" and re.search(r"transition\s+(?!true\b)[^\n{]+", mutant):
-        return bool(re.search(r"machine\s+bad\s*\(", mutant) or re.search(r"->\s*bad\s*\(", mutant))
     return False
 
 
@@ -374,6 +373,14 @@ def synthesize_all_violating_calls(source: str, machine: str, req: str) -> list[
     return calls
 
 
+def inject_probe_into_main(src: str, call: str) -> str | None:
+    m = re.search(r"machine\s+main\s*\([^)]*\)(?:[^{]|\n)*\{", src, re.DOTALL)
+    if not m:
+        return None
+    pos = m.end()
+    return src[:pos] + f"\n    {call};\n" + src[pos:]
+
+
 def run_probe_check(mutant_path: str, probe_src: str) -> int:
     main_omg = REPO / mutant_path / "main.omg"
     mdir = main_omg.parent
@@ -417,13 +424,8 @@ def probe_drop_requires_subtype(
 
     tried: list[str] = []
     for call in calls:
-        probe_src = re.sub(
-            r"(machine\s+main\s*\([^)]*\)\s*(?:crashes\s+\w+\s*)?\{)",
-            rf"\1\n    {call};\n",
-            src,
-            count=1,
-        )
-        if probe_src == src:
+        probe_src = inject_probe_into_main(src, call)
+        if not probe_src:
             continue
         tried.append(call)
         code = run_probe_check(mutant_path, probe_src)
@@ -477,7 +479,8 @@ def triage_row(row: dict[str, str], q7: set[str]) -> dict[str, str]:
     original = (REPO / fixture).read_text(encoding="utf-8")
     mutant_path = row.get("mutant_path", "")
     mutant = (REPO / mutant_path / "main.omg").read_text(encoding="utf-8") if mutant_path else original
-    out["mutant_diff"] = minimal_diff(original, mutant) if mutant != original else ""
+    diff = minimal_diff(original, mutant) if mutant != original else ""
+    out["mutant_diff"] = diff.replace("\n", "\\n")[:4000]
 
     invalid, ob, sf, sq, vnote = read_mutant_validity(kind, original, mutant)
     out["validity_note"] = vnote

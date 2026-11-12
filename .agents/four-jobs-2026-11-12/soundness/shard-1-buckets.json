@@ -1,6 +1,8 @@
 {
-  "disagree-not-current-accept": 23,
-  "discarded-no-mutation": 4,
-  "discarded-valid": 7,
-  "both-reject": 1
+  "rejected-both": 575,
+  "no-mutation": 88,
+  "valid-route-outside": 443,
+  "discarded-valid": 14,
+  "confirmed-hole": 9,
+  "disagreement-valid": 2
 }

@@ -1,0 +1,5 @@
+{
+  "tests/omega/pass/facts/applied_requirement_indices_through_local_exit/main.omg": "Identity<Word>::stated(Payload { value: 0 })",
+  "tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_target_body_exit/main.omg": "step1(0)",
+  "tests/omega/pass/providers/applied_type_index_forwarding_exit/main.omg": "Identity<Word>::stated(Payload { value: 0 })"
+}

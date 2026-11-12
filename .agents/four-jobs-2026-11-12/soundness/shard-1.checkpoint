@@ -1123,3 +1123,9 @@ tests/omega/run/facts/float_comparison_route_through_other_state_traps/main.omg
 tests/omega/run/layouts/placed_ram_capture_forwarding/main.omg
 tests/omega/run/layouts/placed_stable_distinct_fields/main.omg
 tests/omega/run/ownership/content_transform_inactive_content/main.omg
+tests/omega/run/ownership/sequence_owned_local_cleanup/main.omg
+tests/omega/run/providers/target_family_provider_boundary_identity_exit/main.omg
+tests/omega/run/slices/computed_record_window/main.omg
+tests/omega/run/slices/returned_record_parameter_length/main.omg
+tests/omega/run/testing/registered_group_runs_on_both_engines/main.omg
+tests/omega/run/variant_record_normalization_repeats/main.omg
