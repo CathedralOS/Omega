@@ -199,7 +199,7 @@ def run_both_checkers(main_omg: Path, timeout_s: int) -> tuple[str, str]:
     current = "error"
     route = "error"
     for line in p.stdout.splitlines():
-        if line.startswith("program "):
+        if line.startswith("program\t") or line.startswith("program "):
             m_cur = re.search(r"\bcurrent=([a-z_]+)", line)
             m_route = re.search(r"\broute=([a-z_]+)", line)
             if m_cur:
