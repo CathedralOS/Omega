@@ -4498,6 +4498,45 @@ pub(crate) mod body_rewriting {
                 }
                 replacements.push((*parameter_symbol, replacement_handle));
             }
+            /*
+                An implementation parameter is named in types exactly as a type
+                parameter is (`Holder<Implementation>`), so the selected
+                implementation replaces it in the clone the same way. Without
+                this the clone's signature keeps the template's binder and no
+                caller's `Holder<Selected>` matches it.
+            */
+            for (parameter, binding) in candidate
+                .template
+                .evidence_parameters
+                .iter()
+                .zip(&candidate.evidence_bindings)
+            {
+                let Some(selected) = binding
+                    .as_ref()
+                    .map(|binding| binding.type_reference)
+                    .filter(|reference| reference.is_valid())
+                else {
+                    continue;
+                };
+                let replacement_handle = copy_type_reference(source, program, selected, &[])?;
+                let owner = expressions_of(source.unwrap_or(program))
+                    .static_machine_application(candidate.binding_application)
+                    .lexical_owner;
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(replacement_handle, owner)
+                    .map_err(Diagnostic::error)?;
+                if instance.is_valid() {
+                    program.type_reference_table.set_operand_origin(
+                        replacement_handle,
+                        typed_trees::types::TypeOperandOrigin::MachineParameter {
+                            instance,
+                            parameter: parameter.binder,
+                        },
+                    );
+                }
+                replacements.push((parameter.binder, replacement_handle));
+            }
             for (parameter_symbol, replacement_handle) in replacements {
                 let occurrences: Vec<_> = program
                     .type_reference_table
