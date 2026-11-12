@@ -1,19 +1,13 @@
-use psi::parse::clause;
-use psi::parse::input;
-use psi::parse::parser;
-use psi::syntax::syntax;
-use psi::tokens::tokens;
-
 // `name {:: name}`, a name path, entered at its first name. Its members
 // append to `SyntaxTrees::members` and its row to `SyntaxTrees::name_paths`;
 // the row's handle lands in `name_path_result`. `missing` is the caller's
 // diagnostic for an absent first name; a name missing after `::` is
 // `ExpectedPathMember`.
-public machine Parser::parse_name_path(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
+public machine parse_name_path(parser: &mut Parser, input: &TokenStream, missing: ParseDiagnosticCode)
 crashes Trap
 {
     let first_member: u64 in Trapping = parser.output.member_count as u64 in Trapping;
-    Parser::expect_name(parser, input, missing);
+    expect_name(parser, input, missing);
     transition parser.output.accepted {
         true -> member(parser, input, first_member, parser.name_start)
         _ -> done()
@@ -22,7 +16,7 @@ crashes Trap
     machine member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
         let name_start: u64 in Trapping = parser.name_start;
         let name_end: u64 in Trapping = parser.name_end;
-        Parser::append_member(parser, input, name_start, name_end);
+        append_member(parser, input, name_start, name_end);
         transition parser.output.accepted {
             true -> separator(parser, input, first_member, start)
             _ -> done()
@@ -30,7 +24,7 @@ crashes Trap
     }
 
     machine separator(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
-        let more: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
+        let more: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition more {
             true -> next_member(parser, input, first_member, start)
             _ -> retain_capacity(parser, input, first_member, start)
@@ -38,8 +32,8 @@ crashes Trap
     }
 
     machine next_member(parser: &mut Parser, input: &TokenStream, first_member: u64 in Trapping, start: u64 in Trapping) {
-        Parser::take_current(parser, input);
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
+        take_current(parser, input);
+        expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
             true -> member(parser, input, first_member, start)
             _ -> done()
@@ -58,13 +52,13 @@ crashes Trap
         parser.output.name_paths[parser.output.name_path_count] = NamePath {
             first_member: first_member,
             member_count: (parser.output.member_count as u64 in Trapping) - first_member,
-            source_span: Parser::source_span(parser, start, parser.name_end)
+            source_span: parser_source_span(parser, start, parser.name_end)
         };
         parser.output.name_path_count = parser.output.name_path_count + 1;
     }
 
     machine full(parser: &mut Parser, input: &TokenStream) {
-        Parser::reject_current(parser, input, ParseDiagnosticCode::NamePathCapacityExceeded);
+        reject_current(parser, input, ParseDiagnosticCode::NamePathCapacityExceeded);
     }
 
     machine done() {}

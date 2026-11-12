@@ -1,5 +1,4 @@
-use psi::checks::checks;
-use psi::checking::slot_review;
+use psi;
 
 // Product consumer of the public slot records Psi checking publishes.
 // The admission itself is `psi::checking::slot_review`: this package cannot
@@ -9,12 +8,12 @@ use psi::checking::slot_review;
 
 public data OmegaSlotReview {}
 
-public machine OmegaSlotReview::prepare(review: &mut OmegaSlotReview) {}
+public machine prepare(review: &mut OmegaSlotReview) {}
 
-public machine OmegaSlotReview::admits(review: &OmegaSlotReview, checks: &Checks) -> bool
+public machine admits(review: &OmegaSlotReview, checks: &Checks) -> bool
 crashes Trap
 {
     let mut admission: SlotReview;
-    SlotReview::prepare(&mut admission);
-    SlotReview::admits(&admission, checks)
+    psi::prepare(&mut admission);
+    psi::admits(&admission, checks)
 }

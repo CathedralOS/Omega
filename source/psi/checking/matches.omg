@@ -1,18 +1,7 @@
-use psi::checking::aliases;
-use psi::checking::checker;
-use psi::checking::evaluation;
-use psi::checking::flow;
-use psi::checking::qualification;
-use psi::checking::zone;
-use psi::checks::checks;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Value-position matches inside an evaluated tree
 // (wiki/spec/language/patterns.md). A match evaluates its subject once; each
 // arm then runs on the facts after the subject, assuming its own pattern
-// selected and every earlier pattern passed over (`Checker::arm_facts`, as
+// selected and every earlier pattern passed over (`arm_facts`, as
 // a transition's arms do); the facts after the match are the join of its
 // arms' ends, and its value the hull of its arms' values. A tree evaluates
 // in handle order, so a match's events fire as evaluation reaches them: as
@@ -25,7 +14,7 @@ use psi::types::types;
 // facts.
 
 // Record a match the tree's scan met, its first event pending.
-public machine Checker::add_match(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping)
+public machine checker_add_match(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping)
 crashes Trap
 {
     transition checker.match_count < 16 {
@@ -42,14 +31,14 @@ crashes Trap
     }
 
     machine full(checker: &mut Checker, syntax: &SyntaxTrees, handle: u64 in Trapping) {
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 }
 
 // Fire every match event that begins at `handle`: an enclosing match's
 // before a nested one's, whose handle is lower.
-public machine Checker::advance_matches(
+public machine advance_matches(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -89,7 +78,7 @@ crashes Trap
     {
         let match_handle: u64 = checker.matches[index];
         let event: u64 = checker.match_events[index];
-        Checker::fire_events(checker, syntax, resolution, typing, handle, match_handle as u64 in Trapping, index, event as u64 in Trapping, checking);
+        fire_events(checker, syntax, resolution, typing, handle, match_handle as u64 in Trapping, index, event as u64 in Trapping, checking);
         transition { _ -> next(checker, syntax, resolution, typing, handle, index, checking) }
     }
 
@@ -98,7 +87,7 @@ crashes Trap
 
 // Fire the events of the match at `match_handle` that begin at `handle`,
 // from `event`, and keep the next one pending.
-machine Checker::fire_events(
+machine fire_events(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -111,7 +100,7 @@ machine Checker::fire_events(
 )
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, match_handle);
+    let expression: Expression = syntax_trees_expression(syntax, match_handle);
     transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking) }
 
     machine pending(
@@ -126,7 +115,7 @@ crashes Trap
         event: u64 in Trapping,
         checking: bool
     ) {
-        let begins: u64 in Trapping = Checker::event_handle(syntax, expression, event);
+        let begins: u64 in Trapping = event_handle(syntax, expression, event);
         transition begins == handle {
             true -> fire(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking)
             _ -> keep(checker, index, event)
@@ -145,7 +134,7 @@ crashes Trap
         event: u64 in Trapping,
         checking: bool
     ) {
-        Checker::match_event(checker, syntax, resolution, typing, match_handle, expression, event, checking);
+        match_event(checker, syntax, resolution, typing, match_handle, expression, event, checking);
         transition { _ -> pending(checker, syntax, resolution, typing, handle, match_handle, expression, index, event + 1, checking) }
     }
 
@@ -168,7 +157,7 @@ crashes Trap
 // Where a match's event `event` begins: arm `event / 2`'s pattern for an
 // even event (its value for `_`), the arm's value for an odd one. Past its
 // arms, no node begins one.
-machine Checker::event_handle(syntax: &SyntaxTrees, expression: Expression, event: u64 in Trapping) -> u64 in Trapping
+machine event_handle(syntax: &SyntaxTrees, expression: Expression, event: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let offset: u64 in Trapping = event / 2;
@@ -179,8 +168,8 @@ crashes Trap
     }
 
     machine arm(syntax: &SyntaxTrees, expression: Expression, offset: u64 in Trapping, valued: bool) -> u64 in Trapping {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let value: Expression = SyntaxTrees::expression(syntax, arm.target);
+        let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
+        let value: Expression = syntax_trees_expression(syntax, arm.target);
         transition valued || arm.kind == ArmPatternKind::Wildcard {
             true -> at(value.first_row)
             _ -> pattern(syntax, arm)
@@ -188,7 +177,7 @@ crashes Trap
     }
 
     machine pattern(syntax: &SyntaxTrees, arm: TransitionArm) -> u64 in Trapping {
-        let pattern: Expression = SyntaxTrees::expression(syntax, arm.pattern);
+        let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
         transition { _ -> at(pattern.first_row) }
     }
 
@@ -201,7 +190,7 @@ crashes Trap
 // the facts after the subject; each later arm ends the one before and
 // starts from those facts with the earlier pattern passed over; an arm's
 // value begins with its own pattern selected.
-machine Checker::match_event(
+machine match_event(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -215,7 +204,7 @@ crashes Trap
 {
     let offset: u64 in Trapping = event / 2;
     let valued: bool = event % 2 == 1;
-    let held: bool = Checker::holds_match(checker, match_handle);
+    let held: bool = holds_match(checker, match_handle);
     transition valued {
         true -> selected(checker, syntax, resolution, typing, expression, offset, held)
         _ -> begun(checker, syntax, resolution, typing, match_handle, expression, offset, held, checking)
@@ -239,7 +228,7 @@ crashes Trap
     }
 
     machine opened(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
-        let joined: bool = Checker::save_zone(checker, match_handle + 1);
+        let joined: bool = save_zone(checker, match_handle + 1);
         transition joined {
             true -> unreached(checker, match_handle, expression)
             _ -> overflow(checker, expression)
@@ -247,8 +236,8 @@ crashes Trap
     }
 
     machine unreached(checker: &mut Checker, match_handle: u64 in Trapping, expression: Expression) {
-        Checker::unreach_saved(checker);
-        let saved: bool = Checker::save_zone(checker, match_handle + 1);
+        unreach_saved(checker);
+        let saved: bool = save_zone(checker, match_handle + 1);
         transition saved {
             true -> done()
             _ -> half_saved(checker, expression)
@@ -257,7 +246,7 @@ crashes Trap
 
     // Only the join was saved: drop it, so no later arm or join meets it.
     machine half_saved(checker: &mut Checker, expression: Expression) {
-        Checker::drop_saved(checker);
+        drop_saved(checker);
         transition { _ -> overflow(checker, expression) }
     }
 
@@ -288,12 +277,12 @@ crashes Trap
         previous: u64 in Trapping,
         checking: bool
     ) {
-        Checker::end_arm(checker, syntax, resolution, typing, match_handle, expression, previous, checking);
-        Checker::restore_zone(checker);
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + previous);
-        let pattern: Value = Checker::pattern_value(checker, arm);
-        Checker::arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, false);
-        Checker::resave_zone(checker);
+        end_arm(checker, syntax, resolution, typing, match_handle, expression, previous, checking);
+        restore_zone(checker);
+        let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + previous);
+        let pattern: Value = checker_pattern_value(checker, arm);
+        arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, false);
+        resave_zone(checker);
     }
 
     machine selected(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
@@ -304,20 +293,20 @@ crashes Trap
     }
 
     machine chosen(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, offset: u64 in Trapping) {
-        let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-        let pattern: Value = Checker::pattern_value(checker, arm);
-        Checker::arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, true);
+        let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
+        let pattern: Value = checker_pattern_value(checker, arm);
+        arm_facts(checker, syntax, resolution, typing, expression.left, pattern, arm, true);
     }
 
     machine overflow(checker: &mut Checker, expression: Expression) {
-        Checks::reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
+        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
     machine done() {}
 }
 
 // A pattern's value, already evaluated; unknown for `_`.
-machine Checker::pattern_value(checker: &Checker, arm: TransitionArm) -> Value
+machine checker_pattern_value(checker: &Checker, arm: TransitionArm) -> Value
 crashes Trap
 {
     transition arm.kind == ArmPatternKind::Literal || arm.kind == ArmPatternKind::Case {
@@ -326,12 +315,12 @@ crashes Trap
     }
 
     machine literal(checker: &Checker, arm: TransitionArm) -> Value {
-        let value: Value = Checker::value_at(checker, arm.pattern);
+        let value: Value = value_at(checker, arm.pattern);
         value
     }
 
     machine unknown() -> Value {
-        let value: Value = Value::unknown();
+        let value: Value = value_unknown();
         value
     }
 }
@@ -339,33 +328,33 @@ crashes Trap
 // The match node: its last arm ends, the facts after it are its arms'
 // join, and its value is already their hull. A match the checker could not
 // track has already been rejected; its value is its type's.
-public machine Checker::close_match(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool)
+public machine close_match(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, checking: bool)
 crashes Trap
 {
-    let expression: Expression = SyntaxTrees::expression(syntax, handle);
-    let held: bool = Checker::holds_match(checker, handle);
+    let expression: Expression = syntax_trees_expression(syntax, handle);
+    let held: bool = holds_match(checker, handle);
     transition held {
         true -> closed(checker, syntax, resolution, typing, handle, expression, checking)
         _ -> untracked(checker, typing, handle)
     }
 
     machine closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, checking: bool) {
-        Checker::end_arm(checker, syntax, resolution, typing, handle, expression, expression.count - 1, checking);
-        Checker::take_join(checker);
+        end_arm(checker, syntax, resolution, typing, handle, expression, expression.count - 1, checking);
+        checker_take_join(checker);
     }
 
     machine untracked(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping) {
-        let type_handle: u64 in Trapping = Typing::expression_type(typing, handle);
-        let row: TypeRow = TypeTable::row(&typing.types, type_handle);
-        let value: Value = Value::typed(row);
-        Checker::set_value(checker, handle, value);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        let value: Value = value_typed(row);
+        checker_set_value(checker, handle, value);
     }
 }
 
 // An arm's value ends: a value landed at a qualified match type meets the
 // qualification, its facts join the arms that have ended, and its interval
 // widens the match's value.
-machine Checker::end_arm(
+machine end_arm(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -377,8 +366,8 @@ machine Checker::end_arm(
 )
 crashes Trap
 {
-    let arm: TransitionArm = SyntaxTrees::match_arm(syntax, expression.first + offset);
-    let value: Value = Checker::value_at(checker, arm.target);
+    let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
+    let value: Value = value_at(checker, arm.target);
     transition checking {
         true -> qualified(checker, syntax, resolution, typing, match_handle, offset, arm, value)
         _ -> joined(checker, match_handle, offset, value)
@@ -394,14 +383,14 @@ crashes Trap
         arm: TransitionArm,
         value: Value
     ) {
-        let match_type: u64 in Trapping = Typing::expression_type(typing, match_handle);
-        let written: Expression = SyntaxTrees::expression(syntax, arm.target);
-        Checker::require_qualification(checker, syntax, resolution, typing, match_type, arm.target, value, written.source_span);
+        let match_type: u64 in Trapping = typing_expression_type(typing, match_handle);
+        let written: Expression = syntax_trees_expression(syntax, arm.target);
+        require_qualification(checker, syntax, resolution, typing, match_type, arm.target, value, written.source_span);
         transition { _ -> joined(checker, match_handle, offset, value) }
     }
 
     machine joined(checker: &mut Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
-        Checker::join_arms(checker);
+        join_arms(checker);
         transition offset == 0 {
             true -> first(checker, match_handle, value)
             _ -> widened(checker, match_handle, value)
@@ -409,19 +398,19 @@ crashes Trap
     }
 
     machine first(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
-        let interval: Value = Value::interval(value);
-        Checker::set_value(checker, match_handle, interval);
+        let interval: Value = value_interval(value);
+        checker_set_value(checker, match_handle, interval);
     }
 
     machine widened(checker: &mut Checker, match_handle: u64 in Trapping, value: Value) {
-        let so_far: Value = Checker::value_at(checker, match_handle);
-        let hull: Value = Value::hull(so_far, value);
-        Checker::set_value(checker, match_handle, hull);
+        let so_far: Value = value_at(checker, match_handle);
+        let hull: Value = value_hull(so_far, value);
+        checker_set_value(checker, match_handle, hull);
     }
 }
 
 // Whether the two top saved zones are the match's.
-machine Checker::holds_match(checker: &Checker, match_handle: u64 in Trapping) -> bool
+machine holds_match(checker: &Checker, match_handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
@@ -444,7 +433,7 @@ crashes Trap
 }
 
 // Mark the top saved zone unreached: the join of no arms.
-machine Checker::unreach_saved(checker: &mut Checker)
+machine unreach_saved(checker: &mut Checker)
 crashes Trap
 {
     transition checker.saved_count > 0 && checker.saved_count <= 8 {
@@ -466,7 +455,7 @@ crashes Trap
 }
 
 // Join the zone into the match's arms so far, the saved zone below the top.
-machine Checker::join_arms(checker: &mut Checker)
+machine join_arms(checker: &mut Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
@@ -482,9 +471,9 @@ crashes Trap
         let other_live: bool = !checker.zone.infeasible;
         let mut aliases: AliasTable = checker.saved_aliases[index];
         let other: AliasTable = checker.aliases;
-        AliasTable::join(&mut aliases, &other, current_live, other_live);
+        alias_table_join(&mut aliases, &other, current_live, other_live);
         checker.saved_aliases[index] = aliases;
-        let changed: bool = Zone::join(&mut checker.merged, &checker.zone);
+        let changed: bool = zone_join(&mut checker.merged, &checker.zone);
         checker.saved[index] = checker.merged;
     }
 
@@ -494,7 +483,7 @@ crashes Trap
 }
 
 // The facts after the match: its arms' join, both its saved zones dropped.
-machine Checker::take_join(checker: &mut Checker)
+machine checker_take_join(checker: &mut Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {

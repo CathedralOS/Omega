@@ -1,8 +1,3 @@
-use psi::integers::integers;
-use psi::resolution::resolution;
-use psi::source::source;
-use psi::syntax::syntax;
-
 // The types of one compilation and what typing records about its syntax.
 // Types are interned: one row per distinct type, so two types are equal
 // exactly when their handles are. A row's children (a referee, an element,
@@ -212,7 +207,7 @@ requires
     accepted: bool;
 }
 
-public machine Typing::reject(typing: &mut Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
+public machine typing_reject(typing: &mut Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
     typing.accepted = false;
     typing.diagnostic.code = code;
     typing.diagnostic.source_span = source_span;
@@ -221,7 +216,7 @@ public machine Typing::reject(typing: &mut Typing, code: TypeDiagnosticCode, sou
 // Guarded table access. Every index typing uses is a syntax handle below its
 // table's count, so an index at or past it is a violated producer invariant:
 // the access crashes rather than reading another row.
-public machine Typing::reference_type(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping
+public machine reference_type(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition row < typing.reference_count {
@@ -238,7 +233,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_reference_type(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping)
+public machine set_reference_type(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition row < typing.reference_count {
@@ -255,7 +250,7 @@ crashes Trap
     }
 }
 
-public machine Typing::expression_type(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_expression_type(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -272,7 +267,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_expression_type(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping)
+public machine set_expression_type(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -289,7 +284,7 @@ crashes Trap
     }
 }
 
-public machine Typing::selection(typing: &Typing, index: u64 in Trapping) -> Selection
+public machine typing_selection(typing: &Typing, index: u64 in Trapping) -> Selection
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -306,7 +301,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_selection(typing: &mut Typing, index: u64 in Trapping, selection: Selection)
+public machine set_selection(typing: &mut Typing, index: u64 in Trapping, selection: Selection)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -323,7 +318,7 @@ crashes Trap
     }
 }
 
-public machine Typing::adaptation(typing: &Typing, index: u64 in Trapping) -> Adaptation
+public machine typing_adaptation(typing: &Typing, index: u64 in Trapping) -> Adaptation
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -340,7 +335,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_adaptation(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation)
+public machine set_adaptation(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -357,7 +352,7 @@ crashes Trap
     }
 }
 
-public machine Typing::value(typing: &Typing, index: u64 in Trapping) -> ExactInteger
+public machine typing_value(typing: &Typing, index: u64 in Trapping) -> ExactInteger
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -375,17 +370,17 @@ crashes Trap
 }
 
 // An anonymous expression's exact rational: its value over its denominator.
-public machine Typing::rational(typing: &Typing, index: u64 in Trapping) -> Rational
+public machine rational(typing: &Typing, index: u64 in Trapping) -> Rational
 crashes Trap
 {
-    let numerator: ExactInteger = Typing::value(typing, index);
-    let denominator: u64 in Trapping = Typing::denominator(typing, index);
+    let numerator: ExactInteger = typing_value(typing, index);
+    let denominator: u64 in Trapping = typing_denominator(typing, index);
     Rational { numerator: numerator, denominator: denominator as u64 in Wrapping }
 }
 
 // A quoted literal's predicate roster (`rosters`); zero for any other
 // expression.
-public machine Typing::roster(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_roster(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -403,7 +398,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_roster(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
+public machine set_roster(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -421,7 +416,7 @@ crashes Trap
 }
 
 // The denominator of an anonymous expression's value, at least one.
-public machine Typing::denominator(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_denominator(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -450,7 +445,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational)
+public machine set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -468,7 +463,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_value(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger)
+public machine typing_set_value(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -486,7 +481,7 @@ crashes Trap
     }
 }
 
-public machine Typing::construct_target(typing: &Typing, field: u64 in Trapping) -> MemberTarget
+public machine construct_target(typing: &Typing, field: u64 in Trapping) -> MemberTarget
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -503,7 +498,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -520,7 +515,7 @@ crashes Trap
     }
 }
 
-public machine Typing::binder_member(typing: &Typing, field: u64 in Trapping) -> MemberTarget
+public machine binder_member(typing: &Typing, field: u64 in Trapping) -> MemberTarget
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -537,7 +532,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_binder_member(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_binder_member(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -554,7 +549,7 @@ crashes Trap
     }
 }
 
-public machine Typing::binder_type(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
+public machine binder_type(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -571,7 +566,7 @@ crashes Trap
     }
 }
 
-public machine Typing::set_binder_type(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping)
+public machine set_binder_type(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -589,7 +584,7 @@ crashes Trap
 }
 
 // An empty row of `kind`.
-public machine TypeRow::of(kind: TypeKind) -> TypeRow {
+public machine type_row_of(kind: TypeKind) -> TypeRow {
     TypeRow {
         kind: kind,
         builtin: BuiltinType::Bool,
@@ -604,7 +599,7 @@ public machine TypeRow::of(kind: TypeKind) -> TypeRow {
     }
 }
 
-public machine TypeTable::row(table: &TypeTable, handle: u64 in Trapping) -> TypeRow
+public machine type_table_row(table: &TypeTable, handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
     transition handle < table.row_count {
@@ -621,7 +616,7 @@ crashes Trap
     }
 }
 
-public machine TypeTable::argument(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping
+public machine type_table_argument(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < table.argument_count {
@@ -640,7 +635,7 @@ crashes Trap
 
 // Append one argument to the tentative run at the arguments tail; false when
 // the table is full.
-public machine TypeTable::push_argument(table: &mut TypeTable, argument: u64 in Trapping) -> bool
+public machine type_table_push_argument(table: &mut TypeTable, argument: u64 in Trapping) -> bool
 crashes Trap
 {
     transition table.argument_count < 4096 {
@@ -662,7 +657,7 @@ crashes Trap
 // Intern `row`. An argument run must be the tentative run the caller just
 // appended at the arguments tail: an equal existing row releases it. Zero
 // when the table is full.
-public machine TypeTable::intern(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping
+public machine type_table_intern(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> scan(table, row, 1) }
@@ -675,8 +670,8 @@ crashes Trap
     }
 
     machine compare(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
-        let existing: TypeRow = TypeTable::row(table, index);
-        let same: bool = TypeTable::same_row(table, existing, row);
+        let existing: TypeRow = type_table_row(table, index);
+        let same: bool = same_row(table, existing, row);
         transition same {
             true -> found(table, row, index)
             _ -> scan(table, row, index + 1)
@@ -723,7 +718,7 @@ crashes Trap
 }
 
 // Whether two rows denote one type: equal fields and equal argument runs.
-machine TypeTable::same_row(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
+machine same_row(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
 crashes Trap
 {
     transition left.kind == right.kind
@@ -747,8 +742,8 @@ crashes Trap
     }
 
     machine argument(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
-        let left_argument: u64 in Trapping = TypeTable::argument(table, left.first_argument + offset);
-        let right_argument: u64 in Trapping = TypeTable::argument(table, right.first_argument + offset);
+        let left_argument: u64 in Trapping = type_table_argument(table, left.first_argument + offset);
+        let right_argument: u64 in Trapping = type_table_argument(table, right.first_argument + offset);
         transition left_argument == right_argument {
             true -> arguments(table, left, right, offset + 1)
             _ -> different()
@@ -765,7 +760,7 @@ crashes Trap
 }
 
 // `row` with its domain qualifier removed: the carrier it qualifies.
-public machine TypeRow::carrier(row: TypeRow) -> TypeRow {
+public machine type_row_carrier(row: TypeRow) -> TypeRow {
     let mut carrier: TypeRow = row;
     carrier.domain = DomainBinding::Unqualified;
     carrier.domain_item = 0;
@@ -777,17 +772,17 @@ public machine TypeRow::carrier(row: TypeRow) -> TypeRow {
 // slice it refers to).
 // The type a reference row's referent has, through every reference layer;
 // any other type itself.
-public machine Typing::referent_of(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine referent_of(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let row: TypeRow = TypeTable::row(&typing.types, handle);
+    let row: TypeRow = type_table_row(&typing.types, handle);
     transition row.kind == TypeKind::Reference {
         true -> inner(typing, row.inner, 0)
         _ -> result(handle)
     }
 
     machine inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = TypeTable::row(&typing.types, handle);
+        let row: TypeRow = type_table_row(&typing.types, handle);
         transition row.kind == TypeKind::Reference && depth < 16 {
             true -> inner(typing, row.inner, depth + 1)
             _ -> result(handle)
@@ -799,7 +794,7 @@ crashes Trap
     }
 }
 
-public machine TypeTable::same_carrier(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
+public machine same_carrier(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
 crashes Trap
 {
     transition left.kind == TypeKind::Reference && right.kind == TypeKind::Reference {
@@ -808,8 +803,8 @@ crashes Trap
     }
 
     machine referents(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
-        let left_referent: TypeRow = TypeTable::row(table, left.inner);
-        let right_referent: TypeRow = TypeTable::row(table, right.inner);
+        let left_referent: TypeRow = type_table_row(table, left.inner);
+        let right_referent: TypeRow = type_table_row(table, right.inner);
         transition left.access == right.access {
             true -> rows(table, left_referent, right_referent)
             _ -> different()
@@ -817,9 +812,9 @@ crashes Trap
     }
 
     machine rows(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
-        let left_carrier: TypeRow = TypeRow::carrier(left);
-        let right_carrier: TypeRow = TypeRow::carrier(right);
-        let same: bool = TypeTable::same_row(table, left_carrier, right_carrier);
+        let left_carrier: TypeRow = type_row_carrier(left);
+        let right_carrier: TypeRow = type_row_carrier(right);
+        let same: bool = same_row(table, left_carrier, right_carrier);
         same
     }
 
@@ -830,7 +825,7 @@ crashes Trap
 
 // The row a type's domain qualifier sits on: its own, or a reference's
 // referent's.
-public machine TypeTable::qualified_row(table: &TypeTable, row: TypeRow) -> TypeRow
+public machine qualified_row(table: &TypeTable, row: TypeRow) -> TypeRow
 crashes Trap
 {
     transition row.kind == TypeKind::Reference {
@@ -839,7 +834,7 @@ crashes Trap
     }
 
     machine referent(table: &TypeTable, inner: u64 in Trapping) -> TypeRow {
-        let referent_row: TypeRow = TypeTable::row(table, inner);
+        let referent_row: TypeRow = type_table_row(table, inner);
         referent_row
     }
 
@@ -851,7 +846,7 @@ crashes Trap
 // The bytes a builtin scalar occupies: Booleans and 8-bit integers one,
 // 16-bit integers two, 32-bit integers and `f32` four, 64-bit integers and
 // `f64` eight; zero for any other type.
-public machine TypeTable::carrier_width(row: TypeRow) -> u64 in Trapping {
+public machine carrier_width(row: TypeRow) -> u64 in Trapping {
     transition row.kind == TypeKind::Builtin {
         true -> builtin(row.builtin)
         _ -> width(0)
