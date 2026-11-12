@@ -114,9 +114,13 @@ mod token_bindings {
     pub(crate) fn reject_duplicate_direct_token_bindings(
         program: &SymbolResolvedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
+        // A retained forest also contains declarations excluded from this
+        // activation. Only the selected frontier supplies token bindings; an
+        // inactive Build declaration cannot reacquire a home in Product scope.
         let machine_bindings = program
             .machines
             .iter()
+            .filter(|machine| program.symbols.symbol_source_is_selected(machine.symbol))
             .filter_map(|machine| {
                 machine
                     .spelling
@@ -126,17 +130,23 @@ mod token_bindings {
         let mut operator_bindings = program
             .operators
             .iter()
+            .filter(|operator| program.symbols.symbol_source_is_selected(operator.symbol))
             .filter_map(|operator| {
                 operator
                     .spelling
                     .map(|spelling| operator_token_binding(program, operator, None, spelling))
             })
             .collect::<Vec<_>>();
-        for domain in program.domain_definitions.iter() {
+        for domain in program
+            .domain_definitions
+            .iter()
+            .filter(|domain| program.symbols.symbol_source_is_selected(domain.symbol))
+        {
             operator_bindings.extend(
                 program
                     .operator_definitions(domain.operators)
                     .iter()
+                    .filter(|operator| program.symbols.symbol_source_is_selected(operator.symbol))
                     .filter_map(|operator| {
                         operator.spelling.map(|spelling| {
                             operator_token_binding(program, operator, Some(domain), spelling)
@@ -958,7 +968,10 @@ mod token_bindings {
         let homes = program
             .machines
             .iter()
-            .filter(|machine| machine.spelling.is_some())
+            .filter(|machine| {
+                machine.spelling.is_some()
+                    && program.symbols.symbol_source_is_selected(machine.symbol)
+            })
             .filter_map(|machine| attached_domain(program, machine).map(|domain| domain.symbol))
             .collect::<Vec<_>>();
         if homes.is_empty() {
