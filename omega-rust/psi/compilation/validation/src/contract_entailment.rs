@@ -73610,14 +73610,18 @@ pub(crate) mod structural_judgment {
                             }
                             _ => true,
                         };
-                    match crate::completed_storage::at_snapshot(
+                    // `sources_at_snapshot` keeps "untouched since entry" (`Incoming`)
+                    // apart from "the graph cannot resolve this place" (`None`). Only the
+                    // first lets a reader keep the entry value; an unresolved place may
+                    // have changed, so it is invalidated and must be observed again.
+                    match crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         place,
                         crate::completed_storage::StoredObservation::Contents,
                     ) {
-                        None => false,
+                        None => true,
                         Some(crate::completed_storage::StoredOperand::Alternatives(
                             alternatives,
                         )) => alternatives.iter().any(invalidates),

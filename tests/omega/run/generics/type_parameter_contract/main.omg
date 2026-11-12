@@ -1,0 +1,29 @@
+// Expected exit: 0.
+// A body over a type parameter is checked once, for every type it admits.
+// `relay` is proved from `forward`'s `requires` and `ensures` with `item` a
+// value of an unknown type: it can be passed on, and nothing else is known
+// of it. So `relay` may promise `result <= 11` whichever type it is applied
+// at; here it runs at `u8` and at `bool`. The fail twin
+// `fail/generics/type_parameter_contract_exceeds_callee` differs only in the
+// bound `relay` promises.
+machine forward<T>(item: T, limit: u32) -> u32
+requires limit <= 10
+ensures result <= 10
+crashes none
+{
+    limit
+}
+machine relay<T>(item: T, limit: u32) -> u32
+requires limit <= 10
+ensures result <= 11
+crashes none
+{
+    forward<T>(item, limit) + 1
+}
+machine main() crashes Trap {
+    let small: u32 = relay<u8>(3u8, 4);
+    let flagged: u32 = relay<bool>(true, 9);
+    transition small == 5 && flagged == 10 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

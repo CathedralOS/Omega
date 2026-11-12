@@ -14,6 +14,15 @@ conclusions, a caller establishes the assumptions under the exact argument
 substitution. Naming a condition does not prove it; failed proof search does
 not prove its negation.
 
+Ordinary calls also follow [local call summaries](../language/state_contracts.md#local-call-summaries):
+an exact checked call in the same fixed verification unit may expose additional
+checked body-derived facts. Outside that unit, additional semantic guarantees
+must be authored in the published contract. A written `ensures` remains an
+obligation and a minimum guarantee; local precision neither rewrites it nor
+strengthens an abstract requirement. Existing published operational and ownership
+information keeps its own rules. A written `requires` is complete, including on
+private helpers, under [entry inference](../language/state_contracts.md#private-entry-inference).
+
 The same [call-precondition rule](../language/machines.md#call-preconditions)
 also governs forming a mathematical result term, even if none of the callee's
 conclusions is used. Proof-to-proof calls have no exemption. Named calls and

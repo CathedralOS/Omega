@@ -5,6 +5,7 @@
 //! - `cargo xtask check-boundary`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask corpus [--filter <fragments>] [--record] [--native] [--list-pinned-regressions]`
+//! - `cargo xtask corpus-gate <plan|check|sweep-shard|sweep-report> [options]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
 //! - `cargo xtask stage-coverage [--list <file>] [--json <path>] <program>... [-- <omega-args>...]`
 //! - `cargo xtask doctor [--json <path>]`
@@ -19,6 +20,7 @@ mod attached_machines;
 mod boundary;
 mod claims;
 mod corpus;
+mod corpus_gate;
 mod doctor;
 mod execution;
 mod fmt;
@@ -54,6 +56,7 @@ commands:
   check-boundary   Verify native/runtime production dependency and Psi/Omega boundaries
   check-rules      Verify commit lane, PR provenance, ratchets, and corpus/board hygiene
   corpus           Run focused corpus verification, recording, or regression listing
+  corpus-gate      Plan and check a pull request's corpus rows, or run the nightly ledger sweep
   sample-gate      Run differential native + Terminal Psi sample verification
   stage-coverage   Count the Psi 05, validation and Psi 06 lines a program runs
   qualify          Execute exact corpus and CLI selections with retained producer evidence
@@ -78,6 +81,7 @@ fn main() -> ExitCode {
         "check-boundary" => boundary::run(&args),
         "check-rules" => rules::run(&args),
         "corpus" => corpus::run(&args),
+        "corpus-gate" => corpus_gate::run(&args),
         "sample-gate" => samples::run(&args),
         "stage-coverage" => stage_coverage::run(&args),
         "qualify" => qualification::run(&args),

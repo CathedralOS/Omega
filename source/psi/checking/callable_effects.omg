@@ -4,6 +4,7 @@ use psi::checking::invocations;
 use psi::checking::termination;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
+use psi::types::types;
 
 // Operational possibilities compose over the authenticated invocation graph.
 // This post-settlement query borrows only its existing visited/work scratch;

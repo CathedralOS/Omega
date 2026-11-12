@@ -604,7 +604,6 @@ crashes Trap
             ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 20, item, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
             ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
-            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 19, item, 0)
             ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
             ValueBinding::LayoutQuery { query } -> layout_row(resolver_harness, output, index, query)
         }
@@ -683,15 +682,14 @@ crashes Trap
             BuiltinType::F32 -> type_row(resolver_harness, output, index, 1, 10)
             BuiltinType::F64 -> type_row(resolver_harness, output, index, 1, 11)
             BuiltinType::Slice -> type_row(resolver_harness, output, index, 1, 12)
-            BuiltinType::Result -> type_row(resolver_harness, output, index, 1, 13)
-            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 14)
-            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 15)
-            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 16)
-            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 17)
-            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 18)
-            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 19)
-            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 20)
-            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 21)
+            BuiltinType::SyscallResult -> type_row(resolver_harness, output, index, 1, 13)
+            BuiltinType::Terminal -> type_row(resolver_harness, output, index, 1, 14)
+            BuiltinType::Never -> type_row(resolver_harness, output, index, 1, 15)
+            BuiltinType::UInt -> type_row(resolver_harness, output, index, 1, 16)
+            BuiltinType::Int -> type_row(resolver_harness, output, index, 1, 17)
+            BuiltinType::AtomicBool -> type_row(resolver_harness, output, index, 1, 18)
+            BuiltinType::AtomicU32 -> type_row(resolver_harness, output, index, 1, 19)
+            BuiltinType::AtomicU64 -> type_row(resolver_harness, output, index, 1, 20)
         }
     }
 

@@ -8847,6 +8847,13 @@ pub(crate) mod semantic {
                     initializer enters here; a type annotation or a borrowed zero pointer is
                     never a source of value observations. Normal mutation invalidation owns the
                     lifetime of each independent tag, just as it does constructor-written tags.
+
+                    A fixed array forms every element alike, so its tags are one
+                    `ZeroCaseElements` fact per case position inside the element rather than
+                    one `CaseValue` per element: a 131,072-element table costs the same as a
+                    single value. Only an array nested inside such an element still spells
+                    its own indices, because the element path of the outer fact is one
+                    static suffix.
                 */
                 use facts::{
                     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
@@ -8861,6 +8868,8 @@ pub(crate) mod semantic {
                 struct ZeroCase {
                     path: Vec<PlaceSegment>,
                     variant: SymbolHandle,
+                    /* Element count and in-element path when `path` names a whole array. */
+                    elements: Option<(usize, Vec<PlaceSegment>)>,
                 }
 
                 pub(super) fn append(
@@ -8883,6 +8892,7 @@ pub(crate) mod semantic {
                         reference,
                         &mut Vec::new(),
                         &mut Vec::new(),
+                        false,
                         &mut rows,
                     );
                     for row in rows {
@@ -8890,15 +8900,30 @@ pub(crate) mod semantic {
                         for segment in row.path {
                             facts.push_place_segment(place, segment);
                         }
+                        let payload = match row.elements {
+                            None => FactPayload::CaseValue {
+                                variant: row.variant,
+                                value: true,
+                            },
+                            Some((length, element_path)) => {
+                                let mut element = arena::HandleSpan::empty();
+                                for segment in element_path {
+                                    facts.place_segments.append_to_span(&mut element, segment);
+                                }
+                                FactPayload::ZeroCaseElements {
+                                    first: 0,
+                                    end: length,
+                                    element,
+                                    variant: row.variant,
+                                }
+                            }
+                        };
                         facts.append_fact_context(Fact {
                             place: FactPlace::Place(place),
                             point,
                             origin: FactOrigin::StatementTransfer,
                             evidence,
-                            payload: FactPayload::CaseValue {
-                                variant: row.variant,
-                                value: true,
-                            },
+                            payload,
                         });
                     }
                 }
@@ -8908,6 +8933,7 @@ pub(crate) mod semantic {
                     reference: TypeReferenceHandle,
                     path: &mut Vec<PlaceSegment>,
                     visited: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+                    inside_array_element: bool,
                     rows: &mut Vec<ZeroCase>,
                 ) {
                     let carrier = validation::peel_declared_constraints(program, reference);
@@ -8926,9 +8952,15 @@ pub(crate) mod semantic {
                             *element_type,
                             &mut Vec::new(),
                             visited,
+                            true,
                             &mut element_rows,
                         );
-                        if element_rows.is_empty() {
+                        if !inside_array_element {
+                            rows.extend(element_rows.into_iter().map(|row| ZeroCase {
+                                path: path.clone(),
+                                variant: row.variant,
+                                elements: Some((*length, row.path)),
+                            }));
                             return;
                         }
                         for index in 0..*length {
@@ -8941,6 +8973,7 @@ pub(crate) mod semantic {
                                 rows.push(ZeroCase {
                                     path: placed,
                                     variant: row.variant,
+                                    elements: None,
                                 });
                             }
                         }
@@ -8975,7 +9008,14 @@ pub(crate) mod semantic {
                         {
                             let prefix = path.len();
                             validation::push_field_place_segments(program, path, field.symbol);
-                            collect(program, field.type_reference, path, visited, rows);
+                            collect(
+                                program,
+                                field.type_reference,
+                                path,
+                                visited,
+                                inside_array_element,
+                                rows,
+                            );
                             path.truncate(prefix);
                         }
                     }
@@ -8987,6 +9027,7 @@ pub(crate) mod semantic {
                         rows.push(ZeroCase {
                             path: path.clone(),
                             variant: variant.symbol,
+                            elements: None,
                         });
                         for field in program.data_payload_fields(variant) {
                             if field.relevance.is_erased() {
@@ -8994,7 +9035,14 @@ pub(crate) mod semantic {
                             }
                             let prefix = path.len();
                             validation::push_field_place_segments(program, path, field.symbol);
-                            collect(program, field.type_reference, path, visited, rows);
+                            collect(
+                                program,
+                                field.type_reference,
+                                path,
+                                visited,
+                                inside_array_element,
+                                rows,
+                            );
                             path.truncate(prefix);
                         }
                     }

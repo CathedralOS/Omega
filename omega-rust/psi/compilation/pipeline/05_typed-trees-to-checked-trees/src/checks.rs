@@ -10971,6 +10971,12 @@ mod crashes {
         Compare one surviving route with a permitted alternative. Invocation callers
         may supply consequences from their exact path; universal callable refinement
         supplies none and cannot narrow a contract using its selecting call's values.
+
+        A surviving route is restricted by the invocation's own path before it
+        reaches here (`value < 0 && count != 0` for a callee route `value < 0`
+        called from a `count == 0` false arm). A conjunction implies each of its
+        conjuncts, so the route is covered when any conjunct is the published
+        guard; nothing weaker is accepted.
     */
     pub(crate) fn call_route_guard_covers(
         published: &CrashRouteGuard,
@@ -10980,7 +10986,8 @@ mod crashes {
         match published {
             CrashRouteGuard::Truth => true,
             CrashRouteGuard::Predicate(published) => {
-                matches!(surviving, CrashRouteGuard::Predicate(surviving) if surviving == published)
+                matches!(surviving, CrashRouteGuard::Predicate(surviving)
+                    if surviving == published || route_conjunct_is(surviving, published))
                     || path_guard_consequences.contains(published)
                     || published.scalar_expression().is_some_and(|expression| {
                         crate::values::evaluate_checked_boolean(expression, &mut |_| None)
@@ -10988,6 +10995,39 @@ mod crashes {
                     })
             }
         }
+    }
+
+    /*
+        Whether `published` is one conjunct of the surviving route's `&&` tree,
+        compared by canonical identity. The route's canonical expression is the
+        only input: a route without one (a hashed declared fact) has no
+        conjuncts to offer.
+    */
+    fn route_conjunct_is(
+        surviving: &CrashPredicateIdentity,
+        published: &CrashPredicateIdentity,
+    ) -> bool {
+        use checked_trees::CrashPredicateExpression as Expression;
+        let Some(root) = surviving.expression() else {
+            return false;
+        };
+        let and = typed_trees::expression::BinaryOperator::And as u8;
+        let mut pending = vec![root];
+        while let Some(expression) = pending.pop() {
+            match expression {
+                Expression::Binary {
+                    operator,
+                    left,
+                    right,
+                } if *operator == and => pending.extend([left.as_ref(), right.as_ref()]),
+                conjunct => {
+                    if CrashPredicateIdentity::from_expression(conjunct.clone()) == *published {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /*

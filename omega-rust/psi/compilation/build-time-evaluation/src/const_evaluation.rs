@@ -2479,7 +2479,6 @@ pub(crate) mod const_generic_calls {
 pub(crate) use crate::const_generic_expressions;
 pub(crate) use crate::const_initializers;
 pub(crate) mod const_lengths {
-    use crate::BuildTimeAdmissionPlan;
     use crate::build_time_evaluation::{EvaluationDomain, type_reference_table};
     use crate::machine_execution::selected_operators::prepare_selected_execution;
     use diagnostics::Diagnostic;
@@ -2866,37 +2865,6 @@ pub(crate) mod const_lengths {
             .to_u64()
             .and_then(|value| usize::try_from(value).ok())
             .ok_or_else(|| format!("the call returned {value}, which does not fit an array length"))
-    }
-
-    pub fn evaluate_zero_argument_machine(
-        typed: &TypedTrees,
-        admission: &BuildTimeAdmissionPlan,
-        machine_name: &str,
-        position: &str,
-        custody: Option<crate::BuildTimeInvocationCustody>,
-    ) -> Result<BigInt, String> {
-        let machine = typed
-            .realized_machine_named(machine_name)
-            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-
-        let parameter_count = entry_state_parameter_count(typed, machine);
-        if parameter_count > 0 {
-            return Err(format!(
-                "machine `{machine_name}` takes {parameter_count} parameter(s); a const-evaluated \
-             {position} must call a zero-argument machine (const arguments are not supported yet)"
-            ));
-        }
-
-        let value = match custody {
-            Some(custody) => admission.evaluate_const_evaluable_machine_for_invocation(
-                typed,
-                machine_name,
-                Vec::new(),
-                custody,
-            )?,
-            None => admission.evaluate_const_evaluable_machine(typed, machine_name, Vec::new())?,
-        };
-        decode_integer_result(typed, machine, value)
     }
 
     pub(crate) fn decode_integer_result(

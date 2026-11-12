@@ -65,6 +65,7 @@ const AGENT_NAMES: &[&str] = &[
     "Antigravity",
     "Dot",
     "Human",
+    "Corpus sweep",
 ];
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {

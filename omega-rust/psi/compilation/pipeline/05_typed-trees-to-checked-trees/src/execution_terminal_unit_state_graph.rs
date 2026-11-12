@@ -9626,28 +9626,22 @@ pub(super) fn build_traced(
     let result = super::types::declared_result_plan(program, shapes, machine)?;
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
         trace.phase("state graph: result signature: scalar result guarantee");
-        if program
-            .machine_contracts(machine)
+        // A named invocation clause (`requires incoming: above(n)`) is an erased
+        // evidence lane, not part of the scalar result. The signature owner
+        // decides which named clauses a scalar body can carry, so this route
+        // and the statement-sequence route admit the same signatures.
+        if !crate::execution::terminal_unit::types::checked_machine_signature_has_plan(
+            program, facts, machine, &states[0],
+        ) || states[1..]
             .iter()
-            .chain(program.state_contracts(&states[0]))
+            .flat_map(|state| program.state_contracts(state))
             .any(|contract| {
                 !matches!(
                     contract.kind,
                     super::SignatureContractKind::Requires
                         | super::SignatureContractKind::Crashes { .. }
-                        | super::SignatureContractKind::Ensures
-                ) || contract.binding.is_some()
+                )
             })
-            || states[1..]
-                .iter()
-                .flat_map(|state| program.state_contracts(state))
-                .any(|contract| {
-                    !matches!(
-                        contract.kind,
-                        super::SignatureContractKind::Requires
-                            | super::SignatureContractKind::Crashes { .. }
-                    )
-                })
         {
             return None;
         }

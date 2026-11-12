@@ -801,8 +801,11 @@ route's decision from. It discharges an elaborated closure and returns:
   The statement ([describe.rs](src/describe.rs)) says what was not proved in
   the current checker's words for the same obligation, from the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
-  contract for call bounded from probe: xored >= 1 && xored <= 2` (the
-  callee's clause over the caller's actuals), `cannot prove ensures contract
+  contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
+  `value >= 1 && value <= 2` here; establish it before the call via a prior
+  contract guarantee, domain membership, or guard) in state `entry`` (the
+  callee's clause over the caller's actuals, then the same clause as the
+  callee wrote it, and the caller's state), `cannot prove ensures contract
   for exit from shifted at statement 0: result <= value` (the exit's
   statement position, counted as the current checker counts it), `exact
   arithmetic in machine `tally` state `entry` return value may overflow
@@ -894,11 +897,17 @@ memory.
 
 A generic machine is proved once, against the contracts its parameters
 require, and each specialization of it re-checks those proofs instead of
-searching again. This section covers one kind of parameter, an
+searching again. This section covers three kinds of parameter: an
 implementation parameter such as `Selected satisfies Step`, whose body calls
-`Selected::apply(..)`. No production path calls any of it. Type and value
-parameters are not served; [what is missing](#what-the-lowered-form-does-not-carry)
-says why.
+`Selected::apply(..)`, a [value parameter](#value-parameters) such as
+`const Units: u64`, and an opaque [type parameter](#type-parameters) `T`,
+whose values a body can only pass on. No production path calls any of it. A
+type parameter the body branches on (`requires T == u32 || T == u64`) has no
+generic form yet: each machine generated from one is read and judged as a
+closed machine, under its own type
+([structure-elaboration](../structure-elaboration/README.md#generic-machines)),
+and [what is missing](#what-the-lowered-form-does-not-carry) says what a
+generic form of it needs.
 
 The example the tests and the corpus fixture use:
 
@@ -979,14 +988,205 @@ twin. The twin differs only in the bound `advance` promises, `result <= 18`:
 a search over each of its two specializations alone proves that bound, and
 the generic check refuses it.
 
+### Value parameters
+
+A body over `const Units: u64` is proved once for every value of `Units`,
+and the machine stage 04 generates for `<7>` takes those proofs with 7 in
+`Units`' place. The example:
+
+```omega
+machine clamp<const Units: u64>(input: u64) -> u64
+requires input <= Units
+ensures result <= Units
+{ input }
+```
+
+**The generic check form.** `Units` is a scalar formal of the machine, after
+`input`, that no caller passes
+([structure-elaboration](../structure-elaboration/README.md#generic-machines)).
+Nothing else is new: the `requires` row is `input <= Units` over two values,
+and the guarantee is proved from it like any relation between formals. What
+is known of `Units` is its carrier's range and what the `requires` say, so a
+proof found here holds at every admitted value
+([generics.md](../../../../../wiki/spec/language/generics.md#static-type-equality):
+"An unspecialized body checks every admitted alternative; one consumer
+cannot authorize an otherwise invalid generic body").
+
+**The instantiation is worked out, not read.** The generated machine has one
+formal and the literal 7 wherever the declaration named `Units`. The typed
+trees record the argument of a generated machine only as its spelling, which
+is not read. `Instantiation::of` ([reuse.rs](src/reuse.rs)) finds the
+literals from the two lowered contracts: the ones at which each `ensures`
+clause of the generic form is the specialization's clause at that position
+and its `requires` clauses are the specialization's in some order (they are
+held in canonical order, which a literal in place of a formal can change).
+When no literals do that, the machine is not that body's contract at any
+value of its parameters and nothing is carried into it. A parameter neither
+contract mentions stays unbound, and a proof that names it cannot be moved.
+
+**Carrying.** `reverify_specialization` moves each certificate with the
+values renamed: the specialization's formals keep their identities, each
+value parameter becomes its literal (in scalar terms, and as the integer a
+literal embeds as in mathematical terms), and every later value is the
+specialization's value that many identities earlier. A cited entry
+requirement is found by what it says once moved, not by its position. The
+kernel decides the result against the specialization's own goal and
+hypotheses; a literal that did not fit would yield a certificate it refuses.
+
+**A requirement with value parameters.** A call through an implementation
+parameter with a static argument, `Implementation::value<7>(7)`, is held in
+the generic form to the requirement's contract at 7, and in the generated
+machine it calls the machine generated from the selected member for 7. The
+refinement proof is the conformance witness at the same literals. So the
+caller's body and the member's body are each proved once, and the member's
+refinement of its requirement is proved once per tuple of value arguments in
+use, not once for every value.
+
+**What the tests show.**
+[tests/value_parameters.rs](src/tests/value_parameters.rs):
+
+| Test | Shows |
+| --- | --- |
+| `a_body_over_a_value_parameter_is_checked_once_and_carried_to_two_literals` | one proof of `clamp`'s guarantee accepted for `clamp<7>` and `clamp<9>`, each against its own goal, no prover started |
+| `a_proof_that_chains_two_requirements_is_carried_too` | a proof citing two entry requirements, one of which names the parameter, is carried with each requirement found by its moved statement |
+| `a_body_that_holds_only_at_the_literal_in_use_is_rejected` | `ensures result <= 7` is proved by a search over `clamp<7>` and refused as a generic body; the specialization then has nothing to carry |
+| `a_machine_whose_contract_is_no_instance_of_the_generic_contract_is_refused` | a contract that is the generic one at no single literal, and a machine with a formal too many, take no proof |
+| `a_body_that_reads_the_parameter_as_an_operand_is_not_carried` | the limit below |
+
+`compiler`'s test `lowered_route_generics` runs the three steps from source
+on `tests/omega/pass/facts/lexical_generic_bound_through_local_exit`, where
+`Selected::value<const Units: u64>` is a trait member called as
+`Implementation::value<7>(7)`, and on its fail twin, which differs only in
+the requirement's contract (`requires true`): the member then asks `input <=
+Units`, which the requirement does not give. A search over the generated
+caller proves the call's requirement, because the one call passes 7; the
+refinement proof does not exist, and the carried requirement is refused.
+
+Limits:
+
+- **A body that reads the parameter as an operand is not carried**
+  (`{ input + Units }`). The generic form reads its formal there and the
+  specialization evaluates a constant, so the specialization has an
+  operation and a value the generic form does not, and
+  `Carry::corresponds` refuses the pair. Carrying it needs the two bodies
+  matched operation for operation, with each such constant standing for
+  the parameter. Until then such a specialization takes no proof.
+- **A member's refinement is proved per value argument in use**, as above,
+  not for every value. A conformance declaration whose member has value
+  parameters is therefore not yet judged as a declaration; that needs the
+  witness stated over the parameters, calling the member's generic form.
+- **An equality is matched as written.** Terminal Psi orders the operands
+  of `==` and the conjuncts of `&&` canonically. Where a literal in place
+  of the parameter changes that order inside one clause, the generic clause
+  is not recognized as the specialization's and nothing is carried.
+- Only an integer carrier, only `const` binders, and only parameters of
+  the machine itself: a value parameter used in a type (`&[u8; N]`) waits
+  for arrays.
+
+### Type parameters
+
+A body over an opaque `T` is proved once for every type, and the machine
+stage 04 generates for `<u8>` takes those proofs unchanged. The example:
+
+```omega
+machine forward<T>(item: T, limit: u32) -> u32
+requires limit <= 10 ensures result <= 10
+{ limit }
+machine relay<T>(item: T, limit: u32) -> u32
+requires limit <= 10 ensures result <= 11
+{ forward<T>(item, limit) + 1 }
+```
+
+**A value of a rigid type.** In the generic check form `item` is a value:
+it has an identity, the call passes it, and a machine may return it. Its row
+says which type parameter it is of (`ValueRow::rigid`). The lowered form can
+declare a value only with a `ScalarType`, so it is declared there with a
+stand-in, `RigidType::DECLARED_AS`, which is not its type and from which
+nothing may be concluded.
+[lowered type generics](../../../../../wiki/drafts/designs/lowered_type_generics.md#opaque-type-parameters-a-rigid-sort)
+proposes a sort beside `ScalarType`; `ScalarType` is matched at 263 places
+across the compiler and its back ends, so the sort lives in the check
+tables, which only this route reads.
+
+**No proposition names a rigid value.** Under
+[generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
+a body can move, pass and return a value of an opaque `T`; no operator or
+comparison selects on it, and the reader refuses one applied to it, because
+a rigid type is neither a scalar nor a record. So no goal and no knowledge
+row of a well-typed body names such a value. That is enforced, not assumed:
+`concrete` ([lib.rs](src/lib.rs)) refuses, as outside the route, any goal and
+any hypothesis that names one, and the kernel's context does not list rigid
+values. The design's rule that a kernel rule over a rigid value needs an
+"any sort" premise is met by having no such rule yet: the first rule that
+holds at every type (equality transport, say) is where that premise is
+added.
+
+**A value of `T` is used at most once.** A type parameter not declared
+`[copy]` is affine
+([ownership.md](../../../../../wiki/spec/language/ownership.md#property-declarations):
+"every use of `T` receives the property fixed by `T`'s declaration"). The
+route has no judgment of moves, so the reader refuses a generic body that
+names such a slot twice, on any paths, and refuses a `[linear]` parameter,
+whose values must be used exactly once. An unused value is discarded, which
+is legal for an affine type; its cleanup is the specialization's.
+
+**A call of another generic machine at the body's own type.**
+`forward<T>(item, limit)` is held, in `relay`'s generic form, to `forward`'s
+contract at `T`: a machine with that signature and contract and no body
+(`Elaboration::applications`). `forward`'s own body is checked once as the
+entry of its own generic form. In `relay<u8>` the call names the machine
+generated from `forward` for `u8`, whose contract is the same clauses, so a
+proof that cites `forward`'s guarantee finds it there like any callee's, and
+no refinement proof stands between.
+
+**Carrying.** `reverify_specialization` checks that the specialization has
+the generic body's values and calls, where each value of a rigid type is a
+value of one concrete type, the same at every value of that parameter
+(`Instantiation::types`, read off the two value tables). The certificates
+are moved as they are: none names a rigid value, so none changes. The
+kernel decides each against the specialization's own goal and hypotheses.
+
+**What the tests show.**
+[tests/type_parameters.rs](src/tests/type_parameters.rs):
+
+| Test | Shows |
+| --- | --- |
+| `a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types` | three proofs of `relay`, found once, accepted in `relay<i32>` and `relay<bool>`, no prover started |
+| `a_bound_the_callee_does_not_give_is_refused_for_every_type` | `ensures result <= 10` refused generically; nothing to carry, no search |
+| `nothing_is_proved_from_the_type_a_rigid_value_is_declared_with` | a clause over the item at its stand-in type is no hypothesis and no goal: every obligation it would touch is refused as outside the route |
+| `one_type_parameter_is_one_type_in_a_specialization` | a machine whose two `T` values have different types takes no proof |
+
+Limits:
+
+- **Only where `T` is a scalar type.** A specialization at a data type
+  holds its `T` values in places, not values, so it does not correspond to
+  the generic form and takes no proof. That needs a rigid place type.
+- **No operation has a rigid result.** A call that returns a `T`, a local
+  of type `T` and a field of type `T` are refused by the reader. A formal
+  may be returned.
+- **`[copy]` is read; cleanup is not stated.** The generic form says
+  nothing of the cleanup an unused affine value owes; the route states no
+  cleanup for any value yet.
+- **Contracts cannot mention a `T` value.** A requirement such as
+  `premise<T>(kept)` is a proposition over a call term, which this subset
+  does not read.
+
 ### What the lowered form does not carry
 
 Read from the types, not built:
 
-- **A value of a rigid type.** A value row has a `ScalarType`, which is
-  `Boolean`, `Integer(sign, width)` or `IeeeFloat(format)`, and a place has a
-  declared `StructuralTypeId`. There is no row for a value whose type is a
-  parameter, so a body over `T` cannot be lowered once.
+- **A place of a rigid type.** A value of an opaque `T` is served
+  ([type parameters](#type-parameters)); a place has a declared
+  `StructuralTypeId`, and there is no entry for one whose type is a
+  parameter, so generic data and a `T` instantiated at a data type are not.
+- **A branch on a type equation.** A body of a finite family is rigid
+  outside its type-equation branches and concrete inside each arm. The
+  lowered form has no terminator that selects an arm by a type, and the
+  arms return values of different types into one result. Whether such a
+  body must be checked in that form at all, or once per listed type as its
+  generated machines now are, is owner question Q18
+  (`finite-family-generic-check`); what a contract clause beside a type
+  equation means is Q17.
 - **An operation on it.** Terminal operations are selected per type
   (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
   comes from that type's range. One generic body has no single operation.
@@ -995,8 +1195,9 @@ Read from the types, not built:
   integer rules depend on the width. Moving a certificate to another type
   would have to rebuild it, and the correspondence of values and calls this
   experiment relies on would no longer hold.
-- **A rigid value parameter** (`const N: u64`) has the same shape as a
-  formal with no argument; it was not tried.
+- **A rigid value parameter** (`const N: u64`) is served as a formal with
+  no argument ([value parameters](#value-parameters)); it is the one kind
+  of the four that needed no new row.
 
 Limits of what was built:
 

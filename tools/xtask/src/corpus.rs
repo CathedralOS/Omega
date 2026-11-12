@@ -281,7 +281,7 @@ pub fn splice_records(text: &str, records: &[CorpusRecord]) -> String {
 /// `--list-pinned-regressions` read the same rows as green, so the recorder must
 /// mark the loss of either kind with `regressed-from:`; otherwise a matched
 /// native rejection that stops matching lands as an unmarked red row.
-fn is_recorded_success(record: &CorpusRecord) -> bool {
+pub(crate) fn is_recorded_success(record: &CorpusRecord) -> bool {
     matches!(record.status.as_str(), "built" | "checked")
         || (matches!(record.tier.as_str(), "pass" | "run")
             && record.status == "rejected"
@@ -292,7 +292,10 @@ fn is_recorded_success(record: &CorpusRecord) -> bool {
                 .any(|(key, value)| key == "native-rejection" && value == "match"))
 }
 
-fn carried_regression(prior: Option<&CorpusRecord>, observed: &CorpusRecord) -> Option<String> {
+pub(crate) fn carried_regression(
+    prior: Option<&CorpusRecord>,
+    observed: &CorpusRecord,
+) -> Option<String> {
     if is_recorded_success(observed) {
         return None;
     }
