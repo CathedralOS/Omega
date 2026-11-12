@@ -4,7 +4,7 @@ set -euo pipefail
 WITNESS="${1:?witness}"
 GOOD="${2:?good sha}"
 BAD="${3:?bad sha}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
 cd "$ROOT"
 BRANCH="${GIT_BRANCH:-work/ledger-bisect-part-14}"
 git checkout -f "$BRANCH" >/dev/null 2>&1 || true

@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
 PIN="${PIN_SHA:-51e8c45c793007f211d0d9baee7de16767172444}"
 RECORDS="${1:-/tmp/part14_records.txt}"
 cp "$ROOT/tests/omega/corpus_outcomes.txt" /tmp/pin_corpus_outcomes.txt

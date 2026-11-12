@@ -3,7 +3,7 @@
 set -euo pipefail
 COMMIT="${1:?commit}"
 WITNESS="${2:?witness}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
 cd "$ROOT"
 git checkout -f "$COMMIT" >/dev/null 2>&1
 export BISECT_WITNESS="$WITNESS"

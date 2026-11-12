@@ -4,7 +4,7 @@ WITNESS="${1:?witness}"
 PIN="${2:-51e8c45c793007f211d0d9baee7de16767172444}"
 BRANCH="${3:-work/ledger-bisect-part-14}"
 OUT="${4:-/tmp/bisect_cluster_result.json}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
 TOOLS="/tmp/part14-bisect-tools/tools"
 export BISECT_WITNESS="$WITNESS"
 if [[ -n "${BISECT_GOOD:-}" ]]; then

@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 ROOT="/agent/repos/omega"
+export REPO_ROOT="$ROOT"
 PIN=51e8c45c793007f211d0d9baee7de16767172444
 BRANCH=work/ledger-bisect-part-14
 TOOL_ROOT="/tmp/part14-bisect-tools"

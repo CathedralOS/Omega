@@ -2,7 +2,7 @@
 # git bisect run: 0=PIN-expected outcome, 1=PIN-broken reproduction, 125=skip
 set -euo pipefail
 WITNESS="${BISECT_WITNESS:?}"
-ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ROOT="${REPO_ROOT:-/agent/repos/omega}"
 cd "$ROOT"
 TOOLS="$(dirname "$0")"
 TDIR="${CARGO_TARGET_DIR:-/tmp/omega-bisect-target}"

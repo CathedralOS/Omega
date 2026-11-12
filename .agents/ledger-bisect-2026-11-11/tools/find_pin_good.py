@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(os.environ.get("REPO_ROOT", "/agent/repos/omega"))
 SCRIPT = Path("/tmp/part14-bisect-tools/tools/bisect_pin_witness.sh")
 MAX_STEPS = int(os.environ.get("PIN_GOOD_MAX_STEPS", "80"))
 
