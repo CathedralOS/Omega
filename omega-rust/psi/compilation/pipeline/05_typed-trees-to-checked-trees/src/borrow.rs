@@ -4477,9 +4477,27 @@ mod loans {
                     _ => return Ok(None),
                 };
                 let contract = available!(call_view_return_contract(program, state_symbol, call));
+                // The contract substitutes only a result that is itself a type
+                // parameter. An evidence-bound call such as `Operations::forward`
+                // reached through a supertrait returns `Envelope<Value>`, whose
+                // nested `Value` stays the trait's parameter. A local that binds
+                // an opaque call's result directly has that result's complete
+                // checked type, so its loans are read from the local's type.
+                let opaque_target = !validation::call_target_has_checked_body_contract(
+                    program,
+                    validation::call_target_symbol(program, call),
+                );
+                let result_type = if opaque_target
+                    && access_limits.is_empty()
+                    && local_data.type_reference.is_valid()
+                {
+                    local_data.type_reference
+                } else {
+                    contract.return_type_reference(program)
+                };
                 let completed = TableLocalData {
                     initial_value: expression,
-                    type_reference: contract.return_type_reference(program),
+                    type_reference: result_type,
                     ..local_data.clone()
                 };
                 if let Some(loans) =
@@ -4545,7 +4563,7 @@ mod loans {
                     }
                 }
                 if opaque_result {
-                    let form = |result_type| {
+                    loans.extend(
                         super::invocation_results::form(
                             program,
                             state_symbol,
@@ -4555,28 +4573,7 @@ mod loans {
                             target,
                             result_type,
                         )
-                    };
-                    // An evidence-bound call such as `Operations::forward(envelope)`
-                    // can reach its requirement through a supertrait, and its
-                    // signature result `Value` may stay a trait parameter after
-                    // substitution. When the local binds the call result directly,
-                    // its checked declared type is that result's type.
-                    if std::env::var("OMEGA_DBG_EVID").is_ok() {
-                        eprintln!(
-                            "EVIDDBG ret={} local={} subs={} static={}",
-                            program.display_type_reference(contract.return_type_reference(program)),
-                            program.display_type_reference(local_data.type_reference),
-                            contract.substitutions.len(),
-                            call.static_machine_parameter.is_valid(),
-                        );
-                    }
-                    let formed = form(contract.return_type_reference(program)).or_else(|| {
-                        (access_limits.is_empty() && local_data.type_reference.is_valid())
-                            .then(|| form(local_data.type_reference))
-                            .flatten()
-                    });
-                    loans.extend(
-                        formed.ok_or("completed result reference permissions are unavailable")?,
+                        .ok_or("completed result reference permissions are unavailable")?,
                     );
                 }
                 return Ok(Some(limit_access(loans, &access_limits)));
@@ -5727,18 +5724,7 @@ mod loans {
                             local.type_reference,
                             &path,
                         )
-                        .ok_or_else(|| {
-                            if std::env::var("OMEGA_DBG_EVID").is_ok() {
-                                eprintln!(
-                                    "EVIDDBG retain local={} path={:?} formation_same={} lineage={:?}",
-                                    program.display_type_reference(local.type_reference),
-                                    owner_path,
-                                    source.formation_expression == local.initial_value,
-                                    source.lineage,
-                                );
-                            }
-                            "saved descriptor has no declared receiving leaf"
-                        })?;
+                        .ok_or("saved descriptor has no declared receiving leaf")?;
                         let kind = super::types::reference_borrow_access_kind(program, reference)
                             .ok_or("saved descriptor's receiving leaf is not a reference")?;
                         source
