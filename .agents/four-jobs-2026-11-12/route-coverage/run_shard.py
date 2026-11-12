@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import time
@@ -30,6 +29,13 @@ OUTSIDE_ROUTE = frozenset(
         "defect",
         "panicked",
     }
+)
+UNJUDGED_ROUTE = OUTSIDE_ROUTE | frozenset({"error", ""})
+NON_CONSTRUCT_BUCKETS = frozenset({"no_program_entry", "current_stopped_before_typed_trees"})
+
+TSV_HEADER = (
+    "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\t"
+    "roots\tvacuous_accept_roots\tseconds\n"
 )
 
 
@@ -97,7 +103,6 @@ def field_map(line: str, *, body_only: bool = False) -> dict[str, str]:
 
 
 def refusal_construct_from_detail(detail: str) -> str:
-    """Map harness refusal text to the construct/family string structure_elaboration names."""
     detail = detail.strip()
     if not detail:
         return ""
@@ -112,48 +117,41 @@ def fallback_construct(line: str) -> str:
     if len(parts) < 5:
         return ""
     concerns = parts[4].strip()
-    # Rust Debug of `Construct` — keep the enum label for tallying.
     if "(" in concerns:
         return concerns.split("(", 1)[0].strip()
     return concerns
 
 
-UNJUDGED_ROUTE = OUTSIDE_ROUTE | frozenset({"error", ""})
+def is_vacuous_accept(p: dict[str, str]) -> bool:
+    if p.get("route") != "accepted":
+        return False
+    return p.get("obligations") == "0" and p.get("judged") == "0"
 
 
-def select_parts(comp: dict[str, str], machine_roots: list[dict[str, str]]) -> list[dict[str, str]]:
-    if comp.get("route") != "no-entry":
-        return [comp]
-    if machine_roots:
-        return machine_roots
-    return [comp]
+def roots_column(parsed: list[dict[str, str]]) -> str:
+    return ";".join(f"{p.get('root', '?')}:{p.get('route', '?')}" for p in parsed)
 
 
-def first_refusal_for_parts(
-    parts: list[dict[str, str]], fallbacks: list[str]
-) -> str:
-    for p in parts:
-        route = p.get("route", "")
-        if route == "outside" and p.get("outside_detail"):
+def vacuous_roots_column(parsed: list[dict[str, str]]) -> str:
+    vacuous = [p.get("root", "?") for p in parsed if is_vacuous_accept(p)]
+    return ";".join(vacuous)
+
+
+def first_refusal_all_roots(parsed: list[dict[str, str]], fallbacks: list[str]) -> str:
+    for p in parsed:
+        if p.get("route") == "outside" and p.get("outside_detail"):
             construct = refusal_construct_from_detail(p["outside_detail"])
             if construct:
                 return construct
-        if route == "refused-module":
+        if p.get("route") == "refused-module":
             reason = p.get("reason", "")
             if reason:
                 return reason
-        if route in UNJUDGED_ROUTE and route not in ("outside", "refused-module"):
-            if route == "no-entry":
-                return "no_program_entry"
-            if route == "unreached":
-                return "current_stopped_before_typed_trees"
-            if route in ("defect", "panicked", "incomplete", "fallback"):
-                return route
     for line in fallbacks:
         construct = fallback_construct(line)
         if construct:
             return construct
-    for p in parts:
+    for p in parsed:
         if p.get("route") == "no-entry":
             return "no_program_entry"
         if p.get("route") == "unreached":
@@ -163,13 +161,14 @@ def first_refusal_for_parts(
 
 def aggregate_fixture(
     program_lines: list[str], fallbacks: list[str]
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, str, str]:
+    """Returns route_verdict, current, agreement, first_refusal, roots, vacuous_roots."""
     if not program_lines:
-        return "error", "", "n-a", ""
+        return "error", "", "n-a", "", "", ""
     if len(program_lines) == 1 and program_lines[0].strip() == "panicked":
-        return "error", "", "n-a", "panicked"
+        return "error", "", "n-a", "panicked", "compilation:panicked", ""
 
-    parsed = []
+    parsed: list[dict[str, str]] = []
     for pl in program_lines:
         if pl == "panicked":
             parsed.append({"root": "compilation", "current": "error", "route": "panicked"})
@@ -180,11 +179,7 @@ def aggregate_fixture(
     if not current:
         current = "error"
 
-    comp = next((p for p in parsed if p.get("root") == "compilation"), parsed[0])
-    machine_roots = [p for p in parsed if str(p.get("root", "")).startswith("machine:")]
-    parts = select_parts(comp, machine_roots)
-    routes = [p.get("route", "error") for p in parts]
-
+    routes = [p.get("route", "error") for p in parsed]
     has_rejected = any(r == "rejected" for r in routes)
     has_accepted = any(r == "accepted" for r in routes)
     has_unjudged = any(r not in JUDGED_ROUTE for r in routes)
@@ -193,14 +188,16 @@ def aggregate_fixture(
         route_verdict = "rejected"
     elif has_accepted and has_unjudged:
         route_verdict = "partial"
-    elif has_accepted:
+    elif has_accepted and not has_unjudged:
         route_verdict = "accepted"
     elif all(r in UNJUDGED_ROUTE for r in routes):
         route_verdict = "outside"
     else:
         route_verdict = "outside"
 
-    first_refusal = first_refusal_for_parts(parts, fallbacks)
+    first_refusal = first_refusal_all_roots(parsed, fallbacks)
+    roots = roots_column(parsed)
+    vacuous = vacuous_roots_column(parsed)
 
     if route_verdict == "accepted":
         if current == "accepted":
@@ -216,25 +213,25 @@ def aggregate_fixture(
             agreement = "disagree"
         else:
             agreement = "n-a"
-    elif route_verdict in ("outside", "partial", "error"):
-        agreement = "n-a"
     else:
         agreement = "n-a"
 
-    return route_verdict, current, agreement, first_refusal
+    return route_verdict, current, agreement, first_refusal, roots, vacuous
 
 
-def load_done() -> set[str]:
-    if not TSV.exists():
-        return set()
-    done: set[str] = set()
-    for line in TSV.read_text().splitlines():
-        if line.startswith("fixture\t"):
-            continue
-        if not line.strip():
-            continue
-        done.add(line.split("\t", 1)[0])
-    return done
+def parse_harness_stdout(raw: str) -> tuple[list[str], list[str]]:
+    program_lines: list[str] = []
+    fallbacks: list[str] = []
+    for line in raw.splitlines():
+        if line.startswith("program\t"):
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                program_lines.append("\t".join(parts[2:]))
+        elif line.startswith("fallback\t"):
+            fallbacks.append(line)
+    if not program_lines and "panicked" in raw:
+        program_lines = ["panicked"]
+    return program_lines, fallbacks
 
 
 def run_one(fixture: str) -> tuple[str, float]:
@@ -255,51 +252,29 @@ def run_one(fixture: str) -> tuple[str, float]:
             raw = proc.stderr or f"exit={proc.returncode}"
     except subprocess.TimeoutExpired:
         elapsed = float(TIMEOUT_SEC)
-        return (
-            "\t".join(
-                [
-                    fixture,
-                    tier(fixture),
-                    "timeout",
-                    "",
-                    "n-a",
-                    "",
-                    f"{elapsed:.1f}",
-                ]
-            ),
-            elapsed,
+        row = "\t".join(
+            [fixture, tier(fixture), "timeout", "", "n-a", "", "", "", f"{elapsed:.1f}"]
         )
+        return row, elapsed
     except Exception as exc:  # noqa: BLE001
         elapsed = time.monotonic() - started
-        return (
-            "\t".join(
-                [
-                    fixture,
-                    tier(fixture),
-                    "error",
-                    "",
-                    "n-a",
-                    str(exc)[:200],
-                    f"{elapsed:.1f}",
-                ]
-            ),
-            elapsed,
+        row = "\t".join(
+            [
+                fixture,
+                tier(fixture),
+                "error",
+                "",
+                "n-a",
+                str(exc)[:120],
+                "",
+                "",
+                f"{elapsed:.1f}",
+            ]
         )
+        return row, elapsed
 
-    program_lines: list[str] = []
-    fallbacks: list[str] = []
-    for line in raw.splitlines():
-        if line.startswith("program\t"):
-            parts = line.split("\t")
-            if len(parts) >= 3:
-                program_lines.append("\t".join(parts[2:]))
-        elif line.startswith("fallback\t"):
-            fallbacks.append(line)
-
-    if not program_lines and "panicked" in raw:
-        program_lines = ["panicked"]
-
-    route_verdict, current, agreement, first_refusal = aggregate_fixture(
+    program_lines, fallbacks = parse_harness_stdout(raw)
+    route_verdict, current, agreement, first_refusal, roots, vacuous = aggregate_fixture(
         program_lines, fallbacks
     )
     row = "\t".join(
@@ -310,15 +285,29 @@ def run_one(fixture: str) -> tuple[str, float]:
             current,
             agreement,
             first_refusal,
+            roots,
+            vacuous,
             f"{elapsed:.1f}",
         ]
     )
     return row, elapsed
 
 
+def load_done() -> set[str]:
+    if not TSV.exists():
+        return set()
+    done: set[str] = set()
+    for line in TSV.read_text().splitlines():
+        if line.startswith("fixture\t"):
+            continue
+        if not line.strip():
+            continue
+        done.add(line.split("\t", 1)[0])
+    return done
+
+
 def repair_all(fixtures: list[str]) -> None:
-    header = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
-    rows: list[str] = [header.rstrip("\n")]
+    rows: list[str] = [TSV_HEADER.rstrip("\n")]
     for i, fixture in enumerate(fixtures, 1):
         row, elapsed = run_one(fixture)
         rows.append(row)
@@ -347,8 +336,7 @@ def main() -> None:
     print(f"shard {SHARD}/{SHARD_MOD}: {len(fixtures)} fixtures, {len(todo)} todo", flush=True)
 
     if not TSV.exists() or TSV.stat().st_size == 0:
-        header = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
-        TSV.write_text(header)
+        TSV.write_text(TSV_HEADER)
 
     for i, fixture in enumerate(todo, 1):
         row, elapsed = run_one(fixture)

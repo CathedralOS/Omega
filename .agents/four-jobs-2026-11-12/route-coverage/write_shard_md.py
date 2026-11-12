@@ -16,6 +16,30 @@ OUT_DIR = REPO / ".agents/four-jobs-2026-11-12/route-coverage"
 TSV = OUT_DIR / f"shard-{SHARD}.tsv"
 MD = OUT_DIR / f"shard-{SHARD}.md"
 HARNESS = REPO / "target/debug/examples/route_one_comparison"
+NON_CONSTRUCT_BUCKETS = frozenset({"no_program_entry", "current_stopped_before_typed_trees"})
+
+
+def accepted_roots_from_row(roots: str) -> list[str]:
+    names: list[str] = []
+    for part in roots.split(";"):
+        if not part or ":" not in part:
+            continue
+        name, verdict = part.rsplit(":", 1)
+        if verdict == "accepted":
+            names.append(name)
+    return names
+
+
+def vacuous_label(row: dict[str, str]) -> str:
+    vacuous = {v for v in row.get("vacuous_accept_roots", "").split(";") if v}
+    accepted = accepted_roots_from_row(row.get("roots", ""))
+    if not accepted:
+        return "n/a"
+    if all(r in vacuous for r in accepted):
+        return "vacuous"
+    if vacuous:
+        return "mixed"
+    return "non-vacuous"
 
 
 def harness_output(fixture: str) -> str:
@@ -113,16 +137,34 @@ def main() -> None:
     outside_refusals = collections.Counter(
         r.get("first_refusal", "") for r in rows if r.get("route_verdict") == "outside"
     )
+    construct_outside = {
+        k: v for k, v in outside_refusals.items() if k not in NON_CONSTRUCT_BUCKETS
+    }
+    construct_partial = {
+        k: v
+        for k, v in partial_refusals.items()
+        if k not in NON_CONSTRUCT_BUCKETS
+    }
+    bucket_counts: collections.Counter[str] = collections.Counter()
+    for r in rows:
+        if r.get("route_verdict") not in ("outside", "partial"):
+            continue
+        b = r.get("first_refusal", "")
+        if b in NON_CONSTRUCT_BUCKETS:
+            bucket_counts[b] += 1
     judged = by_route.get("accepted", 0) + by_route.get("rejected", 0)
+    bucket_sum = sum(by_route.values())
+    agree_disagree = by_agree.get("agree", 0) + by_agree.get("disagree", 0)
     timeouts = [r for r in rows if r.get("route_verdict") == "timeout"]
     disagreements = [r for r in rows if r.get("agreement") == "disagree"]
     soundness = [
         r
-        for r in disagreements
+        for r in rows
         if r.get("route_verdict") == "accepted" and r.get("current_verdict") == "rejected"
     ]
 
-    top_refusals = outside_refusals.most_common(25)
+    top_outside = sorted(construct_outside.items(), key=lambda x: (-x[1], x[0]))[:15]
+    top_partial = sorted(construct_partial.items(), key=lambda x: (-x[1], x[0]))[:15]
     md = [
         f"# Route coverage shard {SHARD} of 8",
         "",
@@ -153,10 +195,13 @@ def main() -> None:
         "Compare `route_verdict` (`accepted`/`rejected` only) with `current_verdict` "
         "from the same harness `program` line (`current=accepted|rejected|stopped`). "
         "`outside`, `partial`, `timeout`, and `error` → `n-a` (excluded from the "
-        "agreement denominator). All tiers use `--every-machine`. Fixture "
-        "`route_verdict=accepted` only when every evaluated root is `accepted`; "
-        "mixed `accepted` + unjudged roots → `partial` with `first_refusal` from "
-        "the blocking construct.",
+        "agreement denominator). All tiers use `--every-machine`. Aggregate over "
+        "**every** harness `program` root (compilation and each `machine:`). "
+        "Any root `rejected` → fixture `rejected`; all roots `accepted` → "
+        "`accepted`; `accepted` mixed with `outside` / `no-entry` / other "
+        "unjudged and no `rejected` → `partial`. TSV `roots` lists "
+        "`root:verdict` pairs; `vacuous_accept_roots` lists accepted roots with "
+        "`obligations=0` and `judged=0`.",
         "",
         "## Commands",
         "",
@@ -189,13 +234,27 @@ def main() -> None:
         f"| Agreement agree | {by_agree.get('agree', 0)} |",
         f"| Agreement disagree | {by_agree.get('disagree', 0)} |",
         f"| Agreement n/a | {by_agree.get('n-a', 0)} |",
+        f"| Sanity: agree+disagree = judged | {agree_disagree} = {judged} |",
+        f"| Sanity: verdict buckets sum | {bucket_sum} = {total} |",
         "",
-        "## Top first-refusal constructs (outside)",
+        "## Non-construct buckets (not in construct rankings)",
         "",
-        "| Construct | Fixtures | Examples |",
-        "| --- | ---: | --- |",
+        "| Bucket | Fixtures (outside or partial) |",
+        "| --- | ---: |",
     ]
-    for construct, count in top_refusals[:15]:
+    for bucket in sorted(NON_CONSTRUCT_BUCKETS):
+        md.append(f"| `{bucket}` | {bucket_counts.get(bucket, 0)} |")
+
+    md.extend(
+        [
+            "",
+            "## Top first-refusal constructs (outside, constructs only)",
+            "",
+            "| Construct | Fixtures | Examples |",
+            "| --- | ---: | --- |",
+        ]
+    )
+    for construct, count in top_outside:
         if not construct:
             construct = "(empty)"
         examples = [
@@ -209,14 +268,14 @@ def main() -> None:
     md.extend(
         [
             "",
-            "## Top first-refusal constructs (partial)",
+            "## Top first-refusal constructs (partial, constructs only)",
             "",
         ]
     )
-    if partial_refusals:
+    if top_partial:
         md.append("| Construct | Fixtures | Examples |")
         md.append("| --- | ---: | --- |")
-        for construct, count in partial_refusals.most_common(15):
+        for construct, count in top_partial:
             if not construct:
                 construct = "(empty)"
             examples = [
@@ -262,27 +321,33 @@ def main() -> None:
     md.extend(
         [
             "",
-            "## Route accepts / current rejects — soundness watch (all rows)",
+            "## Route accepts / current rejects — soundness watch",
             "",
-            "Harness `current=rejected` is always the typed-frontier checker preserved "
-            "by `route_one_comparison` (not a later native/Psi run stage). "
-            "`current-diagnostic` lines are that checker's diagnostics.",
+            "Harness `current=rejected` is the typed-frontier checker (`current-diagnostic` "
+            "lines), not a later native stage. **Watch** = fixture `route_verdict=accepted` "
+            "and `current_verdict=rejected`. Vacuous accepts (`obligations=0 judged=0` on "
+            "every accepted root) are flagged separately: they are not holes in discharge "
+            "but declaration/build rules the route does not judge.",
             "",
-            "| Fixture | Tier | Route | First diagnostic class | Checker diagnostic? | Soundness-watch? |",
-            "| --- | --- | --- | --- | --- | --- |",
+            "| Fixture | Tier | Diagnostic class | Vacuous? | Notes |",
+            "| --- | --- | --- | --- | --- |",
         ]
     )
     for r in soundness:
         clazz, message = first_current_diagnostic(r["fixture"])
-        watch = soundness_watch_verdict(
-            r["fixture"], r.get("route_verdict", ""), r.get("current_verdict", ""), message
-        )
+        label = vacuous_label(r)
+        if label == "vacuous":
+            note = (
+                "vacuous — defect is outside the route's judged obligations; "
+                f"diagnostic: {message[:200]}"
+            )
+        else:
+            note = f"non-vacuous accept; diagnostic: {message[:200]}"
         md.append(
-            f"| `{r['fixture']}` | {r.get('tier', '')} | {r.get('route_verdict', '')} | "
-            f"{clazz} | yes (`current-diagnostic` present) | {watch} |"
+            f"| `{r['fixture']}` | {r.get('tier', '')} | {clazz} | {label} | {note} |"
         )
     if not soundness:
-        md.append("| _none_ | | | | | |")
+        md.append("| _none_ | | | | |")
 
     md.extend(["", "## All disagreements", ""])
     if disagreements:
@@ -320,16 +385,19 @@ def main() -> None:
             md.append(f"- `{note}`")
         md.append("")
 
-    md.extend(["", "## Soundness watch harness traces (all rows)", ""])
-    for r in soundness:
-        clazz, message = first_current_diagnostic(r["fixture"])
-        md.append(f"### `{r['fixture']}`")
-        md.append(f"- Diagnostic class: {clazz}")
-        if message:
-            md.append(f"- First message: {message[:300]}")
-        for note in hand_check_notes(r["fixture"]):
-            md.append(f"- `{note}`")
-        md.append("")
+    if soundness:
+        md.extend(["", "## Soundness watch harness traces", ""])
+        for r in soundness:
+            clazz, message = first_current_diagnostic(r["fixture"])
+            md.append(f"### `{r['fixture']}`")
+            md.append(f"- roots: `{r.get('roots', '')}`")
+            md.append(f"- vacuous_accept_roots: `{r.get('vacuous_accept_roots', '')}`")
+            md.append(f"- Diagnostic class: {clazz}")
+            if message:
+                md.append(f"- First message: {message[:300]}")
+            for note in hand_check_notes(r["fixture"]):
+                md.append(f"- `{note}`")
+            md.append("")
 
     installed = [r["fixture"] for r in rows if "installed_arrival" in r["fixture"]]
     md.extend(["", "## installed_arrival_* fixtures in this shard", ""])
