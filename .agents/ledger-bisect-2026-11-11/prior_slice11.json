@@ -1,0 +1,23 @@
+{
+  "slice_idxs": [
+    11
+  ],
+  "clusters": [
+    {
+      "diag_norm": "anonymous address value cannot prove fit in `_` in machine `_` state `_` return value",
+      "diag_sample": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "count": 1,
+      "members": [
+        "pass/build/explicit_provider_storage_extent_exit"
+      ],
+      "witness": "pass/build/explicit_provider_storage_extent_exit"
+    }
+  ],
+  "counts": {
+    "fixed": 146,
+    "broken": 48,
+    "host_only": 6,
+    "missing": 1096,
+    "total": 1296
+  }
+}

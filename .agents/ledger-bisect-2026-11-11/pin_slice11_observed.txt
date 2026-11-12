@@ -1,0 +1,27 @@
+pass/facts/opaque_independent_closed_carrier_through_other_machine_exit rejected 4473ms check-target:macos_arm64
+	opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance
+pass/operators/runtime_named_unit_statement_effects_exit rejected 2594ms check-target:macos_arm64
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, 54, 97, 234, 131, 250, 213, 144, 79])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/providers/checked_boundary_operator_physical_custody rejected 19856ms check-target:macos_arm64 terminal-inspections:failed
+	boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([221, 176, 202, 140, 109, 101, 50, 98, 25, 133, 168, 7, 145, 95, 131, 34, 206, 131, 253, 64, 209, 157, 251, 206, 1, 122, 233, 32, 233, 191, 101, 166])) resolves to 0 selected ProviderPlans; expected exactly one
+	inspection entry_start admission: [Diagnostic { severity: Error, message: "boundary operator `operator::CheckedMath::offset_zero(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([221, 176, 202, 140, 109, 101, 50, 98, 25, 133, 168, 7, 145, 95, 131, 34, 206, 131, 253, 64, 209, 157, 251, 206, 1, 122, 233, 32, 233, 191, 101, 166])) resolves to 0 selected ProviderPlans; expected exactly one", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/providers/checked_operator_declaration_without_application rejected 1321ms
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Policy::identity", reason: "attached Unit closure is missing a checked boundary machine plan", gap: None })
+pass/providers/module_named_operator_result_domain_satisfaction rejected 8543ms check-target:macos_arm64
+	boundary operator `operator::Policy::convert(named(name(i32)))->named(name(i32))` in package Some(PackageKeyIdentity([40, 10, 118, 157, 212, 141, 189, 36, 60, 175, 37, 70, 252, 68, 94, 144, 92, 67, 195, 12, 232, 69, 170, 110, 1, 164, 208, 75, 188, 154, 100, 131])) resolves to 0 selected ProviderPlans; expected exactly one
+	boundary operator `operator::Policy::convert(named(name(i32)))->constrained(named(name(i32)),arithmetic-domain(name(Wrapping)))` in package Some(PackageKeyIdentity([40, 10, 118, 157, 212, 141, 189, 36, 60, 175, 37, 70, 252, 68, 94, 144, 92, 67, 195, 12, 232, 69, 170, 110, 1, 164, 208, 75, 188, 154, 100, 131])) resolves to 0 selected ProviderPlans; expected exactly one
+pass/providers/runtime_foreign_allocation_across_component_exit rejected 6270ms check-target:macos_arm64
+	native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(31), clobbered MachineStateSet(95), saved MachineStateSet(0)
+fail/dependent/case_where_sibling_payload_scope rejected 1149ms unexpected
+	cannot form specification operator `>=` in data `Pair` case `B` predicate: no exact selected meaning for operand types [<unavailable>, <unavailable>]
+fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected rejected 1367ms expected
+	generic machine `capacity` cannot bind `Evidence` to conformance `Positive`: expected a complete `Probe` implementation with the instantiated trait arguments
+fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 2750ms unexpected
+	constant checking: inconsistent captured contract bounds
+fail/facts/static_callback_reach_captured_shadow rejected 1357ms expected
+	generic machine `choose` cannot bind `Operations` to conformance `Selected`: expected a complete `Getter` implementation with the instantiated trait arguments
+fail/generics/cross_module_const_alias_shadowed_evidence rejected 1795ms expected
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments

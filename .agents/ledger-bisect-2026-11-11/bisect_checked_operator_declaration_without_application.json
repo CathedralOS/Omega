@@ -1,0 +1,9 @@
+{
+  "witness": "pass/providers/checked_operator_declaration_without_application",
+  "breaking_commit": "",
+  "pr": null,
+  "mechanism": "",
+  "status": "propagated",
+  "bisect_exit": -1,
+  "reason": "witness has no row in tests/omega/corpus_outcomes.txt (bisect_test.py returns 125); bisect run stopped for build budget before a stable result"
+}

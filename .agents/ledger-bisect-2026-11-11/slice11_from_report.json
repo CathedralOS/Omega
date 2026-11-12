@@ -1,0 +1,102 @@
+[
+  {
+    "rows": 14,
+    "kind": "fail wrong reason",
+    "diag": "selected map disagrees with its supplying evidence bound",
+    "witness": "fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected",
+      "fail/facts/static_callback_reach_captured_shadow",
+      "fail/generics/cross_module_const_alias_shadowed_evidence"
+    ],
+    "members_more": 11,
+    "prior_cluster_index": 11,
+    "members": [
+      "fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected",
+      "fail/facts/static_callback_reach_captured_shadow",
+      "fail/generics/cross_module_const_alias_shadowed_evidence"
+    ]
+  },
+  {
+    "rows": 3,
+    "kind": "pass/run rejected",
+    "diag": "boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(Pack",
+    "witness": "pass/operators/runtime_named_unit_statement_effects_exit",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "pass/operators/runtime_named_unit_statement_effects_exit",
+      "pass/providers/checked_boundary_operator_physical_custody",
+      "pass/providers/module_named_operator_result_domain_satisfaction"
+    ],
+    "members_more": 0,
+    "prior_cluster_index": 51,
+    "members": [
+      "pass/operators/runtime_named_unit_statement_effects_exit",
+      "pass/providers/checked_boundary_operator_physical_custody",
+      "pass/providers/module_named_operator_result_domain_satisfaction"
+    ]
+  },
+  {
+    "rows": 2,
+    "kind": "pass/run rejected",
+    "diag": "native artifact component entry ABI failed: native entry transport: native entry bridge failed:",
+    "witness": "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+      "pass/providers/runtime_foreign_allocation_across_component_exit"
+    ],
+    "members_more": 0,
+    "prior_cluster_index": 91,
+    "members": [
+      "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+      "pass/providers/runtime_foreign_allocation_across_component_exit"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag": "cannot form specification operator `>=` in data `Pair` case `B` predicate: no exact selected mea",
+    "witness": "fail/dependent/case_where_sibling_payload_scope",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "fail/dependent/case_where_sibling_payload_scope"
+    ],
+    "members_more": 0,
+    "prior_cluster_index": 131,
+    "members": [
+      "fail/dependent/case_where_sibling_payload_scope"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "fail wrong reason",
+    "diag": "constant checking: inconsistent captured contract bounds",
+    "witness": "fail/facts/size_align_layout_geometry_through_match_join_rejected",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "fail/facts/size_align_layout_geometry_through_match_join_rejected"
+    ],
+    "members_more": 0,
+    "prior_cluster_index": 171,
+    "members": [
+      "fail/facts/size_align_layout_geometry_through_match_join_rejected"
+    ]
+  },
+  {
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Policy::identit",
+    "witness": "pass/providers/checked_operator_declaration_without_application",
+    "breaking_propagated": "f3612364ffbb9489d7be1409397df6867fcbebc6",
+    "members_listed": [
+      "pass/providers/checked_operator_declaration_without_application"
+    ],
+    "members_more": 0,
+    "prior_cluster_index": 211,
+    "members": [
+      "pass/providers/checked_operator_declaration_without_application"
+    ]
+  }
+]

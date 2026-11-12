@@ -1,0 +1,48 @@
+[
+  {
+    "diag_norm": "state `_` receives `_` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence",
+    "diag_sample": "state `read` receives `holder.counters[index].value` without an exact retained backing for its loan: the incoming descriptor has no retained loan occurrence",
+    "count": 6,
+    "members": [
+      "pass/facts/data_where_standing_borrowed_field_array_const_name",
+      "pass/facts/data_where_standing_borrowed_field_array_field",
+      "pass/facts/data_where_standing_borrowed_field_array_other_machine",
+      "pass/facts/data_where_standing_borrowed_field_array_other_state",
+      "pass/facts/data_where_standing_borrowed_field_array_parameter",
+      "pass/facts/data_where_standing_borrowed_field_array_target_body"
+    ],
+    "witness": "pass/facts/data_where_standing_borrowed_field_array_other_machine",
+    "prior_idx": 11
+  },
+  {
+    "diag_norm": "statement N mutates `_` while local borrow `_` is still active (borrowed at statement N; its last use is at statement N)",
+    "diag_sample": "statement 8 mutates `first.value` while local borrow `first_input` is still active (borrowed at statement 4; its last use is at statement 9)",
+    "count": 2,
+    "members": [
+      "pass/borrows/runtime_selected_reference_record_helper_exit",
+      "pass/facts/foreign_retained_shared_borrow_persistent_retention"
+    ],
+    "witness": "pass/facts/foreign_retained_shared_borrow_persistent_retention",
+    "prior_idx": 51
+  },
+  {
+    "diag_norm": "cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == N (needs fact `_` here; estab",
+    "diag_sample": "cannot prove requires contract for call read_field from X86Apply::apply: match choose() { true => chosen, false => spare }.kept == 17 (needs fact `place.kept == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `apply`; authored requirement `joined.kept == 17`",
+    "count": 1,
+    "members": [
+      "pass/facts/match_join_place_read_through_target_body_exit"
+    ],
+    "witness": "pass/facts/match_join_place_read_through_target_body_exit",
+    "prior_idx": 91
+  },
+  {
+    "diag_norm": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"owned membership transport cannot establish routed authority\", ",
+    "diag_sample": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"main\", reason: \"owned membership transport cannot establish routed authority\", gap: None })",
+    "count": 1,
+    "members": [
+      "pass/calls/runtime_borrowed_parameter_ensures_issuer_exit"
+    ],
+    "witness": "pass/calls/runtime_borrowed_parameter_ensures_issuer_exit",
+    "prior_idx": 131
+  }
+]

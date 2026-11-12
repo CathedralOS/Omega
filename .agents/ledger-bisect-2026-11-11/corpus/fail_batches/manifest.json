@@ -1,0 +1,17 @@
+[
+  {
+    "id": 0,
+    "count": 200,
+    "filter": "batch_0.filter"
+  },
+  {
+    "id": 1,
+    "count": 200,
+    "filter": "batch_1.filter"
+  },
+  {
+    "id": 2,
+    "count": 128,
+    "filter": "batch_2.filter"
+  }
+]

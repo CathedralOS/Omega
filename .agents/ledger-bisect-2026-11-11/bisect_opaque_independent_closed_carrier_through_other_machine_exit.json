@@ -1,0 +1,9 @@
+{
+  "witness": "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+  "breaking_commit": "d47aa9f0ea2ecabf3ed811cadc1d7672cf258bce",
+  "pr": "1274",
+  "mechanism": "psi: retain enclosing generic identities in nested deliveries (#1274) \u2014 .../expression_types/delivered_types.rs            | 28 ++++++++++++++++++----  .../cli/facts/nested_machine_invocation/README.md  |  5 ++++  .../generic_context/invalid/build.omg ",
+  "status": "propagated",
+  "bisect_exit": 3,
+  "good": null
+}

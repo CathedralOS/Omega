@@ -1,0 +1,44 @@
+[
+  {
+    "id": 0,
+    "rows": 3,
+    "kind": "pass/run rejected",
+    "diag": "boundary operator `operator::Actions::set(ref-mut(named(name(u32))))->unit` in package Some(PackageKeyIdentity([121, 36, 22, 201, 52, 120, 123, 53, 39, 37, 213, 130, 229, 17, 3, 252, 245, 222, 91, 217, 74, 105, 131, 14, ",
+    "witness": "pass/providers/module_named_operator_result_domain_satisfaction",
+    "members": [
+      "pass/operators/runtime_named_unit_statement_effects_exit",
+      "pass/providers/checked_boundary_operator_physical_custody",
+      "pass/providers/module_named_operator_result_domain_satisfaction"
+    ]
+  },
+  {
+    "id": 1,
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "native artifact component entry ABI failed: native entry transport: native entry bridge failed: complete entry code uses machine state outside its declared ceiling: used MachineStateSet(95), permitted MachineStateSet(31)",
+    "witness": "pass/providers/runtime_foreign_allocation_across_component_exit",
+    "members": [
+      "pass/providers/runtime_foreign_allocation_across_component_exit"
+    ]
+  },
+  {
+    "id": 2,
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "opaque representation `producer::AddressRepresentation` does not resolve to one visible named conformance",
+    "witness": "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit",
+    "members": [
+      "pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
+    ]
+  },
+  {
+    "id": 3,
+    "rows": 1,
+    "kind": "pass/run rejected",
+    "diag": "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \"Policy::identity\", reason: \"attached Unit closure is missing a checked boundary machine plan\", gap: None })",
+    "witness": "pass/providers/checked_operator_declaration_without_application",
+    "members": [
+      "pass/providers/checked_operator_declaration_without_application"
+    ]
+  }
+]
