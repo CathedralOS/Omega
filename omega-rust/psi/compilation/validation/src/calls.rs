@@ -17840,6 +17840,23 @@ pub(crate) mod write_frames {
             current: &ParameterValues,
             expression: ExpressionHandle,
         ) -> BoolTruth {
+            bool_truth_within(program, state, current, expression, false)
+        }
+
+        /*
+            `meaning_checked` says an enclosing operator's builtin-meaning
+            check already covered `expression`'s whole subtree. That check
+            descends every operand except a static type predicate's, so a
+            subtree it passed passes again; re-running it at every operator
+            made a long `&&` chain cubic.
+        */
+        fn bool_truth_within(
+            program: &dyn CheckingInput,
+            state: &State,
+            current: &ParameterValues,
+            expression: ExpressionHandle,
+            meaning_checked: bool,
+        ) -> BoolTruth {
             if !expression.is_valid() {
                 return BoolTruth::Unknown;
             }
@@ -17852,19 +17869,26 @@ pub(crate) mod write_frames {
                     }
                 }
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                    bool_truth(program, state, current, unary.operand).negate()
+                    bool_truth_within(program, state, current, unary.operand, meaning_checked)
+                        .negate()
                 }
                 ExpressionNode::Binary(binary) => {
-                    if !crate::has_builtin_parameter_bound_expression_meaning(
-                        program,
-                        state.symbol,
-                        program.state_parameters(state),
-                        expression,
-                    ) {
+                    if !meaning_checked
+                        && !crate::has_builtin_parameter_bound_expression_meaning(
+                            program,
+                            state.symbol,
+                            program.state_parameters(state),
+                            expression,
+                        )
+                    {
                         return BoolTruth::Unknown;
                     }
-                    let left = bool_truth(program, state, current, binary.left);
-                    let right = bool_truth(program, state, current, binary.right);
+                    let operands_checked =
+                        program.static_type_predicate_operands(expression).is_none();
+                    let left =
+                        bool_truth_within(program, state, current, binary.left, operands_checked);
+                    let right =
+                        bool_truth_within(program, state, current, binary.right, operands_checked);
                     match binary.operator {
                         BinaryOperator::Equal => left.equal(right),
                         BinaryOperator::NotEqual => left.equal(right).negate(),

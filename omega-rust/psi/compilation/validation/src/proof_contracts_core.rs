@@ -5908,25 +5908,27 @@ pub mod parameter_expression_meaning {
         parameters: &[StateParameter],
         expression: ExpressionHandle,
     ) -> bool {
+        // Per arena slot: 1 while on the active path, 2 once completed.
+        let mut marks: Vec<u8> = Vec::new();
         let mut pending = vec![(expression, false)];
-        let mut visited = Vec::new();
-        let mut active = Vec::new();
         while let Some((expression, completed)) = pending.pop() {
+            let slot = expression.arena_index() as usize;
             if completed {
-                active.pop();
-                visited.push(expression);
+                marks[slot] = 2;
                 continue;
             }
             if !program.expression_table.expression_is_valid(expression) {
                 return false;
             }
-            if visited.contains(&expression) {
-                continue;
+            if slot >= marks.len() {
+                marks.resize(slot + 1, 0);
             }
-            if active.contains(&expression) {
-                return false;
+            match marks[slot] {
+                2 => continue,
+                1 => return false,
+                _ => {}
             }
-            active.push(expression);
+            marks[slot] = 1;
             pending.push((expression, true));
             match program.expression_table.expression(expression) {
                 ExpressionNode::Binary(binary) => {
