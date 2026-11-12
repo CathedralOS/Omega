@@ -76,6 +76,7 @@ mod token_bindings {
     use symbol_resolved_trees::SymbolResolvedTrees;
     use symbol_resolved_trees::data::TypeParameter;
     use symbol_resolved_trees::machine::Machine;
+    use symbol_resolved_trees::name::DiagnosticName;
     use symbol_resolved_trees::signature::StateParameter;
     use symbol_resolved_trees::types::TypeConstraint;
     use symbol_resolved_trees::types::TypeReference;
@@ -362,13 +363,9 @@ mod token_bindings {
                     )
                 }
                 BindingOwner::Domain { domain, carrier } => {
-                    let domain_name = program
-                        .domain_definition_by_symbol(domain)
-                        .map(|definition| definition.name.as_str().to_owned())
-                        .unwrap_or_default();
                     if operand_types.iter().any(|type_reference| {
                         (carrier.is_valid() && names_symbol(program, type_reference, carrier))
-                            || qualified_by_domain(program, type_reference, &domain_name)
+                            || qualified_by_domain(program, type_reference, domain)
                     }) {
                         return None;
                     }
@@ -583,10 +580,10 @@ mod token_bindings {
         Trait { symbol: SymbolHandle },
         /*
             A domain constraint's spelling (`i32 in Degrees`). A constraint is
-            still a name here; [`domains_named`] is the one place that joins a
+            still a name here; [`domain_named`] is the one place that joins a
             spelling to the declarations it selects.
         */
-        Domain { name: &'a str },
+        Domain { name: &'a DiagnosticName },
     }
 
     /*
@@ -689,9 +686,7 @@ mod token_bindings {
                     .span_or_empty(constrained.constraints)
                 {
                     if let TypeConstraint::Domain(domain) = constraint {
-                        positions.push(TypePosition::Domain {
-                            name: domain.name.as_str(),
-                        });
+                        positions.push(TypePosition::Domain { name: &domain.name });
                     }
                 }
                 extend_name_positions(
@@ -758,22 +753,20 @@ mod token_bindings {
     }
 
     /*
-        Whether `type_reference` carries a domain constraint spelled as `domain_name`
-        or its leaf (`i32 in Degrees` selects `i32::Degrees`), behind references,
-        constrained bases, arrays and slices. Constraints are still names at this
-        stage; the typed stage settles their symbols. An application's arguments
-        are not constraint positions.
+        Whether a constraint selects the exact home domain, behind references,
+        constrained bases, arrays and slices. A same-spelled constraint in another
+        checked package or scope does not participate in this family's home.
+        An application's arguments are not constraint positions.
     */
     fn qualified_by_domain(
         program: &SymbolResolvedTrees,
         type_reference: &TypeReference,
-        domain_name: &str,
+        domain: SymbolHandle,
     ) -> bool {
-        let leaf = domain_name.rsplit("::").next().unwrap_or(domain_name);
         name_positions(program, type_reference, ReadingScope::Chain)
             .into_iter()
             .any(|position| match position {
-                TypePosition::Domain { name } => name == domain_name || name == leaf,
+                TypePosition::Domain { name } => domain_named(program, name) == Some(domain),
                 TypePosition::Declaration { .. } | TypePosition::Trait { .. } => false,
             })
     }
@@ -793,7 +786,7 @@ mod token_bindings {
                 TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
                     is_declaration(program, symbol)
                 }
-                TypePosition::Domain { name } => domains_named(program, name).next().is_some(),
+                TypePosition::Domain { name } => domain_named(program, name).is_some(),
             })
     }
 
@@ -817,27 +810,76 @@ mod token_bindings {
                         symbols.push(symbol);
                     }
                 }
-                TypePosition::Domain { name } => symbols.extend(domains_named(program, name)),
+                TypePosition::Domain { name } => symbols.extend(domain_named(program, name)),
             }
         }
         symbols
     }
 
     /*
-        The declared domains a domain constraint spells. Constraint names match a
-        domain's full name or its leaf (`u8 in Level` spells `u8::Level`), exactly
-        as [`qualified_by_domain`] joins them; same-leaf domains in different
-        packages all surface, and any foreign one rejects.
+        Resolve domain homes under the same occurrence-scoped namespace law as
+        other domain references. The ordinary path lookup owns exact selections
+        and ambiguity; attached-domain exposure additionally admits a carrier's
+        leaf spelling. Loading another package, stratum or Build/Product copy
+        never adds an operand home. Keep ambiguity unresolved rather than choosing
+        one arena row or collapsing independently checked declarations by spelling.
     */
-    fn domains_named<'a>(
-        program: &'a SymbolResolvedTrees,
-        constraint_name: &'a str,
-    ) -> impl Iterator<Item = SymbolHandle> + 'a {
-        program.domain_definitions.iter().filter_map(move |domain| {
-            let name = domain.name.as_str();
-            let leaf = name.rsplit("::").next().unwrap_or(name);
-            (constraint_name == name || constraint_name == leaf).then_some(domain.symbol)
-        })
+    fn domain_named(program: &SymbolResolvedTrees, name: &DiagnosticName) -> Option<SymbolHandle> {
+        let reference = name.source_span();
+        match program
+            .symbols
+            .lookup_signature_free_top_level_from_source_matching(
+                name.as_str(),
+                &[SymbolKind::Domain],
+                reference,
+                |_| true,
+            ) {
+            symbols::SymbolLookup::Unique(symbol) => return Some(symbol),
+            symbols::SymbolLookup::Ambiguous { .. } => return None,
+            symbols::SymbolLookup::NotFound => {}
+        }
+        let candidates = program
+            .domain_definitions
+            .iter()
+            .filter_map(|domain| {
+                (program
+                    .symbols
+                    .source_reference_can_see_symbol(reference, domain.symbol)
+                    && program
+                        .symbols
+                        .domain_name_reaches(domain.symbol, name.as_str(), reference))
+                .then_some(domain.symbol)
+            })
+            .collect();
+        let candidates =
+            crate::symbols::prefer_module_local_domain(&program.symbols, candidates, reference);
+        match candidates.as_slice() {
+            [symbol] => Some(*symbol),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn domain_home_lookup_keeps_unsourced_ambiguity() {
+        use symbols::{SymbolNameRef, SymbolTableBuilder};
+
+        for count in [1, 2] {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let domains = builder.insert_children(
+                root,
+                (0..count).map(|_| (SymbolKind::Domain, SymbolNameRef::Static("Quantity"))),
+            );
+            let program = SymbolResolvedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            assert_eq!(
+                domain_named(&program, &DiagnosticName::generated_static("Quantity")),
+                (count == 1).then_some(domains.start()),
+            );
+        }
     }
 
     /* The declaration set a direct binding is validated against. */
@@ -873,8 +915,8 @@ mod token_bindings {
     /*
         The domain a machine's attached path names, if any. Attachment symbols are
         assigned against data declarations only, so a domain-attached machine
-        carries an invalid attachment symbol and is matched by its exact declared
-        path; a path naming more than one domain is no home.
+        carries an invalid attachment symbol. Resolve its authored path at that
+        declaration's source occurrence, including checked-owner and scope custody.
     */
     fn attached_domain<'program>(
         program: &'program SymbolResolvedTrees,
@@ -883,13 +925,8 @@ mod token_bindings {
         if machine.attached_data_symbol.is_valid() {
             return None;
         }
-        let attached = machine.attached_data.as_ref()?.as_str();
-        let mut matches = program
-            .domain_definitions
-            .iter()
-            .filter(|domain| domain.name.as_str() == attached);
-        let domain = matches.next()?;
-        matches.next().is_none().then_some(domain)
+        let domain = domain_named(program, machine.attached_data.as_ref()?)?;
+        program.domain_definition_by_symbol(domain)
     }
 
     /*
