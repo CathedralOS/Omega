@@ -333,8 +333,13 @@ def main():
     parser.add_argument("--omega-controls", action="store_true", help="run its existing changed-source, rejection, and reset controls")
     parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
-    parser.add_argument("--omega-timeout", type=int, default=1800)
+    parser.add_argument("--omega-timeout", type=int,
+                        help="Omega observation seconds (default: 7200 for runtime controls, otherwise 1800)")
     args = parser.parse_args()
+    if args.omega_timeout is None:
+        args.omega_timeout = 7200 if args.omega_control else 1800
+    if args.omega_timeout <= 0:
+        parser.error("--omega-timeout must be positive")
     work = ROOT / "build/compiled-vm"
     work.mkdir(parents=True, exist_ok=True)
     evaluator = work / "reference"

@@ -2,7 +2,7 @@
 
 `main.epsilon` calls `OmegaParser::parse_view` through ordinary
 Epsilon execution. The harness must include every whole manifested bootstrap
-compiler source member, followed by this entrypoint. There are thirty-six invocations on
+compiler source member, followed by this entrypoint. There are thirty-seven invocations on
 one receiver. Success is `Exit(0)` with stdout `A`; the private tagged execution
 observation is `000000000041`. This fixture does not establish full Omega
 acceptance: `Complete` owns the retained syntax rows described by the compiler's README,
@@ -90,3 +90,5 @@ missing domain all refuse. In particular, a following `+` or `-` cannot silently
 become arithmetic; the language requires grouping around the cast for that.
 
 The final invocation checks statement-leading `!`, `-`, and `~` through the shared expression frame and verifies that prefix, group, and call stacks are empty afterward.
+
+The subject-call invocation checks direct, prefixed, and nested calls in transition subjects, including one shared subject expression handle for each block’s two arms.

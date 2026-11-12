@@ -38,7 +38,8 @@ def reconstruct(work):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--accelerated", action="store_true")
-    parser.add_argument("--seconds", type=int, default=3600)
+    parser.add_argument("--seconds", type=int,
+                        help="observation seconds (default: 7200 with --omega-control, otherwise 3600)")
     parser.add_argument("--omega", action="store_true")
     parser.add_argument("--omega-values", action="store_true",
                         help="execute bootstrap parameter/local/call and refusal controls")
@@ -47,6 +48,8 @@ def main():
     parser.add_argument("--compiler-only", action="store_true",
                         help="stop after compiler construction, rebuilds, and differential controls")
     args = parser.parse_args()
+    if args.seconds is None:
+        args.seconds = 7200 if args.omega_control else 3600
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
     if args.compiler_only and (args.omega or args.omega_values or args.omega_control):
