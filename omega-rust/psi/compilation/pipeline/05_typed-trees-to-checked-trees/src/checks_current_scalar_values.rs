@@ -47,6 +47,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{machine::Machine, state::State};
 use validation::BigIntInterval;
+use validation::completed_storage::StoredObservation;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -4621,11 +4622,13 @@ pub(crate) struct CurrentScalarValues<'program> {
     in_transition_target: bool,
     scalar_observations: std::cell::OnceCell<Vec<validation::CapturedScalarObservation>>,
     /*
-        The snapshot each tracked place's entry was established at; absent is
-        incoming storage.
+        Keep each observation's establishment point separately. Preserving a
+        descriptor binding does not preserve the contents reached through it.
+        A missing anchor still needs an explicit incoming value from the graph.
     */
     anchors: Vec<(
         validation::CanonicalPlace,
+        StoredObservation,
         validation::completed_storage::versions::Snapshot,
     )>,
     /* Lent by the state's pass for the replay only; empty otherwise. */
@@ -5268,8 +5271,8 @@ impl<'program> CurrentScalarValues<'program> {
         )
     }
 
-    /* Each tracked entry with a graph place, with the value it holds. */
-    fn anchored_entries(&self) -> Vec<(validation::CanonicalPlace, EntryValue)> {
+    /* Each tracked entry with its graph place, read dependency and value. */
+    fn anchored_entries(&self) -> Vec<(validation::CanonicalPlace, StoredObservation, EntryValue)> {
         let place =
             |root: SymbolHandle, segments: Vec<facts::PlaceSegment>| validation::CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(root),
@@ -5284,18 +5287,21 @@ impl<'program> CurrentScalarValues<'program> {
         for binding in &self.current {
             entries.push((
                 place(binding.symbol, Vec::new()),
+                StoredObservation::Contents,
                 EntryValue::Binding(binding.value.clone(), binding.alternatives.clone()),
             ));
         }
         for field in &self.fields {
             entries.push((
                 place(field.owner, scalar_fields::source_path(&field.path)),
+                StoredObservation::Contents,
                 EntryValue::Value(field.value.clone()),
             ));
         }
         for condition in &self.conditions {
             entries.push((
                 place(condition.owner, field_path(&condition.path)),
+                StoredObservation::Contents,
                 EntryValue::Condition(
                     condition.hypotheses(true).to_vec(),
                     condition.hypotheses(false).to_vec(),
@@ -5306,7 +5312,11 @@ impl<'program> CurrentScalarValues<'program> {
             let Some(length_place) = length_place(&length.subject) else {
                 continue;
             };
-            entries.push((length_place, EntryValue::Value(length.value.clone())));
+            entries.push((
+                length_place,
+                StoredObservation::Binding,
+                EntryValue::Value(length.value.clone()),
+            ));
         }
         entries
     }
@@ -5314,46 +5324,52 @@ impl<'program> CurrentScalarValues<'program> {
     /* Anchor every entry this statement established or changed at its snapshot. */
     fn anchor_changed_entries(
         &mut self,
-        before: &[(validation::CanonicalPlace, EntryValue)],
+        before: &[(validation::CanonicalPlace, StoredObservation, EntryValue)],
         ordinal: usize,
     ) {
         let Some(snapshot) = self.statement_snapshot(ordinal) else {
             return;
         };
-        for (place, value) in self.anchored_entries() {
+        for (place, observation, value) in self.anchored_entries() {
             if before
                 .iter()
-                .any(|(earlier, earlier_value)| *earlier == place && *earlier_value == value)
+                .any(|(earlier, earlier_observation, earlier_value)| {
+                    *earlier == place
+                        && *earlier_observation == observation
+                        && *earlier_value == value
+                })
             {
                 continue;
             }
-            self.anchor_at(place, snapshot);
+            self.anchor_at(place, observation, snapshot);
         }
     }
 
     fn anchor_at(
         &mut self,
         place: validation::CanonicalPlace,
+        observation: StoredObservation,
         snapshot: validation::completed_storage::versions::Snapshot,
     ) {
         match self
             .anchors
             .iter_mut()
-            .find(|(anchored, _)| *anchored == place)
+            .find(|(anchored, mode, _)| *anchored == place && *mode == observation)
         {
-            Some((_, anchor)) => *anchor = snapshot,
-            None => self.anchors.push((place, snapshot)),
+            Some((_, _, anchor)) => *anchor = snapshot,
+            None => self.anchors.push((place, observation, snapshot)),
         }
     }
 
     fn anchor_of(
         &self,
         place: &validation::CanonicalPlace,
+        observation: StoredObservation,
     ) -> validation::completed_storage::versions::Snapshot {
         self.anchors
             .iter()
-            .find(|(anchored, _)| anchored == place)
-            .map_or_else(arena::Handle::invalid, |(_, anchor)| *anchor)
+            .find(|(anchored, mode, _)| anchored == place && *mode == observation)
+            .map_or_else(arena::Handle::invalid, |(_, _, anchor)| *anchor)
     }
 
     /*
@@ -5379,17 +5395,18 @@ impl<'program> CurrentScalarValues<'program> {
     ) {
         let graph = self.program.storage_graph();
         let mut survived = Vec::new();
-        let mut preserved = |place: validation::CanonicalPlace| match (at, graph) {
+        let mut preserved = |place: validation::CanonicalPlace, observation| match (at, graph) {
             (Some(at), Some(graph)) => {
                 let kept = validation::completed_storage::versions::place_preserved_since(
                     self.program,
                     graph,
                     at,
                     &place,
-                    self.anchor_of(&place),
+                    self.anchor_of(&place, observation),
+                    observation,
                 );
                 if kept {
-                    survived.push(place);
+                    survived.push((place, observation));
                 }
                 kept
             }
@@ -5402,10 +5419,13 @@ impl<'program> CurrentScalarValues<'program> {
                 binding.immutable_coordinate
                     || binding.unwritable
                     || (binding.value.is_none() && binding.alternatives.is_empty())
-                    || preserved(validation::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(binding.symbol),
-                        segments: Vec::new(),
-                    })
+                    || preserved(
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(binding.symbol),
+                            segments: Vec::new(),
+                        },
+                        StoredObservation::Contents,
+                    )
             })
             .collect::<Vec<_>>();
         let fields = self
@@ -5413,24 +5433,30 @@ impl<'program> CurrentScalarValues<'program> {
             .iter()
             .map(|field| {
                 field.value.is_none()
-                    || preserved(validation::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(field.owner),
-                        segments: scalar_fields::source_path(&field.path),
-                    })
+                    || preserved(
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(field.owner),
+                            segments: scalar_fields::source_path(&field.path),
+                        },
+                        StoredObservation::Contents,
+                    )
             })
             .collect::<Vec<_>>();
         let conditions = self
             .conditions
             .iter()
             .map(|condition| {
-                preserved(validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(condition.owner),
-                    segments: condition
-                        .path
-                        .iter()
-                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                        .collect(),
-                })
+                preserved(
+                    validation::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(condition.owner),
+                        segments: condition
+                            .path
+                            .iter()
+                            .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
+                            .collect(),
+                    },
+                    StoredObservation::Contents,
+                )
             })
             .collect::<Vec<_>>();
         let lengths = self
@@ -5439,12 +5465,14 @@ impl<'program> CurrentScalarValues<'program> {
             .map(|length| {
                 length.stable
                     || length.value.is_none()
-                    || length_place(&length.subject).map_or(at.is_some(), &mut preserved)
+                    || length_place(&length.subject).map_or(at.is_some(), |place| {
+                        preserved(place, StoredObservation::Binding)
+                    })
             })
             .collect::<Vec<_>>();
         if let Some(at) = at {
-            for place in survived {
-                self.anchor_at(place, at);
+            for (place, observation) in survived {
+                self.anchor_at(place, observation, at);
             }
         }
         for (binding, preserved) in self.current.iter_mut().zip(bindings) {
