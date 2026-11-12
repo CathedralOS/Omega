@@ -13280,8 +13280,9 @@ fail/facts/source_indexed_family_authored_terminating_state_cycle rejected 1021m
 	generic machine `bounded` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/source_indexed_family_changed_capture rejected 1004ms expected @7eee0bd20c4b
 	invalid mathematical application `retain(other)`: mathematical argument does not preserve its declared carrier and policy
-fail/facts/source_indexed_family_cited_requires_unmet rejected 32307ms expected @e24b1abdbc99
-	cannot prove requires contract for call vector_bound from bounded: Length <= 7
+fail/facts/source_indexed_family_cited_requires_unmet rejected 5872ms expected @6922abefc02b
+	exact arithmetic in machine `bounded` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
+	cannot prove requires contract for call vector_bound from bounded: Length <= 7 (needs fact `Length <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `<saved subject #4:1>.Length <= 7`
 fail/facts/source_indexed_family_constructor_head_false rejected 912ms expected @7eee0bd20c4b
 	source constructor predicate has no checked derivation yet
 fail/facts/source_indexed_family_constructor_index_false rejected 1038ms expected @7eee0bd20c4b
@@ -13293,8 +13294,8 @@ fail/facts/source_indexed_family_forwarded_parameter_rejected rejected 935ms exp
 fail/facts/source_indexed_family_illegal_runtime_elimination rejected 6421ms expected @6d20220933d7
 	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
 	erased parameter `evidence` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding
-fail/facts/source_indexed_family_insufficient_consumer_bound rejected 28072ms expected @e24b1abdbc99
-	terminal expression may overflow `u64`
+fail/facts/source_indexed_family_insufficient_consumer_bound rejected 6355ms expected @6922abefc02b
+	exact arithmetic in machine `bounded` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/facts/source_indexed_family_missing_head_bound rejected 968ms expected @7eee0bd20c4b
 	source induction case has no checked derivation from its exact constraints and child hypotheses
 fail/facts/source_indexed_family_open_constructor_missing_sum_premise rejected 1224ms expected @7eee0bd20c4b
@@ -25635,21 +25636,21 @@ pass/facts/source_indexed_binary_tree_through_other_machine_exit checked 5843ms 
 pass/facts/source_indexed_binary_tree_through_other_state_exit checked 5852ms check-target:macos_arm64 @0be3713483e9
 pass/facts/source_indexed_binary_tree_through_parameter_exit checked 11841ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
 pass/facts/source_indexed_binary_tree_through_target_body_exit checked 6075ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family checked 11106ms check-target:macos_arm64 terminal-inspections:match @48ba169b5da
-pass/facts/source_indexed_family_alpha_positive checked 5198ms check-target:macos_arm64 @efe09d463c38
-pass/facts/source_indexed_family_capture_roster_positive checked 5501ms check-target:macos_arm64 @efe09d463c38
-pass/facts/source_indexed_family_forwarded_parameter_exit checked 10990ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
-pass/facts/source_indexed_family_open_constructor_exit checked 5224ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_recursive_index_positive checked 5326ms check-target:macos_arm64 @efe09d463c38
-pass/facts/source_indexed_family_through_call_result_exit checked 5357ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_const_name_exit checked 5353ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_field_exit checked 5412ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_local_exit checked 5302ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_match_join_exit checked 5590ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_other_machine_exit checked 5488ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_other_state_exit checked 5635ms check-target:macos_arm64 @0be3713483e9
-pass/facts/source_indexed_family_through_parameter_exit checked 11366ms check-target:macos_arm64 terminal-inspections:match @6b26c447f83
-pass/facts/source_indexed_family_through_target_body_exit checked 5415ms check-target:macos_arm64 @0be3713483e9
+pass/facts/source_indexed_family checked 17703ms check-target:macos_arm64 terminal-inspections:match @6922abefc02b
+pass/facts/source_indexed_family_alpha_positive checked 9015ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_capture_roster_positive checked 7906ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_forwarded_parameter_exit checked 17606ms check-target:macos_arm64 terminal-inspections:match @6922abefc02b
+pass/facts/source_indexed_family_open_constructor_exit checked 7998ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_recursive_index_positive checked 7641ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_call_result_exit checked 7269ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_const_name_exit checked 7301ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_field_exit checked 7273ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_local_exit checked 7406ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_match_join_exit checked 7740ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_other_machine_exit checked 7514ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_other_state_exit checked 7477ms check-target:macos_arm64 @6922abefc02b
+pass/facts/source_indexed_family_through_parameter_exit checked 15927ms check-target:macos_arm64 terminal-inspections:match @6922abefc02b
+pass/facts/source_indexed_family_through_target_body_exit checked 7768ms check-target:macos_arm64 @6922abefc02b
 pass/facts/source_indexed_type_parameter_exit checked 62562ms check-target:macos_arm64 terminal-inspections:match @048b4e1c1a50
 pass/facts/source_indexed_type_parameter_through_call_result_exit checked 25384ms check-target:macos_arm64 @048b4e1c1a50
 pass/facts/source_indexed_type_parameter_through_const_name_exit checked 29164ms check-target:macos_arm64 @048b4e1c1a50
@@ -27440,7 +27441,7 @@ pass/proofs/embed_returned_length checked 2389ms @ccdb99ca2214
 pass/proofs/embedded_address_bounds_exit checked 12916ms check-target:macos_arm64 @a4f3937d72ab
 pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
+pass/proofs/erased_mathematical_initializers checked 2120ms @6922abefc02b
 pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/exhaustive_nonreturn_contract checked 86686ms check-target:macos_arm64 @77212783a73c
 pass/proofs/fact_only_proof_value_citation_exit checked 14843ms check-target:macos_arm64 @089c0a150e63
