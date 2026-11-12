@@ -1177,7 +1177,9 @@ mod type_structure {
                 }
             }
             TypeReferenceNode::StaticSelection(selection) => {
-                collect_static_argument_binder_mentions(syntax, selection, parameters, mentions);
+                super::collect_static_argument_binder_mentions(
+                    syntax, selection, parameters, mentions,
+                );
             }
             TypeReferenceNode::Unit => {}
         }

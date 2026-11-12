@@ -2109,6 +2109,7 @@ pub(crate) mod definitions_and_contracts {
 
     #[test]
     fn scoped_nominal_type_keeps_arguments_on_the_trait() {
+        use syntax_trees::item::TypeParameterKind;
         use syntax_trees::types::TypeReferenceNode;
         let parsed = super::parse_source(
             "machine retain<const Callback: space::Contract<u32>::invoke>() {}",

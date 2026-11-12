@@ -4192,7 +4192,7 @@ pub(crate) mod declared_types {
                 Ok(())
             }
 
-            fn static_arguments(
+            pub(super) fn static_arguments(
                 &mut self,
                 syntax: &mut SyntaxTrees,
                 arguments: &mut [StaticMachineArgument],
