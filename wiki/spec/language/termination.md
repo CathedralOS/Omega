@@ -149,6 +149,23 @@ ordinary case. That algorithm-visible budget is distinct from
 [logical-work accounting](../resources/logical_work.md) and creates no native
 runtime meter.
 
+[Provider-cycle admission](effects.md#direct-synchronous-invocation) is a
+separate check under `applied-provider-cycle-selection` (settled 2026-11-12).
+Source checking retains direct calls and symbolic requirement dependencies;
+composition resolves provider-controlled calls with the actual exact
+application/target selections. A selected provider dependency cycle rejects
+without needing a `terminates` promise. Permitted internal tail recursion is
+not automatically such a cycle, and an acyclic provider graph alone establishes
+no termination of an internal algorithm.
+
+Every implementation still justifies its authored or inherited progress
+guarantees for all admitted inputs/applications. Required provider-dependent
+premises remain represented and discharged under the existing composition
+rules; two providers cannot assume each other's conclusion to establish
+termination. Selection never silently strengthens an abstract requirement or
+excuses a false promise in an unselected body. Conversely, eligibility for a
+slot does not create an invocation edge to that implementation.
+
 Logical obligations still reject unless proved. An operation whose selected
 semantics explicitly permits a crash must fit the enclosing crash contract;
 declaring that ceiling does not make an unproved Exact operation trapping.

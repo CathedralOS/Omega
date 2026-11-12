@@ -183,7 +183,7 @@ Write each item so any agent can start from it alone: current state, files and e
 <a id="process-exit-contract"></a>
 
 - **ENTRY-CONTENT-ROOTS.** (covers **PROCESS-EXIT-CONTRACT**) Complete provisioned receivers ([entry_roots.md](wiki/spec/build/entry_roots.md)) and [process exit](wiki/spec/language/process_exit.md) (`boundary_calls.rs`, `hosted_receiver.rs`, `std/process.omg`), deleting `core/binding.omg`.
-  Acceptance: `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`, `pass/capabilities/*`, and `pass/host/process_exit_*` pass `omega run --both`.
+  Acceptance: [selected-provider graphs](wiki/drafts/designs/selected_provider_cycle_graph.md#acceptance), `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`, `pass/capabilities/*`, and `pass/host/process_exit_*` pass `omega run --both`.
 
 ## P2 - Materialization and access policies
 
