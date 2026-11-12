@@ -2620,17 +2620,26 @@ pub(crate) mod unit_cleanup {
                 let owner = key(root.partition);
                 let start = ordered
                     .partition_point(|(_, action)| key(action.partition_leaf().partition) < owner);
-                let mut selected = ordered[start..]
+                let owned = ordered[start..]
                     .iter()
-                    .take_while(|(_, action)| action.partition_leaf().partition == root.partition)
-                    .map(|(_, action)| *action);
+                    .take_while(|(_, action)| action.partition_leaf().partition == root.partition);
+                // The emitter walks one partition tree over one unbroken run of
+                // actions. Declaration order can place another owner's action
+                // between two leaves of this one (a selected middle field between
+                // the fields around it); such a schedule keeps its actions in
+                // their checked order and gives up the tree, like a partial one.
+                let contiguous = owned
+                    .clone()
+                    .zip(owned.clone().skip(1))
+                    .all(|((before, _), (after, _))| *after == *before + 1);
+                let mut selected = owned.map(|(_, action)| *action);
                 let plan = control.partitions.get(root.partition);
                 let complete = control
                     .actions
                     .span_or_empty(plan.actions)
                     .iter()
                     .all(|expected| selected.next() == Some(expected));
-                complete && selected.next().is_none()
+                contiguous && complete && selected.next().is_none()
             })
             .collect::<Vec<_>>();
         let mut complete = partitions
