@@ -537,7 +537,7 @@ pub(crate) mod source_parsing {
 
 pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
-    CheckRequest, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
+    CheckRequest, CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
     CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest,
     LibrarySliceTotals, ProductRepresentationInput, ProductSelections, RetainedCheck,
     SelectedCheckedSource, SourceAdmission, checked_slice_totals, library_slice_totals,

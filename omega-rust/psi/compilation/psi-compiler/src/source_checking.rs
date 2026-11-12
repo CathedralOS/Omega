@@ -442,10 +442,21 @@ mod checked_slice {
         pub store: &'store dyn CheckedSliceStore,
         /// The target the program was typed for.
         pub target: &'store str,
-        /// The package whose own source is never reused. `None` when the
-        /// checked program belongs to dependencies only, as a dependency's
-        /// Build does.
-        pub consumer: Option<PackageKeyIdentity>,
+        pub owner: CheckedSliceOwner,
+    }
+
+    /// Whose source the checked program can hold.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum CheckedSliceOwner {
+        /// A dependency's own Build, run for its consumer. Its program holds
+        /// that dependency and the toolchain only, even before package
+        /// admission names its files.
+        Dependency,
+        /// A program that may hold the consumer's source. It is reusable only
+        /// when every file belongs to the library slice outside this package;
+        /// `None` names a consumer without a package, whose loose sources are
+        /// never reused.
+        Consumer(Option<PackageKeyIdentity>),
     }
 
     pub(super) struct SliceKey([u8; 32]);
@@ -479,12 +490,11 @@ mod checked_slice {
             return None;
         }
         let sources = program.symbols.source_map()?;
-        let slice = LibrarySliceRequest {
-            root_package: reuse.consumer,
-        };
         let mut files = Vec::new();
         for file in sources.selected_files() {
-            if !slice.in_slice(file) {
+            if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
+                && !LibrarySliceRequest { root_package }.in_slice(file)
+            {
                 return None;
             }
             files.push(SliceSource::of(file));
@@ -593,7 +603,7 @@ mod checked_slice {
             CheckedSliceReuse {
                 store,
                 target: "linux_x86_64",
-                consumer: None,
+                owner: super::CheckedSliceOwner::Dependency,
             }
         }
 
@@ -807,7 +817,7 @@ pub use library_slice::{
     LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals, library_slice_totals,
 };
 
-pub use checked_slice::{CheckedSliceReuse, CheckedSliceStore};
+pub use checked_slice::{CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore};
 pub use retained_check::RetainedCheck;
 pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 
