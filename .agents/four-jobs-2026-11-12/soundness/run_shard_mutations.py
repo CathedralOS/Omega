@@ -41,10 +41,16 @@ ROUTE = Path(
 )
 
 OUT_BASE = REPO / ".agents/four-jobs-2026-11-12" / "soundness"
-MUTANT_ROOT = OUT_BASE / f"shard-{SHARD}"
+MUTANT_ROOT = Path(
+    os.environ.get(
+        "MUTANT_ROOT",
+        f"/tmp/omega-soundness-mutations/shard-{SHARD}",
+    )
+)
 TSV_PATH = OUT_BASE / f"shard-{SHARD}.tsv"
 PROGRESS_PATH = OUT_BASE / f"shard-{SHARD}.progress.json"
 MD_PATH = OUT_BASE / f"shard-{SHARD}.md"
+STATS_PATH = OUT_BASE / f"shard-{SHARD}.stats.json"
 
 
 @dataclass
@@ -155,10 +161,9 @@ def drops_machine_header_requires(source: str, variant: str) -> bool:
             continue
         if stripped in variant_lines:
             continue
-        without = re.sub(r"\s+requires\s+[^;{]+", "", stripped).strip()
-        for candidate in variant_lines:
-            if candidate.startswith("machine") and without in candidate:
-                return True
+        without = re.sub(r"\s+requires\s+.+?(?=\s*\{)", "", stripped).strip()
+        if without in variant_lines:
+            return True
     return False
 
 
@@ -500,13 +505,17 @@ def fixture_ledger_counts(
     }
     no_mutation = sum(1 for value in ledger.values() if value == "no-mutation")
     failed_run = sum(1 for value in ledger.values() if value == "failed-run")
+    original_not = sum(
+        1 for value in ledger.values() if value == "original-not-accepted"
+    )
     mutated = len(fixtures_with_mutants)
     return {
         "shard_fixtures": shard_fixtures,
         "mutated": mutated,
         "no_mutation": no_mutation,
         "failed_run": failed_run,
-        "ledger_rows": no_mutation + failed_run,
+        "original_not_accepted": original_not,
+        "ledger_rows": no_mutation + failed_run + original_not,
     }
 
 
@@ -547,7 +556,13 @@ def build_record(
         route_reason=result.route_reason or route_reason,
         accepted_by=result.accepted_by,
         validity_note=result.validity_note,
-        hole_subtype=hole_subtype,
+        hole_subtype=(
+            "n/a: modular-entry probe not applicable (literal vs callee requires)"
+            if disposition == "confirmed-hole"
+            and kind == "corrupt_literal_callee_argument"
+            and not hole_subtype
+            else hole_subtype
+        ),
         minimal_diff=diff if disposition == "confirmed-hole" else "",
         no_runtime_trap_evidence=no_runtime_trap_evidence(mutant, disposition)
         if mutant
@@ -568,6 +583,37 @@ def ensure_fixture_ledger(
             continue
         main_path = REPO / fixture
         current, seconds = run_omega_check(main_path)
+        if current in ("rejected", "stopped", "incomplete"):
+            ledger_by_fixture[fixture] = MutantRecord(
+                original_fixture=fixture,
+                mutation_kind="(none)",
+                kind="(none)",
+                mutant_path=str(main_path),
+                current_verdict=current,
+                route_verdict="n/a",
+                hand_check="fixture-ledger",
+                disposition="original-not-accepted",
+                validity_note=(
+                    f"original fixture --check verdict `{current}` at PIN harness "
+                    "(expected for negative/stopped corpus rows; not a harness error)"
+                ),
+                seconds=seconds,
+            )
+            continue
+        if current in ("timeout",) or current.startswith("exit_") or current == "error":
+            ledger_by_fixture[fixture] = MutantRecord(
+                original_fixture=fixture,
+                mutation_kind="(none)",
+                kind="(none)",
+                mutant_path=str(main_path),
+                current_verdict=current,
+                route_verdict="n/a",
+                hand_check="fixture-ledger",
+                disposition="failed-run",
+                validity_note=f"fixture harness error: omega --check {current} at PIN",
+                seconds=seconds,
+            )
+            continue
         if current != "accepted":
             ledger_by_fixture[fixture] = MutantRecord(
                 original_fixture=fixture,
@@ -578,7 +624,7 @@ def ensure_fixture_ledger(
                 route_verdict="n/a",
                 hand_check="fixture-ledger",
                 disposition="failed-run",
-                validity_note=f"original fixture --check {current} at PIN harness",
+                validity_note=f"fixture harness unexpected verdict `{current}` at PIN",
                 seconds=seconds,
             )
             continue
@@ -713,6 +759,84 @@ def revalidate_tsv_rows() -> list[MutantRecord]:
     return all_rows
 
 
+def integrity_report(mutant_rows: list[MutantRecord]) -> dict[str, object]:
+    from mutant_classify import route_outside, route_rejects
+
+    rejected_both = [
+        row for row in mutant_rows if row.disposition == "rejected-both"
+    ]
+    rb_bad = [
+        row
+        for row in rejected_both
+        if not (route_rejects(row.current_verdict) and route_rejects(row.route_verdict))
+    ]
+    header_backfill_buckets: dict[str, int] = {}
+    header_drop_rows = 0
+    for row in mutant_rows:
+        if row.mutation_kind != "drop_requires_line":
+            continue
+        path = Path(row.mutant_path)
+        original = read_text(REPO / row.original_fixture)
+        if path.is_file():
+            mutant = read_text(path)
+            is_header = drops_machine_header_requires(original, mutant)
+        else:
+            diff = row.minimal_diff or ""
+            is_header = bool(
+                re.search(r"(?m)^-.*\bmachine\b.*\brequires\b", diff)
+            )
+        if is_header:
+            header_drop_rows += 1
+            header_backfill_buckets[row.disposition] = (
+                header_backfill_buckets.get(row.disposition, 0) + 1
+            )
+    return {
+        "rejected_both_total": len(rejected_both),
+        "rejected_both_not_dual_reject": len(rb_bad),
+        "rejected_both_bad_route_verdicts": dict(
+            __import__("collections").Counter(
+                row.route_verdict for row in rb_bad
+            )
+        ),
+        "valid_route_outside_count": sum(
+            1 for row in mutant_rows if row.disposition == "valid-route-outside"
+        ),
+        "rejected_current_route_outside_count": sum(
+            1
+            for row in mutant_rows
+            if row.disposition == "rejected-current-route-outside"
+        ),
+        "header_drop_requires_rows": header_drop_rows,
+        "header_drop_requires_by_bucket": header_backfill_buckets,
+    }
+
+
+def write_stats(rows: list[MutantRecord], meta: dict[str, int]) -> None:
+    mutant_rows = [row for row in rows if is_mutant_row(row)]
+    drop_rows = [
+        row for row in mutant_rows if row.mutation_kind == "drop_requires_line"
+    ]
+    payload = {
+        "pin": PIN,
+        "shard": SHARD,
+        "tsv_rows": len(rows),
+        "mutant_rows": len(mutant_rows),
+        "buckets": bucket_counts_from_rows(rows),
+        "fixture_ledger": fixture_ledger_counts(
+            rows, meta.get("fixtures", len(list_shard_fixtures()))
+        ),
+        "integrity": integrity_report(mutant_rows),
+        "drop_requires_rows": len(drop_rows),
+        "backfill_drop_requires_rows": max(len(drop_rows) - 347, 0),
+        "mutant_root": str(MUTANT_ROOT),
+        "repo_tracked_hint": (
+            "Mutant trees and probe files are written under MUTANT_ROOT (/tmp); "
+            "git tracks only scripts, TSV, md, stats, progress."
+        ),
+    }
+    STATS_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def capture_check_output(main_path: Path) -> tuple[int, str, str]:
     proc = subprocess.run(
         [str(OMEGA), "--check", str(main_path)],
@@ -781,12 +905,28 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
         "| --- | ---: |",
     ]
     for bucket in BUCKETS:
+        if bucket in LEDGER_DISPOSITIONS:
+            continue
         lines.append(f"| `{bucket}` | {buckets.get(bucket, 0)} |")
+    integrity = integrity_report(mutant_rows)
     lines.extend(
         [
             f"| **Total (mutants run)** | **{mutants_run}** |",
             "",
             f"Bucket sum check: {bucket_sum} == {mutants_run} ({ 'OK' if bucket_sum == mutants_run else 'MISMATCH'}).",
+            "",
+            "## Bucket integrity",
+            "",
+            f"- `rejected-both` rows lacking `current=rejected` AND `route=rejected`: "
+            f"**{integrity['rejected_both_not_dual_reject']}** "
+            f"(must be 0; route `stopped` / `outside` / `no-entry` are not rejections).",
+            f"- `rejected-current-route-outside` (invalid + current rejects + route outside): "
+            f"**{integrity['rejected_current_route_outside_count']}**",
+            f"- `valid-route-outside` (valid mutants only): "
+            f"**{integrity['valid_route_outside_count']}**",
+            f"- Machine-header `drop_requires` rows with both checker verdicts: "
+            f"**{integrity['header_drop_requires_rows']}** "
+            f"(bucket split: {integrity['header_drop_requires_by_bucket'] or 'n/a'}).",
             "",
             f"- Fixtures in shard: {meta.get('fixtures', shard_fixtures)}",
             f"- Fixtures processed: {meta.get('fixtures_processed', shard_fixtures)}",
@@ -798,11 +938,13 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
             f"- Fixtures in shard: **{ledger['shard_fixtures']}**",
             f"- Mutated fixtures (≥1 mutant row): **{ledger['mutated']}**",
             f"- `no-mutation` ledger rows: **{ledger['no_mutation']}**",
+            f"- `original-not-accepted` ledger rows: **{ledger['original_not_accepted']}**",
             f"- `failed-run` ledger rows: **{ledger['failed_run']}**",
             (
                 f"- Check: {ledger['shard_fixtures']} == "
-                f"{ledger['mutated']} + {ledger['no_mutation']} + {ledger['failed_run']} "
-                f"({'OK' if ledger['shard_fixtures'] == ledger['mutated'] + ledger['no_mutation'] + ledger['failed_run'] else 'MISMATCH'})"
+                f"{ledger['mutated']} + {ledger['no_mutation']} + "
+                f"{ledger['original_not_accepted']} + {ledger['failed_run']} "
+                f"({'OK' if ledger['shard_fixtures'] == ledger['mutated'] + ledger['no_mutation'] + ledger['original_not_accepted'] + ledger['failed_run'] else 'MISMATCH'})"
             ),
             "",
             f"- `drop_requires` mutant rows: **{sum(1 for row in mutant_rows if row.mutation_kind == 'drop_requires_line')}**",
@@ -942,7 +1084,27 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
     hand_block("## Hand verification (5 discarded drop_requires)", drop_discarded)
     q7 = [row for row in rows if row.disposition == "known-gap-q7-mut"]
     hand_block("## Hand verification (5 known-gap-q7-mut)", q7[:5])
-    lines.extend(["## Confirmed-hole entries", ""])
+    lines.extend(["## Confirmed-hole table", ""])
+    if not confirmed:
+        lines.append("_None._")
+    else:
+        lines.extend(
+            [
+                "| Fixture | kind | accepted_by | subtype | spec quote | minimal diff | no-trap evidence |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        for row in confirmed:
+            quote = (row.spec_quote or "").replace("|", "\\|").replace("\n", " ")
+            diff = (row.minimal_diff or "").replace("|", "\\|").replace("\n", " \\n ")
+            trap = (row.no_runtime_trap_evidence or "").replace("|", "\\|")
+            subtype = (row.hole_subtype or "n/a").replace("|", "\\|")
+            fixture = row.original_fixture.replace("|", "\\|")
+            lines.append(
+                f"| `{fixture}` | `{row.kind or canonical_kind(row.mutation_kind)}` "
+                f"| `{row.accepted_by}` | `{subtype}` | {quote} | `{diff[:240]}` | {trap} |"
+            )
+    lines.extend(["", "## Confirmed-hole entries", ""])
     if not confirmed:
         lines.append("_None._")
     else:
@@ -977,6 +1139,7 @@ def write_md(rows: list[MutantRecord], meta: dict[str, int], host: str) -> None:
     lines.extend(["## Known gap: Q7 mut", ""])
     lines.append(f"Count: {len(q7)} (tracked migration; not counted as confirmed holes).")
     MD_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_stats(rows, meta)
 
 
 def process_fixture_mutations(
@@ -1110,7 +1273,18 @@ def main() -> int:
         meta.setdefault("fixtures_processed", len(load_progress()))
         host = subprocess.check_output(["hostname"], text=True).strip()
         write_md(rows, meta, host)
-        print(json.dumps({"revalidated": len(rows), "buckets": bucket_counts_from_rows(rows)}, indent=2))
+        mutant_rows = [row for row in rows if is_mutant_row(row)]
+        print(
+            json.dumps(
+                {
+                    "revalidated": len(rows),
+                    "mutant_rows": len(mutant_rows),
+                    "buckets": bucket_counts_from_rows(rows),
+                    "integrity": integrity_report(mutant_rows),
+                },
+                indent=2,
+            )
+        )
         return 0
 
     if "--backfill-drop-requires" in sys.argv:

@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "placed_view_call_custody");
-}

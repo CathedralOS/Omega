@@ -1,0 +1,46 @@
+{
+  "pin": "0835b3aaf803ed97f905be42d94727ff58459263",
+  "shard": 3,
+  "tsv_rows": 2488,
+  "mutant_rows": 2330,
+  "buckets": {
+    "confirmed-hole": 4,
+    "known-gap-q7-mut": 261,
+    "disagreement-valid": 83,
+    "valid-route-outside": 635,
+    "rejected-current-route-outside": 23,
+    "discarded-valid": 246,
+    "rejected-both": 1078,
+    "timeout": 0,
+    "failed-run": 0,
+    "discarded-no-rule": 0,
+    "no-mutation": 0,
+    "original-not-accepted": 0
+  },
+  "fixture_ledger": {
+    "shard_fixtures": 1130,
+    "mutated": 972,
+    "no_mutation": 148,
+    "failed_run": 0,
+    "original_not_accepted": 10,
+    "ledger_rows": 158
+  },
+  "integrity": {
+    "rejected_both_total": 1078,
+    "rejected_both_not_dual_reject": 0,
+    "rejected_both_bad_route_verdicts": {},
+    "valid_route_outside_count": 635,
+    "rejected_current_route_outside_count": 23,
+    "header_drop_requires_rows": 59,
+    "header_drop_requires_by_bucket": {
+      "discarded-valid": 25,
+      "rejected-both": 31,
+      "valid-route-outside": 1,
+      "disagreement-valid": 2
+    }
+  },
+  "drop_requires_rows": 556,
+  "backfill_drop_requires_rows": 209,
+  "mutant_root": "/tmp/omega-soundness-mutations/shard-3",
+  "repo_tracked_hint": "Mutant trees and probe files are written under MUTANT_ROOT (/tmp); git tracks only scripts, TSV, md, stats, progress."
+}

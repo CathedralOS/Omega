@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "resident_image_complete_schema");
-}

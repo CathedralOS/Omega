@@ -1,1 +1,0 @@
-Frozen before execution: default and constructor local records retain the same homes through mutable then shared successor loans; first.value and second.array[0] are 9, second.value remains 8; native and Terminal complete normally. Automatic normal-return cleanup remains scheduled.

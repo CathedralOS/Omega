@@ -1,1 +1,0 @@
-Two checked runtime selectors read a constrained scalar field through a shared helper. Padded records force nonzero field offsets and distinct row/element strides. Both engines must observe the selected value, unchanged neighboring cells and padding sentinels, and the guarded outside branch.

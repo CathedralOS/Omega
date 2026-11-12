@@ -78,15 +78,19 @@ BUCKETS = (
     "known-gap-q7-mut",
     "disagreement-valid",
     "valid-route-outside",
+    "rejected-current-route-outside",
     "discarded-valid",
     "rejected-both",
     "timeout",
     "failed-run",
     "discarded-no-rule",
     "no-mutation",
+    "original-not-accepted",
 )
 
-LEDGER_DISPOSITIONS = frozenset({"no-mutation", "failed-run"})
+LEDGER_DISPOSITIONS = frozenset(
+    {"no-mutation", "failed-run", "original-not-accepted"}
+)
 
 BORROW_MUTATION_KINDS = frozenset(
     {
@@ -650,9 +654,29 @@ def classify_mutant(
                 "",
                 note,
             )
+        if route_rejects(current) and route_rejects(route):
+            return ClassifyResult(
+                "rejected-both",
+                "n/a",
+                None,
+                validity.obligation_line,
+                route_reason,
+                "",
+                note,
+            )
+        if route_rejects(current) and route_outside(route):
+            return ClassifyResult(
+                "rejected-current-route-outside",
+                "rejected-current-route-outside",
+                None,
+                validity.obligation_line,
+                route_reason,
+                "",
+                note,
+            )
         return ClassifyResult(
-            "rejected-both",
-            "n/a",
+            "rejected-current-route-outside",
+            "rejected-current-route-outside",
             None,
             validity.obligation_line,
             route_reason,
@@ -742,9 +766,29 @@ def classify_mutant(
             validity.validity_note,
         )
 
+    if route_rejects(current) and route_rejects(route):
+        return ClassifyResult(
+            "rejected-both",
+            "n/a",
+            validity.spec,
+            validity.obligation_line,
+            route_reason,
+            "",
+            validity.validity_note,
+        )
+    if route_rejects(current) and route_outside(route):
+        return ClassifyResult(
+            "rejected-current-route-outside",
+            "rejected-current-route-outside",
+            validity.spec,
+            validity.obligation_line,
+            route_reason,
+            "",
+            validity.validity_note,
+        )
     return ClassifyResult(
-        "rejected-both",
-        "n/a",
+        "rejected-current-route-outside",
+        "rejected-current-route-outside",
         validity.spec,
         validity.obligation_line,
         route_reason,
