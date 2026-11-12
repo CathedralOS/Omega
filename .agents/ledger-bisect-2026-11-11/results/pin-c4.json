@@ -1,0 +1,10 @@
+{
+  "cluster_id": "pin-c4",
+  "witness": "pass/generics/runtime_const_data_symbolic_expression_exit",
+  "good": "69831de47f9f66a24e58aaba3cf7132054046258",
+  "breaking_commit": "177036705c1f3360d8875278131162c2d9e87d40",
+  "pr": "535",
+  "mechanism": "psi: preserve retained closed const applications (#535)",
+  "status": "bisected",
+  "bisect_exit": 0
+}
