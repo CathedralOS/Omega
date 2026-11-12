@@ -43,10 +43,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 20,790 lines / 764,081 bytes with SHA-256
-`2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681`.
+manifest materializes 21,128 lines / 778,742 bytes with SHA-256
+`f250f98315032419393d2a297cf5ff892bcfddb95346cf62f2cc32a2019659c5`.
 The manifest itself is 1,339 bytes, SHA-256
-`7325b74b8f01b5427fb8d74f9e027926542486ce6478cf454787c0cd18ede6fd`;
+`e51b06c19e546db857805b0aee9bb66d23b3b3efb107926a3825539007951221`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -63,7 +63,7 @@ The direct `compile(source, entry)` boundary is an internal compilation customer
 not a replacement public request protocol.
 
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records,
+machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records, nullary copy sums,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
 locals retain their declared types, and mutable bindings permit checked stores.
@@ -74,11 +74,23 @@ Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards and either a machine transfer or a direct Boolean result.
 Constant transition subjects retain their specialized code path.
 
+Nullary `[copy]` sums retain declaration identity through local, field, parameter,
+result and parallel-transfer copies. The private eight-byte tag is not a source
+integer; zero establishes the first declared case. Carrier-qualified case values
+and ordered exhaustive case/wildcard transitions share the existing aggregate
+storage and once-only subject capture. A bounded case-name hash census checks
+full spelling and owner identity after collisions and resets after failed requests.
+Mixed field/case bodies and duplicate cases reject. Payloads, non-copy sums,
+custom sum requirements, direct qualified-case terminal syntax, and other sum
+operations remain explicit coverage refusals; a typed local can carry a case
+through the ordinary result path. The actual `NumericBase` declaration and
+`lexer_digit_in_base` helper require no source changes.
+
 A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses, receivers,
-other runtime carriers/policies, arithmetic beyond the checked unsigned families below, non-Boolean dynamic
+other runtime carriers/policies, arithmetic beyond the checked unsigned families below, other dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.

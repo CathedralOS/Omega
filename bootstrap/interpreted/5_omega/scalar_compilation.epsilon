@@ -15,6 +15,7 @@ data OmegaCheckedValueKind {
     case ForwardedReference;
     case ExactAddition;
     case TrappingArithmetic;
+    case NullaryCase;
 }
 
 data OmegaScalarCompilationStatus {
@@ -75,7 +76,7 @@ data OmegaScalarCompiler {
     selected_machine: i32;
     machine_labels: [i32; 4096];
     // Checked terminal forms: 3 = selected transition row, 4 = value
-    // expression result, 5 = dynamic Boolean transition block, 6 = Unit
+    // expression result, 5 = dynamic Boolean or nullary-sum transition, 6 = Unit
     // completion after every statement. state_targets
     // holds the row/expression/first-statement index; state_values is the
     // exclusive statement end for kind 5.
@@ -117,8 +118,17 @@ data OmegaScalarCompiler {
     effect_sizes: [i32; 16384];
     parameter_types: [i32; 16384];
     transition_targets: [i32; 16384];
+    // Case lookup and duplicate checking share a declaration-scoped name census.
+    // Heads/links store arena index + 1; zero is empty. Retained bucket IDs let
+    // the next compile clear only inserted entries, including failed requests.
+    case_name_heads: [i32; 1024];
+    case_name_next: [i32; 16384];
+    case_name_buckets: [i32; 16384];
+    case_name_count: i32;
+    case_guard_ordinals: [i32; 16384];
+    case_coverage: [i32; 16384];
     // Compound identities are canonical within this single-source adapter:
-    // records 100000+declaration, arrays 200000+type-row, qualified arrays
+    // nominal records/sums 100000+declaration, arrays 200000+type-row, qualified arrays
     // 300000+type-row, shared/mutable record refs 400000/500000+declaration.
     // Reference identity never contains a snapshot of its referent.
     data_colors: [i32; 4096];
@@ -1034,6 +1044,12 @@ machine OmegaScalarCompiler::expression_type(
         _ -> return -1
     }
     state path(row: OmegaExpressionSyntax) {
+        transition row.payload3 > 1 {
+            true -> return self.case_value_type(source, row)
+            _ -> place()
+        }
+    }
+    state place() {
         transition self.check_place(source, state_index, before, expression) {
             1 -> return self.place_types[expression]
             _ -> return -1
@@ -1193,6 +1209,12 @@ machine OmegaScalarCompiler::check_value(
     }
     }
     state path() {
+        transition self.parser.expressions[expression].payload3 > 1 {
+            true -> return self.check_case_value(source, expression, expected)
+            _ -> ordinary_path()
+        }
+    }
+    state ordinary_path() {
         transition expected >= 400000 {
             true -> return self.check_forward_reference(source, state_index, before, expression, expected)
             _ -> return self.check_place_value(source, state_index, before, expression, expected)
@@ -1848,6 +1870,7 @@ machine OmegaScalarCompiler::emit_value_store(&mut self, cell: i32) -> i32 {
 machine OmegaScalarCompiler::emit_value(&mut self, expression: i32) -> i32 {
     transition self.value_kinds[expression] {
         OmegaCheckedValueKind::Literal -> return self.tape.emit_imm(0, self.value_payloads[expression], 0)
+        OmegaCheckedValueKind::NullaryCase -> return self.emit_case_value(expression)
         OmegaCheckedValueKind::Call -> call(self.parser.call_expressions[self.parser.expressions[expression].payload0])
         OmegaCheckedValueKind::BooleanBinary -> return self.emit_boolean_binary(expression,
             self.parser.binary_expressions[self.value_payloads[expression]])
@@ -2054,6 +2077,99 @@ machine OmegaScalarCompiler::emit_transition_target(&mut self, row_index: i32) -
     }
 }
 
+// Nullary sum patterns retain exact declaration identity. Coverage is checked
+// for every case, while source order determines the first selected arm. Even
+// arms following a wildcard still have their patterns and targets checked.
+machine OmegaScalarCompiler::check_case_transition(
+    &mut self, source: &[u8], owner: i32, state_index: i32,
+    first: i32, last: i32, declaration: i32
+) -> i32 {
+    let subject: i32 = self.parser.transition_statements[self.parser.statements[
+        self.parser.machine_states[state_index].first_statement + first].item_index].subject;
+    transition self.check_value(source, owner, state_index, first, subject, 100000 + declaration) {
+        1 -> clear(0)
+        _ -> return 0
+    }
+    state clear(offset: i32) {
+        transition offset < self.parser.data_items[declaration].case_count {
+            true -> clear_case(offset, self.parser.data_items[declaration].first_case + offset)
+            _ -> arm(first, 0)
+        }
+    }
+    state clear_case(offset: i32, slot: i32) {
+        self.case_coverage[slot] = 0;
+        transition true { true -> clear(offset + 1) }
+    }
+    state arm(cursor: i32, wildcard: i32) {
+        transition cursor < last {
+            true -> row(cursor, wildcard, self.parser.statements[
+                self.parser.machine_states[state_index].first_statement + cursor].item_index)
+            _ -> coverage(wildcard)
+        }
+    }
+    state row(cursor: i32, wildcard: i32, row_index: i32) {
+        let row: OmegaTransitionStatementSyntax = self.parser.transition_statements[row_index];
+        transition row.guard_kind {
+            OmegaTransitionGuardKind::Always -> target(cursor, 1, row_index)
+            OmegaTransitionGuardKind::Path -> path(cursor, wildcard, row_index, row)
+            _ -> unsupported(row.guard_start)
+        }
+    }
+    state path(cursor: i32, wildcard: i32, row_index: i32, row: OmegaTransitionStatementSyntax) {
+        transition row.guard_path_member_count == 2 {
+            true -> carrier(cursor, wildcard, row_index, row,
+                self.parser.members[row.guard_first_path_member])
+            _ -> unsupported(row.guard_start)
+        }
+    }
+    state carrier(cursor: i32, wildcard: i32, row_index: i32, row: OmegaTransitionStatementSyntax,
+        name: OmegaRelativeSpan) {
+        transition self.resolve_data(source, name.start, name.end) == declaration {
+            true -> member(cursor, wildcard, row_index,
+                self.parser.members[row.guard_first_path_member + 1])
+            _ -> rejected(name.start)
+        }
+    }
+    state member(cursor: i32, wildcard: i32, row_index: i32, name: OmegaRelativeSpan) {
+        let slot: i32 = self.resolve_case(source, declaration, name.start, name.end);
+        transition slot >= 0 {
+            true -> retain(cursor, wildcard, row_index, slot)
+            _ -> rejected(name.start)
+        }
+    }
+    state retain(cursor: i32, wildcard: i32, row_index: i32, slot: i32) {
+        self.case_guard_ordinals[row_index] = slot - self.parser.data_items[declaration].first_case;
+        self.case_coverage[slot] = 1;
+        transition true { true -> target(cursor, wildcard, row_index) }
+    }
+    state target(cursor: i32, wildcard: i32, row_index: i32) {
+        transition self.check_transition_target(source, owner, state_index, first, row_index) {
+            1 -> arm(cursor + 1, wildcard)
+            _ -> return 0
+        }
+    }
+    state coverage(wildcard: i32) {
+        transition wildcard {
+            1 -> return 1
+            _ -> covered(0)
+        }
+    }
+    state covered(offset: i32) {
+        transition offset < self.parser.data_items[declaration].case_count {
+            true -> covered_case(offset, self.parser.data_items[declaration].first_case + offset)
+            _ -> return 1
+        }
+    }
+    state covered_case(offset: i32, slot: i32) {
+        transition self.case_coverage[slot] {
+            1 -> covered(offset + 1)
+            _ -> rejected(self.transition_anchor)
+        }
+    }
+    state rejected(coordinate: i32) { self.record_reject(-1, 4, coordinate); return 0; }
+    state unsupported(coordinate: i32) { self.record_incomplete(4, coordinate); return 0; }
+}
+
 // Evaluate a dynamic subject once. Every target terminates the current
 // activation; later guards are reached only by the preceding failed guard.
 machine OmegaScalarCompiler::emit_dynamic_transition(
@@ -2095,8 +2211,24 @@ machine OmegaScalarCompiler::emit_dynamic_transition(
     state compare(cursor: i32, subject: i32, row_index: i32, next: i32) {
         self.emission_resource = 12;
         transition self.emit_value_load(49152 + subject) {
-            1 -> branch(cursor, subject, row_index, next,
+            1 -> subject_kind(cursor, subject, row_index, next)
+            _ -> return 0
+        }
+    }
+    state subject_kind(cursor: i32, subject: i32, row_index: i32, next: i32) {
+        transition self.cell_types[49152 + subject] >= 100000 {
+            true -> case_guard(cursor, subject, row_index, next)
+            _ -> branch(cursor, subject, row_index, next,
                 self.parser.transition_statements[row_index].guard_boolean)
+        }
+    }
+    state case_guard(cursor: i32, subject: i32, row_index: i32, next: i32) {
+        // The subject has already been copied once. Read its captured case,
+        // not the original place, and compare against the checked owner ordinal.
+        transition (self.tape.emit_rr(10, 0, 0) == 1) &&
+            (self.tape.emit_imm(2, self.case_guard_ordinals[row_index], 0) == 1) &&
+            (self.emit_comparison_result(16, 0, 2, 1) == 1) {
+            true -> branch(cursor, subject, row_index, next, 1)
             _ -> return 0
         }
     }
@@ -2306,6 +2438,20 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         self.storage_size = 0;
         self.bound_total = 0;
         self.effect_count = 0;
+        transition true { true -> reset_case_names(0) }
+    }
+    state reset_case_names(index: i32) {
+        transition index < self.case_name_count {
+            true -> clear_case_bucket(index)
+            _ -> case_names_empty()
+        }
+    }
+    state clear_case_bucket(index: i32) {
+        self.case_name_heads[self.case_name_buckets[index]] = 0;
+        transition true { true -> reset_case_names(index + 1) }
+    }
+    state case_names_empty() {
+        self.case_name_count = 0;
         transition true { true -> reset_data(0) }
     }
     state reset_data(index: i32) {
@@ -2909,9 +3055,31 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 
     state dynamic_subject(index: i32, state_index: i32, statement_offset: i32,
         run_end: i32, subject: i32) {
-        transition self.expression_type(source, index, state_index, statement_offset, subject) {
-            1 -> dynamic_value(index, state_index, statement_offset, run_end, subject)
+        transition true { true -> dynamic_type(index, state_index, statement_offset, run_end, subject,
+            self.expression_type(source, index, state_index, statement_offset, subject)) }
+    }
+    state dynamic_type(index: i32, state_index: i32, first: i32, last: i32, subject: i32, kind: i32) {
+        transition kind {
+            1 -> dynamic_value(index, state_index, first, last, subject)
+            _ -> dynamic_sum(index, state_index, first, last, kind)
+        }
+    }
+    state dynamic_sum(index: i32, state_index: i32, first: i32, last: i32, kind: i32) {
+        transition (kind >= 100000) && (kind < 104096) {
+            true -> dynamic_sum_shape(index, state_index, first, last, kind - 100000)
             _ -> incomplete(4, self.transition_anchor)
+        }
+    }
+    state dynamic_sum_shape(index: i32, state_index: i32, first: i32, last: i32, declaration: i32) {
+        transition self.parser.data_items[declaration].case_count > 0 {
+            true -> dynamic_sum_check(index, state_index, first, last, declaration)
+            _ -> incomplete(4, self.transition_anchor)
+        }
+    }
+    state dynamic_sum_check(index: i32, state_index: i32, first: i32, last: i32, declaration: i32) {
+        transition self.check_case_transition(source, index, state_index, first, last, declaration) {
+            1 -> retain_dynamic(index, state_index, first, last)
+            _ -> return
         }
     }
 
@@ -3671,6 +3839,108 @@ machine OmegaScalarCompiler::resolve_field(
     }
 }
 
+// A bounded hash-chain census serves both duplicate checking and lookup.
+// Collision checks retain full spelling and declaration scope; hashes never
+// establish identity. Bucket arithmetic is at most 34014 before reduction.
+machine OmegaScalarCompiler::case_name_bucket(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    transition true { true -> byte(start, 0) }
+    state byte(cursor: i32, hash: i32) {
+        transition cursor < end {
+            true -> byte(cursor + 1, (hash * 33 + source[cursor]) % 1024)
+            _ -> return hash
+        }
+    }
+}
+
+machine OmegaScalarCompiler::resolve_case(&mut self, source: &[u8], declaration: i32, start: i32, end: i32) -> i32 {
+    let bucket: i32 = self.case_name_bucket(source, start, end);
+    transition true { true -> link(self.case_name_heads[bucket]) }
+    state link(value: i32) {
+        transition value > 0 {
+            true -> scope(value - 1)
+            _ -> return -1
+        }
+    }
+    state scope(slot: i32) {
+        let owner: OmegaDataSyntax = self.parser.data_items[declaration];
+        transition (slot >= owner.first_case) && (slot < owner.first_case + owner.case_count) {
+            true -> name(slot, self.parser.data_cases[slot].name)
+            _ -> link(self.case_name_next[slot])
+        }
+    }
+    state name(slot: i32, name: OmegaRelativeSpan) {
+        transition self.span_equals(source, start, end, source[name.start..name.end]) {
+            1 -> return slot
+            _ -> link(self.case_name_next[slot])
+        }
+    }
+}
+
+// Only a complete carrier-qualified nullary case is a value in this slice.
+// Expected type never supplies a missing owner or changes nominal identity.
+machine OmegaScalarCompiler::case_value_type(&mut self, source: &[u8], row: OmegaExpressionSyntax) -> i32 {
+    transition (row.payload1 == 2) && (row.payload2 == 0) && (row.payload3 == 2) {
+        true -> owner(self.parser.members[row.payload0])
+        _ -> return -1
+    }
+    state owner(name: OmegaRelativeSpan) {
+        let declaration: i32 = self.resolve_data(source, name.start, name.end);
+        transition declaration >= 0 {
+            true -> sum(declaration)
+            _ -> return -1
+        }
+    }
+    state sum(declaration: i32) {
+        transition self.parser.data_items[declaration].case_count > 0 {
+            true -> member(declaration, self.parser.members[row.payload0 + 1])
+            _ -> return -1
+        }
+    }
+    state member(declaration: i32, name: OmegaRelativeSpan) {
+        transition self.resolve_case(source, declaration, name.start, name.end) >= 0 {
+            true -> return 100000 + declaration
+            _ -> missing(name.start)
+        }
+    }
+    state missing(coordinate: i32) { self.record_reject(-1, 4, coordinate); return -1; }
+}
+
+machine OmegaScalarCompiler::check_case_value(&mut self, source: &[u8], expression: i32, expected: i32) -> i32 {
+    let row: OmegaExpressionSyntax = self.parser.expressions[expression];
+    let kind: i32 = self.case_value_type(source, row);
+    transition kind > 0 {
+        true -> identity(row, kind)
+        _ -> unsupported()
+    }
+    state identity(row: OmegaExpressionSyntax, kind: i32) {
+        transition kind == expected {
+            true -> member(kind - 100000, self.parser.members[row.payload0 + 1])
+            _ -> rejected()
+        }
+    }
+    state member(declaration: i32, name: OmegaRelativeSpan) {
+        let slot: i32 = self.resolve_case(source, declaration, name.start, name.end);
+        self.value_kinds[expression] = OmegaCheckedValueKind::NullaryCase;
+        self.value_payloads[expression] = slot - self.parser.data_items[declaration].first_case;
+        return 1;
+    }
+    state unsupported() { self.record_incomplete(4, self.diagnostic_offset); return 0; }
+    state rejected() { self.record_reject(-1, 4, self.diagnostic_offset); return 0; }
+}
+
+// Nullary sums use the same copy-backed value boundaries as records. The
+// emitter stores the selected ordinal and returns its established backing.
+machine OmegaScalarCompiler::emit_case_value(&mut self, expression: i32) -> i32 {
+    let address: i32 = 33554432 + self.cell_offsets[49152 + expression];
+    transition (self.tape.emit_imm(0, self.value_payloads[expression], 0) == 1) &&
+        (self.tape.emit_imm(1, address, 0) == 1) &&
+        (self.tape.emit_rr(11, 1, 0) == 1) &&
+        (self.tape.emit_imm(0, address, 0) == 1) {
+        true -> return 1
+        _ -> return 0
+    }
+}
+
 // A bounded layout DFS rejects by-value cycles and unsupported contained
 // authority before any storage is allocated or emitted. Each admitted default
 // predicate is also proved for zero, so zero storage establishes these values.
@@ -3681,10 +3951,72 @@ machine OmegaScalarCompiler::layout_data(&mut self, source: &[u8], index: i32) -
         _ -> shape()
     }
     state shape() {
-        transition (self.layout_depth < 64) && (self.parser.data_items[index].case_count == 0) {
+        transition self.parser.data_items[index].case_count > 0 {
+            true -> sum_shape()
+            _ -> record_depth()
+        }
+    }
+    state record_depth() {
+        transition self.layout_depth < 64 {
             true -> begin()
             _ -> unsupported()
         }
+    }
+    state sum_shape() {
+        // Ratified Omega data is a record or a sum; mixed bodies are invalid.
+        transition self.parser.data_items[index].field_count == 0 {
+            true -> sum_requirements()
+            _ -> invalid_sum()
+        }
+    }
+    state invalid_sum() {
+        self.record_reject(-1, 4, self.parser.data_items[index].start);
+        return 0;
+    }
+    state sum_requirements() {
+        transition self.parser.data_items[index].requirement_count == 0 {
+            true -> sum_copy()
+            _ -> unsupported()
+        }
+    }
+    state sum_copy() {
+        transition self.parser.data_items[index].multiplicity {
+            OmegaDataMultiplicity::Unrestricted -> sum_case(0)
+            _ -> unsupported()
+        }
+    }
+    state sum_case(offset: i32) {
+        transition offset < self.parser.data_items[index].case_count {
+            true -> sum_payload(offset, self.parser.data_items[index].first_case + offset)
+            _ -> sum_finish()
+        }
+    }
+    state sum_payload(offset: i32, slot: i32) {
+        transition self.parser.data_cases[slot].payload_field_count == 0 {
+            true -> sum_name(offset, slot, self.parser.data_cases[slot].name)
+            _ -> unsupported()
+        }
+    }
+    state sum_name(offset: i32, slot: i32, name: OmegaRelativeSpan) {
+        transition self.resolve_case(source, index, name.start, name.end) < 0 {
+            true -> sum_retain(offset, slot, self.case_name_bucket(source, name.start, name.end))
+            _ -> duplicate(name.start)
+        }
+    }
+    state sum_retain(offset: i32, slot: i32, bucket: i32) {
+        self.case_name_next[slot] = self.case_name_heads[bucket];
+        self.case_name_heads[bucket] = slot + 1;
+        self.case_name_buckets[self.case_name_count] = bucket;
+        self.case_name_count = self.case_name_count + 1;
+        transition true { true -> sum_case(offset + 1) }
+    }
+    state sum_finish() {
+        // Zero names the first declared case. Nominal identity remains the
+        // declaration ID; this private word never becomes a source integer.
+        self.data_sizes[index] = 8;
+        self.data_copy[index] = 1;
+        self.data_colors[index] = 2;
+        return 1;
     }
     state begin() {
         self.data_colors[index] = 1;
@@ -4108,8 +4440,14 @@ machine OmegaScalarCompiler::check_record_literal(
     let row: OmegaStructLiteralSyntax = self.parser.struct_literals[self.parser.expressions[expression].payload0];
     transition (expected >= 100000) && (expected < 104096) && (row.type_member_count == 1) &&
         (self.type_copy(source, expected) == 1) {
-        true -> name(row, self.parser.members[row.first_type_member])
+        true -> record_shape(row)
         _ -> unsupported()
+    }
+    state record_shape(row: OmegaStructLiteralSyntax) {
+        transition self.parser.data_items[expected - 100000].case_count == 0 {
+            true -> name(row, self.parser.members[row.first_type_member])
+            _ -> rejected(row.start)
+        }
     }
     state name(row: OmegaStructLiteralSyntax, name: OmegaRelativeSpan) {
         transition self.resolve_data(source, name.start, name.end) == expected - 100000 {

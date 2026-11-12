@@ -62,6 +62,46 @@ machine Main::main(&mut self) {
         assert self.compiler.outcome_coordinate == 0;
         self.refusal("pub machine main() -> u8 { 42 }", 2, 64);
         self.positive("public machine compare(value: u32) -> bool { let pub: u32 = value; pub == 47 } public machine main() -> u8 { transition compare(47) { true -> yes() _ -> no() } machine yes() -> u8 { 47 } machine no() -> u8 { 1 } }", 47, 90);
+        // default
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,100);
+        // copy/result
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine make()->Mode{let value:Mode=Mode::Second;value} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let value:Mode=first(make(),Mode::First);choose(value)}",43,101);
+        // field
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder [copy]{mode:Mode;} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Holder=holder;holder.mode=Mode::First;choose(snapshot.mode)}",43,102);
+        // parallel tail
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{transition{_->again(Mode::First,Mode::Second,false)} machine again(a:Mode,b:Mode,done:bool)->u8{transition done{true->finish(a) _->again(b,a,true)}} machine finish(value:Mode)->u8{choose(value)}}",43,103);
+        // ordered wildcard
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8{transition value{_->yes() Mode::First->no() Mode::Second->no()} machine yes()->u8{42} machine no()->u8{1}} machine main()->u8{choose(Mode::First)}",42,104);
+        // same spelling distinct owners
+        self.positive("data Mode [copy] {case First;case Second;}data Other [copy]{case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Mode::Second)}",43,105);
+        // hash collision
+        self.positive("data Mode [copy]{case Ab;case BA;} machine choose(value:Mode)->u8{transition value{Mode::Ab->a() Mode::BA->b()} machine a()->u8{1} machine b()->u8{42}} machine main()->u8{choose(Mode::BA)}",42,106);
+        // argument snapshot
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder {mode:Mode;} machine change(holder:&mut Holder)->Mode{holder.mode=Mode::First;holder.mode} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Mode=first(holder.mode,change(&mut holder));choose(snapshot)}",43,107);
+        // subject once
+        self.positive("data Mode [copy] {case First;case Second;}data Counter {value:u32 in Trapping;} machine subject(counter:&mut Counter)->Mode{counter.value=counter.value+1;let result:Mode=Mode::Second;result} machine observe(counter:&mut Counter)->u8{transition subject(counter){Mode::First->bad() Mode::Second->good()} machine bad()->u8{1} machine good()->u8{42}} machine main()->u8{let mut counter:Counter;let answer:u8=observe(&mut counter);transition answer==42 && counter.value==1{true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,108);
+        // nominal mismatch
+        self.refusal("data Mode [copy] {case First;case Second;}data Other [copy]{case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Other::First)}",1,120);
+        // missing case
+        self.refusal("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Mode::Missing)}",1,121);
+        // nonexhaustive
+        self.refusal("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8{transition value{Mode::First->yes()} machine yes()->u8{42}} machine main()->u8{choose(Mode::First)}",1,122);
+        // bad arm after wildcard
+        self.refusal("data Mode [copy] {case First;case Second;}data Other [copy]{case First;} machine choose(value:Mode)->u8{transition value{_->yes() Other::First->yes()} machine yes()->u8{42}} machine main()->u8{choose(Mode::First)}",1,123);
+        // duplicate case
+        self.refusal("data Mode [copy]{case First;case First;} machine main()->u8{42}",1,124);
+        // mixed record/sum
+        self.refusal("data Mode [copy]{word:u8;case First;} machine main()->u8{42}",1,125);
+        // record-shaped sum
+        self.refusal("data Mode [copy] {case First;case Second;}machine main()->u8{let x:Mode=Mode{};42}",1,126);
+        // integer forgery
+        self.refusal("data Mode [copy] {case First;case Second;}machine main()->u8{let x:Mode=0;42}",1,127);
+        // noncopy
+        self.refusal("data Mode {case First;} machine main()->u8{42}",2,128);
+        // payload
+        self.refusal("data Mode [copy]{case First{value:u8;}} machine main()->u8{42}",2,129);
+        // Rebuild the first-case default after failed partial case censuses.
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
     }
 }
 

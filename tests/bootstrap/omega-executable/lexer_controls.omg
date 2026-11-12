@@ -1,5 +1,5 @@
 // Combined with exact declarations from source/psi/lex/lexer.omg.
-machine main() -> u8 {
+machine identifier_boundaries() -> u8 {
     let start_0: bool = is_identifier_start(0 as +Trapping);
     let continue_0: bool = is_identifier_continue(0 as +Trapping);
     let start_1: bool = is_identifier_start(47 as +Trapping);
@@ -43,4 +43,29 @@ machine main() -> u8 {
     transition !start_0 && !continue_0 && !start_1 && !continue_1 && !start_2 && continue_2 && !start_3 && continue_3 && !start_4 && !continue_4 && !start_5 && !continue_5 && start_6 && continue_6 && start_7 && continue_7 && !start_8 && !continue_8 && !start_9 && !continue_9 && start_10 && continue_10 && !start_11 && !continue_11 && start_12 && continue_12 && start_13 && continue_13 && !start_14 && !continue_14 && !start_15 && !continue_15 && !start_16 && !continue_16 && !start_17 && !continue_17 && !start_18 && !continue_18 && !start_19 && !continue_19 { true -> yes() _ -> no() }
     machine yes() -> u8 { 42 }
     machine no() -> u8 { 1 }
+}
+
+// Check every raw byte against all four source-language numeric bases.
+machine main()->u8 {
+    let identifiers:u8=identifier_boundaries();
+    transition identifiers==42 { true -> scan(0 as +Trapping) _ -> failed() }
+    machine scan(byte:u32 in Trapping)->u8 {
+        transition byte < 256 { true -> compare(byte) _ -> done() }
+    }
+    machine compare(byte:u32 in Trapping)->u8 {
+        let binary:bool=byte>=48 && byte<=49;
+        let octal:bool=byte>=48 && byte<=55;
+        let decimal:bool=byte>=48 && byte<=57;
+        let hexadecimal:bool=decimal || (byte>=65 && byte<=70) || (byte>=97 && byte<=102);
+        let next:u32 in Trapping=byte+1;
+        transition lexer_digit_in_base(byte,NumericBase::Binary)==binary
+            && lexer_digit_in_base(byte,NumericBase::Octal)==octal
+            && lexer_digit_in_base(byte,NumericBase::Decimal)==decimal
+            && lexer_digit_in_base(byte,NumericBase::Hexadecimal)==hexadecimal {
+            true -> scan(next)
+            _ -> failed()
+        }
+    }
+    machine done()->u8 {42}
+    machine failed()->u8 {1}
 }
