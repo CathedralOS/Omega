@@ -80,14 +80,15 @@ def check_both(path: Path) -> tuple[str, str]:
         return "timeout", "timeout"
     current = route = "unknown"
     for line in out.splitlines():
-        if not line.startswith("program "):
+        if not line.startswith("program"):
             continue
-        mc = re.search(r"[\s\t]current=(\S+)", line)
-        mr = re.search(r"[\s\t]route=(\S+)", line)
-        if mc:
-            current = mc.group(1)
-        if mr:
-            route = mr.group(1)
+        if "root=compilation" in line or "root=" not in line:
+            mc = re.search(r"[\s\t]current=(\S+)", line)
+            mr = re.search(r"[\s\t]route=(\S+)", line)
+            if mc:
+                current = mc.group(1)
+            if mr:
+                route = mr.group(1)
     if current == "unknown" and code == 0:
         current = "accepted"
     if route == "unknown" and code != 0:
@@ -226,7 +227,7 @@ def append_tsv(row: dict) -> None:
         "mutant_path",
         "current_verdict",
         "route_verdict",
-        "disposition",
+        "run_disposition",
         "rule_hint",
         "seconds",
     ]
@@ -292,23 +293,10 @@ def main() -> int:
             secs = time.monotonic() - t0
             stats["mutants_run"] = stats.get("mutants_run", 0) + 1
 
-            def is_candidate(current: str, route: str) -> bool:
-                if current == "timeout" or route == "timeout":
-                    return False
-                cur_ok = current == "accepted"
-                cur_no = current in ("rejected", "stopped")
-                route_ok = route == "accepted"
-                route_no = route in ("rejected", "incomplete", "defect")
-                if cur_ok and route_ok:
-                    return True
-                if cur_ok and route_no:
-                    return True
-                if route_ok and cur_no:
-                    return True
-                return False
-
-            interesting = is_candidate(cv, rv)
-            if cv in ("rejected", "stopped") and rv in (
+            if cv == "timeout" or rv == "timeout":
+                run_disposition = "timeout"
+                shutil.rmtree(mdir, ignore_errors=True)
+            elif cv in ("rejected", "stopped") and rv in (
                 "rejected",
                 "incomplete",
                 "defect",
@@ -318,13 +306,13 @@ def main() -> int:
                 "unreached",
             ):
                 stats["both_rejected"] = stats.get("both_rejected", 0) + 1
-                disposition = "rejected_both"
+                run_disposition = "rejected_both"
                 shutil.rmtree(mdir, ignore_errors=True)
-            elif interesting:
-                stats["candidates"] = stats.get("candidates", 0) + 1
-                disposition = "candidate"
+            elif cv == "accepted":
+                stats["current_accepts"] = stats.get("current_accepts", 0) + 1
+                run_disposition = "current_accepts"
             else:
-                disposition = "inconclusive"
+                run_disposition = "current_rejects"
                 shutil.rmtree(mdir, ignore_errors=True)
 
             append_tsv(
@@ -332,10 +320,14 @@ def main() -> int:
                     "fixture": fixture_rel,
                     "tier": tier(fixture_rel),
                     "mutation_kind": kind,
-                    "mutant_path": str(mpath.relative_to(REPO)) if disposition == "candidate" else "",
+                    "mutant_path": (
+                        str(mpath.relative_to(REPO))
+                        if run_disposition == "current_accepts"
+                        else ""
+                    ),
                     "current_verdict": cv,
                     "route_verdict": rv,
-                    "disposition": disposition,
+                    "run_disposition": run_disposition,
                     "rule_hint": rule_hint,
                     "seconds": f"{secs:.2f}",
                 }
@@ -346,7 +338,10 @@ def main() -> int:
         prog["stats"] = stats
         save_progress(prog)
         if len(done) % 10 == 0:
-            print(f"progress {len(done)}/{len(fixtures)} candidates={stats.get('candidates',0)}")
+            print(
+                f"progress {len(done)}/{len(fixtures)} "
+                f"current_accepts={stats.get('current_accepts',0)}"
+            )
 
     print(json.dumps(stats, indent=2))
     return 0
