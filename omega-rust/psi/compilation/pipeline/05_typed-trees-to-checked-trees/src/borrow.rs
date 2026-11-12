@@ -4545,7 +4545,7 @@ mod loans {
                     }
                 }
                 if opaque_result {
-                    loans.extend(
+                    let form = |result_type| {
                         super::invocation_results::form(
                             program,
                             state_symbol,
@@ -4553,9 +4553,21 @@ mod loans {
                             local_data,
                             expression,
                             target,
-                            contract.return_type_reference(program),
+                            result_type,
                         )
-                        .ok_or("completed result reference permissions are unavailable")?,
+                    };
+                    // An evidence-bound call such as `Operations::forward(envelope)`
+                    // can reach its requirement through a supertrait, and its
+                    // signature result `Value` may stay a trait parameter after
+                    // substitution. When the local binds the call result directly,
+                    // its checked declared type is that result's type.
+                    let formed = form(contract.return_type_reference(program)).or_else(|| {
+                        (access_limits.is_empty() && local_data.type_reference.is_valid())
+                            .then(|| form(local_data.type_reference))
+                            .flatten()
+                    });
+                    loans.extend(
+                        formed.ok_or("completed result reference permissions are unavailable")?,
                     );
                 }
                 return Ok(Some(limit_access(loans, &access_limits)));
