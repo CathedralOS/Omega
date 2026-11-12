@@ -50,12 +50,10 @@ trust must be deleted or delegated to that owner rather than dressed as an
 Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
-Bootstrap design exploration is delegated engineering work, not an owner
-question merely because it compares a different implementation or language
-facility. Apply [whole-chain minimization](bootstrap/MINIMIZATION.md): identify
-the next compiler/checker customer and compare complete audit cost. Experiments
-remain non-authoritative; changes to the trust boundary or required assurances
-must be surfaced before relying on them.
+Bootstrap construction follows the owner's [variant mandate](bootstrap/MINIMIZATION.md).
+Architecture exploration and implementation within that mandate are delegated.
+Unresolved changes outside it belong in [OWNER_QUESTIONS_BOOTSTRAP.md](OWNER_QUESTIONS_BOOTSTRAP.md).
+This file continues to own product-language questions.
 
 Name the contracts checked and found silent. A question that cannot cite them
 has not shown its decision is open. Specifications are organized by mechanism
