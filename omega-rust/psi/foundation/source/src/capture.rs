@@ -373,6 +373,40 @@ impl SourceFileSystem {
         }
     }
 
+    /// Enumerate regular source members from the already captured namespace.
+    /// Logical module discovery must not reopen a live directory or turn an
+    /// omitted row into an additional compiler input. Links need no extra rows:
+    /// their contained targets already have one canonical inventory entry.
+    pub fn captured_files(&self, directory: &Path) -> io::Result<Vec<PathBuf>> {
+        match self.route(directory)? {
+            SourcePath::Captured {
+                root,
+                tree,
+                relative,
+            } => {
+                let relative = tree.canonicalize(&relative)?;
+                if !tree.is_dir(&relative) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotADirectory,
+                        "logical source inventory root is not a directory",
+                    ));
+                }
+                Ok(tree
+                    .entries()
+                    .filter_map(|(path, node)| {
+                        (path.starts_with(&relative)
+                            && matches!(node, CapturedSourceNode::File { .. }))
+                        .then(|| root.join(path))
+                    })
+                    .collect())
+            }
+            SourcePath::Physical(_) => Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "logical source discovery requires an immutable source capture",
+            )),
+        }
+    }
+
     fn route(&self, path: &Path) -> io::Result<SourcePath<'_>> {
         if self.captures.is_empty() {
             return Ok(SourcePath::Physical(path.to_path_buf()));

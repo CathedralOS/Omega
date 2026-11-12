@@ -8,6 +8,7 @@
 // `Build` capture to a sealed `Product` owner via `seal_product_owner` or
 // `join_package_inputs` and recreating fresh consumer cohorts via `reselect_current_sources`.
 
+use super::LogicalSourceDiscovery as _;
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -29,15 +30,16 @@ pub(crate) struct SourceStorage {
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Unbound standalone source capture tree.
     anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>, // Captured `core` dependency tree for standalone owner derivation.
-    package_roots: Vec<RegisteredPackageRoot>, // Reconciled package roots sorted longest-first.
-    toolchain_root: Option<PathBuf>,           // Bundled toolchain root (`omega` or `core`).
+    pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
+    toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
     pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-struct RegisteredPackageRoot {
-    root: PathBuf,
-    identity: Option<PackageKeyIdentity>,
+pub(crate) struct RegisteredPackageRoot {
+    pub(crate) root: PathBuf,
+    pub(crate) identity: Option<PackageKeyIdentity>,
+    pub(crate) logical_inventory: Option<super::logical::LogicalSourceInventory>,
 }
 
 impl SourceStorage {
@@ -146,6 +148,32 @@ impl SourceStorage {
 
     pub(crate) fn default_package_root(&self) -> &Path {
         &self.default_package_root
+    }
+
+    /// Ordinary Product units share declarations with their authored module's
+    /// siblings. Build roots stay on their staged import continuation; compiler-
+    /// issued toolchain contract files remain exact direct inputs.
+    pub(crate) fn logical_siblings(
+        &mut self,
+        path: &Path,
+        scope: source::DependencyScope,
+    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+        if scope != source::DependencyScope::Product {
+            return Ok(Vec::new());
+        }
+        let (root, _, origin) = self.source_metadata(path, None);
+        if origin != source::SourceOrigin::User {
+            return Ok(Vec::new());
+        }
+        let excluded = self
+            .package_roots
+            .iter()
+            .filter(|package| package.root != root && package.root.starts_with(&root))
+            .map(|package| package.root.clone())
+            .collect();
+        self.package_roots
+            .siblings(&root, path, &self.filesystem, excluded)
+            .map(|paths| paths.into_iter().map(|path| (path, scope)).collect())
     }
 
     pub fn prepare(
@@ -489,11 +517,18 @@ impl SourceStorage {
                 .canonicalize(&package_root)
                 .unwrap_or(package_root),
             identity,
+            logical_inventory: None,
         };
-        if !self.package_roots.contains(&package_root) {
+        if let Some(owner) = self
+            .package_roots
+            .iter_mut()
+            .find(|owner| owner.root == package_root.root)
+        {
+            if owner.identity.is_none() {
+                owner.identity = identity;
+            }
+        } else {
             self.package_roots.push(package_root);
-            self.package_roots
-                .sort_by_key(|registered| std::cmp::Reverse(registered.root.components().count()));
         }
     }
 
@@ -581,7 +616,8 @@ impl SourceStorage {
         let package = self
             .package_roots
             .iter()
-            .find(|package| path.starts_with(&package.root));
+            .filter(|package| path.starts_with(&package.root))
+            .max_by_key(|package| package.root.components().count());
         match package {
             Some(package) => (package.root.clone(), package.identity, SourceOrigin::User),
             None => (

@@ -2,8 +2,8 @@
 We discover `use` imports in authored order across parsed sources and retain their exact module-import bindings (`ResolvedSourceImport`, `PendingPackageImport`).
 
 We provide two import discovery routes:
-1. `discover_imports` resolves standalone imports relative to the project root (or the bundled `omega::language` toolchain root), rejecting local files that collide with `omega::language::*`.
-2. `discover_package_imports` resolves imports exclusively through the reconciled `PackageCompilationInputs` graph in two phases: `TargetIndependent` (physical source lookup during checkpoint preparation) and `ExactTarget` (joining dependency-generated source bundles and rejecting physical/generated collisions).
+1. `discover_imports` resolves standalone imports by authored logical names within the project or reserved `omega::language::core` mount.
+2. `discover_package_imports` resolves imports exclusively through the reconciled `PackageCompilationInputs` graph in two phases: `TargetIndependent` (captured logical source discovery during checkpoint preparation) and `ExactTarget` (joining dependency-generated source bundles and rejecting physical/generated collisions).
 */
 
 /*
@@ -18,9 +18,10 @@ Provenance:
 - Multi-target `ProgramEntry` contract source seeding: `src/source/source_imports/entry_contract_seed.rs`.
 - Source frontier storage (`SourceStorage`) and `SourceCatalogue` cohort selection: `src/source/source_imports/frontier.rs`.
 - Generated-source extension and dependency handoff admission: `src/source/source_imports/generated.rs`.
+- Captured logical module inventory on registered owner rows: `src/source/source_imports/logical.rs`.
 - Scope-keyed `(PathBuf, DependencyScope)` import queue: `src/source/source_imports/import_queue.rs`.
 - Reconciled package alias resolution and missing-edge diagnostics: `src/source/source_imports/package_selection.rs`.
-- Physical path candidates and root containment checks: `src/source/source_imports/paths.rs`.
+- Reserved toolchain mount recognition and captured-path normalization: `src/source/source_imports/paths.rs`.
 - Paused `Build` product-query dependency mounting and discovery: `src/source/source_imports/product_queries.rs`.
 - Companion `build.omg` / `main.omg` project root discovery: `src/source/source_imports/project.rs`.
 */
@@ -31,6 +32,7 @@ mod entry_contract_seed;
 mod frontier;
 mod generated;
 mod import_queue;
+mod logical;
 mod package_selection;
 mod paths;
 mod product_queries;
@@ -49,6 +51,7 @@ pub(crate) use frontier::{
 pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_build_handoffs};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;
+pub(crate) use logical::LogicalSourceDiscovery;
 
 pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
@@ -60,10 +63,9 @@ pub(crate) use project::ProjectSourceSelection;
 pub use project::project_roots;
 
 use crate::PackageCompilationInputs;
-use bindings::{ImportOccurrence, direct_source_import};
+use bindings::ImportOccurrence;
 use diagnostics::Diagnostic;
-use package_selection::local_source_exists;
-use paths::{identifier_path_text, is_bundled_omega_path, normalize_path, resolve_source_path};
+use paths::{identifier_path_text, is_bundled_omega_path};
 use source::DependencyScope;
 use std::path::{Path, PathBuf};
 use syntax_trees::item::Item;
@@ -75,87 +77,65 @@ pub(crate) fn discover_imports(
     root_path: &Path,
     filesystem: &source::SourceFileSystem,
     retained: &mut Vec<ResolvedSourceImport>,
+    discovery: &mut impl LogicalSourceDiscovery,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
-    let root_dir = if filesystem.is_dir(root_path) {
-        root_path.to_path_buf()
-    } else {
+    let default_root = if filesystem.is_dir(root_path) {
         root_path
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .to_path_buf()
+    } else {
+        root_path.parent().unwrap_or_else(|| Path::new("."))
     };
-    let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
-    let mut imports = Vec::with_capacity(parsed_sources.len());
-
-    for parsed_source in parsed_sources {
-        let source_root = standalone_source_root(&root_dir, &parsed_source.path, filesystem)?;
-        for (offset, root_item) in parsed_source.root_items[parsed_source.import_root_range.clone()]
+    let core = bundled_core_root()?;
+    let mut imports = Vec::new();
+    for unit in parsed.sources.span_or_empty(parsed.batch) {
+        let source_root = if unit.path.starts_with(&core) {
+            core.as_path()
+        } else {
+            default_root
+        };
+        for (offset, item) in unit.root_items[unit.import_root_range.clone()]
             .iter()
             .enumerate()
         {
-            let ordinal = parsed_source.import_root_range.start + offset;
-            if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
-                let members = syntax_trees.items.identifier_path_members(use_item.path);
-                if is_bundled_omega_path(syntax_trees, members)
-                    && local_source_exists(syntax_trees, &source_root, members, filesystem)
-                {
-                    return Err(vec![Diagnostic::error(format!(
-                        "import `{}` in {} collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
-                        identifier_path_text(syntax_trees, members),
-                        parsed_source.path.display(),
-                    ))]);
-                }
-                let resolved = normalize_path(
-                    &resolve_source_path(syntax_trees, &source_root, members, filesystem)?,
-                    filesystem,
-                )?;
-                let prefix = if is_bundled_omega_path(syntax_trees, members) {
-                    2
-                } else {
-                    0
-                };
-                let owner = if prefix == 2 {
-                    bundled_omega_root()?
-                } else {
-                    source_root.clone()
-                };
+            let Item::Use(import) = syntax_trees.root_item(*item) else {
+                continue;
+            };
+            let members = syntax_trees.items.identifier_path_members(import.path);
+            let (root, prefix) = if paths::is_bundled_core_path(syntax_trees, members) {
+                (core.as_path(), 3)
+            } else if is_bundled_omega_path(syntax_trees, members) {
+                return Err(vec![Diagnostic::error(
+                    "ordinary library imports require a declared dependency",
+                )]);
+            } else {
+                (source_root, 0)
+            };
+            let logical = members[prefix..]
+                .iter()
+                .map(|name| name.as_str(syntax_trees).to_owned())
+                .collect::<Vec<_>>();
+            let selected = discovery.select(root, &logical, filesystem)?;
+            if selected.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "import `{}` selects no logical source namespace",
+                    identifier_path_text(syntax_trees, members)
+                ))]);
+            }
+            for path in selected {
                 retained.push(ResolvedSourceImport {
                     occurrence: ImportOccurrence::new(
                         syntax_trees,
-                        parsed_source.source_id,
-                        ordinal,
+                        unit.source_id,
+                        unit.import_root_range.start + offset,
                         members,
                         prefix,
                     ),
-                    requires_module: !direct_source_import(
-                        syntax_trees,
-                        &owner,
-                        &members[prefix..],
-                        &resolved,
-                        filesystem,
-                    ),
-                    path: resolved.clone(),
+                    path: path.clone(),
                 });
-                imports.push((resolved, parsed_source.scope));
+                imports.push((path, unit.scope));
             }
         }
     }
-
     Ok(imports)
-}
-
-fn standalone_source_root(
-    default_root: &Path,
-    source: &Path,
-    filesystem: &source::SourceFileSystem,
-) -> Result<PathBuf, Vec<Diagnostic>> {
-    let standard_library_root = bundled_omega_root()?.join("std");
-    Ok(filesystem
-        .canonicalize(source)
-        .ok()
-        .filter(|source| source.starts_with(&standard_library_root))
-        .map(|_| standard_library_root)
-        .unwrap_or_else(|| default_root.to_path_buf()))
 }
 
 pub(crate) fn discover_imports_with_packages(
@@ -165,6 +145,8 @@ pub(crate) fn discover_imports_with_packages(
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
+    discovery: &mut impl LogicalSourceDiscovery,
+    filesystem: &source::SourceFileSystem,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
@@ -173,6 +155,8 @@ pub(crate) fn discover_imports_with_packages(
         PackageImportPhase::ExactTarget(generated_owner),
         retained,
         contract_custody,
+        discovery,
+        filesystem,
     )?;
     Ok(imports)
 }
@@ -190,8 +174,9 @@ pub(crate) fn discover_package_imports(
     phase: PackageImportPhase,
     retained: &mut Vec<ResolvedSourceImport>,
     contract_custody: &ToolchainContractCustody,
+    discovery: &mut impl LogicalSourceDiscovery,
+    filesystem: &source::SourceFileSystem,
 ) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
-    let filesystem = packages.source_filesystem();
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
         PackageImportPhase::ExactTarget(owner) => owner,
@@ -221,45 +206,29 @@ pub(crate) fn discover_package_imports(
                 contract_root,
                 packages,
             )? {
-                ReconciledPackageImport::Toolchain(path) => {
-                    retained.push(ResolvedSourceImport {
-                        occurrence: ImportOccurrence::new(
-                            syntax_trees,
-                            parsed_source.source_id,
-                            ordinal,
-                            members,
-                            2,
-                        ),
-                        requires_module: !direct_source_import(
-                            syntax_trees,
-                            &bundled_omega_root()?,
-                            &members[2..],
-                            &path,
-                            filesystem,
-                        ),
-                        path: path.clone(),
-                    });
-                    imports.push((path, parsed_source.scope));
-                }
-                ReconciledPackageImport::ToolchainContract { root, path } => {
-                    retained.push(ResolvedSourceImport {
-                        occurrence: ImportOccurrence::new(
-                            syntax_trees,
-                            parsed_source.source_id,
-                            ordinal,
-                            members,
-                            0,
-                        ),
-                        requires_module: !direct_source_import(
-                            syntax_trees,
-                            &root,
-                            members,
-                            &path,
-                            filesystem,
-                        ),
-                        path: path.clone(),
-                    });
-                    imports.push((path, parsed_source.scope));
+                ReconciledPackageImport::Toolchain { root, logical_path }
+                | ReconciledPackageImport::ToolchainContract { root, logical_path } => {
+                    let prefix = members.len() - logical_path.len();
+                    let selected = discovery.select(&root, &logical_path, filesystem)?;
+                    if selected.is_empty() {
+                        return Err(vec![Diagnostic::error(format!(
+                            "import `{}` selects no logical toolchain namespace",
+                            identifier_path_text(syntax_trees, members)
+                        ))]);
+                    }
+                    for path in selected {
+                        retained.push(ResolvedSourceImport {
+                            occurrence: ImportOccurrence::new(
+                                syntax_trees,
+                                parsed_source.source_id,
+                                ordinal,
+                                members,
+                                prefix,
+                            ),
+                            path: path.clone(),
+                        });
+                        imports.push((path, parsed_source.scope));
+                    }
                 }
                 ReconciledPackageImport::Package(request) => {
                     let prefix = members.len() - request.relative_path.components().count();
@@ -276,15 +245,16 @@ pub(crate) fn discover_package_imports(
                     };
                     match phase {
                         PackageImportPhase::TargetIndependent => {
-                            if let Some(physical) = pending.physical_source(packages)? {
+                            for physical in pending.physical_sources(packages, discovery)? {
                                 imports.push((physical, parsed_source.scope));
                             }
                             requests.push(pending);
                         }
                         PackageImportPhase::ExactTarget(_) => {
-                            let resolved = pending.resolve_for_exact_target(packages)?;
-                            imports.push((resolved.path.clone(), parsed_source.scope));
-                            retained.push(resolved);
+                            for resolved in pending.resolve_for_exact_target(packages, discovery)? {
+                                imports.push((resolved.path.clone(), parsed_source.scope));
+                                retained.push(resolved);
+                            }
                         }
                     }
                 }

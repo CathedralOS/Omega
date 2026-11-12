@@ -144,18 +144,20 @@ impl<'source> DependencyGeneratedSource<'source> {
     pub fn authored_base(
         &self,
         package_inputs: &crate::PackageCompilationInputs,
+        discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<(std::path::PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
         let filesystem = package_inputs.source_filesystem();
         let package_root = package_inputs
             .package_root(self.package)
             .expect("validated generated-source bundle retains its package root");
-        let roots = super::project_roots(package_root, filesystem);
-        roots
-            .sources
-            .iter()
-            .filter(|path| Some(*path) != roots.build.as_ref() && filesystem.is_file(path))
-            .map(|path| Ok((super::paths::normalize_path(path, filesystem)?, self.scope)))
-            .collect()
+        let excluded = package_inputs
+            .packages()
+            .filter(|(owner, root)| *owner != self.package && root.starts_with(package_root))
+            .map(|(_, root)| root.to_path_buf())
+            .collect();
+        discovery
+            .select_owned(package_root, &[], filesystem, excluded)
+            .map(|paths| paths.into_iter().map(|path| (path, self.scope)).collect())
     }
 
     pub fn source_text(&self) -> Result<&'source str, Vec<Diagnostic>> {
@@ -222,7 +224,7 @@ pub(crate) fn admit_dependency_build_handoffs(
         .collect()
 }
 
-fn dependency_generated_source_logical_path(
+pub(super) fn dependency_generated_source_logical_path(
     package_root: &Path,
     source: &build_output::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {

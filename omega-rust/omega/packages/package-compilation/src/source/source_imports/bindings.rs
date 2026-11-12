@@ -1,20 +1,18 @@
 // Import occurrence custody (`ImportOccurrence`, `ResolvedSourceImport`, `PendingPackageImport`)
 // and I/O-free joining to the loaded source frontier (`retain_module_import_bindings`).
 //
-// `retain_module_import_bindings` sorts loaded sources by `(path, scope)` once and
-// binary-searches each import's target path within the importer's exact `DependencyScope`,
-// preserving authored `(source_id, ordinal)` binding order independent of discovery waves
-// and verifying that non-direct imports resolve to a file declaring `module`.
+// Join only selected source instances in the importer's checked scope. Several
+// acquired files can contribute to one logical module, but one exact package
+// anchor suffices: semantic lookup validates the whole selected declaration roster.
 
 use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
-use super::paths::{identifier_path_text, source_path_candidates};
+use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
 use source::{DependencyScope, SourceId};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::Item;
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(super) struct ImportOccurrence {
@@ -45,7 +43,6 @@ impl ImportOccurrence {
 pub(crate) struct ResolvedSourceImport {
     pub(super) occurrence: ImportOccurrence,
     pub path: PathBuf,
-    pub(super) requires_module: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -60,72 +57,53 @@ impl PendingPackageImport {
         self.scope
     }
 
-    pub fn physical_source(
+    pub fn physical_sources(
         &self,
         packages: &PackageCompilationInputs,
-    ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
-        self.request.physical_source(packages)
+        discovery: &mut impl super::LogicalSourceDiscovery,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+        self.request.logical_sources(packages, discovery)
     }
 
     pub(crate) fn resolve_for_exact_target(
         &self,
         packages: &PackageCompilationInputs,
-    ) -> Result<ResolvedSourceImport, Vec<Diagnostic>> {
-        let path = self
-            .request
-            .resolve_for_exact_target(packages, self.scope)?;
-        let direct = source_path_candidates(&self.request.relative_path);
-        let generated = packages
-            .generated_source_import_path(
-                self.request.package,
-                match self.scope {
-                    DependencyScope::Product => build_declarations::DependencyPurpose::Product,
-                    DependencyScope::Build => build_declarations::DependencyPurpose::Build,
-                },
-                &direct,
-            )
-            .map_err(|error| vec![Diagnostic::error(error)])?;
-        let requires_module = generated.as_ref() != Some(&path)
-            && !direct.iter().any(|candidate| {
-                same_source_path(
-                    &self.request.expected_root.join(candidate),
-                    &path,
-                    packages.source_filesystem(),
-                )
-            });
-        Ok(ResolvedSourceImport {
-            occurrence: self.occurrence.clone(),
-            path,
-            requires_module,
-        })
+        discovery: &mut impl super::LogicalSourceDiscovery,
+    ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
+        let mut paths = self.physical_sources(packages, discovery)?;
+        // Dependency-generated units have already been admitted under their
+        // issued handoff. One such unit can anchor package custody when the
+        // package has no authored unit in the selected logical namespace.
+        if paths.is_empty() {
+            for (purpose, bundle) in packages.dependency_build_handoff_instances() {
+                let scope = match purpose {
+                    build_declarations::DependencyPurpose::Product => DependencyScope::Product,
+                    build_declarations::DependencyPurpose::Build => DependencyScope::Build,
+                };
+                if bundle.package() == self.request.package && scope == self.scope {
+                    if let Some(unit) = bundle.sources().first() {
+                        paths.push(super::generated::dependency_generated_source_logical_path(
+                            &self.request.expected_root,
+                            unit,
+                        )?);
+                    }
+                }
+            }
+        }
+        if paths.is_empty() {
+            return Err(vec![Diagnostic::error(format!(
+                "import `{}` selects no authored or generated logical source namespace",
+                self.occurrence.authored_path,
+            ))]);
+        }
+        Ok(paths
+            .into_iter()
+            .map(|path| ResolvedSourceImport {
+                occurrence: self.occurrence.clone(),
+                path,
+            })
+            .collect())
     }
-}
-
-pub(super) fn direct_source_import(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    root: &Path,
-    members: &[Identifier],
-    resolved: &Path,
-    filesystem: &source::SourceFileSystem,
-) -> bool {
-    let relative = members.iter().fold(PathBuf::new(), |mut path, member| {
-        path.push(member.as_str(syntax_trees));
-        path
-    });
-    source_path_candidates(&relative)
-        .iter()
-        .any(|candidate| same_source_path(&root.join(candidate), resolved, filesystem))
-}
-
-fn same_source_path(
-    candidate: &Path,
-    resolved: &Path,
-    filesystem: &source::SourceFileSystem,
-) -> bool {
-    candidate == resolved
-        || filesystem
-            .canonicalize(candidate)
-            .is_ok_and(|path| path == resolved)
 }
 
 pub(crate) fn retain_module_import_bindings(
@@ -137,62 +115,83 @@ pub(crate) fn retain_module_import_bindings(
     let mut sources = storage
         .source_roots
         .iter()
+        .filter(|(_, roots)| storage.sources.source_is_selected(roots.source_id))
         .map(|(_, roots)| {
-            let declares_module = roots
-                .root_items
-                .iter()
-                .any(|item| matches!(storage.syntax_trees.root_item(*item), Item::Module(_)));
-            let source = storage
+            storage
                 .sources
                 .get(roots.source_id)
-                .expect("parsed roots retain their source-map instance");
-            (source, declares_module, source.dependency_scope)
+                .expect("parsed roots retain their source-map instance")
         })
         .collect::<Vec<_>>();
-    sources.sort_by(|(left, _, left_scope), (right, _, right_scope)| {
+    sources.sort_by(|left, right| {
         left.path
             .cmp(&right.path)
-            .then_with(|| scope_order(*left_scope).cmp(&scope_order(*right_scope)))
+            .then_with(|| {
+                scope_order(left.dependency_scope).cmp(&scope_order(right.dependency_scope))
+            })
+            .then_with(|| left.source_id.0.cmp(&right.source_id.0))
     });
-    let mut imports = storage.resolved_imports.iter().collect::<Vec<_>>();
+    sources.dedup_by_key(|file| file.source_id);
+    let mut imports = storage
+        .resolved_imports
+        .iter()
+        .filter(|import| storage.sources.source_is_selected(import.occurrence.source))
+        .collect::<Vec<_>>();
     imports.sort_by_key(|import| (import.occurrence.source.0, import.occurrence.ordinal));
     let mut bindings = Vec::with_capacity(imports.len());
+    let mut previous: Option<(&ImportOccurrence, &source::SourceFile)> = None;
     for import in imports {
         let occurrence = &import.occurrence;
-        let importer_scope = storage
+        let importer = storage
             .sources
             .get(occurrence.source)
-            .map(|file| file.dependency_scope)
-            .unwrap_or(DependencyScope::Product);
-        let position = sources.partition_point(|(source, _, _)| source.path < import.path);
+            .expect("selected importer retains its source-map instance");
+        let position = sources.partition_point(|source| source.path < import.path);
         let run_end = sources[position..]
             .iter()
-            .position(|(source, _, _)| source.path != import.path)
+            .position(|source| source.path != import.path)
             .map(|offset| position + offset)
             .unwrap_or(sources.len());
-        let candidates = &sources[position..run_end];
-        let (declaration, declares_module, _) = candidates
+        let mut candidates = sources[position..run_end]
             .iter()
-            .find(|(_, _, scope)| *scope == importer_scope)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "import `{}` no longer resolves to its parsed source frontier",
-                    occurrence.authored_path,
-                ))]
-            })?;
-        if import.requires_module && !declares_module {
-            return Err(vec![Diagnostic::error(format!(
-                "import `{}` requires a declared module in {}",
+            .copied()
+            .filter(|source| source.dependency_scope == importer.dependency_scope);
+        let declaration = candidates.next().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "import `{}` no longer resolves to its selected source frontier",
                 occurrence.authored_path,
-                import.path.display(),
+            ))]
+        })?;
+        if candidates.next().is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "import `{}` resolves to multiple selected source instances",
+                occurrence.authored_path,
             ))]);
         }
-        bindings.push(symbols::SourceScopedTopLevelBinding::module_import(
+        if let Some((prior, anchor)) = previous
+            && prior.source == occurrence.source
+            && prior.ordinal == occurrence.ordinal
+        {
+            if prior != occurrence
+                || !storage.sources.same_checked_instance(
+                    anchor.source_span(source::Span::default()),
+                    declaration.source_span(source::Span::default()),
+                )
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "import `{}` acquired more than one checked package namespace",
+                    occurrence.authored_path,
+                ))]);
+            }
+            continue;
+        }
+        bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
             occurrence.source,
             declaration.source_id,
             &occurrence.authored_path,
             occurrence.package_prefix_members,
         ));
+        previous = Some((occurrence, declaration));
     }
     Ok(bindings)
 }
@@ -201,5 +200,131 @@ fn scope_order(scope: DependencyScope) -> u8 {
     match scope {
         DependencyScope::Product => 0,
         DependencyScope::Build => 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::frontier::SourceRoots;
+    use super::*;
+    use source::{SourceCatalogue, SourceFile, SourceMap, SourceOrigin, SourceResolutionStratum};
+
+    fn file(path: &str, root: &str, text: &str) -> SourceFile {
+        SourceFile {
+            source_id: SourceId(0),
+            path: PathBuf::from(path),
+            package_root: PathBuf::from(root),
+            package_identity: None,
+            dependency_scope: DependencyScope::Product,
+            origin: SourceOrigin::User,
+            resolution_stratum: SourceResolutionStratum::Base,
+            source: text.into(),
+        }
+    }
+
+    fn import(source: SourceId, path: &str) -> ResolvedSourceImport {
+        ResolvedSourceImport {
+            occurrence: ImportOccurrence {
+                source,
+                ordinal: 0,
+                authored_path: "dep::Thing".into(),
+                package_prefix_members: 1,
+            },
+            path: path.into(),
+        }
+    }
+
+    #[test]
+    fn logical_anchor_uses_selected_replacement_and_one_binding_per_occurrence() {
+        let mut catalogue = SourceCatalogue::default();
+        let mut old = catalogue.begin_selection();
+        let stale = catalogue
+            .admit_source_occurrence(&mut old, &file("/dep/a.omg", "/dep", "old"))
+            .unwrap()
+            .source_id;
+        let mut selected = catalogue.begin_selection();
+        let importer = catalogue
+            .admit_source_occurrence(
+                &mut selected,
+                &file("/app/main.omg", "/app", "use dep::Thing;"),
+            )
+            .unwrap()
+            .source_id;
+        let current = catalogue
+            .admit_source_occurrence(&mut selected, &file("/dep/a.omg", "/dep", "new"))
+            .unwrap()
+            .source_id;
+        let sibling = catalogue
+            .admit_source_occurrence(&mut selected, &file("/dep/b.omg", "/dep", "sibling"))
+            .unwrap()
+            .source_id;
+        let mut storage = SourceStorage::default();
+        storage.sources = selected;
+        for source_id in [stale, importer, current, sibling] {
+            storage.source_roots.append(SourceRoots {
+                source_id,
+                root_items: Vec::new(),
+            });
+        }
+        storage.resolved_imports = vec![
+            import(importer, "/dep/a.omg"),
+            import(importer, "/dep/b.omg"),
+        ];
+        assert_eq!(
+            retain_module_import_bindings(&storage).unwrap(),
+            [symbols::SourceScopedTopLevelBinding::logical_module_import(
+                importer,
+                current,
+                "dep::Thing",
+                1
+            )]
+        );
+    }
+
+    #[test]
+    fn logical_anchor_refuses_ambiguous_selected_instances() {
+        let mut files = vec![
+            file("/app/main.omg", "/app", "use dep::Thing;"),
+            file("/dep/a.omg", "/dep", "first"),
+            file("/dep/a.omg", "/dep", "second"),
+        ];
+        for (index, source) in files.iter_mut().enumerate() {
+            source.source_id = SourceId(index);
+        }
+        let mut storage = SourceStorage::default();
+        storage.sources = SourceMap::from_files(files);
+        for index in 0..3 {
+            storage.source_roots.append(SourceRoots {
+                source_id: SourceId(index),
+                root_items: Vec::new(),
+            });
+        }
+        storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
+        assert!(retain_module_import_bindings(&storage).is_err());
+    }
+
+    #[test]
+    fn logical_anchor_refuses_mixed_package_custody() {
+        let mut files = vec![
+            file("/app/main.omg", "/app", "use dep::Thing;"),
+            file("/dep/a.omg", "/dep", "first"),
+            file("/other/b.omg", "/other", "second"),
+        ];
+        for (index, source) in files.iter_mut().enumerate() {
+            source.source_id = SourceId(index);
+        }
+        let mut storage = SourceStorage::default();
+        storage.sources = SourceMap::from_files(files);
+        for index in 0..3 {
+            storage.source_roots.append(SourceRoots {
+                source_id: SourceId(index),
+                root_items: Vec::new(),
+            });
+        }
+        storage.resolved_imports = vec![
+            import(SourceId(0), "/dep/a.omg"),
+            import(SourceId(0), "/other/b.omg"),
+        ];
+        assert!(retain_module_import_bindings(&storage).is_err());
     }
 }

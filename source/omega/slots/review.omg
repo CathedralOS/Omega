@@ -1,4 +1,5 @@
-use psi;
+use psi::Checks;
+use psi::SlotReview;
 
 // Product consumer of the public slot records Psi checking publishes.
 // The admission itself is `psi::checking::slot_review`: this package cannot

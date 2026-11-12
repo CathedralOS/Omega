@@ -2,7 +2,9 @@
 // The product consumer admits a public slot only when a returned-borrow
 // origin names the same reference parameter as each qualification
 // precondition. An empty roster admits. A mismatched index does not.
-use psi;
+use psi::Checks;
+use psi::SlotOriginKind;
+use psi::SlotReview;
 
 data Main {}
 
